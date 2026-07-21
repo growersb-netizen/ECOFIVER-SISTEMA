@@ -1,0 +1,42 @@
+# ── Entornos virtuales / dependencias locales ──
+venv/
+.venv/
+env/
+ENV/
+node_modules/
+
+# ── Caché de Python ──
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Secrets / datos / logs (no van a la imagen) ──
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+*.log
+data/
+uploads/
+
+# ── Control de versiones / herramientas ──
+.git/
+.gitignore
+.github/
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Archivos de desarrollo / scripts temporales ──
+*.md
+_fix_*.py
+_tmp_*.py
+tests/
+test_*.py

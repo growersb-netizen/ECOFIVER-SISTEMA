@@ -1,0 +1,732 @@
+{% extends "base.html" %}
+{% block title %}Leads · Eco Módulos CRM{% endblock %}
+{% block page_title %}Leads{% endblock %}
+
+{% block top_actions %}
+<a href="/trabajar" class="btn btn-success" style="font-weight:700;letter-spacing:.3px">▶ Arrancar a contactar</a>
+{% if 'ADMIN' in roles or 'SUPERVISOR_CIERRE' in roles %}
+<button onclick="mostrarModalRedistribuir()" class="btn btn-secondary" style="border-color:#f59e0b;color:#f59e0b" title="Redistribuir leads no contactados entre asesores">🔀 Redistribuir leads</button>
+<button onclick="mostrarModalRellamados()" class="btn btn-secondary" style="border-color:#8b5cf6;color:#8b5cf6" title="Distribuir datos ya llamados de la base RELLAMADOS">♻️ Distribuir rellamados</button>
+{% endif %}
+<button onclick="newLead()" class="btn btn-primary">+ Nuevo lead</button>
+<label class="btn btn-secondary" style="cursor:pointer">
+  📥 Importar
+  <input type="file" accept=".xlsx,.csv" style="display:none" onchange="importLeadsFile(this)">
+</label>
+{% if 'ADMIN' in roles %}
+<button onclick="openReasignarMasivo()" class="btn btn-secondary" id="btn-reasignar-masivo" style="display:none">
+  🔀 Reasignar (<span id="seleccionados-count">0</span>)
+</button>
+<button onclick="openTransferirVendedor()" class="btn btn-secondary" title="Reasignar o intercambiar todos los leads de un vendedor">
+  ⚡ Transferir
+</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!-- Filters -->
+<div class="filters-bar">
+  <div class="search-input">
+    <input type="text" id="search" class="form-control" placeholder="🔍 Buscar nombre, teléfono..."
+           oninput="leadsFilter.search=this.value;loadLeads()">
+  </div>
+  <select class="form-control" style="max-width:150px" onchange="leadsFilter.estado=this.value;loadLeads()">
+    <option value="">Todos los estados</option>
+    <option value="NUEVO">Nuevo</option>
+    <option value="CONTACTADO">Contactado</option>
+    <option value="CALIFICADO">Calificado</option>
+    <option value="VIDEOLLAMADA_AGENDADA">VL Agendada</option>
+    <option value="CERRADO">Cerrado</option>
+    <option value="PERDIDO">Perdido</option>
+  </select>
+  <select class="form-control" style="max-width:150px" onchange="leadsFilter.producto=this.value;loadLeads()">
+    <option value="">Todos los productos</option>
+    <option value="PISCINA">Piscina</option>
+    <option value="MODULO">Módulo</option>
+    <option value="COMBO">Combo</option>
+  </select>
+  <select class="form-control" style="max-width:150px" onchange="leadsFilter.forma_pago=this.value;loadLeads()">
+    <option value="">Todas las formas de pago</option>
+    <option value="PMI">PMI</option>
+    <option value="DIRECTA_50">Directa 50%</option>
+    <option value="CONTADO">Contado</option>
+    <option value="SIN_DEFINIR">Sin definir</option>
+  </select>
+  <select class="form-control" style="max-width:150px" onchange="leadsFilter.origen=this.value;loadLeads()">
+    <option value="">Todos los orígenes</option>
+    <option value="WHATSAPP">WhatsApp</option>
+    <option value="INSTAGRAM">Instagram</option>
+    <option value="WEB">Web</option>
+    <option value="REFERIDO">Referido</option>
+    <option value="IMPORTADO">Importado</option>
+  </select>
+
+  <!-- View toggle -->
+  <div style="margin-left:auto;display:flex;gap:4px">
+    <button class="btn btn-secondary btn-sm view-btn active" data-view="list" onclick="switchLeadsView('list')">≡ Lista</button>
+    <button class="btn btn-secondary btn-sm view-btn" data-view="kanban" onclick="switchLeadsView('kanban')">⊞ Kanban</button>
+  </div>
+</div>
+
+<!-- Lista sin contactar (alerta) -->
+<div id="alerta-sin-contactar" style="display:none;margin-bottom:12px"></div>
+
+<!-- List View -->
+<div id="leads-list-view">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          {% if 'ADMIN' in roles %}
+          <th style="width:36px">
+            <input type="checkbox" id="check-all" onchange="toggleSeleccionarTodos(this)" title="Seleccionar todos">
+          </th>
+          {% endif %}
+          <th>#</th><th>Cliente</th><th>Teléfono</th><th>Estado</th>
+          <th>Producto</th><th>Forma pago</th><th>Asesor</th><th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody id="leads-tbody">
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">
+          <div class="spinner" style="margin:0 auto"></div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Kanban View -->
+<div id="leads-kanban-view" style="display:none">
+  <div class="kanban-board" id="leads-kanban"></div>
+</div>
+
+
+<!-- Modal Lead -->
+<div class="modal-overlay" id="modal-lead" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-lead-title">Nuevo Lead</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-lead')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="lead-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nombre completo *</label>
+            <input name="nombre" class="form-control" required placeholder="Juan Pérez">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono *</label>
+            <input name="telefono" class="form-control" required placeholder="1154321234">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Localidad</label>
+          <input name="localidad" class="form-control" placeholder="Pilar, Buenos Aires">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Producto de interés</label>
+            <select name="producto_interes" id="lead-producto" class="form-control"
+                    onchange="updateModeloOptions('lead-producto','lead-modelo')">
+              <option value="SIN_DEFINIR">Sin definir</option>
+              <option value="PISCINA">Piscina</option>
+              <option value="MODULO">Módulo</option>
+              <option value="COMBO">Combo</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Modelo específico</label>
+            <select name="modelo_especifico" id="lead-modelo" class="form-control">
+              <option value="">— Seleccionar producto primero —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Forma de pago</label>
+            <select name="forma_pago" class="form-control">
+              <option value="SIN_DEFINIR">Sin definir</option>
+              <option value="PMI">PMI</option>
+              <option value="DIRECTA_50">Directa 50%</option>
+              <option value="CONTADO">Contado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Origen</label>
+            <select name="origen" class="form-control">
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="INSTAGRAM">Instagram</option>
+              <option value="WEB">Web</option>
+              <option value="REFERIDO">Referido</option>
+              <option value="IMPORTADO">Importado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="form-control">
+              <option value="NUEVO">Nuevo</option>
+              <option value="CONTACTADO">Contactado</option>
+              <option value="CALIFICADO">Calificado</option>
+              <option value="VIDEOLLAMADA_AGENDADA">Videollamada agendada</option>
+              <option value="CERRADO">Cerrado</option>
+              <option value="PERDIDO">Perdido</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Asesor asignado</label>
+            <select name="asesor_apertura_id" class="form-control">
+              <option value="">— Sin asignar —</option>
+              {% for a in asesores %}
+              <option value="{{ a.id }}">{{ a.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas internas</label>
+          <textarea name="notas" class="form-control" rows="3" placeholder="Observaciones del lead..."></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-lead')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveLead()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Transferencia de Vendedor -->
+{% if 'ADMIN' in roles %}
+<div class="modal-overlay" id="modal-transferir" style="display:none">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <span class="modal-title" id="transferir-title">⚡ Transferir leads de vendedor</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-transferir')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Toggle modo -->
+      <div style="display:flex;gap:0;margin-bottom:20px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)">
+        <button id="modo-btn-reasignar" onclick="setTransferMode('reasignar')"
+                style="flex:1;padding:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;
+                       background:var(--green);color:#fff;transition:all 0.15s">
+          ➡ Reasignar (A → B)
+        </button>
+        <button id="modo-btn-intercambiar" onclick="setTransferMode('intercambiar')"
+                style="flex:1;padding:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;
+                       background:var(--bg-secondary);color:var(--text-secondary);transition:all 0.15s">
+          ↔ Intercambiar (A ↔ B)
+        </button>
+      </div>
+
+      <!-- Selects de vendedores -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="flex:1">
+          <label class="form-label" id="label-vendedor-a">Origen (todos sus leads van a B)</label>
+          <select id="transfer-asesor-a" class="form-control" onchange="previewTransfer()">
+            <option value="">— Seleccionar —</option>
+            {% for a in asesores %}
+            <option value="{{ a.id }}">{{ a.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="font-size:22px;font-weight:700;color:var(--green);margin-top:18px;flex-shrink:0" id="transfer-arrow">➡</div>
+        <div style="flex:1">
+          <label class="form-label" id="label-vendedor-b">Destino (recibe los leads)</label>
+          <select id="transfer-asesor-b" class="form-control" onchange="previewTransfer()">
+            <option value="">— Seleccionar —</option>
+            {% for a in asesores %}
+            <option value="{{ a.id }}">{{ a.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Opción solo activos -->
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:16px">
+        <input type="checkbox" id="transfer-solo-activos" checked onchange="previewTransfer()"
+               style="width:16px;height:16px;accent-color:var(--green)">
+        Solo leads activos (excluir Cerrados y Perdidos)
+      </label>
+
+      <!-- Preview -->
+      <div id="transfer-preview" style="min-height:56px"></div>
+
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-transferir')" class="btn btn-secondary">Cancelar</button>
+      <button id="btn-confirmar-transfer" onclick="ejecutarTransfer()" class="btn btn-primary btn-lg" disabled>
+        Confirmar
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal Reasignación Masiva -->
+{% if 'ADMIN' in roles %}
+<div class="modal-overlay" id="modal-reasignar" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">🔀 Reasignar leads</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-reasignar')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:16px;color:var(--text-secondary)">
+        Se reasignarán <strong id="reasignar-count">0</strong> leads seleccionados.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Asesor destino</label>
+        <select id="reasignar-asesor" class="form-control">
+          <option value="">🔀 Distribución automática (round-robin)</option>
+          {% for a in asesores %}
+          <option value="{{ a.id }}">{{ a.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-reasignar')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="ejecutarReasignar()" class="btn btn-primary btn-lg">Confirmar reasignación</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const isAdmin = {{ ('true' if 'ADMIN' in roles else 'false') }};
+  let leadsSeleccionados = new Set();
+
+  // Leer filtro desde URL (cuando se viene del dashboard)
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const filtro = p.get('filtro');
+    if (filtro === 'sin_contactar') {
+      leadsFilter.estado = 'NUEVO';
+      const sel = document.querySelector('select[onchange*="estado"]');
+      if (sel) sel.value = 'NUEVO';
+    }
+  })();
+
+  loadLeads();
+  cargarAlertaSinContactar();
+
+  async function cargarAlertaSinContactar() {
+    if (!isAdmin) return;
+    try {
+      const data = await API.get('/api/leads/sin-contactar?horas=24');
+      if (!data || !data.length) return;
+      const el = document.getElementById('alerta-sin-contactar');
+      el.style.display = 'block';
+      el.innerHTML = `
+        <div class="alert" style="background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.3);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <span>⚠ <strong>${data.length} lead${data.length !== 1 ? 's' : ''}</strong> sin contactar hace más de 24hs</span>
+          <div style="display:flex;gap:8px">
+            <button onclick="filtrarSinContactar()" class="btn btn-sm btn-secondary">Ver</button>
+            <button onclick="reasignarSinContactar()" class="btn btn-sm btn-primary">🔀 Redistribuir todos</button>
+          </div>
+        </div>`;
+    } catch(e) {}
+  }
+
+  function filtrarSinContactar() {
+    leadsFilter.estado = 'NUEVO';
+    document.querySelector('select[onchange*="estado"]').value = 'NUEVO';
+    loadLeads();
+  }
+
+  async function reasignarSinContactar() {
+    if (!confirm('¿Reasignar automáticamente todos los leads NUEVO sin actividad en 24hs?')) return;
+    try {
+      const data = await API.get('/api/leads/sin-contactar?horas=24');
+      if (!data?.length) { toast('No hay leads para reasignar', 'info'); return; }
+      const ids = data.map(l => l.id);
+      const res = await API.post('/api/leads/reasignar-masivo', { ids, asesor_id: null });
+      toast(`✅ ${res.reasignados} leads redistribuidos`);
+      loadLeads();
+      cargarAlertaSinContactar();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // ─── MODAL REDISTRIBUCIÓN INTELIGENTE ─────────────────────────────────────
+  async function mostrarModalRedistribuir() {
+    // Contar leads redistribuibles
+    let preview = null;
+    try {
+      preview = await API.get('/api/leads/sin-contactar?horas=0');
+    } catch(e) {}
+
+    const totalNoContactados = preview ? preview.length : '?';
+
+    // Crear modal dinámico
+    const existing = document.getElementById('modal-redistribuir-inteligente');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-redistribuir-inteligente';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <h3>🔀 Redistribuir leads</h3>
+          <button onclick="document.getElementById('modal-redistribuir-inteligente').remove()" class="btn btn-icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:14px;margin-bottom:16px">
+            <div style="font-weight:700;color:#f59e0b;margin-bottom:4px">⚡ Redistribución inteligente</div>
+            <div style="font-size:13px;color:var(--text-secondary)">
+              Solo redistribuye leads en estado <strong>NUEVO</strong> e <strong>INTENTADO</strong> (no contactados).<br>
+              Los leads ya contactados permanecen con su asesor actual.<br>
+              Los <strong>INTENTADO</strong> se recirculan hasta 3 veces; luego pasan a la base <strong>RELLAMADOS</strong>.
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;cursor:pointer;border:2px solid transparent;transition:.2s"
+                 id="opcion-todos" onclick="seleccionarOpcionRedistribuir('todos')"
+                 onmouseenter="this.style.borderColor='#f59e0b'" onmouseleave="this.style.borderColor=seleccionRedist==='todos'?'#f59e0b':'transparent'">
+              <div style="font-weight:700;margin-bottom:4px">📊 Redistribuir TODOS los no contactados</div>
+              <div style="font-size:13px;color:var(--text-muted)">${totalNoContactados} lead${totalNoContactados !== 1 ? 's' : ''} en NUEVO/INTENTADO entre todos los asesores del pool</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;cursor:pointer;border:2px solid transparent;transition:.2s"
+                 id="opcion-asesor" onclick="seleccionarOpcionRedistribuir('asesor')"
+                 onmouseenter="this.style.borderColor='#f59e0b'" onmouseleave="this.style.borderColor=seleccionRedist==='asesor'?'#f59e0b':'transparent'">
+              <div style="font-weight:700;margin-bottom:8px">👤 De un asesor específico</div>
+              <select id="select-asesor-redistribuir" onclick="event.stopPropagation();seleccionarOpcionRedistribuir('asesor')"
+                style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:14px">
+                <option value="">-- Seleccionar asesor --</option>
+              </select>
+            </div>
+          </div>
+          <div id="preview-redistribucion" style="margin-top:12px;font-size:13px;color:var(--text-muted);text-align:center"></div>
+        </div>
+        <div class="modal-footer">
+          <button onclick="document.getElementById('modal-redistribuir-inteligente').remove()" class="btn btn-secondary">Cancelar</button>
+          <button onclick="ejecutarRedistribucion()" class="btn btn-primary" style="background:#f59e0b;border-color:#f59e0b">🔀 Redistribuir ahora</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    // Cargar asesores en el select
+    try {
+      const asesores = await API.get('/api/usuarios?roles=ASESOR_APERTURA,SUPERVISOR_CIERRE');
+      const sel = document.getElementById('select-asesor-redistribuir');
+      if (asesores && sel) {
+        (asesores.usuarios || asesores || []).forEach(u => {
+          sel.innerHTML += `<option value="${u.id}">${u.nombre}</option>`;
+        });
+      }
+    } catch(e) {}
+  }
+
+  let seleccionRedist = 'todos';
+  function seleccionarOpcionRedistribuir(opcion) {
+    seleccionRedist = opcion;
+    document.getElementById('opcion-todos').style.borderColor = opcion === 'todos' ? '#f59e0b' : 'transparent';
+    document.getElementById('opcion-asesor').style.borderColor = opcion === 'asesor' ? '#f59e0b' : 'transparent';
+  }
+  seleccionarOpcionRedistribuir('todos');
+
+  async function ejecutarRedistribucion() {
+    const desde_asesor_id = seleccionRedist === 'asesor' ? (document.getElementById('select-asesor-redistribuir').value || null) : null;
+    const ok = await showConfirm(
+      seleccionRedist === 'todos'
+        ? '¿Redistribuir TODOS los leads no contactados entre los asesores del pool?'
+        : `¿Redistribuir los leads no contactados del asesor seleccionado?`,
+      'Confirmar redistribución',
+      '#f59e0b'
+    );
+    if (!ok) return;
+    try {
+      const res = await API.post('/api/leads/redistribuir', { desde_asesor_id: desde_asesor_id ? parseInt(desde_asesor_id) : null });
+      const modal = document.getElementById('modal-redistribuir-inteligente');
+      if (modal) modal.remove();
+      toast(`✅ ${res.reasignados} de ${res.total} leads redistribuidos correctamente`);
+      loadLeads();
+      cargarAlertaSinContactar();
+    } catch(e) {
+      toast(e.message || 'Error al redistribuir', 'error');
+    }
+  }
+
+  // ─── MODAL DISTRIBUIR RELLAMADOS ──────────────────────────────────────────
+  async function mostrarModalRellamados() {
+    let resumen = { total: 0, asesores: [] };
+    try {
+      resumen = await API.get('/api/leads/rellamados/resumen');
+    } catch(e) {}
+
+    const existing = document.getElementById('modal-distribuir-rellamados');
+    if (existing) existing.remove();
+
+    const total = resumen.total || 0;
+    const opciones = (resumen.asesores || [])
+      .map(a => `<option value="${a.id}">${a.nombre}</option>`).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-distribuir-rellamados';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:460px">
+        <div class="modal-header">
+          <h3>♻️ Distribuir rellamados</h3>
+          <button onclick="document.getElementById('modal-distribuir-rellamados').remove()" class="btn btn-icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:10px;padding:14px;margin-bottom:16px">
+            <div style="font-weight:700;color:#8b5cf6;margin-bottom:4px">📥 Base RELLAMADOS</div>
+            <div style="font-size:13px;color:var(--text-secondary)">
+              Datos ya llamados que agotaron sus 3 recirculaciones.<br>
+              Disponibles: <strong id="rellamados-total">${total}</strong>
+            </div>
+          </div>
+          ${total === 0 ? `
+            <div style="text-align:center;color:var(--text-muted);padding:8px 0">No hay datos en la base RELLAMADOS todavía.</div>
+          ` : `
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div>
+                <label style="font-weight:700;display:block;margin-bottom:6px">👤 Enviar a</label>
+                <select id="rellamados-asesor" class="form-control" style="width:100%">
+                  <option value="">-- Seleccionar asesor --</option>
+                  ${opciones}
+                </select>
+              </div>
+              <div>
+                <label style="font-weight:700;display:block;margin-bottom:6px">🔢 Cantidad de datos</label>
+                <input type="number" id="rellamados-cantidad" class="form-control" min="1" max="${total}" value="${Math.min(20, total)}" style="width:100%">
+              </div>
+            </div>
+          `}
+        </div>
+        <div class="modal-footer">
+          <button onclick="document.getElementById('modal-distribuir-rellamados').remove()" class="btn btn-secondary">Cancelar</button>
+          ${total === 0 ? '' : `<button onclick="ejecutarDistribuirRellamados()" class="btn btn-primary" style="background:#8b5cf6;border-color:#8b5cf6">♻️ Distribuir</button>`}
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+
+  async function ejecutarDistribuirRellamados() {
+    const asesorId = document.getElementById('rellamados-asesor').value || null;
+    const cantidad = parseInt(document.getElementById('rellamados-cantidad').value || '0');
+    if (!asesorId) { toast('Seleccioná un asesor destino', 'error'); return; }
+    if (!cantidad || cantidad <= 0) { toast('Indicá una cantidad válida', 'error'); return; }
+    const ok = await showConfirm(
+      `¿Enviar ${cantidad} dato${cantidad !== 1 ? 's' : ''} de RELLAMADOS al asesor seleccionado?`,
+      'Confirmar distribución', '#8b5cf6'
+    );
+    if (!ok) return;
+    try {
+      const res = await API.post('/api/leads/rellamados/distribuir', {
+        asesor_id: parseInt(asesorId), cantidad
+      });
+      const modal = document.getElementById('modal-distribuir-rellamados');
+      if (modal) modal.remove();
+      toast(`✅ ${res.mensaje || (res.distribuidos + ' datos distribuidos')}`);
+      loadLeads();
+    } catch(e) {
+      toast(e.message || 'Error al distribuir rellamados', 'error');
+    }
+  }
+
+  // ─── SELECCIÓN MASIVA ─────────────────────────────────────────────────────
+  function toggleSeleccionarTodos(chk) {
+    document.querySelectorAll('.lead-check').forEach(c => {
+      c.checked = chk.checked;
+      const id = parseInt(c.dataset.id);
+      if (chk.checked) leadsSeleccionados.add(id);
+      else leadsSeleccionados.delete(id);
+    });
+    actualizarToolbarSeleccion();
+  }
+
+  function toggleLead(id, checked) {
+    if (checked) leadsSeleccionados.add(id);
+    else leadsSeleccionados.delete(id);
+    actualizarToolbarSeleccion();
+  }
+
+  function actualizarToolbarSeleccion() {
+    const n = leadsSeleccionados.size;
+    const btn = document.getElementById('btn-reasignar-masivo');
+    const cnt = document.getElementById('seleccionados-count');
+    if (btn) btn.style.display = n > 0 ? 'inline-flex' : 'none';
+    if (cnt) cnt.textContent = n;
+  }
+
+  function openReasignarMasivo() {
+    if (!leadsSeleccionados.size) return;
+    document.getElementById('reasignar-count').textContent = leadsSeleccionados.size;
+    openModal('modal-reasignar');
+  }
+
+  async function ejecutarReasignar() {
+    const asesorId = document.getElementById('reasignar-asesor').value || null;
+    try {
+      const res = await API.post('/api/leads/reasignar-masivo', {
+        ids: [...leadsSeleccionados],
+        asesor_id: asesorId,
+      });
+      toast(`✅ ${res.reasignados} leads reasignados`);
+      closeModal('modal-reasignar');
+      leadsSeleccionados.clear();
+      actualizarToolbarSeleccion();
+      loadLeads();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function importLeadsFile(input) {
+    if (!input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    try {
+      const data = await API.postForm('/api/leads/importar', fd);
+      toast(`✅ ${data.importados} leads importados`);
+      loadLeads();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // ─── TRANSFERENCIA DE VENDEDOR ────────────────────────────────────────────
+  let transferMode = 'reasignar'; // 'reasignar' | 'intercambiar'
+
+  function openTransferirVendedor() {
+    transferMode = 'reasignar';
+    document.getElementById('transfer-asesor-a').value = '';
+    document.getElementById('transfer-asesor-b').value = '';
+    document.getElementById('transfer-solo-activos').checked = true;
+    document.getElementById('transfer-preview').innerHTML = '';
+    document.getElementById('btn-confirmar-transfer').disabled = true;
+    setTransferMode('reasignar');
+    openModal('modal-transferir');
+  }
+
+  function setTransferMode(mode) {
+    transferMode = mode;
+    const btnR = document.getElementById('modo-btn-reasignar');
+    const btnI = document.getElementById('modo-btn-intercambiar');
+    const arrow = document.getElementById('transfer-arrow');
+    const labelA = document.getElementById('label-vendedor-a');
+    const labelB = document.getElementById('label-vendedor-b');
+
+    if (mode === 'reasignar') {
+      btnR.style.background = 'var(--green)';
+      btnR.style.color = '#fff';
+      btnI.style.background = 'var(--bg-secondary)';
+      btnI.style.color = 'var(--text-secondary)';
+      arrow.textContent = '➡';
+      labelA.textContent = 'Origen (todos sus leads van a B)';
+      labelB.textContent = 'Destino (recibe los leads)';
+    } else {
+      btnI.style.background = 'var(--green)';
+      btnI.style.color = '#fff';
+      btnR.style.background = 'var(--bg-secondary)';
+      btnR.style.color = 'var(--text-secondary)';
+      arrow.textContent = '↔';
+      labelA.textContent = 'Vendedor A';
+      labelB.textContent = 'Vendedor B';
+    }
+    previewTransfer();
+  }
+
+  async function previewTransfer() {
+    const idA = document.getElementById('transfer-asesor-a').value;
+    const idB = document.getElementById('transfer-asesor-b').value;
+    const soloActivos = document.getElementById('transfer-solo-activos').checked;
+    const preview = document.getElementById('transfer-preview');
+    const btnConfirm = document.getElementById('btn-confirmar-transfer');
+
+    if (!idA || !idB) {
+      preview.innerHTML = '<p style="color:var(--text-secondary);font-size:14px">Seleccioná ambos vendedores para ver el resumen.</p>';
+      btnConfirm.disabled = true;
+      return;
+    }
+    if (idA === idB) {
+      preview.innerHTML = '<p style="color:#e53935;font-size:14px">⚠ Seleccioná dos vendedores distintos.</p>';
+      btnConfirm.disabled = true;
+      return;
+    }
+
+    preview.innerHTML = '<p style="color:var(--text-secondary);font-size:14px">Calculando…</p>';
+    btnConfirm.disabled = true;
+
+    try {
+      const [dataA, dataB] = await Promise.all([
+        API.get(`/api/leads/conteo-vendedor?asesor_id=${idA}&solo_activos=${soloActivos}`),
+        API.get(`/api/leads/conteo-vendedor?asesor_id=${idB}&solo_activos=${soloActivos}`),
+      ]);
+
+      const nombreA = document.getElementById('transfer-asesor-a').selectedOptions[0].text;
+      const nombreB = document.getElementById('transfer-asesor-b').selectedOptions[0].text;
+
+      if (transferMode === 'reasignar') {
+        preview.innerHTML = `
+          <div style="background:var(--bg-secondary);border-radius:var(--radius);padding:14px;font-size:14px">
+            <div>📤 <strong>${nombreA}</strong> tiene <strong>${dataA.total}</strong> leads${soloActivos ? ' activos' : ''}</div>
+            <div style="margin-top:6px;color:var(--text-secondary)">→ Todos pasarán a <strong>${nombreB}</strong></div>
+          </div>`;
+        btnConfirm.disabled = dataA.total === 0;
+      } else {
+        preview.innerHTML = `
+          <div style="background:var(--bg-secondary);border-radius:var(--radius);padding:14px;font-size:14px">
+            <div>🔄 <strong>${nombreA}</strong>: <strong>${dataA.total}</strong> leads ↔ <strong>${nombreB}</strong>: <strong>${dataB.total}</strong> leads${soloActivos ? ' (activos)' : ''}</div>
+            <div style="margin-top:6px;color:var(--text-secondary)">Se intercambiarán todos los leads entre ambos vendedores.</div>
+          </div>`;
+        btnConfirm.disabled = (dataA.total + dataB.total) === 0;
+      }
+    } catch(e) {
+      preview.innerHTML = `<p style="color:#e53935;font-size:14px">Error al consultar: ${e.message}</p>`;
+    }
+  }
+
+  async function ejecutarTransfer() {
+    const idA = document.getElementById('transfer-asesor-a').value;
+    const idB = document.getElementById('transfer-asesor-b').value;
+    const soloActivos = document.getElementById('transfer-solo-activos').checked;
+    const btnConfirm = document.getElementById('btn-confirmar-transfer');
+
+    btnConfirm.disabled = true;
+    try {
+      let res;
+      if (transferMode === 'reasignar') {
+        res = await API.post('/api/leads/reasignar-vendedor', {
+          desde_id: parseInt(idA),
+          hacia_id: parseInt(idB),
+          solo_activos: soloActivos,
+        });
+        toast(`✅ ${res.reasignados} leads transferidos`);
+      } else {
+        res = await API.post('/api/leads/intercambiar-vendedores', {
+          id_a: parseInt(idA),
+          id_b: parseInt(idB),
+          solo_activos: soloActivos,
+        });
+        toast(`✅ Intercambio completado: ${res.total} leads`);
+      }
+      closeModal('modal-transferir');
+      loadLeads();
+    } catch(e) {
+      toast(e.message, 'error');
+      btnConfirm.disabled = false;
+    }
+  }
+</script>
+{% endblock %}

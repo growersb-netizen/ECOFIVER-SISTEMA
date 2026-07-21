@@ -1,0 +1,2252 @@
+{% extends "base.html" %}
+{% block title %}Pañolero — Eco Módulos{% endblock %}
+{% block page_title %}🔧 Pañolero{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-primary" onclick="abrirTabPorNombre('insumos')">📦 Insumos</button>
+<button class="btn btn-secondary" onclick="abrirTabPorNombre('herramientas')">🔧 Herramientas</button>
+<button class="btn btn-ghost" onclick="abrirTabPorNombre('entrega')" style="border-color:var(--p-teal);color:var(--p-teal)">⚡ Entrega rápida</button>
+{% if 'ADMIN' in roles or 'ADMINISTRACION' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+<button class="btn" onclick="abrirModalGasto()" style="border-color:var(--p-green);color:var(--p-green)">💸 Gasto</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   PAÑOLERO — Estética premium & minimalista
+   Paleta: bg-card / bg-secondary del sistema + acentos teal/green
+   Sin colores de fondo rellenos, sin transparencias, sin saturación excesiva
+══════════════════════════════════════════════════════════════════════ */
+
+/* ─── Variables locales ─── */
+:root {
+  --p-surface:  var(--bg-card, #1e1e1e);
+  --p-surface2: var(--bg-secondary, #1a1a1a);
+  --p-hover:    var(--bg-hover, #252525);
+  --p-border:   var(--border, #2a2a2a);
+  --p-t1:       var(--text-primary, #fff);
+  --p-t2:       var(--text-secondary, #aaa);
+  --p-t3:       var(--text-muted, #666);
+  --p-teal:     var(--teal, #00b8a9);
+  --p-green:    var(--green, #2d9e4f);
+  --p-warn:     var(--warning, #f59e0b);
+  --p-err:      var(--error, #e53935);
+}
+[data-theme="light"] {
+  --p-surface:  #ffffff;
+  --p-surface2: #f8fafc;
+  --p-hover:    #f0f2f5;
+  --p-border:   #e2e8f0;
+  --p-t1:       #1a1a2e;
+  --p-t2:       #64748b;
+  --p-t3:       #94a3b8;
+}
+
+/* ─── Stats ─── */
+.pan-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:10px; margin-bottom:22px; }
+.pan-stat {
+  background:var(--p-surface); border:1px solid var(--p-border); border-radius:10px;
+  padding:16px 18px; position:relative; overflow:hidden;
+  transition:border-color .2s;
+}
+.pan-stat::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:var(--p-t3); border-radius:2px 2px 0 0; transition:background .2s;
+}
+.pan-stat.ok::before    { background:var(--p-green); }
+.pan-stat.warn::before  { background:var(--p-warn); }
+.pan-stat.alerta::before{ background:var(--p-err); }
+.pan-stat .sv {
+  font-size:28px; font-weight:800; color:var(--p-t1); line-height:1;
+  font-family:'Barlow Condensed',sans-serif; letter-spacing:-.02em;
+}
+.pan-stat.ok    .sv { color:var(--p-green); }
+.pan-stat.warn  .sv { color:var(--p-warn); }
+.pan-stat.alerta .sv{ color:var(--p-err); }
+.pan-stat .sl { font-size:11px; font-weight:600; color:var(--p-t3); margin-top:4px; text-transform:uppercase; letter-spacing:.04em; }
+
+/* ─── Tabs ─── */
+.tab-bar {
+  display:flex; gap:2px; border-bottom:1px solid var(--p-border);
+  margin-bottom:22px; overflow-x:auto; padding-bottom:0;
+}
+.tab-btn {
+  flex:none; padding:10px 16px; border:none; border-bottom:2px solid transparent;
+  background:none; cursor:pointer; font-size:13px; font-weight:600;
+  color:var(--p-t2); transition:all .15s; white-space:nowrap;
+  font-family:'Barlow Condensed',sans-serif; letter-spacing:.01em;
+  margin-bottom:-1px;
+}
+.tab-btn:hover  { color:var(--p-t1); }
+.tab-btn.active { color:var(--p-teal); border-bottom-color:var(--p-teal); }
+.tab-btn .badge {
+  display:inline-block; background:var(--p-err); color:#fff;
+  border-radius:8px; padding:1px 5px; font-size:10px; margin-left:5px; line-height:1.4;
+}
+
+/* ─── Layout ─── */
+.pan-layout { display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start; }
+@media(max-width:860px){ .pan-layout { grid-template-columns:1fr; } }
+
+/* ─── Form panel ─── */
+.form-panel {
+  background:var(--p-surface); border:1px solid var(--p-border);
+  border-radius:12px; padding:20px; position:sticky; top:20px;
+}
+.form-panel h3 {
+  font-size:13px; font-weight:700; margin:0 0 16px; color:var(--p-t2);
+  text-transform:uppercase; letter-spacing:.06em;
+}
+.fp-row   { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.fp-full  { grid-column:1/-1; }
+.fp-label { font-size:11px; font-weight:600; color:var(--p-t3); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
+.mt-2 { margin-top:8px; }
+.mt-3 { margin-top:12px; }
+.mb-2 { margin-bottom:8px; }
+.w-full { width:100%; }
+
+/* ─── Search / filtros ─── */
+.search-bar { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.search-bar input { flex:1; min-width:160px; }
+
+/* ─── Status dot (indicador minimalista) ─── */
+.dot {
+  width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:1px;
+}
+.dot-ok    { background:var(--p-green); }
+.dot-uso   { background:var(--p-teal); }
+.dot-warn  { background:var(--p-warn); }
+.dot-err   { background:var(--p-err); }
+.dot-muted { background:var(--p-t3); }
+
+/* ─── Pill (etiqueta mínima) ─── */
+.pill {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700;
+  letter-spacing:.03em; text-transform:uppercase; border:1px solid var(--p-border);
+  color:var(--p-t2); background:transparent;
+}
+.pill-ok   { border-color:var(--p-green); color:var(--p-green); }
+.pill-uso  { border-color:var(--p-teal);  color:var(--p-teal); }
+.pill-warn { border-color:var(--p-warn);  color:var(--p-warn); }
+.pill-err  { border-color:var(--p-err);   color:var(--p-err); }
+
+/* ─── Tarjetas herramienta ─── */
+.h-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(264px,1fr)); gap:10px; }
+.h-card {
+  background:var(--p-surface); border:1px solid var(--p-border);
+  border-radius:10px; padding:14px 16px; cursor:pointer;
+  transition:border-color .18s, box-shadow .18s;
+  border-top:2px solid var(--p-border);
+}
+.h-card:hover       { border-color:var(--p-teal); box-shadow:0 4px 20px rgba(0,184,169,.08); }
+.h-card.en-uso      { border-top-color:var(--p-teal); }
+.h-card.vencida     { border-top-color:var(--p-err); }
+.h-card.disponible  { border-top-color:var(--p-green); }
+.h-nombre { font-weight:700; font-size:14px; color:var(--p-t1); margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.h-codigo { font-size:11px; font-weight:500; color:var(--p-t3); }
+.h-quien { font-size:12px; color:var(--p-t2); margin-top:6px; line-height:1.4; }
+.h-quien strong { color:var(--p-t1); font-weight:600; }
+.h-btns { display:flex; gap:6px; margin-top:12px; }
+
+/* ─── Tarjetas insumo ─── */
+.ins-list { display:flex; flex-direction:column; gap:8px; }
+.ins-card {
+  background:var(--p-surface); border:1px solid var(--p-border);
+  border-radius:10px; padding:14px 16px;
+  transition:border-color .18s, box-shadow .18s;
+}
+.ins-card:hover    { border-color:var(--p-teal); box-shadow:0 4px 20px rgba(0,184,169,.06); }
+.ins-card.alerta   { border-left:2px solid var(--p-warn); }
+.ins-card.critico  { border-left:2px solid var(--p-err); }
+.ins-nombre { font-weight:700; font-size:14px; color:var(--p-t1); }
+.ins-meta   { font-size:12px; color:var(--p-t3); margin:3px 0 10px; }
+.stock-bar-bg { background:var(--p-hover); border-radius:3px; height:3px; overflow:hidden; margin-bottom:8px; }
+.stock-bar    { height:100%; border-radius:3px; transition:width .5s cubic-bezier(.4,0,.2,1); }
+.stock-ok   { background:var(--p-green); }
+.stock-warn { background:var(--p-warn); }
+.stock-crit { background:var(--p-err); }
+.ins-nums {
+  display:flex; justify-content:space-between;
+  font-size:12px; font-weight:600; color:var(--p-t2);
+}
+.ins-nums .num-val { color:var(--p-t1); font-weight:700; font-size:15px; }
+
+/* ─── Feed movimientos ─── */
+.feed { display:flex; flex-direction:column; gap:1px; }
+.feed-item {
+  background:var(--p-surface); border-top:1px solid var(--p-border);
+  padding:12px 16px; display:flex; gap:14px; align-items:flex-start;
+  transition:background .12s;
+}
+.feed-item:first-child { border-top:none; border-radius:10px 10px 0 0; }
+.feed-item:last-child  { border-radius:0 0 10px 10px; }
+.feed-item:only-child  { border-radius:10px; border-top:1px solid var(--p-border); }
+.feed-item:hover { background:var(--p-hover); }
+.feed-icon { font-size:18px; line-height:1; flex-shrink:0; margin-top:1px; opacity:.85; }
+.feed-body  { flex:1; min-width:0; }
+.feed-titulo{ font-weight:600; font-size:13px; color:var(--p-t1); }
+.feed-sub   { font-size:12px; color:var(--p-t2); margin-top:2px; }
+.feed-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.fchip-sm {
+  padding:2px 7px; border-radius:4px; font-size:10px; font-weight:600;
+  background:var(--p-hover); color:var(--p-t3); letter-spacing:.02em;
+}
+.chip-entrega   { color:var(--p-teal);  background:transparent; border:1px solid var(--p-teal);  }
+.chip-devolucion{ color:var(--p-green); background:transparent; border:1px solid var(--p-green); }
+.chip-entrada   { color:var(--p-green); background:transparent; border:1px solid var(--p-green); }
+.chip-salida    { color:var(--p-warn);  background:transparent; border:1px solid var(--p-warn);  }
+.chip-ajuste    { color:var(--p-t2);    background:transparent; border:1px solid var(--p-border); }
+.feed-fecha { font-size:11px; color:var(--p-t3); flex-shrink:0; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+/* ─── Alertas ─── */
+.alert-list { display:flex; flex-direction:column; gap:8px; }
+.alert-item {
+  background:var(--p-surface); border:1px solid var(--p-border);
+  border-radius:10px; padding:14px 16px; display:flex; gap:14px; align-items:flex-start;
+}
+.alert-roja    { border-left:2px solid var(--p-err); }
+.alert-amarilla{ border-left:2px solid var(--p-warn); }
+.alert-icon  { font-size:18px; flex-shrink:0; opacity:.9; }
+.alert-body  { flex:1; }
+.alert-titulo{ font-weight:600; font-size:12px; color:var(--p-t2); text-transform:uppercase; letter-spacing:.04em; }
+.alert-nombre{ font-size:15px; font-weight:700; color:var(--p-t1); margin:2px 0 3px; }
+.alert-detalle{ font-size:12px; color:var(--p-t2); }
+.alert-btn { font-size:12px; margin-top:8px; }
+
+/* ─── Modals ─── */
+.modal-bg {
+  display:none; position:fixed; inset:0; z-index:1000;
+  align-items:center; justify-content:center;
+  background:rgba(0,0,0,.65); backdrop-filter:blur(4px);
+}
+.modal-bg.open { display:flex; }
+.modal-box {
+  background:var(--p-surface); border:1px solid var(--p-border);
+  border-radius:14px; padding:26px; max-width:520px; width:94%;
+  box-shadow:0 24px 64px rgba(0,0,0,.45); max-height:90vh;
+  overflow-y:auto; position:relative;
+}
+.modal-title {
+  font-size:16px; font-weight:800; margin:0 0 20px; color:var(--p-t1);
+  font-family:'Barlow Condensed',sans-serif; letter-spacing:.02em;
+}
+.modal-close {
+  position:absolute; top:16px; right:16px; background:none; border:none;
+  cursor:pointer; font-size:20px; color:var(--p-t3); line-height:1;
+  transition:color .15s;
+}
+.modal-close:hover { color:var(--p-t1); }
+.modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.modal-full { grid-column:1/-1; }
+
+/* ─── Sector cards (diseño premium sin color de fondo) ─── */
+.sector-card {
+  background:var(--p-surface); border:1px solid var(--p-border);
+  border-radius:12px; overflow:hidden;
+  transition:border-color .2s, box-shadow .2s;
+}
+.sector-card:hover { border-color:var(--p-teal); box-shadow:0 4px 24px rgba(0,184,169,.07); }
+.sector-header {
+  padding:13px 16px; display:flex; align-items:center; gap:10px;
+  border-bottom:1px solid var(--p-border);
+  position:relative;
+}
+.sector-header::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+}
+.sector-icon  { font-size:18px; line-height:1; opacity:.85; }
+.sector-nombre{ font-size:13px; font-weight:700; color:var(--p-t1); flex:1; font-family:'Barlow Condensed',sans-serif; letter-spacing:.02em; text-transform:uppercase; }
+.sector-counter { display:flex; gap:6px; }
+.sec-cnt {
+  padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;
+  background:var(--p-hover); color:var(--p-t2); border:1px solid var(--p-border);
+}
+.sec-cnt.active-cnt { color:var(--p-teal); border-color:var(--p-teal); }
+.sector-body { padding:12px 14px; }
+.sec-group-label {
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--p-t3); margin:10px 0 5px;
+  display:flex; align-items:center; gap:5px;
+}
+.sec-group-label:first-child { margin-top:0; }
+.sec-group-label::after { content:''; flex:1; height:1px; background:var(--p-border); }
+.sec-tools { display:flex; flex-direction:column; gap:3px; }
+.sec-tool {
+  display:flex; align-items:center; gap:8px; padding:7px 10px;
+  border-radius:7px; font-size:13px; cursor:pointer;
+  transition:background .12s; background:transparent;
+}
+.sec-tool:hover { background:var(--p-hover); }
+.sec-tool-nombre { flex:1; font-weight:600; color:var(--p-t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sec-tool-meta   { font-size:11px; color:var(--p-t3); white-space:nowrap; }
+/* Estado vía dot, sin fondos de color */
+.sec-tool.prestada       .dot { background:var(--p-teal); }
+.sec-tool.prestada-vencida .dot { background:var(--p-err); }
+.sec-tool.visitando      .dot { background:var(--p-green); }
+.sec-empty { font-size:12px; color:var(--p-t3); padding:8px 4px; font-style:italic; }
+.sec-tool-estado {
+  font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px;
+  border:1px solid var(--p-border); color:var(--p-t2); background:transparent;
+  text-transform:uppercase; letter-spacing:.03em;
+}
+.estado-ok    { border-color:var(--p-green); color:var(--p-green); }
+.estado-uso   { border-color:var(--p-teal);  color:var(--p-teal); }
+.estado-vencida{ border-color:var(--p-err); color:var(--p-err); }
+.estado-visita{ border-color:var(--p-green); color:var(--p-green); }
+
+/* Botones de selección de sector en modal */
+.sec-sel-btn {
+  text-align:left; padding:8px 12px; font-size:12px; font-weight:600;
+  background:var(--p-surface2); border:1px solid var(--p-border);
+  border-radius:8px; color:var(--p-t2); cursor:pointer;
+  transition:all .15s;
+}
+.sec-sel-btn:hover  { border-color:var(--p-teal); color:var(--p-t1); }
+.sec-sel-btn.active { border-color:var(--p-teal); color:var(--p-teal); background:transparent; }
+
+/* ─── Empty states ─── */
+.empty-state { text-align:center; padding:40px 20px; color:var(--p-t3); }
+.empty-state .es-icon { font-size:44px; margin-bottom:10px; opacity:.5; }
+.empty-state p { font-size:13px; }
+
+/* ─── Tab content ─── */
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.pan-embed { width:100%; height:calc(100vh - 230px); min-height:480px; border:1px solid var(--p-border,#e5e7eb); border-radius:12px; background:var(--bg-card,#fff); }
+@media (max-width:768px) { .pan-embed { height:calc(100dvh - 200px); border:none; border-radius:0; } }
+
+/* ─── Toast ─── */
+.toast {
+  position:fixed; bottom:24px; right:24px; padding:11px 18px;
+  border-radius:8px; font-weight:700; font-size:13px;
+  font-family:'Barlow Condensed',sans-serif; letter-spacing:.02em;
+  z-index:9999; transform:translateY(80px); opacity:0; transition:all .25s;
+  max-width:320px; border:1px solid;
+}
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.ok  { background:var(--p-surface); border-color:var(--p-green); color:var(--p-green); }
+.toast.err { background:var(--p-surface); border-color:var(--p-err);   color:var(--p-err); }
+
+/* ─── Botones acción ─── */
+.btn-sm { padding:5px 10px; font-size:12px; border-radius:6px; }
+.flex-1 { flex:1; }
+
+/* ─── Inventario General ─── */
+.inv-summary {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-bottom:20px;
+}
+.inv-kpi {
+  background:var(--p-surface); border:1px solid var(--p-border);
+  border-radius:10px; padding:14px 18px; position:relative; overflow:hidden;
+}
+.inv-kpi::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--p-border);
+}
+.inv-kpi.kpi-h::before  { background:#6366f1; }
+.inv-kpi.kpi-i::before  { background:var(--p-teal); }
+.inv-kpi.kpi-v::before  { background:var(--p-green); }
+.inv-kpi.kpi-a::before  { background:var(--p-warn); }
+.inv-kpi-val { font-size:26px; font-weight:800; color:var(--p-t1); line-height:1.1; font-family:'Barlow Condensed',sans-serif; }
+.inv-kpi.kpi-v .inv-kpi-val { color:var(--p-green); }
+.inv-kpi.kpi-a .inv-kpi-val { color:var(--p-warn); }
+.inv-kpi-label { font-size:11px; color:var(--p-t3); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
+
+.inv-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.inv-filters input  { flex:1; min-width:180px; }
+.inv-filters select { min-width:140px; }
+
+.inv-table-wrap { overflow-x:auto; }
+.inv-table {
+  width:100%; border-collapse:collapse; font-size:13px;
+}
+.inv-table th {
+  text-align:left; padding:8px 12px; font-size:11px; font-weight:700;
+  color:var(--p-t3); text-transform:uppercase; letter-spacing:.05em;
+  border-bottom:1px solid var(--p-border); white-space:nowrap;
+}
+.inv-table td {
+  padding:10px 12px; border-bottom:1px solid var(--p-border);
+  vertical-align:middle; color:var(--p-t1);
+}
+.inv-table tr:hover td { background:var(--p-hover); }
+.inv-table tr.row-alerta td { border-left:2px solid var(--p-warn); }
+.inv-table tr.row-critico td { border-left:2px solid var(--p-err); }
+.inv-tipo-badge {
+  display:inline-block; padding:2px 7px; border-radius:5px; font-size:10px; font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase; border:1px solid var(--p-border); color:var(--p-t2);
+}
+.inv-tipo-herramienta { border-color:#6366f1; color:#6366f1; }
+.inv-tipo-insumo      { border-color:var(--p-teal); color:var(--p-teal); }
+.inv-valor { font-variant-numeric:tabular-nums; font-weight:600; }
+.inv-estado {
+  display:inline-block; padding:2px 7px; border-radius:5px; font-size:10px; font-weight:700;
+  letter-spacing:.03em; text-transform:uppercase; border:1px solid;
+}
+.inv-estado-ok       { border-color:var(--p-green); color:var(--p-green); }
+.inv-estado-en_uso   { border-color:var(--p-teal);  color:var(--p-teal); }
+.inv-estado-alerta   { border-color:var(--p-warn);  color:var(--p-warn); }
+.inv-estado-critico  { border-color:var(--p-err);   color:var(--p-err); }
+.inv-estado-rota     { border-color:var(--p-err);   color:var(--p-err); }
+.inv-no-valor        { color:var(--p-t3); font-size:11px; font-style:italic; }
+
+/* Fix sector-header: color via CSS variable, no fondo de relleno */
+.sector-header { background:transparent !important; }
+.sector-header::before { background:var(--sec-accent, var(--p-teal)); }
+</style>
+
+<!-- ═══ STATS HEADER ═══ -->
+<div class="pan-stats" id="pan-stats">
+  <div class="pan-stat ok"><div class="sv" id="st-disp">—</div><div class="sl">Disponibles</div></div>
+  <div class="pan-stat"   id="st-uso-card"><div class="sv" id="st-uso">—</div><div class="sl">En uso</div></div>
+  <div class="pan-stat"   id="st-venc-card"><div class="sv" id="st-venc">—</div><div class="sl">Vencidas</div></div>
+  <div class="pan-stat"   id="st-ins-card"><div class="sv" id="st-ins">—</div><div class="sl">Stock bajo</div></div>
+  <div class="pan-stat"><div class="sv" id="st-movs">—</div><div class="sl">Movimientos hoy</div></div>
+</div>
+
+<!-- ═══ TABS ═══ -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('herramientas',this)">🔧 Herramientas</button>
+  <button class="tab-btn" onclick="showTab('sectores',this)">🏭 Sectores</button>
+  <button class="tab-btn" onclick="showTab('insumos',this)">📦 Insumos</button>
+  <button class="tab-btn" onclick="showTab('pedidos',this)">📥 Pedidos</button>
+  <button class="tab-btn" onclick="showTab('entrega',this)">⚡ Entrega rápida</button>
+  {% if 'ADMIN' in roles %}<button class="tab-btn" onclick="showTab('inventario',this)">📊 Inventario</button>{% endif %}
+  <button class="tab-btn" onclick="showTab('en-uso',this)">👷 En uso</button>
+  <button class="tab-btn" onclick="showTab('movimientos',this)">📋 Movimientos</button>
+  <button class="tab-btn" onclick="showTab('alertas',this)">⚠️ Alertas <span class="badge" id="alerta-badge" style="display:none">0</span></button>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB HERRAMIENTAS ══ -->
+<div id="tab-herramientas" class="tab-content active">
+  <div class="pan-layout">
+    <!-- FORM IZQUIERDA -->
+    <div class="form-panel">
+      <h3>➕ Nueva herramienta</h3>
+      <div class="fp-full mb-2">
+        <div class="fp-label">Nombre *</div>
+        <input class="input" id="hn-nombre" placeholder="Ej: Taladro Bosch 13mm">
+      </div>
+      <div class="fp-row">
+        <div>
+          <div class="fp-label">Categoría</div>
+          <select class="input" id="hn-cat">
+            <option value="GENERAL">General</option>
+            <option value="MANUAL">Mano</option>
+            <option value="ELECTRICA">Eléctrica</option>
+            <option value="MEDICION">Medición</option>
+            <option value="CORTE">Corte</option>
+            <option value="ELEVACION">Elevación</option>
+            <option value="LIMPIEZA">Limpieza</option>
+          </select>
+        </div>
+        <div>
+          <div class="fp-label">Código interno</div>
+          <input class="input" id="hn-codigo" placeholder="H-001">
+        </div>
+      </div>
+      <div class="fp-full mt-2">
+        <div class="fp-label">Sector de residencia permanente</div>
+        <select class="input" id="hn-sector-base">
+          <option value="DEPOSITO">🏠 Depósito / Pañolero</option>
+          <option value="ESTRUCTURA">🏗️ Estructura</option>
+          <option value="REVESTIMIENTO">🪵 Revestimiento</option>
+          <option value="TERMINACIONES">🔨 Terminaciones</option>
+          <option value="PINTURA">🖌️ Pintura</option>
+          <option value="PISCINAS">🏊 Taller Piscinas</option>
+          <option value="INSTALACION">🚛 Instalación / Campo</option>
+          <option value="MANTENIMIENTO">⚙️ Mantenimiento</option>
+          <option value="PATIO">🌿 Patio / Exterior</option>
+        </select>
+      </div>
+      <div class="fp-row mt-2">
+        <div>
+          <div class="fp-label">Nº Serie</div>
+          <input class="input" id="hn-serie" placeholder="Opcional">
+        </div>
+        <div>
+          <div class="fp-label">Ubicación inicial</div>
+          <input class="input" id="hn-ubic" placeholder="Depósito" value="Depósito">
+        </div>
+      </div>
+      {% if 'ADMIN' in roles or 'ADMINISTRACION' in roles %}
+      <div class="fp-row mt-2">
+        <div>
+          <div class="fp-label">💰 Precio de costo ($)</div>
+          <input class="input" type="number" id="hn-precio" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div>
+          <div class="fp-label">Fecha adquisición</div>
+          <input class="input" type="date" id="hn-fecha-adq">
+        </div>
+      </div>
+      {% endif %}
+      <div class="fp-full mt-2">
+        <div class="fp-label">Notas</div>
+        <textarea class="input" id="hn-notas" rows="2" placeholder="Observaciones..."></textarea>
+      </div>
+      <button class="btn btn-primary w-full mt-3" onclick="crearHerramienta()">Agregar herramienta</button>
+    </div>
+
+    <!-- LISTA DERECHA -->
+    <div>
+      <div class="search-bar">
+        <input class="input" id="h-search" placeholder="🔍 Buscar herramienta..." oninput="filterHerramientas()">
+        <select class="input" style="max-width:140px" id="h-filter-estado" onchange="filterHerramientas()">
+          <option value="">Todos</option>
+          <option value="disponible">Disponibles</option>
+          <option value="en_uso">En uso</option>
+          <option value="vencida">Vencidas</option>
+        </select>
+        <select class="input" style="max-width:140px" id="h-filter-cat" onchange="filterHerramientas()">
+          <option value="">Todas las categorías</option>
+          <option value="MANUAL">Manual</option>
+          <option value="ELECTRICA">Eléctrica</option>
+          <option value="MEDICION">Medición</option>
+          <option value="CORTE">Corte</option>
+          <option value="ELEVACION">Elevación</option>
+          <option value="LIMPIEZA">Limpieza</option>
+          <option value="GENERAL">General</option>
+        </select>
+      </div>
+      <div id="h-count" style="font-size:12px;color:var(--text-secondary);margin-bottom:10px"></div>
+      <div class="h-grid" id="h-grid">
+        <div class="empty-state"><div class="es-icon">🔧</div><p>Cargando herramientas...</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB SECTORES ══════ -->
+<div id="tab-sectores" class="tab-content">
+
+  <!-- Barra de búsqueda rápida -->
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <input class="input" id="sec-search" placeholder="🔍 Buscar herramienta en sectores..." oninput="filterSectores()" style="max-width:320px">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+      <input type="checkbox" id="sec-solo-prestadas" onchange="renderSectores()"> Solo con herramientas en uso
+    </label>
+    <button class="btn btn-sm" onclick="cargarSectores()" style="margin-left:auto">↺ Actualizar</button>
+  </div>
+
+  <!-- Grid de sectores -->
+  <div id="sectores-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
+    <div class="empty-state" style="grid-column:1/-1"><div class="es-icon">🏭</div><p>Cargando sectores...</p></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB INSUMOS ════════ -->
+<div id="tab-insumos" class="tab-content">
+  <div class="pan-layout">
+    <!-- FORM IZQUIERDA -->
+    <div class="form-panel">
+      <h3>➕ Nuevo insumo</h3>
+      <div class="fp-full mb-2">
+        <div class="fp-label">Nombre *</div>
+        <input class="input" id="in-nombre" placeholder="Ej: Silicona estructural">
+      </div>
+      <div class="fp-full mb-2">
+        <div class="fp-label">Categoría</div>
+        <select class="input" id="in-cat">
+          <option value="CONSUMIBLE">Consumible</option>
+          <option value="QUIMICO">Químico / Sellador</option>
+          <option value="FIJACION">Fijación (tornillos, tacos…)</option>
+          <option value="ELECTRICO">Eléctrico</option>
+          <option value="PINTURA">Pintura / Revestimiento</option>
+          <option value="LIMPIEZA">Limpieza</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div class="fp-row">
+        <div>
+          <div class="fp-label">Unidad</div>
+          <select class="input" id="in-unidad">
+            <option value="unidad">unidad</option>
+            <option value="kg">kg</option>
+            <option value="litro">litro</option>
+            <option value="metro">metro</option>
+            <option value="m²">m²</option>
+            <option value="rollo">rollo</option>
+            <option value="caja">caja</option>
+            <option value="bolsa">bolsa</option>
+          </select>
+        </div>
+        <div>
+          <div class="fp-label">Stock inicial</div>
+          <input class="input" type="number" id="in-stock" value="0" min="0" step="0.1">
+        </div>
+      </div>
+      <div class="fp-row mt-2">
+        <div>
+          <div class="fp-label">Stock mínimo (alerta)</div>
+          <input class="input" type="number" id="in-minimo" value="0" min="0" step="0.1">
+        </div>
+        {% if 'ADMIN' in roles or 'ADMINISTRACION' in roles %}
+        <div>
+          <div class="fp-label">💰 Precio referencia (por unidad)</div>
+          <input class="input" type="number" id="in-precio" placeholder="$0">
+        </div>
+        {% else %}
+        <input type="hidden" id="in-precio" value="">
+        {% endif %}
+      </div>
+      <div class="fp-row mt-2">
+        <div>
+          <div class="fp-label">Ubicación</div>
+          <input class="input" id="in-ubic" placeholder="Estante A">
+        </div>
+        <div>
+          <div class="fp-label">Proveedor</div>
+          <input class="input" id="in-prov" placeholder="Nombre proveedor">
+        </div>
+      </div>
+      <button class="btn btn-primary w-full mt-3" onclick="crearInsumo()">Agregar insumo</button>
+    </div>
+
+    <!-- LISTA DERECHA -->
+    <div>
+      <div class="search-bar">
+        <input class="input" id="i-search" placeholder="🔍 Buscar insumo..." oninput="filterInsumos()">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="i-solo-alerta" onchange="filterInsumos()"> Solo con alerta
+        </label>
+      </div>
+      <div id="i-count" style="font-size:12px;color:var(--text-secondary);margin-bottom:10px"></div>
+      <div class="ins-list" id="ins-list">
+        <div class="empty-state"><div class="es-icon">📦</div><p>Cargando insumos...</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB PEDIDOS ═══════ -->
+<div id="tab-pedidos" class="tab-content">
+  <iframe id="iframe-pedidos" class="pan-embed" title="Pedidos de compra"></iframe>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB ENTREGA RÁPIDA ═ -->
+<div id="tab-entrega" class="tab-content">
+  <iframe id="iframe-entrega" class="pan-embed" title="Entrega rápida"></iframe>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB INVENTARIO ════ -->
+{% if 'ADMIN' in roles %}
+<div id="tab-inventario" class="tab-content">
+
+  <!-- KPIs patrimoniales -->
+  <div class="inv-summary" id="inv-summary">
+    <div class="inv-kpi"><div class="inv-kpi-val" id="inv-total">—</div><div class="inv-kpi-label">Ítems totales</div></div>
+    <div class="inv-kpi kpi-h"><div class="inv-kpi-val" id="inv-herramientas">—</div><div class="inv-kpi-label">Herramientas</div></div>
+    <div class="inv-kpi kpi-i"><div class="inv-kpi-val" id="inv-insumos">—</div><div class="inv-kpi-label">Insumos</div></div>
+    <div class="inv-kpi kpi-v"><div class="inv-kpi-val" id="inv-valor">—</div><div class="inv-kpi-label">Valor patrimonio</div></div>
+    <div class="inv-kpi kpi-a"><div class="inv-kpi-val" id="inv-alertas-cnt">—</div><div class="inv-kpi-label">Con alerta</div></div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="inv-filters">
+    <input class="input" id="inv-search" placeholder="🔍 Buscar en inventario..." oninput="filterInventario()">
+    <select class="input" id="inv-tipo" onchange="filterInventario()">
+      <option value="">Todo el inventario</option>
+      <option value="HERRAMIENTA">Solo herramientas</option>
+      <option value="INSUMO">Solo insumos</option>
+    </select>
+    <select class="input" id="inv-cat" onchange="filterInventario()">
+      <option value="">Todas las categorías</option>
+      <optgroup label="Herramientas">
+        <option value="MANUAL">Manual</option>
+        <option value="ELECTRICA">Eléctrica</option>
+        <option value="MEDICION">Medición</option>
+        <option value="CORTE">Corte</option>
+        <option value="ELEVACION">Elevación</option>
+        <option value="LIMPIEZA">Limpieza (herr.)</option>
+        <option value="GENERAL">General</option>
+      </optgroup>
+      <optgroup label="Insumos">
+        <option value="CONSUMIBLE">Consumible</option>
+        <option value="QUIMICO">Químico</option>
+        <option value="FIJACION">Fijación</option>
+        <option value="ELECTRICO">Eléctrico</option>
+        <option value="PINTURA">Pintura</option>
+        <option value="LIMPIEZA">Limpieza (ins.)</option>
+        <option value="OTRO">Otro</option>
+      </optgroup>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="inv-solo-alerta" onchange="filterInventario()"> Solo con alerta
+    </label>
+    <button class="btn btn-sm" onclick="cargarInventario()" style="white-space:nowrap">↺ Actualizar</button>
+  </div>
+
+  <div id="inv-count" style="font-size:12px;color:var(--text-secondary);margin-bottom:10px"></div>
+
+  <!-- Tabla -->
+  <div class="inv-table-wrap">
+    <table class="inv-table">
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Nombre</th>
+          <th>Categoría</th>
+          <th>Código</th>
+          <th style="text-align:right">Disponible / Stock</th>
+          <th style="text-align:right">En uso / Mínimo</th>
+          <th style="text-align:right">Precio unit.</th>
+          <th style="text-align:right">Valor total</th>
+          <th>Estado</th>
+          <th>Ubicación</th>
+        </tr>
+      </thead>
+      <tbody id="inv-tbody">
+        <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-secondary)">Cargando inventario...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Totales pie de tabla -->
+  <div id="inv-totales" style="margin-top:14px;padding:12px 16px;background:var(--p-surface);border:1px solid var(--p-border);border-radius:10px;display:none">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+      <span style="color:var(--p-t2)">Herramientas: <strong id="inv-pie-h" style="color:#6366f1">$0</strong></span>
+      <span style="color:var(--p-t2)">Insumos: <strong id="inv-pie-i" style="color:var(--p-teal)">$0</strong></span>
+      <span style="color:var(--p-t2);font-weight:700">Total patrimonio: <strong id="inv-pie-total" style="color:var(--p-green);font-size:15px">$0</strong></span>
+    </div>
+  </div>
+</div>
+
+{% endif %}{# /ADMIN inventario #}
+
+<!-- ══════════════════════════════════════════════════ TAB EN USO ═════════ -->
+<div id="tab-en-uso" class="tab-content">
+  <div id="en-uso-list" style="max-width:900px">
+    <div class="empty-state"><div class="es-icon">👷</div><p>Cargando...</p></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB MOVIMIENTOS ═══ -->
+<div id="tab-movimientos" class="tab-content">
+  <!-- Consumo por sector: Producción vs Instalación -->
+  <div style="max-width:800px;margin-bottom:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0;font-size:16px">📊 Consumo por sector</h3>
+      <select id="consumo-dias" class="input" style="width:auto" onchange="cargarConsumo()">
+        <option value="7">Últimos 7 días</option>
+        <option value="30" selected>Últimos 30 días</option>
+        <option value="90">Últimos 90 días</option>
+        <option value="365">Último año</option>
+      </select>
+    </div>
+    <div id="consumo-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="empty-state"><p>Cargando...</p></div>
+    </div>
+  </div>
+  <h3 style="margin:0 0 10px;font-size:16px;max-width:800px">📋 Movimientos recientes</h3>
+  <div id="movs-feed" class="feed" style="max-width:800px">
+    <div class="empty-state"><div class="es-icon">📋</div><p>Cargando movimientos...</p></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ TAB ALERTAS ════════ -->
+<div id="tab-alertas" class="tab-content">
+  <div id="alertas-list" class="alert-list" style="max-width:800px">
+    <div class="empty-state"><div class="es-icon">✅</div><p>Sin alertas</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ MODAL ENTREGAR HERRAMIENTA ═══════════════ -->
+<div class="modal-bg" id="modal-entregar">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrarModal('modal-entregar')">✕</button>
+    <div class="modal-title" id="me-titulo">Entregar herramienta</div>
+    <input type="hidden" id="me-hid">
+    <div class="modal-grid">
+      <div class="modal-full">
+        <div class="fp-label">Quién retira *</div>
+        <input class="input" id="me-empleado" placeholder="Nombre completo del empleado/operario">
+      </div>
+      <div>
+        <div class="fp-label">Sector / Departamento</div>
+        <select class="input" id="me-sector">
+          <option value="">— Seleccionar —</option>
+          <option value="FABRICA">Fábrica</option>
+          <option value="INSTALACION">Instalación</option>
+          <option value="MANTENIMIENTO">Mantenimiento</option>
+          <option value="DEPOSITO">Depósito</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div>
+        <div class="fp-label">Destino / Obra</div>
+        <input class="input" id="me-destino" placeholder="Ej: Casa de Gino, Quilmes">
+      </div>
+      <div class="modal-full">
+        <div class="fp-label">Motivo de uso</div>
+        <input class="input" id="me-motivo" placeholder="Para qué se va a usar...">
+      </div>
+      <div>
+        <div class="fp-label">Devolución esperada</div>
+        <input class="input" type="date" id="me-devol">
+      </div>
+      <div>
+        <div class="fp-label">Notas adicionales</div>
+        <input class="input" id="me-notas" placeholder="Opcional">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary flex-1" onclick="confirmarEntrega()">✓ Confirmar entrega</button>
+      <button class="btn" onclick="cerrarModal('modal-entregar')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ MODAL DEVOLVER ════════════════════════════ -->
+<div class="modal-bg" id="modal-devolver">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrarModal('modal-devolver')">✕</button>
+    <div class="modal-title" id="md-titulo">Registrar devolución</div>
+    <input type="hidden" id="md-hid">
+    <div>
+      <div class="fp-label">Estado en que regresa</div>
+      <div style="display:flex;gap:8px;margin:8px 0 12px;flex-wrap:wrap" id="md-estado-btns">
+        <button class="btn estado-btn active" data-estado="OK" onclick="selectEstadoDev(this)">✅ OK</button>
+        <button class="btn estado-btn" data-estado="EN_REPARACION" onclick="selectEstadoDev(this)">🔧 Necesita reparación</button>
+        <button class="btn estado-btn" data-estado="ROTA" onclick="selectEstadoDev(this)">❌ Rota / baja</button>
+      </div>
+      <div class="fp-label">Notas de devolución</div>
+      <textarea class="input" id="md-notas" rows="2" placeholder="Observaciones al devolver..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary flex-1" onclick="confirmarDevolucion()">✓ Registrar devolución</button>
+      <button class="btn" onclick="cerrarModal('modal-devolver')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ MODAL REGISTRAR INSUMO ════════════════════ -->
+<div class="modal-bg" id="modal-insumo">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrarModal('modal-insumo')">✕</button>
+    <div class="modal-title" id="mi-titulo">Registrar movimiento</div>
+    <input type="hidden" id="mi-mid">
+    <div style="margin-bottom:12px">
+      <div class="fp-label">Tipo de movimiento</div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn tipo-btn active" data-tipo="SALIDA" onclick="selectTipoMov(this)">📤 Salida (consumo)</button>
+        <button class="btn tipo-btn" data-tipo="ENTRADA" onclick="selectTipoMov(this)">📥 Entrada (reposición)</button>
+        <button class="btn tipo-btn" data-tipo="AJUSTE" onclick="selectTipoMov(this)">🔄 Ajuste</button>
+      </div>
+    </div>
+    <div id="mi-destino-row" style="margin-bottom:12px">
+      <div class="fp-label">¿Para qué sector? (consumo) *</div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button type="button" class="btn da-btn-pan" data-da="PRODUCCION" onclick="selectDestinoPan(this)" style="flex:1;border:2px solid var(--p-border)">🏭 Producción <span style="font-weight:400;opacity:.7">· fabricar</span></button>
+        <button type="button" class="btn da-btn-pan" data-da="INSTALACION" onclick="selectDestinoPan(this)" style="flex:1;border:2px solid var(--p-border)">🚚 Instalación <span style="font-weight:400;opacity:.7">· entregar</span></button>
+      </div>
+      <input type="hidden" id="mi-destino-area">
+    </div>
+    <div class="modal-grid">
+      <div>
+        <div class="fp-label">Cantidad *</div>
+        <input class="input" type="number" id="mi-cantidad" min="0.1" step="0.1" placeholder="0" oninput="calcularTotalIngreso()">
+      </div>
+      <div>
+        <div class="fp-label">Responsable / Empleado</div>
+        <input class="input" id="mi-resp" placeholder="Quién retira / repone">
+      </div>
+      <div>
+        <div class="fp-label">Sector</div>
+        <select class="input" id="mi-sector">
+          <option value="">— Seleccionar —</option>
+          <option value="FABRICA">Fábrica</option>
+          <option value="INSTALACION">Instalación</option>
+          <option value="MANTENIMIENTO">Mantenimiento</option>
+          <option value="DEPOSITO">Depósito</option>
+          <option value="COMPRAS">Compras</option>
+          <option value="GENERAL">General</option>
+        </select>
+      </div>
+      <div>
+        <div class="fp-label" id="mi-motivo-label">Motivo / Uso</div>
+        <input class="input" id="mi-motivo" placeholder="Detalle...">
+      </div>
+    </div>
+    {% if 'ADMIN' in roles or 'ADMINISTRACION' in roles %}
+    <div id="mi-precio-row" style="display:none;margin-top:12px;padding:12px;background:var(--p-surface2);border-radius:8px;border:1px solid var(--p-border)">
+      <div class="fp-label" style="color:var(--p-teal)">💰 Precio unitario pagado (opcional)</div>
+      <input class="input" type="number" id="mi-precio-ref" placeholder="Precio por unidad · $0.00" min="0" step="0.01" style="margin-top:6px" oninput="calcularTotalIngreso()">
+      <div id="mi-total-compra" style="display:none;font-weight:700;color:var(--p-teal);margin-top:8px;font-size:14px"></div>
+      <div style="font-size:11px;color:var(--p-t3);margin-top:4px">Se actualiza el precio unitario del insumo para el inventario y el cálculo de costos.</div>
+    </div>
+    {% endif %}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary flex-1" onclick="confirmarMovInsumo()">✓ Confirmar</button>
+      <button class="btn" onclick="cerrarModal('modal-insumo')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ MODAL EDITAR INSUMO ═══════════════════════ -->
+<div class="modal-bg" id="modal-editar-insumo">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrarModal('modal-editar-insumo')">✕</button>
+    <div class="modal-title">✏️ Editar insumo</div>
+    <input type="hidden" id="ei-id">
+    <div class="fp-full mb-2">
+      <div class="fp-label">Nombre *</div>
+      <input class="input" id="ei-nombre" placeholder="Nombre del insumo">
+    </div>
+    <div class="fp-full mb-2">
+      <div class="fp-label">Categoría</div>
+      <select class="input" id="ei-cat">
+        <option value="CONSUMIBLE">Consumible</option>
+        <option value="QUIMICO">Químico / Sellador</option>
+        <option value="FIJACION">Fijación (tornillos, tacos…)</option>
+        <option value="ELECTRICO">Eléctrico</option>
+        <option value="PINTURA">Pintura / Revestimiento</option>
+        <option value="LIMPIEZA">Limpieza</option>
+        <option value="OTRO">Otro</option>
+      </select>
+    </div>
+    <div class="modal-grid">
+      <div>
+        <div class="fp-label">Unidad</div>
+        <select class="input" id="ei-unidad">
+          <option value="unidad">unidad</option>
+          <option value="kg">kg</option>
+          <option value="litro">litro</option>
+          <option value="metro">metro</option>
+          <option value="m²">m²</option>
+          <option value="rollo">rollo</option>
+          <option value="caja">caja</option>
+          <option value="bolsa">bolsa</option>
+        </select>
+      </div>
+      <div>
+        <div class="fp-label">📦 Stock actual (cantidad en depósito)</div>
+        <input class="input" type="number" id="ei-stock" min="0" step="0.1" value="0">
+      </div>
+      <div>
+        <div class="fp-label">⚠️ Stock mínimo (alerta sin stock)</div>
+        <input class="input" type="number" id="ei-minimo" min="0" step="0.1" value="0">
+      </div>
+      <div>
+        <div class="fp-label">Ubicación</div>
+        <input class="input" id="ei-ubic" placeholder="Estante A">
+      </div>
+      <div>
+        <div class="fp-label">Proveedor</div>
+        <input class="input" id="ei-prov" placeholder="Nombre proveedor">
+      </div>
+      {% if 'ADMIN' in roles or 'ADMINISTRACION' in roles %}
+      <div>
+        <div class="fp-label" style="color:var(--p-teal)">💰 Precio unitario</div>
+        <input class="input" type="number" id="ei-precio" min="0" step="0.01" placeholder="$0">
+      </div>
+      {% endif %}
+    </div>
+    <div style="font-size:11px;color:var(--p-t3);margin-top:10px;line-height:1.4">
+      💡 Editar el <strong>stock actual</strong> acá corrige la cantidad directamente. Para cargar una <strong>compra</strong> (con precio y registro en el historial), usá el botón <strong>📥 Ingreso</strong>.
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary flex-1" onclick="guardarEditarInsumo()">✓ Guardar cambios</button>
+      <button class="btn" onclick="cerrarModal('modal-editar-insumo')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ MODAL HISTORIAL ═══════════════════════════ -->
+<div class="modal-bg" id="modal-historial">
+  <div class="modal-box" style="max-width:640px">
+    <button class="modal-close" onclick="cerrarModal('modal-historial')">✕</button>
+    <div class="modal-title" id="mh-titulo">Historial</div>
+    <div id="mh-body"></div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ MODAL ACCESO RÁPIDO ═══════════════════════ -->
+<div class="modal-bg" id="modal-rapido">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrarModal('modal-rapido')">✕</button>
+    <div class="modal-title" id="mr-titulo">Acceso rápido</div>
+    <div id="mr-body"></div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ MODAL REASIGNAR SECTOR ════════════════════ -->
+<div class="modal-bg" id="modal-sector">
+  <div class="modal-box" style="max-width:420px">
+    <button class="modal-close" onclick="cerrarModal('modal-sector')">✕</button>
+    <div class="modal-title" id="ms-titulo">Asignar sector permanente</div>
+    <input type="hidden" id="ms-hid">
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">
+      Elegí el sector donde <strong id="ms-nombre"></strong> vive de manera permanente.
+      Puede ser prestada a otros sectores temporalmente.
+    </p>
+    <div class="fp-label">Sector de residencia</div>
+    <div id="ms-sector-list" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary flex-1" onclick="confirmarAsignarSector()">✓ Guardar</button>
+      <button class="btn" onclick="cerrarModal('modal-sector')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════ MODAL ASIGNAR COSTO (herramienta o insumo) ═══════════ -->
+{% if 'ADMIN' in roles or 'ADMINISTRACION' in roles %}
+<div class="modal-bg" id="modal-valor">
+  <div class="modal-box" style="max-width:440px">
+    <button class="modal-close" onclick="cerrarModal('modal-valor')">✕</button>
+    <div class="modal-title" id="mv-titulo">💰 Asignar costo</div>
+    <input type="hidden" id="mv-tipo">
+    <input type="hidden" id="mv-id">
+    <p style="font-size:13px;color:var(--p-t2);margin-bottom:16px;line-height:1.5">
+      Registrá el costo de adquisición de <strong id="mv-nombre"></strong>.
+      Este dato se usa para calcular el <strong>valor del inventario</strong> y los <strong>costos de producción</strong>.
+    </p>
+    <div class="modal-grid">
+      <div class="modal-full">
+        <div class="fp-label">Precio / Costo de adquisición *</div>
+        <div style="position:relative;margin-top:6px">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--p-t3);font-weight:700">$</span>
+          <input class="input" type="number" id="mv-precio" placeholder="0.00" min="0" step="0.01" style="padding-left:28px">
+        </div>
+        <div id="mv-unidad-hint" style="font-size:11px;color:var(--p-t3);margin-top:4px"></div>
+      </div>
+      <div id="mv-fecha-row" class="modal-full">
+        <div class="fp-label">Fecha de adquisición / compra</div>
+        <input class="input" type="date" id="mv-fecha" style="margin-top:6px">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn btn-primary flex-1" onclick="confirmarValor()">✓ Guardar costo</button>
+      <button class="btn" onclick="cerrarModal('modal-valor')">Cancelar</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═════════════════════════ MODAL GASTO RÁPIDO ════════════════════════════ -->
+<div class="modal-bg" id="modal-gasto">
+  <div class="modal-box" style="max-width:440px">
+    <button class="modal-close" onclick="cerrarModal('modal-gasto')">✕</button>
+    <div class="modal-title">💸 Registrar gasto</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <label class="form-label">Monto *</label>
+        <input type="number" id="mg-monto" class="form-input" min="0.01" step="0.01" placeholder="0.00">
+      </div>
+      <div>
+        <label class="form-label">Fecha</label>
+        <input type="date" id="mg-fecha" class="form-input">
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="form-label">Descripción *</label>
+      <input type="text" id="mg-desc" class="form-input" placeholder="Ej: Compra de cemento, tornillos, pintura…">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <label class="form-label">Categoría</label>
+        <select id="mg-cat" class="form-input">
+          <option value="MATERIALES">Materiales</option>
+          <option value="HERRAMIENTAS">Herramientas</option>
+          <option value="COMBUSTIBLE">Combustible</option>
+          <option value="COMIDA">Comida</option>
+          <option value="FLETE">Flete</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Sector</label>
+        <select id="mg-sector" class="form-input">
+          <option value="FABRICA">Fábrica</option>
+          <option value="GENERAL">General</option>
+          <option value="OPERACIONES">Operaciones</option>
+          <option value="ADMINISTRACION">Administración</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label class="form-label">Proveedor (opcional)</label>
+      <input type="text" id="mg-prov" class="form-input" placeholder="Ferretería, proveedor…">
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary flex-1" onclick="confirmarGasto()">✓ Guardar gasto</button>
+      <button class="btn" onclick="cerrarModal('modal-gasto')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   DATOS
+══════════════════════════════════════════════════════════════════════════ */
+let herramientas = [];
+let insumos = [];
+let inventarioData = [];
+let inventarioResumen = {};
+const empleados = {{ empleados | tojson }};
+const usuarios  = {{ usuarios  | tojson }};
+
+/* Roles — definidos desde Jinja2 para control de visibilidad JS */
+const ES_ADMIN     = {{ ('ADMIN' in roles) | tojson }};
+const PUEDE_COSTOS = {{ ('ADMIN' in roles or 'ADMINISTRACION' in roles) | tojson }};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  cargarResumen();
+  cargarHerramientas();
+  cargarAlertas();
+  // Deep-link: abrir pestaña según ?tab=
+  const tabParam = new URLSearchParams(location.search).get('tab');
+  if (tabParam) abrirTabPorNombre(tabParam);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABS
+══════════════════════════════════════════════════════════════════════════ */
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  if (name === 'herramientas' && herramientas.length === 0) cargarHerramientas();
+  if (name === 'sectores')    cargarSectores();
+  if (name === 'insumos'      && insumos.length === 0)      cargarInsumos();
+  if (name === 'inventario')  cargarInventario();
+  if (name === 'en-uso')      cargarEnUso();
+  if (name === 'movimientos') { cargarMovimientos(); cargarConsumo(); }
+  if (name === 'alertas')     cargarAlertas();
+  if (name === 'pedidos')     cargarIframe('iframe-pedidos', '/materiales?embed=1');
+  if (name === 'entrega')     cargarIframe('iframe-entrega', '/entrega-rapida?embed=1');
+}
+
+/* Carga el iframe embebido la primera vez que se abre la pestaña (lazy) */
+function cargarIframe(id, src) {
+  const f = document.getElementById(id);
+  if (f && !f.src) f.src = src;
+}
+
+/* Abre una pestaña por nombre (para deep-links ?tab=) */
+function abrirTabPorNombre(name) {
+  const btns = document.querySelectorAll('.tab-btn');
+  for (const b of btns) {
+    const oc = b.getAttribute('onclick') || '';
+    if (oc.includes(`showTab('${name}'`)) { showTab(name, b); return true; }
+  }
+  return false;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RESUMEN STATS
+══════════════════════════════════════════════════════════════════════════ */
+async function cargarResumen() {
+  const r = await fetch('/api/panolero/resumen');
+  if (!r.ok) return;
+  const d = await r.json();
+  document.getElementById('st-disp').textContent = d.herramientas_disponibles;
+  document.getElementById('st-uso').textContent  = d.herramientas_en_uso;
+  document.getElementById('st-venc').textContent = d.prestamos_vencidos;
+  document.getElementById('st-ins').textContent  = d.materiales_bajos;
+  document.getElementById('st-movs').textContent = d.movimientos_hoy;
+
+  if (d.prestamos_vencidos > 0) document.getElementById('st-venc-card').classList.add('alerta');
+  if (d.materiales_bajos  > 0) document.getElementById('st-ins-card').classList.add('warn');
+  if (d.herramientas_en_uso > 0) document.getElementById('st-uso-card').classList.add('warn');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HERRAMIENTAS
+══════════════════════════════════════════════════════════════════════════ */
+async function cargarHerramientas() {
+  const r = await fetch('/api/panolero/herramientas');
+  if (!r.ok) return;
+  herramientas = await r.json();
+  renderHerramientas();
+}
+
+function filterHerramientas() {
+  renderHerramientas();
+}
+
+function renderHerramientas() {
+  const search = (document.getElementById('h-search').value || '').toLowerCase();
+  const filtro = document.getElementById('h-filter-estado').value;
+  const cat    = document.getElementById('h-filter-cat').value;
+
+  let list = herramientas.filter(h => {
+    if (search && !h.nombre.toLowerCase().includes(search) && !h.codigo.toLowerCase().includes(search)) return false;
+    if (cat && h.categoria !== cat) return false;
+    if (filtro === 'disponible' && (h.en_uso || h.estado === 'ROTA' || h.estado === 'BAJA')) return false;
+    if (filtro === 'en_uso' && !h.en_uso) return false;
+    if (filtro === 'vencida' && !h.vencido) return false;
+    return true;
+  });
+
+  document.getElementById('h-count').textContent = `${list.length} herramienta${list.length !== 1 ? 's' : ''}`;
+
+  const grid = document.getElementById('h-grid');
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="es-icon">🔧</div><p>No hay herramientas${search ? ' que coincidan' : ''}</p></div>`;
+    return;
+  }
+
+  const CATS = {MANUAL:'🪛',ELECTRICA:'⚡',MEDICION:'📏',CORTE:'✂️',ELEVACION:'⬆️',LIMPIEZA:'🧹',GENERAL:'🔧'};
+
+  grid.innerHTML = list.map(h => {
+    let cardCls = h.vencido ? 'vencida' : (h.en_uso ? 'en-uso' : 'disponible');
+    let badge = '';
+    if (h.estado === 'ROTA') badge = '<span class="h-badge badge-rota">ROTA</span>';
+    else if (h.estado === 'EN_REPARACION') badge = '<span class="h-badge badge-reparacion">EN REPARACIÓN</span>';
+    else if (h.vencido) badge = '<span class="h-badge badge-vencida">⏰ VENCIDA</span>';
+    else if (h.en_uso)  badge = '<span class="h-badge badge-en-uso">EN USO</span>';
+    else badge = '<span class="h-badge badge-ok">DISPONIBLE</span>';
+
+    let quien = '';
+    if (h.en_uso && h.prestamo_activo) {
+      const p = h.prestamo_activo;
+      const dias = p.fecha_salida ? diasDesde(p.fecha_salida) : '';
+      quien = `<div class="h-quien">👷 <strong>${p.empleado_nombre || '—'}</strong>${p.sector ? ' · '+p.sector : ''}${p.destino ? ' → '+p.destino : ''}${dias !== '' ? ` · hace ${dias}d` : ''}</div>`;
+      if (p.motivo_uso) quien += `<div class="h-quien" style="font-size:11px;margin-top:2px">📌 ${p.motivo_uso}</div>`;
+    }
+
+    const iconCat = CATS[h.categoria] || '🔧';
+    const btnEntrega = !h.en_uso && h.estado === 'OK'
+      ? `<button class="btn btn-sm btn-primary" onclick="abrirEntregarModal(${h.id},'${esc(h.nombre)}')">Entregar</button>`
+      : '';
+    const btnDev = h.en_uso
+      ? `<button class="btn btn-sm" style="background:#22c55e;color:#fff" onclick="abrirDevolverModal(${h.id},'${esc(h.nombre)}')">Devolver</button>`
+      : '';
+    const btnHist  = `<button class="btn btn-sm" onclick="verHistorial('herramienta',${h.id},'${esc(h.nombre)}')">Historial</button>`;
+    const btnValor = PUEDE_COSTOS
+      ? `<button class="btn btn-sm" onclick="abrirModalValor('herramienta',${h.id},'${esc(h.nombre)}',${h.precio_costo||0})" title="Asignar costo de adquisición" style="color:var(--p-teal)">💰${h.precio_costo ? ` $${Math.round(h.precio_costo).toLocaleString('es-AR')}` : ''}</button>`
+      : '';
+
+    return `<div class="h-card ${cardCls}" style="cursor:pointer" onclick="verHistorial('herramienta',${h.id},'${esc(h.nombre)}')" title="Ver detalle / historial">
+      <div class="h-nombre">${iconCat} ${h.nombre}${h.codigo ? ` <span style="font-size:10px;color:var(--text-secondary)">[${h.codigo}]</span>` : ''}</div>
+      <div class="h-meta">${badge}</div>
+      ${quien}
+      ${h.ubicacion_actual && !h.en_uso ? `<div class="h-quien">📍 ${h.ubicacion_actual}</div>` : ''}
+      <div class="h-btns" onclick="event.stopPropagation()">${btnEntrega}${btnDev}${btnHist}${btnValor}</div>
+    </div>`;
+  }).join('');
+}
+
+async function crearHerramienta() {
+  const nombre = document.getElementById('hn-nombre').value.trim();
+  if (!nombre) { toast('Ingresá el nombre de la herramienta', 'err'); return; }
+  const precioRaw = document.getElementById('hn-precio').value;
+  const body = {
+    nombre,
+    categoria: document.getElementById('hn-cat').value,
+    codigo: document.getElementById('hn-codigo').value.trim(),
+    sector_base: document.getElementById('hn-sector-base').value,
+    numero_serie: document.getElementById('hn-serie').value.trim(),
+    ubicacion_actual: document.getElementById('hn-ubic').value.trim() || 'Depósito',
+    notas: document.getElementById('hn-notas').value.trim(),
+    precio_costo: precioRaw ? parseFloat(precioRaw) : null,
+    fecha_adquisicion: document.getElementById('hn-fecha-adq').value || null,
+  };
+  const r = await fetch('/api/panolero/herramientas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (r.ok) {
+    toast('Herramienta registrada ✓', 'ok');
+    ['hn-nombre','hn-codigo','hn-serie','hn-notas','hn-precio','hn-fecha-adq'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('hn-ubic').value = 'Depósito';
+    await cargarHerramientas();
+    await cargarResumen();
+    inventarioData = []; // invalidar caché
+  } else {
+    const e = await r.json(); toast(e.detail || 'Error al crear', 'err');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL ENTREGAR
+══════════════════════════════════════════════════════════════════════════ */
+function abrirEntregarModal(hid, nombre) {
+  document.getElementById('me-hid').value = hid;
+  document.getElementById('me-titulo').textContent = `🔧 Entregar: ${nombre}`;
+  document.getElementById('me-empleado').value = '';
+  document.getElementById('me-sector').value = '';
+  document.getElementById('me-destino').value = '';
+  document.getElementById('me-motivo').value = '';
+  document.getElementById('me-devol').value = '';
+  document.getElementById('me-notas').value = '';
+  document.getElementById('modal-entregar').classList.add('open');
+}
+
+async function confirmarEntrega() {
+  const hid = document.getElementById('me-hid').value;
+  const empleado = document.getElementById('me-empleado').value.trim();
+  if (!empleado) { toast('Ingresá quién retira la herramienta', 'err'); return; }
+  const _sec = document.getElementById('me-sector').value;
+  const _destinoArea = _sec === 'FABRICA' ? 'PRODUCCION' : (_sec === 'INSTALACION' ? 'INSTALACION' : (_sec ? 'OTRO' : null));
+  const body = {
+    empleado_nombre: empleado,
+    sector: _sec,
+    destino_area: _destinoArea,
+    destino: document.getElementById('me-destino').value.trim(),
+    motivo_uso: document.getElementById('me-motivo').value.trim(),
+    fecha_devolucion_esperada: document.getElementById('me-devol').value || null,
+    notas: document.getElementById('me-notas').value.trim(),
+  };
+  const r = await fetch(`/api/panolero/herramientas/${hid}/entregar`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (r.ok) {
+    cerrarModal('modal-entregar');
+    toast('Entrega registrada ✓', 'ok');
+    await cargarHerramientas(); await cargarResumen();
+  } else {
+    const e = await r.json(); toast(e.detail || 'Error', 'err');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL DEVOLVER
+══════════════════════════════════════════════════════════════════════════ */
+let _devEstado = 'OK';
+function abrirDevolverModal(hid, nombre) {
+  document.getElementById('md-hid').value = hid;
+  document.getElementById('md-titulo').textContent = `↩️ Devolver: ${nombre}`;
+  document.getElementById('md-notas').value = '';
+  _devEstado = 'OK';
+  document.querySelectorAll('.estado-btn').forEach(b => b.classList.toggle('active', b.dataset.estado === 'OK'));
+  document.getElementById('modal-devolver').classList.add('open');
+}
+
+function selectEstadoDev(btn) {
+  _devEstado = btn.dataset.estado;
+  document.querySelectorAll('.estado-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function confirmarDevolucion() {
+  const hid = document.getElementById('md-hid').value;
+  const body = { estado: _devEstado, notas: document.getElementById('md-notas').value.trim() };
+  const r = await fetch(`/api/panolero/herramientas/${hid}/devolver`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (r.ok) {
+    cerrarModal('modal-devolver');
+    toast('Devolución registrada ✓', 'ok');
+    await cargarHerramientas(); await cargarResumen(); await cargarAlertas();
+  } else {
+    const e = await r.json(); toast(e.detail || 'Error', 'err');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INSUMOS
+══════════════════════════════════════════════════════════════════════════ */
+async function cargarInsumos() {
+  const r = await fetch('/api/panolero/insumos');
+  if (!r.ok) return;
+  insumos = await r.json();
+  renderInsumos();
+}
+
+function filterInsumos() { renderInsumos(); }
+
+function renderInsumos() {
+  const search = (document.getElementById('i-search').value || '').toLowerCase();
+  const soloAlerta = document.getElementById('i-solo-alerta').checked;
+
+  let list = insumos.filter(m => {
+    if (search && !m.nombre.toLowerCase().includes(search)) return false;
+    if (soloAlerta && !m.alerta) return false;
+    return true;
+  });
+
+  document.getElementById('i-count').textContent = `${list.length} insumo${list.length !== 1 ? 's' : ''}`;
+  const el = document.getElementById('ins-list');
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="es-icon">📦</div><p>No hay insumos${search ? ' que coincidan' : ''}</p></div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(m => {
+    const cardCls = m.critico ? 'critico' : (m.alerta ? 'alerta' : '');
+    const barCls  = m.critico ? 'stock-crit' : (m.alerta ? 'stock-warn' : 'stock-ok');
+    const pct = m.stock_minimo > 0
+      ? Math.min(100, Math.round((m.stock_actual / (m.stock_minimo * 2)) * 100))
+      : (m.stock_actual > 0 ? 60 : 0);
+    const alertIcon = m.critico ? '🔴' : (m.alerta ? '🟡' : '');
+    const precioInfo = PUEDE_COSTOS && m.precio_referencia
+      ? `<span style="font-size:11px;color:var(--p-teal);margin-left:6px">💰 $${m.precio_referencia.toLocaleString('es-AR')} / ${m.unidad}</span>` : '';
+    return `<div class="ins-card ${cardCls}" style="cursor:pointer" onclick="abrirEditarInsumo(${m.id})" title="Ver detalle / editar cantidades">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="min-width:0">
+          <div class="ins-nombre">${alertIcon} ${m.nombre}</div>
+          <div class="ins-meta">${m.ubicacion ? '📍 '+m.ubicacion : ''}${m.proveedor ? ' · 🏪 '+m.proveedor : ''}${precioInfo}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end" onclick="event.stopPropagation()">
+          <button class="btn btn-sm btn-primary" onclick="abrirIngresoInsumo(${m.id},'${esc(m.nombre)}','${m.unidad}',${m.stock_actual},${m.precio_referencia||0})" title="Dar ingreso a mercadería comprada">📥 Ingreso</button>
+          <button class="btn btn-sm" onclick="abrirModalMovInsumo(${m.id},'${esc(m.nombre)}','${m.unidad}',${m.stock_actual},${m.precio_referencia||0})" title="Registrar salida / consumo / ajuste">📤 Salida</button>
+          <button class="btn btn-sm" onclick="abrirEditarInsumo(${m.id})" title="Editar datos del insumo">✏️</button>
+          <button class="btn btn-sm" onclick="verHistorial('insumo',${m.id},'${esc(m.nombre)}')" title="Ver historial de movimientos">📋</button>
+        </div>
+      </div>
+      <div class="stock-bar-bg"><div class="stock-bar ${barCls}" style="width:${pct}%"></div></div>
+      <div class="ins-nums">
+        <span>Stock: <strong>${m.stock_actual} ${m.unidad}</strong></span>
+        <span style="color:${m.alerta?'#f59e0b':'var(--text-secondary)'}">Mínimo: ${m.stock_minimo} ${m.unidad}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function crearInsumo() {
+  const nombre = document.getElementById('in-nombre').value.trim();
+  if (!nombre) { toast('Ingresá el nombre del insumo', 'err'); return; }
+  const body = {
+    nombre,
+    categoria: document.getElementById('in-cat').value,
+    unidad: document.getElementById('in-unidad').value,
+    stock_actual: parseFloat(document.getElementById('in-stock').value) || 0,
+    stock_minimo: parseFloat(document.getElementById('in-minimo').value) || 0,
+    ubicacion: document.getElementById('in-ubic').value.trim(),
+    proveedor: document.getElementById('in-prov').value.trim(),
+    precio_referencia: parseFloat(document.getElementById('in-precio').value) || null,
+  };
+  const r = await fetch('/api/panolero/insumos', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (r.ok) {
+    toast('Insumo registrado ✓', 'ok');
+    ['in-nombre','in-ubic','in-prov','in-precio'].forEach(id => document.getElementById(id).value = '');
+    ['in-stock','in-minimo'].forEach(id => document.getElementById(id).value = '0');
+    await cargarInsumos(); await cargarResumen();
+    inventarioData = []; // invalidar caché
+  } else {
+    const e = await r.json(); toast(e.detail || 'Error al crear', 'err');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EDITAR INSUMO
+══════════════════════════════════════════════════════════════════════════ */
+function abrirEditarInsumo(id) {
+  const m = insumos.find(x => x.id === id);
+  if (!m) { toast('Insumo no encontrado', 'err'); return; }
+  document.getElementById('ei-id').value     = m.id;
+  document.getElementById('ei-nombre').value = m.nombre || '';
+  document.getElementById('ei-cat').value    = m.categoria || 'CONSUMIBLE';
+  document.getElementById('ei-unidad').value = m.unidad || 'unidad';
+  document.getElementById('ei-stock').value  = m.stock_actual || 0;
+  document.getElementById('ei-minimo').value = m.stock_minimo || 0;
+  document.getElementById('ei-ubic').value   = m.ubicacion || '';
+  document.getElementById('ei-prov').value   = m.proveedor || '';
+  const precioEl = document.getElementById('ei-precio');
+  if (precioEl) precioEl.value = m.precio_referencia || '';
+  document.getElementById('modal-editar-insumo').classList.add('open');
+}
+
+async function guardarEditarInsumo() {
+  const id = document.getElementById('ei-id').value;
+  const nombre = document.getElementById('ei-nombre').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  const body = {
+    nombre,
+    categoria: document.getElementById('ei-cat').value,
+    unidad: document.getElementById('ei-unidad').value,
+    stock_actual: parseFloat(document.getElementById('ei-stock').value) || 0,
+    stock_minimo: parseFloat(document.getElementById('ei-minimo').value) || 0,
+    ubicacion: document.getElementById('ei-ubic').value.trim(),
+    proveedor: document.getElementById('ei-prov').value.trim(),
+  };
+  const precioEl = document.getElementById('ei-precio');
+  if (precioEl && precioEl.value !== '') {
+    body.precio_referencia = parseFloat(precioEl.value) || null;
+  }
+  const r = await fetch(`/api/panolero/insumos/${id}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+  });
+  if (r.ok) {
+    cerrarModal('modal-editar-insumo');
+    toast('Insumo actualizado ✓', 'ok');
+    await cargarInsumos(); await cargarResumen();
+    inventarioData = []; // invalidar caché
+  } else {
+    const e = await r.json(); toast(e.detail || 'Error al guardar', 'err');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL MOV INSUMO
+══════════════════════════════════════════════════════════════════════════ */
+let _tipoMov = 'SALIDA';
+let _precioActualInsumo = 0;
+function abrirModalMovInsumo(mid, nombre, unidad, stockActual, precioRef) {
+  document.getElementById('mi-mid').value = mid;
+  document.getElementById('mi-titulo').textContent = `📦 ${nombre} — Stock: ${stockActual} ${unidad}`;
+  document.getElementById('mi-cantidad').value = '';
+  document.getElementById('mi-resp').value = '';
+  document.getElementById('mi-sector').value = '';
+  document.getElementById('mi-motivo').value = '';
+  _tipoMov = 'SALIDA';
+  _precioActualInsumo = precioRef || 0;
+  if (PUEDE_COSTOS) {
+    const precioInput = document.getElementById('mi-precio-ref');
+    if (precioInput) precioInput.value = '';
+    const precioRow = document.getElementById('mi-precio-row');
+    if (precioRow) precioRow.style.display = 'none'; // solo se muestra en ENTRADA
+  }
+  document.querySelectorAll('.tipo-btn').forEach(b => b.classList.toggle('active', b.dataset.tipo === 'SALIDA'));
+  const motivoLbl = document.getElementById('mi-motivo-label');
+  if (motivoLbl) motivoLbl.textContent = 'Motivo / Uso';
+  // Reset destino (Producción/Instalación) y mostrarlo (default SALIDA)
+  _resetDestinoPan();
+  _toggleDestinoRow('SALIDA');
+  calcularTotalIngreso();
+  document.getElementById('modal-insumo').classList.add('open');
+}
+
+function _resetDestinoPan() {
+  const h = document.getElementById('mi-destino-area');
+  if (h) h.value = '';
+  document.querySelectorAll('.da-btn-pan').forEach(b => {
+    b.style.borderColor = 'var(--p-border)';
+    b.style.background = 'transparent';
+  });
+}
+
+function _toggleDestinoRow(tipo) {
+  const row = document.getElementById('mi-destino-row');
+  if (row) row.style.display = (tipo === 'SALIDA') ? '' : 'none';
+}
+
+function selectDestinoPan(btn) {
+  const area = btn.dataset.da;
+  document.getElementById('mi-destino-area').value = area;
+  const color = area === 'PRODUCCION' ? '#b45309' : '#0d9488';
+  document.querySelectorAll('.da-btn-pan').forEach(b => {
+    const on = b === btn;
+    b.style.borderColor = on ? color : 'var(--p-border)';
+    b.style.background = on ? (area === 'PRODUCCION' ? 'rgba(180,83,9,.10)' : 'rgba(13,148,136,.10)') : 'transparent';
+  });
+}
+
+function selectTipoMov(btn) {
+  _tipoMov = btn.dataset.tipo;
+  document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Mostrar campo de precio solo en ENTRADA para roles con costos
+  if (PUEDE_COSTOS) {
+    const precioRow = document.getElementById('mi-precio-row');
+    if (precioRow) precioRow.style.display = (_tipoMov === 'ENTRADA') ? '' : 'none';
+  }
+  // El destino (Producción/Instalación) solo aplica a SALIDA (consumo)
+  _toggleDestinoRow(_tipoMov);
+  // Ajustar etiqueta del motivo según el tipo
+  const motivoLbl = document.getElementById('mi-motivo-label');
+  if (motivoLbl) motivoLbl.textContent = (_tipoMov === 'ENTRADA') ? 'Detalle de la compra' : 'Motivo / Uso';
+  calcularTotalIngreso();
+}
+
+/* Abre el modal de movimiento directamente en modo ENTRADA (dar ingreso) */
+function abrirIngresoInsumo(mid, nombre, unidad, stockActual, precioRef) {
+  abrirModalMovInsumo(mid, nombre, unidad, stockActual, precioRef);
+  const btnEntrada = document.querySelector('.tipo-btn[data-tipo="ENTRADA"]');
+  if (btnEntrada) selectTipoMov(btnEntrada);
+}
+
+/* Total estimado de la compra = cantidad × precio unitario pagado */
+function calcularTotalIngreso() {
+  const totalEl = document.getElementById('mi-total-compra');
+  if (!totalEl) return;
+  const cant = parseFloat(document.getElementById('mi-cantidad').value) || 0;
+  const precioEl = document.getElementById('mi-precio-ref');
+  const precio = precioEl ? (parseFloat(precioEl.value) || 0) : 0;
+  if (_tipoMov === 'ENTRADA' && cant > 0 && precio > 0) {
+    totalEl.textContent = `Total compra: $${(cant * precio).toLocaleString('es-AR')}`;
+    totalEl.style.display = '';
+  } else {
+    totalEl.style.display = 'none';
+  }
+}
+
+async function confirmarMovInsumo() {
+  const mid = document.getElementById('mi-mid').value;
+  const cantidad = parseFloat(document.getElementById('mi-cantidad').value);
+  if (!cantidad || cantidad <= 0) { toast('Ingresá una cantidad válida', 'err'); return; }
+  const destinoArea = document.getElementById('mi-destino-area').value;
+  if (_tipoMov === 'SALIDA' && !destinoArea) {
+    toast('Indicá si el consumo es para Producción o Instalación', 'err'); return;
+  }
+  const precioRefInput = PUEDE_COSTOS && _tipoMov === 'ENTRADA'
+    ? document.getElementById('mi-precio-ref') : null;
+  const precioRefNuevo = precioRefInput && precioRefInput.value
+    ? parseFloat(precioRefInput.value) : null;
+
+  const body = {
+    tipo: _tipoMov,
+    cantidad,
+    responsable: document.getElementById('mi-resp').value.trim(),
+    sector: document.getElementById('mi-sector').value,
+    motivo: document.getElementById('mi-motivo').value.trim(),
+    destino_area: destinoArea || null,
+    precio_referencia_nuevo: precioRefNuevo,
+  };
+  const r = await fetch(`/api/panolero/insumos/${mid}/movimiento`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (r.ok) {
+    const d = await r.json();
+    cerrarModal('modal-insumo');
+    let msg = `Registrado ✓ — Stock: ${d.stock_resultante}`;
+    if (d.critico) msg += ' 🔴 SIN STOCK';
+    else if (d.alerta) msg += ' 🟡 STOCK BAJO';
+    toast(msg, d.alerta ? 'err' : 'ok');
+    await cargarInsumos(); await cargarResumen(); await cargarAlertas();
+  } else {
+    const e = await r.json(); toast(e.detail || 'Error', 'err');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EN USO
+══════════════════════════════════════════════════════════════════════════ */
+async function cargarEnUso() {
+  const r = await fetch('/api/panolero/en-uso');
+  if (!r.ok) return;
+  const list = await r.json();
+  const el = document.getElementById('en-uso-list');
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state"><div class="es-icon">✅</div><p>Ninguna herramienta en uso ahora</p></div>';
+    return;
+  }
+  el.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">${list.length} herramienta${list.length!==1?'s':''} fuera del depósito</div>
+  <div class="feed">` + list.map(p => {
+    const dias = p.fecha_salida ? diasDesde(p.fecha_salida) : '';
+    const vencBadge = p.vencido ? '<span style="background:#fee2e2;color:#dc2626;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">⏰ VENCIDA</span>' : '';
+    const devFecha = p.fecha_devolucion_esperada ? `Dev. esperada: ${fmtFecha(p.fecha_devolucion_esperada)}` : 'Sin fecha de devolución';
+    return `<div class="feed-item" style="${p.vencido ? 'border-left:4px solid #ef4444;' : ''}">
+      <div class="feed-icon">🔧</div>
+      <div class="feed-body">
+        <div class="feed-titulo">${p.herramienta_nombre} ${vencBadge}</div>
+        <div class="feed-sub">👷 <strong>${p.empleado_nombre||'—'}</strong>${p.sector?' · '+p.sector:''}${p.destino?' → '+p.destino:''}</div>
+        ${p.motivo_uso?`<div class="feed-sub">📌 ${p.motivo_uso}</div>`:''}
+        <div class="feed-chips">
+          <span class="fchip-sm">Salida: ${fmtFecha(p.fecha_salida)}</span>
+          <span class="fchip-sm ${p.vencido?'chip-salida':''}">${devFecha}</span>
+          ${dias!==''?`<span class="fchip-sm">Hace ${dias} días</span>`:''}
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-sm" style="background:#22c55e;color:#fff" onclick="abrirDevolverModal(${p.herramienta_id},'${esc(p.herramienta_nombre)}')">↩ Devolver</button>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOVIMIENTOS
+══════════════════════════════════════════════════════════════════════════ */
+async function cargarConsumo() {
+  const dias = document.getElementById('consumo-dias').value || 30;
+  const cont = document.getElementById('consumo-cards');
+  try {
+    const r = await fetch(`/api/panolero/consumo-por-sector?dias=${dias}`);
+    if (!r.ok) { cont.innerHTML = ''; return; }
+    const d = await r.json();
+    const card = (titulo, icono, color, area) => {
+      const valor = (d.ver_costos && area.insumos_valor != null)
+        ? `<div style="font-size:13px;color:${color};font-weight:700;margin-top:2px">$${(area.insumos_valor||0).toLocaleString('es-AR')} en insumos</div>` : '';
+      const top = (area.top_insumos || []).map(t =>
+        `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--p-t2,#666)"><span>${t.nombre}</span><strong>${t.cantidad}</strong></div>`
+      ).join('') || '<div style="font-size:12px;color:var(--p-t3,#999)">Sin consumo en el período</div>';
+      return `<div style="border:1px solid var(--p-border);border-left:4px solid ${color};border-radius:12px;padding:14px;background:var(--bg-card,#fff)">
+        <div style="font-weight:800;font-size:15px">${icono} ${titulo}</div>
+        ${valor}
+        <div style="display:flex;gap:14px;margin:8px 0 10px">
+          <div><div style="font-size:20px;font-weight:800">${area.insumos_movimientos||0}</div><div style="font-size:11px;color:var(--p-t3,#999)">salidas insumo</div></div>
+          <div><div style="font-size:20px;font-weight:800">${area.herramientas_entregadas||0}</div><div style="font-size:11px;color:var(--p-t3,#999)">herram. entregadas</div></div>
+        </div>
+        ${top}
+      </div>`;
+    };
+    let html = card('Producción', '🏭', '#b45309', d.produccion) + card('Instalación', '🚚', '#0d9488', d.instalacion);
+    const otro = d.otro;
+    if (otro && (otro.insumos_movimientos || otro.herramientas_entregadas)) {
+      html += card('Sin clasificar', '❔', '#9ca3af', otro);
+    }
+    cont.innerHTML = html;
+  } catch(e) { cont.innerHTML = ''; }
+}
+
+async function cargarMovimientos() {
+  const r = await fetch('/api/panolero/movimientos?limite=80');
+  if (!r.ok) return;
+  const list = await r.json();
+  const el = document.getElementById('movs-feed');
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state"><div class="es-icon">📋</div><p>Sin movimientos registrados</p></div>';
+    return;
+  }
+  const ACCION_CLS = { ENTREGA:'chip-entrega', DEVOLUCION:'chip-devolucion', ENTRADA:'chip-entrada', SALIDA:'chip-salida', AJUSTE:'chip-ajuste' };
+  el.innerHTML = list.map(m => {
+    const accionBadge = `<span class="fchip-sm ${ACCION_CLS[m.accion]||''}">${m.accion}</span>`;
+    const sectBadge = m.sector ? `<span class="fchip-sm">${m.sector}</span>` : '';
+    const sub = m.tipo === 'herramienta'
+      ? `👷 ${m.responsable||'—'}${m.destino?' → '+m.destino:''}`
+      : `Cantidad: <strong>${m.cantidad} ${m.unidad||''}</strong>${m.motivo?' · '+m.motivo:''}`;
+    return `<div class="feed-item">
+      <div class="feed-icon">${m.icon}</div>
+      <div class="feed-body">
+        <div class="feed-titulo">${m.nombre}</div>
+        <div class="feed-sub">${sub}</div>
+        <div class="feed-chips">${accionBadge}${sectBadge}${m.registrado_por?'<span class="fchip-sm">'+m.registrado_por+'</span>':''}</div>
+      </div>
+      <div class="feed-fecha">${fmtFechaHora(m.fecha)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ALERTAS
+══════════════════════════════════════════════════════════════════════════ */
+async function cargarAlertas() {
+  const r = await fetch('/api/panolero/alertas');
+  if (!r.ok) return;
+  const d = await r.json();
+  const badge = document.getElementById('alerta-badge');
+  if (d.total > 0) { badge.style.display = ''; badge.textContent = d.total; }
+  else badge.style.display = 'none';
+
+  const el = document.getElementById('alertas-list');
+  if (!d.items.length) {
+    el.innerHTML = '<div class="empty-state"><div class="es-icon">✅</div><p>Sin alertas activas — todo en orden</p></div>';
+    return;
+  }
+  el.innerHTML = d.items.map(a => {
+    const cls = a.nivel === 'ROJA' ? 'alert-roja' : 'alert-amarilla';
+    const icon = a.tipo === 'STOCK_BAJO' ? '📦' : (a.tipo === 'HERRAMIENTA_VENCIDA' ? '⏰' : '🔧');
+    let btns = '';
+    if (a.tipo === 'HERRAMIENTA_VENCIDA' || a.tipo === 'HERRAMIENTA_SIN_FECHA') {
+      btns = `<button class="btn btn-sm alert-btn" onclick="abrirDevolverModal(${a.herramienta_id},'${esc(a.nombre)}')">Registrar devolución</button>`;
+    } else if (a.tipo === 'STOCK_BAJO') {
+      btns = `<button class="btn btn-sm alert-btn" onclick="abrirIngresoInsumo(${a.insumo_id},'${esc(a.nombre)}','unidad',0,0)">📥 Dar ingreso</button>`;
+    }
+    return `<div class="alert-item ${cls}">
+      <div class="alert-icon">${icon}</div>
+      <div class="alert-body">
+        <div class="alert-titulo">${a.titulo} · <span class="alert-nombre">${a.nombre}</span></div>
+        <div class="alert-detalle">${a.detalle}${a.proveedor?' · Proveedor: '+a.proveedor:''}</div>
+        ${btns}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HISTORIAL
+══════════════════════════════════════════════════════════════════════════ */
+async function verHistorial(tipo, id, nombre) {
+  document.getElementById('mh-titulo').textContent = `Historial: ${nombre}`;
+  document.getElementById('mh-body').innerHTML = '<p style="text-align:center;color:var(--text-secondary)">Cargando...</p>';
+  document.getElementById('modal-historial').classList.add('open');
+
+  const url = tipo === 'herramienta' ? `/api/panolero/herramientas/${id}/historial` : `/api/panolero/insumos/${id}/historial`;
+  const r = await fetch(url);
+  if (!r.ok) { document.getElementById('mh-body').innerHTML = '<p>Error al cargar</p>'; return; }
+  const d = await r.json();
+  const hist = tipo === 'herramienta' ? d.historial : d.historial;
+
+  if (!hist.length) {
+    document.getElementById('mh-body').innerHTML = '<div class="empty-state"><p>Sin movimientos registrados</p></div>';
+    return;
+  }
+
+  let html = '<div class="feed" style="max-height:60vh;overflow-y:auto">';
+  if (tipo === 'herramienta') {
+    html += hist.map(p => `<div class="feed-item" style="${p.vencido?'border-left:3px solid #ef4444;':''}">
+      <div class="feed-icon">${p.devuelto ? '↩️' : '🔧'}</div>
+      <div class="feed-body">
+        <div class="feed-titulo">${p.devuelto ? 'Devuelta' : 'Entregada'} — ${p.empleado_nombre||'—'}</div>
+        <div class="feed-sub">${p.sector?p.sector+' · ':''}${p.destino||''}${p.motivo_uso?' · '+p.motivo_uso:''}</div>
+        <div class="feed-chips">
+          <span class="fchip-sm">Salida: ${fmtFecha(p.fecha_salida)}</span>
+          ${p.fecha_devolucion_real ? `<span class="fchip-sm chip-devolucion">Dev: ${fmtFecha(p.fecha_devolucion_real)}</span>` : '<span class="fchip-sm chip-salida">Sin devolver</span>'}
+          ${p.registrado_por?`<span class="fchip-sm">${p.registrado_por}</span>`:''}
+        </div>
+      </div>
+    </div>`).join('');
+  } else {
+    html += hist.map(mv => {
+      const icons = {ENTRADA:'📥',SALIDA:'📤',AJUSTE:'🔄'};
+      const cls = {ENTRADA:'chip-entrada',SALIDA:'chip-salida',AJUSTE:'chip-ajuste'};
+      return `<div class="feed-item">
+        <div class="feed-icon">${icons[mv.tipo]||'📦'}</div>
+        <div class="feed-body">
+          <div class="feed-titulo">${mv.tipo}: ${mv.cantidad}</div>
+          <div class="feed-sub">${mv.motivo||'—'}</div>
+          <div class="feed-chips">
+            <span class="fchip-sm ${cls[mv.tipo]||''}">${mv.tipo}</span>
+            ${mv.registrado_por?`<span class="fchip-sm">${mv.registrado_por}</span>`:''}
+          </div>
+        </div>
+        <div class="feed-fecha">${fmtFechaHora(mv.created_at)}</div>
+      </div>`;
+    }).join('');
+  }
+  html += '</div>';
+  document.getElementById('mh-body').innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL RÁPIDO (desde top actions)
+══════════════════════════════════════════════════════════════════════════ */
+function abrirModalRapido(tipo) {
+  if (tipo === 'herramienta') {
+    // Abrir formulario de selección de herramienta disponible
+    const disponibles = herramientas.filter(h => !h.en_uso && h.estado === 'OK');
+    if (!disponibles.length) { toast('No hay herramientas disponibles para entregar', 'err'); return; }
+    document.getElementById('mr-titulo').textContent = '🔧 Entrega rápida de herramienta';
+    document.getElementById('mr-body').innerHTML = `
+      <div class="fp-label" style="margin-bottom:6px">Seleccioná la herramienta</div>
+      <select class="input" id="mr-hsel" style="margin-bottom:12px">
+        ${disponibles.map(h => `<option value="${h.id}">${h.nombre}${h.codigo?' ['+h.codigo+']':''}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary w-full" onclick="irAEntregarDesdeRapido()">Continuar →</button>
+    `;
+    document.getElementById('modal-rapido').classList.add('open');
+  } else {
+    // insumo: lista de insumos
+    if (!insumos.length) { showTab('insumos', document.querySelectorAll('.tab-btn')[1]); return; }
+    document.getElementById('mr-titulo').textContent = '📦 Registrar consumo rápido';
+    document.getElementById('mr-body').innerHTML = `
+      <div class="fp-label" style="margin-bottom:6px">Seleccioná el insumo</div>
+      <input class="input" placeholder="Buscar insumo..." oninput="filterMrInsumos(this.value)" style="margin-bottom:8px">
+      <div id="mr-ins-list" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+        ${insumos.map(m => `<div class="ins-card" style="cursor:pointer;padding:10px" onclick="abrirModalMovInsumo(${m.id},'${esc(m.nombre)}','${m.unidad}',${m.stock_actual});cerrarModal('modal-rapido')">
+          <span style="font-weight:700">${m.nombre}</span>
+          <span style="float:right;color:var(--text-secondary);font-size:12px">${m.stock_actual} ${m.unidad}</span>
+        </div>`).join('')}
+      </div>
+    `;
+    document.getElementById('modal-rapido').classList.add('open');
+  }
+}
+
+function filterMrInsumos(q) {
+  const items = document.querySelectorAll('#mr-ins-list .ins-card');
+  items.forEach(el => {
+    const nombre = el.querySelector('span').textContent.toLowerCase();
+    el.style.display = nombre.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+function irAEntregarDesdeRapido() {
+  const sel = document.getElementById('mr-hsel');
+  const hid = parseInt(sel.value);
+  const h = herramientas.find(h => h.id === hid);
+  if (!h) return;
+  cerrarModal('modal-rapido');
+  abrirEntregarModal(hid, h.nombre);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   UTILS
+══════════════════════════════════════════════════════════════════════════ */
+function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function toast(msg, tipo) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${tipo} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+}
+
+function fmtFechaHora(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' }) + ' ' +
+         d.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+}
+
+function diasDesde(iso) {
+  if (!iso) return '';
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
+function esc(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+// Cerrar modales al hacer clic fuera
+document.querySelectorAll('.modal-bg').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTORES
+══════════════════════════════════════════════════════════════════════════ */
+let sectoresData = [];
+
+const SECTORES_DEF = [
+  {id:'DEPOSITO',      nombre:'Depósito / Pañolero', icon:'🏠', color:'#6366f1'},
+  {id:'ESTRUCTURA',    nombre:'Estructura',          icon:'🏗️', color:'#0ea5e9'},
+  {id:'REVESTIMIENTO', nombre:'Revestimiento',       icon:'🪵', color:'#f59e0b'},
+  {id:'TERMINACIONES', nombre:'Terminaciones',       icon:'🔨', color:'#10b981'},
+  {id:'PINTURA',       nombre:'Pintura',             icon:'🖌️', color:'#8b5cf6'},
+  {id:'PISCINAS',      nombre:'Taller Piscinas',     icon:'🏊', color:'#06b6d4'},
+  {id:'INSTALACION',   nombre:'Instalación / Campo', icon:'🚛', color:'#ef4444'},
+  {id:'MANTENIMIENTO', nombre:'Mantenimiento',       icon:'⚙️', color:'#f97316'},
+  {id:'PATIO',         nombre:'Patio / Exterior',    icon:'🌿', color:'#84cc16'},
+];
+
+async function cargarSectores() {
+  const r = await fetch('/api/panolero/sectores');
+  if (!r.ok) return;
+  sectoresData = await r.json();
+  renderSectores();
+}
+
+function filterSectores() { renderSectores(); }
+
+function renderSectores() {
+  const search = (document.getElementById('sec-search').value || '').toLowerCase();
+  const soloEnUso = document.getElementById('sec-solo-prestadas').checked;
+  const grid = document.getElementById('sectores-grid');
+
+  const CATS = {MANUAL:'🪛',ELECTRICA:'⚡',MEDICION:'📏',CORTE:'✂️',ELEVACION:'⬆️',LIMPIEZA:'🧹',GENERAL:'🔧'};
+
+  const matchTool = t =>
+    !search || t.nombre.toLowerCase().includes(search) || (t.codigo||'').toLowerCase().includes(search);
+
+  let html = '';
+  for (const sec of sectoresData) {
+    const disp     = sec.disponibles.filter(matchTool);
+    const prestadas = sec.en_prestamo.filter(matchTool);
+    const visita   = sec.visitando.filter(matchTool);
+
+    if (soloEnUso && prestadas.length === 0 && visita.length === 0) continue;
+    if (search && disp.length === 0 && prestadas.length === 0 && visita.length === 0) continue;
+
+    const totalTools = sec.total_permanentes;
+    const enUsoQty   = prestadas.length;
+    const visitaQty  = visita.length;
+
+    const toolRow = (t, cls, etiqueta, etiquetaCls) => `
+      <div class="sec-tool ${cls}" onclick="abrirModalSector(${t.id},'${esc(t.nombre)}','${t.sector_base}')">
+        <span style="font-size:14px">${CATS[t.categoria]||'🔧'}</span>
+        <span class="sec-tool-nombre">${t.nombre}${t.codigo?' <span style="font-size:10px;color:var(--text-secondary)">['+t.codigo+']</span>':''}</span>
+        ${t.en_prestamo && t.prestamo_empleado ? `<span class="sec-tool-meta">👷 ${t.prestamo_empleado.split(' ')[0]}</span>` : ''}
+        <span class="sec-tool-estado ${etiquetaCls}">${etiqueta}</span>
+      </div>`;
+
+    let body = '';
+
+    if (disp.length > 0) {
+      body += `<div class="sec-group-label">✅ En sector (${disp.length})</div><div class="sec-tools">`;
+      body += disp.map(t => toolRow(t, '', 'En sector', 'estado-ok')).join('');
+      body += '</div>';
+    }
+
+    if (prestadas.length > 0) {
+      body += `<div class="sec-group-label">📤 Prestadas a otro lugar (${prestadas.length})</div><div class="sec-tools">`;
+      body += prestadas.map(t =>
+        toolRow(t, t.vencido ? 'prestada-vencida' : 'prestada',
+                t.vencido ? '⏰ Vencida' : '📤 Fuera',
+                t.vencido ? 'estado-vencida' : 'estado-uso')
+      ).join('');
+      body += '</div>';
+    }
+
+    if (visita.length > 0) {
+      body += `<div class="sec-group-label">📥 Visitando este sector (${visita.length})</div><div class="sec-tools">`;
+      body += visita.map(t =>
+        toolRow(t, 'visitando', '📥 Visita', 'estado-visita')
+      ).join('');
+      body += '</div>';
+    }
+
+    if (!body) {
+      body = `<div class="sec-empty">Sin herramientas asignadas</div>`;
+    }
+
+    html += `<div class="sector-card">
+      <div class="sector-header" style="--sec-accent:${sec.color}">
+        <span class="sector-icon">${sec.icon}</span>
+        <span class="sector-nombre">${sec.nombre}</span>
+        <div class="sector-counter">
+          <span class="sec-cnt" title="Permanentes">🏠 ${totalTools}</span>
+          ${enUsoQty > 0 ? `<span class="sec-cnt" title="Prestadas">📤 ${enUsoQty}</span>` : ''}
+          ${visitaQty > 0 ? `<span class="sec-cnt" title="Visitando">📥 ${visitaQty}</span>` : ''}
+        </div>
+      </div>
+      <div class="sector-body">${body}</div>
+    </div>`;
+  }
+
+  grid.innerHTML = html || `<div class="empty-state" style="grid-column:1/-1"><div class="es-icon">🔍</div><p>No hay herramientas que coincidan</p></div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL ASIGNAR COSTO (herramienta o insumo)
+══════════════════════════════════════════════════════════════════════════ */
+function abrirModalValor(tipo, id, nombre, precioActual, unidad) {
+  if (!PUEDE_COSTOS) return;
+  document.getElementById('mv-tipo').value  = tipo;
+  document.getElementById('mv-id').value    = id;
+  document.getElementById('mv-nombre').textContent = nombre;
+  document.getElementById('mv-titulo').textContent =
+    tipo === 'herramienta' ? '💰 Valorizar herramienta' : '💰 Precio de referencia';
+  document.getElementById('mv-precio').value = precioActual || '';
+
+  const hint = document.getElementById('mv-unidad-hint');
+  if (hint) hint.textContent = tipo === 'insumo' && unidad ? `Precio por ${unidad}` : '';
+
+  // Fecha de adquisición solo para herramientas
+  const fechaRow = document.getElementById('mv-fecha-row');
+  if (fechaRow) {
+    fechaRow.style.display = tipo === 'herramienta' ? '' : 'none';
+    if (tipo === 'herramienta') document.getElementById('mv-fecha').value = '';
+  }
+
+  document.getElementById('modal-valor').classList.add('open');
+}
+
+async function confirmarValor() {
+  const tipo  = document.getElementById('mv-tipo').value;
+  const id    = document.getElementById('mv-id').value;
+  const precio = parseFloat(document.getElementById('mv-precio').value);
+  if (!precio || precio < 0) { toast('Ingresá un precio válido', 'err'); return; }
+
+  if (tipo === 'herramienta') {
+    const fechaEl = document.getElementById('mv-fecha');
+    const body = {
+      precio_costo: precio,
+      fecha_adquisicion: fechaEl ? (fechaEl.value || null) : null,
+    };
+    const r = await fetch(`/api/panolero/herramientas/${id}/valor`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      cerrarModal('modal-valor');
+      toast('Costo asignado ✓', 'ok');
+      await cargarHerramientas();
+      inventarioData = [];
+    } else { const e = await r.json(); toast(e.detail || 'Error', 'err'); }
+
+  } else {
+    // insumo: actualizar precio_referencia
+    const r = await fetch(`/api/panolero/insumos/${id}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ precio_referencia: precio }),
+    });
+    if (r.ok) {
+      cerrarModal('modal-valor');
+      toast('Precio actualizado ✓', 'ok');
+      await cargarInsumos();
+      inventarioData = [];
+    } else { const e = await r.json(); toast(e.detail || 'Error', 'err'); }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INVENTARIO GENERAL
+══════════════════════════════════════════════════════════════════════════ */
+async function cargarInventario() {
+  const r = await fetch('/api/panolero/inventario-general');
+  if (!r.ok) return;
+  const d = await r.json();
+  inventarioData    = d.items;
+  inventarioResumen = d.resumen;
+
+  // KPIs
+  document.getElementById('inv-total').textContent       = d.resumen.total_items;
+  document.getElementById('inv-herramientas').textContent= d.resumen.total_herramientas;
+  document.getElementById('inv-insumos').textContent     = d.resumen.total_insumos;
+  document.getElementById('inv-valor').textContent       = fmtPeso(d.resumen.valor_total);
+  document.getElementById('inv-alertas-cnt').textContent = d.resumen.items_con_alerta;
+
+  renderInventario();
+}
+
+function filterInventario() { renderInventario(); }
+
+function renderInventario() {
+  const search    = (document.getElementById('inv-search').value || '').toLowerCase();
+  const tipo      = document.getElementById('inv-tipo').value;
+  const cat       = document.getElementById('inv-cat').value;
+  const soloAlert = document.getElementById('inv-solo-alerta').checked;
+
+  let list = inventarioData.filter(i => {
+    if (tipo && i.tipo !== tipo) return false;
+    if (cat  && i.categoria !== cat) return false;
+    if (soloAlert && !i.alerta && !i.critico) return false;
+    if (search && !i.nombre.toLowerCase().includes(search) && !(i.codigo||'').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  document.getElementById('inv-count').textContent =
+    `${list.length} ítem${list.length !== 1 ? 's' : ''}`;
+
+  const CATS_H = {MANUAL:'🪛',ELECTRICA:'⚡',MEDICION:'📏',CORTE:'✂️',ELEVACION:'⬆️',LIMPIEZA:'🧹',GENERAL:'🔧'};
+  const CATS_I = {CONSUMIBLE:'📦',QUIMICO:'🧪',FIJACION:'🔩',ELECTRICO:'🔌',PINTURA:'🖌️',LIMPIEZA:'🧹',OTRO:'📋'};
+
+  const tbody = document.getElementById('inv-tbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-secondary)">No hay ítems que coincidan con los filtros</td></tr>`;
+    document.getElementById('inv-totales').style.display = 'none';
+    return;
+  }
+
+  const valorH = list.filter(i=>i.tipo==='HERRAMIENTA').reduce((s,i)=>s+(i.valor_total||0),0);
+  const valorI = list.filter(i=>i.tipo==='INSUMO').reduce((s,i)=>s+(i.valor_total||0),0);
+  document.getElementById('inv-pie-h').textContent     = fmtPeso(valorH);
+  document.getElementById('inv-pie-i').textContent     = fmtPeso(valorI);
+  document.getElementById('inv-pie-total').textContent = fmtPeso(valorH + valorI);
+  document.getElementById('inv-totales').style.display = '';
+
+  tbody.innerHTML = list.map(i => {
+    const esH = i.tipo === 'HERRAMIENTA';
+    const iconCat = esH ? (CATS_H[i.categoria]||'🔧') : (CATS_I[i.categoria]||'📦');
+
+    // Estado badge
+    const estadoKey = (i.estado||'').toLowerCase();
+    let estadoCls = 'inv-estado-ok';
+    if (estadoKey === 'en_uso') estadoCls = 'inv-estado-en_uso';
+    else if (estadoKey === 'alerta') estadoCls = 'inv-estado-alerta';
+    else if (estadoKey === 'critico' || estadoKey === 'rota' || estadoKey === 'baja') estadoCls = 'inv-estado-critico';
+    else if (i.alerta) estadoCls = 'inv-estado-alerta';
+
+    // Disponible / stock
+    const dispCell = esH
+      ? `<td style="text-align:right"><strong>${i.stock_actual === 1 ? '✓ Disponible' : '— En uso'}</strong></td>`
+      : `<td style="text-align:right"><strong>${i.stock_actual}</strong> ${i.unidad}</td>`;
+
+    // En uso / mínimo
+    const usoCell = esH
+      ? `<td style="text-align:right;color:${i.en_uso_qty > 0 ? 'var(--p-teal)' : 'var(--p-t3)'}">${i.en_uso_qty > 0 ? '1 en uso' : '—'}</td>`
+      : `<td style="text-align:right;color:${i.alerta ? 'var(--p-warn)' : 'var(--p-t3)'}">mín. ${i.stock_minimo||0} ${i.unidad}</td>`;
+
+    const precioCell = i.precio_unitario
+      ? `<td class="inv-valor" style="text-align:right">${fmtPeso(i.precio_unitario)}</td>`
+      : `<td style="text-align:right"><span class="inv-no-valor">sin precio</span></td>`;
+
+    const valorCell = i.valor_total > 0
+      ? `<td class="inv-valor" style="text-align:right;font-weight:700">${fmtPeso(i.valor_total)}</td>`
+      : `<td style="text-align:right"><span class="inv-no-valor">—</span></td>`;
+
+    const rowCls = i.critico ? 'row-critico' : (i.alerta ? 'row-alerta' : '');
+
+    return `<tr class="${rowCls}">
+      <td><span class="inv-tipo-badge inv-tipo-${i.tipo.toLowerCase()}">${esH ? '🔧' : '📦'} ${i.tipo}</span></td>
+      <td style="font-weight:600">${iconCat} ${i.nombre}</td>
+      <td style="color:var(--p-t2);font-size:12px">${i.categoria}</td>
+      <td style="color:var(--p-t3);font-size:12px">${i.codigo||'—'}</td>
+      ${dispCell}
+      ${usoCell}
+      ${precioCell}
+      ${valorCell}
+      <td><span class="inv-estado ${estadoCls}">${i.estado||'OK'}</span></td>
+      <td style="color:var(--p-t3);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${i.ubicacion||''}">${i.ubicacion||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtPeso(n) {
+  if (!n && n !== 0) return '—';
+  return '$' + Math.round(n).toLocaleString('es-AR');
+}
+
+/* ── Modal asignar sector ─────────────────────────────────────────────── */
+let _sectorSeleccionado = '';
+
+function abrirModalSector(hid, nombre, sectorActual) {
+  document.getElementById('ms-hid').value = hid;
+  document.getElementById('ms-nombre').textContent = nombre;
+  document.getElementById('ms-titulo').textContent = `📍 Reubicar: ${nombre}`;
+  _sectorSeleccionado = sectorActual || 'DEPOSITO';
+
+  const list = document.getElementById('ms-sector-list');
+  list.innerHTML = SECTORES_DEF.map(s => `
+    <button class="btn sec-sel-btn ${s.id === _sectorSeleccionado ? 'active' : ''}"
+            data-sid="${s.id}"
+            onclick="selectSectorModal(this,'${s.id}')"
+            style="text-align:left;padding:8px 10px;border-left:3px solid ${s.color}">
+      ${s.icon} ${s.nombre}
+    </button>`).join('');
+
+  document.getElementById('modal-sector').classList.add('open');
+}
+
+function selectSectorModal(btn, sid) {
+  _sectorSeleccionado = sid;
+  document.querySelectorAll('.sec-sel-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function confirmarAsignarSector() {
+  const hid = document.getElementById('ms-hid').value;
+  const r = await fetch(`/api/panolero/herramientas/${hid}/asignar-sector`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sector_base: _sectorSeleccionado}),
+  });
+  if (r.ok) {
+    cerrarModal('modal-sector');
+    toast('Sector asignado ✓', 'ok');
+    await cargarSectores();
+    await cargarHerramientas();
+  } else {
+    const e = await r.json(); toast(e.detail || 'Error', 'err');
+  }
+}
+
+/* ── Gasto rápido ───────────────────────────────────────────────────────── */
+
+function abrirModalGasto() {
+  // Pre-set today's date
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('mg-fecha').value = hoy;
+  document.getElementById('mg-monto').value = '';
+  document.getElementById('mg-desc').value = '';
+  document.getElementById('mg-prov').value = '';
+  document.getElementById('mg-cat').value = 'MATERIALES';
+  document.getElementById('mg-sector').value = 'FABRICA';
+  document.getElementById('modal-gasto').classList.add('open');
+  setTimeout(() => document.getElementById('mg-monto').focus(), 200);
+}
+
+async function confirmarGasto() {
+  const monto = parseFloat(document.getElementById('mg-monto').value);
+  const desc  = document.getElementById('mg-desc').value.trim();
+  if (!monto || monto <= 0) { toast('Ingresá el monto', 'err'); return; }
+  if (!desc) { toast('Ingresá la descripción', 'err'); return; }
+
+  const body = {
+    monto,
+    descripcion: desc,
+    categoria:   document.getElementById('mg-cat').value,
+    sector:      document.getElementById('mg-sector').value,
+    proveedor:   document.getElementById('mg-prov').value.trim(),
+    fecha:       document.getElementById('mg-fecha').value,
+  };
+
+  try {
+    const r = await fetch('/api/panolero/gastos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    cerrarModal('modal-gasto');
+    toast(`💸 Gasto registrado: $${Math.round(monto).toLocaleString('es-AR')}`, 'ok');
+  } catch(e) {
+    toast(e.message || 'Error al guardar', 'err');
+  }
+}
+</script>
+{% endblock %}

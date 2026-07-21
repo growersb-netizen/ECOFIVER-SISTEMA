@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Semana de Videollamadas — Eco Módulos{% endblock %}
+{% block page_title %}📹 Semana de Videollamadas{% endblock %}
+
+{% block top_actions %}
+<a href="/videollamadas" class="btn btn-ghost btn-sm">← Videollamadas</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  /* ─── Nav ─── */
+  .semana-nav { display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+  .semana-nav h2 { font-size:17px; font-weight:700; margin:0; color:var(--text-primary); flex:1; }
+  .badge-total { background:var(--primary); color:#fff; border-radius:20px; padding:2px 12px; font-size:13px; font-weight:700; }
+  .btn-nav { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:5px 14px; cursor:pointer; font-size:18px; color:var(--text-primary); line-height:1.4; }
+  .btn-nav:hover { background:var(--surface-3); }
+  .btn-hoy { background:var(--primary); color:#fff; border:none; border-radius:8px; padding:6px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn-hoy:hover { opacity:.85; }
+  .btn-ayer { background:var(--surface-3); color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:6px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+
+  /* ─── Leyenda ─── */
+  .leyenda { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:18px; font-size:12px; font-weight:600; color:var(--text-secondary); }
+  .leyenda-item { display:flex; align-items:center; gap:6px; }
+  .dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .dot-agendada  { background:#f59e0b; }
+  .dot-realizada { background:#10b981; }
+  .dot-nopresento{ background:#ef4444; }
+  .dot-reprog    { background:#8b5cf6; }
+
+  /* ─── Grilla ─── */
+  .grilla-semana { display:grid; grid-template-columns:repeat(7, minmax(155px,1fr)); gap:10px; overflow-x:auto; padding-bottom:16px; }
+  .dia-col { display:flex; flex-direction:column; gap:8px; }
+  .dia-header { border-radius:10px; padding:10px 12px 8px; background:var(--surface-2); border:1px solid var(--border); text-align:center; }
+  .dia-header.es-hoy { background:var(--primary); border-color:var(--primary); }
+  .dia-header.es-hoy .dia-nombre,.dia-header.es-hoy .dia-numero,.dia-header.es-hoy .dia-mes { color:#fff; }
+  .dia-header.es-hoy .dia-badge { background:rgba(255,255,255,.25); color:#fff; }
+  .dia-nombre { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-secondary); }
+  .dia-numero { font-size:28px; font-weight:800; line-height:1; color:var(--text-primary); margin:2px 0; }
+  .dia-mes { font-size:11px; color:var(--text-secondary); margin-bottom:6px; }
+  .dia-badge { display:inline-block; background:var(--surface-3); border-radius:20px; padding:2px 10px; font-size:12px; font-weight:700; color:var(--text-primary); }
+  .dia-badge.con { background:var(--primary); color:#fff; }
+  .dia-vacio { border:2px dashed var(--border); border-radius:10px; padding:20px 10px; text-align:center; color:var(--text-secondary); font-size:12px; }
+
+  /* ─── Tarjeta VL ─── */
+  .vl-card { border-radius:10px; border:1px solid var(--border); background:var(--surface); overflow:hidden; cursor:pointer; transition:box-shadow .15s,transform .1s; }
+  .vl-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.12); transform:translateY(-1px); }
+  .vl-bar { height:4px; width:100%; }
+  .bar-agendada  { background:#f59e0b; }
+  .bar-realizada { background:#10b981; }
+  .bar-nopresento{ background:#ef4444; }
+  .bar-reprog    { background:#8b5cf6; }
+  .bar-otro      { background:var(--border); }
+  .vl-body { padding:10px 11px 11px; }
+  .vl-hora { font-size:15px; font-weight:800; color:var(--primary); margin-bottom:3px; }
+  .vl-cliente { font-size:13px; font-weight:700; color:var(--text-primary); line-height:1.25; margin-bottom:5px; }
+  .vl-producto { display:inline-block; background:var(--primary-light,#e0f2fe); color:var(--primary); border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; margin-bottom:6px; }
+  .vl-dato { display:flex; align-items:flex-start; gap:5px; font-size:12px; color:var(--text-secondary); margin-top:3px; }
+  .vl-status { display:inline-flex; align-items:center; gap:4px; border-radius:4px; padding:2px 7px; font-size:11px; font-weight:700; margin-top:7px; }
+  .st-agendada   { background:#fef3c7; color:#92400e; }
+  .st-realizada  { background:#d1fae5; color:#065f46; }
+  .st-nopresento { background:#fee2e2; color:#991b1b; }
+  .st-reprog     { background:#ede9fe; color:#5b21b6; }
+  .chip-sin-sup  { display:inline-flex; align-items:center; gap:3px; background:#fee2e2; color:#991b1b; border-radius:4px; padding:2px 7px; font-size:10px; font-weight:700; margin-left:4px; }
+
+  /* ─── Modal ─── */
+  .modal-bg { display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; background:rgba(0,0,0,.45); }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border-radius:16px; padding:24px; max-width:420px; width:92%; box-shadow:0 20px 60px rgba(0,0,0,.25); max-height:85vh; overflow-y:auto; position:relative; }
+  .modal-titulo { font-size:18px; font-weight:800; margin-bottom:16px; color:var(--text-primary); }
+  .det-fila { display:flex; gap:8px; margin-bottom:10px; font-size:14px; }
+  .det-fila .lbl { color:var(--text-secondary); min-width:90px; font-size:12px; font-weight:600; padding-top:1px; }
+  .det-fila .val { color:var(--text-primary); font-weight:600; flex:1; }
+  .det-notas { background:var(--surface-2); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--text-secondary); margin-top:8px; line-height:1.5; white-space:pre-wrap; }
+  .modal-close { position:absolute; top:16px; right:16px; background:none; border:none; cursor:pointer; font-size:22px; color:var(--text-secondary); line-height:1; }
+
+  @media(max-width:900px) { .grilla-semana { grid-template-columns:repeat(4, minmax(145px,1fr)); } }
+  @media(max-width:600px) { .grilla-semana { grid-template-columns:repeat(2, 1fr); } }
+</style>
+
+<!-- ═══ NAVEGACIÓN -->
+<div class="semana-nav">
+  <button class="btn-nav" onclick="cambiarOffset(-7)">‹</button>
+  <button class="btn-hoy" onclick="irHoy()">Hoy</button>
+  <button class="btn-ayer" onclick="irAyer()">Ayer</button>
+  <button class="btn-nav" onclick="cambiarOffset(7)">›</button>
+  <h2 id="titulo-semana">...</h2>
+  <span class="badge-total" id="total-badge" style="display:none"></span>
+</div>
+
+<!-- ═══ LEYENDA -->
+<div class="leyenda">
+  <div class="leyenda-item"><div class="dot dot-agendada"></div> Agendada</div>
+  <div class="leyenda-item"><div class="dot dot-realizada"></div> Realizada</div>
+  <div class="leyenda-item"><div class="dot dot-nopresento"></div> No se presentó</div>
+  <div class="leyenda-item"><div class="dot dot-reprog"></div> Reprogramar</div>
+</div>
+
+<!-- ═══ GRILLA -->
+<div id="loading-msg" style="text-align:center;padding:60px;color:var(--text-secondary);font-size:16px">⏳ Cargando...</div>
+<div class="grilla-semana" id="grilla" style="display:none"></div>
+
+<!-- ═══ MODAL DETALLE -->
+<div class="modal-bg" id="modal-det" onclick="bgClick(event,'modal-det')">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrar('modal-det')">✕</button>
+    <div class="modal-titulo" id="det-titulo"></div>
+    <div id="det-body"></div>
+  </div>
+</div>
+
+<script>
+let offsetActual = 0;
+let dataSemana = null;
+
+function fmtFecha(iso) {
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}`;
+}
+
+function estadoCls(estado) {
+  const m = {
+    AGENDADA:      { bar:'bar-agendada',   st:'st-agendada',   lbl:'📋 Agendada' },
+    REALIZADA:     { bar:'bar-realizada',  st:'st-realizada',  lbl:'✅ Realizada' },
+    NO_SE_PRESENTO:{ bar:'bar-nopresento', st:'st-nopresento', lbl:'❌ No se presentó' },
+    REPROGRAMAR:   { bar:'bar-reprog',     st:'st-reprog',     lbl:'🔄 Reprogramar' },
+  };
+  return m[estado] || { bar:'bar-otro', st:'', lbl: estado };
+}
+
+function renderCard(v) {
+  const c = estadoCls(v.estado);
+  const sinSup = !v.supervisor_nombre
+    ? `<span class="chip-sin-sup">⚠ Sin supervisor</span>` : '';
+  return `
+    <div class="vl-card" onclick="verDet(${v.id})">
+      <div class="vl-bar ${c.bar}"></div>
+      <div class="vl-body">
+        ${v.hora ? `<div class="vl-hora">🕐 ${v.hora}</div>` : ''}
+        <div class="vl-cliente">${v.cliente_nombre}</div>
+        ${v.producto_interes ? `<div><span class="vl-producto">${v.producto_interes}</span></div>` : ''}
+        ${v.asesor_nombre ? `<div class="vl-dato">👤 ${v.asesor_nombre}</div>` : ''}
+        ${v.supervisor_nombre ? `<div class="vl-dato">🎯 ${v.supervisor_nombre}</div>` : ''}
+        <div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+          <span class="vl-status ${c.st}">${c.lbl}</span>
+          ${sinSup}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function cargar() {
+  document.getElementById('loading-msg').style.display = 'block';
+  document.getElementById('grilla').style.display = 'none';
+  document.getElementById('total-badge').style.display = 'none';
+
+  const res = await fetch(`/api/videollamadas/semana?offset=${offsetActual}`);
+  if (!res.ok) { document.getElementById('loading-msg').textContent = 'Error al cargar.'; return; }
+  dataSemana = await res.json();
+
+  document.getElementById('titulo-semana').textContent =
+    `${fmtFecha(dataSemana.inicio)} — ${fmtFecha(dataSemana.fin)}`;
+
+  if (dataSemana.total_semana > 0) {
+    const b = document.getElementById('total-badge');
+    b.textContent = `${dataSemana.total_semana} VL${dataSemana.total_semana !== 1 ? 's' : ''}`;
+    b.style.display = 'inline-block';
+  }
+
+  const grilla = document.getElementById('grilla');
+  grilla.innerHTML = dataSemana.dias.map(dia => {
+    const badge = dia.total > 0
+      ? `<div class="dia-badge con">${dia.total}</div>`
+      : `<div class="dia-badge">—</div>`;
+    const header = `
+      <div class="dia-header${dia.es_hoy ? ' es-hoy' : ''}">
+        <div class="dia-nombre">${dia.dia_corto}</div>
+        <div class="dia-numero">${dia.numero}</div>
+        <div class="dia-mes">${dia.mes.toUpperCase()}</div>
+        ${badge}
+      </div>`;
+    const cards = dia.vls.length === 0
+      ? `<div class="dia-vacio">Sin VLs</div>`
+      : dia.vls.map(renderCard).join('');
+    return `<div class="dia-col">${header}${cards}</div>`;
+  }).join('');
+
+  document.getElementById('loading-msg').style.display = 'none';
+  grilla.style.display = 'grid';
+}
+
+function cambiarOffset(delta) { offsetActual += delta; cargar(); }
+function irHoy() { offsetActual = 0; cargar(); }
+function irAyer() { offsetActual = -1; cargar(); }
+
+// ─── Modal detalle ────────────────────────────────────────────────────────────
+function verDet(id) {
+  if (!dataSemana) return;
+  let v = null;
+  for (const dia of dataSemana.dias) {
+    v = dia.vls.find(x => x.id === id);
+    if (v) break;
+  }
+  if (!v) return;
+  const c = estadoCls(v.estado);
+  document.getElementById('det-titulo').textContent = `📹 ${v.cliente_nombre}`;
+  document.getElementById('det-body').innerHTML = `
+    <div class="det-fila"><div class="lbl">Horario</div><div class="val">${v.hora || '—'}</div></div>
+    <div class="det-fila"><div class="lbl">Producto</div><div class="val">${v.producto_interes || '—'}</div></div>
+    <div class="det-fila"><div class="lbl">Forma pago</div><div class="val">${v.forma_pago || '—'}</div></div>
+    <div class="det-fila"><div class="lbl">Asesor</div><div class="val">${v.asesor_nombre || '—'}</div></div>
+    <div class="det-fila"><div class="lbl">Supervisor</div><div class="val">${v.supervisor_nombre || '<span style="color:#ef4444">Sin asignar</span>'}</div></div>
+    <div class="det-fila"><div class="lbl">Teléfono</div><div class="val">
+      ${v.cliente_telefono
+        ? `<a href="https://wa.me/54${v.cliente_telefono.replace(/\D/g,'')}" target="_blank" style="color:var(--primary)">📱 ${v.cliente_telefono}</a>`
+        : '—'}
+    </div></div>
+    <div class="det-fila"><div class="lbl">Estado</div><div class="val"><span class="vl-status ${c.st}">${c.lbl}</span></div></div>
+    ${v.notas ? `<div class="det-notas">${v.notas}</div>` : ''}
+    <div style="margin-top:16px">
+      <a href="/videollamadas" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none">Ver en Videollamadas →</a>
+    </div>`;
+  abrir('modal-det');
+}
+
+function abrir(id) { document.getElementById(id).classList.add('open'); }
+function cerrar(id) { document.getElementById(id).classList.remove('open'); }
+function bgClick(e, id) { if (e.target === document.getElementById(id)) cerrar(id); }
+
+cargar();
+</script>
+{% endblock %}

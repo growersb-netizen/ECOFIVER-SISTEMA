@@ -1,0 +1,703 @@
+{% extends "base.html" %}
+{% block title %}Modo Trabajo · Eco Módulos CRM{% endblock %}
+{% block page_title %}⚡ Modo Trabajo{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Layout ──────────────────────────────────────────────── */
+  .wk-wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+  }
+
+  /* ── Barra de progreso superior ─────────────────────────── */
+  .wk-progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .wk-prog-track {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-secondary);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .wk-prog-fill {
+    height: 100%;
+    background: var(--accent, #3b82f6);
+    border-radius: 99px;
+    transition: width .4s ease;
+  }
+  .wk-prog-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    min-width: 70px;
+    text-align: right;
+  }
+
+  /* ── Tarjeta del lead / VL ──────────────────────────────── */
+  .wk-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+    animation: wk-slide-in .25s ease;
+  }
+  @keyframes wk-slide-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .wk-nombre {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .wk-localidad {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .wk-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .wk-pill {
+    background: var(--bg-secondary);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .wk-pill.accent { background: #3b82f611; color: var(--accent, #3b82f6); }
+  .wk-pill.green  { background: #10b98111; color: #10b981; }
+  .wk-pill.orange { background: #f59e0b11; color: #f59e0b; }
+  .wk-pill.red    { background: #ef444411; color: #ef4444; }
+
+  .wk-notas {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 16px;
+    font-style: italic;
+  }
+
+  .wk-historial {
+    border-top: 1px solid var(--border-color);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+  .wk-hist-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .wk-hist-item {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 4px;
+    line-height: 1.5;
+  }
+  .wk-hist-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+  .wk-hist-dot.ok   { background: #10b981; }
+  .wk-hist-dot.warn { background: #f59e0b; }
+  .wk-hist-dot.red  { background: #ef4444; }
+
+  /* ── Botón WhatsApp grande ──────────────────────────────── */
+  .wk-btn-wa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 18px;
+    background: #25d366;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    font-size: 17px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .1s;
+    text-decoration: none;
+    margin-bottom: 12px;
+    letter-spacing: .01em;
+  }
+  .wk-btn-wa:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,211,102,.35); }
+  .wk-btn-wa:active { transform: scale(.98); }
+
+  /* ── Botón saltar ───────────────────────────────────────── */
+  .wk-btn-skip {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .wk-btn-skip:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Panel de devolución ────────────────────────────────── */
+  .wk-feedback {
+    background: var(--bg-card);
+    border: 2px solid var(--accent, #3b82f6);
+    border-radius: 16px;
+    padding: 24px;
+    animation: wk-slide-in .2s ease;
+  }
+  .wk-feedback-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+
+  .wk-result-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 8px;
+    text-align: left;
+    transition: background .12s, border-color .12s, transform .1s;
+  }
+  .wk-result-btn:hover { background: var(--bg-hover); border-color: var(--accent); transform: translateX(3px); }
+  .wk-result-btn .r-icon { font-size: 20px; }
+
+  .wk-notas-input {
+    width: 100%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-size: 13px;
+    resize: vertical;
+    min-height: 70px;
+    margin: 12px 0;
+    box-sizing: border-box;
+  }
+  .wk-notas-input:focus { outline: none; border-color: var(--accent); }
+
+  /* ── Empty / Done ───────────────────────────────────────── */
+  .wk-done {
+    text-align: center;
+    padding: 60px 20px;
+    animation: wk-slide-in .3s ease;
+  }
+  .wk-done-icon { font-size: 56px; margin-bottom: 16px; }
+  .wk-done-title { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; }
+  .wk-done-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.6; }
+
+  /* ── Loading pantalla completa ──────────────────────────── */
+  .wk-loading {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-muted);
+  }
+  .wk-loading .spinner { width: 36px; height: 36px; border-width: 3px; margin: 0 auto 16px; }
+
+  /* ── VL specific ─────────────────────────────────────────── */
+  .wk-vl-fecha {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent, #3b82f6);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .wk-vl-urgente {
+    background: #ef444422;
+    color: #ef4444;
+    border-radius: 8px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wk-wrap" id="wk-root">
+  <div class="wk-loading">
+    <div class="spinner"></div>
+    <div>Preparando tu cola de trabajo…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   MODO TRABAJO — Focus Dialer
+   ══════════════════════════════════════════════════════════════════ */
+
+const ROLES = {{ roles | tojson }};
+const root  = document.getElementById('wk-root');
+
+let cola     = [];   // array de leads o VLs
+let tipo     = '';   // 'leads' | 'vls'
+let cursor   = 0;    // índice actual
+let wasAway  = false;// ¿salió a WA?
+let skipped  = [];   // IDs saltados para repasarlos al final
+
+/* ── Helpers ─────────────────────────────────────────────────── */
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day:'numeric', month:'short', year:'numeric' });
+}
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' })
+       + ' ' + d.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+}
+function diasDesde(iso) {
+  if (!iso) return null;
+  const diff = Date.now() - new Date(iso).getTime();
+  const d = Math.floor(diff / 86400000);
+  if (d === 0) return 'hoy';
+  if (d === 1) return 'ayer';
+  return `hace ${d} días`;
+}
+function histDot(resultado) {
+  if (['INTERESADO','RESPONDIO','ATENDIO','VENTA_CONCRETADA'].includes(resultado)) return 'ok';
+  if (['NO_CONTESTO','NO_ATENDIO','INTENTADO'].includes(resultado)) return 'warn';
+  if (['NO_INTERESA','NUMERO_INVALIDO'].includes(resultado)) return 'red';
+  return '';
+}
+function histLabel(r) {
+  const map = {
+    NO_CONTESTO:      '🔇 No contestó',
+    NO_ATENDIO:       '🔇 No atendió',
+    INTERESADO:       '✅ Respondió, interesado',
+    RESPONDIO:        '✅ Respondió',
+    ATENDIO:          '📞 Atendió',
+    NO_INTERESA:      '❌ No le interesa',
+    NUMERO_INVALIDO:  '⚠ Número inválido',
+    VENTA_CONCRETADA: '🎉 Venta cerrada',
+    AGENDA_VL:        '📅 Agendó videollamada',
+    ENVIADO:          '📨 Enviado',
+  };
+  return map[r] || r;
+}
+function productoLabel(p) {
+  return { PISCINA:'🏊 Piscina', MODULO:'🏠 Módulo', COMBO:'🏠+🏊 Combo' }[p] || p || '—';
+}
+function pagoLabel(p) {
+  return { PMI:'💳 PMI', DIRECTA_50:'💵 Directa 50%', CONTADO:'💵 Contado' }[p] || p || '—';
+}
+function origenLabel(o) {
+  return { WHATSAPP:'📱 WhatsApp', INSTAGRAM:'📸 Instagram', WEB:'🌐 Web', REFERIDO:'👥 Referido', IMPORTADO:'📥 Importado' }[o] || o || '—';
+}
+function estadoColor(e) {
+  const m = { NUEVO:'orange', INTENTADO:'orange', CONTACTADO:'green', EN_SEGUIMIENTO:'accent', CALIFICADO:'green' };
+  return m[e] || 'accent';
+}
+
+/* ── Carga inicial ────────────────────────────────────────────── */
+async function init() {
+  const data = await API.get('/api/leads/cola-trabajo');
+  if (!data) { renderError('No se pudo cargar la cola'); return; }
+  cola  = data.items || [];
+  tipo  = data.tipo;
+  cursor = 0;
+  skipped = [];
+
+  if (!cola.length) { renderDone(true); return; }
+  renderItem();
+}
+
+/* ── Render: item actual ──────────────────────────────────────── */
+function renderItem() {
+  if (cursor >= cola.length) {
+    // ¿Hay saltados?
+    if (skipped.length) {
+      renderSkippedRound();
+    } else {
+      renderDone(false);
+    }
+    return;
+  }
+
+  const item = cola[cursor];
+  const pct  = Math.round((cursor / cola.length) * 100);
+
+  root.innerHTML = `
+    <div class="wk-progress-bar">
+      <div class="wk-prog-track">
+        <div class="wk-prog-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="wk-prog-label">${cursor + 1} de ${cola.length}</div>
+      <a href="${tipo === 'vls' ? '/videollamadas' : '/leads'}" class="btn btn-ghost btn-sm" style="font-size:12px">✕ Salir</a>
+    </div>
+
+    <div id="wk-item-area"></div>
+  `;
+
+  const area = document.getElementById('wk-item-area');
+  if (tipo === 'leads') {
+    area.innerHTML = renderLeadCard(item) + renderAcciones(item);
+  } else {
+    area.innerHTML = renderVLCard(item) + renderAccionesVL(item);
+  }
+}
+
+function renderLeadCard(lead) {
+  const ints = lead.interacciones || [];
+  return `
+    <div class="wk-card">
+      <div class="wk-nombre">${lead.nombre}</div>
+      <div class="wk-localidad">📍 ${lead.localidad || 'Sin localidad especificada'}</div>
+
+      <div class="wk-pills">
+        <span class="wk-pill accent">${productoLabel(lead.producto_interes)}</span>
+        ${lead.modelo_especifico ? `<span class="wk-pill">${lead.modelo_especifico}</span>` : ''}
+        <span class="wk-pill green">${pagoLabel(lead.forma_pago)}</span>
+        <span class="wk-pill ${estadoColor(lead.estado)}">${lead.estado}</span>
+        <span class="wk-pill">${origenLabel(lead.origen)}</span>
+        ${lead.created_at ? `<span class="wk-pill">📅 ${diasDesde(lead.created_at)}</span>` : ''}
+      </div>
+
+      ${lead.notas ? `<div class="wk-notas">"${lead.notas}"</div>` : ''}
+
+      ${ints.length ? `
+        <div class="wk-historial">
+          <div class="wk-hist-title">Últimos contactos</div>
+          ${ints.map(i => `
+            <div class="wk-hist-item">
+              <div class="wk-hist-dot ${histDot(i.resultado)}"></div>
+              <div>${histLabel(i.resultado)}${i.notas ? ` — <em>${i.notas}</em>` : ''}
+                   <span style="color:var(--text-muted);font-size:11px;margin-left:4px">${diasDesde(i.created_at)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderAcciones(lead) {
+  const primer = lead.nombre.split(' ')[0];
+  const prod = lead.producto_interes && lead.producto_interes !== 'SIN_DEFINIR'
+    ? lead.producto_interes.toLowerCase() : null;
+  const estado = lead.estado;
+  let msg;
+  if (estado === 'NUEVO' || estado === 'INTENTADO') {
+    msg = prod
+      ? `Hola ${primer}! Te llamo de Eco Módulos y Piscinas por tu consulta de ${prod}. ¿Tenés un momento para hablar?`
+      : `Hola ${primer}! Te llamo de Eco Módulos y Piscinas. ¿Tenés un momento para hablar?`;
+  } else if (estado === 'CONTACTADO' || estado === 'EN_SEGUIMIENTO') {
+    msg = prod
+      ? `Hola ${primer}, te escribo de Eco Módulos y Piscinas con novedades sobre ${prod}. ¿Podemos hablar?`
+      : `Hola ${primer}, te escribo de Eco Módulos y Piscinas para darte seguimiento. ¿Podemos hablar?`;
+  } else if (estado === 'CALIFICADO') {
+    msg = `Hola ${primer}! Estamos listos para avanzar${prod ? ' con tu ' + prod : ''}. ¿Cuándo podemos agendar la videollamada?`;
+  } else {
+    msg = `Hola ${primer}! Te llamo de Eco Módulos y Piscinas. ¿Tenés un momento?`;
+  }
+  const waUrl = whatsappLink(lead.telefono, msg);
+  return `
+    <a href="${waUrl}" target="_blank" class="wk-btn-wa" id="btn-wa" onclick="salioAWhatsapp()">
+      📱 Contactar por WhatsApp
+    </a>
+    <div id="wk-feedback-area"></div>
+    <button class="wk-btn-skip" onclick="saltarLead()">⏭ Saltar por ahora</button>
+  `;
+}
+
+function renderVLCard(vl) {
+  const ahora = new Date();
+  const fechaVL = vl.fecha_hora ? new Date(vl.fecha_hora) : null;
+  const esPasada = fechaVL && fechaVL < ahora;
+  const esHoy = fechaVL && fechaVL.toDateString() === ahora.toDateString();
+
+  return `
+    <div class="wk-card">
+      <div class="wk-nombre">${vl.cliente_nombre}</div>
+      ${vl.fecha_hora ? `
+        <div class="wk-vl-fecha">
+          📅 ${fmtDateTime(vl.fecha_hora)}
+          ${esPasada ? '<span class="wk-vl-urgente">PASADA</span>' : ''}
+          ${esHoy && !esPasada ? '<span class="wk-pill green" style="font-size:11px">HOY</span>' : ''}
+        </div>
+      ` : ''}
+
+      <div class="wk-pills">
+        ${productoLabel(vl.producto_interes) ? `<span class="wk-pill accent">${productoLabel(vl.producto_interes)}</span>` : ''}
+        ${vl.forma_pago ? `<span class="wk-pill green">${pagoLabel(vl.forma_pago)}</span>` : ''}
+        ${vl.estado_admision ? `<span class="wk-pill orange">PMI: ${vl.estado_admision}</span>` : ''}
+        ${!vl.supervisor_cierre_id ? `<span class="wk-pill red">Sin supervisor</span>` : ''}
+      </div>
+
+      ${vl.notas ? `<div class="wk-notas">"${vl.notas}"</div>` : ''}
+    </div>
+  `;
+}
+
+function renderAccionesVL(vl) {
+  const primer = vl.cliente_nombre.split(' ')[0];
+  const prod = vl.producto_interes && vl.producto_interes !== 'SIN_DEFINIR'
+    ? vl.producto_interes.toLowerCase() : null;
+  const hora = vl.fecha_hora
+    ? new Date(vl.fecha_hora).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})
+    : null;
+  const msgVL = hora && prod
+    ? `Hola ${primer}! Te confirmo tu videollamada de Eco Módulos y Piscinas para hoy a las ${hora} sobre ${prod}. ¡Te esperamos!`
+    : hora
+    ? `Hola ${primer}! Te confirmo tu videollamada de Eco Módulos y Piscinas para hoy a las ${hora}. ¡Te esperamos!`
+    : `Hola ${primer}! Te confirmo tu videollamada de Eco Módulos y Piscinas. ¿Podemos hablar ahora?`;
+  const waUrl = whatsappLink(vl.cliente_telefono, msgVL);
+  return `
+    <a href="${waUrl}" target="_blank" class="wk-btn-wa" id="btn-wa" onclick="salioAWhatsapp()">
+      📱 Confirmar por WhatsApp
+    </a>
+    <div id="wk-feedback-area"></div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-muted);text-align:center;margin:4px 0 8px;text-transform:uppercase;letter-spacing:.06em">
+      Registrar resultado de la VL
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <button class="wk-result-btn" style="justify-content:center" onclick="guardarResultadoVL(${vl.id}, 'REALIZADA', 'AVANZO')">
+        <span class="r-icon">✅</span> Realizada · Avanzó
+      </button>
+      <button class="wk-result-btn" style="justify-content:center" onclick="guardarResultadoVL(${vl.id}, 'REALIZADA', 'CERRO')">
+        <span class="r-icon">🎉</span> Realizada · Cerró
+      </button>
+      <button class="wk-result-btn" style="justify-content:center" onclick="guardarResultadoVL(${vl.id}, 'REALIZADA', 'NO_CALIFICO')">
+        <span class="r-icon">😐</span> Realizada · No calificó
+      </button>
+      <button class="wk-result-btn" style="justify-content:center" onclick="guardarResultadoVL(${vl.id}, 'NO_SE_PRESENTO', 'PENDIENTE')">
+        <span class="r-icon">😓</span> No se presentó
+      </button>
+      <button class="wk-result-btn" style="grid-column:1/-1;justify-content:center" onclick="guardarResultadoVL(${vl.id}, 'REPROGRAMAR', 'PENDIENTE')">
+        <span class="r-icon">📅</span> Reprogramar
+      </button>
+    </div>
+    <button class="wk-btn-skip" onclick="saltarLead()">⏭ Saltar por ahora</button>
+  `;
+}
+
+/* ── Feedback tras WhatsApp ──────────────────────────────────── */
+function salioAWhatsapp() {
+  wasAway = true;
+  // Ocultar botón WA, mostrar aviso
+  setTimeout(() => {
+    const btn = document.getElementById('btn-wa');
+    if (btn) {
+      btn.style.opacity = '.5';
+      btn.style.pointerEvents = 'none';
+    }
+    const fa = document.getElementById('wk-feedback-area');
+    if (fa) fa.innerHTML = `
+      <div style="text-align:center;font-size:13px;color:var(--text-muted);margin:8px 0 12px;padding:10px;background:var(--bg-secondary);border-radius:8px">
+        ⏳ Volvé aquí después de hablar con el cliente…
+        <br><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="mostrarFeedback()">Ya hablé, registrar resultado</button>
+      </div>
+    `;
+  }, 1500);
+}
+
+// También cuando el usuario vuelve al tab
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && wasAway) {
+    wasAway = false;
+    mostrarFeedback();
+  }
+});
+
+function mostrarFeedback() {
+  if (tipo === 'vls') return; // VLs tienen sus botones directo
+  const fa = document.getElementById('wk-feedback-area');
+  if (!fa) return;
+  const item = cola[cursor];
+  fa.innerHTML = renderFeedbackLeads(item);
+}
+
+function renderFeedbackLeads(lead) {
+  return `
+    <div class="wk-feedback">
+      <div class="wk-feedback-title">¿Cómo fue el contacto con ${lead.nombre.split(' ')[0]}?</div>
+
+      <button class="wk-result-btn" onclick="guardarContacto('INTERESADO')">
+        <span class="r-icon">✅</span>
+        <div><strong>Respondió — está interesado</strong><br><span style="font-weight:400;font-size:12px;color:var(--text-muted)">Continúa en seguimiento</span></div>
+      </button>
+
+      <button class="wk-result-btn" onclick="guardarContacto('AGENDA_VL')">
+        <span class="r-icon">📅</span>
+        <div><strong>Agendó videollamada</strong><br><span style="font-weight:400;font-size:12px;color:var(--text-muted)">Se mueve a VL Agendada</span></div>
+      </button>
+
+      <button class="wk-result-btn" onclick="guardarContacto('NO_CONTESTO')">
+        <span class="r-icon">🔇</span>
+        <div><strong>No contestó</strong><br><span style="font-weight:400;font-size:12px;color:var(--text-muted)">Se registra el intento</span></div>
+      </button>
+
+      <button class="wk-result-btn" onclick="guardarContacto('NO_INTERESA')">
+        <span class="r-icon">❌</span>
+        <div><strong>No le interesa</strong><br><span style="font-weight:400;font-size:12px;color:var(--text-muted)">Se marca como Perdido</span></div>
+      </button>
+
+      <button class="wk-result-btn" onclick="guardarContacto('CERRO_VENTA')">
+        <span class="r-icon">🎉</span>
+        <div><strong>¡Cerró la venta!</strong><br><span style="font-weight:400;font-size:12px;color:var(--text-muted)">Se marca como Cerrado</span></div>
+      </button>
+
+      <textarea class="wk-notas-input" id="fb-notas" placeholder="Notas del contacto (opcional)…"></textarea>
+
+      <button class="btn btn-primary w-full" style="width:100%;padding:14px;font-size:15px;font-weight:700;border-radius:10px"
+              onclick="confirmarFeedback()">
+        Guardar y pasar al siguiente →
+      </button>
+    </div>
+  `;
+}
+
+let feedbackResultado = null;
+
+function guardarContacto(resultado) {
+  feedbackResultado = resultado;
+  // Resaltar botón seleccionado
+  document.querySelectorAll('.wk-result-btn').forEach(b => b.style.borderColor = '');
+  event.currentTarget.style.borderColor = 'var(--accent)';
+  event.currentTarget.style.background  = 'var(--bg-hover)';
+}
+
+async function confirmarFeedback() {
+  if (!feedbackResultado) { toast('Elegí un resultado primero', 'error'); return; }
+  const notas = document.getElementById('fb-notas')?.value || '';
+  const lead  = cola[cursor];
+  try {
+    await API.post(`/api/leads/${lead.id}/registrar-contacto`, {
+      resultado: feedbackResultado,
+      notas,
+    });
+    feedbackResultado = null;
+    cursor++;
+    renderItem();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ── Guardar resultado VL ────────────────────────────────────── */
+async function guardarResultadoVL(vlId, estado, resultado) {
+  try {
+    await API.post(`/api/videollamadas/${vlId}/resultado-trabajo`, { estado, resultado });
+    toast(`✅ Registrado: ${estado}`);
+    cursor++;
+    renderItem();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ── Saltar lead ─────────────────────────────────────────────── */
+function saltarLead() {
+  const item = cola[cursor];
+  skipped.push(cursor);
+  cursor++;
+  renderItem();
+}
+
+/* ── Segunda vuelta con saltados ─────────────────────────────── */
+function renderSkippedRound() {
+  root.innerHTML = `
+    <div class="wk-done">
+      <div class="wk-done-icon">🔄</div>
+      <div class="wk-done-title">Saltaste ${skipped.length}</div>
+      <div class="wk-done-sub">
+        Terminaste la cola principal.<br>
+        ¿Querés repasar los ${skipped.length} contacto${skipped.length > 1 ? 's' : ''} que salteaste?
+      </div>
+      <button class="btn btn-primary btn-lg" onclick="iniciarRondaSaltados()">
+        🔄 Repasar saltados
+      </button>
+      &nbsp;
+      <a href="${tipo === 'vls' ? '/videollamadas' : '/leads'}" class="btn btn-ghost btn-lg">
+        No, terminar
+      </a>
+    </div>
+  `;
+}
+
+function iniciarRondaSaltados() {
+  cola   = skipped.map(i => cola[i]);
+  skipped = [];
+  cursor  = 0;
+  renderItem();
+}
+
+/* ── Pantalla final ───────────────────────────────────────────── */
+function renderDone(vacia) {
+  const msg = vacia
+    ? { icon:'🎯', title:'¡Cola vacía!', sub:'No tenés leads activos pendientes de contactar por ahora. Volvé después cuando haya nuevos prospectos asignados.' }
+    : { icon:'🏆', title:'¡Terminaste!', sub:'Contactaste a todos los prospectos de tu cola. Excelente trabajo. Los que respondieron ya están actualizados en el sistema.' };
+
+  root.innerHTML = `
+    <div class="wk-done">
+      <div class="wk-done-icon">${msg.icon}</div>
+      <div class="wk-done-title">${msg.title}</div>
+      <div class="wk-done-sub">${msg.sub}</div>
+      <a href="${tipo === 'vls' ? '/videollamadas' : '/leads'}" class="btn btn-primary btn-lg">
+        Volver a ${tipo === 'vls' ? 'Videollamadas' : 'Leads'}
+      </a>
+      &nbsp;
+      <a href="/" class="btn btn-ghost btn-lg">Ir al Dashboard</a>
+    </div>
+  `;
+}
+
+function renderError(msg) {
+  root.innerHTML = `<div class="wk-done">
+    <div class="wk-done-icon">⚠️</div>
+    <div class="wk-done-title">Error</div>
+    <div class="wk-done-sub">${msg}</div>
+    <a href="/" class="btn btn-ghost btn-lg">Volver</a>
+  </div>`;
+}
+
+/* ── Arrancar ─────────────────────────────────────────────────── */
+init();
+</script>
+{% endblock %}

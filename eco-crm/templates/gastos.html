@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+{% block title %}Gastos — Eco Módulos{% endblock %}
+{% block page_title %}💸 Gastos Operativos{% endblock %}
+
+{% block content %}
+<style>
+  /* ─── Layout ─── */
+  .gastos-layout { display:grid; grid-template-columns:360px 1fr; gap:16px; align-items:start; }
+  @media(max-width:900px){ .gastos-layout { grid-template-columns:1fr; } }
+
+  /* ─── Resumen stats ─── */
+  .gastos-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; margin-bottom:20px; }
+  .gst-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .gst-card .gst-val { font-size:22px; font-weight:800; color:var(--text-primary); }
+  .gst-card .gst-lbl { font-size:11px; color:var(--text-secondary); font-weight:600; margin-top:2px; }
+
+  /* ─── Sectores bar ─── */
+  .sector-bars { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; }
+  .sector-row { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .sector-row .s-name { min-width:110px; font-weight:600; color:var(--text-secondary); font-size:12px; }
+  .sector-row .s-bar-bg { flex:1; height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden; }
+  .sector-row .s-bar { height:100%; border-radius:4px; transition:width .4s; }
+  .sector-row .s-val { min-width:80px; text-align:right; font-weight:700; font-size:12px; color:var(--text-primary); }
+
+  /* ─── Formulario rápido ─── */
+  .form-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; position:sticky; top:20px; }
+  .form-card h3 { font-size:15px; font-weight:700; margin:0 0 16px; color:var(--text-primary); }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .form-full { grid-column:1/-1; }
+  .amount-input { font-size:24px; font-weight:800; text-align:center; padding:12px; }
+  .sector-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .sector-chip { padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; border:2px solid var(--border); cursor:pointer; color:var(--text-secondary); background:var(--surface-2); transition:all .15s; }
+  .sector-chip.active { border-color:var(--primary); background:var(--primary); color:#fff; }
+  .cat-chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
+  .cat-chip { padding:4px 10px; border-radius:16px; font-size:11px; font-weight:600; border:1.5px solid var(--border); cursor:pointer; color:var(--text-secondary); transition:all .15s; }
+  .cat-chip.active { border-color:var(--primary); color:var(--primary); background:rgba(var(--primary-rgb,59,130,246),.08); }
+
+  /* ─── Lista gastos ─── */
+  .gastos-lista { display:flex; flex-direction:column; gap:8px; }
+  .gasto-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; display:flex; align-items:flex-start; gap:12px; cursor:pointer; transition:box-shadow .15s; }
+  .gasto-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.1); }
+  .gasto-monto { font-size:20px; font-weight:800; color:var(--text-primary); white-space:nowrap; min-width:80px; text-align:right; }
+  .gasto-info { flex:1; min-width:0; }
+  .gasto-desc { font-weight:600; font-size:14px; color:var(--text-primary); margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gasto-meta { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+  .gasto-fecha { font-size:11px; color:var(--text-secondary); }
+  .chip-sector { border-radius:4px; padding:2px 7px; font-size:10px; font-weight:700; }
+  .chip-fab  { background:#dbeafe; color:#1d4ed8; }
+  .chip-ops  { background:#fef3c7; color:#92400e; }
+  .chip-vtas { background:#d1fae5; color:#065f46; }
+  .chip-adm  { background:#ede9fe; color:#5b21b6; }
+  .chip-gen  { background:var(--surface-2); color:var(--text-secondary); }
+  .chip-cat  { background:var(--surface-2); color:var(--text-secondary); border-radius:4px; padding:2px 7px; font-size:10px; font-weight:600; }
+  .chip-link { background:#fef9c3; color:#854d0e; border-radius:4px; padding:2px 7px; font-size:10px; font-weight:600; }
+  .gasto-img { width:50px; height:50px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+  .gasto-zapia { border-left:3px solid #25d366; }
+
+  /* ─── Filtros ─── */
+  .filtros-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+
+  /* ─── Upload zona ─── */
+  .upload-zone { border:2px dashed var(--border); border-radius:8px; padding:14px; text-align:center; cursor:pointer; font-size:13px; color:var(--text-secondary); transition:border-color .15s; }
+  .upload-zone:hover { border-color:var(--primary); color:var(--primary); }
+  .upload-preview { width:100%; max-height:120px; object-fit:cover; border-radius:6px; margin-top:8px; display:none; }
+
+  /* ─── Modal editar ─── */
+  .modal-bg { display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; background:rgba(0,0,0,.45); }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border-radius:16px; padding:24px; max-width:480px; width:94%; box-shadow:0 20px 60px rgba(0,0,0,.25); max-height:88vh; overflow-y:auto; position:relative; }
+  .modal-close { position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer; font-size:22px; color:var(--text-secondary); }
+</style>
+
+<!-- ═══ RESUMEN STATS -->
+<div class="gastos-stats" id="gastos-stats">
+  <div class="gst-card"><div class="gst-val" id="stat-mes">—</div><div class="gst-lbl">Total este mes</div></div>
+  <div class="gst-card"><div class="gst-val" id="stat-sem">—</div><div class="gst-lbl">Esta semana</div></div>
+  <div class="gst-card"><div class="gst-val" id="stat-qty">—</div><div class="gst-lbl">Registros mes</div></div>
+</div>
+
+<!-- ═══ BARRAS POR SECTOR -->
+<div class="sector-bars" id="sector-bars" style="display:none"></div>
+
+<!-- ═══ LAYOUT PRINCIPAL -->
+<div class="gastos-layout">
+
+  <!-- FORM RÁPIDO -->
+  <div class="form-card">
+    <h3>⚡ Registrar gasto rápido</h3>
+
+    <div style="margin-bottom:12px">
+      <label class="form-label">Monto ($)</label>
+      <input type="number" id="g-monto" class="form-control amount-input" placeholder="0.00" min="0" step="0.01">
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="form-label">Descripción <span style="color:var(--error)">*</span></label>
+      <input type="text" id="g-desc" class="form-control" placeholder="¿En qué se gastó?">
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="form-label">Sector</label>
+      <div class="sector-chips" id="sector-chips">
+        {% for s in sectores %}
+        <div class="sector-chip{% if s == 'FABRICA' %} active{% endif %}" data-val="{{ s }}" onclick="selectSector(this)">{{ s|replace('_',' ') }}</div>
+        {% endfor %}
+      </div>
+      <input type="hidden" id="g-sector" value="FABRICA">
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="form-label">Categoría</label>
+      <div class="cat-chips" id="cat-chips">
+        {% for c in categorias %}
+        <div class="cat-chip{% if c == 'MATERIALES' %} active{% endif %}" data-val="{{ c }}" onclick="selectCat(this)">{{ c|replace('_',' ') }}</div>
+        {% endfor %}
+      </div>
+      <input type="hidden" id="g-cat" value="MATERIALES">
+    </div>
+
+    <div class="form-row" style="margin-bottom:12px">
+      <div>
+        <label class="form-label">Fecha</label>
+        <input type="date" id="g-fecha" class="form-control">
+      </div>
+      <div>
+        <label class="form-label">Proveedor</label>
+        <input type="text" id="g-proveedor" class="form-control" placeholder="Opcional">
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="form-label">Cliente / Pedido (para auto-vincular)</label>
+      <input type="text" id="g-cliente" class="form-control" placeholder="Nombre del cliente o pedido">
+      <div id="g-link-preview" style="font-size:11px;color:var(--primary);margin-top:4px;display:none"></div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="form-label">Notas</label>
+      <textarea id="g-notas" class="form-control" rows="2" placeholder="Detalle adicional..."></textarea>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label class="form-label">Foto / Comprobante</label>
+      <div class="upload-zone" onclick="document.getElementById('g-file').click()">
+        📷 Toca para subir imagen
+        <input type="file" id="g-file" accept="image/*" style="display:none" onchange="previewImg(this)">
+      </div>
+      <img id="g-preview" class="upload-preview" alt="preview">
+    </div>
+
+    <button class="btn btn-primary w-full" onclick="guardarGasto()" style="font-size:15px;padding:12px">
+      💸 Registrar gasto
+    </button>
+  </div>
+
+  <!-- LISTA -->
+  <div>
+    <!-- Filtros -->
+    <div class="filtros-bar">
+      <input type="text" id="f-search" class="form-control" placeholder="🔍 Buscar..." style="max-width:200px" oninput="filtrar()">
+      <select id="f-sector" class="form-control" style="max-width:150px" onchange="filtrar()">
+        <option value="">Todos los sectores</option>
+        {% for s in sectores %}<option value="{{ s }}">{{ s|replace('_',' ') }}</option>{% endfor %}
+      </select>
+      <select id="f-cat" class="form-control" style="max-width:150px" onchange="filtrar()">
+        <option value="">Todas las categorías</option>
+        {% for c in categorias %}<option value="{{ c }}">{{ c|replace('_',' ') }}</option>{% endfor %}
+      </select>
+      <input type="date" id="f-desde" class="form-control" style="max-width:150px" onchange="filtrar()">
+      <input type="date" id="f-hasta" class="form-control" style="max-width:150px" onchange="filtrar()">
+      <button class="btn btn-ghost btn-sm" onclick="resetFiltros()">✕ Limpiar</button>
+    </div>
+
+    <div id="gastos-lista" class="gastos-lista">
+      <div class="loading"><div class="spinner"></div> Cargando...</div>
+    </div>
+    <div id="sin-gastos" style="display:none;text-align:center;padding:40px;color:var(--text-secondary)">
+      Sin gastos registrados para este período
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR/VER -->
+<div class="modal-bg" id="modal-gasto" onclick="bgClick(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+    <h3 style="margin:0 0 16px;font-size:17px;font-weight:800">Detalle del gasto</h3>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+let gastosData = [];
+let pendingFile = null;
+let pendingGastoId = null;
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+document.getElementById('g-fecha').value = new Date().toISOString().split('T')[0];
+
+// ─── Sector / Categoría chips ─────────────────────────────────────────────
+function selectSector(el) {
+  document.querySelectorAll('.sector-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('g-sector').value = el.dataset.val;
+}
+function selectCat(el) {
+  document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('g-cat').value = el.dataset.val;
+}
+
+// ─── Imagen preview ───────────────────────────────────────────────────────
+function previewImg(input) {
+  if (!input.files || !input.files[0]) return;
+  pendingFile = input.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('g-preview');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    document.querySelector('.upload-zone').textContent = '✅ ' + pendingFile.name;
+  };
+  reader.readAsDataURL(pendingFile);
+}
+
+// ─── Guardar gasto ────────────────────────────────────────────────────────
+async function guardarGasto() {
+  const monto    = parseFloat(document.getElementById('g-monto').value);
+  const desc     = document.getElementById('g-desc').value.trim();
+  const sector   = document.getElementById('g-sector').value;
+  const cat      = document.getElementById('g-cat').value;
+  const fecha    = document.getElementById('g-fecha').value;
+  const proveedor= document.getElementById('g-proveedor').value.trim();
+  const cliente  = document.getElementById('g-cliente').value.trim();
+  const notas    = document.getElementById('g-notas').value.trim();
+
+  if (!monto || monto <= 0) { toast('Ingresá el monto', 'error'); return; }
+  if (!desc)                { toast('Ingresá la descripción', 'error'); return; }
+
+  const btn = document.querySelector('.form-card .btn-primary');
+  btn.textContent = 'Guardando...';
+  btn.disabled = true;
+
+  try {
+    const res = await API.post('/api/gastos', {
+      monto, descripcion: desc, sector, categoria: cat,
+      fecha, proveedor, cliente_nombre: cliente, notas,
+    });
+
+    // Subir imagen si hay una pendiente
+    if (pendingFile && res.id) {
+      const fd = new FormData();
+      fd.append('file', pendingFile);
+      await fetch(`/api/gastos/imagen/${res.id}`, { method:'POST', body: fd });
+    }
+
+    toast('✅ Gasto registrado');
+    resetForm();
+    cargar();
+    cargarResumen();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.textContent = '💸 Registrar gasto';
+    btn.disabled = false;
+  }
+}
+
+function resetForm() {
+  document.getElementById('g-monto').value = '';
+  document.getElementById('g-desc').value = '';
+  document.getElementById('g-proveedor').value = '';
+  document.getElementById('g-cliente').value = '';
+  document.getElementById('g-notas').value = '';
+  document.getElementById('g-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('g-preview').style.display = 'none';
+  document.getElementById('g-file').value = '';
+  document.querySelector('.upload-zone').innerHTML = '📷 Toca para subir imagen';
+  pendingFile = null;
+}
+
+// ─── Cargar lista ─────────────────────────────────────────────────────────
+async function cargar() {
+  const params = buildParams();
+  const data = await API.get(`/api/gastos?${params}`);
+  gastosData = data || [];
+  renderLista(gastosData);
+}
+
+function buildParams() {
+  const p = new URLSearchParams();
+  const s = document.getElementById('f-search').value;
+  const sector = document.getElementById('f-sector').value;
+  const cat    = document.getElementById('f-cat').value;
+  const desde  = document.getElementById('f-desde').value;
+  const hasta  = document.getElementById('f-hasta').value;
+  if (s)     p.set('search', s);
+  if (sector)p.set('sector', sector);
+  if (cat)   p.set('categoria', cat);
+  if (desde) p.set('desde', desde);
+  if (hasta) p.set('hasta', hasta);
+  if (!desde && !hasta) {
+    // Default: este mes
+    const hoy = new Date();
+    p.set('desde', `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-01`);
+  }
+  return p.toString();
+}
+
+function filtrar() { cargar(); }
+function resetFiltros() {
+  document.getElementById('f-search').value = '';
+  document.getElementById('f-sector').value = '';
+  document.getElementById('f-cat').value = '';
+  document.getElementById('f-desde').value = '';
+  document.getElementById('f-hasta').value = '';
+  cargar();
+}
+
+const SECTOR_CLS = { FABRICA:'chip-fab', OPERACIONES:'chip-ops', VENTAS:'chip-vtas', ADMINISTRACION:'chip-adm', GENERAL:'chip-gen' };
+const SECTOR_NAMES = { FABRICA:'🏭 Fábrica', OPERACIONES:'🚚 Operaciones', VENTAS:'💰 Ventas', ADMINISTRACION:'📋 Admin', GENERAL:'🔧 General' };
+const CAT_EMOJI = {
+  MATERIALES:'📦', COMBUSTIBLE:'⛽', COMIDA:'🍽️', HERRAMIENTAS:'🔧',
+  FLETE:'🚚', INSTALACION:'🔩', PRODUCCION:'🏭', ADMINISTRATIVO:'📋',
+  VEHICULO:'🚗', SUELDO:'👷', OTRO:'💸'
+};
+
+function fmtFecha(iso) {
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+function fmtMonto(m) {
+  return '$' + Number(m).toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+
+function renderLista(list) {
+  const cont = document.getElementById('gastos-lista');
+  const sin  = document.getElementById('sin-gastos');
+  if (!list.length) {
+    cont.innerHTML = '';
+    sin.style.display = 'block';
+    return;
+  }
+  sin.style.display = 'none';
+  cont.innerHTML = list.map(g => `
+    <div class="gasto-card${g.origen === 'ZAPIA' ? ' gasto-zapia' : ''}" onclick="verGasto(${g.id})">
+      ${g.imagen_url ? `<img src="${g.imagen_url}" class="gasto-img" alt="comprobante">` : ''}
+      <div class="gasto-info">
+        <div class="gasto-desc">${g.descripcion}</div>
+        <div class="gasto-meta">
+          <span class="gasto-fecha">📅 ${fmtFecha(g.fecha)}</span>
+          <span class="chip-sector ${SECTOR_CLS[g.sector]||'chip-gen'}">${SECTOR_NAMES[g.sector]||g.sector}</span>
+          <span class="chip-cat">${CAT_EMOJI[g.categoria]||'💸'} ${g.categoria.replace('_',' ')}</span>
+          ${g.link_label ? `<span class="chip-link">🔗 ${g.link_label}</span>` : ''}
+          ${g.proveedor  ? `<span class="chip-cat">🏪 ${g.proveedor}</span>` : ''}
+          ${g.origen === 'ZAPIA' ? `<span class="chip-cat" style="background:#e8fdf0;color:#15803d">🤖 Zapia</span>` : ''}
+        </div>
+      </div>
+      <div class="gasto-monto">${fmtMonto(g.monto)}</div>
+    </div>
+  `).join('');
+}
+
+// ─── Resumen ──────────────────────────────────────────────────────────────
+const SECTOR_COLORS = { FABRICA:'#3b82f6', OPERACIONES:'#f59e0b', VENTAS:'#10b981', ADMINISTRACION:'#8b5cf6', GENERAL:'#94a3b8' };
+
+async function cargarResumen() {
+  const data = await API.get('/api/gastos/resumen');
+  if (!data) return;
+
+  document.getElementById('stat-mes').textContent = fmtMonto(data.total_mes);
+  document.getElementById('stat-sem').textContent = fmtMonto(data.semana_actual);
+  document.getElementById('stat-qty').textContent = data.cantidad;
+
+  // Barras por sector
+  const maxVal = Math.max(...Object.values(data.por_sector), 1);
+  const bars   = document.getElementById('sector-bars');
+  const entries = Object.entries(data.por_sector);
+  if (entries.length) {
+    bars.style.display = 'flex';
+    bars.innerHTML = entries.map(([sector, val]) => `
+      <div class="sector-row">
+        <span class="s-name">${SECTOR_NAMES[sector]||sector}</span>
+        <div class="s-bar-bg"><div class="s-bar" style="width:${Math.round(val/maxVal*100)}%;background:${SECTOR_COLORS[sector]||'#94a3b8'}"></div></div>
+        <span class="s-val">${fmtMonto(val)}</span>
+      </div>
+    `).join('');
+  }
+}
+
+// ─── Modal detalle ────────────────────────────────────────────────────────
+function verGasto(id) {
+  const g = gastosData.find(x => x.id === id);
+  if (!g) return;
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;gap:10px">
+      <div style="font-size:30px;font-weight:900;color:var(--text-primary)">${fmtMonto(g.monto)}</div>
+      <div style="font-size:16px;font-weight:600">${g.descripcion}</div>
+      ${g.imagen_url ? `<img src="${g.imagen_url}" style="width:100%;border-radius:8px;object-fit:cover;max-height:200px">` : ''}
+      <table style="font-size:13px;width:100%;border-collapse:collapse">
+        <tr><td style="padding:4px 0;color:var(--text-secondary);width:110px">Fecha</td><td style="font-weight:600">${fmtFecha(g.fecha)}</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-secondary)">Sector</td><td><span class="chip-sector ${SECTOR_CLS[g.sector]||'chip-gen'}">${SECTOR_NAMES[g.sector]||g.sector}</span></td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-secondary)">Categoría</td><td>${CAT_EMOJI[g.categoria]||''} ${g.categoria.replace('_',' ')}</td></tr>
+        ${g.proveedor ? `<tr><td style="padding:4px 0;color:var(--text-secondary)">Proveedor</td><td style="font-weight:600">${g.proveedor}</td></tr>` : ''}
+        ${g.link_label ? `<tr><td style="padding:4px 0;color:var(--text-secondary)">Vinculado a</td><td><a href="${g.link_url}" style="color:var(--primary);font-weight:600">${g.link_label}</a></td></tr>` : ''}
+        ${g.cliente_nombre ? `<tr><td style="padding:4px 0;color:var(--text-secondary)">Cliente</td><td style="font-weight:600">${g.cliente_nombre}</td></tr>` : ''}
+        ${g.notas ? `<tr><td style="padding:4px 0;color:var(--text-secondary)">Notas</td><td>${g.notas}</td></tr>` : ''}
+        <tr><td style="padding:4px 0;color:var(--text-secondary)">Registrado por</td><td>${g.registrado_por || '—'}</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-secondary)">Origen</td><td>${g.origen === 'ZAPIA' ? '🤖 Zapia' : g.origen}</td></tr>
+      </table>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        ${g.estado !== 'REVISADO' ? `<button class="btn btn-secondary btn-sm" onclick="marcarRevisado(${g.id})">✓ Marcar revisado</button>` : '<span style="color:#10b981;font-size:13px;font-weight:600">✓ Revisado</span>'}
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="eliminarGasto(${g.id})">🗑 Eliminar</button>
+      </div>
+    </div>`;
+  document.getElementById('modal-gasto').classList.add('open');
+}
+
+async function marcarRevisado(id) {
+  await API.put(`/api/gastos/${id}`, { estado: 'REVISADO' });
+  cerrarModal();
+  cargar();
+  toast('Marcado como revisado');
+}
+
+async function eliminarGasto(id) {
+  const ok = await showConfirm('¿Eliminar este gasto?', 'Eliminar', '#ef4444');
+  if (!ok) return;
+  await API.delete(`/api/gastos/${id}`);
+  cerrarModal();
+  cargar();
+  cargarResumen();
+  toast('Gasto eliminado');
+}
+
+function cerrarModal() { document.getElementById('modal-gasto').classList.remove('open'); }
+function bgClick(e) { if (e.target === document.getElementById('modal-gasto')) cerrarModal(); }
+
+// ─── API delete helper ────────────────────────────────────────────────────
+API.delete = async function(url) {
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json().catch(() => ({}));
+};
+
+// ─── Arrancar ─────────────────────────────────────────────────────────────
+cargar();
+cargarResumen();
+</script>
+{% endblock %}

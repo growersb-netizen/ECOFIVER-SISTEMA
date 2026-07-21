@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block title %}Contratos · Eco Módulos CRM{% endblock %}
+{% block page_title %}📄 Contratos{% endblock %}
+
+{% block top_actions %}
+<button onclick="showTab('generar', null)" class="btn btn-primary">⚡ Generar contrato</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="tabs" id="tabs-contratos">
+  <button class="tab active" onclick="showTab('lista', this)">📋 Contratos</button>
+  <button class="tab" onclick="showTab('generar', this)">⚡ Generar</button>
+  <button class="tab" onclick="showTab('plantillas', this)">📁 Plantillas</button>
+</div>
+
+<!-- ═══ TAB: LISTA DE CONTRATOS ═══ -->
+<div id="tab-lista">
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <select id="f-estado" class="input" style="width:160px" onchange="loadContratos()">
+      <option value="">Todos los estados</option>
+      <option value="BORRADOR">Borrador</option>
+      <option value="ENVIADO">Enviado</option>
+      <option value="FIRMADO">Firmado</option>
+    </select>
+    <button class="btn btn-ghost" onclick="loadContratos()">🔄 Actualizar</button>
+  </div>
+  <div id="contratos-list"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- ═══ TAB: GENERAR CONTRATO ═══ -->
+<div id="tab-generar" style="display:none">
+  <div class="card mb-3">
+    <div class="card-header"><strong>⚡ Generar contrato desde venta financiada</strong></div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+        Seleccioná una venta financiada sin contrato. El sistema llenará la plantilla Word con los datos del cliente y la descargará automáticamente.
+      </p>
+      <div id="ventas-pendientes-list"><div class="loading">Cargando ventas...</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><strong>📝 O crear contrato manual</strong></div>
+    <div class="card-body">
+      <form id="contrato-form" style="display:grid;gap:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="label">Cliente *</label>
+            <input name="cliente_nombre" class="input" required placeholder="Nombre completo">
+          </div>
+          <div>
+            <label class="label">Tipo de contrato</label>
+            <select name="tipo_contrato" class="input">
+              <option value="Módulo PMI">Módulo PMI</option>
+              <option value="Módulo Directa 50%">Módulo Directa 50%</option>
+              <option value="Piscina PMI">Piscina PMI</option>
+              <option value="Piscina Directa 50%">Piscina Directa 50%</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="label">Notas</label>
+          <textarea name="notas" class="input" rows="2" placeholder="Observaciones..."></textarea>
+        </div>
+        <div>
+          <button type="button" onclick="saveContrato()" class="btn btn-primary">💾 Guardar borrador</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: PLANTILLAS ═══ -->
+<div id="tab-plantillas" style="display:none">
+
+  <div class="alert" style="background:#1a2a1a;border:1px solid #2d5a2d;border-radius:8px;padding:14px;margin-bottom:20px;font-size:13px;color:#aaa;line-height:1.7">
+    <strong style="color:#4caf50">📖 Cómo usar plantillas Word</strong><br>
+    Creá tu contrato en Word y usá <code style="background:#111;padding:1px 5px;border-radius:3px;color:#42a5f5">{{ "{{" }} variable {{ "}}" }}</code> donde querés que aparezcan los datos del cliente.<br>
+    <strong style="color:#eee">Variables disponibles:</strong>
+    <span style="color:#42a5f5">{{ "{{" }} nombre_cliente {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} modelo {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} precio_total {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} anticipo {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} cantidad_cuotas {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} valor_cuota {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} fecha_contrato {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} forma_pago {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} localidad_cliente {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} empresa_nombre {{ "}}" }}</span> ·
+    <span style="color:#42a5f5">{{ "{{" }} empresa_cuit {{ "}}" }}</span>
+    <br>
+    <button onclick="verTodasVariables()" class="btn btn-ghost btn-sm mt-2" style="font-size:12px">Ver todas las variables →</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="plantillas-grid">
+
+    {% for tipo, nombre in tipos_plantilla.items() %}
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <strong>{{ nombre }}</strong>
+        <span id="status-{{ tipo }}" class="badge-estado {% if plantillas[tipo] %}badge-ok{% else %}badge-missing{% endif %}">
+          {% if plantillas[tipo] %}✅ Cargada{% else %}⚠️ Sin plantilla{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+          {% if plantillas[tipo] %}
+            Plantilla activa. Podés reemplazarla subiendo un nuevo archivo.
+          {% else %}
+            Sin plantilla. Subí el archivo Word (.docx) de {{ nombre.lower() }}.
+          {% endif %}
+        </p>
+
+        <label class="file-upload-area" id="upload-area-{{ tipo }}" style="margin-bottom:10px">
+          <div style="font-size:28px">📄</div>
+          <div style="font-size:13px;font-weight:600;margin-top:6px">Subir plantilla .docx</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Solo archivos Word (.docx)</div>
+          <input type="file" id="file-{{ tipo }}" accept=".docx" style="display:none"
+                 onchange="handleFileSelect('{{ tipo }}', this)">
+        </label>
+        <div id="file-name-{{ tipo }}" style="font-size:12px;color:#42a5f5;min-height:16px"></div>
+
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary flex-1" id="btn-upload-{{ tipo }}"
+                  onclick="uploadPlantilla('{{ tipo }}')" disabled>
+            ⬆ Subir
+          </button>
+          {% if plantillas[tipo] %}
+          <a href="/api/contratos/plantillas/{{ tipo }}/download" class="btn btn-ghost">⬇ Descargar</a>
+          <button class="btn btn-ghost" onclick="deletePlantilla('{{ tipo }}')" title="Eliminar">🗑</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+<style>
+.badge-estado { font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600; }
+.badge-ok      { background:#1a3a1a; color:#4caf50; border:1px solid #2d5a2d; }
+.badge-missing { background:#3a2a1a; color:#ff9800; border:1px solid #5a3d1a; }
+.file-upload-area {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border:2px dashed var(--border-light); border-radius:8px; padding:20px 12px;
+  cursor:pointer; transition:border-color .2s; text-align:center;
+  color:var(--text-secondary);
+}
+.file-upload-area:hover { border-color: var(--teal); color:var(--text-primary); }
+.venta-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:12px 14px; border-radius:8px; margin-bottom:8px;
+  background:var(--bg-secondary); border:1px solid var(--border);
+}
+.venta-row:hover { border-color:var(--teal); }
+@media(max-width:640px){ .plantillas-grid{ grid-template-columns:1fr !important; } }
+</style>
+
+<script>
+const TABS_C = ['lista', 'generar', 'plantillas'];
+function showTab(name, el) {
+  TABS_C.forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
+  });
+  document.querySelectorAll('#tabs-contratos .tab').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else {
+    const idx = TABS_C.indexOf(name);
+    document.querySelectorAll('#tabs-contratos .tab')[idx]?.classList.add('active');
+  }
+  if (name === 'lista') loadContratos();
+  if (name === 'generar') loadVentasPendientes();
+}
+
+// ─── Lista de contratos ───────────────────────────────────────────────────────
+async function loadContratos() {
+  const estado = document.getElementById('f-estado').value;
+  const el = document.getElementById('contratos-list');
+  el.innerHTML = '<div class="loading">Cargando...</div>';
+  try {
+    const data = await API.get(`/api/contratos${estado ? '?estado=' + estado : ''}`);
+    if (!data.length) {
+      el.innerHTML = '<div class="empty-state"><span class="empty-icon">📄</span><p>Sin contratos registrados</p></div>';
+      return;
+    }
+    const estadoColor = { BORRADOR:'#888', ENVIADO:'#ff9800', FIRMADO:'#4caf50' };
+    el.innerHTML = `<div class="table-container"><table class="table">
+      <thead><tr><th>Cliente</th><th>Tipo</th><th>Fecha</th><th>Estado</th><th>Archivo</th><th>Acciones</th></tr></thead>
+      <tbody>${data.map(c => `
+        <tr>
+          <td style="font-weight:600">${escHtml(c.cliente_nombre)}</td>
+          <td style="font-size:13px;color:var(--text-muted)">${escHtml(c.tipo_contrato)}</td>
+          <td style="font-size:13px">${fmtDate(c.fecha_generacion)}</td>
+          <td><span style="color:${estadoColor[c.estado]||'#aaa'};font-weight:600;font-size:13px">${c.estado}</span></td>
+          <td>
+            ${c.archivo_pdf
+              ? `<a href="/api/contratos/${c.id}/download" target="_blank" class="btn btn-ghost btn-sm">⬇ Descargar</a>`
+              : `<button onclick="abrirUpload(${c.id})" class="btn btn-ghost btn-sm">📎 Adjuntar</button>`}
+          </td>
+          <td>
+            <select onchange="cambiarEstado(${c.id}, this.value)" class="input" style="font-size:12px;padding:4px 8px;width:auto">
+              <option value="BORRADOR" ${c.estado==='BORRADOR'?'selected':''}>Borrador</option>
+              <option value="ENVIADO"  ${c.estado==='ENVIADO'?'selected':''}>Enviado</option>
+              <option value="FIRMADO"  ${c.estado==='FIRMADO'?'selected':''}>Firmado ✓</option>
+            </select>
+          </td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function cambiarEstado(id, estado) {
+  try {
+    await API.put(`/api/contratos/${id}`, { estado });
+    showToast(estado === 'FIRMADO' ? '✅ Contrato firmado. Admisión actualizada.' : 'Estado actualizado', 'success');
+    loadContratos();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── Ventas pendientes ────────────────────────────────────────────────────────
+async function loadVentasPendientes() {
+  const el = document.getElementById('ventas-pendientes-list');
+  el.innerHTML = '<div class="loading">Cargando...</div>';
+  try {
+    const data = await API.get('/api/contratos/ventas-pendientes');
+    if (!data.length) {
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No hay ventas financiadas sin contrato 🎉</div>';
+      return;
+    }
+    const prodIcon = { PISCINA:'🏊', MODULO:'🏠', COMBO:'✨' };
+    el.innerHTML = data.map(v => `
+      <div class="venta-row">
+        <div>
+          <div style="font-weight:600">${escHtml(v.cliente_nombre)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">
+            ${prodIcon[v.producto]||'📦'} ${escHtml(v.modelo_especifico||v.producto||'')} ·
+            ${escHtml(v.forma_pago||'')} ·
+            ${v.precio_total ? '$'+Number(v.precio_total).toLocaleString('es-AR') : '—'}
+          </div>
+        </div>
+        <a href="/api/contratos/generar/${v.id}" class="btn btn-primary btn-sm" download>
+          📄 Generar .docx
+        </a>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// ─── Crear contrato manual ────────────────────────────────────────────────────
+async function saveContrato() {
+  const form = document.getElementById('contrato-form');
+  const data = Object.fromEntries(new FormData(form));
+  if (!data.cliente_nombre) { showToast('Ingresá el nombre del cliente', 'error'); return; }
+  try {
+    await API.post('/api/contratos', data);
+    showToast('Contrato guardado', 'success');
+    form.reset();
+    loadContratos();
+    showTab('lista', null);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── Upload adjunto PDF/DOCX a contrato existente ────────────────────────────
+let _uploadId = null;
+function abrirUpload(id) {
+  _uploadId = id;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.pdf,.docx';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      await fetch(`/api/contratos/${id}/upload`, { method:'POST', body:fd });
+      showToast('Archivo adjuntado ✅', 'success');
+      loadContratos();
+    } catch(e) { showToast('Error subiendo archivo', 'error'); }
+  };
+  inp.click();
+}
+
+// ─── Plantillas ───────────────────────────────────────────────────────────────
+function handleFileSelect(tipo, input) {
+  const btn = document.getElementById('btn-upload-' + tipo);
+  const lbl = document.getElementById('file-name-' + tipo);
+  if (input.files[0]) {
+    lbl.textContent = '📄 ' + input.files[0].name;
+    btn.disabled = false;
+  }
+}
+
+async function uploadPlantilla(tipo) {
+  const input = document.getElementById('file-' + tipo);
+  if (!input.files[0]) return;
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  const btn = document.getElementById('btn-upload-' + tipo);
+  btn.disabled = true; btn.textContent = '⏳ Subiendo...';
+  try {
+    await fetch(`/api/contratos/plantillas/${tipo}`, { method:'POST', body:fd });
+    showToast(`Plantilla de ${tipo} subida ✅`, 'success');
+    setTimeout(() => window.location.reload(), 800);
+  } catch(e) {
+    showToast('Error subiendo plantilla: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '⬆ Subir';
+  }
+}
+
+async function deletePlantilla(tipo) {
+  if (!confirm(`¿Eliminar la plantilla de ${tipo}?`)) return;
+  try {
+    await API.del(`/api/contratos/plantillas/${tipo}`);
+    showToast('Plantilla eliminada', 'success');
+    setTimeout(() => window.location.reload(), 600);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function verTodasVariables() {
+  const data = await API.get('/api/contratos/preview-variables');
+  let txt = '📋 Variables disponibles para las plantillas Word:\n\n';
+  for (const [grupo, vars] of Object.entries(data)) {
+    if (grupo === 'uso') { txt += `\nℹ️ ${vars}`; continue; }
+    txt += `${grupo.toUpperCase()}: ${Array.isArray(vars) ? vars.map(v=>'{{ '+v+' }}').join('  ') : vars}\n`;
+  }
+  alert(txt);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadContratos);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit'});
+}
+const API = {
+  async _req(method, url, body) {
+    const opts = { method, headers: {'Content-Type':'application/json'} };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    return d;
+  },
+  get: url       => API._req('GET',    url),
+  post:(url,body)=> API._req('POST',   url, body),
+  put: (url,body)=> API._req('PUT',    url, body),
+  del: url       => API._req('DELETE', url),
+};
+function showToast(msg, type='info') {
+  let t = document.getElementById('_toast');
+  if (!t) { t=document.createElement('div'); t.id='_toast'; t.style.cssText='position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px'; document.body.appendChild(t); }
+  const d=document.createElement('div');
+  d.style.cssText=`padding:12px 18px;border-radius:8px;font-size:14px;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.4);background:${type==='success'?'#1b3a1b':type==='error'?'#3a1b1b':'#1b2a3a'};color:${type==='success'?'#4caf50':type==='error'?'#f44336':'#42a5f5'};border:1px solid ${type==='success'?'#2d5a2d':type==='error'?'#5a2d2d':'#2d4a5a'}`;
+  d.textContent=msg; t.appendChild(d); setTimeout(()=>d.remove(),3500);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,634 @@
+{% extends "base.html" %}
+{% block title %}Instalación & Equipos — Eco Módulos{% endblock %}
+{% block page_title %}🔧 Instalación & Equipos{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px">
+  <button onclick="abrirModalEquipo()" class="btn btn-ghost">+ Equipo</button>
+  <button onclick="abrirModalTarifa()" class="btn btn-primary">+ Tarifa</button>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- TABS -->
+<div style="display:flex;gap:0;border-bottom:1px solid var(--border-color);margin-bottom:20px">
+  <button id="tab-equipos"   onclick="setTab('equipos')"   class="inst-tab inst-tab-active">👷 Equipos instaladores</button>
+  <button id="tab-tarifas"   onclick="setTab('tarifas')"   class="inst-tab">💰 Tarifas de instalación</button>
+  <button id="tab-contra"    onclick="setTab('contra')"    class="inst-tab">🚚 Cobros contraentrega</button>
+</div>
+
+<!-- ── EQUIPOS ────────────────────────────────────────────────────────────── -->
+<div id="panel-equipos">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px" id="equipos-grid">
+    <div class="loading" style="grid-column:1/-1;padding:40px"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- ── TARIFAS ────────────────────────────────────────────────────────────── -->
+<div id="panel-tarifas" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="tarifas-2col">
+
+    <!-- Piscinas -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:14px">🏊 Piscinas</div>
+        <button onclick="abrirModalTarifa('PISCINA')" class="btn btn-sm btn-ghost">+ Agregar</button>
+      </div>
+      <div id="tarifas-piscina"></div>
+    </div>
+
+    <!-- Módulos -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:14px">🏗 Módulos</div>
+        <button onclick="abrirModalTarifa('MODULO')" class="btn btn-sm btn-ghost">+ Agregar</button>
+      </div>
+      <div id="tarifas-modulo"></div>
+    </div>
+
+  </div>
+
+  <!-- Cotizador rápido -->
+  <div class="card" style="padding:18px;margin-top:16px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px">🧮 Cotizador de instalación</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label class="form-label">Producto</label>
+        <select id="cot-producto" class="form-control" style="margin:0;max-width:130px" onchange="onCotProducto()">
+          <option value="PISCINA">Piscina</option>
+          <option value="MODULO">Módulo</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Modelo</label>
+        <input type="text" id="cot-modelo" class="form-control" style="margin:0;max-width:200px" placeholder="Miniportante">
+      </div>
+      <div>
+        <label class="form-label">Distancia (km)</label>
+        <input type="number" id="cot-km" class="form-control" style="margin:0;max-width:100px" value="0" min="0">
+      </div>
+      <button onclick="cotizarInstalacion()" class="btn btn-primary">Calcular</button>
+    </div>
+    <div id="cot-resultado" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:8px;font-size:13px"></div>
+  </div>
+</div>
+
+<!-- ── CONTRAENTREGAS ──────────────────────────────────────────────────────── -->
+<div id="panel-contra" style="display:none">
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <button onclick="cargarContraentregas('')"      class="btn btn-ghost btn-sm ce-filter-btn active" data-estado="">Todas</button>
+    <button onclick="cargarContraentregas('PENDIENTE')"  class="btn btn-ghost btn-sm ce-filter-btn" data-estado="PENDIENTE">🟡 Pendiente cobro</button>
+    <button onclick="cargarContraentregas('COBRADO')"    class="btn btn-ghost btn-sm ce-filter-btn" data-estado="COBRADO">🟢 Cobrado</button>
+    <button onclick="cargarContraentregas('PROBLEMA')"   class="btn btn-ghost btn-sm ce-filter-btn" data-estado="PROBLEMA">🔴 Problema</button>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div id="contra-tabla" style="overflow-x:auto">
+      <div class="loading" style="padding:40px"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL EQUIPO ────────────────────────────────────────────────────────── -->
+<div id="modal-equipo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div style="background:var(--bg-secondary);border-radius:16px;max-width:520px;width:90%;padding:26px;position:relative;max-height:90vh;overflow-y:auto">
+    <button onclick="cerrarModalEquipo()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">✕</button>
+    <h2 style="margin:0 0 18px;font-size:1.1rem" id="equipo-modal-titulo">👷 Nuevo equipo instalador</h2>
+    <input type="hidden" id="equipo-id">
+    <div style="display:grid;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label">Nombre del equipo *</label>
+          <input type="text" id="eq-nombre" class="form-control" placeholder="Rodrigo / Equipo Norte">
+        </div>
+        <div>
+          <label class="form-label">Tipo</label>
+          <select id="eq-tipo" class="form-control">
+            <option value="PROPIO">🏠 Propio (dueño)</option>
+            <option value="EXTERNO">🤝 Externo</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label">Responsable</label>
+          <input type="text" id="eq-responsable" class="form-control" placeholder="Rodrigo García">
+        </div>
+        <div>
+          <label class="form-label">Teléfono</label>
+          <input type="text" id="eq-telefono" class="form-control" placeholder="5491112345678">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Integrantes (separados por coma)</label>
+        <input type="text" id="eq-integrantes" class="form-control" placeholder="Juan, Pedro, Carlos">
+      </div>
+      <div>
+        <label class="form-label">Zonas / Provincias de cobertura</label>
+        <input type="text" id="eq-zonas" class="form-control" placeholder="Córdoba, Santa Fe, Buenos Aires">
+      </div>
+      <div>
+        <label class="form-label">Notas</label>
+        <textarea id="eq-notas" class="form-control" rows="2" placeholder="Especialización, horarios, etc."></textarea>
+      </div>
+      <div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="eq-activo" checked>
+          <span style="font-size:13px">Equipo activo</span>
+        </label>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
+      <button onclick="cerrarModalEquipo()" class="btn btn-ghost">Cancelar</button>
+      <button onclick="guardarEquipo()" class="btn btn-primary">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL TARIFA ────────────────────────────────────────────────────────── -->
+<div id="modal-tarifa" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div style="background:var(--bg-secondary);border-radius:16px;max-width:500px;width:90%;padding:26px;position:relative">
+    <button onclick="cerrarModalTarifa()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">✕</button>
+    <h2 style="margin:0 0 18px;font-size:1.1rem" id="tarifa-modal-titulo">💰 Nueva tarifa de instalación</h2>
+    <input type="hidden" id="tarifa-id">
+    <div style="display:grid;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label">Producto *</label>
+          <select id="tar-producto" class="form-control">
+            <option value="PISCINA">🏊 Piscina</option>
+            <option value="MODULO">🏗 Módulo</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Modelo (vacío = todos)</label>
+          <input type="text" id="tar-modelo" class="form-control" placeholder="Miniportante">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Nombre / Descripción corta</label>
+        <input type="text" id="tar-nombre" class="form-control" placeholder="Piscina Miniportante — instalación completa">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div>
+          <label class="form-label">Tarifa base $</label>
+          <input type="number" id="tar-tarifa" class="form-control" placeholder="0">
+        </div>
+        <div>
+          <label class="form-label">Km incluidos</label>
+          <input type="number" id="tar-km" class="form-control" placeholder="0">
+        </div>
+        <div>
+          <label class="form-label">$ por km extra</label>
+          <input type="number" id="tar-km-extra" class="form-control" placeholder="0">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Descripción / Qué incluye</label>
+        <textarea id="tar-desc" class="form-control" rows="2" placeholder="Mano de obra, herramientas, nivel, sellado..."></textarea>
+      </div>
+      <div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="tar-materiales">
+          <span style="font-size:13px">Incluye materiales menores (tornillos, sellador, etc.)</span>
+        </label>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
+      <button onclick="cerrarModalTarifa()" class="btn btn-ghost">Cancelar</button>
+      <button onclick="guardarTarifa()" class="btn btn-primary">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL COBRO CONTRAENTREGA ──────────────────────────────────────────── -->
+<div id="modal-cobro" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div style="background:var(--bg-secondary);border-radius:16px;max-width:460px;width:90%;padding:26px;position:relative">
+    <button onclick="cerrarModalCobro()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">✕</button>
+    <h2 style="margin:0 0 6px;font-size:1.1rem">💰 Registrar cobro en domicilio</h2>
+    <div id="cobro-info" style="font-size:13px;color:var(--text-muted);margin-bottom:18px"></div>
+    <input type="hidden" id="cobro-venta-id">
+    <div style="display:grid;gap:12px">
+      <div>
+        <label class="form-label">Estado del cobro</label>
+        <select id="cobro-estado" class="form-control">
+          <option value="COBRADO">✅ Cobrado — instalación realizada</option>
+          <option value="PROBLEMA">⚠️ Problema — no se pudo cobrar / instalar</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Monto cobrado $</label>
+        <input type="number" id="cobro-monto" class="form-control" placeholder="0">
+      </div>
+      <div>
+        <label class="form-label">Notas del cobro</label>
+        <textarea id="cobro-notas" class="form-control" rows="2" placeholder="Pagó con transferencia, efectivo, problema encontrado..."></textarea>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
+      <button onclick="cerrarModalCobro()" class="btn btn-ghost">Cancelar</button>
+      <button onclick="guardarCobro()" class="btn btn-primary">💾 Registrar cobro</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.inst-tab {
+  padding: 12px 20px; border: none; background: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  border-bottom: 3px solid transparent; transition: all .15s;
+}
+.inst-tab:hover { color: var(--text-primary); }
+.inst-tab-active { color: var(--primary-color) !important; border-bottom-color: var(--primary-color) !important; }
+.equipo-card { transition: all .2s; }
+.equipo-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+.tarifa-row { padding: 12px 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; }
+.tarifa-row:last-child { border-bottom: none; }
+.ce-filter-btn.active { background: var(--primary-color) !important; color: #fff !important; }
+@media(max-width:600px){ .tarifas-2col { grid-template-columns:1fr !important; } }
+</style>
+
+<script>
+let _equipoEditId = null, _tarifaEditId = null, _cobroVentaId = null;
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function setTab(tab) {
+  ['equipos','tarifas','contra'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('inst-tab-active', t === tab);
+    document.getElementById(`panel-${t}`).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'equipos') cargarEquipos();
+  if (tab === 'tarifas') cargarTarifas();
+  if (tab === 'contra')  cargarContraentregas('');
+}
+
+// ── EQUIPOS ───────────────────────────────────────────────────────────────────
+async function cargarEquipos() {
+  const grid = document.getElementById('equipos-grid');
+  grid.innerHTML = '<div class="loading" style="grid-column:1/-1;padding:40px"><div class="spinner"></div></div>';
+  try {
+    const data = await API.get('/api/instalacion/equipos');
+    renderEquipos(data.equipos || []);
+  } catch(e) { grid.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+function renderEquipos(equipos) {
+  const grid = document.getElementById('equipos-grid');
+  if (!equipos.length) {
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-muted)">
+        <div style="font-size:48px;margin-bottom:14px">👷</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:8px">Sin equipos configurados</div>
+        <div style="font-size:13px;margin-bottom:20px">Agregá el equipo propio de Rodrigo y los equipos externos que usás</div>
+        <button onclick="abrirModalEquipo()" class="btn btn-primary">+ Agregar primer equipo</button>
+      </div>`;
+    return;
+  }
+  const tipoColor = { PROPIO: '#6366f1', EXTERNO: '#16a34a' };
+  grid.innerHTML = equipos.map(e => `
+    <div class="card equipo-card" style="padding:18px;border-left:4px solid ${tipoColor[e.tipo]||'#64748b'}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-weight:800;font-size:16px">${e.nombre}</div>
+          <div style="font-size:11px;font-weight:700;color:${tipoColor[e.tipo]||'#64748b'};text-transform:uppercase;letter-spacing:.5px;margin-top:2px">${e.tipo}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="width:8px;height:8px;border-radius:50%;background:${e.activo?'#22c55e':'#94a3b8'};display:inline-block"></span>
+          <button onclick="editarEquipo(${e.id})" class="btn btn-sm btn-ghost" title="Editar">✏️</button>
+        </div>
+      </div>
+      ${e.responsable ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">👤 ${e.responsable}${e.telefono?' · '+e.telefono:''}</div>` : ''}
+      ${e.integrantes ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">👥 ${e.integrantes}</div>` : ''}
+      ${e.zonas_cobertura ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">📍 ${e.zonas_cobertura}</div>` : ''}
+      ${e.notas ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;padding-top:8px;border-top:1px solid var(--border-color)">${e.notas}</div>` : ''}
+    </div>`).join('');
+}
+
+function abrirModalEquipo() {
+  _equipoEditId = null;
+  document.getElementById('equipo-modal-titulo').textContent = '👷 Nuevo equipo instalador';
+  ['eq-nombre','eq-responsable','eq-telefono','eq-integrantes','eq-zonas','eq-notas'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('eq-tipo').value = 'PROPIO';
+  document.getElementById('eq-activo').checked = true;
+  document.getElementById('equipo-id').value = '';
+  const m = document.getElementById('modal-equipo');
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarModalEquipo() {
+  document.getElementById('modal-equipo').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function editarEquipo(id) {
+  try {
+    const data = await API.get('/api/instalacion/equipos');
+    const e = data.equipos.find(x => x.id === id);
+    if (!e) return;
+    _equipoEditId = id;
+    document.getElementById('equipo-modal-titulo').textContent = `✏️ Editar equipo — ${e.nombre}`;
+    document.getElementById('equipo-id').value = id;
+    document.getElementById('eq-nombre').value = e.nombre;
+    document.getElementById('eq-tipo').value   = e.tipo;
+    document.getElementById('eq-responsable').value = e.responsable;
+    document.getElementById('eq-telefono').value    = e.telefono;
+    document.getElementById('eq-integrantes').value = e.integrantes;
+    document.getElementById('eq-zonas').value  = e.zonas_cobertura;
+    document.getElementById('eq-notas').value  = e.notas;
+    document.getElementById('eq-activo').checked = e.activo;
+    document.getElementById('modal-equipo').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function guardarEquipo() {
+  const body = {
+    nombre: document.getElementById('eq-nombre').value.trim(),
+    tipo:   document.getElementById('eq-tipo').value,
+    responsable:   document.getElementById('eq-responsable').value.trim(),
+    telefono:      document.getElementById('eq-telefono').value.trim(),
+    integrantes:   document.getElementById('eq-integrantes').value.trim(),
+    zonas_cobertura: document.getElementById('eq-zonas').value.trim(),
+    notas:  document.getElementById('eq-notas').value.trim(),
+    activo: document.getElementById('eq-activo').checked,
+  };
+  if (!body.nombre) return showToast('El nombre es obligatorio', 'error');
+  try {
+    const id = document.getElementById('equipo-id').value;
+    if (id) {
+      await API.patch(`/api/instalacion/equipos/${id}`, body);
+    } else {
+      await API.post('/api/instalacion/equipos', body);
+    }
+    showToast('✅ Equipo guardado', 'success');
+    cerrarModalEquipo();
+    cargarEquipos();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ── TARIFAS ───────────────────────────────────────────────────────────────────
+async function cargarTarifas() {
+  try {
+    const data = await API.get('/api/instalacion/tarifas');
+    const tarifas = data.tarifas || [];
+    renderTarifas(tarifas.filter(t => t.producto === 'PISCINA'), 'tarifas-piscina');
+    renderTarifas(tarifas.filter(t => t.producto === 'MODULO'),  'tarifas-modulo');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function renderTarifas(tarifas, containerId) {
+  const el = document.getElementById(containerId);
+  if (!tarifas.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px">Sin tarifas. Usá "+ Agregar"</div>';
+    return;
+  }
+  const fmt = n => n ? '$' + Number(n).toLocaleString('es-AR') : '—';
+  el.innerHTML = tarifas.map(t => `
+    <div class="tarifa-row">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${t.nombre_display || t.modelo_especifico || '(Todos los modelos)'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">
+          Base: <strong style="color:var(--text-primary)">${fmt(t.tarifa)}</strong>
+          ${t.km_incluidos ? ` · ${t.km_incluidos} km incluidos` : ''}
+          ${t.tarifa_km_extra ? ` · ${fmt(t.tarifa_km_extra)}/km extra` : ''}
+          ${t.incluye_materiales ? ' · Materiales incluidos' : ''}
+        </div>
+        ${t.descripcion ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${t.descripcion}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:4px;align-items:center">
+        <span style="width:7px;height:7px;border-radius:50%;background:${t.activa?'#22c55e':'#94a3b8'}"></span>
+        <button onclick="editarTarifa(${t.id})" class="btn btn-sm btn-ghost" title="Editar">✏️</button>
+        <button onclick="eliminarTarifa(${t.id})" class="btn btn-sm btn-ghost" title="Eliminar" style="color:#ef4444">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function abrirModalTarifa(producto) {
+  _tarifaEditId = null;
+  document.getElementById('tarifa-modal-titulo').textContent = '💰 Nueva tarifa de instalación';
+  document.getElementById('tarifa-id').value = '';
+  ['tar-modelo','tar-nombre','tar-desc'].forEach(id => document.getElementById(id).value = '');
+  ['tar-tarifa','tar-km','tar-km-extra'].forEach(id => document.getElementById(id).value = '0');
+  document.getElementById('tar-producto').value = producto || 'PISCINA';
+  document.getElementById('tar-materiales').checked = false;
+  document.getElementById('modal-tarifa').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarModalTarifa() {
+  document.getElementById('modal-tarifa').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function editarTarifa(id) {
+  try {
+    const data = await API.get('/api/instalacion/tarifas');
+    const t = data.tarifas.find(x => x.id === id);
+    if (!t) return;
+    _tarifaEditId = id;
+    document.getElementById('tarifa-modal-titulo').textContent = `✏️ Editar tarifa`;
+    document.getElementById('tarifa-id').value      = id;
+    document.getElementById('tar-producto').value   = t.producto;
+    document.getElementById('tar-modelo').value     = t.modelo_especifico;
+    document.getElementById('tar-nombre').value     = t.nombre_display;
+    document.getElementById('tar-tarifa').value     = t.tarifa;
+    document.getElementById('tar-km').value         = t.km_incluidos;
+    document.getElementById('tar-km-extra').value   = t.tarifa_km_extra;
+    document.getElementById('tar-desc').value       = t.descripcion;
+    document.getElementById('tar-materiales').checked = t.incluye_materiales;
+    document.getElementById('modal-tarifa').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function guardarTarifa() {
+  const body = {
+    producto:          document.getElementById('tar-producto').value,
+    modelo_especifico: document.getElementById('tar-modelo').value.trim(),
+    nombre_display:    document.getElementById('tar-nombre').value.trim(),
+    tarifa:            parseFloat(document.getElementById('tar-tarifa').value) || 0,
+    km_incluidos:      parseInt(document.getElementById('tar-km').value) || 0,
+    tarifa_km_extra:   parseFloat(document.getElementById('tar-km-extra').value) || 0,
+    descripcion:       document.getElementById('tar-desc').value.trim(),
+    incluye_materiales: document.getElementById('tar-materiales').checked,
+  };
+  try {
+    const id = document.getElementById('tarifa-id').value;
+    if (id) {
+      await API.patch(`/api/instalacion/tarifas/${id}`, body);
+    } else {
+      await API.post('/api/instalacion/tarifas', body);
+    }
+    showToast('✅ Tarifa guardada', 'success');
+    cerrarModalTarifa();
+    cargarTarifas();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function eliminarTarifa(id) {
+  if (!await confirmDialog('¿Eliminar esta tarifa?', 'Esta acción no se puede deshacer.')) return;
+  try {
+    await fetch(`/api/instalacion/tarifas/${id}`, { method:'DELETE', credentials:'include' });
+    showToast('Tarifa eliminada', 'success');
+    cargarTarifas();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ── Cotizador ─────────────────────────────────────────────────────────────────
+async function cotizarInstalacion() {
+  const producto = document.getElementById('cot-producto').value;
+  const modelo   = document.getElementById('cot-modelo').value.trim();
+  const km       = parseFloat(document.getElementById('cot-km').value) || 0;
+  const div = document.getElementById('cot-resultado');
+  div.style.display = 'none';
+  try {
+    const p = new URLSearchParams({ producto, modelo, distancia_km: km });
+    const r = await API.get('/api/instalacion/cotizar?' + p);
+    if (!r.encontrada) {
+      div.style.display = 'block';
+      div.style.background = 'rgba(239,68,68,.08)';
+      div.style.borderColor = 'rgba(239,68,68,.25)';
+      div.innerHTML = `⚠️ ${r.mensaje}`;
+      return;
+    }
+    const fmt = n => '$' + Number(n).toLocaleString('es-AR');
+    div.style.display = 'block';
+    div.style.background = 'rgba(34,197,94,.08)';
+    div.style.borderColor = 'rgba(34,197,94,.25)';
+    div.innerHTML = `
+      <div style="font-weight:700;font-size:15px;margin-bottom:8px">📋 ${r.nombre_display || producto + ' ' + modelo}</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        <div><div style="font-size:11px;color:var(--text-muted)">Tarifa base</div><div style="font-weight:700">${fmt(r.tarifa_base)}</div></div>
+        ${r.km_extra > 0 ? `<div><div style="font-size:11px;color:var(--text-muted)">Km extra (${r.km_extra} km)</div><div style="font-weight:700">${fmt(r.costo_km_extra)}</div></div>` : ''}
+        <div><div style="font-size:11px;color:var(--text-muted);font-weight:800">TOTAL INSTALACIÓN</div><div style="font-weight:800;font-size:18px;color:#16a34a">${fmt(r.total)}</div></div>
+      </div>
+      ${r.incluye_materiales ? '<div style="font-size:11px;margin-top:6px;color:#16a34a">✅ Incluye materiales menores</div>' : ''}
+      ${r.descripcion ? `<div style="font-size:11px;margin-top:4px;color:var(--text-muted)">${r.descripcion}</div>` : ''}`;
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ── CONTRAENTREGAS ────────────────────────────────────────────────────────────
+async function cargarContraentregas(estado) {
+  document.querySelectorAll('.ce-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.estado === estado);
+  });
+  const tabla = document.getElementById('contra-tabla');
+  tabla.innerHTML = '<div class="loading" style="padding:40px"><div class="spinner"></div></div>';
+  try {
+    const p = new URLSearchParams();
+    if (estado) p.set('cobro_estado', estado);
+    const data = await API.get('/api/instalacion/contraentregas?' + p);
+    renderContraentregas(data.contraentregas || []);
+  } catch(e) {
+    tabla.innerHTML = `<div class="alert alert-error" style="margin:16px">${e.message}</div>`;
+  }
+}
+
+function renderContraentregas(items) {
+  const tabla = document.getElementById('contra-tabla');
+  if (!items.length) {
+    tabla.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text-muted)"><div style="font-size:40px;margin-bottom:12px">🚚</div><div style="font-size:15px;font-weight:600">Sin contraentregas</div><div style="font-size:13px;margin-top:6px">Las ventas con modalidad "Cobro al entregar" aparecerán aquí</div></div>';
+    return;
+  }
+  const estadoColor = { PENDIENTE:'#f59e0b', COBRADO:'#22c55e', PROBLEMA:'#ef4444' };
+  const fmt = n => n ? '$' + Number(n).toLocaleString('es-AR') : '—';
+  const fmtDt = iso => iso ? new Date(iso).toLocaleDateString('es-AR') : '—';
+  tabla.innerHTML = `
+    <table class="table" style="min-width:800px">
+      <thead><tr>
+        <th>Cliente</th><th>Producto</th><th>Equipo</th><th>Fecha instalación</th>
+        <th>Total a cobrar</th><th>Estado cobro</th><th>Acciones</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(v => {
+          const color = estadoColor[v.cobro_estado] || '#94a3b8';
+          return `<tr>
+            <td>
+              <div style="font-weight:600;font-size:13px">${v.cliente_nombre}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono} · ${v.cliente_localidad||''}</div>
+            </td>
+            <td style="font-size:13px">${v.producto==='PISCINA'?'🏊':'🏗'} ${v.modelo_especifico||v.producto}</td>
+            <td style="font-size:12px">${v.equipo_nombre||'<span style="color:var(--text-muted)">Sin asignar</span>'}</td>
+            <td style="font-size:12px">${fmtDt(v.fecha_instalacion)}</td>
+            <td>
+              <div style="font-weight:800;color:#22c55e;font-size:13px">${fmt(v.total_a_cobrar)}</div>
+              <div style="font-size:10px;color:var(--text-muted)">${fmt(v.precio_final)} prod + ${fmt(v.tarifa_instalacion)} inst.</div>
+            </td>
+            <td>
+              <span style="background:${color}20;color:${color};border:1px solid ${color}44;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700">
+                ${v.cobro_estado || 'PENDIENTE'}
+              </span>
+              ${v.cobro_notas ? `<div style="font-size:10px;color:var(--text-muted);margin-top:3px">${v.cobro_notas}</div>` : ''}
+            </td>
+            <td>
+              ${v.cobro_estado !== 'COBRADO' ? `<button onclick="abrirModalCobro(${v.id},'${v.cliente_nombre}',${v.total_a_cobrar})" class="btn btn-sm btn-primary">💰 Registrar cobro</button>` : `<span style="font-size:11px;color:#22c55e">✅ ${fmtDt(v.cobro_fecha)}</span>`}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+function abrirModalCobro(ventaId, nombre, total) {
+  _cobroVentaId = ventaId;
+  document.getElementById('cobro-venta-id').value = ventaId;
+  document.getElementById('cobro-info').textContent = `Cliente: ${nombre} · Total esperado: $${Number(total).toLocaleString('es-AR')}`;
+  document.getElementById('cobro-monto').value = total;
+  document.getElementById('cobro-estado').value = 'COBRADO';
+  document.getElementById('cobro-notas').value = '';
+  document.getElementById('modal-cobro').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarModalCobro() {
+  document.getElementById('modal-cobro').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function guardarCobro() {
+  const id = _cobroVentaId;
+  const body = {
+    cobro_estado: document.getElementById('cobro-estado').value,
+    cobro_monto_real: parseFloat(document.getElementById('cobro-monto').value) || 0,
+    cobro_notas: document.getElementById('cobro-notas').value.trim(),
+  };
+  try {
+    const res = await fetch(`/api/instalacion/contraentregas/${id}/cobro`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('Error al registrar');
+    showToast('✅ Cobro registrado', 'success');
+    cerrarModalCobro();
+    cargarContraentregas('');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ── Helpers JS (si no están en main.js) ──────────────────────────────────────
+function confirmDialog(titulo, mensaje) {
+  return new Promise(resolve => {
+    if (typeof window.__showConfirm === 'function') {
+      window.__showConfirm(titulo, mensaje, resolve);
+    } else {
+      resolve(window.confirm(mensaje));
+    }
+  });
+}
+
+if (typeof API !== 'undefined' && !API.patch) {
+  API.patch = async (url, data) => {
+    const r = await fetch(url, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(j.detail || 'Error');
+    return j;
+  };
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', cargarEquipos);
+</script>
+{% endblock %}

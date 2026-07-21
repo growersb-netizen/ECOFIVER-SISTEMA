@@ -1,0 +1,997 @@
+{% extends "base.html" %}
+{% block title %}Depósito Interno — Eco Módulos{% endblock %}
+{% block page_title %}📦 Depósito Interno{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-sm btn-ghost" onclick="toggleRecientes()" id="btn-recientes">🕐 Recientes</button>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ═══════════════════════════════════════════════════════════
+   ENTREGA RÁPIDA — Estética premium & minimalista
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --er-teal:    #0d9488;
+  --er-amber:   #b45309;
+  --er-green:   #16a34a;
+  --er-red:     #dc2626;
+  --er-purple:  #7c3aed;
+  --er-blue:    #2563eb;
+}
+
+/* ── Search & Filter bar ── */
+.er-search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+.er-search-input {
+  flex: 1;
+  padding: 10px 14px 10px 38px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 15px;
+  outline: none;
+  position: relative;
+}
+.er-search-wrap {
+  flex: 1;
+  position: relative;
+}
+.er-search-wrap::before {
+  content: '🔍';
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  pointer-events: none;
+}
+.er-search-input:focus {
+  border-color: var(--er-teal);
+  box-shadow: 0 0 0 3px rgba(13,148,136,.12);
+}
+
+/* ── Filter pills ── */
+.er-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.er-filter {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.er-filter.active {
+  background: var(--er-teal);
+  border-color: var(--er-teal);
+  color: #fff;
+}
+
+/* ── Stats bar ── */
+.er-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.er-stat {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border-top: 2px solid transparent;
+  text-align: center;
+}
+.er-stat-val {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.er-stat-lbl {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.er-stat.herr { border-top-color: var(--er-amber); }
+.er-stat.insu { border-top-color: var(--er-teal); }
+.er-stat.uso  { border-top-color: var(--er-purple); }
+
+/* ── Items grid ── */
+.er-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 10px;
+}
+@media (max-width: 480px) {
+  .er-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+}
+
+/* ── Item card ── */
+.er-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 11px 10px;
+  cursor: pointer;
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+  position: relative;
+  overflow: hidden;
+  border-top: 3px solid transparent;
+  user-select: none;
+}
+.er-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  transition: background .12s;
+}
+.er-card:active::before {
+  background: rgba(0,0,0,.06);
+}
+.er-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.10);
+  border-color: var(--er-teal);
+}
+.er-card.herramienta { border-top-color: var(--er-amber); }
+.er-card.insumo      { border-top-color: var(--er-teal); }
+.er-card.no-disponible {
+  opacity: .7;
+  border-top-color: var(--er-red);
+}
+.er-card.critico {
+  border-top-color: var(--er-red);
+  border-color: rgba(220,38,38,.3);
+}
+
+.er-card-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+.er-card.herramienta .er-card-type { color: var(--er-amber); }
+.er-card.insumo .er-card-type      { color: var(--er-teal); }
+
+.er-card-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin-bottom: 6px;
+  min-height: 32px;
+}
+
+.er-card-info {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.er-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 7px;
+}
+.er-card-status.ok    { background: rgba(22,163,74,.12); color: var(--er-green); }
+.er-card-status.uso   { background: rgba(124,58,237,.12); color: var(--er-purple); }
+.er-card-status.bajo  { background: rgba(180,83,9,.12); color: var(--er-amber); }
+.er-card-status.sin   { background: rgba(220,38,38,.12); color: var(--er-red); }
+
+/* ── Recientes panel ── */
+.er-recientes {
+  display: none;
+  margin-bottom: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.er-recientes.open { display: block; }
+.er-rec-header {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.er-rec-list { max-height: 280px; overflow-y: auto; }
+.er-rec-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+}
+.er-rec-item:last-child { border-bottom: none; }
+.er-rec-icon {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.er-rec-icon.herr { background: rgba(180,83,9,.12); }
+.er-rec-icon.insu { background: rgba(13,148,136,.12); }
+.er-rec-main { flex: 1; min-width: 0; }
+.er-rec-nombre { font-weight: 600; color: var(--text-primary); truncate: ellipsis; overflow: hidden; white-space: nowrap; }
+.er-rec-sub { color: var(--text-secondary); margin-top: 1px; }
+.er-rec-time { font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; }
+.btn-devolver-rec {
+  padding: 3px 8px;
+  font-size: 10px;
+  border-radius: 6px;
+  background: rgba(13,148,136,.12);
+  color: var(--er-teal);
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* ── Bottom sheet ── */
+.er-sheet-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+.er-sheet-bg.open { display: flex; align-items: flex-end; justify-content: center; }
+.er-sheet {
+  background: var(--bg-card);
+  border-radius: 20px 20px 0 0;
+  padding: 0 0 calc(env(safe-area-inset-bottom) + 20px);
+  width: 100%;
+  max-width: 520px;
+  max-height: 92vh;
+  overflow-y: auto;
+  animation: slideUp .22s ease-out;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.er-sheet-handle {
+  width: 40px; height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  margin: 12px auto 0;
+}
+.er-sheet-header {
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.er-sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.er-sheet-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.er-sheet-close {
+  background: none; border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.er-sheet-body { padding: 16px 20px; }
+
+.er-field { margin-bottom: 14px; }
+.er-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+}
+.er-field input,
+.er-field select,
+.er-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 15px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  box-sizing: border-box;
+}
+.er-field input:focus,
+.er-field select:focus,
+.er-field textarea:focus {
+  border-color: var(--er-teal);
+  box-shadow: 0 0 0 3px rgba(13,148,136,.12);
+  background: var(--bg-card);
+}
+.er-field textarea { resize: none; height: 64px; font-size: 14px; }
+
+.er-qty-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.er-dias-row { display: none; }
+.er-dias-row.visible { display: block; }
+.er-qty-insumo { display: none; }
+.er-qty-insumo.visible { display: block; }
+
+/* ── Stock indicator ── */
+.er-stock-bar-wrap {
+  display: none;
+  margin-top: -8px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.er-stock-bar-wrap.visible { display: flex; align-items: center; gap: 8px; }
+.er-stock-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.er-stock-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--er-teal);
+  transition: width .3s;
+}
+.er-stock-fill.low  { background: var(--er-amber); }
+.er-stock-fill.crit { background: var(--er-red); }
+
+/* ── Confirm btn ── */
+.er-confirm-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--er-teal);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: opacity .15s, transform .1s;
+  letter-spacing: .3px;
+}
+.er-confirm-btn:active { opacity: .85; transform: scale(.98); }
+.er-confirm-btn.herramienta { background: var(--er-amber); }
+.er-confirm-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Toast ── */
+.er-toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #1e293b;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s, transform .25s;
+  white-space: nowrap;
+  max-width: 90vw;
+}
+.er-toast.ok  { background: #0f766e; }
+.er-toast.err { background: #dc2626; }
+.er-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Empty state ── */
+.er-empty {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+.er-empty-icon { font-size: 40px; margin-bottom: 10px; }
+</style>
+
+{% if request.query_params.get('embed') %}
+<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+  <button class="btn btn-sm btn-ghost" onclick="toggleRecientes()" id="btn-recientes-embed">🕐 Recientes</button>
+</div>
+{% endif %}
+
+<!-- ── Stats ── -->
+<div class="er-stats">
+  <div class="er-stat herr">
+    <div class="er-stat-val" id="stat-herr">–</div>
+    <div class="er-stat-lbl">Herramientas</div>
+  </div>
+  <div class="er-stat insu">
+    <div class="er-stat-val" id="stat-insu">–</div>
+    <div class="er-stat-lbl">Insumos</div>
+  </div>
+  <div class="er-stat uso">
+    <div class="er-stat-val" id="stat-uso">–</div>
+    <div class="er-stat-lbl">En uso</div>
+  </div>
+</div>
+
+<!-- ── Recientes ── -->
+<div class="er-recientes" id="panel-recientes">
+  <div class="er-rec-header">
+    <span>Últimas 24 hs</span>
+    <button class="btn btn-sm btn-ghost" style="font-size:11px" onclick="cargarRecientes()">↻ Actualizar</button>
+  </div>
+  <div class="er-rec-list" id="rec-list">
+    <div style="padding:16px;text-align:center;color:var(--text-secondary);font-size:13px">Cargando…</div>
+  </div>
+</div>
+
+<!-- ── Search bar ── -->
+<div class="er-search-bar">
+  <div class="er-search-wrap">
+    <input class="er-search-input" id="er-search" type="text" placeholder="Buscar herramienta o insumo…" oninput="filtrar()" autocomplete="off">
+  </div>
+</div>
+
+<!-- ── Filters ── -->
+<div class="er-filters">
+  <button class="er-filter active" onclick="setFiltro('todos',this)">Todo</button>
+  <button class="er-filter" onclick="setFiltro('HERRAMIENTA',this)">🔧 Herramientas</button>
+  <button class="er-filter" onclick="setFiltro('INSUMO',this)">📦 Insumos</button>
+  <button class="er-filter" onclick="setFiltro('disponible',this)">✅ Disponibles</button>
+  <button class="er-filter" onclick="setFiltro('en_uso',this)">👷 En uso</button>
+</div>
+
+<!-- ── Items grid ── -->
+<div class="er-grid" id="er-grid">
+  <div class="er-empty">
+    <div class="er-empty-icon">🔍</div>
+    <div>Cargando ítems…</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ BOTTOM SHEET ═══════════════════════════ -->
+<div class="er-sheet-bg" id="er-sheet-bg" onclick="cerrarSheet(event)">
+  <div class="er-sheet" id="er-sheet">
+    <div class="er-sheet-handle"></div>
+
+    <div class="er-sheet-header">
+      <div>
+        <div class="er-sheet-title" id="sheet-titulo">–</div>
+        <div class="er-sheet-subtitle" id="sheet-subtitulo">–</div>
+      </div>
+      <button class="er-sheet-close" onclick="cerrarSheet()">✕</button>
+    </div>
+
+    <div class="er-sheet-body">
+      <input type="hidden" id="sheet-tipo">
+      <input type="hidden" id="sheet-item-id">
+
+      <!-- Alerta herramienta en uso -->
+      <div id="alerta-en-uso" style="display:none;padding:10px 12px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:8px;font-size:13px;color:#dc2626;margin-bottom:14px;">
+        ⚠️ Esta herramienta ya está en uso por <strong id="alerta-en-uso-quien"></strong>
+      </div>
+
+      <!-- Destinatario -->
+      <div class="er-field">
+        <label>Destinatario *</label>
+        <select id="sheet-empleado" onchange="onEmpleadoChange()">
+          <option value="">— Seleccionar persona —</option>
+          {% for e in empleados %}
+          <option value="{{ e.id }}" data-nombre="{{ e.nombre }}">{{ e.nombre }}{% if e.rol %} · {{ e.rol }}{% endif %}</option>
+          {% endfor %}
+          <option value="__manual__">✏️ Ingresar manualmente…</option>
+        </select>
+      </div>
+      <div class="er-field" id="campo-nombre-manual" style="display:none">
+        <label>Nombre</label>
+        <input type="text" id="sheet-nombre-manual" placeholder="Nombre del destinatario">
+      </div>
+
+      <!-- Destino del consumo: Producción vs Instalación -->
+      <div class="er-field">
+        <label>¿Para qué sector? *</label>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="da-btn" data-da="PRODUCCION" onclick="selectDestinoArea(this)"
+            style="flex:1;padding:12px 8px;border-radius:10px;border:2px solid var(--er-border,#e5e7eb);background:transparent;cursor:pointer;font-weight:700;line-height:1.2;color:inherit">
+            🏭 Producción<br><span style="font-weight:400;font-size:11px;opacity:.7">fabricar</span>
+          </button>
+          <button type="button" class="da-btn" data-da="INSTALACION" onclick="selectDestinoArea(this)"
+            style="flex:1;padding:12px 8px;border-radius:10px;border:2px solid var(--er-border,#e5e7eb);background:transparent;cursor:pointer;font-weight:700;line-height:1.2;color:inherit">
+            🚚 Instalación<br><span style="font-weight:400;font-size:11px;opacity:.7">entregar / obra</span>
+          </button>
+        </div>
+        <input type="hidden" id="sheet-destino-area">
+      </div>
+
+      <!-- Sector (opcional) -->
+      <div class="er-field">
+        <label>Detalle / Obra (opcional)</label>
+        <input type="text" id="sheet-sector" placeholder="Ej: Montaje, Obra Los Olivos…" list="sectores-list">
+        <datalist id="sectores-list">
+          <option value="Montaje">
+          <option value="Pintura">
+          <option value="Tornería">
+          <option value="Depósito">
+          <option value="Instalación externa">
+          <option value="Administración">
+        </datalist>
+      </div>
+
+      <!-- Cantidad (solo insumos) -->
+      <div class="er-qty-insumo er-field" id="campo-cantidad">
+        <label>Cantidad *  <span id="sheet-unidad" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-secondary)"></span></label>
+        <input type="number" id="sheet-cantidad" min="0.01" step="0.01" placeholder="0" oninput="actualizarBarraStock()">
+      </div>
+      <div class="er-stock-bar-wrap" id="stock-bar-wrap">
+        <span id="stock-bar-label" style="white-space:nowrap"></span>
+        <div class="er-stock-bar">
+          <div class="er-stock-fill" id="stock-fill" style="width:100%"></div>
+        </div>
+      </div>
+
+      <!-- Días préstamo (solo herramientas) -->
+      <div class="er-dias-row er-field" id="campo-dias">
+        <label>Días de préstamo</label>
+        <input type="number" id="sheet-dias" min="1" max="30" value="3" placeholder="3">
+      </div>
+
+      <!-- Notas -->
+      <div class="er-field">
+        <label>Notas (opcional)</label>
+        <textarea id="sheet-notas" placeholder="Motivo, referencia, observaciones…"></textarea>
+      </div>
+
+      <button class="er-confirm-btn" id="er-confirm-btn" onclick="confirmarEntrega()">
+        ✓ Registrar entrega
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="er-toast" id="er-toast"></div>
+
+<script>
+const EMPLEADOS_LISTA = {{ empleados | tojson }};
+
+let _items = { herramientas: [], insumos: [] };
+let _filtroTipo = 'todos';
+let _busqueda = '';
+let _recientesOpen = false;
+
+// ─── INIT ──────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  cargarItems();
+});
+
+// ─── CARGA DE DATOS ────────────────────────────────────────────────────────
+
+async function cargarItems() {
+  try {
+    const r = await fetch('/api/entrega-rapida/items');
+    if (!r.ok) throw new Error('Error al cargar');
+    const data = await r.json();
+    _items = data;
+    actualizarStats();
+    renderGrid();
+  } catch(e) {
+    erToast('Error al cargar ítems', 'err');
+  }
+}
+
+async function cargarRecientes() {
+  document.getElementById('rec-list').innerHTML =
+    '<div style="padding:16px;text-align:center;color:var(--text-secondary);font-size:13px">Cargando…</div>';
+  try {
+    const r = await fetch('/api/entrega-rapida/recientes');
+    const data = await r.json();
+    renderRecientes(data);
+  } catch(e) {
+    document.getElementById('rec-list').innerHTML =
+      '<div style="padding:16px;text-align:center;color:var(--er-red);font-size:13px">Error al cargar</div>';
+  }
+}
+
+// ─── STATS ─────────────────────────────────────────────────────────────────
+
+function actualizarStats() {
+  document.getElementById('stat-herr').textContent = _items.herramientas.length;
+  document.getElementById('stat-insu').textContent = _items.insumos.length;
+  const enUso = _items.herramientas.filter(h => !h.disponible).length;
+  document.getElementById('stat-uso').textContent = enUso;
+}
+
+// ─── RENDER GRID ───────────────────────────────────────────────────────────
+
+function renderGrid() {
+  const grid = document.getElementById('er-grid');
+  const q = _busqueda.toLowerCase();
+
+  let herr = _items.herramientas.filter(h =>
+    !q || h.nombre.toLowerCase().includes(q) || (h.categoria || '').toLowerCase().includes(q)
+  );
+  let insu = _items.insumos.filter(m =>
+    !q || m.nombre.toLowerCase().includes(q) || (m.categoria || '').toLowerCase().includes(q)
+  );
+
+  if (_filtroTipo === 'HERRAMIENTA') insu = [];
+  if (_filtroTipo === 'INSUMO') herr = [];
+  if (_filtroTipo === 'disponible') {
+    herr = herr.filter(h => h.disponible);
+    insu = insu.filter(m => m.disponible);
+  }
+  if (_filtroTipo === 'en_uso') {
+    herr = herr.filter(h => !h.disponible);
+    insu = []; // insumos no aplica "en uso"
+  }
+
+  const items = [
+    ...herr.map(h => ({ ...h, _tipo: 'HERRAMIENTA' })),
+    ...insu.map(m => ({ ...m, _tipo: 'INSUMO' })),
+  ];
+
+  if (items.length === 0) {
+    grid.innerHTML = `<div class="er-empty"><div class="er-empty-icon">🔍</div><div>Sin resultados para "${_busqueda || _filtroTipo}"</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map(it => renderCard(it)).join('');
+}
+
+function renderCard(it) {
+  if (it._tipo === 'HERRAMIENTA') {
+    const disponible = it.disponible;
+    const estadoClass = disponible ? 'ok' : 'uso';
+    const estadoLabel = disponible ? '✓ Disponible' : `👷 ${it.en_uso_por || 'En uso'}`;
+    const cardClass = disponible ? 'herramienta' : 'herramienta no-disponible';
+    return `
+      <div class="er-card ${cardClass}" onclick="abrirSheet('HERRAMIENTA',${it.id},'${esc(it.nombre)}','${esc(it.categoria)}',${!disponible},'${esc(it.en_uso_por || '')}',0,1,'${esc(it.ubicacion || '')}')">
+        <div class="er-card-type">🔧 Herramienta</div>
+        <div class="er-card-nombre">${esc(it.nombre)}</div>
+        <div class="er-card-info">${esc(it.categoria || '')}${it.ubicacion ? ' · ' + esc(it.ubicacion) : ''}</div>
+        <div class="er-card-status ${estadoClass}">${estadoLabel}</div>
+      </div>`;
+  } else {
+    const stock = it.stock_actual || 0;
+    const disponible = it.disponible;
+    let estadoClass = 'ok', estadoLabel = `📦 ${stock} ${it.unidad || ''}`;
+    if (it.critico) { estadoClass = 'sin'; estadoLabel = '🔴 Sin stock'; }
+    else if (it.alerta) { estadoClass = 'bajo'; estadoLabel = `⚠️ ${stock} ${it.unidad || ''}`; }
+    const cardClass = 'insumo' + (it.critico ? ' critico' : it.alerta ? ' no-disponible' : '');
+    return `
+      <div class="er-card ${cardClass}" onclick="abrirSheet('INSUMO',${it.id},'${esc(it.nombre)}','${esc(it.categoria)}',false,'',${stock},${it.stock_minimo || 0},'${esc(it.unidad || 'unidad')}')">
+        <div class="er-card-type">📦 Insumo</div>
+        <div class="er-card-nombre">${esc(it.nombre)}</div>
+        <div class="er-card-info">${esc(it.categoria || '')}${it.ubicacion ? ' · ' + esc(it.ubicacion) : ''}</div>
+        <div class="er-card-status ${estadoClass}">${estadoLabel}</div>
+      </div>`;
+  }
+}
+
+// ─── FILTROS ───────────────────────────────────────────────────────────────
+
+function setFiltro(tipo, btn) {
+  _filtroTipo = tipo;
+  document.querySelectorAll('.er-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+
+function filtrar() {
+  _busqueda = document.getElementById('er-search').value.trim();
+  renderGrid();
+}
+
+// ─── RECIENTES ─────────────────────────────────────────────────────────────
+
+function toggleRecientes() {
+  _recientesOpen = !_recientesOpen;
+  const panel = document.getElementById('panel-recientes');
+  panel.classList.toggle('open', _recientesOpen);
+  if (_recientesOpen) cargarRecientes();
+}
+
+function renderRecientes(data) {
+  const list = document.getElementById('rec-list');
+  if (!data.length) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-secondary);font-size:13px">Sin entregas en las últimas 24 hs</div>';
+    return;
+  }
+  list.innerHTML = data.map(r => {
+    const esHerr = r.tipo === 'HERRAMIENTA';
+    const hora = r.fecha ? new Date(r.fecha).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '';
+    const sub = esHerr
+      ? `${r.entregado_a || ''}${r.sector ? ' · ' + r.sector : ''}`
+      : `${r.cantidad} ${r.unidad || ''} — ${(r.notas || '').replace(/^Entregado a /, '').substring(0,40)}`;
+    const btnDev = esHerr && !r.devuelto
+      ? `<button class="btn-devolver-rec" onclick="devolverDesdeRec(${r.prestamo_id},this)">↩ Devolver</button>`
+      : (esHerr && r.devuelto ? '<span style="font-size:10px;color:var(--er-green)">✓ Devuelta</span>' : '');
+    return `
+      <div class="er-rec-item">
+        <div class="er-rec-icon ${esHerr ? 'herr' : 'insu'}">${esHerr ? '🔧' : '📦'}</div>
+        <div class="er-rec-main">
+          <div class="er-rec-nombre">${esc(r.item_nombre)}</div>
+          <div class="er-rec-sub">${esc(sub)}</div>
+        </div>
+        ${btnDev}
+        <div class="er-rec-time">${hora}</div>
+      </div>`;
+  }).join('');
+}
+
+// ─── BOTTOM SHEET ──────────────────────────────────────────────────────────
+
+// abrirSheet(tipo, id, nombre, categoria, enUso, enUsoPor, stock, stockMinOUnidad, extra)
+function abrirSheet(tipo, id, nombre, categoria, enUso, enUsoPor, stockOCero, stockMinODias, unidadOUbicacion) {
+  document.getElementById('sheet-tipo').value = tipo;
+  document.getElementById('sheet-item-id').value = id;
+  document.getElementById('sheet-titulo').textContent = nombre;
+  document.getElementById('sheet-subtitulo').textContent = categoria + (unidadOUbicacion ? ' · ' + unidadOUbicacion : '');
+  document.getElementById('sheet-empleado').value = '';
+  document.getElementById('sheet-sector').value = '';
+  document.getElementById('sheet-notas').value = '';
+  document.getElementById('campo-nombre-manual').style.display = 'none';
+  document.getElementById('sheet-nombre-manual').value = '';
+  // Reset destino (Producción/Instalación)
+  document.getElementById('sheet-destino-area').value = '';
+  document.querySelectorAll('.da-btn').forEach(b => {
+    b.style.borderColor = 'var(--er-border,#e5e7eb)';
+    b.style.background = 'transparent';
+  });
+
+  // Herramienta en uso
+  const alertaEnUso = document.getElementById('alerta-en-uso');
+  alertaEnUso.style.display = enUso ? 'block' : 'none';
+  if (enUso) document.getElementById('alerta-en-uso-quien').textContent = enUsoPor;
+
+  const esHerr = tipo === 'HERRAMIENTA';
+
+  // Toggle campos
+  document.getElementById('er-confirm-btn').className = 'er-confirm-btn' + (esHerr ? ' herramienta' : '');
+  document.getElementById('er-confirm-btn').textContent = esHerr ? '🔧 Registrar préstamo' : '📦 Registrar salida';
+
+  const campoQty   = document.getElementById('campo-cantidad');
+  const campoStock = document.getElementById('stock-bar-wrap');
+  const campoDias  = document.getElementById('campo-dias');
+
+  if (esHerr) {
+    campoQty.classList.remove('visible');
+    campoStock.classList.remove('visible');
+    campoDias.classList.add('visible');
+    document.getElementById('sheet-dias').value = stockMinODias || 3;
+  } else {
+    campoQty.classList.add('visible');
+    campoDias.classList.remove('visible');
+    document.getElementById('sheet-unidad').textContent = unidadOUbicacion || '';
+    document.getElementById('sheet-cantidad').value = '';
+    document.getElementById('sheet-cantidad').max = stockOCero;
+    // Barra de stock
+    _stockActual = stockOCero;
+    _stockMin    = stockMinODias;
+    campoStock.classList.add('visible');
+    actualizarBarraStock();
+  }
+
+  document.getElementById('er-sheet-bg').classList.add('open');
+  setTimeout(() => { document.getElementById('sheet-empleado').focus(); }, 300);
+}
+
+let _stockActual = 0, _stockMin = 0;
+
+function actualizarBarraStock() {
+  const qty = parseFloat(document.getElementById('sheet-cantidad').value) || 0;
+  const restante = _stockActual - qty;
+  const total   = _stockActual;
+  const pct = total > 0 ? Math.max(0, (restante / total) * 100) : 0;
+  const fill = document.getElementById('stock-fill');
+  fill.style.width = pct + '%';
+  fill.className = 'er-stock-fill' + (restante <= 0 ? ' crit' : restante <= _stockMin ? ' low' : '');
+  document.getElementById('stock-bar-label').textContent =
+    `Stock: ${total} → ${Math.max(0, restante.toFixed(restante % 1 === 0 ? 0 : 2))}`;
+}
+
+function cerrarSheet(e) {
+  if (e && e.target !== document.getElementById('er-sheet-bg')) return;
+  document.getElementById('er-sheet-bg').classList.remove('open');
+}
+
+function onEmpleadoChange() {
+  const val = document.getElementById('sheet-empleado').value;
+  document.getElementById('campo-nombre-manual').style.display =
+    val === '__manual__' ? 'block' : 'none';
+  if (val === '__manual__') {
+    setTimeout(() => document.getElementById('sheet-nombre-manual').focus(), 100);
+  }
+}
+
+// Selección de destino del consumo (Producción / Instalación)
+function selectDestinoArea(btn) {
+  const area = btn.dataset.da;
+  document.getElementById('sheet-destino-area').value = area;
+  const color = area === 'PRODUCCION' ? '#b45309' : '#0d9488';
+  document.querySelectorAll('.da-btn').forEach(b => {
+    const on = b === btn;
+    b.style.borderColor = on ? color : 'var(--er-border,#e5e7eb)';
+    b.style.background = on ? (area === 'PRODUCCION' ? 'rgba(180,83,9,.08)' : 'rgba(13,148,136,.08)') : 'transparent';
+  });
+}
+
+// ─── CONFIRMAR ENTREGA ─────────────────────────────────────────────────────
+
+async function confirmarEntrega() {
+  const tipo    = document.getElementById('sheet-tipo').value;
+  const itemId  = parseInt(document.getElementById('sheet-item-id').value);
+  const empSel  = document.getElementById('sheet-empleado').value;
+  const sector  = document.getElementById('sheet-sector').value.trim();
+  const notas   = document.getElementById('sheet-notas').value.trim();
+  const btn     = document.getElementById('er-confirm-btn');
+
+  let empleadoId   = null;
+  let empleadoNombre = '';
+
+  if (empSel && empSel !== '__manual__') {
+    empleadoId = parseInt(empSel);
+    const opt = document.querySelector(`#sheet-empleado option[value="${empSel}"]`);
+    empleadoNombre = opt ? opt.dataset.nombre || opt.textContent.split(' · ')[0] : '';
+  } else if (empSel === '__manual__') {
+    empleadoNombre = document.getElementById('sheet-nombre-manual').value.trim();
+  }
+
+  if (!empleadoNombre && !empleadoId) {
+    erToast('Seleccioná el destinatario', 'err'); return;
+  }
+
+  const destinoArea = document.getElementById('sheet-destino-area').value;
+  if (!destinoArea) {
+    erToast('Indicá si es para Producción o Instalación', 'err'); return;
+  }
+
+  const body = {
+    tipo,
+    item_id: itemId,
+    empleado_id: empleadoId,
+    empleado_nombre: empleadoNombre,
+    sector,
+    destino_area: destinoArea,
+    notas,
+  };
+
+  if (tipo === 'INSUMO') {
+    const qty = parseFloat(document.getElementById('sheet-cantidad').value);
+    if (!qty || qty <= 0) { erToast('Ingresá la cantidad', 'err'); return; }
+    body.cantidad = qty;
+  } else {
+    body.dias_prestamo = parseInt(document.getElementById('sheet-dias').value) || 3;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+
+  try {
+    const r = await fetch('/api/entrega-rapida/entregar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+
+    document.getElementById('er-sheet-bg').classList.remove('open');
+    const msg = tipo === 'HERRAMIENTA'
+      ? `🔧 ${data.herramienta} → ${data.entregado_a}`
+      : `📦 ${data.insumo}: ${data.cantidad} ${data.unidad} → ${data.entregado_a}`;
+    erToast(msg, 'ok');
+
+    // Recargar ítems y recientes
+    await cargarItems();
+    if (_recientesOpen) cargarRecientes();
+
+  } catch(e) {
+    erToast(e.message || 'Error al registrar', 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = tipo === 'HERRAMIENTA' ? '🔧 Registrar préstamo' : '📦 Registrar salida';
+  }
+}
+
+// ─── DEVOLVER DESDE RECIENTES ──────────────────────────────────────────────
+
+async function devolverDesdeRec(prestamoId, btn) {
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const r = await fetch(`/api/entrega-rapida/devolver/${prestamoId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    erToast(`✓ ${data.herramienta} devuelta`, 'ok');
+    btn.textContent = '✓ Devuelta';
+    btn.style.background = 'rgba(22,163,74,.12)';
+    btn.style.color = 'var(--er-green)';
+    btn.disabled = true;
+    await cargarItems();
+  } catch(e) {
+    erToast(e.message || 'Error', 'err');
+    btn.disabled = false;
+    btn.textContent = '↩ Devolver';
+  }
+}
+
+// ─── TOAST ─────────────────────────────────────────────────────────────────
+
+function erToast(msg, tipo = 'ok') {
+  const t = document.getElementById('er-toast');
+  t.textContent = msg;
+  t.className = `er-toast ${tipo} show`;
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── ESC ───────────────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('er-sheet-bg').classList.remove('open');
+});
+
+// ─── HELPERS ───────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+{% endblock %}

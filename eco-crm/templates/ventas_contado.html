@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% block title %}Ventas Contado · Eco Módulos CRM{% endblock %}
+{% block page_title %}Ventas Contado{% endblock %}
+
+{% block top_actions %}
+<button onclick="newVentaContado()" class="btn btn-primary">+ Nueva venta</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="tabs" style="margin-bottom:14px">
+  <a href="/ventas-contado" class="tab active" style="text-decoration:none">💰 Contado</a>
+  <a href="/ventas-financiadas" class="tab" style="text-decoration:none">📋 Financiadas</a>
+</div>
+
+<div class="filters-bar">
+  <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
+         oninput="loadVentasContado(this.value, estadoFilter)">
+  <select class="form-control" style="max-width:160px" onchange="estadoFilter=this.value;loadVentasContado('',this.value)">
+    <option value="">Todos</option>
+    <option value="COORDINADO">Coordinado</option>
+    <option value="INSTALADO">Instalado</option>
+    <option value="COBRADO">Cobrado</option>
+    <option value="CANCELADA">Cancelada</option>
+  </select>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Cliente</th><th>Teléfono</th><th>Producto</th><th>Precio</th><th>Flete</th>
+        <th>Instalación</th><th>Vendedor</th><th>Estado</th><th>Notas</th><th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="ventas-tbody"></tbody>
+  </table>
+</div>
+
+<!-- Modal venta contado -->
+<div class="modal-overlay" id="modal-venta" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="venta-modal-title">Nueva Venta Contado</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-venta')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="venta-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cliente *</label>
+            <input name="cliente_nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input name="cliente_telefono" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Localidad</label>
+          <input name="cliente_localidad" class="form-control">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Producto</label>
+            <select name="producto" id="vc-producto" class="form-control"
+                    onchange="updateModeloOptions('vc-producto','vc-modelo');toggleColorSuperficie()">
+              <option value="PISCINA">Piscina</option>
+              <option value="MODULO">Módulo</option>
+              <option value="COMBO">Combo</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Modelo</label>
+            <select name="modelo_especifico" id="vc-modelo" class="form-control"
+                    onchange="toggleModuloExtras()"></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" id="vc-color-group">
+            <label class="form-label">Color (piscinas)</label>
+            <select name="color" id="vc-color" class="form-control">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="form-group" id="vc-superficie-group" style="display:none">
+            <label class="form-label">Superficie m²</label>
+            <input type="number" name="superficie_m2" class="form-control" placeholder="36">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Precio final</label>
+            <input type="number" name="precio_final" class="form-control" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Forma de pago</label>
+            <select name="forma_pago" class="form-control">
+              <option value="CONTADO">Contado</option>
+              <option value="LIQUIDACION">Liquidación</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Fecha instalación</label>
+            <input type="datetime-local" name="fecha_instalacion" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rango horario</label>
+            <input name="rango_horario" class="form-control" placeholder="09:00-12:00">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Distancia desde Zárate (km)</label>
+            <input type="number" name="distancia_km" id="vc-distancia" class="form-control"
+                   oninput="calcularFlete()" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Flete estimado</label>
+            <div class="form-control" id="flete-display" style="background:var(--bg-primary);cursor:default">
+              —
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Vendedor</label>
+            <select name="vendedor_id" class="form-control">
+              {% for v in vendedores %}
+              <option value="{{ v.id }}">{{ v.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="form-control">
+              <option value="COORDINADO">Coordinado</option>
+              <option value="INSTALADO">Instalado</option>
+              <option value="COBRADO">Cobrado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea name="notas" class="form-control" rows="2"></textarea>
+        </div>
+
+        <!-- Particularidades del módulo -->
+        <div id="vc-modulo-extras" style="display:none;background:var(--bg-secondary);border-radius:var(--radius);padding:14px;margin-top:4px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">
+            🏠 Particularidades del módulo
+          </div>
+
+          <!-- Base de instalación — todos los módulos -->
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Base de instalación</label>
+            <select name="sobre_piso" class="form-control" style="max-width:220px">
+              <option value="">— Sin especificar —</option>
+              <option value="PISO">Sobre piso</option>
+              <option value="TIERRA">Sobre tierra</option>
+            </select>
+          </div>
+
+          <!-- Opciones solo 12 y 18 m² -->
+          <div id="vc-extras-12-18" style="display:none">
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;letter-spacing:.05em">EXTRAS INCLUIDOS</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+                <input type="checkbox" name="con_puerta_ingreso" id="vc-puerta"
+                       style="width:16px;height:16px;accent-color:var(--green)" onchange="calcularExtras()">
+                <span style="font-size:13px">🚪 Puerta de ingreso</span>
+              </label>
+
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+                <input type="checkbox" name="con_ventana_balcon" id="vc-ventana"
+                       style="width:16px;height:16px;accent-color:var(--green)" onchange="calcularExtras()">
+                <span style="font-size:13px">🪟 Ventana balcón</span>
+              </label>
+
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+                <input type="checkbox" name="con_banio" id="vc-banio"
+                       style="width:16px;height:16px;accent-color:var(--green)" onchange="calcularExtras()">
+                <div>
+                  <div style="font-size:13px">🚿 Baño</div>
+                  <div style="font-size:11px;color:var(--green);font-weight:600">+ $1.000.000</div>
+                </div>
+              </label>
+
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+                <input type="checkbox" name="con_cocina" id="vc-cocina"
+                       style="width:16px;height:16px;accent-color:var(--green)" onchange="calcularExtras()">
+                <div>
+                  <div style="font-size:13px">🍳 Cocina</div>
+                  <div style="font-size:11px;color:var(--green);font-weight:600">+ $500.000</div>
+                </div>
+              </label>
+
+            </div>
+            <div id="vc-extras-total" style="display:none;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--green)">
+              💰 Extras: <span id="vc-extras-monto">$0</span> — recordá incluirlos en el precio final
+            </div>
+          </div>
+        </div>
+
+        <!-- Origen del producto -->
+        <div style="background:var(--bg-secondary);border-radius:var(--radius);padding:14px;margin-top:4px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">
+            Origen del producto
+          </div>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="vc-desde-stock" name="desde_stock" value="true"
+                   onchange="toggleDesdeStock(this)"
+                   style="width:18px;height:18px;accent-color:var(--green)">
+            <span style="font-size:14px;color:var(--text)">
+              <strong>Sale desde stock físico</strong>
+              <span id="stock-hint" style="display:block;font-size:12px;color:var(--text-muted);margin-top:2px">
+                Sin tilde: se creará una orden de fabricación automáticamente.
+              </span>
+            </span>
+          </label>
+        </div>
+
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-venta')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveVentaContado()" class="btn btn-primary btn-lg">Guardar venta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal cancelar venta -->
+<div class="modal-overlay" id="modal-cancelar" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">⚠️ Cancelar venta</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-cancelar')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="cancelar-info" style="font-size:14px;margin-bottom:16px;color:var(--text-muted)"></div>
+      <div class="form-group">
+        <label class="form-label">Motivo de cancelación *</label>
+        <textarea id="cancelar-motivo" class="form-control" rows="3"
+          placeholder="Ej: Cliente no pudo concretar el pago, cambio de fecha imposible..."></textarea>
+      </div>
+      <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px;font-size:13px;color:#f87171;margin-top:8px">
+        <strong>Importante:</strong> el asesor que cargó esta venta recibirá una notificación para gestionar el reagendamiento.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-cancelar')" class="btn btn-secondary">Volver</button>
+      <button onclick="ejecutarCancelacion()" class="btn btn-sm" style="background:#ef4444;color:white;border:none">Confirmar cancelación</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // ── Datos del usuario actual (inyectados desde el servidor) ────────────────
+  const currentUserId = {{ user.id }};
+  const currentRoles  = {{ roles | tojson }};
+  const canCancelAny  = currentRoles.includes('ADMIN') || currentRoles.includes('COORDINADOR_OPERATIVO');
+
+  let estadoFilter = '';
+  let ventasData = [];
+
+  async function loadVentasContado(search = '', estado = '') {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (estado) params.set('estado', estado);
+
+    const data = await API.get(`/api/ventas-contado?${params}`);
+    if (!data) return;
+    ventasData = data;
+
+    const tbody = document.getElementById('ventas-tbody');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted)">No hay ventas</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(v => `
+      <tr onclick="editVentaContado(${v.id})" style="cursor:pointer">
+        <td>
+          <div style="font-weight:600">${v.cliente_nombre}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${v.cliente_localidad}</div>
+        </td>
+        <td style="font-size:13px">
+          ${v.cliente_telefono
+            ? `<a href="${whatsappLink(v.cliente_telefono)}" target="_blank" onclick="event.stopPropagation()"
+                  style="color:var(--text);text-decoration:none">${v.cliente_telefono}</a>`
+            : '<span style="color:var(--text-muted)">—</span>'}
+        </td>
+        <td>
+          <div>${v.producto}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${v.modelo_especifico || ''}${v.color ? ' · ' + v.color : ''}</div>
+          <div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">
+            ${v.desde_stock
+              ? '<span class="badge" style="font-size:10px;background:#1a3a2a;color:var(--green);border:1px solid var(--green)">Stock</span>'
+              : '<span class="badge" style="font-size:10px;background:#1a2a3a;color:#5bc0f8;border:1px solid #5bc0f8">Fab.</span>'
+            }
+            ${v.orden_produccion
+              ? `<span class="badge" title="Orden de producción ${v.orden_produccion.numero} · ${v.orden_produccion.estado} · ${v.orden_produccion.etapa_actual}" style="font-size:10px;background:#2a1f12;color:#f59e0b;border:1px solid #f59e0b">🏭 ${v.orden_produccion.numero}</span>`
+              : (!v.desde_stock ? '<span class="badge" title="Venta sin orden de producción" style="font-size:10px;background:#3a1a1a;color:#f87171;border:1px solid #f87171">⚠ s/OP</span>' : '')
+            }
+            ${v.sobre_piso === 'PISO'   ? '<span class="badge" style="font-size:10px;background:#1a1a2e;color:#a78bfa;border:1px solid #a78bfa">Piso</span>'   : ''}
+            ${v.sobre_piso === 'TIERRA' ? '<span class="badge" style="font-size:10px;background:#1a1a2e;color:#a78bfa;border:1px solid #a78bfa">Tierra</span>' : ''}
+            ${v.con_banio          ? '<span class="badge" style="font-size:10px;background:#1a2a1a;color:#86efac;border:1px solid #86efac">🚿</span>' : ''}
+            ${v.con_cocina         ? '<span class="badge" style="font-size:10px;background:#1a2a1a;color:#86efac;border:1px solid #86efac">🍳</span>' : ''}
+            ${v.con_puerta_ingreso ? '<span class="badge" style="font-size:10px;background:#1a2a1a;color:#86efac;border:1px solid #86efac">🚪</span>' : ''}
+            ${v.con_ventana_balcon ? '<span class="badge" style="font-size:10px;background:#1a2a1a;color:#86efac;border:1px solid #86efac">🪟</span>' : ''}
+          </div>
+        </td>
+        <td style="font-weight:600">${formatMoney(v.precio_final)}</td>
+        <td style="font-size:13px">${v.flete_calculado ? formatMoney(v.flete_calculado) : '—'}</td>
+        <td style="font-size:13px">
+          ${v.fecha_instalacion ? formatDate(v.fecha_instalacion) : '—'}
+          ${v.rango_horario ? '<br><span style="font-size:11px;color:var(--text-muted)">' + v.rango_horario + '</span>' : ''}
+        </td>
+        <td style="font-size:13px">${v.vendedor_nombre}</td>
+        <td>${badge({COORDINADO:['badge-yellow','Coordinado'],INSTALADO:['badge-teal','Instalado'],COBRADO:['badge-green','Cobrado'],CANCELADA:['badge-red','Cancelada']},v.estado)}</td>
+        <td style="font-size:12px;color:var(--text-muted);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          ${v.notas || '—'}
+        </td>
+        <td onclick="event.stopPropagation()" style="white-space:nowrap">
+          ${v.cliente_telefono ? `<a href="${whatsappLink(v.cliente_telefono)}" target="_blank" class="btn btn-whatsapp btn-sm" style="margin-right:4px">📱</a>` : ''}
+          ${(canCancelAny || v.vendedor_id === currentUserId) && v.estado !== 'CANCELADA' && v.estado !== 'INSTALADO' && v.estado !== 'COBRADO'
+            ? `<button class="btn btn-sm" style="background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);font-size:11px"
+                onclick="confirmarCancelacion(${v.id},'${v.cliente_nombre.replace(/'/g,"\\'")}')">Cancelar</button>`
+            : ''}
+          ${v.estado === 'CANCELADA'
+            ? `<span style="font-size:11px;color:#f87171;font-weight:600">Reagendar</span>`
+            : ''}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function toggleDesdeStock(cb) {
+    const hint = document.getElementById('stock-hint');
+    hint.textContent = cb.checked
+      ? 'Sale directo desde stock. No se crea orden de fabricación.'
+      : 'Sin tilde: se creará una orden de fabricación automáticamente.';
+  }
+
+  function newVentaContado() {
+    document.getElementById('venta-form').dataset.id = '';
+    document.getElementById('venta-form').reset();
+    document.getElementById('venta-modal-title').textContent = 'Nueva Venta Contado';
+    document.getElementById('flete-display').textContent = '—';
+    document.getElementById('vc-desde-stock').checked = false;
+    toggleDesdeStock(document.getElementById('vc-desde-stock'));
+    updateModeloOptions('vc-producto', 'vc-modelo');
+    loadColoresPiscina();
+    toggleColorSuperficie();
+    openModal('modal-venta');
+  }
+
+  async function editVentaContado(id) {
+    const v = ventasData.find(x => x.id === id);
+    if (!v) return;
+    document.getElementById('venta-form').dataset.id = id;
+    document.getElementById('venta-modal-title').textContent = 'Editar Venta';
+    fillForm('venta-form', v);
+    document.getElementById('vc-desde-stock').checked = v.desde_stock || false;
+    toggleDesdeStock(document.getElementById('vc-desde-stock'));
+    if (v.flete_calculado) document.getElementById('flete-display').textContent = formatMoney(v.flete_calculado);
+    // Extras módulo
+    if (document.getElementById('vc-banio'))   document.getElementById('vc-banio').checked   = v.con_banio  || false;
+    if (document.getElementById('vc-cocina'))  document.getElementById('vc-cocina').checked  = v.con_cocina || false;
+    if (document.getElementById('vc-puerta'))  document.getElementById('vc-puerta').checked  = v.con_puerta_ingreso || false;
+    if (document.getElementById('vc-ventana')) document.getElementById('vc-ventana').checked = v.con_ventana_balcon || false;
+    updateModeloOptions('vc-producto', 'vc-modelo');
+    loadColoresPiscina();
+    // Mostrar sección extras DESPUÉS de que updateModeloOptions cargue los modelos
+    setTimeout(() => {
+      document.getElementById('vc-modelo').value = v.modelo_especifico || '';
+      toggleColorSuperficie();
+      calcularExtras();
+    }, 150);
+    openModal('modal-venta');
+  }
+
+  async function saveVentaContado() {
+    const form = document.getElementById('venta-form');
+    const id = form.dataset.id;
+    const data = formToObj(form);
+    // Checkboxes manuales
+    data.desde_stock       = document.getElementById('vc-desde-stock').checked;
+    data.con_banio          = document.getElementById('vc-banio')?.checked  || false;
+    data.con_cocina         = document.getElementById('vc-cocina')?.checked || false;
+    data.con_puerta_ingreso = document.getElementById('vc-puerta')?.checked || false;
+    data.con_ventana_balcon = document.getElementById('vc-ventana')?.checked || false;
+
+    try {
+      if (id) {
+        await API.put(`/api/ventas-contado/${id}`, data);
+        toast('Venta actualizada');
+      } else {
+        const res = await API.post('/api/ventas-contado', data);
+        const circuito = res.circuito === 'stock'
+          ? '✅ Venta creada — Sale desde stock. Entrega agendada en logística.'
+          : '✅ Venta creada — Orden de fabricación generada. Entrega pendiente en calendario.';
+        toast(circuito, 'success');
+      }
+      closeModal('modal-venta');
+      loadVentasContado();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function calcularFlete() {
+    const km = document.getElementById('vc-distancia').value;
+    if (!km) { document.getElementById('flete-display').textContent = '—'; return; }
+    const modelo = document.getElementById('vc-modelo').value;
+    const data = await API.post('/api/calcular-flete', { distancia_km: parseFloat(km), modelo_especifico: modelo });
+    if (data) document.getElementById('flete-display').textContent = formatMoney(data.flete_calculado);
+  }
+
+  async function loadColoresPiscina() {
+    const cat = await API.get('/api/catalogo');
+    if (!cat) return;
+    const sel = document.getElementById('vc-color');
+    sel.innerHTML = '<option value="">—</option>' +
+      cat.piscinas.colores.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+
+  function toggleColorSuperficie() {
+    const prod = document.getElementById('vc-producto').value;
+    document.getElementById('vc-color-group').style.display    = prod !== 'MODULO' ? '' : 'none';
+    document.getElementById('vc-superficie-group').style.display = prod !== 'PISCINA' ? '' : 'none';
+    toggleModuloExtras();
+  }
+
+  function toggleModuloExtras() {
+    const prod   = document.getElementById('vc-producto').value;
+    const modelo = document.getElementById('vc-modelo').value || '';
+
+    // Sección entera: visible para MODULO y COMBO
+    const esModulo = prod === 'MODULO' || prod === 'COMBO';
+    document.getElementById('vc-modulo-extras').style.display = esModulo ? '' : 'none';
+
+    // Sub-sección 12/18 m²: visible cuando el modelo tiene "12" o "18"
+    const es12o18 = esModulo && (/\b12\b/.test(modelo) || /\b18\b/.test(modelo));
+    document.getElementById('vc-extras-12-18').style.display = es12o18 ? '' : 'none';
+
+    calcularExtras();
+  }
+
+  function calcularExtras() {
+    const banio  = document.getElementById('vc-banio')?.checked  ? 1000000 : 0;
+    const cocina = document.getElementById('vc-cocina')?.checked ?  500000 : 0;
+    const total  = banio + cocina;
+    const el     = document.getElementById('vc-extras-total');
+    const monto  = document.getElementById('vc-extras-monto');
+    if (el) {
+      el.style.display = total > 0 ? '' : 'none';
+      if (monto) monto.textContent = formatMoney(total);
+    }
+  }
+
+  // ─── CANCELAR VENTA ───────────────────────────────────────────────────────
+  let _cancelarId = null;
+
+  function confirmarCancelacion(id, nombre) {
+    _cancelarId = id;
+    document.getElementById('cancelar-info').textContent =
+      `Vas a cancelar la venta de: ${nombre}`;
+    document.getElementById('cancelar-motivo').value = '';
+    openModal('modal-cancelar');
+  }
+
+  async function ejecutarCancelacion() {
+    const motivo = document.getElementById('cancelar-motivo').value.trim();
+    if (!motivo) { toast('Ingresá un motivo de cancelación', 'error'); return; }
+    try {
+      await API.post(`/api/ventas-contado/${_cancelarId}/cancelar`, { motivo });
+      toast('✅ Venta cancelada. El asesor fue notificado.', 'success');
+      closeModal('modal-cancelar');
+      loadVentasContado('', estadoFilter);
+    } catch(e) {
+      toast(e.message || 'Error al cancelar', 'error');
+    }
+  }
+
+  loadVentasContado();
+  updateModeloOptions('vc-producto', 'vc-modelo');
+  toggleColorSuperficie();
+</script>
+{% endblock %}

@@ -1,0 +1,524 @@
+{% extends "base.html" %}
+{% block title %}Control Center — Eco Módulos{% endblock %}
+{% block page_title %}🧠 Control Center · Agentes{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <button onclick="asignarLeadsAIAs()" class="btn btn-ghost" style="font-size:12px;padding:7px 12px;border-color:#6366f1;color:#6366f1">
+    🤖 Asignar leads a agentes IA
+  </button>
+  <div id="status-pill" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">
+    <span id="status-dot" style="width:8px;height:8px;border-radius:50%;background:#94a3b8;display:inline-block"></span>
+    <span id="status-text">Verificando…</span>
+  </div>
+  <button onclick="verificarStatus()" class="btn btn-ghost" style="padding:7px 12px;font-size:13px">🔄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- GRID PRINCIPAL -->
+<div style="display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start" class="cc-grid">
+
+  <!-- ── COLUMNA IZQUIERDA ────────────────────────────────────────────────── -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+
+    <!-- TABS DE MODO -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;border-bottom:1px solid var(--border-color)">
+        <button id="tab-libre"   onclick="setTab('libre')"   class="cc-tab cc-tab-active">✍️ Libre</button>
+        <button id="tab-rapido"  onclick="setTab('rapido')"  class="cc-tab">⚡ Acciones rápidas</button>
+        <button id="tab-ceo"     onclick="setTab('ceo')"     class="cc-tab">👔 Modo CEO</button>
+      </div>
+
+      <!-- TAB LIBRE -->
+      <div id="panel-libre" style="padding:20px">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+          Escribí una instrucción en lenguaje natural. El orquestador la interpretará y la asignará al agente más adecuado.
+        </div>
+        <textarea id="libre-instruccion" class="form-control" rows="5"
+          placeholder="Ej: Contactar a todos los leads nuevos de hoy y enviarme un resumen de cuántos se pudieron contactar…"
+          style="font-size:14px;line-height:1.6;resize:vertical"></textarea>
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:center">
+          <div style="display:flex;gap:8px;flex:1;min-width:200px">
+            <select id="libre-prioridad" class="form-control" style="max-width:140px;margin:0">
+              <option value="NORMAL">⚪ Normal</option>
+              <option value="URGENTE">🔴 Urgente</option>
+              <option value="BAJA">🔵 Baja prioridad</option>
+            </select>
+            <select id="libre-agente" class="form-control" style="margin:0">
+              <option value="orquestador">🧠 Orquestador (auto-asignar)</option>
+              {% for ag in agentes %}
+              <option value="{{ ag.id }}">{{ ag.icono }} {{ ag.nombre }} — {{ ag.rol }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button onclick="enviarComando('libre')" class="btn btn-primary" style="white-space:nowrap">
+            🚀 Enviar instrucción
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB ACCIONES RÁPIDAS -->
+      <div id="panel-rapido" style="display:none;padding:20px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+          {% for area in ['VENTAS','COBRANZAS','FABRICA','LOGISTICA','ADMIN','MARKETING'] %}
+          <button onclick="filtrarArea('{{area}}')" class="area-btn btn btn-ghost" data-area="{{area}}"
+            style="font-size:12px;padding:6px 14px;border-radius:20px">
+            {{ {'VENTAS':'🎯 Ventas','COBRANZAS':'💳 Cobranzas','FABRICA':'⚙️ Fábrica',
+                'LOGISTICA':'🚚 Logística','ADMIN':'📊 Admin','MARKETING':'📸 Marketing'}[area] }}
+          </button>
+          {% endfor %}
+        </div>
+        <div id="acciones-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px" class="acciones-2col">
+          {% for area, acciones in acciones.items() %}
+          {% for acc in acciones %}
+          <div class="accion-card" data-area="{{ area }}" onclick="precargarAccion('{{ acc.id }}')"
+            style="padding:14px;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;transition:all .15s"
+            onmouseenter="this.style.borderColor='var(--primary-color)';this.style.background='rgba(var(--primary-rgb),.05)'"
+            onmouseleave="this.style.borderColor='var(--border-color)';this.style.background=''">
+            <div style="font-size:18px;margin-bottom:6px">{{ acc.icono }}</div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:3px">{{ acc.titulo }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">{{ acc.agente | title }}</div>
+          </div>
+          {% endfor %}
+          {% endfor %}
+        </div>
+        <!-- Preview de acción seleccionada -->
+        <div id="accion-preview" style="display:none;margin-top:16px;padding:14px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2);border-radius:10px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#6366f1" id="preview-titulo"></div>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:12px;white-space:pre-wrap" id="preview-instruccion"></div>
+          <div style="display:flex;gap:8px">
+            <select id="rapido-prioridad" class="form-control" style="max-width:140px;margin:0">
+              <option value="NORMAL">⚪ Normal</option>
+              <option value="URGENTE">🔴 Urgente</option>
+            </select>
+            <button onclick="enviarComando('rapido')" class="btn btn-primary">🚀 Ejecutar</button>
+            <button onclick="editarEnLibre()" class="btn btn-ghost">✏️ Editar antes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB CEO -->
+      <div id="panel-ceo" style="display:none;padding:20px">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+          Flujos estratégicos multi-agente. Un clic activa una secuencia completa de acciones coordinadas entre todos los agentes relevantes.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" class="ceo-2col">
+          {% for obj in objetivos_ceo %}
+          <div onclick="precargarCEO('{{ obj.id }}')"
+            style="padding:18px;border:2px solid {{ obj.color }}22;border-radius:12px;cursor:pointer;transition:all .15s;background:{{ obj.color }}08"
+            onmouseenter="this.style.borderColor='{{ obj.color }}66';this.style.background='{{ obj.color }}14'"
+            onmouseleave="this.style.borderColor='{{ obj.color }}22';this.style.background='{{ obj.color }}08'">
+            <div style="font-size:1.3rem;margin-bottom:8px">{{ obj.titulo }}</div>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.5">{{ obj.descripcion }}</div>
+            <div style="margin-top:10px;font-size:11px;font-weight:700;color:{{ obj.color }};text-transform:uppercase;letter-spacing:.5px">{{ obj.area }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <!-- Preview CEO -->
+        <div id="ceo-preview" style="display:none;margin-top:16px;padding:16px;background:var(--bg-tertiary);border-radius:12px;border:1px solid var(--border-color)">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px" id="ceo-titulo"></div>
+          <textarea id="ceo-instruccion" class="form-control" rows="7" style="font-size:12px;line-height:1.6;font-family:monospace"></textarea>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button onclick="enviarComando('ceo')" class="btn btn-primary" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">
+              🚀 Activar flujo CEO
+            </button>
+            <button onclick="document.getElementById('ceo-preview').style.display='none'" class="btn btn-ghost">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AGENTES GRID -->
+    <div class="card" style="padding:20px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px">
+        🤖 AGENTES DEL SISTEMA ({{ agentes|length }})
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+        {% for ag in agentes %}
+        <div class="agente-card" data-id="{{ ag.id }}"
+          onclick="seleccionarAgente('{{ ag.id }}','{{ ag.nombre }}')"
+          style="padding:12px;border:1px solid {{ ag.color }}33;border-radius:10px;cursor:pointer;transition:all .15s;background:{{ ag.color }}08">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:22px">{{ ag.icono }}</span>
+            <div>
+              <div style="font-weight:700;font-size:13px;color:{{ ag.color }}">{{ ag.nombre }}</div>
+              <div style="font-size:10px;color:var(--text-muted)">{{ ag.rol }}</div>
+            </div>
+            <div style="margin-left:auto;width:8px;height:8px;border-radius:50%;background:#94a3b8" class="agente-dot" id="dot-{{ ag.id }}"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);border-top:1px solid {{ ag.color }}22;padding-top:6px;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">
+            {{ ag.area }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── COLUMNA DERECHA: HISTORIAL ───────────────────────────────────────── -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-value" id="stat-hoy">—</div>
+        <div class="stat-label">Comandos hoy</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-label">Total histórico</div>
+      </div>
+    </div>
+
+    <!-- Historial -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">📋 Historial</div>
+        <select id="filter-area" class="form-control" style="margin:0;max-width:120px;font-size:12px" onchange="cargarHistorial()">
+          <option value="">Todas las áreas</option>
+          <option value="VENTAS">🎯 Ventas</option>
+          <option value="COBRANZAS">💳 Cobranzas</option>
+          <option value="FABRICA">⚙️ Fábrica</option>
+          <option value="LOGISTICA">🚚 Logística</option>
+          <option value="ADMIN">📊 Admin</option>
+          <option value="MARKETING">📸 Marketing</option>
+        </select>
+      </div>
+      <div id="historial-list" style="max-height:520px;overflow-y:auto">
+        <div class="loading" style="padding:30px"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- Configuración rápida -->
+    {% if not orquestador_configurado %}
+    <div class="card" style="padding:16px;border-color:#f59e0b66;background:#fefce8">
+      <div style="font-weight:700;color:#92400e;margin-bottom:8px;font-size:13px">⚠️ Orquestador no configurado</div>
+      <div style="font-size:12px;color:#78350f;line-height:1.5;margin-bottom:12px">
+        Para enviar órdenes en tiempo real al sistema multiagente, configurá la URL del orquestador.
+        Los comandos se guardarán localmente hasta que se configure.
+      </div>
+      <a href="/configuracion" class="btn btn-sm" style="background:#f59e0b;color:#fff;font-size:12px">🔑 Ir a Configuración</a>
+    </div>
+    {% else %}
+    <div class="card" style="padding:12px 16px;font-size:12px;color:var(--text-muted)">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span>🔗</span>
+        <span style="font-family:monospace;font-size:11px">{{ orquestador_url }}</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── TOAST DE RESPUESTA ──────────────────────────────────────────────────── -->
+<div id="respuesta-panel" style="display:none;position:fixed;bottom:80px;right:20px;max-width:380px;background:var(--bg-secondary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.2);border:1px solid var(--border-color);z-index:500;overflow:hidden">
+  <div style="padding:12px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between">
+    <div style="font-weight:700;font-size:13px" id="resp-titulo">Respuesta del orquestador</div>
+    <button onclick="document.getElementById('respuesta-panel').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px">✕</button>
+  </div>
+  <div id="resp-contenido" style="padding:14px;font-size:12px;line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></div>
+</div>
+
+<style>
+.cc-tab {
+  flex: 1; padding: 14px 10px; border: none; background: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  border-bottom: 3px solid transparent; transition: all .15s;
+}
+.cc-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.cc-tab-active { color: var(--primary-color) !important; border-bottom-color: var(--primary-color) !important; }
+.agente-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+.agente-card.selected { border-width: 2px !important; }
+.hist-item { padding: 12px 16px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background .1s; }
+.hist-item:hover { background: var(--bg-hover); }
+.hist-item:last-child { border-bottom: none; }
+.area-btn.active { background: var(--primary-color) !important; color: #fff !important; }
+.accion-card.filtered-out { display: none; }
+@media(max-width:900px){
+  .cc-grid { grid-template-columns: 1fr !important; }
+  .cc-grid > :last-child { order: -1; }
+}
+@media(max-width:600px){
+  .acciones-2col, .ceo-2col { grid-template-columns: 1fr !important; }
+}
+</style>
+
+<script>
+// ── Estado global ─────────────────────────────────────────────────────────────
+let _accionActual = null;
+let _ceoActual    = null;
+let _agenteSeleccionado = null;
+
+// Catálogo de acciones y objetivos CEO (server-side renderizado)
+const ACCIONES_MAP  = {{ acciones | tojson }};
+const OBJETIVOS_CEO = {{ objetivos_ceo | tojson }};
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function setTab(tab) {
+  ['libre','rapido','ceo'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('cc-tab-active', t === tab);
+    document.getElementById(`panel-${t}`).style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+async function verificarStatus() {
+  const pill = document.getElementById('status-pill');
+  const dot  = document.getElementById('status-dot');
+  const txt  = document.getElementById('status-text');
+  txt.textContent = 'Verificando…';
+  dot.style.background = '#94a3b8';
+
+  try {
+    const s = await API.get('/api/control-agentes/status');
+    document.getElementById('stat-hoy').textContent   = s.comandos_hoy;
+    document.getElementById('stat-total').textContent = s.total_comandos;
+
+    if (s.configurado && s.orquestador_online) {
+      dot.style.background = '#22c55e';
+      txt.textContent = 'Sistema online';
+      pill.style.background = 'rgba(34,197,94,.1)';
+      pill.style.color = '#16a34a';
+      pill.style.borderColor = 'rgba(34,197,94,.3)';
+    } else if (s.configurado) {
+      dot.style.background = '#ef4444';
+      txt.textContent = 'Orquestador offline';
+      pill.style.background = 'rgba(239,68,68,.1)';
+      pill.style.color = '#dc2626';
+      pill.style.borderColor = 'rgba(239,68,68,.3)';
+    } else {
+      dot.style.background = '#f59e0b';
+      txt.textContent = 'Sin configurar';
+      pill.style.background = 'rgba(245,158,11,.1)';
+      pill.style.color = '#d97706';
+      pill.style.borderColor = 'rgba(245,158,11,.3)';
+    }
+
+    // Actualizar dots de agentes
+    Object.entries(s.actividad_agentes || {}).forEach(([agId, info]) => {
+      const d = document.getElementById(`dot-${agId}`);
+      if (d) d.style.background = info.estado === 'ERROR' ? '#ef4444' : '#22c55e';
+    });
+  } catch(e) {
+    dot.style.background = '#ef4444';
+    txt.textContent = 'Error de conexión';
+  }
+}
+
+// ── Acciones rápidas ──────────────────────────────────────────────────────────
+function filtrarArea(area) {
+  document.querySelectorAll('.area-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.area === area);
+  });
+  document.querySelectorAll('.accion-card').forEach(card => {
+    card.classList.toggle('filtered-out', area && card.dataset.area !== area);
+  });
+}
+
+function precargarAccion(id) {
+  let acc = null;
+  for (const [area, lista] of Object.entries(ACCIONES_MAP)) {
+    acc = lista.find(a => a.id === id);
+    if (acc) { acc.area = area; break; }
+  }
+  if (!acc) return;
+  _accionActual = acc;
+
+  document.getElementById('preview-titulo').textContent = acc.icono + ' ' + acc.titulo;
+  document.getElementById('preview-instruccion').textContent = acc.instruccion;
+  document.getElementById('accion-preview').style.display = 'block';
+
+  // Scroll al preview
+  document.getElementById('accion-preview').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function editarEnLibre() {
+  if (!_accionActual) return;
+  setTab('libre');
+  document.getElementById('libre-instruccion').value = _accionActual.instruccion;
+  document.getElementById('libre-agente').value = _accionActual.agente || 'orquestador';
+}
+
+function precargarCEO(id) {
+  const obj = OBJETIVOS_CEO.find(o => o.id === id);
+  if (!obj) return;
+  _ceoActual = obj;
+
+  document.getElementById('ceo-titulo').textContent = obj.titulo;
+  document.getElementById('ceo-instruccion').value  = obj.instruccion;
+  document.getElementById('ceo-preview').style.display = 'block';
+  document.getElementById('ceo-preview').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function seleccionarAgente(id, nombre) {
+  _agenteSeleccionado = id;
+  document.querySelectorAll('.agente-card').forEach(c => c.classList.remove('selected'));
+  document.querySelector(`.agente-card[data-id="${id}"]`)?.classList.add('selected');
+  // Si estamos en tab libre, preseleccionar el agente
+  const sel = document.getElementById('libre-agente');
+  if (sel) sel.value = id;
+  showToast(`Agente ${nombre} seleccionado`, 'info');
+}
+
+// ── Enviar comando ────────────────────────────────────────────────────────────
+async function enviarComando(modo) {
+  let instruccion = '', titulo = '', agente = 'orquestador', prioridad = 'NORMAL', area = 'GENERAL', tipo = 'LIBRE';
+
+  if (modo === 'libre') {
+    instruccion = document.getElementById('libre-instruccion').value.trim();
+    prioridad   = document.getElementById('libre-prioridad').value;
+    agente      = document.getElementById('libre-agente').value || 'orquestador';
+    tipo        = 'LIBRE';
+    area        = 'GENERAL';
+    if (!instruccion) return showToast('Escribí una instrucción primero', 'error');
+  } else if (modo === 'rapido') {
+    if (!_accionActual) return showToast('Seleccioná una acción primero', 'error');
+    instruccion = _accionActual.instruccion;
+    titulo      = _accionActual.titulo;
+    agente      = _accionActual.agente || 'orquestador';
+    prioridad   = document.getElementById('rapido-prioridad')?.value || 'NORMAL';
+    area        = _accionActual.area || 'GENERAL';
+    tipo        = 'RAPIDO';
+  } else if (modo === 'ceo') {
+    if (!_ceoActual) return showToast('Seleccioná un objetivo CEO primero', 'error');
+    instruccion = document.getElementById('ceo-instruccion').value.trim();
+    titulo      = _ceoActual.titulo;
+    agente      = 'orquestador';
+    prioridad   = 'URGENTE';
+    area        = _ceoActual.area || 'GENERAL';
+    tipo        = 'CEO';
+    if (!instruccion) return showToast('La instrucción no puede estar vacía', 'error');
+  }
+
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = '⏳ Enviando…';
+  btn.disabled = true;
+
+  try {
+    const res = await API.post('/api/control-agentes/comando', {
+      instruccion, titulo, agente_destino: agente, prioridad, area, tipo,
+    });
+
+    const estadoEmoji = res.estado === 'ENVIADO' ? '✅' : res.estado === 'ERROR' ? '❌' : '💾';
+    showToast(`${estadoEmoji} Comando #${res.id} — ${res.estado}`, res.estado === 'ERROR' ? 'error' : 'success');
+
+    // Mostrar respuesta del orquestador
+    if (res.respuesta) {
+      document.getElementById('resp-titulo').textContent = `${estadoEmoji} Respuesta — ${res.estado}`;
+      document.getElementById('resp-contenido').textContent = res.respuesta;
+      document.getElementById('respuesta-panel').style.display = 'block';
+    }
+
+    // Limpiar
+    if (modo === 'libre') document.getElementById('libre-instruccion').value = '';
+    if (modo === 'rapido') document.getElementById('accion-preview').style.display = 'none';
+    if (modo === 'ceo')    document.getElementById('ceo-preview').style.display = 'none';
+
+    // Recargar historial y stats
+    cargarHistorial();
+    verificarStatus();
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+// ── Historial ─────────────────────────────────────────────────────────────────
+async function cargarHistorial() {
+  const area = document.getElementById('filter-area').value;
+  const list = document.getElementById('historial-list');
+  list.innerHTML = '<div class="loading" style="padding:20px"><div class="spinner" style="width:22px;height:22px"></div></div>';
+
+  try {
+    const params = new URLSearchParams({limit: 40});
+    if (area) params.set('area', area);
+    const data = await API.get('/api/control-agentes/historial?' + params);
+    renderHistorial(data.comandos || []);
+  } catch(e) {
+    list.innerHTML = `<div style="padding:16px;color:#ef4444;font-size:12px">${e.message}</div>`;
+  }
+}
+
+function renderHistorial(items) {
+  const list = document.getElementById('historial-list');
+  if (!items.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px">Sin comandos aún</div>';
+    return;
+  }
+
+  const estadoColor = {
+    ENVIADO:    '#22c55e', COMPLETADO: '#22c55e',
+    PENDIENTE:  '#f59e0b', PROCESANDO: '#3b82f6',
+    ERROR:      '#ef4444',
+  };
+  const tipoIcon = { LIBRE:'✍️', RAPIDO:'⚡', CEO:'👔' };
+  const fmtTime = iso => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit'}) + ' ' +
+           d.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+  };
+
+  list.innerHTML = items.map(c => {
+    const color = estadoColor[c.estado] || '#94a3b8';
+    const icon  = tipoIcon[c.tipo] || '📋';
+    return `
+    <div class="hist-item" onclick="verDetalle(${c.id})">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="font-size:14px">${icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.titulo}</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:10px;color:var(--text-muted)">${c.area}</span>
+            <span style="font-size:10px;color:var(--text-muted)">·</span>
+            <span style="font-size:10px;color:var(--text-muted)">${c.agente_destino || 'orquestador'}</span>
+            <span style="font-size:10px;color:var(--text-muted)">·</span>
+            <span style="font-size:10px;color:var(--text-muted)">${fmtTime(c.created_at)}</span>
+          </div>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${color};white-space:nowrap;padding:2px 8px;border-radius:10px;background:${color}18">${c.estado}</span>
+      </div>
+      ${c.respuesta ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);padding-left:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.respuesta}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function verDetalle(id) {
+  // TODO: expandir modal de detalle con historial completo
+  // Por ahora scrollea al panel de respuesta si hay respuesta
+}
+
+// ── Asignar leads a agentes IA ────────────────────────────────────────────────
+async function asignarLeadsAIAs() {
+  const limite = prompt('¿Cuántos leads asignar a los agentes IA? (leads NUEVO/INTENTADO sin contactar)', '30');
+  if (!limite || isNaN(parseInt(limite))) return;
+  try {
+    const res = await API.post('/api/leads/asignar-a-agentes-ia', { limite: parseInt(limite) });
+    showToast(`✅ ${res.mensaje}`, 'success');
+    verificarStatus();
+  } catch(e) {
+    if (e.message.includes('No hay agentes IA')) {
+      showToast('⚠️ Primero creá usuarios con el flag "Es agente IA" en Usuarios', 'error');
+    } else {
+      showToast(e.message, 'error');
+    }
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  verificarStatus();
+  cargarHistorial();
+
+  // Refresh automático cada 60s
+  setInterval(() => { verificarStatus(); cargarHistorial(); }, 60_000);
+});
+</script>
+{% endblock %}

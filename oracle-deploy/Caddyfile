@@ -1,0 +1,18 @@
+# ── Caddyfile para eco-server Oracle Cloud ──────────────────────────────────
+# Dominio multiagente (WhatsApp IA, paneles, webhooks)
+{$MULTIAGENTE_DOMAIN} {
+    reverse_proxy multiagente:8080
+    encode gzip
+    log {
+        output file /var/log/caddy/multiagente.log
+    }
+}
+
+# ── CRM ─────────────────────────────────────────────────────────────────────
+{$CRM_DOMAIN} {
+    reverse_proxy crm:8000
+    encode gzip
+    log {
+        output file /var/log/caddy/crm.log
+    }
+}

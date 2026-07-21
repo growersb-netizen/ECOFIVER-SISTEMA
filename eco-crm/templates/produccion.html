@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% block title %}Producción — Eco Módulos{% endblock %}
+{% block page_title %}🏭 Órdenes de Producción{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px">
+  <button class="btn btn-primary" onclick="openModal('modal-nueva-orden')">+ Nueva OP</button>
+  <button class="btn btn-ghost" onclick="setTab('dashboard')">📊 Dashboard</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+  <button class="btn" id="tab-activas" onclick="setTab('activas')" style="background:#10b981;color:#fff">⚙️ Activas</button>
+  <button class="btn btn-ghost" id="tab-dashboard" onclick="setTab('dashboard')">📊 Dashboard</button>
+  <button class="btn btn-ghost" id="tab-operarios" onclick="setTab('operarios')">👷 Operarios</button>
+</div>
+
+<!-- TAB ACTIVAS -->
+<div id="tab-content-activas">
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-ghost" onclick="cargarOrdenes('')">Todas</button>
+    <button class="btn btn-ghost" style="border-color:#ef4444;color:#ef4444" onclick="cargarOrdenes('PENDIENTE')">⏳ Pendientes</button>
+    <button class="btn btn-ghost" style="border-color:#f59e0b;color:#f59e0b" onclick="cargarOrdenes('EN_PROCESO')">⚙️ En proceso</button>
+    <button class="btn btn-ghost" style="border-color:#3b82f6;color:#3b82f6" onclick="cargarOrdenes('CONTROL_CALIDAD')">🔍 Control</button>
+    <button class="btn btn-ghost" style="border-color:#10b981;color:#10b981" onclick="cargarOrdenes('TERMINADO')">✅ Terminadas</button>
+  </div>
+  <div id="lista-ordenes">Cargando...</div>
+</div>
+
+<!-- TAB DASHBOARD -->
+<div id="tab-content-dashboard" style="display:none">
+  <div id="dashboard-contenido">Cargando...</div>
+</div>
+
+<!-- TAB OPERARIOS -->
+<div id="tab-content-operarios" style="display:none">
+  <div class="card">
+    <h3 style="margin-bottom:16px">Links de panel para operarios</h3>
+    <p style="color:#64748b;font-size:14px;margin-bottom:16px">Cada operario tiene un link personal. Entrá con el link desde el celular sin contraseña.</p>
+    {% for e in empleados %}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9">
+      <div>
+        <div style="font-weight:600">{{ e.nombre }}</div>
+        {% if e.token %}
+        <div style="font-size:12px;color:#94a3b8;word-break:break-all">/operario/{{ e.token }}</div>
+        {% else %}
+        <div style="font-size:12px;color:#f59e0b">Sin token</div>
+        {% endif %}
+      </div>
+      <div style="display:flex;gap:6px">
+        {% if e.token %}
+        <button class="btn btn-ghost" style="font-size:12px" onclick="copiarLink('{{ e.token }}')">📋 Copiar</button>
+        {% endif %}
+        <button class="btn btn-ghost" style="font-size:12px" onclick="generarToken({{ e.id }}, this)">{{ '🔄' if e.token else '🔑 Generar' }}</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- MODAL: NUEVA ORDEN -->
+<div id="modal-nueva-orden" class="modal" style="display:none">
+  <div class="modal-header"><h3>📋 Nueva Orden de Producción</h3><button onclick="closeModal('modal-nueva-orden')">✕</button></div>
+  <div class="modal-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Producto *</label>
+        <select class="form-select" id="op-producto">
+          <option value="MODULO">🏠 Módulo</option>
+          <option value="PISCINA">🏊 Piscina</option>
+          <option value="COMBO">📦 Combo</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Prioridad</label>
+        <select class="form-select" id="op-prioridad">
+          <option value="NORMAL">Normal</option>
+          <option value="URGENTE">🔴 Urgente</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Modelo</label><input class="form-input" id="op-modelo" placeholder="Ej: Módulo 12m², Arco Romano Grande..."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Color</label><input class="form-input" id="op-color" placeholder="Ej: Blanco"></div>
+      <div class="form-group"><label class="form-label">Superficie m²</label><input class="form-input" id="op-superficie" type="number"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Cliente</label><input class="form-input" id="op-cliente" placeholder="Nombre del cliente"></div>
+    <div class="form-group"><label class="form-label">Fecha compromiso</label><input class="form-input" id="op-fecha" type="date"></div>
+    <div class="form-group"><label class="form-label">Operario/s asignados</label>
+      <select class="form-select" id="op-operarios" multiple style="height:100px">
+        {% for e in empleados %}<option value="{{ e.id }}">{{ e.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Mensaje para el operario</label><textarea class="form-input" id="op-mensaje" rows="2" placeholder="Instrucciones especiales..."></textarea></div>
+    <div class="form-group"><label class="form-label">Notas internas</label><textarea class="form-input" id="op-notas" rows="2"></textarea></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nueva-orden')">Cancelar</button>
+    <button class="btn btn-primary" onclick="crearOrden()">Crear OP</button>
+  </div>
+</div>
+
+<!-- MODAL: DETALLE ORDEN -->
+<div id="modal-detalle-orden" class="modal" style="display:none">
+  <div class="modal-header"><h3 id="det-titulo">Detalle OP</h3><button onclick="closeModal('modal-detalle-orden')">✕</button></div>
+  <div class="modal-body" id="det-body">Cargando...</div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-detalle-orden')">Cerrar</button>
+    <button class="btn btn-primary" id="det-avanzar-btn" onclick="avanzarEstado()">⬆ Avanzar estado</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let ordenActualId = null;
+const ESTADOS = ['PENDIENTE','EN_PROCESO','CONTROL_CALIDAD','TERMINADO','DESPACHADO'];
+const ESTADO_LABELS = { PENDIENTE:'⏳ Pendiente', EN_PROCESO:'⚙️ En proceso', CONTROL_CALIDAD:'🔍 Control calidad', TERMINADO:'✅ Terminado', DESPACHADO:'🚚 Despachado' };
+const ESTADO_COLORS = { PENDIENTE:'#94a3b8', EN_PROCESO:'#f59e0b', CONTROL_CALIDAD:'#3b82f6', TERMINADO:'#10b981', DESPACHADO:'#6366f1' };
+
+function setTab(tab) {
+  ['activas','dashboard','operarios'].forEach(t => {
+    document.getElementById(`tab-content-${t}`).style.display = t===tab?'block':'none';
+    const btn = document.getElementById(`tab-${t}`);
+    if(btn){ btn.className = t===tab?'btn':'btn btn-ghost'; btn.style.background=t===tab?'#10b981':''; btn.style.color=t===tab?'#fff':''; }
+  });
+  if(tab==='activas') cargarOrdenes('');
+  else if(tab==='dashboard') cargarDashboard();
+}
+
+async function cargarOrdenes(estado='') {
+  const el = document.getElementById('lista-ordenes');
+  el.innerHTML = '<p style="color:#94a3b8">Cargando...</p>';
+  try {
+    const url = '/api/produccion/ordenes' + (estado ? `?estado=${estado}` : '');
+    const ordenes = await API.get(url);
+    if(!ordenes?.length){ el.innerHTML='<p style="color:#94a3b8">No hay órdenes</p>'; return; }
+    el.innerHTML = ordenes.map(o => `
+      <div class="card" style="margin-bottom:8px;border-left:4px solid ${ESTADO_COLORS[o.estado]||'#ccc'};cursor:pointer" onclick="verDetalle(${o.id})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:700;font-size:15px">${o.numero} ${o.prioridad==='URGENTE'?'🔴':''}</div>
+            <div style="color:#374151;margin:2px 0">${o.producto}: ${o.modelo} ${o.color?'· '+o.color:''}</div>
+            <div style="font-size:13px;color:#64748b">👤 ${o.cliente_nombre||'Sin cliente'}</div>
+          </div>
+          <div style="text-align:right">
+            <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${ESTADO_COLORS[o.estado]}22;color:${ESTADO_COLORS[o.estado]};font-weight:600">${ESTADO_LABELS[o.estado]||o.estado}</span>
+            ${o.fecha_compromiso?`<div style="font-size:12px;color:${o.dias_restantes<0?'#ef4444':o.dias_restantes<=3?'#f59e0b':'#94a3b8'};margin-top:4px">${o.dias_restantes<0?'⚠️ VENCIDA':o.dias_restantes===0?'Hoy':'En '+o.dias_restantes+'d'}</div>`:''}
+          </div>
+        </div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:4px">Etapa: ${o.etapa_actual||'—'}</div>
+      </div>
+    `).join('');
+  } catch(e){ el.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function verDetalle(id) {
+  ordenActualId = id;
+  openModal('modal-detalle-orden');
+  const body = document.getElementById('det-body');
+  body.innerHTML = 'Cargando...';
+  try {
+    const o = await API.get(`/api/produccion/ordenes/${id}`);
+    document.getElementById('det-titulo').textContent = `${o.numero} — ${o.cliente_nombre||'Sin cliente'}`;
+    const nextIdx = ESTADOS.indexOf(o.estado)+1;
+    const btn = document.getElementById('det-avanzar-btn');
+    if(nextIdx < ESTADOS.length){ btn.style.display='block'; btn.textContent=`→ ${ESTADO_LABELS[ESTADOS[nextIdx]]}`; }
+    else{ btn.style.display='none'; }
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div><div style="font-size:12px;color:#94a3b8">Producto</div><div style="font-weight:600">${o.producto}</div></div>
+        <div><div style="font-size:12px;color:#94a3b8">Modelo</div><div style="font-weight:600">${o.modelo||'—'}</div></div>
+        <div><div style="font-size:12px;color:#94a3b8">Color</div><div>${o.color||'—'}</div></div>
+        <div><div style="font-size:12px;color:#94a3b8">Superficie</div><div>${o.superficie_m2?o.superficie_m2+'m²':'—'}</div></div>
+        <div><div style="font-size:12px;color:#94a3b8">Estado</div><div style="color:${ESTADO_COLORS[o.estado]};font-weight:600">${ESTADO_LABELS[o.estado]||o.estado}</div></div>
+        <div><div style="font-size:12px;color:#94a3b8">Etapa actual</div><div>${o.etapa_actual||'—'}</div></div>
+      </div>
+      ${o.notas?`<div style="background:#f8fafc;padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px">📝 ${o.notas}</div>`:''}
+      ${o.etapas?.length?`
+      <div style="margin-top:12px"><div style="font-weight:600;margin-bottom:8px">Historial de avances:</div>
+      ${o.etapas.map(e=>`<div style="padding:8px;border-left:3px solid #10b981;margin-bottom:6px;background:#f0fdf4;border-radius:0 8px 8px 0;font-size:13px">
+        <strong>${e.etapa}</strong> — ${e.estado}<br>
+        ${e.notas?`<span style="color:#64748b">${e.notas}</span><br>`:''}
+        <span style="color:#94a3b8;font-size:11px">${e.registrado_por_nombre||''} · ${e.created_at?new Date(e.created_at).toLocaleString('es-AR'):''}</span>
+      </div>`).join('')}
+      </div>`:''
+      }
+    `;
+  } catch(e){ body.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function avanzarEstado() {
+  if(!ordenActualId) return;
+  try {
+    const o = await API.get(`/api/produccion/ordenes/${ordenActualId}`);
+    const idx = ESTADOS.indexOf(o.estado);
+    if(idx+1 >= ESTADOS.length) return;
+    await API.put(`/api/produccion/ordenes/${ordenActualId}`, { estado: ESTADOS[idx+1] });
+    toast(`✅ Estado → ${ESTADO_LABELS[ESTADOS[idx+1]]}`);
+    verDetalle(ordenActualId);
+    cargarOrdenes('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function crearOrden() {
+  const producto = document.getElementById('op-producto').value;
+  const modelo = document.getElementById('op-modelo').value.trim();
+  if(!modelo){ alert('Ingresá el modelo'); return; }
+  const opSel = document.getElementById('op-operarios');
+  const opIds = Array.from(opSel.selectedOptions).map(o=>parseInt(o.value));
+  const fechaVal = document.getElementById('op-fecha').value;
+  try {
+    const res = await API.post('/api/produccion/ordenes', {
+      producto, modelo,
+      color: document.getElementById('op-color').value,
+      superficie_m2: parseFloat(document.getElementById('op-superficie').value)||null,
+      cliente_nombre: document.getElementById('op-cliente').value,
+      prioridad: document.getElementById('op-prioridad').value,
+      fecha_compromiso: fechaVal ? new Date(fechaVal).toISOString() : null,
+      operario_ids: opIds,
+      mensaje_operario: document.getElementById('op-mensaje').value,
+      notas: document.getElementById('op-notas').value,
+    });
+    closeModal('modal-nueva-orden');
+    toast(`✅ OP creada: ${res.numero}`);
+    cargarOrdenes('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function cargarDashboard() {
+  const el = document.getElementById('dashboard-contenido');
+  el.innerHTML = '<p style="color:#94a3b8">Cargando...</p>';
+  try {
+    const d = await API.get('/api/produccion/dashboard');
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+        <div class="card stat-clickable" style="text-align:center;cursor:pointer" onclick="setTab('activas');cargarOrdenes('')">
+          <div style="font-size:32px;font-weight:800;color:#10b981">${d.total_activas}</div>
+          <div style="color:#64748b;font-size:13px">Activas</div>
+          <div class="stat-hint">Ver detalle →</div>
+        </div>
+        <div class="card stat-clickable" style="text-align:center;cursor:pointer" onclick="setTab('activas');cargarOrdenes('PENDIENTE')">
+          <div style="font-size:32px;font-weight:800;color:#ef4444">${d.urgentes}</div>
+          <div style="color:#64748b;font-size:13px">Urgentes</div>
+          <div class="stat-hint">Ver detalle →</div>
+        </div>
+        <div class="card stat-clickable" style="text-align:center;cursor:pointer" onclick="setTab('activas');cargarOrdenes('')">
+          <div style="font-size:32px;font-weight:800;color:#f59e0b">${d.atrasadas}</div>
+          <div style="color:#64748b;font-size:13px">Atrasadas</div>
+          <div class="stat-hint">Ver detalle →</div>
+        </div>
+        <div class="card stat-clickable" style="text-align:center;cursor:pointer" onclick="setTab('activas');cargarOrdenes('TERMINADO')">
+          <div style="font-size:32px;font-weight:800;color:#6366f1">${d.terminadas_hoy}</div>
+          <div style="color:#64748b;font-size:13px">Terminadas hoy</div>
+          <div class="stat-hint">Ver detalle →</div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-weight:600;margin-bottom:12px">Por estado</div>
+        ${Object.entries(d.por_estado).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9"><span>${ESTADO_LABELS[k]||k}</span><span style="font-weight:700">${v}</span></div>`).join('')}
+      </div>
+      ${d.activas?.length?`<div style="margin-top:16px"><div style="font-weight:600;margin-bottom:8px">Activas ahora:</div>
+        ${d.activas.filter(o=>o.prioridad==='URGENTE').map(o=>`
+          <div class="card" style="margin-bottom:6px;border-left:4px solid #ef4444">
+            <strong>${o.numero}</strong> 🔴 — ${o.modelo} — ${o.cliente_nombre||''}<br>
+            <small style="color:#94a3b8">Etapa: ${o.etapa_actual} · Estado: ${o.estado}</small>
+          </div>`).join('')}
+      </div>`:''}
+    `;
+  } catch(e){ el.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function generarToken(empId, btn) {
+  try {
+    const res = await API.post(`/api/produccion/empleados/${empId}/generar-token`);
+    toast('✅ Token generado');
+    btn.textContent = '🔄';
+    location.reload();
+  } catch(e){ toast(e.message,'error'); }
+}
+
+function copiarLink(token) {
+  const url = `${window.location.origin}/operario/${token}`;
+  navigator.clipboard.writeText(url).then(()=>toast('📋 Link copiado')).catch(()=>{
+    prompt('Copiá este link:', url);
+  });
+}
+
+setTab('activas');
+</script>
+{% endblock %}

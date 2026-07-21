@@ -1,0 +1,42 @@
+# Configuración de Fly.io para Eco Módulos & Piscinas
+app = "ecomodulos-agentes"
+primary_region = "gru"  # São Paulo (más cercano a Argentina)
+
+[build]
+  # Usa el Dockerfile si existe, o buildpacks
+
+[env]
+  APP_HOST = "0.0.0.0"
+  APP_PORT = "8080"
+  DEBUG = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false   # Siempre activo para recibir webhooks
+  auto_start_machines = true
+  min_machines_running = 1     # Mínimo 1 instancia activa
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[[mounts]]
+  source = "ecomodulos_data"
+  destination = "/data"
+
+[checks]
+  [checks.health]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    port = 8080
+    timeout = "5s"
+    type = "http"

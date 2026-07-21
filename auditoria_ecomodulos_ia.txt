@@ -1,0 +1,358 @@
+INFORME DE ESTADO — ECO MÓDULOS IA
+Fecha: 04/05/2026 | Revisión del código fuente completo
+================================================================================
+
+
+1. ARQUITECTURA
+================================================================================
+
+Plataforma:        Fly.io — región gru (São Paulo)
+URL activa:        https://eco-multiagente-polished-sunset-4227.fly.dev
+Estado máquinas:   stopped (2 instancias) — arrancan on-demand
+Volumen persist.:  eco_config_data (1GB) montado en /data — OK
+Git:               NO HAY repositorio git — sin control de versiones
+
+ENDPOINTS PRINCIPALES:
+  POST   /chat/web               — Operativo
+  GET    /webhook/whatsapp       — Codificado, sin credenciales
+  POST   /webhook/whatsapp       — Codificado, sin credenciales
+  POST   /send/whatsapp          — Codificado, sin credenciales
+  GET    /health                 — Operativo
+  GET    /panel                  — Operativo
+  GET    /admin                  — Operativo
+  GET    /dashboard              — Operativo
+
+STACK TECNOLÓGICO:
+  - Python 3.11 / FastAPI / Uvicorn
+  - Gemini 2.0 Flash (default) + soporte Claude/OpenAI vía factory
+  - APScheduler (6 tareas programadas)
+  - python-telegram-bot (polling)
+  - httpx (async HTTP client)
+  - ReportLab (generación PDF contratos)
+  - python-dotenv + set_key() para config persistente
+
+
+2. LISTADO DE AGENTES
+================================================================================
+
+AGENTE 1 — MÁXIMO
+  Función:      CEO — reporte diario, decisiones autónomas
+  Estado:       TERMINADO
+  System prompt: Sí — CEO con formato de reporte exacto, decisiones autónomas, protocolo de escalada
+  Canal activo: Telegram (saliente únicamente)
+  CRM:          Vía CRM (si CRM responde)
+  Comunica con: Aurora, Tomás, Daniela, Renata, Bruno, Ignacio
+
+AGENTE 2 — AURORA
+  Función:      Gerente Comercial — revisión pipeline 2x/día
+  Estado:       TERMINADO
+  System prompt: Sí — revisión pipeline, supervisión agenda videollamadas, tasa mínima conversión
+  Canal activo: Ninguno (solo interno)
+  CRM:          Vía CRM
+  Comunica con: Máximo, Tomás
+
+AGENTE 3 — TOMÁS
+  Función:      Supervisor Ventas — monitoreo en tiempo real
+  Estado:       TERMINADO
+  System prompt: Sí — alertas por lead frío/caliente/tibio, técnicas de cierre, clasificación
+  Canal activo: Ninguno (el router lo instancia en cada mensaje de venta)
+  CRM:          Vía CRM
+  Comunica con: Aurora, todos los vendedores IA
+
+AGENTE 4 — VALENTINA
+  Función:      Primer contacto — calificación y derivación
+  Estado:       TERMINADO
+  System prompt: Sí — flujo de conversación, señales de derivación [DERIVAR:x], conocimiento NCE
+  Canal activo: WhatsApp (pendiente credenciales) / Web (operativo)
+  CRM:          Vía router
+  Comunica con: Camila, Mateo, Nicolás, Luciano
+
+AGENTE 5 — CAMILA
+  Función:      Piscinas contado — cierre directo
+  Estado:       TERMINADO
+  System prompt: Sí — catálogo completo 16 modelos, flujo contado, manejo de objeciones, cierre
+  Canal activo: WhatsApp / Web (si es derivada por Valentina)
+  CRM:          Vía router
+  Comunica con: Tomás (notificación automática)
+
+AGENTE 6 — MATEO
+  Función:      Módulos financiados — derivar a videollamada
+  Estado:       TERMINADO
+  System prompt: Sí — planes financiación, calificación suave, argumentos NCE, técnico NCE
+  Canal activo: WhatsApp / Web (si es derivado)
+  CRM:          Vía router
+  Comunica con: Tomás
+
+AGENTE 7 — NICOLÁS
+  Función:      Piscinas financiadas — derivar a videollamada
+  Estado:       PARCIAL — PROBLEMA DETECTADO
+  System prompt: Sí — CONTIENE EJEMPLOS DE CUOTAS HARDCODEADOS CON FÓRMULA VIEJA INCORRECTA
+  Canal activo: WhatsApp / Web (si es derivado)
+  CRM:          Vía router
+  Comunica con: Tomás
+
+AGENTE 8 — LUCIANO
+  Función:      Módulos contado + combos módulo+piscina
+  Estado:       TERMINADO
+  System prompt: Sí — módulos contado, combo 25% solo financiación, argumento NCE, técnico NCE
+  Canal activo: WhatsApp / Web (si es derivado)
+  CRM:          Vía router
+  Comunica con: Tomás
+
+AGENTE 9 — RENATA
+  Función:      Marketing, Ecopost, gestión web
+  Estado:       PARCIAL — sin canal de entrada operativo
+  System prompt: Sí — instrucciones detalladas de contenido, Meta Ads, web
+  Canal activo: NINGUNO OPERATIVO
+  CRM:          No conectado
+  Comunica con: Máximo, Cloudflare Worker (sin verificar)
+
+AGENTE 10 — BRUNO
+  Función:      Operaciones y logística
+  Estado:       TERMINADO
+  System prompt: Sí
+  Canal activo: Ninguno
+  CRM:          Vía CRM
+  Comunica con: Máximo
+
+AGENTE 11 — EZEQUIEL
+  Función:      Administración general
+  Estado:       TERMINADO
+  System prompt: Sí
+  Canal activo: Ninguno
+  CRM:          Vía CRM
+  Comunica con: Máximo, Elena
+
+AGENTE 12 — IGNACIO
+  Función:      Cobrador — escala progresiva por días de mora
+  Estado:       TERMINADO
+  System prompt: Sí — 4 niveles de escalada según días de mora, envía mensajes vía WA
+  Canal activo: WhatsApp saliente (scheduler 20:00hs)
+  CRM:          Vía CRM
+  Comunica con: Ezequiel, Máximo
+
+AGENTE 13 — ELENA
+  Función:      Finanzas y CRM
+  Estado:       TERMINADO
+  System prompt: Sí
+  Canal activo: Ninguno
+  CRM:          Vía CRM
+  Comunica con: Ezequiel, Máximo
+
+AGENTE 14 — DANIELA
+  Función:      RRPP y gestión de crisis
+  Estado:       TERMINADO
+  System prompt: Sí
+  Canal activo: Ninguno
+  CRM:          Vía CRM
+  Comunica con: Máximo
+
+AGENTE 15 — SEBASTIÁN
+  Función:      Postventa y soporte técnico
+  Estado:       TERMINADO
+  System prompt: Sí — mantenimiento piscinas/módulos, garantías, conocimiento técnico NCE
+  Canal activo: Ninguno
+  CRM:          Vía CRM
+  Comunica con: Máximo
+
+NOTA SOBRE CRM EN TODOS LOS AGENTES:
+  Todos los agentes que dicen "Vía CRM" dependen de que CRM_BASE_URL responda.
+  Si el CRM no responde, el sistema falla silenciosamente: no guarda nada,
+  no lee historial, pero tampoco cae. Opera en modo degradado sin memoria.
+
+
+3. AGENTE ORQUESTADOR
+================================================================================
+
+EXISTE y está bien implementado en orchestrator/router.py.
+
+LÓGICA DE ORQUESTACIÓN:
+  1. Recibe mensaje con canal + session_id + texto
+  2. Busca lead en CRM por session_id
+  3. Si no existe — crea lead nuevo con agente = valentina
+  4. Lee campo agente_asignado del CRM — instancia ese agente
+  5. Agente responde — el router busca señal [DERIVAR:nombre] en la respuesta
+  6. Si hay derivación — actualiza CRM + instancia nuevo agente + responde con el nuevo
+  7. Limpia la señal del texto final antes de enviarlo al cliente
+  8. Guarda conversación en CRM
+  9. Notifica a Tomás si es conversación de venta activa
+
+PROBLEMA DETECTADO — TOMÁS CON HISTORIAL MEZCLADO:
+  El router notifica a Tomás usando lead_id = "tomas_supervisor" fijo.
+  Con múltiples conversaciones simultáneas, Tomás recibe todo mezclado
+  en un solo contexto de historial. Es funcional en volumen bajo,
+  no escala con tráfico real.
+
+PROBLEMA DETECTADO — CACHÉ EN MEMORIA:
+  El diccionario _agent_cache vive en RAM de la máquina Fly.io.
+  Cada cold start (reinicio automático de Fly.io) borra el historial
+  de todas las conversaciones activas. La persistencia real depende
+  exclusivamente del CRM externo.
+
+
+4. ECOPOST / RENATA
+================================================================================
+
+QUÉ HACE SEGÚN EL CÓDIGO:
+  - System prompt con instrucciones para flyers, stories, copys, Meta Ads, gestión web
+  - tools/cloudflare_client.py tiene 3 funciones reales codificadas:
+      generar_imagen() — llama al Cloudflare Worker con Gemini Imagen 3
+      generar_copy()   — genera copy de redes vía worker
+      generar_y_subir() — pipeline completo (sin Drive, guardado como base64)
+  - Worker apunta a: https://eco-agentes.growersb.workers.dev
+
+INTEGRACIÓN CON REDES SOCIALES:
+  NO. Renata puede generar contenido vía IA pero no tiene ninguna integración
+  con Instagram API, Facebook Graph API ni herramienta de publicación automática.
+  El prompt dice que publica en horarios óptimos sin aprobación —
+  eso NO existe en el código.
+
+ESTADO OPERATIVO:
+  PARCIAL. El flujo de generación está codificado pero:
+  - Nunca se llama automáticamente desde ningún scheduler ni trigger
+  - Renata no tiene canal de entrada para recibir órdenes
+  - La subida a Google Drive está deprecada (el código lo dice explícitamente)
+  - No hay forma de que Renata reciba una foto de Rodrigo automáticamente
+  - El Cloudflare Worker no fue verificado — puede estar caído o inexistente
+
+CONCLUSIÓN: Renata es un agente con instrucciones muy detalladas pero sin
+ninguna acción real conectada. Para que funcione necesita un canal de entrada
+(Telegram, endpoint propio, o panel de órdenes dedicado).
+
+
+5. INTEGRACIONES ACTIVAS
+================================================================================
+
+WhatsApp API (Meta):
+  Estado:   NO CONFIGURADA
+  Código:   Listo y correcto
+  Falta:    WA_TOKEN y WA_PHONE_ID vacíos en .env
+
+Webhook WhatsApp (verificación GET + recepción POST):
+  Estado:   CODIFICADO Y LISTO
+  Falta:    Configurar credenciales + registrar en Meta Business
+
+Transcripción de audio (Gemini File API):
+  Estado:   CODIFICADO
+  Falta:    Depende de GEMINI_API_KEY y WA_TOKEN
+
+Telegram (bot Rodrigo):
+  Estado:   NO CONFIGURADO
+  Código:   Listo (9 comandos: /reporte /leads /cierres /cuotas /stock /urgencia /pausar /estado /ayuda)
+  Falta:    TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID_RODRIGO vacíos
+
+CRM externo:
+  Estado:   SIN VERIFICAR
+  URL:      https://eco-crm.fly.dev (default hardcodeado)
+  Falta:    CRM_BASE_URL y CRM_API_KEY sin configurar
+  Riesgo:   Los endpoints del CRM pueden no coincidir con los que llama crm_client.py
+
+Cloudflare Worker (Ecopost):
+  Estado:   SIN VERIFICAR
+  URL:      https://eco-agentes.growersb.workers.dev
+  Riesgo:   Worker puede estar caído o no existir
+
+Instagram / Facebook Messenger:
+  Estado:   NO EXISTE
+  No hay handler, no hay código, no está contemplado en ningún archivo
+
+n8n / Zapier / Make:
+  Estado:   NO EXISTE
+  No hay ninguna mención en el código
+
+
+6. GAPS CRÍTICOS
+================================================================================
+
+--- BLOQUEANTES TOTALES ---
+
+BLOQUEO 1 — GEMINI_API_KEY VACÍA
+  El motor de IA no tiene credencial. Todos los agentes responden con el
+  mensaje de error de fallback hardcodeado:
+  "En este momento no puedo responder, intentá de nuevo en un momento."
+  Esto bloquea absolutamente todo el sistema. Es el primer paso a resolver.
+
+BLOQUEO 2 — CRM SIN CONFIGURAR NI VERIFICAR
+  Cada mensaje intenta guardar en el CRM y leer historial.
+  Si CRM_BASE_URL no responde, el sistema opera sin memoria ni leads.
+  Hay que confirmar que el CRM está corriendo y que sus endpoints coinciden
+  exactamente con los que llama crm_client.py:
+    GET  /api/leads/by-session/{id}
+    POST /api/leads/agent
+    PATCH /api/leads/by-session/{id}
+    GET  /api/leads/by-session/{id}/messages
+    POST /api/leads/by-session/{id}/messages
+    GET  /api/leads/sin-respuesta
+    GET  /api/cuotas/vencidas
+    GET  /api/stats/pipeline
+    GET  /api/stats/ventas-hoy
+    GET  /api/stock
+
+BLOQUEO 3 — WHATSAPP SIN CREDENCIALES
+  El webhook está perfectamente codificado y listo para producción.
+  Solo faltan WA_TOKEN y WA_PHONE_ID en el panel /admin.
+  Sin esto, cero mensajes entran al sistema vía WhatsApp.
+
+--- GAPS FUNCIONALES IMPORTANTES ---
+
+GAP 4 — NICOLÁS TIENE CUOTAS HARDCODEADAS Y ERRÓNEAS
+  Su system prompt tiene ejemplos como:
+  "Plan 12c: $747.500 entrada + $186.875/mes"
+  Esos valores fueron calculados con la fórmula vieja de porcentaje fijo.
+  Con la fórmula correcta actual (factor × precio / (n + factor))
+  los números son distintos. El cliente recibe información incorrecta.
+  Solución: eliminar los ejemplos del prompt o recalcularlos.
+
+GAP 5 — SIN CONTROL DE VERSIONES
+  No hay git init en el proyecto. Cada cambio local que se deploya
+  reemplaza todo sin posibilidad de rollback. Un error en deploy
+  destruye la versión anterior sin recuperación.
+
+GAP 6 — HISTORIAL DE CONVERSACIÓN VOLÁTIL
+  El _agent_cache vive en RAM. Cada cold start de Fly.io (frecuente en
+  el plan gratuito o sin tráfico constante) borra el historial de todas
+  las conversaciones en curso. La persistencia depende 100% del CRM.
+
+GAP 7 — RENATA SIN CANAL DE ENTRADA
+  No hay forma operativa de darle órdenes a Renata excepto por el panel
+  de agentes en /panel. No puede recibir fotos, no puede publicar
+  automáticamente, no tiene trigger de ningún tipo.
+
+GAP 8 — INSTAGRAM COMPLETAMENTE AUSENTE
+  No existe ni una línea de código para Instagram Direct Messages.
+  Si hay mensajes por esa vía, no se procesa ninguno.
+
+GAP 9 — TOMÁS RECIBE TODO MEZCLADO
+  El router notifica a Tomás con lead_id "tomas_supervisor" fijo.
+  Con tráfico real, su contexto mezcla cientos de conversaciones
+  simultáneas. Funcionalmente no rompe el sistema, pero Tomás no puede
+  hacer supervisión coherente con ese historial.
+
+
+ACCIONES ORDENADAS POR PRIORIDAD
+================================================================================
+
+  1. Cargar GEMINI_API_KEY en /admin
+     (sin esto ningún agente puede responder — bloqueo total)
+
+  2. Verificar que el CRM está corriendo
+     (confirmar URL y que los endpoints coinciden con crm_client.py)
+
+  3. Cargar CRM_BASE_URL + CRM_API_KEY en /admin
+
+  4. Completar alta de Meta Business y cargar WA_TOKEN + WA_PHONE_ID
+
+  5. Configurar Telegram (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID_RODRIGO)
+
+  6. Corregir el prompt de Nicolás (eliminar o recalcular ejemplos de cuotas)
+
+  7. Crear repositorio git (git init + primer commit)
+
+  8. Definir canal de entrada para Renata (mínimo: comando Telegram /renata)
+
+
+================================================================================
+FIN DEL INFORME
+Generado por Claude — revisión completa del código fuente
+eco-multiagente-polished-sunset-4227.fly.dev
+================================================================================

@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Ventas Financiadas · Eco Módulos CRM{% endblock %}
+{% block page_title %}Ventas Financiadas{% endblock %}
+
+{% block top_actions %}
+<button onclick="newVentaFin()" class="btn btn-primary">+ Nueva financiada</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="tabs" style="margin-bottom:14px">
+  <a href="/ventas-contado" class="tab" style="text-decoration:none">💰 Contado</a>
+  <a href="/ventas-financiadas" class="tab active" style="text-decoration:none">📋 Financiadas</a>
+</div>
+
+<div class="filters-bar">
+  <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
+         oninput="loadVentasFinanciadas({search:this.value})">
+  <select class="form-control" style="max-width:150px" onchange="loadVentasFinanciadas({estado_plan:this.value})">
+    <option value="">Todos</option>
+    <option value="ACTIVO">Activo</option>
+    <option value="ATRASADO">Atrasado</option>
+    <option value="CANCELADO">Cancelado</option>
+    <option value="FINALIZADO">Finalizado</option>
+  </select>
+  <select class="form-control" style="max-width:150px" onchange="loadVentasFinanciadas({forma_pago:this.value})">
+    <option value="">Todas las formas</option>
+    <option value="PMI">PMI</option>
+    <option value="DIRECTA_50">Directa 50%</option>
+  </select>
+  <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text-secondary);cursor:pointer">
+    <input type="checkbox" onchange="loadVentasFinanciadas({con_atraso:this.checked||undefined})">
+    Solo con atraso
+  </label>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Cliente</th><th>Producto</th><th>Plan</th><th>Cuotas</th>
+        <th>Próx. vencimiento</th><th>Asesor</th><th>Estado</th><th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="vf-tbody"></tbody>
+  </table>
+</div>
+
+<!-- Modal venta financiada -->
+<div class="modal-overlay" id="modal-vf" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="vf-modal-title">Nueva Venta Financiada</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-vf')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="vf-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cliente *</label>
+            <input name="cliente_nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input name="cliente_telefono" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Localidad</label>
+            <input name="cliente_localidad" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Forma de pago</label>
+            <select name="forma_pago" class="form-control">
+              <option value="PMI">PMI</option>
+              <option value="DIRECTA_50">Directa 50%</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Producto</label>
+            <select name="producto" id="vf-producto" class="form-control"
+                    onchange="updateModeloOptions('vf-producto','vf-modelo')">
+              <option value="PISCINA">Piscina</option>
+              <option value="MODULO">Módulo</option>
+              <option value="COMBO">Combo</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Modelo</label>
+            <select name="modelo_especifico" id="vf-modelo" class="form-control"></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Color</label>
+            <select name="color" id="vf-color" class="form-control">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Superficie m²</label>
+            <input type="number" name="superficie_m2" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Precio total</label>
+            <input type="number" name="precio_total" class="form-control" oninput="calcCuotas()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Anticipo</label>
+            <input type="number" name="anticipo" class="form-control" oninput="calcCuotas()">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cantidad de cuotas</label>
+            <input type="number" name="cantidad_cuotas" class="form-control" value="24" oninput="calcCuotas()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Valor cuota (calculado)</label>
+            <input type="number" name="valor_cuota" id="vf-cuota-val" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Fecha inicio plan</label>
+            <input type="datetime-local" name="fecha_inicio_plan" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Primer vencimiento</label>
+            <input type="datetime-local" name="fecha_primer_vencimiento" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Asesor apertura</label>
+            <select name="asesor_apertura_id" class="form-control">
+              <option value="">—</option>
+              {% for u in usuarios %}
+              <option value="{{ u.id }}">{{ u.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Supervisor cierre</label>
+            <select name="supervisor_cierre_id" class="form-control">
+              <option value="">—</option>
+              {% for u in usuarios %}
+              <option value="{{ u.id }}">{{ u.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Estado plan</label>
+            <select name="estado_plan" class="form-control">
+              <option value="ACTIVO">Activo</option>
+              <option value="ATRASADO">Atrasado</option>
+              <option value="CANCELADO">Cancelado</option>
+              <option value="FINALIZADO">Finalizado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado admisión</label>
+            <select name="estado_admision" class="form-control">
+              <option value="">—</option>
+              <option value="POSTULADO">Postulado</option>
+              <option value="EN_REVISION">En revisión</option>
+              <option value="APROBADO">Aprobado</option>
+              <option value="RECHAZADO">Rechazado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea name="notas" class="form-control" rows="2"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-vf')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveVF()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal registrar pago -->
+<div class="modal-overlay" id="modal-pago" style="display:none">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <span class="modal-title">Registrar Pago</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-pago')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Monto de la cuota</label>
+        <input type="number" id="pago-monto" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas</label>
+        <input type="text" id="pago-notas" class="form-control" placeholder="Opcional">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-pago')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="confirmarPago()" class="btn btn-primary">✓ Confirmar pago</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let vfData = [];
+  let pagoVentaId = null;
+
+  async function loadVentasFinanciadas(filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k,v]) => { if (v !== undefined && v !== '') params.set(k, v); });
+
+    const data = await API.get(`/api/ventas-financiadas?${params}`);
+    if (!data) return;
+    vfData = data;
+
+    const tbody = document.getElementById('vf-tbody');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted)">No hay ventas financiadas</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(v => {
+      const rowClass = v.alerta === 'ROJA' ? 'row-alert-red' : v.alerta === 'AMARILLA' ? 'row-alert-yellow' : '';
+      const pct = Math.min(100, Math.round((v.cuotas_pagas / v.cantidad_cuotas) * 100));
+      return `
+        <tr class="${rowClass}" onclick="editVF(${v.id})" style="cursor:pointer">
+          <td>
+            <div style="font-weight:600">${v.cliente_nombre}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${v.cliente_localidad}</div>
+          </td>
+          <td>
+            <div>${v.producto}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${v.modelo_especifico || ''}</div>
+          </td>
+          <td>
+            ${badge(FORMA_PAGO, v.forma_pago)}
+            <div style="font-size:13px;margin-top:4px">${formatMoney(v.valor_cuota)}/mes</div>
+          </td>
+          <td>
+            <div style="font-size:13px">${v.cuotas_pagas}/${v.cantidad_cuotas}</div>
+            <div class="progress-bar">
+              <div class="progress-fill ${v.alerta === 'ROJA' ? 'danger' : ''}" style="width:${pct}%"></div>
+            </div>
+          </td>
+          <td>
+            ${v.alerta === 'ROJA'
+              ? `<div style="color:var(--error);font-weight:700">⚠ ${v.dias_atraso}d atraso</div>`
+              : v.alerta === 'AMARILLA'
+              ? `<div style="color:var(--warning)">⏰ ${formatDate(v.proximo_vencimiento)}</div>`
+              : `<div style="font-size:13px">${formatDate(v.proximo_vencimiento)}</div>`
+            }
+          </td>
+          <td style="font-size:13px">${v.asesor_apertura_nombre || '—'}</td>
+          <td>${badge(ESTADO_PLAN, v.estado_plan)}</td>
+          <td>
+            <div style="display:flex;gap:4px">
+              <a href="${whatsappLink(v.cliente_telefono)}" target="_blank"
+                 onclick="event.stopPropagation()" class="btn btn-whatsapp btn-sm">📱</a>
+              <button onclick="event.stopPropagation();abrirPago(${v.id}, ${v.valor_cuota})"
+                      class="btn btn-sm btn-primary">💳</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function newVentaFin() {
+    document.getElementById('vf-form').dataset.id = '';
+    document.getElementById('vf-form').reset();
+    document.getElementById('vf-modal-title').textContent = 'Nueva Venta Financiada';
+    updateModeloOptions('vf-producto', 'vf-modelo');
+    loadColoresVF();
+    openModal('modal-vf');
+  }
+
+  async function editVF(id) {
+    const v = vfData.find(x => x.id === id);
+    if (!v) return;
+    document.getElementById('vf-form').dataset.id = id;
+    document.getElementById('vf-modal-title').textContent = 'Editar Financiada';
+    fillForm('vf-form', v);
+    updateModeloOptions('vf-producto', 'vf-modelo');
+    loadColoresVF();
+    openModal('modal-vf');
+  }
+
+  async function saveVF() {
+    const form = document.getElementById('vf-form');
+    const id = form.dataset.id;
+    const data = formToObj(form);
+
+    try {
+      if (id) {
+        await API.put(`/api/ventas-financiadas/${id}`, data);
+        toast('Financiada actualizada');
+      } else {
+        await API.post('/api/ventas-financiadas', data);
+        toast('Financiada creada');
+      }
+      closeModal('modal-vf');
+      loadVentasFinanciadas();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  function calcCuotas() {
+    const total = parseFloat(document.querySelector('[name=precio_total]')?.value || 0);
+    const anticipo = parseFloat(document.querySelector('[name=anticipo]')?.value || 0);
+    const cuotas = parseInt(document.querySelector('[name=cantidad_cuotas]')?.value || 1);
+    if (total && cuotas) {
+      const cuota = (total - anticipo) / cuotas;
+      document.getElementById('vf-cuota-val').value = Math.round(cuota);
+    }
+  }
+
+  function abrirPago(ventaId, montoCuota) {
+    pagoVentaId = ventaId;
+    document.getElementById('pago-monto').value = montoCuota;
+    document.getElementById('pago-notas').value = '';
+    openModal('modal-pago');
+  }
+
+  async function confirmarPago() {
+    const monto = document.getElementById('pago-monto').value;
+    const notas = document.getElementById('pago-notas').value;
+    try {
+      const r = await API.post(`/api/ventas-financiadas/${pagoVentaId}/pago`, { monto: parseFloat(monto), notas });
+      toast(`✅ Pago registrado. Cuotas pagas: ${r.cuotas_pagas}`);
+      closeModal('modal-pago');
+      loadVentasFinanciadas();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function loadColoresVF() {
+    const cat = await API.get('/api/catalogo');
+    if (!cat) return;
+    const sel = document.getElementById('vf-color');
+    sel.innerHTML = '<option value="">—</option>' +
+      cat.piscinas.colores.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+
+  loadVentasFinanciadas();
+</script>
+{% endblock %}

@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Videollamadas · Eco Módulos CRM{% endblock %}
+{% block page_title %}Videollamadas{% endblock %}
+
+{% block top_actions %}
+<a href="/trabajar" class="btn btn-success" style="font-weight:700;letter-spacing:.3px">▶ Arrancar a contactar</a>
+<button onclick="newVL()" class="btn btn-primary">+ Nueva VL</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="filters-bar">
+  <input type="date" id="vl-fecha" class="form-control" style="max-width:180px"
+         value="{{ '' }}" onchange="loadVL()">
+  <select class="form-control" style="max-width:160px" onchange="loadVL()" id="vl-estado-filter"
+          onchange="document.getElementById('vl-estado-filter').value && (document.querySelector('[name=estado]') || 0)">
+    <option value="">Todos los estados</option>
+    <option value="AGENDADA">Agendada</option>
+    <option value="REALIZADA">Realizada</option>
+    <option value="NO_SE_PRESENTO">No se presentó</option>
+    <option value="REPROGRAMAR">Reprogramar</option>
+  </select>
+  <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text-secondary);cursor:pointer">
+    <input type="checkbox" id="vl-sin-supervisor" onchange="loadVL()">
+    Sin supervisor
+  </label>
+</div>
+
+<div class="tabs" style="margin-bottom:16px">
+  <button class="tab active" onclick="switchVLView('lista', this)">📋 Lista</button>
+  <button class="tab" onclick="switchVLView('hoy', this)">📅 Hoy</button>
+</div>
+
+<div id="vl-lista-view">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th><th>Teléfono</th><th>Fecha/Hora</th><th>Estado</th>
+          <th>Asesor</th><th>Supervisor</th><th>Resultado</th>
+        </tr>
+      </thead>
+      <tbody id="vl-tbody">
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">
+          <div class="spinner" style="margin:0 auto"></div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="vl-hoy-view" style="display:none">
+  <div id="vl-hoy-content"></div>
+</div>
+
+<!-- Modal VL -->
+<div class="modal-overlay" id="modal-vl" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Videollamada</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-vl')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="vl-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cliente *</label>
+            <input name="cliente_nombre" class="form-control" required placeholder="Nombre del cliente">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input name="cliente_telefono" class="form-control" placeholder="1154321234">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Producto</label>
+            <select name="producto_interes" class="form-control">
+              <option value="">—</option>
+              <option value="PISCINA">Piscina</option>
+              <option value="MODULO">Módulo</option>
+              <option value="COMBO">Combo</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Forma de pago</label>
+            <select name="forma_pago" class="form-control">
+              <option value="">—</option>
+              <option value="PMI">PMI</option>
+              <option value="DIRECTA_50">Directa 50%</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Fecha y hora</label>
+            <input type="datetime-local" name="fecha_hora" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="form-control">
+              <option value="AGENDADA">Agendada</option>
+              <option value="REALIZADA">Realizada</option>
+              <option value="NO_SE_PRESENTO">No se presentó</option>
+              <option value="REPROGRAMAR">Reprogramar</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Asesor apertura</label>
+            <select name="asesor_apertura_id" class="form-control">
+              <option value="">— Sin asignar —</option>
+              {% for s in supervisores %}
+              <option value="{{ s.id }}">{{ s.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Supervisor cierre</label>
+            <select name="supervisor_cierre_id" class="form-control">
+              <option value="">— Sin asignar —</option>
+              {% for s in supervisores %}
+              <option value="{{ s.id }}">{{ s.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Resultado</label>
+            <select name="resultado" class="form-control">
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="AVANZO">Avanzó</option>
+              <option value="NO_CALIFICO">No calificó</option>
+              <option value="CERRO">Cerró</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado admisión (PMI)</label>
+            <select name="estado_admision" class="form-control">
+              <option value="">—</option>
+              <option value="POSTULADO">Postulado</option>
+              <option value="EN_REVISION">En revisión</option>
+              <option value="APROBADO">Aprobado</option>
+              <option value="RECHAZADO">Rechazado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Comisión asesor (%)</label>
+            <input type="number" name="comision_asesor_pct" class="form-control" value="0" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Comisión supervisor (%)</label>
+            <input type="number" name="comision_supervisor_pct" class="form-control" value="0" min="0" max="100">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea name="notas" class="form-control" rows="3"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-vl')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveVL()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Leer filtro desde URL (cuando se viene del dashboard)
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const filtro = p.get('filtro');
+    if (filtro === 'hoy') {
+      // Cambiar a la vista Hoy
+      const tabBtns = document.querySelectorAll('.tab');
+      tabBtns.forEach(t => t.classList.remove('active'));
+      if (tabBtns[1]) tabBtns[1].classList.add('active');
+      document.getElementById('vl-lista-view').style.display = 'none';
+      document.getElementById('vl-hoy-view').style.display = 'block';
+      loadVLHoy();
+      return;
+    }
+    if (filtro === 'sin_asignar') {
+      const cb = document.getElementById('vl-sin-supervisor');
+      if (cb) cb.checked = true;
+    }
+    loadVL();
+  })();
+
+  function switchVLView(view, btn) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('vl-lista-view').style.display = view === 'lista' ? 'block' : 'none';
+    document.getElementById('vl-hoy-view').style.display = view === 'hoy' ? 'block' : 'none';
+    if (view === 'hoy') loadVLHoy();
+  }
+
+  async function loadVLHoy() {
+    const container = document.getElementById('vl-hoy-content');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    const data = await API.get('/api/videollamadas/hoy');
+    if (!data) return;
+
+    if (!data.length) {
+      container.innerHTML = '<div class="empty-state"><span class="empty-icon">📅</span><p>No hay videollamadas para hoy</p></div>';
+      return;
+    }
+
+    container.innerHTML = data.map(v => `
+      <div class="card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:16px;font-weight:700">${v.cliente_nombre}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${formatDateTime(v.fecha_hora)}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${badge(ESTADO_VL, v.estado)}
+            <a href="${whatsappLink(v.cliente_telefono)}" target="_blank" class="btn btn-whatsapp btn-sm">📱</a>
+          </div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:12px;font-size:13px;color:var(--text-secondary)">
+          <span>📦 ${v.producto_interes || '—'}</span>
+          <span>👤 ${v.supervisor_cierre_nombre || '<em>Sin supervisor</em>'}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+</script>
+{% endblock %}

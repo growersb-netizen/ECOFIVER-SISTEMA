@@ -1,0 +1,1323 @@
+{% extends "base.html" %}
+{% block title %}Manual de uso · Eco Módulos CRM{% endblock %}
+{% block page_title %}📖 Manual de uso{% endblock %}
+
+{% block extra_css %}
+<style>
+  .manual-wrap { max-width: 900px; margin: 0 auto; }
+  .manual-toc  { background: var(--bg-secondary); border-radius: 12px; padding: 20px 24px; margin-bottom: 32px; }
+  .manual-toc h2 { font-size: 14px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; }
+  .toc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+  .toc-link { display: block; padding: 6px 10px; border-radius: 7px; font-size: 13px; color: var(--text-secondary); text-decoration: none; transition: background .15s, color .15s; }
+  .toc-link:hover { background: var(--bg-card); color: var(--accent); }
+
+  .manual-section { margin-bottom: 48px; }
+  .section-header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid var(--border-color); padding-bottom: 12px; margin-bottom: 24px; }
+  .section-icon { font-size: 28px; }
+  .section-title { font-size: 22px; font-weight: 800; color: var(--text-primary); }
+  .section-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--bg-secondary); color: var(--text-muted); }
+
+  .feature-block { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .feature-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .feature-desc  { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 10px; }
+  .feature-how   { font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border-radius: 8px; padding: 10px 14px; margin-top: 8px; }
+  .feature-how strong { color: var(--text-primary); }
+
+  .role-tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; margin-right: 4px; }
+  .rt-admin  { background: #7c3aed22; color: #7c3aed; }
+  .rt-asesor { background: #0284c722; color: #0284c7; }
+  .rt-super  { background: #15803d22; color: #15803d; }
+  .rt-cob    { background: #d9770622; color: #d97706; }
+  .rt-fab    { background: #dc262622; color: #dc2626; }
+  .rt-op     { background: #0f766e22; color: #0f766e; }
+  .rt-adm    { background: #64748b22; color: #64748b; }
+
+  .tip-box { border-left: 3px solid var(--accent); background: var(--bg-secondary); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 13px; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
+  .tip-box strong { color: var(--accent); }
+
+  .roles-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .roles-table th { background: var(--bg-secondary); padding: 10px 14px; text-align: left; color: var(--text-muted); font-weight: 700; font-size: 12px; }
+  .roles-table td { padding: 10px 14px; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+  .roles-table tr:last-child td { border-bottom: none; }
+
+  @media (max-width: 600px) {
+    .field-row, .toc-grid { grid-template-columns: 1fr; }
+    .section-title { font-size: 18px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="manual-wrap">
+
+  <!-- INTRO -->
+  <div class="feature-block" style="border-color: var(--accent); margin-bottom: 32px;">
+    <div style="font-size: 15px; color: var(--text-secondary); line-height: 1.7;">
+      Este manual describe todas las funciones del <strong style="color:var(--text-primary)">Eco Módulos CRM</strong>.
+      El sistema está diseñado para gestionar el ciclo completo de ventas, fabricación, logística, cobranzas y administración
+      de Eco Módulos & Piscinas. Cada sección explica para qué sirve cada módulo, cómo usarlo y de qué forma ayuda al negocio.
+    </div>
+  </div>
+
+  <!-- ÍNDICE -->
+  <div class="manual-toc">
+    <h2>Índice de módulos</h2>
+    <div class="toc-grid">
+      <a class="toc-link" href="#roles">👤 Roles y permisos</a>
+      <a class="toc-link" href="#dashboard">🏠 Dashboard</a>
+      <a class="toc-link" href="#leads">👥 Leads</a>
+      <a class="toc-link" href="#videollamadas">📹 Videollamadas</a>
+      <a class="toc-link" href="#ventas-contado">💰 Ventas Contado</a>
+      <a class="toc-link" href="#ventas-financiadas">📋 Ventas Financiadas</a>
+      <a class="toc-link" href="#cobranzas">💳 Cobranzas</a>
+      <a class="toc-link" href="#fabrica">🏭 Fábrica</a>
+      <a class="toc-link" href="#produccion">⚙️ Producción</a>
+      <a class="toc-link" href="#materiales">📦 Materiales</a>
+      <a class="toc-link" href="#logistica">🚚 Logística</a>
+      <a class="toc-link" href="#coord">📋 Coord. Entregas</a>
+      <a class="toc-link" href="#contratos">📄 Contratos</a>
+      <a class="toc-link" href="#personal">👷 Personal</a>
+      <a class="toc-link" href="#flota">🚗 Flota</a>
+      <a class="toc-link" href="#importar">📥 Importar</a>
+      <a class="toc-link" href="#ecopost">📸 Ecopost</a>
+      <a class="toc-link" href="#mercadolibre">🛒 MercadoLibre</a>
+      <a class="toc-link" href="#webcms">🌐 Web CMS</a>
+      <a class="toc-link" href="#catalogo">📦 Catálogo</a>
+      <a class="toc-link" href="#usuarios">👥 Usuarios</a>
+      <a class="toc-link" href="#configuracion">🔑 Configuración</a>
+      <a class="toc-link" href="#notificaciones">🔔 Notificaciones</a>
+      <a class="toc-link" href="#perfil">🔑 Mi perfil</a>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 1. ROLES -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="roles">
+    <div class="section-header">
+      <span class="section-icon">👤</span>
+      <div>
+        <div class="section-title">Roles y permisos</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Quién puede hacer qué en el sistema</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-desc">
+        Cada usuario tiene uno o más <strong>roles</strong> que determinan a qué módulos puede acceder y qué acciones puede realizar.
+        El menú lateral y el dashboard se adaptan automáticamente al rol del usuario que inicia sesión.
+      </div>
+
+      <table class="roles-table">
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th>Responsabilidad</th>
+            <th>Módulos accesibles</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="role-tag rt-admin">ADMIN</span></td>
+            <td>Acceso total al sistema</td>
+            <td>Todos los módulos sin excepción</td>
+          </tr>
+          <tr>
+            <td><span class="role-tag rt-asesor">ASESOR_APERTURA</span></td>
+            <td>Asesor comercial de captación / primera venta</td>
+            <td>Dashboard, Leads, Videollamadas, Ventas Contado, Ventas Financiadas</td>
+          </tr>
+          <tr>
+            <td><span class="role-tag rt-super">SUPERVISOR_CIERRE</span></td>
+            <td>Supervisor de cierre de ventas</td>
+            <td>Dashboard, Videollamadas (con asignación de supervisor), Ventas Financiadas</td>
+          </tr>
+          <tr>
+            <td><span class="role-tag rt-cob">COBRANZAS</span></td>
+            <td>Gestión de cobros de cuotas</td>
+            <td>Dashboard, Cobranzas</td>
+          </tr>
+          <tr>
+            <td><span class="role-tag rt-fab">FABRICA</span></td>
+            <td>Operaciones de fabricación</td>
+            <td>Dashboard, Fábrica, Producción, Materiales, Personal</td>
+          </tr>
+          <tr>
+            <td><span class="role-tag rt-op">COORDINADOR_OPERATIVO</span></td>
+            <td>Coordinación general de operaciones</td>
+            <td>Fábrica, Producción, Materiales, Logística, Coord. Entregas, Contratos, Personal, Flota, Importar, Ecopost, MercadoLibre, Web CMS, Configuración, Usuarios</td>
+          </tr>
+          <tr>
+            <td><span class="role-tag rt-adm">ADMINISTRACION</span></td>
+            <td>Administración y sueldos</td>
+            <td>Dashboard, Fábrica, Materiales, Personal (asistencia + liquidación)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="tip-box">
+        <strong>💡 Tip:</strong> Un usuario puede tener múltiples roles simultáneamente. Zapia (usuario de automatizaciones)
+        tiene todos los roles activados para poder operar en cualquier área del sistema.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 2. DASHBOARD -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="dashboard">
+    <div class="section-header">
+      <span class="section-icon">🏠</span>
+      <div>
+        <div class="section-title">Dashboard</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Vista de resumen y acceso rápido</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📊 Tarjetas de métricas (KPIs)</div>
+      <div class="feature-desc">
+        Al ingresar al sistema, el Dashboard muestra las métricas más importantes del día y del mes, adaptadas al rol del usuario.
+        Cada tarjeta muestra un número clave y al hacer <strong>clic</strong> lleva directamente a la lista filtrada de esos registros.
+      </div>
+      <div class="feature-how">
+        <strong>Métricas por rol:</strong><br>
+        • <em>ADMIN:</em> Leads hoy, Videollamadas hoy, Ventas del mes, Cuotas vencidas, Órdenes en fábrica, Presentes hoy.<br>
+        • <em>ASESOR:</em> Mis leads activos, VL agendadas, Cierres del mes, Leads sin contactar +48h.<br>
+        • <em>SUPERVISOR:</em> VL sin supervisor, VL de hoy, Cierres del mes.<br>
+        • <em>COORDINADOR:</em> Instalaciones hoy, Instalaciones mañana, Órdenes terminadas, Reclamos abiertos.<br>
+        • <em>COBRANZAS:</em> Cuotas que vencen hoy, Cuotas vencidas, Gestiones del día, Pagos del mes.<br>
+        • <em>FÁBRICA/ADMIN:</em> Órdenes activas, Stock bajo, Presentes hoy, Liquidación pendiente.
+      </div>
+      <div class="tip-box">
+        <strong>💡 Tip:</strong> Hacé clic en cualquier tarjeta para ir directamente a la lista de esos registros con el filtro ya aplicado.
+        Por ejemplo, clic en "Cuotas vencidas → 5" te lleva a Cobranzas mostrando solo las 5 cuotas vencidas.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 3. LEADS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="leads">
+    <div class="section-header">
+      <span class="section-icon">👥</span>
+      <div>
+        <div class="section-title">Leads</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Gestión de prospectos y pipeline de ventas</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">➕ Crear lead manualmente</div>
+      <div class="feature-desc">
+        Permite registrar un prospecto nuevo que contactó por WhatsApp, Instagram, web o referido.
+        Se registra nombre, teléfono, localidad, producto de interés, forma de pago y origen.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"+ Nuevo lead"</em> arriba a la derecha → completar el formulario → Guardar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Vista Lista y Vista Kanban</div>
+      <div class="feature-desc">
+        Los leads pueden verse en dos formatos: <strong>Lista</strong> (tabla con todos los datos) o <strong>Kanban</strong>
+        (columnas por estado, ideal para ver el pipeline de ventas de un vistazo). Se puede arrastrar leads entre columnas en la vista Kanban.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botones <em>"≡ Lista"</em> y <em>"⊞ Kanban"</em> arriba a la derecha de la pantalla.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔍 Filtros avanzados</div>
+      <div class="feature-desc">
+        Se pueden filtrar leads por estado (Nuevo, Contactado, Calificado, VL Agendada, Cerrado, Perdido),
+        producto (Piscina, Módulo, Combo), forma de pago (PMI, Directa 50%, Contado) y origen (WhatsApp, Instagram, Web, Referido).
+        También hay búsqueda por nombre o teléfono.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📱 Contacto directo por WhatsApp</div>
+      <div class="feature-desc">
+        Desde cada lead hay un botón directo para abrir WhatsApp con el número del prospecto y un mensaje pre-cargado.
+        Facilita el primer contacto sin tener que copiar el número manualmente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Hacer clic en el botón verde <em>📱 WhatsApp</em> dentro del detalle del lead.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">✏️ Editar lead y cambiar estado</div>
+      <div class="feature-desc">
+        Permite actualizar todos los datos del lead, incluyendo mover su estado en el pipeline. Los estados
+        marcan el avance: Nuevo → Contactado → Calificado → VL Agendada → Cerrado / Perdido.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Hacer clic sobre el lead en la tabla → se abre el modal de detalle → editar campos → Guardar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📥 Importar leads desde Excel / CSV</div>
+      <div class="feature-desc">
+        Permite cargar una planilla con cientos de prospectos de una vez. El sistema los distribuye automáticamente
+        entre los asesores de forma equitativa (round-robin por carga activa).
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"📥 Importar"</em> → seleccionar archivo Excel/CSV →
+        el sistema muestra una vista previa → confirmar importación.<br>
+        Columnas soportadas: <code>nombre*, telefono*, localidad, producto, modelo, forma_pago, origen, notas</code>
+      </div>
+      <div class="tip-box">
+        <strong>💡 Tip:</strong> Podés descargar el template desde Importar → pestaña "Leads" → "Descargar template Excel".
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔀 Reasignar leads (ADMIN)</div>
+      <div class="feature-desc">
+        Permite reasignar uno o varios leads a otro asesor. Útil cuando un vendedor deja la empresa o cuando
+        hay un desbalance de carga entre asesores.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Tildar las casillas de selección → botón <em>"🔀 Reasignar"</em> → elegir asesor destino.<br>
+        Para mover <em>todos</em> los leads de un vendedor: botón <em>"⚡ Transferir"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">⚠️ Alerta leads sin contactar +48h</div>
+      <div class="feature-desc">
+        El sistema detecta automáticamente los leads nuevos que llevan más de 48 horas sin ser contactados
+        y los resalta con una alerta amarilla en la parte superior. Ayuda a no perder prospectos por falta de seguimiento.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 4. VIDEOLLAMADAS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="videollamadas">
+    <div class="section-header">
+      <span class="section-icon">📹</span>
+      <div>
+        <div class="section-title">Videollamadas</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Agenda y seguimiento de VL de ventas</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">➕ Agendar videollamada</div>
+      <div class="feature-desc">
+        Registra una videollamada de cierre de ventas con datos del cliente, fecha y hora, asesor de apertura,
+        supervisor de cierre asignado, forma de pago (PMI / Directa 50%) y producto de interés.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"+ Nueva VL"</em> → completar formulario → Guardar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📅 Vista "Hoy"</div>
+      <div class="feature-desc">
+        Muestra únicamente las videollamadas agendadas para el día de hoy en formato de tarjetas, con botón
+        de WhatsApp para contactar al cliente antes de la llamada.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"📅 Hoy"</em> en la parte superior de la pantalla.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔁 Actualizar estado y resultado</div>
+      <div class="feature-desc">
+        Después de cada VL se debe registrar su resultado: <em>Pendiente, Avanzó, No calificó, Cerró</em>.
+        También el estado de la llamada en sí: <em>Agendada, Realizada, No se presentó, Reprogramar</em>.
+        Estos datos alimentan las métricas del dashboard.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔍 Filtro "Sin supervisor"</div>
+      <div class="feature-desc">
+        Muestra solo las VL que aún no tienen un supervisor de cierre asignado.
+        Permite al coordinador o supervisor asignarse a las llamadas pendientes rápidamente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Tildar el checkbox <em>"Sin supervisor"</em> en la barra de filtros.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">💰 Comisiones asesor y supervisor</div>
+      <div class="feature-desc">
+        En cada VL se puede registrar el porcentaje de comisión correspondiente al asesor de apertura
+        y al supervisor de cierre. Sirve para calcular comisiones al momento de la liquidación.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Estado de admisión PMI</div>
+      <div class="feature-desc">
+        Para ventas financiadas bajo el plan PMI, se puede registrar el estado de la solicitud de crédito:
+        Postulado → En revisión → Aprobado / Rechazado.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 5. VENTAS CONTADO -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="ventas-contado">
+    <div class="section-header">
+      <span class="section-icon">💰</span>
+      <div>
+        <div class="section-title">Ventas Contado</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Registro de ventas pagadas al contado</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">➕ Registrar venta contado</div>
+      <div class="feature-desc">
+        Carga una venta cerrada en efectivo o transferencia total. Se registran: cliente, teléfono, localidad,
+        producto, modelo, color, precio de venta, flete, fecha de instalación y vendedor responsable.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"+ Nueva venta"</em> → completar datos → Guardar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔄 Seguimiento de estado</div>
+      <div class="feature-desc">
+        Cada venta contado pasa por 3 estados: <strong>Coordinado</strong> (fecha acordada con el cliente),
+        <strong>Instalado</strong> (entrega realizada) y <strong>Cobrado</strong> (pago confirmado).
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Hacer clic en el botón de estado dentro de cada fila de la tabla.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔍 Búsqueda y filtros</div>
+      <div class="feature-desc">
+        Se puede buscar por nombre de cliente y filtrar por estado (Coordinado, Instalado, Cobrado)
+        para ver en qué etapa está cada venta.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 6. VENTAS FINANCIADAS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="ventas-financiadas">
+    <div class="section-header">
+      <span class="section-icon">📋</span>
+      <div>
+        <div class="section-title">Ventas Financiadas</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Planes de cuotas PMI y Directa 50%</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">➕ Registrar venta financiada</div>
+      <div class="feature-desc">
+        Carga una venta cerrada en cuotas. Se registra: forma de pago (PMI o Directa 50%),
+        producto, modelo, precio base, cantidad de cuotas, monto por cuota, fecha de la primera cuota
+        y asesor. El sistema calcula el cronograma de vencimientos automáticamente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"+ Nueva financiada"</em> → completar formulario → Guardar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📊 Seguimiento del plan de cuotas</div>
+      <div class="feature-desc">
+        Muestra el estado de cada plan: cuántas cuotas pagó el cliente, cuánto debe,
+        cuándo vence la próxima cuota y si tiene atraso. Esta información es la base de Cobranzas.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔍 Filtros</div>
+      <div class="feature-desc">
+        Se puede filtrar por estado del plan (Activo, Atrasado, Cancelado, Finalizado),
+        forma de pago (PMI / Directa 50%) y activar el filtro <em>"Solo con atraso"</em> para ver
+        los clientes que no están al día.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 7. COBRANZAS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="cobranzas">
+    <div class="section-header">
+      <span class="section-icon">💳</span>
+      <div>
+        <div class="section-title">Cobranzas</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Seguimiento y gestión de cobro de cuotas</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Cartera activa</div>
+      <div class="feature-desc">
+        Muestra todos los clientes con cuotas activas. Cada tarjeta indica el nombre del cliente,
+        producto, localidad, días de atraso (si tiene), cuota próxima y avance del plan (barra de progreso).
+        Las tarjetas se colorean automáticamente: rojo = en atraso, amarillo = vence en 3 días, verde = al día.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">⚠️ Tarjetas de estadísticas con filtro instantáneo</div>
+      <div class="feature-desc">
+        Las tarjetas de resumen en la parte superior muestran: Cuotas que vencen hoy, Cuotas vencidas,
+        Gestiones del día, Pagos del mes. Al hacer clic en <strong>"Vencen hoy"</strong> o <strong>"Cuotas vencidas"</strong>
+        la lista se filtra automáticamente mostrando solo esos clientes.
+      </div>
+      <div class="tip-box">
+        <strong>💡 Tip:</strong> Hacé clic nuevamente en la misma tarjeta para quitar el filtro y ver la cartera completa.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📱 Contacto WhatsApp con mensaje automático</div>
+      <div class="feature-desc">
+        Desde cada tarjeta hay un botón de WhatsApp que abre una conversación con el cliente con un mensaje
+        pre-cargado indicando el monto y la fecha de vencimiento de su cuota. Ahorra tiempo al equipo de cobranzas.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📝 Registrar gestión de cobranza</div>
+      <div class="feature-desc">
+        Permite registrar cada contacto realizado con el cliente moroso: por qué canal se contactó
+        (WhatsApp, Llamada, Presencial), cuál fue el resultado (Prometió pagar, Pagó, No contestó, Reclama, Acuerdo especial)
+        y notas adicionales. Estas gestiones quedan en el historial del cliente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"+ Registrar gestión"</em> en la tarjeta del cliente → completar → Guardar gestión.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔍 Búsqueda y ordenamiento</div>
+      <div class="feature-desc">
+        Se puede buscar por nombre de cliente o localidad, y ordenar la lista por: mayor atraso primero
+        (para priorizar la cobranza), por nombre alfabético, o por fecha de próximo vencimiento.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 8. FÁBRICA -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="fabrica">
+    <div class="section-header">
+      <span class="section-icon">🏭</span>
+      <div>
+        <div class="section-title">Fábrica</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Órdenes de fabricación de piscinas y módulos</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🏊 Órdenes de piscinas</div>
+      <div class="feature-desc">
+        Gestiona las órdenes de fabricación de piscinas. Cada orden registra: cliente, modelo,
+        color, fecha de inicio, fecha estimada de finalización y estado (Pendiente, En proceso,
+        Terminada, Despachada). Se puede avanzar el estado desde la misma lista.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"🏊 Piscinas"</em> → botón en la columna "Estado" para avanzar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🏠 Órdenes de módulos</div>
+      <div class="feature-desc">
+        Igual que piscinas pero para módulos habitacionales. Permite llevar el control de qué módulos están en fabricación,
+        cuáles están listos y cuáles ya fueron despachados a los clientes.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📦 Pedidos de materiales</div>
+      <div class="feature-desc">
+        Gestiona los pedidos de insumos y materiales para producción. Cada pedido tiene estados:
+        Pendiente → Enviado → Recibido. Permite hacer seguimiento de compras pendientes.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📊 Stock (piscinas y paneles NCE)</div>
+      <div class="feature-desc">
+        Muestra el stock disponible de piscinas terminadas y paneles NCE. Las filas con stock crítico
+        (en o por debajo del mínimo) se resaltan en rojo con una alerta. Permite ajustar cantidades manualmente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"📊 Stock"</em> → columna "Ajustar" para modificar cantidades.
+      </div>
+      <div class="tip-box">
+        <strong>💡 Tip:</strong> Desde el dashboard, la tarjeta "Stock bajo" lleva directamente al tab de Stock en Fábrica.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 9. PRODUCCIÓN -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="produccion">
+    <div class="section-header">
+      <span class="section-icon">⚙️</span>
+      <div>
+        <div class="section-title">Producción</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Órdenes de producción internas con seguimiento por etapas</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">➕ Crear Orden de Producción (OP)</div>
+      <div class="feature-desc">
+        Crea una orden de trabajo interna numerada (ej: OP-0001). Incluye: producto, modelo, color, superficie m²,
+        cliente, prioridad (Normal / Urgente 🔴), fecha compromiso, operarios asignados y mensaje para el equipo.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"+ Nueva OP"</em> → completar formulario → Crear OP.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔄 Avanzar estado de la OP</div>
+      <div class="feature-desc">
+        Cada OP pasa por los estados: Pendiente → En proceso → Control calidad → Terminado → Despachado.
+        Al abrir el detalle de la OP hay un botón para avanzar al siguiente estado con un solo clic.
+        Cada avance queda registrado en el historial con fecha y responsable.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔍 Filtros por estado</div>
+      <div class="feature-desc">
+        Se puede filtrar la lista por estado: Pendientes, En proceso, Control calidad o Terminadas.
+        También se muestra un indicador visual de días restantes o si la OP está vencida (pasó la fecha compromiso).
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📊 Dashboard de producción</div>
+      <div class="feature-desc">
+        Pestaña con métricas: total de OP activas, urgentes, atrasadas y terminadas hoy.
+        Las tarjetas son clickeables y llevan directamente a la lista filtrada. También muestra un resumen
+        por estado y las órdenes urgentes activas del momento.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">👷 Panel de operarios</div>
+      <div class="feature-desc">
+        Genera links personales para cada operario. El operario puede acceder desde su celular sin contraseña
+        al panel simplificado donde ve sus OPs asignadas y puede registrar avances.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"👷 Operarios"</em> → botón <em>"📋 Copiar"</em> junto a cada operario
+        → compartir link por WhatsApp.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 10. MATERIALES -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="materiales">
+    <div class="section-header">
+      <span class="section-icon">📦</span>
+      <div>
+        <div class="section-title">Materiales y Compras</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Pedidos de materiales, inventario y herramientas</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Pedidos de materiales</div>
+      <div class="feature-desc">
+        Cualquier miembro del equipo puede solicitar materiales indicando qué necesita, cantidad y urgencia.
+        Los pedidos pasan por Pendiente → En pedido → Comprado. El comprador puede ver todos los pendientes y marcar cuando compró.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"+ Pedido"</em> → describir lo que se necesita → Guardar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📱 Link del equipo para pedidos</div>
+      <div class="feature-desc">
+        Los operarios y empleados de fábrica pueden solicitar materiales desde un link especial sin necesidad de
+        tener cuenta en el CRM. Botón <em>"📱 Link del equipo"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📦 Inventario de materiales</div>
+      <div class="feature-desc">
+        Lleva un registro del stock de materiales disponibles con nombre, categoría, unidad y cantidad.
+        Permite saber en todo momento qué hay disponible en depósito.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔧 Control de herramientas</div>
+      <div class="feature-desc">
+        Registro de herramientas de la empresa: nombre, estado (disponible, en uso, en reparación)
+        y responsable actual. Facilita el control de activos físicos de la empresa.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 11. LOGÍSTICA -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="logistica">
+    <div class="section-header">
+      <span class="section-icon">🚚</span>
+      <div>
+        <div class="section-title">Logística y Entregas</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Coordinación de instalaciones, reclamos y fletes</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📅 Calendario mensual de entregas</div>
+      <div class="feature-desc">
+        Vista de calendario que muestra los días con entregas programadas. Al hacer clic en un día se ven
+        los detalles de cada entrega: cliente, localidad, horario, equipo asignado, estado y si requiere fabricación pendiente.
+        Los colores indican el estado: azul = coordinada, naranja = en camino, verde = instalada, rojo = con problema.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"📅 Calendario"</em> → navegar entre meses con las flechas → clic en el día.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">✓ Confirmar entrega con cliente</div>
+      <div class="feature-desc">
+        Desde el calendario, al hacer clic en una entrega se puede confirmar la fecha definitiva acordada con el cliente,
+        el rango horario y el equipo asignado. Deja registro de quién confirmó y cuándo.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Clic en la entrega en el calendario → completar modal "Confirmar entrega" → Confirmar fecha.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🚚 Lista de entregas</div>
+      <div class="feature-desc">
+        Tabla con todas las entregas registradas, con posibilidad de cambiar el estado directamente desde la lista:
+        Coordinada, En camino, Instalada, Con problema.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔧 Reclamos / Post-venta</div>
+      <div class="feature-desc">
+        Registra y gestiona reclamos de clientes después de la instalación. Cada reclamo tiene estado:
+        Nuevo → En gestión → Resuelto. Al resolver se registra la solución aplicada.
+        También incluye botón de WhatsApp para contactar al cliente directamente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"🔧 Reclamos"</em> → botón <em>"+ Nuevo reclamo"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">💰 Calculadora de flete</div>
+      <div class="feature-desc">
+        Calcula el costo estimado del flete según la distancia desde Zárate y el tipo de producto
+        (estándar $3.000/km, Miniportante $2.000/km). Útil para presupuestar al cliente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"💰 Calc. Flete"</em> → ingresar km → el costo se calcula automáticamente.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 12. COORDINACIÓN DE ENTREGAS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="coord">
+    <div class="section-header">
+      <span class="section-icon">📋</span>
+      <div>
+        <div class="section-title">Coordinación de Entregas</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Vista rápida de ventas coordinadas próximas</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Lista de entregas próximas</div>
+      <div class="feature-desc">
+        Muestra todas las ventas que tienen fecha de instalación coordinada, ordenadas por fecha.
+        Incluye fecha, horario, cliente, teléfono, localidad, producto y notas.
+        Ideal para la vista rápida del coordinador operativo de las entregas de la semana.
+        Incluye botón de WhatsApp directo para confirmar con el cliente.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Menú lateral → <em>"📋 Coord. Entregas"</em>.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 13. CONTRATOS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="contratos">
+    <div class="section-header">
+      <span class="section-icon">📄</span>
+      <div>
+        <div class="section-title">Contratos</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Generación y seguimiento de contratos de compra</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">⚡ Generar contrato desde venta financiada</div>
+      <div class="feature-desc">
+        Seleccionás una venta financiada que aún no tiene contrato y el sistema completa automáticamente
+        la plantilla Word con todos los datos del cliente (nombre, DNI, CUIL, domicilio, producto, cuotas, montos).
+        El archivo se descarga listo para imprimir y firmar.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"⚡ Generar"</em> → seleccionar la venta de la lista → clic en <em>"⬇ Generar contrato"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📝 Crear contrato manual</div>
+      <div class="feature-desc">
+        Permite crear un contrato ingresando los datos manualmente cuando no proviene de una venta financiada del sistema.
+        Soporta los tipos: Módulo PMI, Módulo Directa 50%, Piscina PMI, Piscina Directa 50%.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Lista de contratos</div>
+      <div class="feature-desc">
+        Muestra todos los contratos con su estado: Borrador, Enviado, Firmado.
+        Permite hacer seguimiento de cuáles contratos ya fueron firmados por los clientes.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📁 Plantillas</div>
+      <div class="feature-desc">
+        Gestiona las plantillas Word que se usan para generar los contratos.
+        Las plantillas usan marcadores de posición que el sistema reemplaza automáticamente con los datos reales.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 14. PERSONAL -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="personal">
+    <div class="section-header">
+      <span class="section-icon">👷</span>
+      <div>
+        <div class="section-title">Personal y Sueldos</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Control de asistencia, liquidación y adelantos</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">✅ Registro de asistencia diaria</div>
+      <div class="feature-desc">
+        Registra la asistencia de cada empleado día a día: Presente, Ausente o Medio día.
+        Se puede modificar hasta las 23:59 del mismo día. El sistema lleva el historial completo
+        de asistencias para el cálculo de sueldos.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"✅ Asistencia"</em> → seleccionar fecha →
+        marcar estado para cada empleado → se guarda automáticamente.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">💰 Liquidación semanal</div>
+      <div class="feature-desc">
+        Calcula el sueldo de cada empleado para una semana basándose en los días trabajados,
+        el sueldo base configurado y los adelantos tomados. Genera una vista clara del monto a pagar a cada uno.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"💰 Liquidación"</em> → elegir la semana → botón <em>"🔄 Calcular"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">👷 Gestión de empleados</div>
+      <div class="feature-desc">
+        Alta y edición de empleados: nombre, DNI, sueldo base semanal, rol (operario, chofer, etc.), estado (activo/inactivo).
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"👷 Empleados"</em> → botón <em>"+ Nuevo empleado"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Historial de liquidaciones</div>
+      <div class="feature-desc">
+        Registro histórico de todas las liquidaciones realizadas por semana y empleado.
+        Permite consultar cuánto se le pagó a cada persona en fechas anteriores.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">💵 Adelantos de sueldo</div>
+      <div class="feature-desc">
+        Registra adelantos de sueldo entregados a los empleados. Se indica monto, fecha y motivo.
+        Los adelantos se descuentan automáticamente al calcular la liquidación semanal.
+        Se filtran por empleado y por estado (pendiente de descontar / ya descontado).
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"💵 Adelantos"</em> → botón <em>"+ Nuevo adelanto"</em>.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 15. FLOTA -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="flota">
+    <div class="section-header">
+      <span class="section-icon">🚗</span>
+      <div>
+        <div class="section-title">Flota</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Control de vehículos, mantenimiento y gastos</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📅 Asignaciones del día</div>
+      <div class="feature-desc">
+        Muestra qué vehículos están asignados hoy y a qué destino/entrega. Permite asignar un vehículo
+        a una tarea del día con el conductor responsable.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🚗 Registro de vehículos</div>
+      <div class="feature-desc">
+        Alta y gestión de la flota: nombre del vehículo, patente, tipo (camión, camioneta, auto), estado.
+        Cada vehículo tiene su historial de asignaciones, mantenimientos y gastos.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔧 Mantenimiento</div>
+      <div class="feature-desc">
+        Registra los servicios de mantenimiento realizados a cada vehículo: tipo, fecha, descripción y costo.
+        Permite planificar el mantenimiento preventivo y llevar el historial mecánico.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">💰 Gastos de flota</div>
+      <div class="feature-desc">
+        Registra todos los gastos asociados a los vehículos: combustible, peajes, reparaciones, seguros.
+        El dashboard de flota muestra el costo total por vehículo y por período.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 16. IMPORTAR -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="importar">
+    <div class="section-header">
+      <span class="section-icon">📥</span>
+      <div>
+        <div class="section-title">Importar datos</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Carga masiva de leads, financiadas y ventas contado</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">👥 Importar leads / prospectos</div>
+      <div class="feature-desc">
+        Carga masiva de contactos interesados desde un Excel o CSV. El sistema muestra una vista previa
+        antes de confirmar y distribuye automáticamente los leads entre los asesores por round-robin.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"👥 Leads"</em> → descargar template si hace falta → subir archivo
+        → revisar vista previa → <em>"📥 Importar y distribuir"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Importar clientes financiados</div>
+      <div class="feature-desc">
+        Permite migrar al sistema una cartera de clientes con cuotas activas que provenía de planillas externas.
+        Útil para la carga inicial de datos históricos.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">💰 Importar ventas contado</div>
+      <div class="feature-desc">
+        Similar al anterior pero para ventas al contado. Permite migrar el historial de ventas al sistema.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 17. ECOPOST -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="ecopost">
+    <div class="section-header">
+      <span class="section-icon">📸</span>
+      <div>
+        <div class="section-title">Ecopost</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Creación y gestión de contenido para redes sociales</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📚 Biblioteca de contenidos</div>
+      <div class="feature-desc">
+        Centraliza todos los posts, flyers, stories y reels creados para las redes sociales de la empresa.
+        Cada contenido tiene estado (Borrador, Aprobado, Publicado, Archivado) y se puede filtrar por producto o estado.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">✨ Crear contenido nuevo</div>
+      <div class="feature-desc">
+        Permite generar contenido para Instagram/Facebook: flyers 1080×1080, stories 9:16, carruseles y reels.
+        Se especifica el tipo de contenido, producto relacionado (piscina, módulo, combo), texto, hashtags y referencias visuales.
+        Sirve como brief organizado para el diseñador.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"✨ Crear"</em> → completar el formulario → Guardar.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 18. MERCADOLIBRE -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="mercadolibre">
+    <div class="section-header">
+      <span class="section-icon">🛒</span>
+      <div>
+        <div class="section-title">MercadoLibre</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Gestión de publicaciones y precios en ML</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📋 Ver publicaciones activas</div>
+      <div class="feature-desc">
+        Muestra todas las publicaciones activas de la empresa en MercadoLibre con título, precio actual,
+        stock y estado. Permite ver de un vistazo el catálogo publicado en ML.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔄 Sincronizar precios</div>
+      <div class="feature-desc">
+        Actualiza los precios de las publicaciones de MercadoLibre con los valores del catálogo interno del CRM.
+        Evita que los precios queden desactualizados cuando hay cambios de lista.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Botón <em>"🔄 Sincronizar precios"</em> en la pestaña de publicaciones.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">➕ Crear publicación nueva</div>
+      <div class="feature-desc">
+        Permite crear una publicación en ML directamente desde el CRM: tipo de producto, modelo,
+        color, descripción y precio. Sin tener que ingresar a la plataforma de ML manualmente.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">⚙️ Configuración de conexión ML</div>
+      <div class="feature-desc">
+        Pestaña para vincular la cuenta de MercadoLibre de la empresa con el CRM mediante el código de autorización OAuth.
+        El estado de la conexión se muestra en la barra superior (punto verde = conectado).
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 19. WEB CMS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="webcms">
+    <div class="section-header">
+      <span class="section-icon">🌐</span>
+      <div>
+        <div class="section-title">Web CMS</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Gestión del contenido del sitio web ecomodulosypiscinas.com.ar</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📦 Módulos (catálogo web)</div>
+      <div class="feature-desc">
+        Edita los módulos que se muestran en el sitio web: nombre, descripción, superficie m², precio desde,
+        imagen principal y estado (activo/inactivo). Los cambios se reflejan en el sitio web en tiempo real.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"📦 Módulos"</em> → hacer clic en la imagen o en ✏️ para editar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🏊 Piscinas (catálogo web)</div>
+      <div class="feature-desc">
+        Igual que módulos pero para el catálogo de piscinas del sitio. Se puede editar nombre, descripción,
+        dimensiones, precio y imagen de cada modelo de piscina publicado en la web.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🖼️ Galería de obras</div>
+      <div class="feature-desc">
+        Gestiona las fotos de obras realizadas que se muestran en la galería del sitio web.
+        Se pueden agregar nuevas fotos, editar título/descripción/categoría y eliminar imágenes antiguas.
+        Las imágenes se suben automáticamente al almacenamiento en la nube (Cloudflare R2).
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Pestaña <em>"🖼️ Galería"</em> → botón <em>"+ Agregar obra"</em> →
+        clic en la zona de imagen para subir foto → completar datos → Guardar.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">⭐ Testimonios</div>
+      <div class="feature-desc">
+        Administra los testimonios de clientes que aparecen en el sitio web.
+        Se pueden agregar nuevos testimonios con nombre del cliente, texto, calificación (estrellas)
+        y localidad. También se pueden ocultar/mostrar testimonios existentes.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">💳 Coeficientes de financiación</div>
+      <div class="feature-desc">
+        Actualiza la tabla de coeficientes de los planes de financiamiento que se muestra en el sitio web
+        (cuánto paga el cliente por mes según el plazo elegido). Los cambios se aplican inmediatamente al sitio.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">⚙️ Configuración del sitio</div>
+      <div class="feature-desc">
+        Edita los textos e información general del sitio: número de teléfono de contacto, dirección,
+        email, mensaje principal, horarios de atención, links de redes sociales, etc.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📝 Blog</div>
+      <div class="feature-desc">
+        Gestiona los artículos del blog del sitio web. Se pueden crear nuevos posts con título, contenido,
+        imagen de portada, categoría y estado (borrador / publicado). También editar y eliminar artículos existentes.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 20. CATÁLOGO -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="catalogo">
+    <div class="section-header">
+      <span class="section-icon">📦</span>
+      <div>
+        <div class="section-title">Catálogo (Admin)</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Modelos, precios y listas del sistema</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">Gestión de modelos y precios</div>
+      <div class="feature-desc">
+        Define los modelos de piscinas y módulos disponibles para vender, con sus precios de lista.
+        Estos datos se usan en los formularios de ventas, fábrica y MercadoLibre para desplegar los selectores de modelo.
+        Solo accesible para el rol ADMIN.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Menú lateral → <em>"📦 Catálogo"</em> (visible solo para ADMIN).
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 21. USUARIOS -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="usuarios">
+    <div class="section-header">
+      <span class="section-icon">👥</span>
+      <div>
+        <div class="section-title">Usuarios</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Alta, edición y roles de usuarios del CRM</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">➕ Crear usuario nuevo</div>
+      <div class="feature-desc">
+        Crea una cuenta de acceso al CRM para un nuevo integrante del equipo.
+        Se define nombre, email, contraseña inicial y uno o más roles.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Menú → <em>"👥 Usuarios"</em> → botón <em>"+ Nuevo usuario"</em>.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">✏️ Editar usuario y roles</div>
+      <div class="feature-desc">
+        Modifica los datos de un usuario existente y sus permisos. Se puede agregar o quitar roles,
+        cambiar nombre, email y contraseña. También se puede desactivar un usuario que ya no trabaja
+        en la empresa (sin eliminarlo, para conservar el historial).
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 22. CONFIGURACIÓN -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="configuracion">
+    <div class="section-header">
+      <span class="section-icon">🔑</span>
+      <div>
+        <div class="section-title">Configuración</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Integraciones y parámetros del sistema</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">API Keys e integraciones</div>
+      <div class="feature-desc">
+        Almacena las claves de acceso a servicios externos como MercadoLibre, Cloudflare, servicios de email, etc.
+        También permite configurar la URL base del sitio web para la integración del Web CMS.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 23. NOTIFICACIONES -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="notificaciones">
+    <div class="section-header">
+      <span class="section-icon">🔔</span>
+      <div>
+        <div class="section-title">Notificaciones</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Alertas en tiempo real dentro del CRM</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🔔 Campana de notificaciones</div>
+      <div class="feature-desc">
+        Ícono de campana en la esquina superior derecha. Muestra alertas del sistema como: órdenes de fábrica
+        terminadas, cuotas vencidas, reclamos nuevos, etc. El número rojo indica cuántas notificaciones no leídas hay.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Clic en el 🔔 → se despliega el panel → clic en <em>"✓ Leídas"</em> para marcar todas.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📲 Notificaciones push (en el celular)</div>
+      <div class="feature-desc">
+        El CRM puede enviar notificaciones push al celular o PC del usuario, incluso cuando no tiene el navegador abierto.
+        Muy útil para el equipo de fábrica y cobranzas para recibir alertas importantes en tiempo real.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo activar:</strong> Clic en el 🔔 → botón 🔔 dentro del panel de notificaciones →
+        el navegador pide permiso → aceptar.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 24. MI PERFIL -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="perfil">
+    <div class="section-header">
+      <span class="section-icon">🔑</span>
+      <div>
+        <div class="section-title">Mi perfil</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Datos personales y cambio de contraseña</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">Cambiar contraseña</div>
+      <div class="feature-desc">
+        Permite al usuario cambiar su propia contraseña de acceso al CRM sin necesidad de pedírselo a un administrador.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Menú lateral → <em>"🔑 Mi perfil"</em> → ingresar contraseña actual y la nueva.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- FUNCIONES GLOBALES -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="manual-section" id="global">
+    <div class="section-header">
+      <span class="section-icon">⚙️</span>
+      <div>
+        <div class="section-title">Funciones globales del sistema</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Disponibles en todas las pantallas</div>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">🌙 Modo oscuro / claro</div>
+      <div class="feature-desc">
+        El CRM tiene dos temas de color: oscuro (ideal para uso prolongado y nocturno) y claro.
+        El sistema recuerda la preferencia del usuario.
+      </div>
+      <div class="feature-how">
+        <strong>Cómo:</strong> Clic en el botón 🌙 / ☀️ en la esquina superior derecha de cualquier pantalla.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📱 Uso desde celular (responsive)</div>
+      <div class="feature-desc">
+        El CRM está optimizado para usarse desde el celular. En móvil, el menú lateral se convierte en un
+        menú hamburguesa ☰ y aparece una barra de navegación inferior con los módulos más usados.
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-title">📲 API para automatizaciones (Zapia / Make)</div>
+      <div class="feature-desc">
+        El CRM expone una API REST completa que puede ser consumida por herramientas de automatización como
+        Zapia, Make (ex-Integromat) o cualquier sistema externo. Para autenticarse se usa el usuario
+        <strong>zapia@ecomodulos.com</strong> con contraseña o el API key configurado.
+        Permite crear leads, registrar gestiones, consultar cobranzas y más desde flujos automatizados.
+      </div>
+    </div>
+  </div>
+
+  <!-- PIE -->
+  <div style="text-align:center;padding:32px 0;border-top:1px solid var(--border-color);color:var(--text-muted);font-size:13px;margin-top:32px">
+    Eco Módulos & Piscinas · CRM · Manual de uso v1.0 · 2026
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}Importar · Eco Módulos CRM{% endblock %}
+{% block page_title %}Importar datos{% endblock %}
+
+{% block content %}
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('leads', this)">👥 Leads / Prospectos</button>
+  <button class="tab" onclick="showTab('financiadas', this)">📋 Clientes Financiados</button>
+  <button class="tab" onclick="showTab('contado', this)">💰 Ventas Contado</button>
+</div>
+
+<!-- LEADS -->
+<div id="tab-leads">
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="card-title">Importar prospectos / leads</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">
+          Cargá una lista de contactos interesados. El sistema los distribuye automáticamente
+          entre los asesores de forma pareja (round-robin por carga activa).
+        </div>
+      </div>
+      <a href="/api/importar/template/leads" class="btn btn-secondary btn-sm">
+        ⬇ Descargar template Excel
+      </a>
+    </div>
+
+    <div class="alert alert-info" style="margin-bottom:16px">
+      <div>
+        <strong>Columnas soportadas:</strong><br>
+        <code style="font-size:12px">nombre*, telefono*, localidad, producto (PISCINA/MODULO/COMBO), modelo, forma_pago (PMI/DIRECTA_50/CONTADO), origen (INSTAGRAM/WHATSAPP/WEB/REFERIDO/IMPORTADO), notas</code><br>
+        <span style="font-size:12px;color:var(--text-muted)">* obligatorias</span>
+      </div>
+    </div>
+
+    <div class="alert" style="background:var(--bg-secondary);margin-bottom:16px;font-size:13px">
+      <strong>🔄 Distribución automática:</strong> si no especificás un asesor en el archivo,
+      cada lead se asigna al vendedor con menos leads activos en ese momento.
+    </div>
+
+    <label class="file-upload-area" id="upload-leads" onclick="document.getElementById('import-file-leads').click()">
+      <div style="font-size:40px">👥</div>
+      <div style="font-size:15px;font-weight:600;margin-top:8px">Seleccionar archivo Excel o CSV</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
+    </label>
+    <input type="file" id="import-file-leads" accept=".xlsx,.xls,.csv" style="display:none"
+           onchange="onFileSelected('leads', this)">
+    <div id="nombre-archivo-leads" style="margin-top:8px;font-size:13px;color:var(--green-light)"></div>
+
+    <div id="preview-leads" style="margin-top:16px"></div>
+
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button id="btn-import-leads" disabled onclick="ejecutarImportacion('leads')"
+              class="btn btn-primary btn-lg">
+        📥 Importar y distribuir leads
+      </button>
+    </div>
+
+    <div id="resultado-leads" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- FINANCIADAS -->
+<div id="tab-financiadas" style="display:none">
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="card-title">Importar clientes con financiación en curso</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">
+          Cargá clientes que ya tienen un plan de cuotas activo. El sistema detectará automáticamente las columnas del archivo.
+        </div>
+      </div>
+      <a href="/api/importar/template/financiadas" class="btn btn-secondary btn-sm">
+        ⬇ Descargar template Excel
+      </a>
+    </div>
+
+    <div class="alert alert-info" style="margin-bottom:16px">
+      <div>
+        <strong>Columnas soportadas:</strong><br>
+        <code style="font-size:12px">nombre, telefono, localidad, producto, modelo, color, superficie_m2, forma_pago (PMI/DIRECTA_50), precio_total, anticipo, cuotas, valor_cuota, fecha_inicio_plan, primer_vencimiento, cuotas_pagas, estado_plan, notas</code>
+      </div>
+    </div>
+
+    <label class="file-upload-area" id="upload-fin" onclick="document.getElementById('import-file-financiadas').click()">
+      <div style="font-size:40px">📊</div>
+      <div style="font-size:15px;font-weight:600;margin-top:8px">Seleccionar archivo Excel o CSV</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
+    </label>
+    <input type="file" id="import-file-financiadas" accept=".xlsx,.xls,.csv" style="display:none"
+           onchange="onFileSelected('financiadas', this)">
+    <div id="nombre-archivo-financiadas" style="margin-top:8px;font-size:13px;color:var(--green-light)"></div>
+
+    <div id="preview-financiadas" style="margin-top:16px"></div>
+
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button id="btn-import-financiadas" disabled onclick="ejecutarImportacion('financiadas')"
+              class="btn btn-primary btn-lg">
+        📥 Importar financiadas
+      </button>
+    </div>
+
+    <div id="resultado-financiadas" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- CONTADO -->
+<div id="tab-contado" style="display:none">
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="card-title">Importar ventas contado con entregas pactadas</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">
+          Cargá ventas ya realizadas. Si tienen fecha de instalación, se crea automáticamente la entrega en logística.
+        </div>
+      </div>
+      <a href="/api/importar/template/contado" class="btn btn-secondary btn-sm">
+        ⬇ Descargar template Excel
+      </a>
+    </div>
+
+    <div class="alert alert-info" style="margin-bottom:16px">
+      <div>
+        <strong>Columnas soportadas:</strong><br>
+        <code style="font-size:12px">nombre, telefono, localidad, producto, modelo, color, superficie_m2, precio_final, forma_pago, fecha_instalacion, horario, distancia_km, estado (COORDINADO/INSTALADO/COBRADO), notas</code>
+      </div>
+    </div>
+
+    <label class="file-upload-area" id="upload-cont" onclick="document.getElementById('import-file-contado').click()">
+      <div style="font-size:40px">📊</div>
+      <div style="font-size:15px;font-weight:600;margin-top:8px">Seleccionar archivo Excel o CSV</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
+    </label>
+    <input type="file" id="import-file-contado" accept=".xlsx,.xls,.csv" style="display:none"
+           onchange="onFileSelected('contado', this)">
+    <div id="nombre-archivo-contado" style="margin-top:8px;font-size:13px;color:var(--green-light)"></div>
+
+    <div id="preview-contado" style="margin-top:16px"></div>
+
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button id="btn-import-contado" disabled onclick="ejecutarImportacion('contado')"
+              class="btn btn-primary btn-lg">
+        📥 Importar ventas contado
+      </button>
+    </div>
+
+    <div id="resultado-contado" style="margin-top:16px"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const TABS = ['leads','financiadas','contado'];
+
+  function showTab(tab, btn) {
+    TABS.forEach(t => {
+      document.getElementById(`tab-${t}`).style.display = t === tab ? 'block' : 'none';
+    });
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function onFileSelected(tipo, input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById(`nombre-archivo-${tipo}`).textContent = file.name;
+    previewImportacion(tipo);
+  }
+
+  async function previewImportacion(tipo) {
+    const input = document.getElementById(`import-file-${tipo}`);
+    const btn   = document.getElementById(`btn-import-${tipo}`);
+    const prev  = document.getElementById(`preview-${tipo}`);
+    if (!input.files[0]) return;
+
+    prev.innerHTML = '<div class="loading"><div class="spinner"></div> Analizando archivo...</div>';
+
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('tipo', tipo === 'leads' ? 'leads' : tipo);
+
+    try {
+      const r = await fetch('/api/importar/preview', { method:'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok) { prev.innerHTML = `<div class="alert alert-error">${data.detail || 'Error'}</div>`; return; }
+
+      prev.innerHTML = `
+        <div style="font-size:13px;margin-bottom:10px">
+          <strong>${data.total_filas}</strong> filas detectadas.
+          Columnas mapeadas: <strong>${Object.keys(data.columnas_detectadas).length}</strong>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="font-size:12px;width:100%">
+            <thead><tr>${Object.keys(data.preview[0]||{}).map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+            <tbody>${(data.preview||[]).map(row=>`<tr>${Object.values(row).map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+      btn.disabled = false;
+    } catch(e) {
+      prev.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    }
+  }
+
+  async function ejecutarImportacion(tipo) {
+    const input = document.getElementById(`import-file-${tipo}`);
+    const btn   = document.getElementById(`btn-import-${tipo}`);
+    const res   = document.getElementById(`resultado-${tipo}`);
+    if (!input.files[0]) return;
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Importando...';
+    res.innerHTML = '';
+
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+
+    const url = `/api/importar/${tipo}`;
+
+    try {
+      const r = await fetch(url, { method:'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok) {
+        res.innerHTML = `<div class="alert alert-error">${data.detail || JSON.stringify(data)}</div>`;
+        return;
+      }
+
+      let html = `
+        <div class="alert alert-success" style="margin-bottom:10px">
+          ✅ ${data.mensaje}
+        </div>`;
+
+      // Resumen de asignaciones (solo para leads)
+      if (data.asignaciones && data.asignaciones.length) {
+        html += `<div class="card" style="margin-bottom:10px">
+          <div style="font-weight:700;margin-bottom:8px">📊 Distribución de leads</div>
+          ${data.asignaciones.map(a =>
+            `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+              <span>${a.asesor}</span>
+              <strong>${a.leads_asignados} lead${a.leads_asignados !== 1 ? 's' : ''}</strong>
+            </div>`
+          ).join('')}
+        </div>`;
+      }
+
+      if (data.errores && data.errores.length) {
+        html += `<div class="alert alert-error">
+          <strong>⚠ ${data.errores.length} fila(s) con error:</strong><br>
+          ${data.errores.map(e=>`<div style="font-size:12px">${e}</div>`).join('')}
+        </div>`;
+      }
+
+      res.innerHTML = html;
+    } catch(e) {
+      res.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = tipo === 'leads' ? '📥 Importar y distribuir leads'
+                      : tipo === 'financiadas' ? '📥 Importar financiadas'
+                      : '📥 Importar ventas contado';
+    }
+  }
+</script>
+{% endblock %}

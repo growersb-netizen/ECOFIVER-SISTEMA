@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Coordinación de Entregas · Eco Módulos CRM{% endblock %}
+{% block page_title %}Coordinación de Entregas{% endblock %}
+
+{% block content %}
+
+<div class="filters-bar">
+  <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente o localidad..."
+         oninput="filtrarVentas(this.value)">
+  <span id="total-badge" style="font-size:13px;color:var(--text-muted);white-space:nowrap;align-self:center"></span>
+</div>
+
+<div class="table-wrapper">
+  <table id="coord-table">
+    <thead>
+      <tr>
+        <th>Fecha instalación</th>
+        <th>Horario</th>
+        <th>Cliente</th>
+        <th>Teléfono</th>
+        <th>Localidad</th>
+        <th>Producto / Modelo</th>
+        <th>Notas</th>
+        <th>WhatsApp</th>
+      </tr>
+    </thead>
+    <tbody id="coord-tbody">
+      <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted)">
+        <div class="spinner"></div>
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let todasLasVentas = [];
+
+  function formatFechaCorta(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const hoy = new Date();
+    const mañana = new Date(hoy); mañana.setDate(hoy.getDate() + 1);
+    const esMismoDia = (a, b) =>
+      a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+
+    const opciones = { weekday:'short', day:'numeric', month:'short' };
+    const parte = d.toLocaleDateString('es-AR', opciones);
+
+    if (esMismoDia(d, hoy))    return `<span style="color:var(--accent);font-weight:700">HOY · ${parte}</span>`;
+    if (esMismoDia(d, mañana)) return `<span style="color:#f59e0b;font-weight:700">MÑN · ${parte}</span>`;
+    return parte;
+  }
+
+  function diasRestantes(iso) {
+    if (!iso) return '';
+    const diff = Math.ceil((new Date(iso) - new Date()) / 86400000);
+    if (diff < 0)  return `<span style="color:#ef4444;font-size:11px">(hace ${Math.abs(diff)}d)</span>`;
+    if (diff === 0) return '';
+    return `<span style="color:var(--text-muted);font-size:11px">(en ${diff}d)</span>`;
+  }
+
+  function productoDesc(v) {
+    let txt = v.producto || '';
+    if (v.modelo_especifico) txt += ' · ' + v.modelo_especifico;
+    if (v.color) txt += ' · ' + v.color;
+    if (v.superficie_m2) txt += ` · ${v.superficie_m2}m²`;
+    return txt || '—';
+  }
+
+  function renderTabla(ventas) {
+    const tbody = document.getElementById('coord-tbody');
+    document.getElementById('total-badge').textContent =
+      ventas.length === 1 ? '1 entrega pendiente' : `${ventas.length} entregas pendientes`;
+
+    if (!ventas.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted)">
+        <div style="font-size:32px;margin-bottom:8px">✅</div>
+        Sin entregas pendientes de coordinación
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = ventas.map(v => `
+      <tr>
+        <td style="white-space:nowrap">
+          ${formatFechaCorta(v.fecha_instalacion)}
+          ${diasRestantes(v.fecha_instalacion)}
+        </td>
+        <td style="font-size:13px;color:var(--text-muted)">${v.rango_horario || '—'}</td>
+        <td>
+          <div style="font-weight:700">${v.cliente_nombre}</div>
+        </td>
+        <td style="font-size:13px">
+          ${v.cliente_telefono
+            ? `<a href="https://wa.me/549${v.cliente_telefono.replace(/\D/g,'')}"
+                  target="_blank" style="color:var(--text);text-decoration:none">${v.cliente_telefono}</a>`
+            : '<span style="color:var(--text-muted)">—</span>'}
+        </td>
+        <td style="font-size:13px">${v.cliente_localidad || '—'}</td>
+        <td style="font-size:13px">${productoDesc(v)}</td>
+        <td style="font-size:12px;color:var(--text-muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+            title="${(v.notas||'').replace(/"/g,'&quot;')}">
+          ${v.notas || '—'}
+        </td>
+        <td>
+          ${v.cliente_telefono
+            ? `<a href="https://wa.me/549${v.cliente_telefono.replace(/\D/g,'')}"
+                  target="_blank" class="btn btn-whatsapp btn-sm">📱</a>`
+            : ''}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function filtrarVentas(texto) {
+    const q = texto.toLowerCase().trim();
+    if (!q) { renderTabla(todasLasVentas); return; }
+    renderTabla(todasLasVentas.filter(v =>
+      (v.cliente_nombre||'').toLowerCase().includes(q) ||
+      (v.cliente_localidad||'').toLowerCase().includes(q) ||
+      (v.cliente_telefono||'').includes(q) ||
+      (v.modelo_especifico||'').toLowerCase().includes(q)
+    ));
+  }
+
+  async function cargarVentas() {
+    try {
+      const data = await API.get('/api/coordinacion-entregas');
+      if (!data) return;
+      todasLasVentas = data;
+      renderTabla(data);
+    } catch (e) {
+      document.getElementById('coord-tbody').innerHTML =
+        `<tr><td colspan="8"><div class="alert alert-error">Error al cargar: ${e.message}</div></td></tr>`;
+    }
+  }
+
+  cargarVentas();
+</script>
+{% endblock %}

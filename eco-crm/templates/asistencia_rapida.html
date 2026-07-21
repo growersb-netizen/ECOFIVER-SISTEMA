@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+{% block title %}Asistencia Rápida — Eco Módulos{% endblock %}
+{% block page_title %}📋 Asistencia{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-primary" onclick="marcarTodosPresentes()" id="btn-todos">✅ Todos presentes</button>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   ASISTENCIA RÁPIDA — mobile-first, táctil, sin fricción
+══════════════════════════════════════════════════════════════════ */
+:root {
+  --ar-present: #16a34a;
+  --ar-absent:  #dc2626;
+  --ar-half:    #d97706;
+  --ar-sick:    #7c3aed;
+  --ar-holiday: #0284c7;
+  --ar-none:    var(--text-muted, #666);
+}
+
+/* ─── Nav de fecha ─── */
+.ar-date-nav {
+  display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap;
+}
+.ar-date-nav .ar-fecha-label {
+  flex:1; font-size:15px; font-weight:700; color:var(--text-primary);
+  font-family:'Barlow Condensed',sans-serif; letter-spacing:.01em;
+  text-transform:capitalize;
+}
+.ar-date-nav .ar-date-input {
+  max-width:160px;
+}
+.ar-btn-nav {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:8px; padding:7px 14px; cursor:pointer;
+  font-size:15px; color:var(--text-secondary); transition:all .15s;
+}
+.ar-btn-nav:hover { border-color:var(--teal); color:var(--text-primary); }
+.ar-btn-hoy {
+  padding:6px 14px; font-size:12px; font-weight:700;
+  background:var(--teal); color:#fff; border:none; border-radius:8px;
+  cursor:pointer; letter-spacing:.03em;
+}
+
+/* ─── Stats bar ─── */
+.ar-stats {
+  display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;
+}
+.ar-stat {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:8px; padding:10px 14px; flex:1; min-width:90px;
+  text-align:center; position:relative; overflow:hidden;
+}
+.ar-stat::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+}
+.ar-stat.s-pres::before  { background:var(--ar-present); }
+.ar-stat.s-aus::before   { background:var(--ar-absent); }
+.ar-stat.s-half::before  { background:var(--ar-half); }
+.ar-stat.s-none::before  { background:var(--border); }
+.ar-stat-val  { font-size:26px; font-weight:800; line-height:1; font-family:'Barlow Condensed',sans-serif; }
+.ar-stat-lbl  { font-size:10px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-top:3px; }
+.ar-stat.s-pres  .ar-stat-val { color:var(--ar-present); }
+.ar-stat.s-aus   .ar-stat-val { color:var(--ar-absent); }
+.ar-stat.s-half  .ar-stat-val { color:var(--ar-half); }
+.ar-stat.s-none  .ar-stat-val { color:var(--text-muted); }
+
+/* ─── Grid de empleados ─── */
+.ar-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap:10px;
+}
+@media(max-width:480px) {
+  .ar-grid { grid-template-columns: 1fr 1fr; gap:8px; }
+}
+
+/* ─── Tarjeta empleado ─── */
+.ar-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:12px; overflow:hidden; cursor:pointer;
+  transition:border-color .15s, box-shadow .15s; user-select:none;
+  position:relative;
+}
+.ar-card:active { transform:scale(.97); }
+.ar-card:hover  { border-color:var(--teal); }
+
+.ar-card-top {
+  padding:14px 12px 10px;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+}
+.ar-avatar {
+  width:44px; height:44px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:17px; font-weight:800; color:#fff;
+  flex-shrink:0; margin-bottom:2px;
+}
+.ar-nombre { font-size:13px; font-weight:700; color:var(--text-primary); text-align:center; line-height:1.2; }
+.ar-rol    { font-size:10px; color:var(--text-muted); text-align:center; font-weight:500; }
+
+/* Estado (parte inferior de la tarjeta) */
+.ar-estado {
+  padding:8px 10px; text-align:center; font-size:11px; font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase;
+  border-top:1px solid var(--border); transition:background .12s, color .12s;
+}
+.ar-card.est-PRESENTE   .ar-estado { background:var(--ar-present); color:#fff; border-color:var(--ar-present); }
+.ar-card.est-AUSENTE    .ar-estado { background:var(--ar-absent);  color:#fff; border-color:var(--ar-absent); }
+.ar-card.est-MEDIO_DIA  .ar-estado { background:var(--ar-half);    color:#fff; border-color:var(--ar-half); }
+.ar-card.est-ENFERMO    .ar-estado { background:var(--ar-sick);    color:#fff; border-color:var(--ar-sick); }
+.ar-card.est-FERIADO    .ar-estado { background:var(--ar-holiday); color:#fff; border-color:var(--ar-holiday); }
+.ar-card.est-null .ar-estado { background:transparent; color:var(--text-muted); }
+
+/* Border superior de estado */
+.ar-card.est-PRESENTE  { border-top:3px solid var(--ar-present); }
+.ar-card.est-AUSENTE   { border-top:3px solid var(--ar-absent); }
+.ar-card.est-MEDIO_DIA { border-top:3px solid var(--ar-half); }
+.ar-card.est-ENFERMO   { border-top:3px solid var(--ar-sick); }
+.ar-card.est-FERIADO   { border-top:3px solid var(--ar-holiday); }
+
+/* ─── Panel de opciones flotante ─── */
+.ar-opciones-bg {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);
+  backdrop-filter:blur(3px); z-index:900; align-items:flex-end; justify-content:center;
+}
+.ar-opciones-bg.open { display:flex; }
+.ar-opciones-panel {
+  background:var(--bg-card); border-radius:16px 16px 0 0;
+  padding:20px 16px 32px; width:100%; max-width:480px;
+  box-shadow:0 -8px 32px rgba(0,0,0,.3);
+}
+.ar-op-titulo {
+  font-size:16px; font-weight:800; color:var(--text-primary); margin-bottom:6px;
+  font-family:'Barlow Condensed',sans-serif;
+}
+.ar-op-subtitulo { font-size:12px; color:var(--text-muted); margin-bottom:16px; }
+.ar-op-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ar-op-btn {
+  padding:14px 10px; border-radius:10px; border:2px solid var(--border);
+  background:transparent; cursor:pointer; font-size:13px; font-weight:700;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  transition:all .12s; color:var(--text-primary);
+}
+.ar-op-btn:hover, .ar-op-btn.active {
+  border-color:currentColor; background:color-mix(in srgb, currentColor 12%, transparent);
+}
+.ar-op-btn .ar-op-icon { font-size:22px; }
+.ar-op-btn.btn-presente { color:var(--ar-present); }
+.ar-op-btn.btn-ausente  { color:var(--ar-absent); }
+.ar-op-btn.btn-medio    { color:var(--ar-half); }
+.ar-op-btn.btn-enfermo  { color:var(--ar-sick); }
+.ar-op-btn.btn-feriado  { color:var(--ar-holiday); }
+
+/* Campo horas */
+.ar-horas-row {
+  margin-top:12px; display:none;
+  background:var(--bg-secondary); border-radius:8px; padding:10px 12px;
+}
+.ar-horas-row.visible { display:flex; align-items:center; gap:10px; }
+.ar-horas-row label { font-size:12px; font-weight:600; color:var(--text-secondary); flex:1; }
+.ar-horas-row input { width:80px; }
+
+.ar-op-confirmar {
+  width:100%; margin-top:14px; padding:13px; font-size:14px; font-weight:700;
+  border-radius:10px; border:none; background:var(--teal); color:#fff;
+  cursor:pointer; font-family:'Barlow Condensed',sans-serif; letter-spacing:.02em;
+}
+.ar-op-cancelar {
+  width:100%; margin-top:8px; padding:10px; font-size:13px;
+  border-radius:8px; border:none; background:transparent;
+  color:var(--text-muted); cursor:pointer;
+}
+
+/* ─── Toast ─── */
+.ar-toast {
+  position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(40px);
+  opacity:0; transition:all .2s; background:var(--bg-card); border:1px solid;
+  border-radius:8px; padding:10px 18px; font-size:13px; font-weight:700;
+  z-index:9999; white-space:nowrap; pointer-events:none;
+}
+.ar-toast.ok  { border-color:var(--ar-present); color:var(--ar-present); }
+.ar-toast.err { border-color:var(--ar-absent);  color:var(--ar-absent); }
+.ar-toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+/* Guardar indicador en la tarjeta */
+.ar-card.guardando { opacity:.6; pointer-events:none; }
+</style>
+
+<!-- Navegación de fecha -->
+<div class="ar-date-nav">
+  <button class="ar-btn-nav" onclick="cambiarDia(-1)">◀</button>
+  <span class="ar-fecha-label" id="fecha-label">{{ fecha_display }}</span>
+  <input type="date" class="input ar-date-input" id="fecha-picker" value="{{ fecha_iso }}" onchange="irAFecha(this.value)">
+  {% if not es_hoy %}
+  <button class="ar-btn-hoy" onclick="irHoy()">HOY</button>
+  {% endif %}
+  <button class="ar-btn-nav" onclick="cambiarDia(1)">▶</button>
+</div>
+
+<!-- Stats del día -->
+<div class="ar-stats">
+  <div class="ar-stat s-pres"><div class="ar-stat-val" id="cnt-presentes">—</div><div class="ar-stat-lbl">Presentes</div></div>
+  <div class="ar-stat s-aus" ><div class="ar-stat-val" id="cnt-ausentes">—</div><div class="ar-stat-lbl">Ausentes</div></div>
+  <div class="ar-stat s-half"><div class="ar-stat-val" id="cnt-medio">—</div><div class="ar-stat-lbl">Medio día</div></div>
+  <div class="ar-stat s-none"><div class="ar-stat-val" id="cnt-sin">—</div><div class="ar-stat-lbl">Sin marcar</div></div>
+</div>
+
+<!-- Grid de empleados -->
+<div class="ar-grid" id="ar-grid">
+  {% for e in empleados %}
+  {% set tipo = e.tipo_hoy or 'null' %}
+  {% set colores = ['#0f766e','#b45309','#1d4ed8','#6d28d9','#b91c1c','#047857','#c2410c','#1e40af'] %}
+  {% set color_idx = loop.index0 % 8 %}
+  <div class="ar-card est-{{ tipo }}" id="card-{{ e.id }}"
+       onclick="abrirOpciones({{ e.id }}, '{{ e.nombre }}', '{{ e.rol }}', '{{ tipo }}')"
+       data-empleado="{{ e.id }}" data-tipo="{{ tipo }}">
+    <div class="ar-card-top">
+      <div class="ar-avatar" style="background:{{ colores[loop.index0 % 8] }}">{{ e.nombre[0].upper() }}</div>
+      <div class="ar-nombre">{{ e.nombre.split(' ')[0] }}</div>
+      <div class="ar-rol">{{ e.rol[:20] }}</div>
+    </div>
+    <div class="ar-estado" id="estado-{{ e.id }}">
+      {% if tipo == 'PRESENTE' %}✅ Presente
+      {% elif tipo == 'AUSENTE' %}❌ Ausente
+      {% elif tipo == 'MEDIO_DIA' %}🕐 Medio día
+      {% elif tipo == 'ENFERMO' %}🤒 Enfermo
+      {% elif tipo == 'FERIADO' %}📅 Feriado
+      {% else %}⚪ Sin marcar{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Panel de opciones (bottom sheet) -->
+<div class="ar-opciones-bg" id="opciones-bg" onclick="cerrarOpciones()">
+  <div class="ar-opciones-panel" onclick="event.stopPropagation()">
+    <div class="ar-op-titulo" id="op-titulo">—</div>
+    <div class="ar-op-subtitulo" id="op-subtitulo">Seleccioná el tipo de asistencia</div>
+    <div class="ar-op-grid">
+      <button class="ar-op-btn btn-presente" onclick="seleccionarTipo('PRESENTE')"><span class="ar-op-icon">✅</span>Presente</button>
+      <button class="ar-op-btn btn-ausente"  onclick="seleccionarTipo('AUSENTE')"><span class="ar-op-icon">❌</span>Ausente</button>
+      <button class="ar-op-btn btn-medio"    onclick="seleccionarTipo('MEDIO_DIA')"><span class="ar-op-icon">🕐</span>Medio día</button>
+      <button class="ar-op-btn btn-enfermo"  onclick="seleccionarTipo('ENFERMO')"><span class="ar-op-icon">🤒</span>Enfermo</button>
+    </div>
+    <div class="ar-horas-row" id="horas-row">
+      <label>Horas trabajadas (opcional):</label>
+      <input class="input" type="number" id="horas-input" min="0.5" max="24" step="0.5" placeholder="0">
+    </div>
+    <button class="ar-op-confirmar" id="op-confirmar-btn" onclick="confirmarAsistencia()">✓ Confirmar</button>
+    <button class="ar-op-cancelar" onclick="cerrarOpciones()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="ar-toast" id="ar-toast"></div>
+
+<script>
+const FECHA_HOY      = '{{ fecha_iso }}';
+let   fechaActual    = FECHA_HOY;
+let   empleadoActual = null;
+let   tipoSeleccionado = null;
+
+/* ── Colores avatar por índice ── */
+const AVATAR_COLORS = ['#0f766e','#b45309','#1d4ed8','#6d28d9','#b91c1c','#047857','#c2410c','#1e40af'];
+
+/* ══════════════════════════════════════════
+   STATS
+══════════════════════════════════════════ */
+function actualizarStats() {
+  const cards = document.querySelectorAll('.ar-card');
+  let pres=0, aus=0, medio=0, sin=0;
+  cards.forEach(c => {
+    const t = c.dataset.tipo;
+    if (t === 'PRESENTE') pres++;
+    else if (t === 'AUSENTE') aus++;
+    else if (t === 'MEDIO_DIA') medio++;
+    else sin++;
+  });
+  document.getElementById('cnt-presentes').textContent = pres;
+  document.getElementById('cnt-ausentes').textContent  = aus;
+  document.getElementById('cnt-medio').textContent     = medio;
+  document.getElementById('cnt-sin').textContent       = sin;
+}
+actualizarStats();
+
+/* ══════════════════════════════════════════
+   NAVEGACIÓN DE FECHA
+══════════════════════════════════════════ */
+function cambiarDia(delta) {
+  const d = new Date(fechaActual + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  irAFecha(d.toISOString().split('T')[0]);
+}
+
+function irHoy() {
+  const hoy = new Date().toISOString().split('T')[0];
+  irAFecha(hoy);
+}
+
+function irAFecha(iso) {
+  window.location.href = '/asistencia-rapida?fecha=' + iso;
+}
+
+/* ══════════════════════════════════════════
+   OPCIONES (bottom sheet)
+══════════════════════════════════════════ */
+function abrirOpciones(eid, nombre, rol, tipoActual) {
+  empleadoActual  = eid;
+  tipoSeleccionado = tipoActual === 'null' ? null : tipoActual;
+
+  document.getElementById('op-titulo').textContent    = nombre;
+  document.getElementById('op-subtitulo').textContent = rol || 'Empleado';
+
+  // Marcar botón activo
+  document.querySelectorAll('.ar-op-btn').forEach(b => b.classList.remove('active'));
+  if (tipoSeleccionado) {
+    const mapBtn = {PRESENTE:'btn-presente',AUSENTE:'btn-ausente',MEDIO_DIA:'btn-medio',ENFERMO:'btn-enfermo',FERIADO:'btn-feriado'};
+    const btnCls = mapBtn[tipoSeleccionado];
+    if (btnCls) document.querySelector('.'+btnCls)?.classList.add('active');
+  }
+
+  // Horas row
+  const horasRow = document.getElementById('horas-row');
+  horasRow.classList.toggle('visible', tipoSeleccionado === 'PRESENTE' || tipoSeleccionado === 'MEDIO_DIA');
+  document.getElementById('horas-input').value = '';
+
+  document.getElementById('opciones-bg').classList.add('open');
+}
+
+function cerrarOpciones() {
+  document.getElementById('opciones-bg').classList.remove('open');
+  empleadoActual = null;
+  tipoSeleccionado = null;
+}
+
+function seleccionarTipo(tipo) {
+  tipoSeleccionado = tipo;
+  document.querySelectorAll('.ar-op-btn').forEach(b => b.classList.remove('active'));
+  const mapBtn = {PRESENTE:'btn-presente',AUSENTE:'btn-ausente',MEDIO_DIA:'btn-medio',ENFERMO:'btn-enfermo'};
+  const cls = mapBtn[tipo];
+  if (cls) document.querySelector('.'+cls)?.classList.add('active');
+
+  // Mostrar campo horas para PRESENTE y MEDIO_DIA
+  const horasRow = document.getElementById('horas-row');
+  horasRow.classList.toggle('visible', tipo === 'PRESENTE' || tipo === 'MEDIO_DIA');
+}
+
+async function confirmarAsistencia() {
+  if (!empleadoActual || !tipoSeleccionado) {
+    toast('Seleccioná un tipo de asistencia', 'err'); return;
+  }
+
+  const horasInput = document.getElementById('horas-input');
+  const horas = horasInput.value ? parseFloat(horasInput.value) : null;
+
+  const card = document.getElementById('card-' + empleadoActual);
+  if (card) card.classList.add('guardando');
+
+  try {
+    const r = await fetch('/api/asistencia-rapida/marcar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ empleado_id: empleadoActual, tipo: tipoSeleccionado, horas, fecha: fechaActual }),
+    });
+
+    if (r.ok) {
+      actualizarCard(empleadoActual, tipoSeleccionado);
+      cerrarOpciones();
+      const LABELS = {PRESENTE:'✅ Presente',AUSENTE:'❌ Ausente',MEDIO_DIA:'🕐 Medio día',ENFERMO:'🤒 Enfermo',FERIADO:'📅 Feriado'};
+      toast(LABELS[tipoSeleccionado] || tipoSeleccionado, 'ok');
+    } else {
+      const e = await r.json();
+      toast(e.detail || 'Error al guardar', 'err');
+    }
+  } catch (ex) {
+    toast('Error de conexión', 'err');
+  } finally {
+    if (card) card.classList.remove('guardando');
+  }
+}
+
+function actualizarCard(eid, tipo) {
+  const card = document.getElementById('card-' + eid);
+  if (!card) return;
+
+  // Actualizar clase de estado
+  card.className = card.className.replace(/est-\S+/, '').trim() + ' est-' + tipo;
+  card.dataset.tipo = tipo;
+
+  // Actualizar texto de estado
+  const LABELS = {PRESENTE:'✅ Presente',AUSENTE:'❌ Ausente',MEDIO_DIA:'🕐 Medio día',ENFERMO:'🤒 Enfermo',FERIADO:'📅 Feriado'};
+  const estadoEl = document.getElementById('estado-' + eid);
+  if (estadoEl) estadoEl.textContent = LABELS[tipo] || tipo;
+
+  actualizarStats();
+}
+
+/* ══════════════════════════════════════════
+   MARCAR TODOS PRESENTES
+══════════════════════════════════════════ */
+async function marcarTodosPresentes() {
+  const sinMarcar = document.querySelectorAll('.ar-card[data-tipo="null"]').length;
+  if (sinMarcar === 0) { toast('Todos ya tienen asistencia registrada', 'ok'); return; }
+
+  const btn = document.getElementById('btn-todos');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    const r = await fetch('/api/asistencia-rapida/marcar-todos', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ fecha: fechaActual, tipo: 'PRESENTE' }),
+    });
+
+    if (r.ok) {
+      const d = await r.json();
+      // Actualizar cards sin marcar
+      document.querySelectorAll('.ar-card[data-tipo="null"]').forEach(card => {
+        const eid = parseInt(card.dataset.empleado);
+        actualizarCard(eid, 'PRESENTE');
+      });
+      toast(`${d.marcados} empleados marcados como presentes ✅`, 'ok');
+    } else {
+      toast('Error al guardar', 'err');
+    }
+  } catch (ex) {
+    toast('Error de conexión', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Todos presentes'; }
+  }
+}
+
+/* ══════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════ */
+function toast(msg, tipo) {
+  const t = document.getElementById('ar-toast');
+  t.textContent = msg;
+  t.className = `ar-toast ${tipo} show`;
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+/* Cerrar bottom sheet con ESC */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') cerrarOpciones();
+});
+</script>
+{% endblock %}

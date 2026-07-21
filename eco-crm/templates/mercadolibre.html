@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+{% block title %}MercadoLibre · Eco Módulos CRM{% endblock %}
+{% block page_title %}MercadoLibre{% endblock %}
+
+{% block top_actions %}
+<div id="ml-status-bar" style="display:flex;align-items:center;gap:8px;font-size:13px">
+  <span id="ml-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--text-secondary);display:inline-block"></span>
+  <span id="ml-status-text" style="color:var(--text-secondary)">Verificando...</span>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('publicaciones', this)">📋 Publicaciones</button>
+  <button class="tab" onclick="showTab('preguntas', this)">❓ Preguntas <span id="badge-preguntas" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
+  <button class="tab" onclick="showTab('crear', this)">➕ Crear Publicación</button>
+  <button class="tab" onclick="showTab('config-ml', this)">⚙️ Configuración</button>
+</div>
+
+<!-- ── PUBLICACIONES ── -->
+<div id="tab-publicaciones">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <span id="pub-count" style="color:var(--text-secondary);font-size:13px"></span>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="syncPrecios()">🔄 Sincronizar precios</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadPublicaciones()">↺ Actualizar</button>
+    </div>
+  </div>
+  <div id="publicaciones-content"><div class="loading">Cargando publicaciones...</div></div>
+</div>
+
+<!-- ── PREGUNTAS ── -->
+<div id="tab-preguntas" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <span id="preguntas-count" style="color:var(--text-secondary);font-size:13px">Cargando...</span>
+    <button class="btn btn-secondary btn-sm" onclick="loadPreguntas()">↺ Actualizar</button>
+  </div>
+  <div id="preguntas-content"><div class="loading">Cargando preguntas...</div></div>
+</div>
+
+<!-- ── CREAR PUBLICACIÓN ── -->
+<div id="tab-crear" style="display:none">
+  <div class="card" style="padding:20px;max-width:720px">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:18px">Nueva publicación en MercadoLibre</h3>
+
+    <!-- Selector producto -->
+    <div class="form-group">
+      <label class="form-label">Tipo de producto</label>
+      <select class="input" id="crear-tipo" onchange="onTipoChange()">
+        <option value="PISCINA">🏊 Piscina</option>
+        <option value="MODULO">🏠 Módulo</option>
+        <option value="COMBO">🎁 Combo Módulo + Piscina</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Modelo</label>
+        <select class="input" id="crear-modelo">
+          <option value="">— Seleccioná —</option>
+        </select>
+      </div>
+      <div class="form-group" id="color-group">
+        <label class="form-label">Color</label>
+        <select class="input" id="crear-color">
+          <option value="">— Seleccioná —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Precio (ARS $)</label>
+        <input type="number" class="input" id="crear-precio" placeholder="2500000" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stock disponible</label>
+        <input type="number" class="input" id="crear-stock" value="1" min="1">
+      </div>
+    </div>
+
+    <!-- Generación con Claude -->
+    <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-weight:600;font-size:13px">✨ Generar con IA (Claude)</span>
+        <button class="btn btn-secondary btn-sm" onclick="generarConIA()" id="btn-generar-ia">
+          ✨ Generar título y descripción
+        </button>
+      </div>
+      <div id="ia-status" style="font-size:12px;color:var(--text-secondary)">
+        Seleccioná el producto y hacé clic en "Generar" para que Claude cree el anuncio optimizado para SEO.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Título <span style="color:var(--text-secondary);font-size:11px">(máx. 60 caracteres)</span></label>
+      <input type="text" class="input" id="crear-titulo" placeholder="Piscina Minimalista Mediana instalación incluida Argentina"
+        oninput="updateTitleCount(this)" maxlength="60">
+      <div id="titulo-count" style="font-size:11px;color:var(--text-secondary);text-align:right;margin-top:2px">0 / 60</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Descripción</label>
+      <textarea class="input" id="crear-descripcion" rows="8" placeholder="Descripción del producto..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">URLs de fotos <span style="color:var(--text-secondary);font-size:11px">(una por línea, https://...)</span></label>
+      <textarea class="input" id="crear-fotos" rows="3" placeholder="https://i.imgur.com/foto1.jpg&#10;https://i.imgur.com/foto2.jpg"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">ID de categoría ML <span style="color:var(--text-secondary);font-size:11px">(opcional, deja vacío para usar el predeterminado)</span></label>
+      <input type="text" class="input" id="crear-categoria" placeholder="MLA9226">
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="limpiarFormCrear()">Limpiar</button>
+      <button class="btn btn-primary" onclick="publicarEnML()" id="btn-publicar">
+        📤 Publicar en MercadoLibre
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CONFIGURACIÓN ML ── -->
+<div id="tab-config-ml" style="display:none">
+  <div class="card" style="padding:20px;max-width:500px">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Configuración MercadoLibre</h3>
+
+    <!-- Estado conexión -->
+    <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">Estado de conexión</div>
+      <div id="ml-conn-detail" style="font-size:13px;color:var(--text-secondary)">Verificando...</div>
+      <button class="btn btn-secondary btn-sm" onclick="checkMLStatus(true)" style="margin-top:10px">
+        🔌 Verificar conexión
+      </button>
+    </div>
+
+    <!-- Renovación automática -->
+    <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px">Renovación automática</div>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+        Cuando está activa, las publicaciones que estén por vencer se renuevan automáticamente.
+      </p>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="toggle-renovacion" onchange="toggleRenovacion(this)">
+        <span id="renovacion-label" style="font-size:14px">Desactivada</span>
+      </label>
+    </div>
+
+    <p style="font-size:12px;color:var(--text-secondary)">
+      Para configurar tokens de acceso, ir a
+      <a href="/configuracion" style="color:var(--primary)">Configuración → API Keys</a>.
+    </p>
+  </div>
+</div>
+
+<!-- Modal acciones publicación -->
+<div class="modal-overlay" id="modal-pub-accion" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="pub-modal-title">Gestionar publicación</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-pub-accion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="pub-modal-info" style="font-size:13px;color:var(--text-secondary);margin-bottom:16px"></p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-secondary" onclick="accionPub('pause')" id="btn-pausar">⏸ Pausar publicación</button>
+        <button class="btn btn-primary"   onclick="accionPub('activate')" id="btn-activar">▶ Activar publicación</button>
+        <button class="btn btn-ghost"     onclick="accionPub('renew')">🔄 Renovar publicación</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TABS_ML = ['publicaciones','preguntas','crear','config-ml'];
+let currentItemId = null;
+
+// Catálogo del servidor
+const CATALOGO = {{ catalogo | tojson }};
+
+function showTab(name, el) {
+  TABS_ML.forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
+  });
+  document.querySelectorAll('.tabs .tab').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (name === 'config-ml') loadMLConfig();
+  if (name === 'preguntas') loadPreguntas();
+}
+
+/* ─── STATUS ─────────────────────────────────────────────────────────── */
+async function checkMLStatus(showDetail = false) {
+  try {
+    const s = await API.get('/api/ml/status');
+    const dot  = document.getElementById('ml-status-dot');
+    const text = document.getElementById('ml-status-text');
+    const detail = document.getElementById('ml-conn-detail');
+    if (s.conectado) {
+      dot.style.background  = '#22c55e';
+      text.style.color      = '#22c55e';
+      text.textContent      = s.nickname ? `Conectado: ${s.nickname}` : 'Conectado';
+      if (detail) detail.innerHTML = `<span style="color:#22c55e">✓ ${s.msg}</span>`;
+    } else {
+      dot.style.background  = '#ef4444';
+      text.style.color      = '#ef4444';
+      text.textContent      = 'Sin conexión';
+      if (detail) detail.innerHTML = `<span style="color:#ef4444">✕ ${s.msg}</span>`;
+    }
+  } catch(e) {
+    const text = document.getElementById('ml-status-text');
+    if (text) text.textContent = 'Error';
+  }
+}
+
+/* ─── PUBLICACIONES ──────────────────────────────────────────────────── */
+async function loadPublicaciones() {
+  const cont = document.getElementById('publicaciones-content');
+  cont.innerHTML = '<div class="loading">Cargando publicaciones desde MercadoLibre...</div>';
+  try {
+    const items = await API.get('/api/ml/publicaciones');
+    document.getElementById('pub-count').textContent = `${items.length} publicacion${items.length !== 1 ? 'es' : ''}`;
+    if (!items.length) {
+      cont.innerHTML = '<div class="empty-state"><p>No hay publicaciones activas.</p></div>';
+      return;
+    }
+    cont.innerHTML = `
+    <div class="table-container">
+    <table class="table">
+      <thead><tr>
+        <th>Imagen</th><th>Título</th><th>Precio</th><th>Estado</th><th>Visitas</th><th>Stock</th><th>Acciones</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(renderPubRow).join('')}
+      </tbody>
+    </table></div>`;
+  } catch(e) {
+    cont.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+  }
+}
+
+function renderPubRow(item) {
+  const estadoClass = item.estado_ml === 'active' ? 'badge-success' : 'badge-warning';
+  const estadoLabel = item.estado_ml === 'active' ? 'Activa' : item.estado_ml;
+  const thumb = item.thumbnail
+    ? `<img src="${item.thumbnail}" style="width:48px;height:48px;object-fit:cover;border-radius:4px">`
+    : '<div style="width:48px;height:48px;background:var(--bg-secondary);border-radius:4px;display:flex;align-items:center;justify-content:center">📦</div>';
+
+  return `<tr>
+    <td>${thumb}</td>
+    <td>
+      <div style="font-weight:500;font-size:13px;max-width:250px">${escHtml(item.titulo || '')}</div>
+      <div style="font-size:11px;color:var(--text-secondary)">${item.item_id}</div>
+      ${item.permalink ? `<a href="${item.permalink}" target="_blank" style="font-size:11px;color:var(--primary)">Ver en ML ↗</a>` : ''}
+    </td>
+    <td style="font-weight:600">$${fmtNum(item.precio)}</td>
+    <td><span class="badge ${estadoClass}">${estadoLabel}</span></td>
+    <td>${item.visitas || 0}</td>
+    <td>${item.stock ?? '-'}</td>
+    <td>
+      <button class="btn btn-ghost btn-sm" onclick="abrirAccionPub('${item.item_id}','${escHtml(item.titulo||'')}','${item.estado_ml}')">
+        ⋯ Gestionar
+      </button>
+    </td>
+  </tr>`;
+}
+
+function abrirAccionPub(itemId, titulo, estado) {
+  currentItemId = itemId;
+  document.getElementById('pub-modal-title').textContent = 'Gestionar publicación';
+  document.getElementById('pub-modal-info').textContent = titulo;
+  const btnPausar  = document.getElementById('btn-pausar');
+  const btnActivar = document.getElementById('btn-activar');
+  if (estado === 'active') {
+    btnPausar.style.display  = '';
+    btnActivar.style.display = 'none';
+  } else {
+    btnPausar.style.display  = 'none';
+    btnActivar.style.display = '';
+  }
+  document.getElementById('modal-pub-accion').style.display = 'flex';
+}
+
+async function accionPub(accion) {
+  if (!currentItemId) return;
+  try {
+    await API.post('/api/ml/publicaciones/' + currentItemId + '/estado', { accion });
+    closeModal('modal-pub-accion');
+    showToast('✓ Acción realizada', 'success');
+    loadPublicaciones();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function syncPrecios() {
+  showToast('Sincronizando precios...', 'info');
+  try {
+    const res = await API.post('/api/ml/sincronizar-precios', {});
+    showToast(`✓ Sincronizados: ${res.ok} OK, ${res.error} errores`, res.error ? 'warning' : 'success');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+/* ─── CREAR PUBLICACIÓN ──────────────────────────────────────────────── */
+function onTipoChange() {
+  const tipo = document.getElementById('crear-tipo').value;
+  const modeloSel = document.getElementById('crear-modelo');
+  const colorSel  = document.getElementById('crear-color');
+  const colorGroup = document.getElementById('color-group');
+
+  // Poblar modelos
+  let modelos = [];
+  if (tipo === 'PISCINA' || tipo === 'COMBO') {
+    modelos = (CATALOGO.piscinas?.modelos || []).map(m => m.nombre || m);
+  } else if (tipo === 'MODULO') {
+    modelos = (CATALOGO.modulos?.modelos || []).map(m => m.nombre || m);
+  }
+  modeloSel.innerHTML = '<option value="">— Seleccioná —</option>' +
+    modelos.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+
+  // Colores solo para piscinas
+  const colores = CATALOGO.piscinas?.colores || [];
+  if (tipo !== 'MODULO') {
+    colorGroup.style.display = '';
+    colorSel.innerHTML = '<option value="">— Seleccioná —</option>' +
+      colores.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  } else {
+    colorGroup.style.display = 'none';
+    colorSel.value = '';
+  }
+}
+
+function updateTitleCount(el) {
+  document.getElementById('titulo-count').textContent = el.value.length + ' / 60';
+}
+
+async function generarConIA() {
+  const tipo    = document.getElementById('crear-tipo').value;
+  const modelo  = document.getElementById('crear-modelo').value;
+  const color   = document.getElementById('crear-color').value;
+  const btn     = document.getElementById('btn-generar-ia');
+  const status  = document.getElementById('ia-status');
+
+  if (!modelo) { showToast('Seleccioná un modelo primero', 'warning'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando...';
+  status.textContent = 'Claude está escribiendo el anuncio optimizado...';
+  status.style.color = 'var(--primary)';
+
+  try {
+    const res = await API.post('/api/ml/generar-descripcion', {
+      tipo, modelo, color,
+    });
+    if (res.ok) {
+      document.getElementById('crear-titulo').value = res.titulo || '';
+      document.getElementById('crear-descripcion').value = res.descripcion || '';
+      updateTitleCount(document.getElementById('crear-titulo'));
+      status.textContent = '✓ Descripción generada por Claude. Podés editarla antes de publicar.';
+      status.style.color = '#22c55e';
+      showToast('✓ Descripción generada', 'success');
+    }
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#ef4444';
+    showToast('Error al generar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Generar título y descripción';
+  }
+}
+
+async function publicarEnML() {
+  const titulo      = document.getElementById('crear-titulo').value.trim();
+  const descripcion = document.getElementById('crear-descripcion').value.trim();
+  const precio      = parseFloat(document.getElementById('crear-precio').value);
+  const stock       = parseInt(document.getElementById('crear-stock').value) || 1;
+  const tipo        = document.getElementById('crear-tipo').value;
+  const modelo      = document.getElementById('crear-modelo').value;
+  const color       = document.getElementById('crear-color').value;
+  const categoria   = document.getElementById('crear-categoria').value.trim();
+  const fotosRaw    = document.getElementById('crear-fotos').value.trim();
+
+  if (!titulo)        { showToast('Ingresá un título', 'warning'); return; }
+  if (!descripcion)   { showToast('Ingresá una descripción', 'warning'); return; }
+  if (!precio || isNaN(precio)) { showToast('Ingresá un precio válido', 'warning'); return; }
+
+  const fotos_urls = fotosRaw ? fotosRaw.split('\n').map(s => s.trim()).filter(Boolean) : [];
+
+  const btn = document.getElementById('btn-publicar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Publicando...';
+
+  try {
+    const res = await API.post('/api/ml/publicaciones', {
+      tipo, modelo, color,
+      titulo, descripcion,
+      precio, stock,
+      fotos_urls,
+      categoria_ml_id: categoria || null,
+    });
+    if (res.ok) {
+      showToast(`✓ Publicado: ${res.item_id}`, 'success');
+      limpiarFormCrear();
+      // Volver a publicaciones
+      showTab('publicaciones', document.querySelectorAll('.tabs .tab')[0]);
+      loadPublicaciones();
+    }
+  } catch(e) {
+    showToast('Error al publicar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📤 Publicar en MercadoLibre';
+  }
+}
+
+function limpiarFormCrear() {
+  ['crear-titulo','crear-descripcion','crear-fotos','crear-categoria','crear-precio'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('crear-stock').value = '1';
+  document.getElementById('titulo-count').textContent = '0 / 60';
+  document.getElementById('ia-status').textContent = 'Seleccioná el producto y hacé clic en "Generar" para que Claude cree el anuncio optimizado para SEO.';
+  document.getElementById('ia-status').style.color = 'var(--text-secondary)';
+}
+
+/* ─── CONFIG ML ──────────────────────────────────────────────────────── */
+async function loadMLConfig() {
+  checkMLStatus(true);
+  try {
+    const all = await API.get('/api/config');
+    const renovacion = all.find(c => c.clave === 'ml_renovacion_automatica');
+    if (renovacion) {
+      const chk = document.getElementById('toggle-renovacion');
+      chk.checked = renovacion.valor === 'true';
+      document.getElementById('renovacion-label').textContent = chk.checked ? 'Activada' : 'Desactivada';
+    }
+  } catch(e) { /* silent */ }
+}
+
+async function toggleRenovacion(chk) {
+  const label = document.getElementById('renovacion-label');
+  label.textContent = chk.checked ? 'Activada' : 'Desactivada';
+  try {
+    await API.put('/api/config/ml_renovacion_automatica', { valor: chk.checked ? 'true' : 'false' });
+    showToast(chk.checked ? '✓ Renovación automática activada' : 'Renovación automática desactivada', 'success');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    chk.checked = !chk.checked;
+    label.textContent = chk.checked ? 'Activada' : 'Desactivada';
+  }
+}
+
+/* ─── HELPERS ────────────────────────────────────────────────────────── */
+function fmtNum(n) {
+  if (n == null) return '-';
+  return Number(n).toLocaleString('es-AR');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ─── PREGUNTAS ──────────────────────────────────────────────────────── */
+let _preguntasData = [];
+
+async function loadPreguntas() {
+  const cont = document.getElementById('preguntas-content');
+  const cnt  = document.getElementById('preguntas-count');
+  cont.innerHTML = '<div class="loading">Cargando preguntas sin responder...</div>';
+  try {
+    const res = await API.get('/api/ml/preguntas?estado=UNANSWERED');
+    const data = Array.isArray(res) ? res : (res.preguntas || []);
+    _preguntasData = data;
+    const badge = document.getElementById('badge-preguntas');
+    if (data.length > 0) {
+      badge.textContent = data.length;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+    cnt.textContent = data.length
+      ? `${data.length} pregunta${data.length !== 1 ? 's' : ''} sin responder`
+      : 'No hay preguntas sin responder ✓';
+    if (!data.length) {
+      cont.innerHTML = '<div class="empty-state"><p>¡Todo al día! Sin preguntas pendientes.</p></div>';
+      return;
+    }
+    cont.innerHTML = data.map(renderPregunta).join('');
+  } catch(e) {
+    cont.innerHTML = `<div class="alert alert-error">Error al cargar preguntas: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderPregunta(q) {
+  const fecha = q.date_created ? new Date(q.date_created).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+  return `
+  <div class="card" id="pregunta-${q.id}" style="margin-bottom:12px;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">
+          🛒 <strong style="color:var(--text-primary)">${escHtml(q.item_titulo || q.item_id)}</strong>
+          · 👤 ${escHtml(q.from_nickname || 'Comprador')}
+          · 🕐 ${fecha}
+        </div>
+        <div style="font-size:14px;color:var(--text-primary);font-weight:500;margin-bottom:12px">"${escHtml(q.text)}"</div>
+        <textarea id="resp-${q.id}" class="input" rows="2"
+          placeholder="Escribí la respuesta... o usá ✨ IA para sugerir una automáticamente"
+          style="font-size:13px;width:100%;margin-bottom:8px"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="sugerirRespuesta(${q.id}, ${JSON.stringify(escHtml(q.item_titulo||q.item_id))})">
+            ✨ Sugerir con IA
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="enviarRespuesta(${q.id})">
+            ✉️ Responder
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function sugerirRespuesta(qId, itemTitulo) {
+  const textarea = document.getElementById('resp-' + qId);
+  const pregunta = _preguntasData.find(p => p.id === qId);
+  if (!pregunta) return;
+
+  const oldVal = textarea.value;
+  textarea.value = '⏳ Generando respuesta con IA...';
+  textarea.disabled = true;
+
+  try {
+    const res = await API.post(`/api/ml/preguntas/${qId}/responder`, {
+      sugerir_solo: true,
+      pregunta_texto: pregunta.text,
+      item_titulo: pregunta.item_titulo || itemTitulo,
+    });
+    textarea.value = res.respuesta_sugerida || res.texto || oldVal;
+  } catch(e) {
+    showToast('Error IA: ' + e.message, 'error');
+    textarea.value = oldVal;
+  } finally {
+    textarea.disabled = false;
+    textarea.focus();
+  }
+}
+
+async function enviarRespuesta(qId) {
+  const textarea = document.getElementById('resp-' + qId);
+  const texto = textarea.value.trim();
+  if (!texto) { showToast('Escribí una respuesta primero', 'warning'); return; }
+
+  textarea.disabled = true;
+  try {
+    await API.post(`/api/ml/preguntas/${qId}/responder`, { respuesta_manual: texto });
+    showToast('✓ Respuesta enviada', 'success');
+    // Eliminar la tarjeta del DOM
+    const card = document.getElementById('pregunta-' + qId);
+    if (card) card.remove();
+    _preguntasData = _preguntasData.filter(p => p.id !== qId);
+    const badge = document.getElementById('badge-preguntas');
+    if (_preguntasData.length > 0) {
+      badge.textContent = _preguntasData.length;
+    } else {
+      badge.style.display = 'none';
+      document.getElementById('preguntas-content').innerHTML =
+        '<div class="empty-state"><p>¡Todo al día! Sin preguntas pendientes.</p></div>';
+    }
+    document.getElementById('preguntas-count').textContent = _preguntasData.length
+      ? `${_preguntasData.length} pregunta${_preguntasData.length !== 1 ? 's' : ''} sin responder`
+      : 'No hay preguntas sin responder ✓';
+  } catch(e) {
+    showToast('Error al enviar: ' + e.message, 'error');
+    textarea.disabled = false;
+  }
+}
+
+/* ─── INIT ───────────────────────────────────────────────────────────── */
+checkMLStatus();
+loadPublicaciones();
+onTipoChange();
+</script>
+{% endblock %}

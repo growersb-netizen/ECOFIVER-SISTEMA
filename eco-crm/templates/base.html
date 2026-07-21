@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#111111">
+  <title>{% block title %}Eco Módulos CRM{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  {% block extra_css %}{% endblock %}
+  <style>
+    /* Modo embebido: oculta el chrome para mostrar la página dentro de un iframe (ej. pestañas del Depósito) */
+    body.embed-mode .sidebar,
+    body.embed-mode .sidebar-overlay,
+    body.embed-mode .top-bar,
+    body.embed-mode .bottom-nav { display: none !important; }
+    body.embed-mode .main-content { margin-left: 0 !important; }
+    body.embed-mode .page-content { padding: 12px !important; padding-bottom: 24px !important; }
+  </style>
+</head>
+<body class="{% if request.query_params.get('embed') %}embed-mode{% endif %}">
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-text">ECO MÓDULOS</div>
+      <div class="logo-sub">& Piscinas · CRM</div>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="user-avatar">{{ user.nombre[0].upper() if user else '?' }}</div>
+      <div>
+        <div class="user-name">{{ user.nombre if user else '' }}</div>
+        <div class="user-role">
+          {% if user %}
+            {% set r = roles[0] if roles else '' %}
+            {{ r.replace('_', ' ') }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section">Principal</div>
+      <a href="/" class="nav-item"><span class="nav-icon">🏠</span> Dashboard</a>
+
+      {% if 'ADMIN' in roles or 'ASESOR_APERTURA' in roles or 'SUPERVISOR_CIERRE' in roles %}
+      <div class="nav-section">Comercial</div>
+      <a href="/trabajar" class="nav-item" style="background:linear-gradient(135deg,#16a34a18,#16a34a08);border-left:3px solid #16a34a"><span class="nav-icon">▶️</span> Arrancar a contactar</a>
+      <a href="/leads" class="nav-item"><span class="nav-icon">👥</span> Leads</a>
+      <a href="/videollamadas" class="nav-item"><span class="nav-icon">📹</span> Videollamadas</a>
+      {% if 'ADMIN' in roles or 'SUPERVISOR_CIERRE' in roles %}
+      <a href="/semana-vls" class="nav-item"><span class="nav-icon">📅</span> Semana de VLs</a>
+      {% endif %}
+      <a href="/ventas-contado" class="nav-item"><span class="nav-icon">💰</span> Ventas</a>
+      <a href="/envios-cargo" class="nav-item"><span class="nav-icon">🚚</span> Envíos Vía Cargo</a>
+      {% endif %}
+
+      {% if 'ADMIN' in roles or 'COBRANZAS' in roles %}
+      <a href="/cobranzas" class="nav-item">
+        <span class="nav-icon">💳</span> Cobranzas
+        <span class="nav-badge" id="notif-badge" style="display:none">0</span>
+      </a>
+      {% endif %}
+
+      {% if 'ADMIN' in roles or 'FABRICA' in roles or 'ADMINISTRACION' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      <div class="nav-section">Fábrica</div>
+      <a href="/fabrica" class="nav-item"><span class="nav-icon">🏭</span> Órdenes</a>
+      <a href="/produccion" class="nav-item"><span class="nav-icon">⚙️</span> Producción</a>
+      {% endif %}
+
+      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      <div class="nav-section">Operaciones</div>
+      <a href="/logistica" class="nav-item"><span class="nav-icon">🚚</span> Logística y Entregas</a>
+      <a href="/contratos" class="nav-item"><span class="nav-icon">📄</span> Contratos</a>
+      <a href="/flota" class="nav-item"><span class="nav-icon">🚗</span> Flota</a>
+      <a href="/instalacion" class="nav-item"><span class="nav-icon">🔨</span> Instalación & Equipos</a>
+      {% endif %}
+
+      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles or 'ADMINISTRACION' in roles or 'FABRICA' in roles %}
+      <div class="nav-section">Interno</div>
+      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles or 'ADMINISTRACION' in roles or 'FABRICA' in roles %}
+      <a href="/panolero" class="nav-item" style="background:linear-gradient(135deg,#92400e18,#78350f08);border-left:3px solid #b45309"><span class="nav-icon">🗜️</span> Depósito</a>
+      {% endif %}
+      <a href="/asistencia-rapida" class="nav-item" style="background:linear-gradient(135deg,#15803d18,#16a34a08);border-left:3px solid #16a34a"><span class="nav-icon">✅</span> Asistencia Rápida</a>
+      {% if 'ADMIN' in roles or 'FABRICA' in roles or 'ADMINISTRACION' in roles %}
+      <a href="/personal" class="nav-item"><span class="nav-icon">👷</span> Personal</a>
+      {% endif %}
+      <a href="/gastos" class="nav-item"><span class="nav-icon">💸</span> Gastos</a>
+      {% endif %}
+
+      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      <div class="nav-section">Herramientas</div>
+      {% if 'ADMIN' in roles %}
+      <a href="/control-agentes" class="nav-item" style="background:linear-gradient(135deg,#6366f118,#8b5cf608);border-left:3px solid #6366f1"><span class="nav-icon">🧠</span> Control Center · IA</a>
+      <a href="/inbox" class="nav-item" style="background:linear-gradient(135deg,#25d36618,#16a34a08);border-left:3px solid #25d366">
+        <span class="nav-icon">💬</span> Bandeja WhatsApp
+        <span class="nav-badge" id="inbox-badge" style="display:none">0</span>
+      </a>
+      {% endif %}
+      <a href="/marketing" class="nav-item" style="background:linear-gradient(135deg,#db277718,#be185d08);border-left:3px solid #db2777"><span class="nav-icon">📊</span> Marketing</a>
+      <a href="/ecopost" class="nav-item"><span class="nav-icon">📸</span> Ecopost</a>
+      <a href="/mercadolibre" class="nav-item"><span class="nav-icon">🛒</span> MercadoLibre</a>
+      <a href="/web" class="nav-item"><span class="nav-icon">🌐</span> Web CMS</a>
+      <a href="/importar" class="nav-item"><span class="nav-icon">📥</span> Importar</a>
+      <a href="/configuracion" class="nav-item"><span class="nav-icon">🔑</span> Configuración</a>
+      {% endif %}
+
+      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      <div class="nav-section">Admin</div>
+      {% if 'ADMIN' in roles %}
+      <a href="/catalogo-admin" class="nav-item"><span class="nav-icon">📦</span> Catálogo</a>
+      {% endif %}
+      <a href="/usuarios-admin" class="nav-item"><span class="nav-icon">👥</span> Usuarios</a>
+      {% endif %}
+
+      <div class="nav-section">Mi cuenta</div>
+      <a href="/perfil" class="nav-item"><span class="nav-icon">🔑</span> Mi perfil</a>
+      <a href="/manual" class="nav-item"><span class="nav-icon">📖</span> Manual de uso</a>
+    </div>
+
+    <div class="sidebar-footer">
+      <a href="/logout" class="btn btn-ghost w-full" style="justify-content:center">
+        Cerrar sesión
+      </a>
+    </div>
+  </nav>
+
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <!-- Main -->
+  <main class="main-content">
+    <div class="top-bar">
+      <button class="btn btn-icon" onclick="toggleSidebar()" style="display:none" id="menu-btn">☰</button>
+      <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+      {% block top_actions %}{% endblock %}
+
+      <!-- Theme Toggle -->
+      <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Cambiar tema">
+        <span id="theme-icon">🌙</span>
+      </button>
+
+      <!-- Notification Bell -->
+      <div class="notif-bell-wrap" id="notif-wrap">
+        <button class="notif-bell-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
+          🔔
+          <span class="notif-bell-count" id="notif-count" style="display:none">0</span>
+        </button>
+        <div class="notif-panel" id="notif-panel" style="display:none">
+          <div class="notif-panel-head">
+            <span style="font-weight:700;font-size:15px">Notificaciones</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              <button id="push-toggle-btn" onclick="togglePushSub()" class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px" title="Activar/desactivar notificaciones push">
+                🔔
+              </button>
+              <button onclick="marcarTodasLeidas()" class="btn btn-sm btn-ghost" style="font-size:12px;padding:3px 8px">
+                ✓ Leídas
+              </button>
+            </div>
+          </div>
+          <div id="notif-list" style="max-height:360px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+<!-- Bottom nav (mobile) — 5 accesos clave según el rol principal -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-items">
+    <a href="/" class="bottom-nav-item"><span class="nav-icon">🏠</span>Inicio</a>
+    {% if 'ADMIN' in roles %}
+    <a href="/ventas-contado" class="bottom-nav-item"><span class="nav-icon">💰</span>Ventas</a>
+    <a href="/logistica" class="bottom-nav-item"><span class="nav-icon">🚚</span>Entregas</a>
+    <a href="/fabrica" class="bottom-nav-item"><span class="nav-icon">🏭</span>Fábrica</a>
+    <a onclick="toggleSidebar()" class="bottom-nav-item" style="cursor:pointer"><span class="nav-icon">☰</span>Más</a>
+    {% elif 'COORDINADOR_OPERATIVO' in roles %}
+    <a href="/logistica" class="bottom-nav-item"><span class="nav-icon">🚚</span>Entregas</a>
+    <a href="/fabrica" class="bottom-nav-item"><span class="nav-icon">🏭</span>Fábrica</a>
+    <a href="/contratos" class="bottom-nav-item"><span class="nav-icon">📄</span>Contratos</a>
+    <a href="/flota" class="bottom-nav-item"><span class="nav-icon">🚗</span>Flota</a>
+    {% elif 'FABRICA' in roles %}
+    <a href="/fabrica" class="bottom-nav-item"><span class="nav-icon">🏭</span>Órdenes</a>
+    <a href="/produccion" class="bottom-nav-item"><span class="nav-icon">⚙️</span>Producción</a>
+    <a href="/asistencia-rapida" class="bottom-nav-item"><span class="nav-icon">✅</span>Asistencia</a>
+    <a href="/panolero" class="bottom-nav-item"><span class="nav-icon">🗜️</span>Depósito</a>
+    {% elif 'ASESOR_APERTURA' in roles or 'SUPERVISOR_CIERRE' in roles %}
+    <a href="/leads" class="bottom-nav-item"><span class="nav-icon">👥</span>Leads</a>
+    <a href="/ventas-contado" class="bottom-nav-item"><span class="nav-icon">💰</span>Ventas</a>
+    <a href="/videollamadas" class="bottom-nav-item"><span class="nav-icon">📹</span>VLs</a>
+    <a href="/envios-cargo" class="bottom-nav-item"><span class="nav-icon">📦</span>Cargo</a>
+    {% elif 'COBRANZAS' in roles %}
+    <a href="/cobranzas" class="bottom-nav-item"><span class="nav-icon">💳</span>Cobros</a>
+    <a href="/ventas-contado" class="bottom-nav-item"><span class="nav-icon">💰</span>Ventas</a>
+    <a onclick="toggleSidebar()" class="bottom-nav-item" style="cursor:pointer"><span class="nav-icon">☰</span>Más</a>
+    {% elif 'ADMINISTRACION' in roles %}
+    <a href="/personal" class="bottom-nav-item"><span class="nav-icon">👷</span>Personal</a>
+    <a href="/asistencia-rapida" class="bottom-nav-item"><span class="nav-icon">✅</span>Asistencia</a>
+    <a href="/panolero" class="bottom-nav-item"><span class="nav-icon">🗜️</span>Depósito</a>
+    <a onclick="toggleSidebar()" class="bottom-nav-item" style="cursor:pointer"><span class="nav-icon">☰</span>Más</a>
+    {% else %}
+    <a onclick="toggleSidebar()" class="bottom-nav-item" style="cursor:pointer"><span class="nav-icon">☰</span>Menú</a>
+    {% endif %}
+  </div>
+</nav>
+
+<div id="toast-container"></div>
+
+<!-- ─── Modal de confirmación genérico (reemplaza window.confirm) ─────────── -->
+<div id="modal-confirm-global" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:2rem;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <h3 id="modal-confirm-titulo" style="margin:0 0 .75rem;font-size:1.1rem;color:#1e293b;">¿Confirmar acción?</h3>
+    <p id="modal-confirm-mensaje" style="color:#475569;margin:0 0 1.5rem;line-height:1.5;"></p>
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;">
+      <button onclick="__confirmResolve(false)" style="padding:.6rem 1.2rem;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;cursor:pointer;font-size:.9rem;color:#64748b;">Cancelar</button>
+      <button id="modal-confirm-ok-btn" onclick="__confirmResolve(true)" style="padding:.6rem 1.4rem;border:none;border-radius:8px;background:#ef4444;color:#fff;cursor:pointer;font-size:.9rem;font-weight:600;">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/main.js"></script>
+{% block extra_js %}{% endblock %}
+
+<script>
+  // Show mobile menu button
+  if (window.innerWidth <= 768) {
+    document.getElementById('menu-btn').style.display = 'flex';
+  }
+  window.addEventListener('resize', () => {
+    document.getElementById('menu-btn').style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+  });
+</script>
+</body>
+</html>

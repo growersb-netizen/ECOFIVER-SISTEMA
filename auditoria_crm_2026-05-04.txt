@@ -1,0 +1,314 @@
+RELEVAMIENTO CRM - Eco Módulos & Piscinas
+Fecha: 04/05/2026
+Verificado contra código fuente
+================================================================================
+
+
+1. ARQUITECTURA
+================================================================================
+
+Plataforma        : Fly.io - región gru (São Paulo)
+URL activa        : https://eco-crm-dawn-fog-5476.fly.dev
+Máquina           : 1 VM - 512 MB RAM, 1 CPU
+Auto-stop         : Sí - se duerme si no hay tráfico, arranca solo al primer request (latencia fría ~3-5 seg)
+Framework         : FastAPI (Python)
+Base de datos     : SQLite - archivo en volumen persistente /app/data/eco_crm.db
+Frontend          : Jinja2 templates + CSS/JS vanilla (sin React, sin framework externo)
+Auth              : JWT en cookie httponly + Bearer token para agentes IA
+Deploy            : Manual - "fly deploy --strategy immediate" desde local
+
+GAP CRÍTICO: La URL del CRM hardcodeada en el sistema de agentes (crm_client.py) apunta a
+https://eco-crm.fly.dev (URL vieja). La URL real es https://eco-crm-dawn-fog-5476.fly.dev.
+El multiagente está apuntando a una URL que NO EXISTE.
+
+
+2. BASE DE DATOS
+================================================================================
+
+21 tablas - SQLite con volumen persistente.
+
+TABLA                       PROPÓSITO                                          DATOS
+--------------------------  -------------------------------------------------  ---------------
+usuarios                    Usuarios del CRM con roles en JSON                 8 usuarios (seed)
+leads                       Prospectos/consultas entrantes                     3 leads (demo)
+videollamadas               Reuniones agendadas con leads                      0
+ventas_contado              Ventas pagadas al contado                          0
+ventas_financiadas          Ventas en cuotas (PMI / DIRECTA_50)               2 (demo)
+pagos                       Cuotas cobradas de ventas financiadas              0
+gestiones_cobranza          Intentos de cobro por WhatsApp/llamada             0
+ordenes_fabrica_piscinas    Órdenes de producción de piscinas                  1 (demo)
+ordenes_fabrica_modulos     Órdenes de producción de módulos                   0
+stock_piscinas              Inventario de piscinas terminadas                  6 modelos
+stock_paneles               Stock de paneles NCE para módulos                  4 tipos
+pedidos_materiales          Pedidos a proveedores                              0
+entregas                    Instalaciones coordinadas                          0
+reclamos                    Post-venta y problemas                             0
+contratos                   Registro de contratos generados                    0
+empleados                   Personal de planta/instalación                     3 (demo)
+asistencias                 Asistencia diaria de empleados                     ~12 (demo)
+liquidaciones_semanales     Liquidaciones semanales                            0
+mensajes_conversacion       Historial de chats IA <> leads                    0
+notificaciones              Alertas internas por usuario                       0
+publicaciones_ml            Cache de publicaciones MercadoLibre                0
+configuracion_sistema       API keys, config empresa, precios                  ~7 defaults
+contenido_ecopost           Contenido RRSS generado con IA                    0
+
+RELACIONES CLAVE:
+- leads -> usuarios (asesor_apertura, supervisor_cierre)
+- ventas_* -> usuarios (vendedor/asesor/supervisor)
+- ventas_* -> entregas (auto-generadas al cerrar venta)
+- ventas_* -> ordenes_fabrica_* (auto-generadas)
+- ventas_financiadas -> pagos + gestiones_cobranza
+- empleados -> asistencias -> liquidaciones_semanales
+- contenido_ecopost -> usuarios (creado_por, aprobado_por)
+
+
+3. MÓDULOS OPERATIVOS
+================================================================================
+
+--- TERMINADOS Y FUNCIONALES (código completo + UI) ---
+
+MÓDULO              RUTA                FUNCIONALIDADES
+------------------  ------------------  -----------------------------------------------
+Auth / Usuarios     /login              Login, JWT cookie, gestión completa de usuarios,
+                    /usuarios-admin     roles, cambio de contraseña. ADMIN y COORDINADOR
+                                        pueden crear/editar usuarios.
+
+Dashboard           /                   KPIs por rol: Admin, Asesor, Supervisor,
+                                        Coordinador, Cobranzas, Fábrica.
+
+Leads               /leads              CRUD completo, filtros por estado/origen,
+                                        asignación de asesores, historial de
+                                        conversación IA.
+
+Videollamadas       /videollamadas      Agenda, estados, asignación supervisores,
+                                        resultado.
+
+Ventas Contado      /ventas-contado     Registro, calculadora de flete, auto-crea
+                                        Entrega + OrdenFabrica.
+
+Ventas Financiadas  /ventas-financiadas PMI y DIRECTA_50, cuotas, estados,
+                                        auto-crea entrega.
+
+Cobranzas           /cobranzas          Cuotas vencidas, gestiones, registro de
+                                        pagos, alertas.
+
+Fábrica             /fabrica            Órdenes piscinas y módulos, stock, pedidos
+                                        materiales, estados.
+
+Logística           /logistica          Calendario mensual de entregas, lista,
+                                        confirmación de fecha, reclamos post-venta,
+                                        calculadora flete.
+
+Personal            /personal           Empleados, asistencia diaria, liquidación
+                                        semanal.
+
+Catálogo Admin      /catalogo-admin     Gestión de modelos, colores y precios en JSON.
+
+Importar            /importar           Importación de leads desde CSV.
+
+Configuración       /configuracion      API keys (Gemini, Claude, WhatsApp, ML,
+                                        empresa), con test de conexión.
+
+Perfil              /perfil             Cambio de contraseña propio.
+
+
+--- IMPLEMENTADOS PERO CON DEPENDENCIAS EXTERNAS (código OK, funcionalidad parcial) ---
+
+MÓDULO          PROBLEMA
+--------------  -----------------------------------------------------------------------
+Ecopost         Código y UI completos. Genera copy e imagen con IA.
+                REQUIERE Gemini API Key configurada en Configuración para funcionar.
+                Sin la key, las generaciones fallan silenciosamente.
+
+Contratos       Código y UI completos. Sube plantillas .docx y llena con datos del
+                cliente. REQUIERE que alguien suba las plantillas Word (piscina y
+                módulo). Sin plantillas, el botón "Generar" da error.
+
+MercadoLibre    Código completo. Sincroniza publicaciones, crea listings con IA.
+                REQUIERE Access Token ML configurado (OAuth manual). Sin token, no
+                hace nada.
+
+
+--- NO EMPEZADOS ---
+
+FUNCIONALIDAD           DESCRIPCIÓN
+----------------------  ---------------------------------------------------------------
+Notificaciones push     La tabla existe y hay código para guardarlas, pero ningún módulo
+                        las genera automáticamente y el badge no se actualiza en tiempo
+                        real.
+
+Reportes / Exportación  No hay ninguna pantalla de reportes, ni exportación a Excel/PDF
+                        de ventas, comisiones, etc.
+
+Comisiones              Los campos comision_asesor_pct y comision_supervisor_pct existen
+                        en videollamadas pero no hay módulo de liquidación de comisiones.
+
+Meta Ads                No hay nada implementado para captura automática de leads desde
+                        Facebook Lead Ads.
+
+Instagram / Facebook    No hay webhooks ni integración para publicar desde Ecopost a
+                        redes sociales directamente.
+
+Stock de módulos        Existe StockPanel pero no hay pantalla de stock de módulos
+                        terminados (solo se gestiona stock de piscinas).
+
+
+4. INTERFAZ
+================================================================================
+
+El sistema tiene UI completa: Jinja2 + CSS propio oscuro, responsive con bottom nav
+para mobile.
+
+VISTA                       TEMPLATE                    ESTADO
+--------------------------  --------------------------  -------
+Login                       login.html                  OK
+Dashboard                   dashboard.html              OK
+Leads                       leads.html                  OK
+Videollamadas               videollamadas.html          OK
+Ventas Contado              ventas_contado.html         OK
+Ventas Financiadas          ventas_financiadas.html     OK
+Cobranzas                   cobranzas.html              OK
+Fábrica                     fabrica.html                OK
+Logística + Calendario      logistica.html              OK
+Personal                    personal.html               OK
+Catálogo Admin              catalogo_admin.html         OK
+Importar                    importar.html               OK
+Configuración               configuracion.html          OK
+MercadoLibre                mercadolibre.html           OK
+Ecopost                     ecopost.html                OK
+Contratos                   contratos.html              OK
+Usuarios Admin              usuarios_admin.html         OK
+Perfil                      perfil.html                 OK
+
+ARCHIVOS HUÉRFANOS (existen en disco pero no tienen ruta activa - deberían borrarse):
+- templates/calendario.html        -> reemplazado por tab en logística
+- templates/usuarios-admin.html    -> versión vieja de usuarios (con guión)
+- templates/coordinacion_entregas.html -> template sin ruta
+- routers/usuarios.py              -> router duplicado no importado en main.py
+
+
+5. INTEGRACIONES
+================================================================================
+
+--- Sistema de Agentes (eco-multiagente) ---
+
+- Existe un sistema multiagente separado en eco-multiagente/ con ~15 agentes
+  (Valentina, Mateo, Luciano, Sebastián, etc.)
+- Se comunica con el CRM via API REST usando Bearer token estático (API_KEY)
+- Endpoints disponibles para agentes:
+    * Crear lead (POST /api/leads/agent)
+    * Actualizar lead (PATCH /api/leads/by-session/{id})
+    * Guardar mensajes (POST /api/leads/by-session/{id}/messages)
+    * Consultar stock (GET /api/stock)
+    * Cuotas vencidas (GET /api/cuotas/vencidas)
+    * Stats del pipeline (GET /api/stats/pipeline)
+    * Ventas del día (GET /api/stats/ventas-hoy)
+- BUG CRÍTICO: crm_client.py tiene CRM_BASE_URL = "https://eco-crm.fly.dev"
+  que es la URL INCORRECTA. La URL real es https://eco-crm-dawn-fog-5476.fly.dev
+  Los agentes están escribiendo en el vacío.
+
+--- WhatsApp ---
+
+- El multiagente tiene webhook para WhatsApp (/webhook/whatsapp) con verificación
+  y transcripción de audio via Gemini.
+- El CRM tiene campos para configurar wa_token y wa_phone_id en Configuración.
+- Estado real: No verificable sin acceder al servidor del multiagente. El webhook
+  existe en código pero depende de que el multiagente esté deployado y los tokens
+  configurados correctamente.
+
+--- MercadoLibre ---
+
+- Integración completa en código: lee publicaciones, crea listings, renueva
+  automáticamente.
+- Requiere Access Token OAuth manual (no hay flujo OAuth automático implementado,
+  hay que pegar el token a mano en Configuración).
+
+--- Instagram / Facebook Lead Ads ---
+
+- NO implementado. Solo hay campos de configuración reservados para tokens de IG.
+
+--- Cloudflare Worker ---
+
+- URL: https://eco-agentes.growersb.workers.dev
+- Genera imágenes con Gemini Imagen 3 y copy con Gemini Flash.
+- Usado como proxy para Ecopost.
+- Requiere secret GEMINI_API_KEY configurado en el dashboard de Cloudflare.
+
+
+6. GAPS CRÍTICOS
+================================================================================
+
+--- BLOQUEANTES (impiden funcionalidad core) ---
+
+GAP                                     IMPACTO                             SOLUCIÓN
+--------------------------------------  ----------------------------------  ----------------------------
+URL incorrecta en multiagente           Los agentes IA no pueden crear o    Cambiar CRM_BASE_URL en
+crm_client.py apunta a URL vieja        actualizar leads en el CRM real.    crm_client.py y en las
+que no existe.                          Están escribiendo en el vacío.      variables de entorno del
+                                                                            multiagente.
+
+Gemini API Key no configurada           Ecopost no funciona. El             Entrar a Configuración ->
+en el CRM.                              multiagente puede fallar.           API Keys y cargar la key.
+
+Plantillas de contratos no subidas.     El módulo de contratos existe       Subir archivos .docx con
+                                        pero no puede generar ningún        placeholders {{ variable }}
+                                        documento.                          desde la sección Contratos.
+
+
+--- IMPORTANTES ---
+
+GAP                         IMPACTO
+--------------------------  ---------------------------------------------------------------
+Sin datos reales            Todo lo que se ve son datos del seed inicial (demo). No hay
+                            ventas reales, leads reales ni entregas cargadas todavía.
+
+MercadoLibre sin token      La integración ML es código muerto hasta que se configure
+                            el Access Token.
+
+Auto-stop en Fly.io         Con min_machines_running = 0 la máquina se apaga sola. El
+                            primer request después del sleep tarda ~5 segundos. Malo
+                            para la experiencia de los vendedores.
+
+SQLite en producción        Con un solo usuario es aceptable, pero SQLite tiene bloqueos
+                            con escrituras concurrentes. Si 3-4 usuarios trabajan
+                            simultáneamente pueden aparecer errores intermitentes.
+
+Sin backup automático       No hay ningún mecanismo de backup del archivo .db. Si el
+                            volumen de Fly.io se corrompe, se pierden todos los datos.
+
+
+--- MEJORAS (no bloqueantes) ---
+
+GAP                         DESCRIPCIÓN
+--------------------------  ---------------------------------------------------------------
+Archivos huérfanos          4 archivos que deberían borrarse: calendario.html,
+                            usuarios-admin.html, coordinacion_entregas.html, usuarios.py
+
+Notificaciones real-time    El sistema de notificaciones existe en DB pero ningún módulo
+                            las genera ni las muestra en tiempo real.
+
+Reportes y comisiones       No hay ninguna pantalla de reportes ni liquidación de
+                            comisiones para asesores y supervisores.
+
+Exportación                 No se puede exportar nada a Excel ni PDF.
+
+
+================================================================================
+RESUMEN EJECUTIVO
+================================================================================
+
+El CRM está estructuralmente completo y deployado. Los módulos operativos centrales
+(leads -> videollamadas -> ventas -> cobranzas -> fábrica -> logística -> personal)
+están implementados y son usables.
+
+Los tres blockers inmediatos son:
+  1. Corregir la URL del multiagente (los agentes IA no están llegando al CRM real)
+  2. Cargar la Gemini API key en Configuración
+  3. Subir las plantillas de contratos Word
+
+El riesgo de infraestructura más serio es la ausencia de backups del SQLite.
+
+================================================================================
+Fin del informe
+================================================================================

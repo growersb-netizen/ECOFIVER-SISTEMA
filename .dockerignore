@@ -1,0 +1,48 @@
+# ── Entornos virtuales (incluye los anidados de subproyectos) ──
+venv/
+.venv/
+env/
+ENV/
+**/venv/
+**/.venv/
+**/env/
+**/node_modules/
+
+# ── Caché de Python (en cualquier nivel) ──
+__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Secrets / datos / logs ──
+.env
+.env.*
+**/.env
+*.db
+*.sqlite
+*.sqlite3
+**/*.db
+*.log
+**/*.log
+data/
+**/data/
+uploads/
+**/uploads/
+
+# ── Control de versiones / herramientas ──
+.git/
+.gitignore
+.github/
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Scripts temporales ──
+_fix_*.py
+_tmp_*.py

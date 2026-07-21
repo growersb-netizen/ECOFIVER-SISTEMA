@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}Catálogo — Eco Módulos CRM{% endblock %}
+{% block page_title %}📦 Catálogo de productos{% endblock %}
+
+{% block content %}
+<div class="tabs" id="tabs-cat">
+  <button class="tab active" onclick="showTab('piscinas', this)">🏊 Piscinas</button>
+  <button class="tab" onclick="showTab('modulos', this)">🏠 Módulos</button>
+</div>
+
+<!-- ═══ TAB PISCINAS ═══ -->
+<div id="tab-piscinas">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="cat-grid">
+
+    <!-- Modelos -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Modelos de piscinas</strong>
+        <span class="badge" id="cnt-modelos">{{ catalogo.piscinas.modelos | length }}</span>
+      </div>
+      <div class="card-body">
+        <div id="list-modelos" style="max-height:300px;overflow-y:auto;margin-bottom:12px">
+          {% for m in catalogo.piscinas.modelos %}
+          <div class="item-row" id="mod-{{ loop.index }}">
+            <span>{{ m }}</span>
+            <button class="btn btn-ghost btn-sm" onclick="deleteModelo('{{ m | replace("'","\\'")}}')" title="Eliminar">🗑</button>
+          </div>
+          {% endfor %}
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="new-modelo" type="text" class="input" placeholder="Nuevo modelo…" style="flex:1">
+          <button class="btn btn-primary" onclick="addModelo()">+ Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colores -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Colores disponibles</strong>
+        <span class="badge" id="cnt-colores">{{ catalogo.piscinas.colores | length }}</span>
+      </div>
+      <div class="card-body">
+        <div id="list-colores" style="max-height:300px;overflow-y:auto;margin-bottom:12px">
+          {% for c in catalogo.piscinas.colores %}
+          <div class="item-row">
+            <span>{{ c }}</span>
+            <button class="btn btn-ghost btn-sm" onclick="deleteColor('{{ c | replace("'","\\'")}}')" title="Eliminar">🗑</button>
+          </div>
+          {% endfor %}
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="new-color" type="text" class="input" placeholder="Nuevo color…" style="flex:1">
+          <button class="btn btn-primary" onclick="addColor()">+ Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Precios piscinas -->
+  <div class="card mt-3">
+    <div class="card-header"><strong>💰 Precios por modelo (ARS)</strong></div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+        Los precios se usan como referencia en ventas. Dejar vacío = sin precio base.
+      </p>
+      <div id="precios-piscinas-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+        <!-- Se renderiza con JS -->
+      </div>
+      <button class="btn btn-primary mt-3" onclick="savePrecios('piscinas')">💾 Guardar precios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB MÓDULOS ═══ -->
+<div id="tab-modulos" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="cat-grid">
+
+    <!-- Superficies estándar -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Superficies estándar (m²)</strong>
+        <span class="badge" id="cnt-sup">{{ catalogo.modulos.superficies_m2 | length }}</span>
+      </div>
+      <div class="card-body">
+        <div id="list-sup" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          {% for s in catalogo.modulos.superficies_m2 %}
+          <div class="chip" id="sup-{{ s }}">
+            {{ s }}m²
+            <button onclick="deleteSup({{ s }})" title="Eliminar" style="background:none;border:none;color:inherit;cursor:pointer;padding:0 0 0 4px">✕</button>
+          </div>
+          {% endfor %}
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="new-sup" type="number" class="input" placeholder="Ej: 78" style="width:120px">
+          <button class="btn btn-primary" onclick="addSup()">+ Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modelos custom -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Modelos personalizados</strong>
+        <span class="badge" id="cnt-custom">{{ catalogo.modulos.modelos_custom | length }}</span>
+      </div>
+      <div class="card-body">
+        <div id="list-custom" style="max-height:250px;overflow-y:auto;margin-bottom:12px">
+          {% for m in catalogo.modulos.modelos_custom %}
+          <div class="item-row">
+            <span>{{ m }}</span>
+            <button class="btn btn-ghost btn-sm" onclick="deleteCustom('{{ m | replace("'","\\'")}}')" title="Eliminar">🗑</button>
+          </div>
+          {% endfor %}
+          {% if not catalogo.modulos.modelos_custom %}
+          <div style="color:var(--text-muted);font-size:13px">Sin modelos personalizados</div>
+          {% endif %}
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="new-custom" type="text" class="input" placeholder="Ej: Módulo Duplex 45m²…" style="flex:1">
+          <button class="btn btn-primary" onclick="addCustom()">+ Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Precios módulos -->
+  <div class="card mt-3">
+    <div class="card-header"><strong>💰 Precios por superficie (ARS)</strong></div>
+    <div class="card-body">
+      <div id="precios-modulos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+      </div>
+      <button class="btn btn-primary mt-3" onclick="savePrecios('modulos')">💾 Guardar precios</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.item-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:8px 10px; border-radius:6px; margin-bottom:4px;
+  background: var(--table-row-bg, #1a1a1a);
+  border: 1px solid var(--border-color);
+  font-size:14px;
+}
+.item-row:hover { background: var(--table-row-hover, #222); }
+.chip {
+  display:inline-flex; align-items:center; padding:4px 10px;
+  background:#1e3a2a; color:#4caf50; border-radius:20px;
+  font-size:13px; font-weight:600; border:1px solid #2d5a3d;
+}
+.badge {
+  background:#2a3a4a; color:#42a5f5; padding:2px 8px; border-radius:10px;
+  font-size:12px; font-weight:600;
+}
+.precio-item { display:flex; flex-direction:column; gap:4px; }
+.precio-item label { font-size:12px; color:var(--text-muted); }
+.precio-item input { font-size:13px; }
+@media(max-width:640px) { .cat-grid { grid-template-columns:1fr !important; } }
+</style>
+
+<script>
+// Estado local (cargado desde server-side rendering)
+let CATALOGO = {{ catalogo | tojson }};
+
+// ─── Tabs ────────────────────────────────────────────────────────────────────
+const TABS_CAT = ['piscinas', 'modulos'];
+function showTab(name, el) {
+  TABS_CAT.forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
+  });
+  document.querySelectorAll('#tabs-cat .tab').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+// ─── PISCINAS: Modelos ────────────────────────────────────────────────────────
+async function addModelo() {
+  const input = document.getElementById('new-modelo');
+  const nombre = input.value.trim();
+  if (!nombre) return;
+  try {
+    const data = await API.post('/api/catalogo/piscinas/modelos', { nombre });
+    showToast('Modelo agregado', 'success');
+    input.value = '';
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteModelo(nombre) {
+  if (!confirm(`¿Eliminar modelo "${nombre}"?`)) return;
+  try {
+    await API.del(`/api/catalogo/piscinas/modelos/${encodeURIComponent(nombre)}`);
+    showToast('Modelo eliminado', 'success');
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── PISCINAS: Colores ────────────────────────────────────────────────────────
+async function addColor() {
+  const input = document.getElementById('new-color');
+  const nombre = input.value.trim();
+  if (!nombre) return;
+  try {
+    await API.post('/api/catalogo/piscinas/colores', { nombre });
+    showToast('Color agregado', 'success');
+    input.value = '';
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteColor(nombre) {
+  if (!confirm(`¿Eliminar color "${nombre}"?`)) return;
+  try {
+    await API.del(`/api/catalogo/piscinas/colores/${encodeURIComponent(nombre)}`);
+    showToast('Color eliminado', 'success');
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── MÓDULOS: Superficies ─────────────────────────────────────────────────────
+async function addSup() {
+  const input = document.getElementById('new-sup');
+  const m2 = parseInt(input.value);
+  if (!m2 || m2 <= 0) return showToast('Ingresá un número válido', 'error');
+  try {
+    await API.post('/api/catalogo/modulos/superficies', { m2 });
+    showToast(`Superficie ${m2}m² agregada`, 'success');
+    input.value = '';
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteSup(m2) {
+  if (!confirm(`¿Eliminar superficie ${m2}m²?`)) return;
+  try {
+    await API.del(`/api/catalogo/modulos/superficies/${m2}`);
+    showToast('Superficie eliminada', 'success');
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── MÓDULOS: Custom ─────────────────────────────────────────────────────────
+async function addCustom() {
+  const input = document.getElementById('new-custom');
+  const nombre = input.value.trim();
+  if (!nombre) return;
+  try {
+    await API.post('/api/catalogo/modulos/modelos-custom', { nombre });
+    showToast('Modelo personalizado agregado', 'success');
+    input.value = '';
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteCustom(nombre) {
+  if (!confirm(`¿Eliminar modelo "${nombre}"?`)) return;
+  try {
+    await API.del(`/api/catalogo/modulos/modelos-custom/${encodeURIComponent(nombre)}`);
+    showToast('Modelo eliminado', 'success');
+    reloadPage();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── Precios ─────────────────────────────────────────────────────────────────
+function renderPrecios() {
+  // Piscinas
+  const pGrid = document.getElementById('precios-piscinas-grid');
+  const modelos = CATALOGO.piscinas?.modelos || [];
+  const preciosPis = CATALOGO.piscinas?.precios || {};
+  pGrid.innerHTML = modelos.map(m => `
+    <div class="precio-item">
+      <label>${escHtml(m)}</label>
+      <input type="number" class="input precio-piscina" data-modelo="${escHtml(m)}"
+             value="${preciosPis[m] || ''}" placeholder="0" min="0">
+    </div>`).join('');
+
+  // Módulos
+  const mGrid = document.getElementById('precios-modulos-grid');
+  const sups = CATALOGO.modulos?.superficies_m2 || [];
+  const preciosMod = CATALOGO.modulos?.precios || {};
+  mGrid.innerHTML = sups.map(s => `
+    <div class="precio-item">
+      <label>${s}m²</label>
+      <input type="number" class="input precio-modulo" data-sup="${s}"
+             value="${preciosMod[s] || ''}" placeholder="0" min="0">
+    </div>`).join('');
+}
+
+async function savePrecios(tipo) {
+  let precios = {};
+  if (tipo === 'piscinas') {
+    document.querySelectorAll('.precio-piscina').forEach(el => {
+      if (el.value) precios[el.dataset.modelo] = parseFloat(el.value);
+    });
+    await API.put('/api/catalogo/piscinas/precios', { precios });
+  } else {
+    document.querySelectorAll('.precio-modulo').forEach(el => {
+      if (el.value) precios[el.dataset.sup] = parseFloat(el.value);
+    });
+    await API.put('/api/catalogo/modulos/precios', { precios });
+  }
+  showToast('Precios guardados ✅', 'success');
+  reloadPage();
+}
+
+function reloadPage() {
+  setTimeout(() => window.location.reload(), 800);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderPrecios();
+});
+
+// ─── API + Toast helpers ──────────────────────────────────────────────────────
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const API = {
+  async _req(method, url, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+    return data;
+  },
+  get:  (url)       => API._req('GET',    url),
+  post: (url, body) => API._req('POST',   url, body),
+  put:  (url, body) => API._req('PUT',    url, body),
+  del:  (url)       => API._req('DELETE', url),
+};
+
+function showToast(msg, type = 'info') {
+  let t = document.getElementById('toast-container');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-container';
+    t.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px';
+    document.body.appendChild(t);
+  }
+  const toast = document.createElement('div');
+  toast.style.cssText = `padding:12px 18px;border-radius:8px;font-size:14px;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.4);
+    background:${type==='success'?'#1b3a1b':type==='error'?'#3a1b1b':'#1b2a3a'};
+    color:${type==='success'?'#4caf50':type==='error'?'#f44336':'#42a5f5'};
+    border:1px solid ${type==='success'?'#2d5a2d':type==='error'?'#5a2d2d':'#2d4a5a'}`;
+  toast.textContent = msg;
+  t.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+</script>
+{% endblock %}

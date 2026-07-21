@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+{% block title %}Envíos Vía Cargo — Eco Módulos{% endblock %}
+{% block page_title %}🚚 Envíos Vía Cargo{% endblock %}
+
+{% block top_actions %}
+<button onclick="abrirModalNuevo()" class="btn btn-primary">+ Nuevo envío</button>
+{% endblock %}
+
+{% block content %}
+<!-- STATS -->
+<div id="stats-bar" class="stats-grid" style="margin-bottom:20px"></div>
+
+<!-- FILTROS -->
+<div class="card" style="padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <input type="text" id="search-input" placeholder="Buscar cliente, teléfono o remito…"
+    class="form-control" style="max-width:260px;margin:0"
+    oninput="clearTimeout(_st);_st=setTimeout(cargarEnvios,350)">
+  <select id="filter-estado" class="form-control" style="max-width:170px;margin:0" onchange="cargarEnvios()">
+    <option value="">Todos los estados</option>
+    <option value="PENDIENTE">🟡 Pendiente</option>
+    <option value="EMPACADO">🔵 Empacado</option>
+    <option value="DESPACHADO">🟣 Despachado</option>
+    <option value="EN_TRANSITO">🔷 En tránsito</option>
+    <option value="ENTREGADO">🟢 Entregado</option>
+    <option value="PROBLEMA">🔴 Problema</option>
+  </select>
+  <select id="filter-producto" class="form-control" style="max-width:140px;margin:0" onchange="cargarEnvios()">
+    <option value="">Todos</option>
+    <option value="PISCINA">🏊 Piscinas</option>
+    <option value="MODULO">🏗 Módulos</option>
+  </select>
+  <button onclick="cargarEnvios()" class="btn btn-ghost" style="padding:8px 14px">🔄</button>
+</div>
+
+<!-- TABLA -->
+<div class="card" style="padding:0;overflow:hidden">
+  <div id="tabla-envios" style="overflow-x:auto">
+    <div class="loading" style="padding:40px"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- ── MODAL NUEVO ENVÍO ──────────────────────────────────────────────────── -->
+<div id="modal-nuevo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;overflow-y:auto;padding:20px">
+  <div style="background:var(--bg-secondary);border-radius:16px;max-width:680px;margin:0 auto;padding:28px;position:relative">
+    <button onclick="cerrarModalNuevo()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">✕</button>
+    <h2 style="margin:0 0 20px;font-size:1.2rem">📦 Nuevo envío por transporte</h2>
+
+    <!-- Cotizador rápido -->
+    <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:10px;padding:14px;margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">⚡ STOCK DISPONIBLE PARA DESPACHO INMEDIATO</div>
+      <div id="stock-rapido" style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="loading"><div class="spinner" style="width:20px;height:20px"></div></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="form-2col">
+      <div>
+        <label class="form-label">Producto *</label>
+        <select id="n-producto" class="form-control" onchange="onProductoChange()">
+          <option value="PISCINA">🏊 Piscina</option>
+          <option value="MODULO">🏗 Módulo</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Modelo *</label>
+        <select id="n-modelo" class="form-control" onchange="onModeloChange()">
+          <option value="">— Seleccionar —</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Color</label>
+        <select id="n-color" class="form-control">
+          <option value="">Sin especificar</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Cantidad</label>
+        <input type="number" id="n-cantidad" value="1" min="1" class="form-control">
+      </div>
+
+      <div style="grid-column:1/-1">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="n-desde-stock" onchange="marcarDesdeStock()">
+          <span style="font-size:13px">📦 Salida desde stock existente (entrega inmediata)</span>
+        </label>
+      </div>
+
+      <div style="grid-column:1/-1"><hr style="border:none;border-top:1px solid var(--border-color)"></div>
+
+      <div>
+        <label class="form-label">Cliente — Nombre *</label>
+        <input type="text" id="n-cliente-nombre" class="form-control" placeholder="Juan Pérez">
+      </div>
+      <div>
+        <label class="form-label">Teléfono</label>
+        <input type="text" id="n-cliente-tel" class="form-control" placeholder="5491112345678">
+      </div>
+      <div>
+        <label class="form-label">Ciudad destino</label>
+        <input type="text" id="n-localidad" class="form-control" placeholder="Villa María">
+      </div>
+      <div>
+        <label class="form-label">Provincia</label>
+        <input type="text" id="n-provincia" class="form-control" placeholder="Córdoba">
+      </div>
+      <div style="grid-column:1/-1">
+        <label class="form-label">Sucursal de la empresa de transporte destino</label>
+        <input type="text" id="n-sucursal" class="form-control" placeholder="Via Cargo Villa María — Av. Buenos Aires 450">
+      </div>
+
+      <div style="grid-column:1/-1"><hr style="border:none;border-top:1px solid var(--border-color)"></div>
+
+      <div>
+        <label class="form-label">Precio del producto $</label>
+        <input type="number" id="n-precio-producto" class="form-control" placeholder="0" oninput="calcTotal()">
+      </div>
+      <div>
+        <label class="form-label">
+          Costo de flete $
+          <button type="button" onclick="calcularFlete()" title="Estimar flete por zona" style="margin-left:6px;padding:2px 8px;font-size:11px;border:1px solid #3b82f6;border-radius:6px;background:rgba(59,130,246,.1);color:#3b82f6;cursor:pointer;font-weight:600">⚡ Estimar</button>
+        </label>
+        <input type="number" id="n-costo-flete" class="form-control" placeholder="0" oninput="calcTotal()">
+      </div>
+      <div>
+        <label class="form-label">Total $</label>
+        <input type="number" id="n-total" class="form-control" placeholder="0">
+      </div>
+      <div>
+        <label class="form-label">Forma de pago</label>
+        <select id="n-forma-pago" class="form-control">
+          <option value="TRANSFERENCIA">Transferencia</option>
+          <option value="CONTADO">Contado</option>
+          <option value="FINANCIADO">Financiado</option>
+          <option value="MERCADOPAGO">MercadoPago</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Empresa de transporte</label>
+        <select id="n-empresa" class="form-control">
+          <option value="VIA_CARGO">Vía Cargo</option>
+          <option value="OCA">OCA</option>
+          <option value="ANDREANI">Andreani</option>
+          <option value="CORREO_ARGENTINO">Correo Argentino</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Vendedor</label>
+        <select id="n-vendedor" class="form-control">
+          {% for v in vendedores %}
+          <option value="{{ v.id }}">{{ v.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="grid-column:1/-1">
+        <label class="form-label">Notas</label>
+        <textarea id="n-notas" class="form-control" rows="2" placeholder="Observaciones del envío…"></textarea>
+      </div>
+    </div>
+
+    <div id="precio-sugerido" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;font-size:13px"></div>
+
+    <!-- Cotizador de flete -->
+    <div id="flete-resultado" style="display:none;margin-top:10px;padding:14px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.25);border-radius:10px;font-size:13px">
+      <div style="font-weight:700;color:#3b82f6;margin-bottom:8px">📦 Estimación de flete</div>
+      <div id="flete-detalle"></div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+      <button onclick="cerrarModalNuevo()" class="btn btn-ghost">Cancelar</button>
+      <button onclick="guardarEnvio()" class="btn btn-primary">💾 Crear envío</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL TRACKING ─────────────────────────────────────────────────────── -->
+<div id="modal-tracking" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div style="background:var(--bg-secondary);border-radius:16px;max-width:520px;width:90%;padding:28px;position:relative">
+    <button onclick="cerrarTracking()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">✕</button>
+    <h2 style="margin:0 0 18px;font-size:1.1rem" id="tracking-titulo">🔷 Actualizar envío</h2>
+    <input type="hidden" id="tracking-id">
+    <div style="display:grid;gap:12px">
+      <div>
+        <label class="form-label">Estado</label>
+        <select id="t-estado" class="form-control">
+          <option value="PENDIENTE">🟡 Pendiente — aún no salió</option>
+          <option value="EMPACADO">🔵 Empacado — listo para despachar</option>
+          <option value="DESPACHADO">🟣 Despachado — entregado a transporte</option>
+          <option value="EN_TRANSITO">🔷 En tránsito — en camino</option>
+          <option value="ENTREGADO">🟢 Entregado al cliente</option>
+          <option value="PROBLEMA">🔴 Problema — requiere atención</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Número de remito / guía</label>
+        <input type="text" id="t-remito" class="form-control" placeholder="VC-2026-04521">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label">Fecha de despacho</label>
+          <input type="datetime-local" id="t-fecha-despacho" class="form-control">
+        </div>
+        <div>
+          <label class="form-label">Entrega estimada</label>
+          <input type="datetime-local" id="t-fecha-est" class="form-control">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Fecha entrega real</label>
+        <input type="datetime-local" id="t-fecha-real" class="form-control">
+      </div>
+      <div>
+        <label class="form-label">Notas de seguimiento</label>
+        <textarea id="t-notas" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
+      <button onclick="cerrarTracking()" class="btn btn-ghost">Cancelar</button>
+      <button onclick="guardarTracking()" class="btn btn-primary">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<style>
+@media(max-width:600px){
+  .form-2col { grid-template-columns:1fr !important; }
+  .form-2col > * { grid-column: auto !important; }
+}
+</style>
+
+<script>
+let _st, _catalogoData = null, _envioEditId = null;
+
+// ── Cargar datos ──────────────────────────────────────────────────────────────
+async function cargarEnvios() {
+  const estado  = document.getElementById('filter-estado').value;
+  const search  = document.getElementById('search-input').value;
+  const producto = document.getElementById('filter-producto').value;
+  const params  = new URLSearchParams({skip:0, limit:100});
+  if (estado)   params.set('estado', estado);
+  if (search)   params.set('search', search);
+  if (producto) params.set('producto', producto);
+
+  document.getElementById('tabla-envios').innerHTML = '<div class="loading" style="padding:40px"><div class="spinner"></div></div>';
+
+  try {
+    const data = await API.get('/api/envios-cargo?' + params);
+    renderStats(data.stats || {});
+    renderTabla(data.envios || []);
+  } catch(e) {
+    document.getElementById('tabla-envios').innerHTML = `<div class="alert alert-error" style="margin:16px">${e.message}</div>`;
+  }
+}
+
+function renderStats(stats) {
+  const cfg = {
+    PENDIENTE:   {label:'Pendientes',   color:'#f59e0b', icon:'🟡'},
+    DESPACHADO:  {label:'Despachados',  color:'#8b5cf6', icon:'🟣'},
+    EN_TRANSITO: {label:'En tránsito',  color:'#06b6d4', icon:'🔷'},
+    ENTREGADO:   {label:'Entregados',   color:'#22c55e', icon:'🟢'},
+    PROBLEMA:    {label:'Problemas',    color:'#ef4444', icon:'🔴'},
+  };
+  const bar = document.getElementById('stats-bar');
+  bar.innerHTML = Object.entries(cfg).map(([k,c]) => `
+    <div class="stat-card" style="cursor:pointer;border-color:${c.color}22" onclick="document.getElementById('filter-estado').value='${k}';cargarEnvios()">
+      <div class="stat-value" style="color:${c.color}">${stats[k]||0}</div>
+      <div class="stat-label">${c.icon} ${c.label}</div>
+    </div>`).join('');
+}
+
+function renderTabla(envios) {
+  if (!envios.length) {
+    document.getElementById('tabla-envios').innerHTML = `
+      <div style="text-align:center;padding:48px;color:var(--text-muted)">
+        <div style="font-size:40px;margin-bottom:12px">🚚</div>
+        <div style="font-size:15px;font-weight:600">Sin envíos con estos filtros</div>
+        <div style="font-size:13px;margin-top:6px">Creá el primer envío con el botón "Nuevo envío"</div>
+      </div>`;
+    return;
+  }
+  const fmt = n => n ? '$' + Number(n).toLocaleString('es-AR') : '—';
+  const fmtDt = s => s ? s.substring(0,10) : '—';
+  document.getElementById('tabla-envios').innerHTML = `
+    <table class="table" style="min-width:900px">
+      <thead><tr>
+        <th>Cliente</th><th>Producto</th><th>Destino</th><th>Transporte</th>
+        <th>Total</th><th>Estado</th><th>Remito</th><th>Despacho</th><th>Acciones</th>
+      </tr></thead>
+      <tbody>
+        ${envios.map(e => `
+          <tr>
+            <td>
+              <div style="font-weight:600;font-size:13px">${e.cliente_nombre}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${e.cliente_telefono||''}</div>
+            </td>
+            <td>
+              <div style="font-size:13px">${e.producto==='PISCINA'?'🏊':'🏗'} ${e.modelo_especifico||e.producto}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${e.color||''} ${e.cantidad>1?'x'+e.cantidad:''} ${e.desde_stock?'<span style="color:#22c55e">● stock</span>':''}</div>
+            </td>
+            <td>
+              <div style="font-size:13px">${e.cliente_localidad||'—'}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${e.provincia||''}</div>
+            </td>
+            <td>
+              <div style="font-size:12px">${e.empresa_transporte||'—'}</div>
+              <div style="font-size:11px;color:var(--text-muted);max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.sucursal_cargo||''}</div>
+            </td>
+            <td>
+              <div style="font-weight:700;color:#22c55e;font-size:13px">${fmt(e.total)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${e.forma_pago||''}</div>
+            </td>
+            <td>
+              <span style="background:${e.estado_color}20;color:${e.estado_color};border:1px solid ${e.estado_color}44;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap">
+                ${e.estado_icono} ${e.estado}
+              </span>
+            </td>
+            <td style="font-size:12px">${e.numero_remito||'—'}</td>
+            <td style="font-size:12px">${fmtDt(e.fecha_despacho)}</td>
+            <td>
+              <div style="display:flex;gap:6px">
+                <button onclick="abrirTracking(${e.id})" class="btn btn-sm btn-ghost" title="Actualizar tracking">📦</button>
+                ${e.venta_contado_id ? `<a href="/ventas-contado" class="btn btn-sm btn-ghost" title="Ver venta #${e.venta_contado_id}">💰</a>` : ''}
+              </div>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ── Modal nuevo ───────────────────────────────────────────────────────────────
+async function abrirModalNuevo() {
+  document.getElementById('modal-nuevo').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  if (!_catalogoData) {
+    try {
+      _catalogoData = await API.get('/api/envios-cargo/stock/disponible');
+    } catch(e) { _catalogoData = {}; }
+  }
+  renderStockRapido();
+  onProductoChange();
+}
+
+function cerrarModalNuevo() {
+  document.getElementById('modal-nuevo').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function renderStockRapido() {
+  const el = document.getElementById('stock-rapido');
+  const piscinas = _catalogoData?.piscinas || [];
+  if (!piscinas.length) {
+    el.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Sin piscinas en stock actualmente</span>';
+    return;
+  }
+  el.innerHTML = piscinas.map(p => `
+    <div onclick="seleccionarStock('${p.modelo}','${p.color||''}')" style="cursor:pointer;padding:6px 12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;font-size:12px;transition:all .15s" onmouseenter="this.style.background='rgba(34,197,94,.2)'" onmouseleave="this.style.background='rgba(34,197,94,.1)'">
+      <strong>${p.modelo}</strong>${p.color?' · '+p.color:''} — ${p.cantidad}u
+      ${p.precio ? ' | $'+Number(p.precio).toLocaleString('es-AR') : ''}
+    </div>`).join('');
+}
+
+function seleccionarStock(modelo, color) {
+  document.getElementById('n-producto').value = 'PISCINA';
+  onProductoChange();
+  setTimeout(() => {
+    const sel = document.getElementById('n-modelo');
+    for(let o of sel.options) { if(o.value === modelo) { sel.value = modelo; break; } }
+    if(color) document.getElementById('n-color').value = color;
+    document.getElementById('n-desde-stock').checked = true;
+    onModeloChange();
+  }, 50);
+}
+
+function onProductoChange() {
+  const prod = document.getElementById('n-producto').value;
+  const modeloSel = document.getElementById('n-modelo');
+  const colorSel  = document.getElementById('n-color');
+  modeloSel.innerHTML = '<option value="">— Seleccionar —</option>';
+  colorSel.innerHTML  = '<option value="">Sin especificar</option>';
+
+  if (!_catalogoData) return;
+
+  if (prod === 'PISCINA') {
+    (_catalogoData.modelos_piscinas || []).forEach(m => {
+      modeloSel.innerHTML += `<option value="${m}">${m}</option>`;
+    });
+    (_catalogoData.colores_piscinas || []).forEach(c => {
+      colorSel.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+  } else {
+    const sups = _catalogoData.modulos_catalogo || [];
+    sups.forEach(m2 => {
+      modeloSel.innerHTML += `<option value="Módulo ${m2}m²">Módulo ${m2}m²</option>`;
+    });
+  }
+}
+
+function onModeloChange() {
+  const prod   = document.getElementById('n-producto').value;
+  const modelo = document.getElementById('n-modelo').value;
+  if (!modelo || !_catalogoData) return;
+
+  let precio = null;
+  if (prod === 'PISCINA') {
+    precio = (_catalogoData.precios_piscinas || {})[modelo];
+  } else {
+    const m = modelo.match(/(\d+)/);
+    if (m) precio = (_catalogoData.precios_modulos || {})[m[1]];
+  }
+
+  const div = document.getElementById('precio-sugerido');
+  if (precio) {
+    div.style.display = 'block';
+    div.innerHTML = `💡 Precio de catálogo para <strong>${modelo}</strong>: <strong>$${Number(precio).toLocaleString('es-AR')}</strong> — clic para aplicar`;
+    div.onclick = () => {
+      document.getElementById('n-precio-producto').value = precio;
+      calcTotal();
+    };
+    div.style.cursor = 'pointer';
+  } else {
+    div.style.display = 'none';
+  }
+}
+
+function marcarDesdeStock() {
+  // feedback visual cuando marcan desde stock
+}
+
+function calcTotal() {
+  const p = parseFloat(document.getElementById('n-precio-producto').value) || 0;
+  const f = parseFloat(document.getElementById('n-costo-flete').value) || 0;
+  document.getElementById('n-total').value = p + f;
+}
+
+async function guardarEnvio() {
+  const body = {
+    cliente_nombre:    document.getElementById('n-cliente-nombre').value.trim(),
+    cliente_telefono:  document.getElementById('n-cliente-tel').value.trim(),
+    cliente_localidad: document.getElementById('n-localidad').value.trim(),
+    provincia:         document.getElementById('n-provincia').value.trim(),
+    sucursal_cargo:    document.getElementById('n-sucursal').value.trim(),
+    producto:          document.getElementById('n-producto').value,
+    modelo_especifico: document.getElementById('n-modelo').value,
+    color:             document.getElementById('n-color').value,
+    cantidad:          parseInt(document.getElementById('n-cantidad').value) || 1,
+    desde_stock:       document.getElementById('n-desde-stock').checked,
+    precio_producto:   parseFloat(document.getElementById('n-precio-producto').value) || 0,
+    costo_flete:       parseFloat(document.getElementById('n-costo-flete').value) || null,
+    total:             parseFloat(document.getElementById('n-total').value) || 0,
+    forma_pago:        document.getElementById('n-forma-pago').value,
+    empresa_transporte:document.getElementById('n-empresa').value,
+    vendedor_id:       parseInt(document.getElementById('n-vendedor').value) || null,
+    notas:             document.getElementById('n-notas').value.trim(),
+  };
+  if (!body.cliente_nombre) return showToast('El nombre del cliente es obligatorio', 'error');
+  if (!body.modelo_especifico) return showToast('Seleccioná un modelo', 'error');
+
+  try {
+    const res = await API.post('/api/envios-cargo', body);
+    showToast(`✅ Envío #${res.id} creado${res.venta_contado_id ? ' + venta contado #'+res.venta_contado_id : ''}`, 'success');
+    cerrarModalNuevo();
+    cargarEnvios();
+    // Limpiar form
+    ['n-cliente-nombre','n-cliente-tel','n-localidad','n-provincia','n-sucursal',
+     'n-precio-producto','n-costo-flete','n-total','n-notas'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value='';
+    });
+    document.getElementById('n-desde-stock').checked = false;
+    document.getElementById('precio-sugerido').style.display = 'none';
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ── Cotizador de flete ────────────────────────────────────────────────────────
+async function calcularFlete() {
+  const provincia = document.getElementById('n-provincia').value.trim();
+  const modelo    = document.getElementById('n-modelo').value.trim();
+  const cantidad  = parseInt(document.getElementById('n-cantidad').value) || 1;
+
+  if (!provincia) return showToast('Completá la provincia de destino para estimar el flete', 'error');
+  if (!modelo)    return showToast('Seleccioná el modelo de producto primero', 'error');
+
+  const div = document.getElementById('flete-resultado');
+  const det = document.getElementById('flete-detalle');
+  div.style.display = 'block';
+  det.innerHTML = '<div class="loading"><div class="spinner" style="width:18px;height:18px"></div></div>';
+
+  try {
+    const p = new URLSearchParams({ provincia, modelo, cantidad });
+    const r = await API.get('/api/envios-cargo/cotizar-flete?' + p);
+    const fmt = n => '$' + Number(n).toLocaleString('es-AR');
+    det.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px">
+        <div style="flex:1;min-width:120px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Rango estimado</div>
+          <div style="font-size:1.2rem;font-weight:800;color:#3b82f6">${fmt(r.costo_min)} – ${fmt(r.costo_max)}</div>
+        </div>
+        <div style="flex:1;min-width:100px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Valor central</div>
+          <div style="font-size:1.1rem;font-weight:700;color:#6366f1">${fmt(r.costo_promedio)}</div>
+        </div>
+        <div style="flex:1;min-width:100px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Zona / Bultos</div>
+          <div style="font-size:14px;font-weight:600">Zona ${r.zona} · ${r.bultos} bulto${r.bultos!==1?'s':''}</div>
+        </div>
+        <div style="flex:1;min-width:100px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Peso cobrable</div>
+          <div style="font-size:14px;font-weight:600">${r.peso_cobrable_kg} kg</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin-bottom:8px">
+        ⚠️ ${r.nota}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="aplicarFlete(${r.costo_promedio})" class="btn btn-sm" style="background:#3b82f6;color:#fff;font-size:12px">
+          ✓ Aplicar valor central (${fmt(r.costo_promedio)})
+        </button>
+        <button onclick="aplicarFlete(${r.costo_min})" class="btn btn-sm btn-ghost" style="font-size:12px">
+          Mínimo (${fmt(r.costo_min)})
+        </button>
+        <button onclick="aplicarFlete(${r.costo_max})" class="btn btn-sm btn-ghost" style="font-size:12px">
+          Máximo (${fmt(r.costo_max)})
+        </button>
+        <a href="${r.link_calculadora}" target="_blank" class="btn btn-sm btn-ghost" style="font-size:12px">
+          🔗 Calculadora oficial
+        </a>
+      </div>`;
+  } catch(e) {
+    det.innerHTML = `<div style="color:#ef4444;font-size:12px">⚠️ ${e.message}</div>`;
+  }
+}
+
+function aplicarFlete(valor) {
+  document.getElementById('n-costo-flete').value = valor;
+  calcTotal();
+  showToast(`Flete aplicado: $${Number(valor).toLocaleString('es-AR')}`, 'success');
+}
+
+// ── Modal tracking ────────────────────────────────────────────────────────────
+async function abrirTracking(id) {
+  _envioEditId = id;
+  try {
+    const e = await API.get(`/api/envios-cargo/${id}`);
+    document.getElementById('tracking-titulo').textContent = `📦 Tracking — ${e.cliente_nombre} | ${e.modelo_especifico||e.producto}`;
+    document.getElementById('tracking-id').value = id;
+    document.getElementById('t-estado').value    = e.estado || 'PENDIENTE';
+    document.getElementById('t-remito').value    = e.numero_remito || '';
+    document.getElementById('t-notas').value     = e.notas || '';
+    document.getElementById('t-fecha-despacho').value = e.fecha_despacho ? e.fecha_despacho.substring(0,16) : '';
+    document.getElementById('t-fecha-est').value      = e.fecha_entrega_est ? e.fecha_entrega_est.substring(0,16) : '';
+    document.getElementById('t-fecha-real').value     = e.fecha_entrega_real ? e.fecha_entrega_real.substring(0,16) : '';
+    const m = document.getElementById('modal-tracking');
+    m.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function cerrarTracking() {
+  document.getElementById('modal-tracking').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function guardarTracking() {
+  const id = _envioEditId;
+  const toISO = val => val ? new Date(val).toISOString() : null;
+  const body = {
+    estado:           document.getElementById('t-estado').value,
+    numero_remito:    document.getElementById('t-remito').value.trim(),
+    notas:            document.getElementById('t-notas').value.trim(),
+    fecha_despacho:   toISO(document.getElementById('t-fecha-despacho').value),
+    fecha_entrega_est:toISO(document.getElementById('t-fecha-est').value),
+    fecha_entrega_real:toISO(document.getElementById('t-fecha-real').value),
+  };
+  try {
+    await API.patch(`/api/envios-cargo/${id}`, body);
+    showToast('✅ Tracking actualizado', 'success');
+    cerrarTracking();
+    cargarEnvios();
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────────
+const API2 = {
+  async patch(url, data) {
+    const res = await fetch(url, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      credentials:'include', body: JSON.stringify(data),
+    });
+    const json = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(json.detail || 'Error');
+    return json;
+  }
+};
+// Extend global API with PATCH
+if(typeof API !== 'undefined' && !API.patch) API.patch = API2.patch;
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', cargarEnvios);
+</script>
+{% endblock %}

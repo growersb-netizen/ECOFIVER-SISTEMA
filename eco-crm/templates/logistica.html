@@ -1,0 +1,993 @@
+{% extends "base.html" %}
+{% block title %}Logística · Eco Módulos CRM{% endblock %}
+{% block page_title %}Logística y Entregas{% endblock %}
+
+{% block top_actions %}
+{% endblock %}
+
+{% block content %}
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('calendario', this)">📅 Calendario</button>
+  <button class="tab" onclick="showTab('semana', this)">🗓️ Esta Semana</button>
+  <button class="tab" onclick="showTab('entregas', this)">🚚 Lista entregas</button>
+  <button class="tab" onclick="showTab('reclamos', this)">🔧 Reclamos</button>
+  <button class="tab" onclick="showTab('flete', this)">💰 Calc. Flete</button>
+</div>
+
+<!-- CALENDARIO MENSUAL -->
+<div id="tab-calendario">
+
+  <style>
+    .cal-wrapper { display:flex; gap:1.2rem; align-items:flex-start; }
+    .cal-panel   { flex:1 1 0; min-width:0; }
+    .cal-detail  { width:340px; flex-shrink:0; }
+    @media(max-width:860px){ .cal-wrapper{flex-direction:column} .cal-detail{width:100%} }
+
+    .cal-header  { display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; }
+    .cal-title   { flex:1; font-size:1.15rem; font-weight:700; text-align:center; text-transform:capitalize; }
+    .cal-nav-btn { background:var(--surface2,#222); border:none; border-radius:8px; width:34px; height:34px;
+                   font-size:1rem; cursor:pointer; color:var(--text,#eee); transition:background .15s; }
+    .cal-nav-btn:hover { background:var(--accent,#3b82f6); color:#fff; }
+
+    .cal-grid    { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+    .cal-dow     { text-align:center; font-size:.68rem; font-weight:600; color:var(--text-muted,#888);
+                   padding:3px 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+    .cal-day     { background:var(--bg-secondary,#1a1a2e); border-radius:7px; padding:6px 5px;
+                   min-height:64px; cursor:pointer; position:relative; transition:background .15s,transform .1s;
+                   display:flex; flex-direction:column; gap:3px; }
+    .cal-day:hover { background:var(--bg-hover,#252540); transform:translateY(-1px); }
+    .cal-day.empty { background:transparent; cursor:default; pointer-events:none; }
+    .cal-day.today { outline:2px solid var(--accent,#3b82f6); outline-offset:-2px; }
+    .cal-day.selected { background:var(--accent,#3b82f6) !important; }
+    .cal-day.selected .cal-dn { color:#fff; }
+    .cal-day.past .cal-dn { color:var(--text-muted,#666); }
+    .cal-dn      { font-size:.78rem; font-weight:600; line-height:1; }
+    .cal-cnt     { font-size:.65rem; font-weight:700; background:var(--accent,#3b82f6); color:#fff;
+                   border-radius:10px; padding:1px 6px; align-self:flex-start; line-height:1.6; }
+    .cal-day.selected .cal-cnt { background:rgba(255,255,255,.3); }
+    .cal-dots    { display:flex; flex-wrap:wrap; gap:2px; margin-top:auto; }
+    .cal-dot     { width:6px; height:6px; border-radius:50%; }
+    .dot-COORDINADA{background:#3b82f6} .dot-EN_CAMINO{background:#f59e0b}
+    .dot-INSTALADA{background:#22c55e} .dot-DEVOLVER_A_VENTAS{background:#ef4444}
+
+    .cal-summary { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:.75rem; }
+    .cal-chip    { background:var(--bg-secondary,#1a1a2e); border-radius:8px; padding:.3rem .7rem;
+                   font-size:.78rem; display:flex; align-items:center; gap:5px; }
+    .cal-chip .dot { width:8px; height:8px; border-radius:50%; }
+
+    .det-card    { background:var(--bg-secondary,#1a1a2e); border-radius:10px; padding:1rem; }
+    .det-title   { font-size:.92rem; font-weight:700; color:var(--accent,#3b82f6);
+                   margin-bottom:.75rem; text-transform:capitalize; }
+    .det-empty   { color:var(--text-muted,#888); font-size:.85rem; text-align:center; padding:1.5rem 0; }
+    .det-item    { background:var(--bg-card,#111); border-radius:7px; padding:.65rem .75rem;
+                   margin-bottom:.5rem; border-left:3px solid var(--accent,#3b82f6);
+                   cursor:pointer; transition:background .15s; }
+    .det-item:hover { background:var(--bg-hover,#1e1e30); }
+    .det-item.ec-EN_CAMINO    { border-color:#f59e0b; }
+    .det-item.ec-INSTALADA    { border-color:#22c55e; }
+    .det-item.ec-DEVOLVER_A_VENTAS { border-color:#ef4444; }
+    .det-cliente { font-weight:600; font-size:.88rem; margin-bottom:2px; }
+    .det-meta    { font-size:.74rem; color:var(--text-muted,#888); display:flex; flex-wrap:wrap; gap:5px; margin-top:3px; }
+    .det-tag     { background:var(--bg-secondary,#1a1a2e); border-radius:3px; padding:1px 5px; font-size:.68rem; }
+
+    @media(max-width:560px){
+      .cal-day{ min-height:46px; padding:4px 3px; }
+      .cal-dn { font-size:.7rem; }
+      .cal-dots{ display:none; }
+    }
+  </style>
+
+  <!-- Summary chips -->
+  <div class="cal-summary">
+    <div class="cal-chip"><span class="dot" style="background:#3b82f6"></span><span id="sc-coord">–</span> Coordinadas</div>
+    <div class="cal-chip"><span class="dot" style="background:#f59e0b"></span><span id="sc-cam">–</span> En camino</div>
+    <div class="cal-chip"><span class="dot" style="background:#22c55e"></span><span id="sc-inst">–</span> Instaladas</div>
+    <div class="cal-chip"><span class="dot" style="background:#ef4444"></span><span id="sc-prob">–</span> Devolver a ventas</div>
+  </div>
+
+  <div class="cal-wrapper">
+    <!-- Grid -->
+    <div class="cal-panel">
+      <div class="cal-header">
+        <button class="cal-nav-btn" onclick="calChangeMonth(-1)">‹</button>
+        <div class="cal-title" id="cal-mes-title">—</div>
+        <button class="cal-nav-btn" onclick="calChangeMonth(1)">›</button>
+        <button class="btn btn-ghost" style="font-size:.78rem;padding:.3rem .6rem" onclick="calGoHoy()">Hoy</button>
+      </div>
+      <!-- DOW headers -->
+      <div class="cal-grid">
+        <div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div>
+        <div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div>
+        <div class="cal-dow">Dom</div>
+      </div>
+      <div class="cal-grid" id="cal-grid-cells">
+        <div class="cal-dow" style="grid-column:1/-1;text-align:center;padding:1rem;color:var(--text-muted)">Cargando…</div>
+      </div>
+    </div>
+    <!-- Detail -->
+    <div class="cal-detail">
+      <div class="det-card" id="det-card">
+        <div class="det-empty">Seleccioná un día para ver las entregas</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ESTA SEMANA (grilla semanal) -->
+<div id="tab-semana" style="display:none">
+  <style>
+    .sem-vencidas { background:rgba(239,68,68,.10); border:2px solid #ef4444; border-radius:12px; padding:14px 18px; margin-bottom:20px; }
+    .sem-venc-tit { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:800; color:#ef4444; margin-bottom:10px; cursor:pointer; user-select:none; }
+    .sem-venc-tit .chevron { transition:transform .2s; display:inline-block; }
+    .sem-venc-tit .chevron.open { transform:rotate(90deg); }
+    .sem-venc-lista { display:flex; flex-direction:column; gap:8px; }
+    .card-vencida { background:var(--bg-secondary,#1a1a2e); border:1px solid rgba(239,68,68,.4); border-left:4px solid #ef4444; border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .vencida-fecha { background:#ef4444; color:#fff; border-radius:6px; padding:3px 10px; font-size:12px; font-weight:800; white-space:nowrap; flex-shrink:0; }
+    .vencida-info { flex:1; min-width:140px; }
+    .vencida-cliente { font-size:14px; font-weight:700; color:var(--text); }
+    .vencida-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    .btn-reprog { background:#ef4444; color:#fff; border:none; border-radius:7px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .btn-reprog:hover { opacity:.85; }
+    .sem-nav { display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+    .sem-nav h2 { font-size:16px; font-weight:700; margin:0; color:var(--text); flex:1; }
+    .sem-leyenda { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; font-size:12px; font-weight:600; color:var(--text-muted); }
+    .sem-ley-item { display:flex; align-items:center; gap:6px; }
+    .sem-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .sem-dot-coord { background:#f59e0b; } .sem-dot-camino { background:#3b82f6; } .sem-dot-inst { background:#10b981; }
+    .grilla-semana { display:grid; grid-template-columns:repeat(7,minmax(155px,1fr)); gap:10px; overflow-x:auto; padding-bottom:16px; }
+    .dia-col { display:flex; flex-direction:column; gap:8px; }
+    .dia-header { border-radius:10px; padding:10px 12px 8px; background:var(--bg-secondary,#1a1a2e); border:1px solid var(--border,#333); text-align:center; }
+    .dia-header.es-hoy { background:var(--accent,#3b82f6); border-color:var(--accent,#3b82f6); }
+    .dia-header.es-hoy .dia-nombre, .dia-header.es-hoy .dia-numero, .dia-header.es-hoy .dia-mes { color:#fff; }
+    .dia-header.es-hoy .dia-badge { background:rgba(255,255,255,.25); color:#fff; }
+    .dia-nombre { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-muted); }
+    .dia-numero { font-size:26px; font-weight:800; line-height:1; color:var(--text); margin:2px 0; }
+    .dia-mes { font-size:11px; color:var(--text-muted); margin-bottom:6px; }
+    .dia-badge { display:inline-block; background:var(--bg-card,#111); border-radius:20px; padding:2px 10px; font-size:12px; font-weight:700; color:var(--text); }
+    .dia-badge.con { background:var(--accent,#3b82f6); color:#fff; }
+    .entrega-card { border-radius:10px; border:1px solid var(--border,#333); background:var(--bg-secondary,#1a1a2e); overflow:hidden; cursor:pointer; transition:box-shadow .15s,transform .1s; }
+    .entrega-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.25); transform:translateY(-1px); }
+    .entrega-bar { height:4px; width:100%; }
+    .bar-coord { background:#f59e0b; } .bar-camino { background:#3b82f6; } .bar-inst { background:#10b981; }
+    .entrega-body { padding:10px 11px 11px; }
+    .entrega-cliente { font-size:13px; font-weight:700; color:var(--text); line-height:1.25; margin-bottom:5px; }
+    .entrega-producto { display:inline-block; background:rgba(59,130,246,.18); color:var(--accent,#3b82f6); border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; margin-bottom:6px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .entrega-dato { display:flex; align-items:flex-start; gap:5px; font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.3; }
+    .entrega-status { display:inline-flex; align-items:center; gap:4px; border-radius:4px; padding:2px 7px; font-size:11px; font-weight:700; margin-top:7px; }
+    .status-coord { background:#fef3c7; color:#92400e; } .status-camino { background:#dbeafe; color:#1d4ed8; } .status-inst { background:#d1fae5; color:#065f46; }
+    .chip-conf { display:inline-flex; align-items:center; gap:3px; background:#d1fae5; color:#065f46; border-radius:4px; padding:2px 7px; font-size:10px; font-weight:700; margin-left:4px; }
+    .dia-vacio { border:2px dashed var(--border,#333); border-radius:10px; padding:20px 10px; text-align:center; color:var(--text-muted); font-size:12px; }
+    @media(max-width:900px){ .grilla-semana{ grid-template-columns:repeat(4,minmax(145px,1fr)); } }
+    @media(max-width:600px){ .grilla-semana{ grid-template-columns:repeat(2,1fr); } }
+  </style>
+
+  <div id="sem-panel-vencidas" style="display:none" class="sem-vencidas">
+    <div class="sem-venc-tit" onclick="semToggleVencidas()">
+      <span class="chevron open" id="sem-chev">▶</span>
+      <span>⚠️ Entregas no realizadas — <span id="sem-count-vencidas"></span></span>
+    </div>
+    <div class="sem-venc-lista" id="sem-lista-vencidas"></div>
+  </div>
+
+  <div class="sem-nav">
+    <button class="cal-nav-btn" onclick="semCambiarOffset(-7)" title="Semana anterior">‹</button>
+    <button class="btn btn-primary" style="padding:.3rem .9rem" onclick="semIrHoy()">Hoy</button>
+    <button class="btn btn-ghost" style="padding:.3rem .9rem" onclick="semIrAyer()">Ayer</button>
+    <button class="cal-nav-btn" onclick="semCambiarOffset(7)" title="Próxima semana">›</button>
+    <h2 id="sem-titulo">...</h2>
+    <span class="cal-cnt" id="sem-total-badge" style="display:none"></span>
+  </div>
+
+  <div class="sem-leyenda">
+    <div class="sem-ley-item"><div class="sem-dot sem-dot-coord"></div> Coordinada</div>
+    <div class="sem-ley-item"><div class="sem-dot sem-dot-camino"></div> En camino</div>
+    <div class="sem-ley-item"><div class="sem-dot sem-dot-inst"></div> Instalada</div>
+  </div>
+
+  <div id="sem-loading" style="text-align:center;padding:50px;color:var(--text-muted);font-size:15px">⏳ Cargando...</div>
+  <div class="grilla-semana" id="sem-grilla" style="display:none"></div>
+</div>
+
+<!-- ENTREGAS (lista) -->
+<div id="tab-entregas" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <div class="tabs" style="margin:0;border:none">
+      <button class="tab active" id="subtab-todas" onclick="showEntregasView('todas', this)" style="font-size:13px">🚚 Entregas</button>
+      <button class="tab" id="subtab-pendientes" onclick="showEntregasView('pendientes', this)" style="font-size:13px">📋 Pendientes de coordinación</button>
+    </div>
+    <button onclick="nuevaEntrega()" class="btn btn-primary">+ Nueva entrega</button>
+  </div>
+  <div id="entregas-content">
+    <div class="loading"><div class="spinner"></div> Cargando...</div>
+  </div>
+  <div id="pendientes-content" style="display:none">
+    <div class="loading"><div class="spinner"></div> Cargando...</div>
+  </div>
+</div>
+
+<!-- Modal detalle semana -->
+<div class="modal-overlay" id="modal-sem-det" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="sem-det-titulo">Entrega</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-sem-det')">✕</button>
+    </div>
+    <div class="modal-body" id="sem-det-body"></div>
+  </div>
+</div>
+
+<!-- Modal reprogramar -->
+<div class="modal-overlay" id="modal-sem-reprog" style="display:none">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <span class="modal-title">📅 Reprogramar entrega</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-sem-reprog')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="sem-reprog-cliente" style="font-size:13px;color:var(--text-muted);margin-bottom:16px"></div>
+      <label class="form-label">Nueva fecha de instalación</label>
+      <input type="date" id="sem-reprog-fecha" class="form-control" style="margin-bottom:16px">
+      <button class="btn btn-primary btn-lg" style="width:100%" onclick="semConfirmarReprog()">Guardar nueva fecha</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECLAMOS -->
+<div id="tab-reclamos" style="display:none">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button onclick="nuevoReclamo()" class="btn btn-primary">+ Nuevo reclamo</button>
+  </div>
+  <div id="reclamos-content">
+    <div class="loading"><div class="spinner"></div> Cargando...</div>
+  </div>
+</div>
+
+<!-- CALCULADORA FLETE -->
+<div id="tab-flete" style="display:none">
+  <div class="card" style="max-width:480px">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">Calculadora de Flete</h3>
+    <div class="form-group">
+      <label class="form-label">Tarifa de flete</label>
+      <div style="font-size:13px;color:var(--text-muted)">$3.000 por km (desde Zárate)</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Distancia desde Zárate (km)</label>
+      <input type="number" id="flete-km" class="form-control" placeholder="0" oninput="calcularFleteLog()">
+    </div>
+    <div id="flete-resultado" style="margin-top:16px;display:none">
+      <div style="background:var(--bg-secondary);border-radius:var(--radius);padding:16px">
+        <div style="font-size:13px;color:var(--text-secondary)">Flete estimado</div>
+        <div style="font-size:36px;font-weight:800;color:var(--green-light)" id="flete-monto"></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
+          ⚠ Valor estimado. Logística confirma el precio exacto.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal confirmar entrega (Renzo) -->
+<div class="modal-overlay" id="modal-confirmar" style="display:none">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <span class="modal-title">Confirmar entrega</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-confirmar')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="conf-id">
+      <div id="conf-original" style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--text-muted)">
+        <!-- se llena con JS -->
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cliente</label>
+        <div id="conf-cliente" style="font-weight:700;font-size:15px;color:var(--text);padding:4px 0"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha confirmada con el cliente</label>
+        <input type="datetime-local" id="conf-fecha" class="form-control">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Rango horario</label>
+          <input type="text" id="conf-horario" class="form-control" placeholder="09:00-12:00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Equipo asignado</label>
+          <input type="text" id="conf-equipo" class="form-control" placeholder="Luis, Pablo">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas logística</label>
+        <textarea id="conf-notas" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-confirmar')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarConfirmacion()" class="btn btn-primary btn-lg">✓ Confirmar fecha</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal entrega -->
+<div class="modal-overlay" id="modal-entrega" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="entrega-title">Nueva Entrega</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-entrega')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="entrega-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cliente *</label>
+            <input name="cliente_nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Localidad</label>
+            <input name="cliente_localidad" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Producto / descripción</label>
+          <input name="producto" class="form-control" placeholder="Piscina Minimalista Mediana - Celeste">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Fecha instalación</label>
+            <input type="datetime-local" name="fecha_instalacion" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rango horario</label>
+            <input name="rango_horario" class="form-control" placeholder="09:00-12:00">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Equipo asignado</label>
+            <input name="equipo_asignado" class="form-control" placeholder="Luis, Pablo">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="form-control">
+              <option value="COORDINADA">Coordinada</option>
+              <option value="EN_CAMINO">En camino</option>
+              <option value="INSTALADA">Instalada</option>
+              <option value="DEVOLVER_A_VENTAS">Devolver a ventas</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea name="notas" class="form-control" rows="2"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-entrega')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveEntrega()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal reclamo -->
+<div class="modal-overlay" id="modal-reclamo" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Reclamo / Post-venta</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-reclamo')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="reclamo-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cliente *</label>
+            <input name="cliente_nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input name="cliente_telefono" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descripción del problema *</label>
+          <textarea name="descripcion" class="form-control" rows="3" required></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="form-control">
+              <option value="NUEVO">Nuevo</option>
+              <option value="EN_GESTION">En gestión</option>
+              <option value="RESUELTO">Resuelto</option>
+            </select>
+          </div>
+          <div class="form-group" style="display:none" id="solucion-group">
+            <label class="form-label">Solución aplicada</label>
+            <textarea name="solucion" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-reclamo')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveReclamo()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let entregaEditId = null;
+  let reclamoEditId = null;
+
+  function showTab(tab, btn) {
+    ['calendario','semana','entregas','reclamos','flete'].forEach(t => {
+      document.getElementById(`tab-${t}`).style.display = t === tab ? 'block' : 'none';
+    });
+    document.querySelectorAll('.tabs > .tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (tab === 'calendario') loadCalendario();
+    if (tab === 'semana') semCargar();
+    if (tab === 'entregas') showEntregasView('todas', document.getElementById('subtab-todas'));
+    if (tab === 'reclamos') loadReclamos();
+  }
+
+  // ── Sub-vistas dentro de "Lista entregas" ──────────────────────────────
+  function showEntregasView(view, btn) {
+    document.getElementById('entregas-content').style.display   = view === 'todas' ? 'block' : 'none';
+    document.getElementById('pendientes-content').style.display = view === 'pendientes' ? 'block' : 'none';
+    document.getElementById('subtab-todas').classList.toggle('active', view === 'todas');
+    document.getElementById('subtab-pendientes').classList.toggle('active', view === 'pendientes');
+    if (view === 'todas') loadEntregas();
+    if (view === 'pendientes') loadPendientesCoord();
+  }
+
+  async function loadEntregas() {
+    const container = document.getElementById('entregas-content');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando...</div>';
+    try {
+      const data = await API.get('/api/logistica/entregas');
+      if (!data) return;
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><span class="empty-icon">🚚</span><p>Sin entregas registradas</p></div>';
+        return;
+      }
+      const estadoMap = {
+        COORDINADA: ['badge-yellow','Coordinada'],
+        EN_CAMINO:  ['badge-teal','En camino'],
+        INSTALADA:  ['badge-green','Instalada'],
+        DEVOLVER_A_VENTAS:['badge-red','Devolver a ventas']
+      };
+      const optsMap = {COORDINADA:'Coordinada',EN_CAMINO:'En camino',INSTALADA:'Instalada',DEVOLVER_A_VENTAS:'Devolver a ventas'};
+      container.innerHTML = `<div class="table-wrapper"><table>
+        <thead><tr><th>Cliente</th><th>Producto</th><th>Fecha</th><th>Horario</th><th>Equipo</th><th>Estado</th><th>Cambiar</th></tr></thead>
+        <tbody>${data.map(e => `
+          <tr>
+            <td><div style="font-weight:600">${e.cliente_nombre}</div><div style="font-size:12px;color:var(--text-muted)">${e.cliente_localidad || ''}</div></td>
+            <td style="font-size:13px">${e.producto || '—'}</td>
+            <td style="font-size:13px">${e.fecha_instalacion ? formatDate(e.fecha_instalacion) : '—'}</td>
+            <td style="font-size:13px">${e.rango_horario || '—'}</td>
+            <td style="font-size:13px">${e.equipo_asignado || '—'}</td>
+            <td>${badge(estadoMap, e.estado)}</td>
+            <td>
+              <select onchange="cambiarEstadoEntrega(${e.id}, this.value)" class="form-control" style="max-width:140px;font-size:13px">
+                ${Object.entries(optsMap).map(([val, lbl]) =>
+                  `<option value="${val}" ${val === e.estado ? 'selected' : ''}>${lbl}</option>`
+                ).join('')}
+              </select>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>`;
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar entregas: ${e.message}</div>`;
+    }
+  }
+
+  function nuevaEntrega() {
+    entregaEditId = null;
+    document.getElementById('entrega-form').reset();
+    openModal('modal-entrega');
+  }
+
+  async function saveEntrega() {
+    const data = formToObj(document.getElementById('entrega-form'));
+    try {
+      if (entregaEditId) await API.put(`/api/logistica/entregas/${entregaEditId}`, data);
+      else await API.post('/api/logistica/entregas', data);
+      toast('Entrega guardada');
+      closeModal('modal-entrega');
+      loadEntregas();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function cambiarEstadoEntrega(id, estado) {
+    try {
+      await API.put(`/api/logistica/entregas/${id}`, { estado });
+      toast('Estado actualizado');
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // PENDIENTES DE COORDINACIÓN (ventas de contado en estado COORDINADO)
+  // ──────────────────────────────────────────────────────────────────────
+  let pendientesCache = [];
+  function _prodDesc(v) {
+    let txt = v.producto || '';
+    if (v.modelo_especifico) txt += ' · ' + v.modelo_especifico;
+    if (v.color) txt += ' · ' + v.color;
+    if (v.superficie_m2) txt += ` · ${v.superficie_m2}m²`;
+    return txt || '—';
+  }
+  function _fechaCorta(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso), hoy = new Date();
+    const man = new Date(hoy); man.setDate(hoy.getDate()+1);
+    const mismo = (a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+    const parte = d.toLocaleDateString('es-AR',{weekday:'short',day:'numeric',month:'short'});
+    if (mismo(d,hoy)) return `<span style="color:var(--accent);font-weight:700">HOY · ${parte}</span>`;
+    if (mismo(d,man)) return `<span style="color:#f59e0b;font-weight:700">MÑN · ${parte}</span>`;
+    return parte;
+  }
+  async function loadPendientesCoord() {
+    const container = document.getElementById('pendientes-content');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando...</div>';
+    try {
+      const data = await API.get('/api/coordinacion-entregas');
+      if (!data) return;
+      pendientesCache = data;
+      _renderPendientes(data);
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar: ${e.message}</div>`;
+    }
+  }
+  function _renderPendientes(ventas) {
+    const container = document.getElementById('pendientes-content');
+    if (!ventas.length) {
+      container.innerHTML = `<div class="empty-state"><span class="empty-icon">✅</span><p>Sin entregas pendientes de coordinación</p></div>`;
+      return;
+    }
+    container.innerHTML = `
+      <div class="filters-bar" style="margin-bottom:10px">
+        <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente o localidad..." oninput="filtrarPendientes(this.value)">
+        <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;align-self:center">${ventas.length} pendiente${ventas.length!==1?'s':''}</span>
+      </div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Fecha instalación</th><th>Horario</th><th>Cliente</th><th>Teléfono</th><th>Localidad</th><th>Producto / Modelo</th><th>Notas</th><th>WA</th></tr></thead>
+        <tbody>${ventas.map(v => `
+          <tr>
+            <td style="white-space:nowrap">${_fechaCorta(v.fecha_instalacion)}</td>
+            <td style="font-size:13px;color:var(--text-muted)">${v.rango_horario || '—'}</td>
+            <td><div style="font-weight:700">${v.cliente_nombre}</div></td>
+            <td style="font-size:13px">${v.cliente_telefono || '—'}</td>
+            <td style="font-size:13px">${v.cliente_localidad || '—'}</td>
+            <td style="font-size:13px">${_prodDesc(v)}</td>
+            <td style="font-size:12px;color:var(--text-muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${(v.notas||'').replace(/"/g,'&quot;')}">${v.notas || '—'}</td>
+            <td>${v.cliente_telefono ? `<a href="${whatsappLink(v.cliente_telefono)}" target="_blank" class="btn btn-whatsapp btn-sm">📱</a>` : ''}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>`;
+  }
+  function filtrarPendientes(texto) {
+    const q = texto.toLowerCase().trim();
+    if (!q) { _renderPendientes(pendientesCache); return; }
+    const filtered = pendientesCache.filter(v =>
+      (v.cliente_nombre||'').toLowerCase().includes(q) ||
+      (v.cliente_localidad||'').toLowerCase().includes(q) ||
+      (v.cliente_telefono||'').includes(q) ||
+      (v.modelo_especifico||'').toLowerCase().includes(q));
+    _renderPendientes(filtered);
+    // re-focus search not needed; render replaces input
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // ESTA SEMANA — grilla semanal de entregas (rolling 7 días)
+  // ──────────────────────────────────────────────────────────────────────
+  let semOffset = 0;
+  let semData = null;
+  let semReprogId = null;
+
+  function semFmtFecha(iso){ const [y,m,d]=iso.split('-'); return `${d}/${m}`; }
+  function semFmtFechaLarga(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); const me=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']; return `${parseInt(d)} ${me[parseInt(m)-1]}`; }
+  function semEstadoCls(e){
+    if (e==='EN_CAMINO') return {bar:'bar-camino',st:'status-camino',lbl:'🚚 En camino'};
+    if (e==='INSTALADA') return {bar:'bar-inst',st:'status-inst',lbl:'✅ Instalada'};
+    return {bar:'bar-coord',st:'status-coord',lbl:'📋 Coordinada'};
+  }
+  let semVencidasOpen = true;
+  function semToggleVencidas(){
+    semVencidasOpen = !semVencidasOpen;
+    document.getElementById('sem-lista-vencidas').style.display = semVencidasOpen ? '' : 'none';
+    document.getElementById('sem-chev').classList.toggle('open', semVencidasOpen);
+  }
+  function semFabChip(fab){
+    if(!fab) return '';
+    const map={EN_ESPERA:{c:'background:#fef3c7;color:#92400e',l:'⏳ Fab. en espera'},EN_PROCESO:{c:'background:#dbeafe;color:#1d4ed8',l:'🏭 En fabricación'},TERMINADO:{c:'background:#d1fae5;color:#065f46',l:'✅ Lista p/entregar'},ENTREGADA:{c:'background:#f0fdf4;color:#166534',l:'📦 Entregada'}};
+    const m=map[fab]||{c:'background:var(--bg-secondary);color:var(--text-muted)',l:fab};
+    return `<span style="display:inline-flex;align-items:center;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;${m.c}">${m.l}</span>`;
+  }
+  function semRenderVencidas(vencidas){
+    const panel=document.getElementById('sem-panel-vencidas');
+    if(!vencidas||!vencidas.length){ panel.style.display='none'; return; }
+    document.getElementById('sem-count-vencidas').textContent = `${vencidas.length} pendiente${vencidas.length!==1?'s':''}`;
+    document.getElementById('sem-lista-vencidas').innerHTML = vencidas.map(e=>`
+      <div class="card-vencida">
+        <span class="vencida-fecha">📅 ${semFmtFechaLarga(e.fecha_instalacion)}</span>
+        <div class="vencida-info">
+          <div class="vencida-cliente">${e.cliente_nombre}</div>
+          <div class="vencida-sub">${e.producto||''}${e.cliente_localidad?' · '+e.cliente_localidad:''}${e.equipo_asignado?' · 👷 '+e.equipo_asignado:''}</div>
+        </div>
+        ${e.cliente_telefono?`<a href="${whatsappLink(e.cliente_telefono)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:12px;white-space:nowrap">📱 WA</a>`:''}
+        <button class="btn-reprog" onclick="semAbrirReprog(${e.id},'${(e.cliente_nombre||'').replace(/'/g,"\\'")}')">Reprogramar</button>
+      </div>`).join('');
+    panel.style.display='block';
+  }
+  function semRenderCard(e){
+    const c=semEstadoCls(e.estado);
+    return `
+      <div class="entrega-card" onclick="semVerDet(${e.id})">
+        <div class="entrega-bar ${c.bar}"></div>
+        <div class="entrega-body">
+          <div class="entrega-cliente">${e.cliente_nombre}</div>
+          <div><span class="entrega-producto">${e.producto||'—'}</span></div>
+          ${e.rango_horario?`<div class="entrega-dato">🕐 <strong>${e.rango_horario}</strong></div>`:''}
+          ${e.cliente_localidad?`<div class="entrega-dato">📍 ${e.cliente_localidad}</div>`:''}
+          ${e.equipo_asignado?`<div class="entrega-dato">👷 ${e.equipo_asignado}</div>`:''}
+          <div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+            <span class="entrega-status ${c.st}">${c.lbl}</span>
+            ${e.confirmada?'<span class="chip-conf">✓ Conf.</span>':''}
+            ${semFabChip(e.fab_estado)}
+          </div>
+        </div>
+      </div>`;
+  }
+  async function semCargar(){
+    document.getElementById('sem-loading').style.display='block';
+    document.getElementById('sem-grilla').style.display='none';
+    document.getElementById('sem-total-badge').style.display='none';
+    let res;
+    try { res = await fetch(`/api/logistica/semana?offset=${semOffset}`); }
+    catch(err){ document.getElementById('sem-loading').textContent='Error al cargar.'; return; }
+    if(!res.ok){ document.getElementById('sem-loading').textContent='Error al cargar.'; return; }
+    semData = await res.json();
+    document.getElementById('sem-titulo').textContent = `${semFmtFecha(semData.inicio)} — ${semFmtFecha(semData.fin)}`;
+    if(semData.total_semana>0){
+      const b=document.getElementById('sem-total-badge');
+      b.textContent=`${semData.total_semana} entrega${semData.total_semana!==1?'s':''}`;
+      b.style.display='inline-block';
+    }
+    document.getElementById('sem-grilla').innerHTML = semData.dias.map(dia=>{
+      const badge = dia.total>0 ? `<div class="dia-badge con">${dia.total}</div>` : `<div class="dia-badge">—</div>`;
+      const header = `<div class="dia-header${dia.es_hoy?' es-hoy':''}"><div class="dia-nombre">${dia.dia_corto}</div><div class="dia-numero">${dia.numero}</div><div class="dia-mes">${dia.mes.toUpperCase()}</div>${badge}</div>`;
+      const cards = dia.entregas.length===0 ? `<div class="dia-vacio">Sin entregas</div>` : dia.entregas.map(semRenderCard).join('');
+      return `<div class="dia-col">${header}${cards}</div>`;
+    }).join('');
+    document.getElementById('sem-loading').style.display='none';
+    document.getElementById('sem-grilla').style.display='grid';
+    semRenderVencidas(semData.vencidas);
+  }
+  function semCambiarOffset(d){ semOffset+=d; semCargar(); }
+  function semIrHoy(){ semOffset=0; semCargar(); }
+  function semIrAyer(){ semOffset=-1; semCargar(); }
+  function semVerDet(id){
+    if(!semData) return;
+    let e=null;
+    for(const dia of semData.dias){ e=dia.entregas.find(x=>x.id===id); if(e) break; }
+    if(!e) return;
+    const c=semEstadoCls(e.estado);
+    document.getElementById('sem-det-titulo').textContent = `📦 ${e.cliente_nombre}`;
+    document.getElementById('sem-det-body').innerHTML = `
+      <div class="form-group"><label class="form-label">Producto</label><div>${e.producto||'—'}</div></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Localidad</label><div>${e.cliente_localidad||'—'}</div></div>
+        <div class="form-group"><label class="form-label">Horario</label><div>${e.rango_horario||'—'}</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Equipo</label><div>${e.equipo_asignado||'—'}</div></div>
+        <div class="form-group"><label class="form-label">Teléfono</label><div>${e.cliente_telefono?`<a href="${whatsappLink(e.cliente_telefono)}" target="_blank" style="color:var(--accent)">📱 ${e.cliente_telefono}</a>`:'—'}</div></div>
+      </div>
+      <div class="form-group"><label class="form-label">Estado</label><div><span class="entrega-status ${c.st}">${c.lbl}</span>${e.confirmada?'<span class="chip-conf" style="margin-left:6px">✓ Confirmada</span>':''}</div></div>
+      ${e.requiere_fabricacion?`<div class="form-group"><label class="form-label">Fabricación</label><div>${semFabChip(e.fab_estado)||'<span style="color:var(--text-muted)">Sin orden registrada</span>'}</div></div>`:''}
+      ${e.notas?`<div class="form-group"><label class="form-label">Notas</label><div style="white-space:pre-wrap;color:var(--text-muted)">${e.notas}</div></div>`:''}
+      <button class="btn-reprog" style="width:100%;margin-top:8px" onclick="closeModal('modal-sem-det');semAbrirReprog(${e.id},'${(e.cliente_nombre||'').replace(/'/g,"\\'")}')">📅 Reprogramar esta entrega</button>`;
+    openModal('modal-sem-det');
+  }
+  function semAbrirReprog(id,nombre){
+    semReprogId=id;
+    document.getElementById('sem-reprog-cliente').textContent=nombre;
+    const hoy=new Date().toISOString().split('T')[0];
+    const input=document.getElementById('sem-reprog-fecha');
+    input.min=hoy; input.value=hoy;
+    openModal('modal-sem-reprog');
+  }
+  async function semConfirmarReprog(){
+    const fecha=document.getElementById('sem-reprog-fecha').value;
+    if(!fecha||!semReprogId) return;
+    try {
+      await API.put(`/api/logistica/entregas/${semReprogId}`, { fecha_instalacion: fecha+'T09:00:00' });
+      closeModal('modal-sem-reprog');
+      toast('Entrega reprogramada');
+      semCargar();
+    } catch(e){ toast(e.message,'error'); }
+  }
+
+  async function loadReclamos() {
+    const container = document.getElementById('reclamos-content');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando...</div>';
+    try {
+      const data = await API.get('/api/logistica/reclamos');
+      if (!data) return;
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><span class="empty-icon">🔧</span><p>Sin reclamos</p></div>';
+        return;
+      }
+      const estadoReclamo = {NUEVO:['badge-red','Nuevo'],EN_GESTION:['badge-yellow','En gestión'],RESUELTO:['badge-green','Resuelto']};
+      container.innerHTML = data.map(r => `
+        <div class="card" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div>
+              <div style="font-weight:700">${r.cliente_nombre}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${formatDate(r.fecha_reclamo)}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              ${badge(estadoReclamo, r.estado)}
+              ${r.cliente_telefono ? `<a href="${whatsappLink(r.cliente_telefono)}" target="_blank" class="btn btn-whatsapp btn-sm">📱</a>` : ''}
+            </div>
+          </div>
+          <div style="margin-top:8px;font-size:14px">${r.descripcion}</div>
+          ${r.solucion ? `<div style="margin-top:6px;font-size:13px;color:var(--green-light)">✓ ${r.solucion}</div>` : ''}
+          <div style="margin-top:10px">
+            <select onchange="cambiarEstadoReclamo(${r.id}, this.value)" class="form-control" style="max-width:150px;font-size:13px">
+              <option value="NUEVO" ${r.estado === 'NUEVO' ? 'selected' : ''}>Nuevo</option>
+              <option value="EN_GESTION" ${r.estado === 'EN_GESTION' ? 'selected' : ''}>En gestión</option>
+              <option value="RESUELTO" ${r.estado === 'RESUELTO' ? 'selected' : ''}>Resuelto</option>
+            </select>
+          </div>
+        </div>
+      `).join('');
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar reclamos: ${e.message}</div>`;
+    }
+  }
+
+  function nuevoReclamo() {
+    document.getElementById('reclamo-form').reset();
+    openModal('modal-reclamo');
+  }
+
+  async function saveReclamo() {
+    const data = formToObj(document.getElementById('reclamo-form'));
+    try {
+      await API.post('/api/logistica/reclamos', data);
+      toast('Reclamo registrado');
+      closeModal('modal-reclamo');
+      loadReclamos();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function cambiarEstadoReclamo(id, estado) {
+    const solucion = estado === 'RESUELTO' ? prompt('Describí la solución aplicada:') : '';
+    try {
+      await API.put(`/api/logistica/reclamos/${id}`, { estado, solucion: solucion || '' });
+      toast('Estado actualizado');
+      loadReclamos();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  function calcularFleteLog() {
+    const km = parseFloat(document.getElementById('flete-km').value || 0);
+    const precio = 3000;
+    const total = km * precio;
+
+    const res = document.getElementById('flete-resultado');
+    if (km > 0) {
+      res.style.display = 'block';
+      document.getElementById('flete-monto').textContent = formatMoney(total);
+    } else {
+      res.style.display = 'none';
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // CALENDARIO MENSUAL DE ENTREGAS
+  // ──────────────────────────────────────────────────────────────────────
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DOW_MON_FIRST = [1,2,3,4,5,6,0];  // getDay() → col (0=Lun…6=Dom)
+  const ESTADO_LBL = {COORDINADA:'Coordinada',EN_CAMINO:'En camino',INSTALADA:'Instalada',DEVOLVER_A_VENTAS:'Devolver a ventas'};
+
+  let calYear  = new Date().getFullYear();
+  let calMonth = new Date().getMonth() + 1;
+  let calData  = {};
+  let calSelDay = null;
+
+  async function loadCalendario() {
+    const grid = document.getElementById('cal-grid-cells');
+    if (!grid) return;
+    grid.innerHTML = `<div class="cal-dow" style="grid-column:1/-1;text-align:center;padding:1rem;color:var(--text-muted)">Cargando…</div>`;
+    document.getElementById('cal-mes-title').textContent = `${MESES[calMonth-1]} ${calYear}`;
+
+    try {
+      const data = await API.get(`/api/logistica/calendario-mes?year=${calYear}&month=${calMonth}`);
+      if (!data) return;
+      calData = data;
+    } catch(err) {
+      grid.innerHTML = `<div class="cal-dow" style="grid-column:1/-1;color:#ef4444;padding:1rem">Error: ${err.message}</div>`;
+      return;
+    }
+    _renderCalGrid();
+    _renderCalSummary();
+    if (calSelDay && calSelDay.startsWith(`${calYear}-${String(calMonth).padStart(2,'0')}`)) {
+      _renderDetalle(calSelDay);
+    } else {
+      calSelDay = null;
+      document.getElementById('det-card').innerHTML = '<div class="det-empty">Seleccioná un día para ver las entregas</div>';
+    }
+  }
+
+  function _renderCalGrid() {
+    const grid = document.getElementById('cal-grid-cells');
+    grid.innerHTML = '';
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    const firstDate = new Date(calYear, calMonth-1, 1);
+    const startCol  = DOW_MON_FIRST.indexOf(firstDate.getDay());
+    const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+
+    for (let i = 0; i < startCol; i++) {
+      const e = document.createElement('div'); e.className = 'cal-day empty'; grid.appendChild(e);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const count = (calData.counts||{})[key] || 0;
+      const isPast = new Date(calYear,calMonth-1,d) < new Date(today.getFullYear(),today.getMonth(),today.getDate());
+
+      const cell = document.createElement('div');
+      cell.className = 'cal-day';
+      if (key === todayKey) cell.classList.add('today');
+      if (isPast) cell.classList.add('past');
+      if (key === calSelDay) cell.classList.add('selected');
+      cell.dataset.date = key;
+
+      const dn = document.createElement('div'); dn.className='cal-dn'; dn.textContent=d; cell.appendChild(dn);
+
+      if (count > 0) {
+        const cnt = document.createElement('span'); cnt.className='cal-cnt';
+        cnt.textContent = count + (count===1?' entrega':' entregas'); cell.appendChild(cnt);
+        const dots = document.createElement('div'); dots.className='cal-dots';
+        ((calData.entregas||{})[key]||[]).forEach(e => {
+          const dot = document.createElement('div'); dot.className=`cal-dot dot-${e.estado}`; dots.appendChild(dot);
+        });
+        cell.appendChild(dots);
+      }
+      cell.addEventListener('click', () => _selectDay(key));
+      grid.appendChild(cell);
+    }
+  }
+
+  function _selectDay(key) {
+    calSelDay = key;
+    document.querySelectorAll('.cal-day').forEach(el => el.classList.toggle('selected', el.dataset.date===key));
+    _renderDetalle(key);
+  }
+
+  function _renderDetalle(key) {
+    const entregas = (calData.entregas||{})[key] || [];
+    const [y,m,d] = key.split('-');
+    const label = new Date(+y,+m-1,+d).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+    const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
+    const card = document.getElementById('det-card');
+
+    if (!entregas.length) {
+      card.innerHTML = `<div class="det-title">${cap(label)}</div><div class="det-empty">Sin entregas este día</div>`;
+      return;
+    }
+
+    let html = `<div class="det-title">${cap(label)} — ${entregas.length} entrega${entregas.length>1?'s':''}</div>`;
+    entregas.forEach(e => {
+      const tags = [];
+      if (e.confirmada) tags.push(`<span class="det-tag" style="background:#22c55e22;color:#22c55e">✓ Confirmada</span>`);
+      else              tags.push(`<span class="det-tag">Sin confirmar</span>`);
+      if (e.requiere_fabricacion && !e.fab_lista) tags.push(`<span class="det-tag" style="background:#f59e0b22;color:#f59e0b">⚠ Fab. pendiente</span>`);
+      else if (e.requiere_fabricacion)            tags.push(`<span class="det-tag" style="background:#22c55e22;color:#22c55e">✓ Fab. lista</span>`);
+
+      html += `
+        <div class="det-item ec-${e.estado}" onclick='abrirConfirmar(${JSON.stringify(e)})'>
+          <div class="det-cliente">${e.cliente_nombre}</div>
+          <div class="det-meta">
+            <span>📍 ${e.cliente_localidad||'—'}</span>
+            <span>🕐 ${e.rango_horario||'—'}</span>
+            ${e.equipo_asignado?`<span>👷 ${e.equipo_asignado}</span>`:''}
+          </div>
+          <div class="det-meta" style="margin-top:3px">
+            <span>📦 ${e.producto}</span>${tags.join('')}
+          </div>
+          ${e.notas?`<div class="det-meta" style="margin-top:3px;font-style:italic">💬 ${e.notas}</div>`:''}
+        </div>`;
+    });
+    card.innerHTML = html;
+  }
+
+  function _renderCalSummary() {
+    const c = {COORDINADA:0,EN_CAMINO:0,INSTALADA:0,DEVOLVER_A_VENTAS:0};
+    Object.values(calData.entregas||{}).flat().forEach(e=>{ if(c[e.estado]!==undefined) c[e.estado]++; });
+    document.getElementById('sc-coord').textContent = c.COORDINADA;
+    document.getElementById('sc-cam').textContent   = c.EN_CAMINO;
+    document.getElementById('sc-inst').textContent  = c.INSTALADA;
+    document.getElementById('sc-prob').textContent  = c.DEVOLVER_A_VENTAS;
+  }
+
+  function calChangeMonth(delta) {
+    calMonth += delta;
+    if (calMonth < 1)  { calMonth=12; calYear--; }
+    if (calMonth > 12) { calMonth=1;  calYear++; }
+    loadCalendario();
+  }
+
+  function calGoHoy() {
+    const now = new Date();
+    calYear=now.getFullYear(); calMonth=now.getMonth()+1;
+    loadCalendario();
+  }
+
+  function abrirConfirmar(e) {
+    document.getElementById('conf-id').value = e.id;
+    document.getElementById('conf-cliente').textContent = e.cliente_nombre + (e.producto ? ' — ' + e.producto : '');
+
+    const orig = document.getElementById('conf-original');
+    orig.innerHTML = `
+      <strong>Fecha pactada por el vendedor:</strong>
+      ${e.fecha_original_venta ? formatDate(e.fecha_original_venta) : '—'}
+      ${e.fecha_original_venta && e.fecha_original_venta !== e.fecha_instalacion
+        ? `<br><strong>Fecha actual:</strong> ${formatDate(e.fecha_instalacion)}`
+        : ''}
+      ${e.requiere_fabricacion && !e.fab_lista
+        ? '<br><span style="color:#5bc0f8">⚠ La orden de fábrica aún no está lista.</span>'
+        : ''}
+    `;
+    if (e.fecha_instalacion) {
+      const dt = new Date(e.fecha_instalacion);
+      document.getElementById('conf-fecha').value = new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    } else {
+      document.getElementById('conf-fecha').value = '';
+    }
+    document.getElementById('conf-horario').value = e.rango_horario || '';
+    document.getElementById('conf-equipo').value = e.equipo_asignado || '';
+    document.getElementById('conf-notas').value = e.notas || '';
+    openModal('modal-confirmar');
+  }
+
+  async function guardarConfirmacion() {
+    const id = document.getElementById('conf-id').value;
+    const fecha = document.getElementById('conf-fecha').value;
+    if (!fecha) { toast('Seleccioná una fecha', 'error'); return; }
+    try {
+      const r = await API.post(`/api/logistica/entregas/${id}/confirmar`, {
+        fecha_instalacion: fecha,
+        rango_horario: document.getElementById('conf-horario').value,
+        equipo_asignado: document.getElementById('conf-equipo').value,
+        notas: document.getElementById('conf-notas').value,
+      });
+      closeModal('modal-confirmar');
+      toast(`Entrega confirmada por ${r.confirmada_por || 'vos'}`, 'success');
+      loadCalendario();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // Iniciar en el tab calendario
+  loadCalendario();
+
+  // Pre-activar tab desde URL param (ej: /logistica?tab=reclamos)
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const tab = p.get('tab');
+    const tabIndex = {calendario:0, semana:1, entregas:2, reclamos:3, flete:4};
+    if (tab in tabIndex && tab !== 'calendario') {
+      const tabBtns = document.querySelectorAll('.tabs > .tab');
+      const idx = tabIndex[tab];
+      if (tabBtns[idx]) showTab(tab, tabBtns[idx]);
+    }
+  })();
+</script>
+{% endblock %}

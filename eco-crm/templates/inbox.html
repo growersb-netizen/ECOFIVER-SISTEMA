@@ -1,0 +1,661 @@
+{% extends "base.html" %}
+{% block title %}Bandeja de Entrada — WhatsApp{% endblock %}
+
+{% block content %}
+<style>
+  #inbox-wrapper {
+    display: flex;
+    height: calc(100vh - 120px);
+    gap: 0;
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  /* Botón volver — solo visible en mobile */
+  #btn-volver { display: none; }
+
+  /* ── Panel izquierdo — lista de conversaciones ── */
+  #conv-list {
+    width: 320px;
+    min-width: 280px;
+    border-right: 1px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fa;
+  }
+  #conv-search {
+    padding: 12px;
+    border-bottom: 1px solid #dee2e6;
+  }
+  #conv-search input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    font-size: 14px;
+  }
+  #conv-items {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .conv-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #e9ecef;
+    transition: background 0.15s;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .conv-item:hover { background: #e9f5ff; }
+  .conv-item.active { background: #d0eaff; border-left: 3px solid #0d6efd; }
+  .conv-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #0d6efd22;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    color: #0d6efd;
+    flex-shrink: 0;
+  }
+  .conv-avatar.humano { background: #ff980022; color: #ff9800; }
+  .conv-avatar.pausado { background: #9e9e9e22; color: #9e9e9e; }
+  .conv-body { flex: 1; min-width: 0; }
+  .conv-name {
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .conv-preview {
+    font-size: 12px;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+  }
+  .conv-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .conv-time { font-size: 11px; color: #adb5bd; }
+  .badge-unread {
+    background: #0d6efd;
+    color: #fff;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .mode-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .mode-badge.bot { background: #e3f2fd; color: #1565c0; }
+  .mode-badge.humano { background: #fff3e0; color: #e65100; }
+  .mode-badge.pausado { background: #f5f5f5; color: #757575; }
+
+  /* ── Panel derecho — chat ── */
+  #chat-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #f0f4f8;
+  }
+  #chat-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #adb5bd;
+    font-size: 18px;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #chat-header {
+    padding: 12px 16px;
+    background: #fff;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #chat-header-name { font-weight: 700; font-size: 16px; flex: 1; }
+  #chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .msg-bubble {
+    max-width: 70%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .msg-bubble.in {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
+  .msg-bubble.out {
+    background: #dcf8c6;
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+  }
+  .msg-bubble.out.admin { background: #e3d5ff; }
+  .msg-meta {
+    font-size: 10px;
+    color: #adb5bd;
+    margin-top: 4px;
+    text-align: right;
+  }
+  .msg-bubble.in .msg-meta { text-align: left; }
+  .msg-sender {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 2px;
+  }
+  #chat-footer {
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+  }
+  #reply-area {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  #reply-text {
+    flex: 1;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 14px;
+    resize: none;
+    max-height: 120px;
+    outline: none;
+  }
+  #reply-text:focus { border-color: #0d6efd; }
+  #btn-send {
+    background: #25d366;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  #btn-send:hover { background: #1da851; }
+  #bot-mode-notice {
+    text-align: center;
+    color: #6c757d;
+    font-size: 13px;
+    padding: 8px;
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     MOBILE — una sola columna por pantalla (lista ⇄ chat)
+     ════════════════════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    /* Sin padding del container ni cabecera grande para ganar pantalla */
+    #inbox-container { padding: 0 !important; }
+    #inbox-page-head { display: none !important; }
+
+    #inbox-wrapper {
+      height: calc(100dvh - var(--nav-height, 60px) - var(--bottom-nav-height, 64px));
+      border: none;
+      border-radius: 0;
+    }
+
+    /* La lista ocupa todo el ancho */
+    #conv-list {
+      width: 100%;
+      min-width: 0;
+      border-right: none;
+    }
+    #conv-search { padding: 10px; position: sticky; top: 0; z-index: 5; background: #f8f9fa; }
+    #conv-search input { padding: 11px 14px; font-size: 15px; }
+    .conv-item { padding: 14px 14px; }
+    .conv-avatar { width: 46px; height: 46px; font-size: 17px; }
+    .conv-name { font-size: 15px; }
+    .conv-preview { font-size: 13px; }
+
+    /* El chat también ocupa todo el ancho, y se oculta hasta abrir uno */
+    #chat-panel { width: 100%; }
+    #inbox-wrapper:not(.chat-open) #chat-panel { display: none; }
+    #inbox-wrapper.chat-open #conv-list { display: none; }
+
+    /* Botón volver visible en el header del chat */
+    #btn-volver {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px; height: 38px;
+      border: none; background: transparent;
+      font-size: 24px; color: #0d6efd;
+      cursor: pointer; flex-shrink: 0;
+      margin-right: 2px;
+    }
+
+    /* Header del chat: nombre arriba, controles en fila compacta abajo */
+    #chat-header { padding: 8px 10px; gap: 8px; position: sticky; top: 0; z-index: 5; }
+    #chat-header-name { font-size: 15px; }
+    #chat-header-controls {
+      width: 100%;
+      order: 3;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    #chat-header-controls select { flex: 1; min-width: 0; }
+    #chat-header-controls #link-lead { flex-shrink: 0; }
+
+    .msg-bubble { max-width: 82%; font-size: 15px; }
+    #chat-messages { padding: 12px; }
+    #chat-footer { padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); }
+    #reply-text { font-size: 16px; }  /* evita zoom de iOS al enfocar */
+    #btn-send { width: 46px; height: 46px; }
+  }
+</style>
+
+<div class="container-fluid px-3 pt-3" id="inbox-container">
+  <div class="d-flex align-items-center gap-3 mb-3" id="inbox-page-head">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-chat-dots-fill text-success me-2"></i>Bandeja de Entrada WhatsApp</h4>
+    <span id="conn-indicator" class="badge bg-secondary">Conectando...</span>
+  </div>
+
+  <div id="inbox-wrapper">
+
+    <!-- ── Lista conversaciones ── -->
+    <div id="conv-list">
+      <div id="conv-search">
+        <input type="text" id="search-input" placeholder="🔍 Buscar contacto..." oninput="filtrarConversaciones()">
+      </div>
+      <div id="conv-items">
+        <div class="text-center text-muted p-4" id="conv-loading">
+          <div class="spinner-border spinner-border-sm"></div> Cargando...
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Panel chat ── -->
+    <div id="chat-panel">
+
+      <!-- Empty state -->
+      <div id="chat-empty">
+        <i class="bi bi-chat-square-text" style="font-size:48px;opacity:.3"></i>
+        <span>Seleccioná una conversación</span>
+      </div>
+
+      <!-- Header (oculto hasta seleccionar) -->
+      <div id="chat-header" style="display:none">
+        <button id="btn-volver" onclick="volverALista()" title="Volver">&#8592;</button>
+        <div style="flex:1;min-width:0">
+          <div id="chat-header-name">—</div>
+          <div id="chat-header-phone" style="font-size:12px;color:#6c757d">—</div>
+        </div>
+
+        <div id="chat-header-controls" class="d-flex align-items-center gap-2">
+          <!-- Modo de atención -->
+          <div class="d-flex align-items-center gap-1">
+            <span class="text-muted d-none d-md-inline" style="font-size:13px">Modo:</span>
+            <select id="sel-modo" class="form-select form-select-sm" style="width:120px" onchange="cambiarModo()">
+              <option value="bot">🤖 Bot</option>
+              <option value="humano">👤 Humano</option>
+              <option value="pausado">⏸ Pausado</option>
+            </select>
+          </div>
+
+          <!-- Agente asignado -->
+          <div class="d-flex align-items-center gap-1">
+            <span class="text-muted d-none d-md-inline" style="font-size:13px">Agente:</span>
+            <select id="sel-agente" class="form-select form-select-sm" style="width:130px" onchange="cambiarAgente()">
+              {% for ag in agentes %}
+              <option value="{{ ag }}">{{ ag|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Link al lead -->
+          <a id="link-lead" href="#" target="_blank" class="btn btn-sm btn-outline-primary" style="display:none">
+            <i class="bi bi-person-fill"></i> <span class="d-none d-md-inline">Ver lead</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Mensajes -->
+      <div id="chat-messages" style="display:none"></div>
+
+      <!-- Footer -->
+      <div id="chat-footer" style="display:none">
+        <div id="bot-mode-notice" style="display:none">
+          🤖 El bot está respondiendo automáticamente. Cambiá a modo <b>Humano</b> para responder vos.
+        </div>
+        <div id="reply-area" style="display:none">
+          <textarea id="reply-text" rows="1" placeholder="Escribí un mensaje..." onkeydown="handleKey(event)"></textarea>
+          <button id="btn-send" onclick="enviarMensaje()" title="Enviar (Enter)">
+            <i class="bi bi-send-fill"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  let conversaciones = [];
+  let convActiva = null;  // { phone, lead_id, nombre }
+  let evtSource = null;
+
+  // ── Cargar conversaciones ─────────────────────────────────────────────────
+  async function cargarConversaciones() {
+    try {
+      const r = await fetch('/api/inbox/conversaciones');
+      conversaciones = await r.json();
+      renderConversaciones(conversaciones);
+      document.getElementById('conv-loading').style.display = 'none';
+    } catch(e) {
+      document.getElementById('conv-loading').innerHTML = '<span class="text-danger">Error al cargar</span>';
+    }
+  }
+
+  function renderConversaciones(items) {
+    const container = document.getElementById('conv-items');
+    if (!items.length) {
+      container.innerHTML = '<div class="text-center text-muted p-4">Sin conversaciones aún</div>';
+      return;
+    }
+    container.innerHTML = items.map(c => `
+      <div class="conv-item ${convActiva?.phone === c.phone ? 'active' : ''}"
+           onclick="abrirConversacion('${c.phone}', '${c.nombre.replace(/'/g,"\\'")}', ${c.lead_id || 'null'})"
+           data-nombre="${c.nombre.toLowerCase()}" data-phone="${c.phone}">
+        <div class="conv-avatar ${c.modo}">${c.nombre.charAt(0).toUpperCase()}</div>
+        <div class="conv-body">
+          <div class="conv-name">${escHtml(c.nombre)}</div>
+          <div class="conv-preview">${c.direccion === 'OUT' ? '✓ ' : ''}${escHtml(c.ultimo_mensaje)}</div>
+        </div>
+        <div class="conv-meta">
+          <span class="conv-time">${formatTime(c.ultimo_at)}</span>
+          ${c.no_leidos ? `<span class="badge-unread">${c.no_leidos}</span>` : ''}
+          <span class="mode-badge ${c.modo}">${c.modo}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function filtrarConversaciones() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    const filtered = q ? conversaciones.filter(c =>
+      c.nombre.toLowerCase().includes(q) || c.phone.includes(q)
+    ) : conversaciones;
+    renderConversaciones(filtered);
+  }
+
+  // ── Abrir conversación ────────────────────────────────────────────────────
+  async function abrirConversacion(phone, nombre, leadId) {
+    convActiva = { phone, nombre, lead_id: leadId };
+
+    // Actualizar UI lista
+    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+    const items = document.querySelectorAll('.conv-item');
+    items.forEach(el => { if (el.dataset.phone === phone) el.classList.add('active'); });
+
+    // Mostrar panel
+    document.getElementById('chat-empty').style.display = 'none';
+    document.getElementById('chat-header').style.display = 'flex';
+    document.getElementById('chat-messages').style.display = 'flex';
+    document.getElementById('chat-footer').style.display = 'block';
+
+    document.getElementById('chat-header-name').textContent = nombre;
+    document.getElementById('chat-header-phone').textContent = '+' + phone;
+
+    // Mobile: pasar a vista de chat a pantalla completa
+    document.getElementById('inbox-wrapper').classList.add('chat-open');
+    // Soporte botón "atrás" del celular para volver a la lista
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      history.pushState({ inboxChat: true }, '');
+    }
+
+    // Cargar mensajes
+    await cargarMensajes(phone);
+  }
+
+  // Volver a la lista de conversaciones (mobile)
+  function volverALista() {
+    // Si hay un estado de historial empujado, lo "consumimos" con back()
+    // (el popstate se encarga de cerrar el chat). Evita entradas colgadas.
+    if (window.matchMedia('(max-width: 768px)').matches && history.state && history.state.inboxChat) {
+      history.back();
+    } else {
+      cerrarChat();
+    }
+  }
+
+  function cerrarChat() {
+    const wrapper = document.getElementById('inbox-wrapper');
+    wrapper.classList.remove('chat-open');
+    convActiva = null;
+    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+  }
+
+  // Botón atrás del navegador/celular → volver a la lista en vez de salir
+  window.addEventListener('popstate', () => {
+    const wrapper = document.getElementById('inbox-wrapper');
+    if (wrapper.classList.contains('chat-open')) {
+      cerrarChat();
+    }
+  });
+
+  async function cargarMensajes(phone) {
+    const r = await fetch(`/api/inbox/conversaciones/${phone}/mensajes`);
+    const data = await r.json();
+
+    // Config del lead
+    const lead = data.lead;
+    if (lead) {
+      document.getElementById('sel-modo').value = lead.modo || 'bot';
+      document.getElementById('sel-agente').value = lead.agente || 'valentina';
+      const linkLead = document.getElementById('link-lead');
+      linkLead.href = `/leads?id=${lead.id}`;
+      linkLead.style.display = '';
+    }
+
+    actualizarModoUI(lead?.modo || 'bot');
+
+    // Renderizar mensajes
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = data.mensajes.map(m => renderMensaje(m)).join('');
+    container.scrollTop = container.scrollHeight;
+
+    // Quitar badges de no leídos en la lista
+    cargarConversaciones();
+  }
+
+  function renderMensaje(m) {
+    const isOut = m.direccion === 'OUT';
+    const isAdmin = m.remitente?.startsWith('admin:');
+    const clases = `msg-bubble ${isOut ? 'out' + (isAdmin ? ' admin' : '') : 'in'}`;
+    const senderLabel = isAdmin
+      ? `👤 ${m.remitente.replace('admin:', '')}`
+      : isOut ? `🤖 ${m.remitente}` : '';
+    return `
+      <div style="display:flex;flex-direction:column;align-items:${isOut ? 'flex-end' : 'flex-start'}">
+        ${senderLabel ? `<div class="msg-sender">${escHtml(senderLabel)}</div>` : ''}
+        <div class="${clases}">${escHtml(m.contenido).replace(/\n/g,'<br>')}
+          <div class="msg-meta">${formatTime(m.created_at)}</div>
+        </div>
+      </div>`;
+  }
+
+  // ── Enviar mensaje manual ─────────────────────────────────────────────────
+  async function enviarMensaje() {
+    const texto = document.getElementById('reply-text').value.trim();
+    if (!texto || !convActiva) return;
+
+    document.getElementById('reply-text').value = '';
+    document.getElementById('btn-send').disabled = true;
+
+    try {
+      const r = await fetch('/api/inbox/conversaciones/responder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: convActiva.phone,
+          texto,
+          lead_id: convActiva.lead_id
+        })
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        alert('Error: ' + (err.detail || 'No se pudo enviar'));
+      }
+    } catch(e) {
+      alert('Error de red al enviar');
+    } finally {
+      document.getElementById('btn-send').disabled = false;
+    }
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      enviarMensaje();
+    }
+  }
+
+  // ── Cambiar modo / agente ─────────────────────────────────────────────────
+  async function cambiarModo() {
+    if (!convActiva?.lead_id) return alert('Esta conversación no tiene lead asociado aún.');
+    const modo = document.getElementById('sel-modo').value;
+    await fetch(`/api/inbox/conversaciones/${convActiva.lead_id}/modo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo })
+    });
+    actualizarModoUI(modo);
+    cargarConversaciones();
+  }
+
+  async function cambiarAgente() {
+    if (!convActiva?.lead_id) return alert('Esta conversación no tiene lead asociado aún.');
+    const agente = document.getElementById('sel-agente').value;
+    await fetch(`/api/inbox/conversaciones/${convActiva.lead_id}/agente`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agente })
+    });
+  }
+
+  function actualizarModoUI(modo) {
+    const notice = document.getElementById('bot-mode-notice');
+    const reply = document.getElementById('reply-area');
+    if (modo === 'humano') {
+      notice.style.display = 'none';
+      reply.style.display = 'flex';
+    } else {
+      notice.style.display = 'block';
+      reply.style.display = 'none';
+    }
+  }
+
+  // ── SSE — tiempo real ─────────────────────────────────────────────────────
+  function conectarSSE() {
+    evtSource = new EventSource('/api/inbox/stream');
+
+    evtSource.onopen = () => {
+      document.getElementById('conn-indicator').textContent = '● En vivo';
+      document.getElementById('conn-indicator').className = 'badge bg-success';
+    };
+
+    evtSource.onerror = () => {
+      document.getElementById('conn-indicator').textContent = '● Reconectando...';
+      document.getElementById('conn-indicator').className = 'badge bg-warning';
+    };
+
+    evtSource.onmessage = (e) => {
+      const evt = JSON.parse(e.data);
+      if (evt.type === 'connected') return;
+
+      if (evt.type === 'nuevo_mensaje') {
+        // Si el mensaje es de la conversación activa, agregarlo al chat
+        if (convActiva && evt.phone === convActiva.phone) {
+          const container = document.getElementById('chat-messages');
+          const div = document.createElement('div');
+          div.innerHTML = renderMensaje(evt);
+          container.appendChild(div.firstElementChild);
+          container.scrollTop = container.scrollHeight;
+        }
+        // Siempre actualizar la lista
+        cargarConversaciones();
+      }
+
+      if (evt.type === 'modo_cambiado') {
+        if (convActiva?.lead_id === evt.lead_id) {
+          document.getElementById('sel-modo').value = evt.modo;
+          actualizarModoUI(evt.modo);
+        }
+        cargarConversaciones();
+      }
+
+      if (evt.type === 'agente_cambiado') {
+        if (convActiva?.lead_id === evt.lead_id) {
+          document.getElementById('sel-agente').value = evt.agente;
+        }
+      }
+    };
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / 86400000);
+    if (diffDays === 0) return d.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+    if (diffDays === 1) return 'Ayer';
+    if (diffDays < 7) return d.toLocaleDateString('es-AR', {weekday:'short'});
+    return d.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit'});
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  cargarConversaciones();
+  conectarSSE();
+</script>
+{% endblock %}

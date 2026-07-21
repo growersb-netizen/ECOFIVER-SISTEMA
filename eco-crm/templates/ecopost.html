@@ -1,0 +1,879 @@
+{% extends "base.html" %}
+{% block title %}Ecopost — Eco Módulos CRM{% endblock %}
+{% block page_title %}📸 Ecopost{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-primary" onclick="openCrear()">+ Nuevo contenido</button>
+{% endblock %}
+
+{% block content %}
+<div class="tabs" id="tabs-main">
+  <button class="tab active" onclick="showMainTab('biblioteca', this)">📚 Biblioteca</button>
+  <button class="tab" onclick="showMainTab('calendario', this)">📅 Calendario</button>
+  <button class="tab" onclick="showMainTab('crear', this)">✨ Crear</button>
+</div>
+
+<!-- ═══════════════════ TAB: BIBLIOTECA ═══════════════════ -->
+<div id="tab-biblioteca">
+
+  <!-- Filtros -->
+  <div class="card mb-3">
+    <div class="card-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <select id="f-estado" class="input" style="width:160px" onchange="loadBiblioteca()">
+        <option value="">Todos los estados</option>
+        <option value="borrador">Borrador</option>
+        <option value="aprobado">Aprobado</option>
+        <option value="publicado">Publicado</option>
+        <option value="archivado">Archivado</option>
+      </select>
+      <select id="f-producto" class="input" style="width:160px" onchange="loadBiblioteca()">
+        <option value="">Todos los productos</option>
+        <option value="PISCINA">Piscinas</option>
+        <option value="MODULO">Módulos</option>
+        <option value="COMBO">Combos</option>
+      </select>
+      <button class="btn btn-ghost" onclick="loadBiblioteca()">🔄 Actualizar</button>
+    </div>
+  </div>
+
+  <!-- Grid de contenidos -->
+  <div id="biblioteca-grid" class="ecopost-grid">
+    <div class="loading">Cargando contenido…</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: CREAR ═══════════════════ -->
+<div id="tab-crear" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px" class="crear-grid">
+
+    <!-- Columna izquierda: formulario -->
+    <div>
+      <div class="card mb-3">
+        <div class="card-header"><strong>📝 Datos del contenido</strong></div>
+        <div class="card-body">
+          <label class="label">Tipo de contenido</label>
+          <select id="c-tipo" class="input mb-2">
+            <option value="flyer">Flyer (1080×1080)</option>
+            <option value="story">Story (9:16)</option>
+            <option value="carrusel">Carrusel</option>
+            <option value="reel">Reel / Video</option>
+          </select>
+
+          <label class="label">Producto</label>
+          <select id="c-producto" class="input mb-2" onchange="actualizarModelos()">
+            <option value="">Seleccionar…</option>
+            <option value="PISCINA">Piscina</option>
+            <option value="MODULO">Módulo habitacional</option>
+            <option value="COMBO">Combo piscina + módulo</option>
+          </select>
+
+          <label class="label">Modelo específico</label>
+          <input id="c-modelo" list="lista-modelos-ep" type="text" class="input mb-2"
+            placeholder="Seleccioná de la lista o escribí…" autocomplete="off">
+          <datalist id="lista-modelos-ep"></datalist>
+          <div id="c-modelo-hint" style="font-size:11px;color:var(--text-secondary);margin-top:2px;display:none"></div>
+
+          <label class="label">Tono</label>
+          <select id="c-tono" class="input mb-2">
+            <option value="profesional y cercano">Profesional y cercano</option>
+            <option value="aspiracional y emocional">Aspiracional y emocional</option>
+            <option value="informativo y directo">Informativo y directo</option>
+            <option value="divertido y dinámico">Divertido y dinámico</option>
+          </select>
+
+          <label class="label">Info extra (opcional)</label>
+          <textarea id="c-extra" class="input mb-3" rows="2" placeholder="Precio, promoción, temporada, dato especial…"></textarea>
+
+          <button class="btn btn-primary w-full" onclick="generarCopy()" id="btn-gen-copy">
+            ✨ Generar copy con IA
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna derecha: resultado -->
+    <div>
+      <div class="card mb-3">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <strong>📄 Copy generado</strong>
+          <button class="btn btn-ghost btn-sm" onclick="generarCopy()" style="font-size:12px">↺ Regenerar</button>
+        </div>
+        <div class="card-body">
+          <label class="label">Título / Encabezado</label>
+          <input id="c-titulo" type="text" class="input mb-2" placeholder="Título del contenido">
+
+          <label class="label">Copy / Texto</label>
+          <textarea id="c-copy" class="input mb-2" rows="5" placeholder="El copy aparecerá aquí…"></textarea>
+
+          <label class="label">Hashtags</label>
+          <input id="c-hashtags" type="text" class="input mb-3" placeholder="#piscinas #modulos #ecomodulos">
+        </div>
+      </div>
+
+      <!-- Imagen -->
+      <div class="card mb-3">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <strong>🖼 Imagen</strong>
+          <button class="btn btn-ghost btn-sm" onclick="generarImagen()" id="btn-gen-img" style="font-size:12px">🎨 Generar con IA</button>
+        </div>
+        <div class="card-body">
+          <label class="label">Prompt de imagen</label>
+          <textarea id="c-img-prompt" class="input mb-2" rows="2" placeholder="Describe la imagen que querés generar…"></textarea>
+          <div id="img-preview" style="text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center;background:#1a1a1a;border-radius:8px;overflow:hidden">
+            <span style="color:#666;font-size:13px">Sin imagen generada</span>
+          </div>
+          <div id="img-status" style="font-size:12px;color:#888;margin-top:6px;text-align:center"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost flex-1" onclick="resetCrear()">🗑 Limpiar</button>
+        <button class="btn btn-primary flex-1" onclick="guardarContenido()" id="btn-guardar">
+          💾 Guardar borrador
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: CALENDARIO ═══════════════════ -->
+<div id="tab-calendario" style="display:none">
+  <!-- Navegación mes -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-ghost btn-sm" onclick="calCambiarMes(-1)">◀</button>
+      <span id="cal-titulo" style="font-size:16px;font-weight:700;min-width:160px;text-align:center"></span>
+      <button class="btn btn-ghost btn-sm" onclick="calCambiarMes(1)">▶</button>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="calIrHoy()">Hoy</button>
+  </div>
+
+  <!-- Grilla semana (lunes a domingo como weekday() de Python) -->
+  <div class="cal-header">
+    <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+  </div>
+  <div id="cal-grid" class="cal-grid">
+    <div class="loading">Cargando calendario...</div>
+  </div>
+
+  <!-- Mini detalle del día seleccionado -->
+  <div id="cal-dia-detalle" style="display:none;margin-top:20px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px" id="cal-dia-titulo"></div>
+    <div id="cal-dia-items" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: DETALLE ═══════════════════ -->
+<div id="modal-detalle" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeDetalle()">
+  <div class="modal" style="max-width:720px;width:95vw">
+    <div class="modal-header">
+      <h3 id="det-titulo">Detalle</h3>
+      <button class="btn btn-icon" onclick="closeDetalle()">✕</button>
+    </div>
+    <div class="modal-body" id="det-body">
+    </div>
+    <div class="modal-footer" id="det-footer">
+    </div>
+  </div>
+</div>
+
+<style>
+/* ─── Ecopost específico ─── */
+.ecopost-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.ecopost-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow .2s;
+}
+.ecopost-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+.ecopost-card-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #444;
+  font-size: 40px;
+}
+.ecopost-card-body { padding: 12px; flex: 1; }
+.ecopost-card-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; color: var(--text-primary); }
+.ecopost-card-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.ecopost-card-copy {
+  font-size: 12px; color: var(--text-secondary);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 8px;
+}
+.ecopost-card-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex; gap: 6px; justify-content: space-between; align-items: center;
+}
+.estado-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
+}
+.estado-borrador  { background: #333; color: #aaa; }
+.estado-aprobado  { background: #1a3a1a; color: #4caf50; }
+.estado-publicado { background: #1a2a3a; color: #42a5f5; }
+.estado-archivado { background: #2a1a1a; color: #888; }
+
+.det-img { width: 100%; max-height: 360px; object-fit: contain; border-radius: 8px; background: #111; margin-bottom: 16px; }
+.det-section { margin-bottom: 16px; }
+.det-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 4px; }
+.det-value { font-size: 14px; color: var(--text-primary); white-space: pre-wrap; }
+.creating-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+/* ── Calendario ── */
+.cal-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-day {
+  min-height: 72px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.cal-day:hover { border-color: var(--teal); }
+.cal-day.cal-vacio { background: transparent; border-color: transparent; cursor: default; pointer-events: none; }
+.cal-day.cal-hoy { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
+.cal-day.cal-seleccionado { border-color: #db2777; box-shadow: 0 0 0 1px #db2777; }
+.cal-day-num { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
+.cal-day.cal-hoy .cal-day-num { color: var(--teal); }
+.cal-dot { width: 100%; background: var(--bg-secondary); border-radius: 4px; padding: 2px 4px; font-size: 10px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-dot.st-borrador  { background: #333; color: #999; }
+.cal-dot.st-aprobado  { background: #1a3a1a; color: #4caf50; }
+.cal-dot.st-publicado { background: #1a2a3a; color: #42a5f5; }
+.cal-dot.st-archivado { background: #2a1a1a; color: #777; }
+.cal-more { font-size: 10px; color: var(--text-secondary); }
+
+@media (max-width: 600px) {
+  .cal-day { min-height: 52px; padding: 4px; }
+  .cal-dot  { display: none; }
+  .cal-more { display: none; }
+  .cal-day-num { font-size: 11px; }
+}
+
+@media (max-width: 768px) {
+  .crear-grid { grid-template-columns: 1fr !important; }
+  .ecopost-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .ecopost-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<script>
+// ─── Estado local ────────────────────────────────────────────────────────────
+let generatedB64 = null;   // imagen generada en crear
+let editingId = null;      // ID del contenido en edición
+
+// ─── Tabs ────────────────────────────────────────────────────────────────────
+const TABS_EP = ['biblioteca', 'calendario', 'crear'];
+function showMainTab(name, el) {
+  TABS_EP.forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
+  });
+  document.querySelectorAll('#tabs-main .tab').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (name === 'biblioteca') loadBiblioteca();
+  if (name === 'calendario') calRender();
+}
+
+// ─── Catálogo de productos ───────────────────────────────────────────────────
+let _catalogoEP = null;
+
+async function cargarCatalogoEP() {
+  if (_catalogoEP) return _catalogoEP;
+  try {
+    _catalogoEP = await API.get('/api/catalogo');
+  } catch(e) {
+    _catalogoEP = null;
+  }
+  return _catalogoEP;
+}
+
+async function actualizarModelos() {
+  const tipo = document.getElementById('c-producto').value;
+  const datalist = document.getElementById('lista-modelos-ep');
+  const hint = document.getElementById('c-modelo-hint');
+  const input = document.getElementById('c-modelo');
+
+  datalist.innerHTML = '';
+  input.value = '';
+  hint.style.display = 'none';
+
+  if (!tipo) return;
+
+  const cat = await cargarCatalogoEP();
+  if (!cat) return;
+
+  const items = [];
+
+  if (tipo === 'PISCINA' || tipo === 'COMBO') {
+    const modelos = cat.piscinas?.modelos || [];
+    const precios = cat.piscinas?.precios || {};
+    for (const m of modelos) {
+      const precio = precios[m];
+      items.push({
+        valor: m,
+        label: precio ? `${m}  —  ${fmtPrecio(precio)}` : m,
+        precio,
+      });
+    }
+  }
+
+  if (tipo === 'MODULO' || tipo === 'COMBO') {
+    const sup = cat.modulos?.superficies_m2 || [];
+    const custom = cat.modulos?.modelos_custom || [];
+    const precios = cat.modulos?.precios || {};
+    const modulos = [...sup.map(s => `Módulo ${s}m²`), ...custom];
+    for (const m of modulos) {
+      const precio = precios[m];
+      items.push({
+        valor: m,
+        label: precio ? `${m}  —  ${fmtPrecio(precio)}` : m,
+        precio,
+      });
+    }
+  }
+
+  items.forEach(({ valor, label }) => {
+    const opt = document.createElement('option');
+    opt.value = valor;
+    opt.label = label;
+    datalist.appendChild(opt);
+  });
+
+  if (items.length) {
+    hint.textContent = `${items.length} modelo${items.length !== 1 ? 's' : ''} disponible${items.length !== 1 ? 's' : ''}`;
+    hint.style.display = 'block';
+  }
+}
+
+function fmtPrecio(n) {
+  if (!n) return '';
+  return '$' + Number(n).toLocaleString('es-AR');
+}
+
+// Poblar catálogo al cargar la página (pre-fetch)
+cargarCatalogoEP();
+
+// ─── Calendario ──────────────────────────────────────────────────────────────
+let _calYear  = new Date().getFullYear();
+let _calMonth = new Date().getMonth() + 1; // 1-12
+let _calData  = null;
+let _calDiaSeleccionado = null;
+
+const MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+async function calRender() {
+  document.getElementById('cal-titulo').textContent = `${MESES[_calMonth]} ${_calYear}`;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '<div class="loading" style="grid-column:span 7">Cargando...</div>';
+  document.getElementById('cal-dia-detalle').style.display = 'none';
+  try {
+    const res = await API.get(`/api/ecopost/calendario?year=${_calYear}&month=${_calMonth}`);
+    _calData = res;
+    calBuild(res);
+  } catch(e) {
+    grid.innerHTML = `<div class="alert alert-error" style="grid-column:span 7">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function calBuild(res) {
+  const grid = document.getElementById('cal-grid');
+  const hoy = new Date();
+  const esHoy = (d) => hoy.getFullYear() === _calYear && hoy.getMonth()+1 === _calMonth && hoy.getDate() === d;
+
+  let html = '';
+  // Celdas vacías antes del primer día
+  for (let i = 0; i < res.primer_dia_semana; i++) {
+    html += '<div class="cal-day cal-vacio"></div>';
+  }
+  for (let d = 1; d <= res.dias_en_mes; d++) {
+    const items = res.por_dia[String(d)] || [];
+    const clases = ['cal-day'];
+    if (esHoy(d)) clases.push('cal-hoy');
+    if (_calDiaSeleccionado === d) clases.push('cal-seleccionado');
+    const dots = items.slice(0, 3).map(p =>
+      `<div class="cal-dot st-${p.estado}" title="${escHtml(p.titulo)}">${escHtml(p.tipo||'')}: ${escHtml(p.titulo.substring(0,18))}</div>`
+    ).join('');
+    const mas = items.length > 3 ? `<div class="cal-more">+${items.length-3} más</div>` : '';
+    const badge = items.length ? `<span style="background:var(--teal);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;float:right">${items.length}</span>` : '';
+    html += `<div class="${clases.join(' ')}" onclick="calSelDia(${d})">
+      <div class="cal-day-num">${d}${badge}</div>
+      ${dots}${mas}
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function calSelDia(d) {
+  _calDiaSeleccionado = d;
+  // Redibujar para marcar seleccionado
+  if (_calData) calBuild(_calData);
+
+  const items = _calData?.por_dia[String(d)] || [];
+  const det = document.getElementById('cal-dia-detalle');
+  const tit = document.getElementById('cal-dia-titulo');
+  const cont = document.getElementById('cal-dia-items');
+
+  tit.textContent = `${d} de ${MESES[_calMonth]} ${_calYear}`;
+
+  if (!items.length) {
+    det.style.display = 'block';
+    cont.innerHTML = '<div style="color:var(--text-secondary);font-size:13px">Sin contenido programado para este día.</div>';
+    return;
+  }
+
+  cont.innerHTML = items.map(p => `
+    <div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;margin-bottom:2px">${escHtml(p.titulo)}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">${escHtml(p.tipo||'')} · ${escHtml(p.producto||'')} · <span class="estado-badge estado-${p.estado}">${p.estado}</span></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="openDetalle(${p.id})">👁 Ver</button>
+        ${p.estado === 'aprobado' ? `<button class="btn btn-secondary btn-sm" onclick="subirR2(${p.id}, this)">☁️ → R2</button>` : ''}
+      </div>
+    </div>`).join('');
+  det.style.display = 'block';
+}
+
+function calCambiarMes(delta) {
+  _calMonth += delta;
+  if (_calMonth > 12) { _calMonth = 1; _calYear++; }
+  if (_calMonth < 1)  { _calMonth = 12; _calYear--; }
+  _calDiaSeleccionado = null;
+  calRender();
+}
+
+function calIrHoy() {
+  const hoy = new Date();
+  _calYear  = hoy.getFullYear();
+  _calMonth = hoy.getMonth() + 1;
+  _calDiaSeleccionado = null;
+  calRender();
+}
+
+async function subirR2(id, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳...';
+  try {
+    const res = await API.post(`/api/ecopost/${id}/subir-r2`, {});
+    showToast('✓ Imagen subida a R2', 'success');
+    if (_calData) calSelDia(_calDiaSeleccionado); // refrescar
+  } catch(e) {
+    showToast('Error R2: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+function openCrear() {
+  resetCrear();
+  editingId = null;
+  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[1]);
+}
+
+// ─── Biblioteca ──────────────────────────────────────────────────────────────
+async function loadBiblioteca() {
+  const grid = document.getElementById('biblioteca-grid');
+  grid.innerHTML = '<div class="loading">Cargando…</div>';
+  try {
+    const estado = document.getElementById('f-estado').value;
+    const producto = document.getElementById('f-producto').value;
+    let url = '/api/ecopost?limit=100';
+    if (estado) url += `&estado=${estado}`;
+    if (producto) url += `&producto=${producto}`;
+
+    const items = await API.get(url);
+    if (!items.length) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1">Sin contenido. Creá tu primer post ✨</div>';
+      return;
+    }
+    grid.innerHTML = items.map(renderCard).join('');
+  } catch(e) {
+    grid.innerHTML = `<div class="alert alert-error" style="grid-column:1/-1">Error cargando contenido: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderCard(item) {
+  const estado = item.estado || 'borrador';
+  const imgContent = item.tiene_imagen
+    ? `<img src="/api/ecopost/${item.id}/imagen" class="ecopost-card-img" onerror="this.style.display='none'" alt="preview">`
+    : `<div class="ecopost-card-img">${iconTipo(item.tipo)}</div>`;
+  const tipoLabel = { flyer:'Flyer', story:'Story', carrusel:'Carrusel', reel:'Reel' }[item.tipo] || item.tipo;
+  const prodLabel = { PISCINA:'🏊 Piscina', MODULO:'🏠 Módulo', COMBO:'✨ Combo' }[item.producto] || '';
+
+  return `
+  <div class="ecopost-card">
+    <div onclick="openDetalle(${item.id})" style="cursor:pointer">
+      ${imgContent}
+      <div class="ecopost-card-body">
+        <div class="ecopost-card-title">${escHtml(item.titulo || 'Sin título')}</div>
+        <div class="ecopost-card-meta">${tipoLabel}${prodLabel ? ' · ' + prodLabel : ''}${item.modelo_especifico ? ' · ' + escHtml(item.modelo_especifico) : ''}</div>
+        <div class="ecopost-card-copy">${escHtml(item.copy_texto || 'Sin copy')}</div>
+      </div>
+    </div>
+    <div class="ecopost-card-footer">
+      <span class="estado-badge estado-${estado}">${estado.charAt(0).toUpperCase()+estado.slice(1)}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="editarContenido(${item.id})">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="openDetalle(${item.id})">👁</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function iconTipo(tipo) {
+  return { flyer:'🖼', story:'📱', carrusel:'🎠', reel:'🎬' }[tipo] || '📄';
+}
+
+// ─── Detalle modal ────────────────────────────────────────────────────────────
+async function openDetalle(id) {
+  const modal = document.getElementById('modal-detalle');
+  const body = document.getElementById('det-body');
+  const footer = document.getElementById('det-footer');
+  body.innerHTML = '<div class="loading">Cargando…</div>';
+  footer.innerHTML = '';
+  modal.style.display = 'flex';
+
+  try {
+    const item = await API.get(`/api/ecopost/${id}`);
+    document.getElementById('det-titulo').textContent = item.titulo || 'Sin título';
+
+    const imgHtml = item.imagen_base64
+      ? `<img src="data:image/png;base64,${item.imagen_base64}" class="det-img" alt="imagen">`
+      : item.imagen_url
+        ? `<img src="${escHtml(item.imagen_url)}" class="det-img" alt="imagen">`
+        : '';
+
+    body.innerHTML = `
+      ${imgHtml}
+      <div class="det-section">
+        <div class="det-label">Copy</div>
+        <div class="det-value">${escHtml(item.copy_texto || '—')}</div>
+      </div>
+      ${item.copy_hashtags ? `<div class="det-section"><div class="det-label">Hashtags</div><div class="det-value" style="color:#42a5f5">${escHtml(item.copy_hashtags)}</div></div>` : ''}
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div class="det-section" style="flex:1">
+          <div class="det-label">Tipo</div>
+          <div class="det-value">${item.tipo || '—'}</div>
+        </div>
+        <div class="det-section" style="flex:1">
+          <div class="det-label">Producto</div>
+          <div class="det-value">${item.producto || '—'}${item.modelo_especifico ? ' · ' + item.modelo_especifico : ''}</div>
+        </div>
+        <div class="det-section" style="flex:1">
+          <div class="det-label">Estado</div>
+          <div class="det-value"><span class="estado-badge estado-${item.estado}">${item.estado}</span></div>
+        </div>
+      </div>
+      ${item.notas ? `<div class="det-section"><div class="det-label">Notas</div><div class="det-value">${escHtml(item.notas)}</div></div>` : ''}
+      <div style="font-size:11px;color:#666;margin-top:8px">
+        Creado por ${item.creado_por || '—'} · ${fmtDate(item.created_at)}
+        ${item.aprobado_por ? ` · Aprobado por ${item.aprobado_por}` : ''}
+      </div>`;
+
+    // Botones de estado en el footer
+    const estados = [
+      { key:'borrador',  label:'📝 Borrador', cls:'btn-ghost' },
+      { key:'aprobado',  label:'✅ Aprobar',   cls:'btn-success' },
+      { key:'publicado', label:'📤 Publicar',  cls:'btn-primary' },
+      { key:'archivado', label:'🗂 Archivar',  cls:'btn-ghost' },
+    ];
+
+    const btnsCambioEstado = estados
+      .filter(e => e.key !== item.estado)
+      .map(e => `<button class="btn ${e.cls}" onclick="cambiarEstado(${id},'${e.key}')">${e.label}</button>`)
+      .join('');
+
+    footer.innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;width:100%">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${btnsCambioEstado}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost" onclick="editarContenido(${id});closeDetalle()">✏️ Editar</button>
+          ${item.imagen_base64 ? `<button class="btn btn-ghost" onclick="descargarImagen('${id}')">⬇️ Descargar</button>` : ''}
+        </div>
+      </div>`;
+  } catch(e) {
+    body.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function closeDetalle() {
+  document.getElementById('modal-detalle').style.display = 'none';
+}
+
+async function cambiarEstado(id, estado) {
+  try {
+    await API.patch(`/api/ecopost/${id}/estado`, { estado });
+    showToast(`Estado cambiado a "${estado}"`, 'success');
+    closeDetalle();
+    loadBiblioteca();
+  } catch(e) {
+    showToast(`Error: ${e.message}`, 'error');
+  }
+}
+
+function descargarImagen(id) {
+  API.get(`/api/ecopost/${id}`).then(item => {
+    if (!item.imagen_base64) return showToast('Sin imagen', 'error');
+    const a = document.createElement('a');
+    a.href = `data:image/png;base64,${item.imagen_base64}`;
+    a.download = `ecopost-${id}.png`;
+    a.click();
+  });
+}
+
+// ─── Crear / editar ───────────────────────────────────────────────────────────
+async function editarContenido(id) {
+  editingId = id;
+  switchTab('crear');
+  try {
+    const item = await API.get(`/api/ecopost/${id}`);
+    document.getElementById('c-tipo').value = item.tipo || 'flyer';
+    document.getElementById('c-producto').value = item.producto || '';
+    await actualizarModelos();   // carga el datalist antes de setear el modelo
+    document.getElementById('c-modelo').value = item.modelo_especifico || '';
+    document.getElementById('c-titulo').value = item.titulo || '';
+    document.getElementById('c-copy').value = item.copy_texto || '';
+    document.getElementById('c-hashtags').value = item.copy_hashtags || '';
+    document.getElementById('c-img-prompt').value = item.imagen_prompt || '';
+
+    if (item.imagen_base64) {
+      generatedB64 = item.imagen_base64;
+      document.getElementById('img-preview').innerHTML = `<img src="data:image/png;base64,${item.imagen_base64}" style="max-width:100%;max-height:300px;border-radius:6px">`;
+    }
+
+    document.getElementById('btn-guardar').textContent = '💾 Actualizar';
+  } catch(e) {
+    showToast(`Error cargando contenido: ${e.message}`, 'error');
+  }
+}
+
+// ─── Generar copy ─────────────────────────────────────────────────────────────
+async function generarCopy() {
+  const producto = document.getElementById('c-producto').value;
+  if (!producto) { showToast('Seleccioná un producto primero', 'error'); return; }
+
+  const btn = document.getElementById('btn-gen-copy');
+  btn.disabled = true; btn.textContent = '✨ Generando…';
+
+  try {
+    const data = await API.post('/api/ecopost/generar-copy', {
+      producto,
+      modelo: document.getElementById('c-modelo').value,
+      tipo: document.getElementById('c-tipo').value,
+      tono: document.getElementById('c-tono').value,
+      descripcion_extra: document.getElementById('c-extra').value,
+    });
+
+    if (data.ok) {
+      // Separar título del copy si viene junto
+      const lines = (data.copy || '').split('\n').filter(l => l.trim());
+      if (lines.length >= 1 && !document.getElementById('c-titulo').value) {
+        document.getElementById('c-titulo').value = lines[0];
+        document.getElementById('c-copy').value = lines.slice(1).join('\n').trim();
+      } else {
+        document.getElementById('c-copy').value = data.copy || '';
+      }
+      if (data.hashtags) {
+        document.getElementById('c-hashtags').value = data.hashtags;
+      }
+      // Sugerir prompt de imagen
+      if (!document.getElementById('c-img-prompt').value) {
+        const tipoStr = document.getElementById('c-tipo').value === 'story' ? 'vertical 9:16' : 'cuadrada';
+        document.getElementById('c-img-prompt').value =
+          `Fotografía profesional de ${producto.toLowerCase()}, ${document.getElementById('c-modelo').value || ''}, ` +
+          `ambientación moderna argentina, iluminación natural, composición ${tipoStr}, ` +
+          `colores verdes y blancos, branding Eco Módulos & Piscinas`;
+      }
+      showToast('Copy generado ✨', 'success');
+    }
+  } catch(e) {
+    showToast(`Error: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✨ Generar copy con IA';
+  }
+}
+
+// ─── Generar imagen ───────────────────────────────────────────────────────────
+async function generarImagen() {
+  const prompt = document.getElementById('c-img-prompt').value.trim();
+  if (!prompt) { showToast('Escribí un prompt para la imagen', 'error'); return; }
+
+  const btn = document.getElementById('btn-gen-img');
+  const status = document.getElementById('img-status');
+  const preview = document.getElementById('img-preview');
+
+  btn.disabled = true;
+  status.textContent = '⏳ Generando imagen con IA (puede tardar hasta 30 seg)…';
+  preview.innerHTML = `<div style="color:#888;font-size:13px">⏳ Generando…</div>`;
+
+  try {
+    const data = await API.post('/api/ecopost/generar-imagen', {
+      prompt,
+      tipo: document.getElementById('c-tipo').value,
+    });
+
+    if (data.ok && data.image_base64) {
+      generatedB64 = data.image_base64;
+      preview.innerHTML = `<img src="data:image/png;base64,${data.image_base64}" style="max-width:100%;max-height:300px;border-radius:6px">`;
+      status.textContent = '✅ Imagen generada';
+      showToast('Imagen generada ✨', 'success');
+    } else {
+      throw new Error(data.error || 'Sin imagen');
+    }
+  } catch(e) {
+    preview.innerHTML = `<div style="color:#f44;font-size:13px">Error: ${escHtml(e.message)}</div>`;
+    status.textContent = '';
+    showToast(`Error generando imagen: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─── Guardar contenido ────────────────────────────────────────────────────────
+async function guardarContenido() {
+  const titulo = document.getElementById('c-titulo').value.trim();
+  const copy = document.getElementById('c-copy').value.trim();
+  const producto = document.getElementById('c-producto').value;
+
+  if (!titulo && !copy) {
+    showToast('Generá o escribí el copy antes de guardar', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-guardar');
+  btn.disabled = true;
+
+  const payload = {
+    titulo: titulo || copy.split('\n')[0].substring(0, 100),
+    tipo: document.getElementById('c-tipo').value,
+    producto: producto || null,
+    modelo_especifico: document.getElementById('c-modelo').value || null,
+    copy_texto: copy,
+    copy_hashtags: document.getElementById('c-hashtags').value,
+    imagen_prompt: document.getElementById('c-img-prompt').value,
+    imagen_base64: generatedB64 || null,
+  };
+
+  try {
+    let data;
+    if (editingId) {
+      data = await API.put(`/api/ecopost/${editingId}`, payload);
+      showToast('Contenido actualizado ✅', 'success');
+    } else {
+      data = await API.post('/api/ecopost', payload);
+      showToast('Contenido guardado como borrador ✅', 'success');
+    }
+    resetCrear();
+    switchTab('biblioteca');
+  } catch(e) {
+    showToast(`Error guardando: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Guardar borrador';
+  }
+}
+
+// ─── Reset form ───────────────────────────────────────────────────────────────
+function resetCrear() {
+  editingId = null;
+  generatedB64 = null;
+  ['c-tipo','c-producto','c-tono'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = el.options[0]?.value || '';
+  });
+  ['c-modelo','c-extra','c-titulo','c-copy','c-hashtags','c-img-prompt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('img-preview').innerHTML = '<span style="color:#666;font-size:13px">Sin imagen generada</span>';
+  document.getElementById('img-status').textContent = '';
+  document.getElementById('btn-guardar').textContent = '💾 Guardar borrador';
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadBiblioteca();
+});
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+// API client (same pattern as other templates)
+const API = {
+  async _req(method, url, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
+    return data;
+  },
+  get:   (url)        => API._req('GET',    url),
+  post:  (url, body)  => API._req('POST',   url, body),
+  put:   (url, body)  => API._req('PUT',    url, body),
+  patch: (url, body)  => API._req('PATCH',  url, body),
+  del:   (url)        => API._req('DELETE', url),
+};
+
+function showToast(msg, type = 'info') {
+  let t = document.getElementById('toast-container');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-container';
+    t.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px';
+    document.body.appendChild(t);
+  }
+  const toast = document.createElement('div');
+  toast.style.cssText = `padding:12px 18px;border-radius:8px;font-size:14px;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.4);
+    background:${type==='success'?'#1b3a1b':type==='error'?'#3a1b1b':'#1b2a3a'};
+    color:${type==='success'?'#4caf50':type==='error'?'#f44336':'#42a5f5'};
+    border:1px solid ${type==='success'?'#2d5a2d':type==='error'?'#5a2d2d':'#2d4a5a'}`;
+  toast.textContent = msg;
+  t.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
+</script>
+{% endblock %}

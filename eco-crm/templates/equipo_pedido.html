@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#10b981">
+  <title>Pedido de materiales — Eco Módulos</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0fdf4; min-height: 100vh; padding: 20px; }
+    .container { max-width: 480px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 24px; }
+    .header h1 { font-size: 24px; color: #065f46; }
+    .header p { color: #6b7280; margin-top: 4px; font-size: 14px; }
+    .card { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 16px; }
+    label { display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    input, select, textarea { width: 100%; padding: 12px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 16px; font-family: inherit; background: #fafafa; margin-bottom: 16px; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #10b981; background: #fff; }
+    .urgencia-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .urgencia-btn { padding: 10px; border: 2px solid #e5e7eb; border-radius: 10px; background: #fff; cursor: pointer; text-align: center; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .urgencia-btn.hoy { border-color: #ef4444; color: #ef4444; }
+    .urgencia-btn.semana { border-color: #f59e0b; color: #f59e0b; }
+    .urgencia-btn.cuando { border-color: #10b981; color: #10b981; }
+    .urgencia-btn.selected { color: #fff !important; }
+    .urgencia-btn.hoy.selected { background: #ef4444; }
+    .urgencia-btn.semana.selected { background: #f59e0b; }
+    .urgencia-btn.cuando.selected { background: #10b981; }
+    .btn-submit { width: 100%; padding: 16px; background: #10b981; color: #fff; border: none; border-radius: 12px; font-size: 18px; font-weight: 700; cursor: pointer; }
+    .btn-submit:active { background: #059669; }
+    .success { text-align: center; padding: 40px 20px; }
+    .success .icon { font-size: 64px; margin-bottom: 16px; }
+    .success h2 { color: #065f46; margin-bottom: 8px; }
+    .success p { color: #6b7280; }
+    .btn-otro { margin-top: 20px; padding: 12px 24px; background: #e7f9f0; color: #065f46; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📦 Pedir materiales</h1>
+    <p>Eco Módulos & Piscinas — Fábrica</p>
+  </div>
+
+  <div id="formulario">
+    <div class="card">
+      <label>¿Quién pedís? *</label>
+      <select id="empleado" required>
+        <option value="">Seleccioná tu nombre...</option>
+        {% for e in empleados %}
+        <option value="{{ e.id }}" data-nombre="{{ e.nombre }}">{{ e.nombre }}</option>
+        {% endfor %}
+        <option value="otro">Otro / No estoy en la lista</option>
+      </select>
+      <div id="nombre-manual-wrap" style="display:none">
+        <label>Tu nombre</label>
+        <input type="text" id="nombre-manual" placeholder="Escribí tu nombre">
+      </div>
+
+      <label>¿Qué necesitás? *</label>
+      <textarea id="descripcion" rows="3" placeholder="Ej: 3 litros de pintura blanca, 500 tornillos auto-perforantes 1&quot;..." required></textarea>
+
+      <label>Urgencia</label>
+      <div class="urgencia-btns">
+        <button type="button" class="urgencia-btn hoy" onclick="selUrgencia('HOY',this)">🔴<br>HOY</button>
+        <button type="button" class="urgencia-btn semana selected" onclick="selUrgencia('ESTA_SEMANA',this)">🟡<br>Esta semana</button>
+        <button type="button" class="urgencia-btn cuando" onclick="selUrgencia('CUANDO_SE_PUEDA',this)">🟢<br>Sin apuro</button>
+      </div>
+      <input type="hidden" id="urgencia" value="ESTA_SEMANA">
+
+      <label>¿Para qué trabajo / cliente? (opcional)</label>
+      <input type="text" id="para_orden" placeholder="Ej: módulo de García, piscina Ramírez...">
+
+      <button class="btn-submit" onclick="enviarPedido()">📤 Enviar pedido</button>
+    </div>
+  </div>
+
+  <div id="confirmacion" class="success" style="display:none">
+    <div class="icon">✅</div>
+    <h2>¡Pedido enviado!</h2>
+    <p>Rodrigo lo va a ver antes de ir a la ferretería.</p>
+    <button class="btn-otro" onclick="nuevoPedido()">+ Pedir otra cosa</button>
+  </div>
+</div>
+
+<script>
+let urgenciaSeleccionada = 'ESTA_SEMANA';
+
+function selUrgencia(val, btn) {
+  urgenciaSeleccionada = val;
+  document.getElementById('urgencia').value = val;
+  document.querySelectorAll('.urgencia-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+document.getElementById('empleado').addEventListener('change', function() {
+  const wrap = document.getElementById('nombre-manual-wrap');
+  wrap.style.display = this.value === 'otro' ? 'block' : 'none';
+});
+
+async function enviarPedido() {
+  const empSel = document.getElementById('empleado');
+  const empId = empSel.value;
+  let empNombre = '';
+  if (empId === 'otro') {
+    empNombre = document.getElementById('nombre-manual').value.trim();
+  } else if (empId) {
+    empNombre = empSel.options[empSel.selectedIndex].dataset.nombre;
+  }
+  const descripcion = document.getElementById('descripcion').value.trim();
+  if (!descripcion) { alert('Describí qué necesitás'); return; }
+
+  try {
+    const btn = document.querySelector('.btn-submit');
+    btn.textContent = 'Enviando...';
+    btn.disabled = true;
+
+    await fetch('/api/materiales/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        material_descripcion: descripcion,
+        urgencia: urgenciaSeleccionada,
+        para_orden: document.getElementById('para_orden').value,
+        solicitado_por_nombre: empNombre,
+        solicitado_por_empleado_id: empId && empId !== 'otro' ? parseInt(empId) : null,
+      })
+    });
+
+    document.getElementById('formulario').style.display = 'none';
+    document.getElementById('confirmacion').style.display = 'block';
+  } catch(e) {
+    alert('Error al enviar. Intentá de nuevo.');
+    const btn = document.querySelector('.btn-submit');
+    btn.textContent = '📤 Enviar pedido';
+    btn.disabled = false;
+  }
+}
+
+function nuevoPedido() {
+  document.getElementById('descripcion').value = '';
+  document.getElementById('para_orden').value = '';
+  document.getElementById('empleado').value = '';
+  document.getElementById('nombre-manual-wrap').style.display = 'none';
+  selUrgencia('ESTA_SEMANA', document.querySelectorAll('.urgencia-btn')[1]);
+  document.getElementById('confirmacion').style.display = 'none';
+  document.getElementById('formulario').style.display = 'block';
+}
+</script>
+</body>
+</html>

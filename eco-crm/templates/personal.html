@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block title %}Personal · Eco Módulos CRM{% endblock %}
+{% block page_title %}Personal y Sueldos{% endblock %}
+
+{% block content %}
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('asistencia', this)">✅ Asistencia</button>
+  <button class="tab" onclick="showTab('liquidacion', this)">💰 Liquidación</button>
+  <button class="tab" onclick="showTab('empleados', this)">👷 Empleados</button>
+  <button class="tab" onclick="showTab('historial', this)">📋 Historial</button>
+  <button class="tab" onclick="showTab('adelantos', this)">💵 Adelantos</button>
+</div>
+
+<!-- ASISTENCIA -->
+<div id="tab-asistencia">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div>
+      <label class="form-label">Fecha</label>
+      <input type="date" id="asistencia-fecha" class="form-control" style="max-width:180px"
+             value="" onchange="loadAsistencia()">
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <button class="btn btn-ghost btn-sm" onclick="cambiarFechaAsistencia(-1)" title="Día anterior">‹</button>
+      <button class="btn btn-ghost btn-sm" onclick="irHoyAsistencia()">Hoy</button>
+      <button class="btn btn-ghost btn-sm" onclick="cambiarFechaAsistencia(1)" title="Día siguiente">›</button>
+    </div>
+  </div>
+
+  <div id="asistencia-container">
+    <div class="loading"><div class="spinner"></div> Cargando...</div>
+  </div>
+</div>
+
+<!-- LIQUIDACIÓN -->
+<div id="tab-liquidacion" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <div>
+      <label class="form-label">Semana a liquidar</label>
+      <input type="date" id="liquidacion-fecha" class="form-control" style="max-width:180px"
+             onchange="loadLiquidacion()">
+    </div>
+    <button onclick="loadLiquidacion()" class="btn btn-secondary btn-sm" style="margin-top:18px">🔄 Calcular</button>
+  </div>
+  <div id="liquidacion-container"></div>
+</div>
+
+<!-- EMPLEADOS -->
+<div id="tab-empleados" style="display:none">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button onclick="nuevoEmpleado()" class="btn btn-primary">+ Nuevo empleado</button>
+  </div>
+  <div id="empleados-content"></div>
+</div>
+
+<!-- HISTORIAL -->
+<div id="tab-historial" style="display:none">
+  <div id="historial-content"></div>
+</div>
+
+<!-- ADELANTOS -->
+<div id="tab-adelantos" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="adelanto-filtro-emp" class="form-control" style="width:200px" onchange="loadAdelantos()">
+        <option value="">— Todos los empleados —</option>
+      </select>
+      <select id="adelanto-filtro-estado" class="form-control" style="width:160px" onchange="loadAdelantos()">
+        <option value="">— Todos —</option>
+        <option value="false">Pendientes</option>
+        <option value="true">Descontados</option>
+      </select>
+    </div>
+    <button onclick="nuevoAdelanto()" class="btn btn-primary">+ Nuevo adelanto</button>
+  </div>
+  <div id="adelantos-content"></div>
+</div>
+
+<!-- Modal empleado -->
+<div class="modal-overlay" id="modal-empleado" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="empleado-title">Nuevo Empleado</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-empleado')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="empleado-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nombre completo *</label>
+            <input name="nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rol / Función</label>
+            <input name="rol_empresa" class="form-control" placeholder="Operario, Conductor...">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipo tarifa</label>
+            <select name="tipo_tarifa" class="form-control">
+              <option value="POR_DIA">Por día</option>
+              <option value="POR_HORA">Por hora</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Monto tarifa ($)</label>
+            <input type="number" name="monto_tarifa" class="form-control" placeholder="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" name="sabado_recargo" value="true">
+              Recargo sábado
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Multiplicador sábado</label>
+            <input type="number" name="multiplicador_sabado" class="form-control" value="1.5" step="0.1">
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-empleado')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveEmpleado()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal adelanto -->
+<div class="modal-overlay" id="modal-adelanto" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Nuevo Adelanto</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-adelanto')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Empleado *</label>
+        <select id="adelanto-empleado" class="form-control"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Monto ($) *</label>
+          <input type="number" id="adelanto-monto" class="form-control" min="0" step="100" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fecha</label>
+          <input type="date" id="adelanto-fecha" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Motivo</label>
+        <input id="adelanto-motivo" class="form-control" placeholder="Motivo del adelanto...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-adelanto')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveAdelanto()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let empleadoEditId = null;
+
+  // Set today's date
+  document.getElementById('asistencia-fecha').value = new Date().toISOString().split('T')[0];
+
+  function cambiarFechaAsistencia(delta) {
+    const input = document.getElementById('asistencia-fecha');
+    const d = new Date(input.value + 'T12:00:00');
+    d.setDate(d.getDate() + delta);
+    input.value = d.toISOString().split('T')[0];
+    loadAsistencia();
+  }
+
+  function irHoyAsistencia() {
+    document.getElementById('asistencia-fecha').value = new Date().toISOString().split('T')[0];
+    loadAsistencia();
+  }
+
+  function showTab(tab, btn) {
+    ['asistencia','liquidacion','empleados','historial','adelantos'].forEach(t => {
+      document.getElementById(`tab-${t}`).style.display = t === tab ? 'block' : 'none';
+    });
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (tab === 'asistencia') loadAsistencia();
+    if (tab === 'liquidacion') loadLiquidacion();
+    if (tab === 'empleados') loadEmpleados();
+    if (tab === 'historial') loadHistorial();
+    if (tab === 'adelantos') { loadAdelantos(); populateEmpleadoSelect('adelanto-filtro-emp', true); }
+  }
+
+  async function loadEmpleados() {
+    const data = await API.get('/api/personal/empleados');
+    if (!data) return;
+    const container = document.getElementById('empleados-content');
+    if (!data.length) {
+      container.innerHTML = '<div class="empty-state"><span class="empty-icon">👷</span><p>Sin empleados registrados</p></div>';
+      return;
+    }
+    container.innerHTML = `<div class="table-wrapper"><table>
+      <thead><tr><th>Nombre</th><th>Función</th><th>Tarifa</th><th>Recargo sáb.</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${data.map(e => `
+        <tr>
+          <td style="font-weight:600">${e.nombre}</td>
+          <td>${e.rol_empresa||'—'}</td>
+          <td>${formatMoney(e.monto_tarifa)}/${e.tipo_tarifa==='POR_DIA'?'día':'hora'}</td>
+          <td>${e.sabado_recargo ? `✓ ×${e.multiplicador_sabado}` : '—'}</td>
+          <td>${e.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-gray">Inactivo</span>'}</td>
+          <td>
+            <button onclick="editEmpleado(${e.id})" class="btn btn-sm btn-ghost">✏ Editar</button>
+          </td>
+        </tr>
+      `).join('')}</tbody>
+    </table></div>`;
+  }
+
+  function nuevoEmpleado() {
+    empleadoEditId = null;
+    document.getElementById('empleado-form').reset();
+    document.getElementById('empleado-title').textContent = 'Nuevo Empleado';
+    openModal('modal-empleado');
+  }
+
+  async function editEmpleado(id) {
+    const data = await API.get('/api/personal/empleados');
+    const emp = data?.find(e => e.id === id);
+    if (!emp) return;
+    empleadoEditId = id;
+    fillForm('empleado-form', emp);
+    document.getElementById('empleado-title').textContent = 'Editar Empleado';
+    openModal('modal-empleado');
+  }
+
+  async function saveEmpleado() {
+    const data = formToObj(document.getElementById('empleado-form'));
+    data.sabado_recargo = document.querySelector('[name=sabado_recargo]').checked;
+    try {
+      if (empleadoEditId) await API.put(`/api/personal/empleados/${empleadoEditId}`, data);
+      else await API.post('/api/personal/empleados', data);
+      toast('Empleado guardado');
+      closeModal('modal-empleado');
+      loadEmpleados();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function loadHistorial() {
+    const data = await API.get('/api/personal/liquidacion/historial');
+    if (!data) return;
+    const container = document.getElementById('historial-content');
+    if (!data.length) {
+      container.innerHTML = '<div class="empty-state"><span class="empty-icon">📋</span><p>Sin historial de liquidaciones</p></div>';
+      return;
+    }
+    container.innerHTML = `<div class="table-wrapper"><table>
+      <thead><tr><th>Empleado</th><th>Semana</th><th>Días</th><th>Monto</th><th>Estado</th></tr></thead>
+      <tbody>${data.map(l => `
+        <tr>
+          <td style="font-weight:600">${l.empleado_nombre}</td>
+          <td style="font-size:13px">${formatDate(l.semana_inicio)} → ${formatDate(l.semana_fin)}</td>
+          <td>${l.dias_trabajados}</td>
+          <td style="font-weight:600;color:var(--green-light)">${formatMoney(l.monto_total)}</td>
+          <td>${l.pagado ? '<span class="badge badge-green">Pagado</span>' + (l.fecha_pago ? `<div style="font-size:11px;color:var(--text-muted)">${formatDate(l.fecha_pago)}</div>` : '') : '<span class="badge badge-yellow">Pendiente</span>'}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table></div>`;
+  }
+
+  async function loadAdelantos() {
+    const empId = document.getElementById('adelanto-filtro-emp')?.value || '';
+    const desc = document.getElementById('adelanto-filtro-estado')?.value;
+    let url = '/api/personal/adelantos';
+    const params = [];
+    if (empId) params.push('emp_id=' + empId);
+    if (desc !== '') params.push('descontado=' + desc);
+    if (params.length) url += '?' + params.join('&');
+    const data = await API.get(url);
+    if (!data) return;
+    const container = document.getElementById('adelantos-content');
+    if (!data.length) {
+      container.innerHTML = '<div class="empty-state"><span class="empty-icon">💵</span><p>Sin adelantos registrados</p></div>';
+      return;
+    }
+    const total = data.filter(a => !a.descontado).reduce((s, a) => s + a.monto, 0);
+    container.innerHTML = `
+      <div class="card" style="padding:12px 16px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">
+        <div><span style="font-size:13px;color:var(--text-secondary)">Total pendiente:</span> <strong style="color:var(--red)">${formatMoney(total)}</strong></div>
+      </div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Empleado</th><th>Monto</th><th>Fecha</th><th>Motivo</th><th>Estado</th><th></th></tr></thead>
+        <tbody>${data.map(a => `
+          <tr>
+            <td style="font-weight:600">${a.empleado_nombre}</td>
+            <td style="font-weight:600;color:var(--red)">-${formatMoney(a.monto)}</td>
+            <td style="font-size:13px">${formatDate(a.fecha)}</td>
+            <td>${a.motivo || '—'}</td>
+            <td>${a.descontado
+              ? '<span class="badge badge-green">Descontado</span>'
+              : '<span class="badge badge-yellow">Pendiente</span>'
+            }</td>
+            <td style="display:flex;gap:4px">
+              ${!a.descontado ? `<button onclick="marcarDescontado(${a.id})" class="btn btn-sm btn-ghost" title="Marcar como descontado">✓</button>` : ''}
+              ${!a.descontado ? `<button onclick="deleteAdelanto(${a.id})" class="btn btn-sm btn-ghost" style="color:var(--red)" title="Eliminar">🗑</button>` : ''}
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>`;
+  }
+
+  async function populateEmpleadoSelect(selectId, withEmpty = false) {
+    const data = await API.get('/api/personal/empleados?activo=true');
+    if (!data) return;
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const prev = sel.value;
+    const empties = withEmpty ? '<option value="">— Todos los empleados —</option>' : '<option value="">Seleccionar...</option>';
+    sel.innerHTML = empties + data.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+    if (prev) sel.value = prev;
+  }
+
+  function nuevoAdelanto() {
+    document.getElementById('adelanto-monto').value = '';
+    document.getElementById('adelanto-motivo').value = '';
+    document.getElementById('adelanto-fecha').value = new Date().toISOString().split('T')[0];
+    populateEmpleadoSelect('adelanto-empleado');
+    openModal('modal-adelanto');
+  }
+
+  async function saveAdelanto() {
+    const empId = document.getElementById('adelanto-empleado').value;
+    const monto = parseFloat(document.getElementById('adelanto-monto').value);
+    if (!empId || !monto) { toast('Completá empleado y monto', 'error'); return; }
+    try {
+      await API.post('/api/personal/adelantos', {
+        empleado_id: parseInt(empId),
+        monto,
+        fecha: document.getElementById('adelanto-fecha').value,
+        motivo: document.getElementById('adelanto-motivo').value,
+      });
+      toast('Adelanto registrado');
+      closeModal('modal-adelanto');
+      loadAdelantos();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function marcarDescontado(id) {
+    if (!await confirmDialog('¿Marcar este adelanto como descontado del sueldo?')) return;
+    try {
+      await API.put('/api/personal/adelantos/' + id, { descontado: true });
+      toast('Marcado como descontado');
+      loadAdelantos();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function deleteAdelanto(id) {
+    if (!await confirmDialog('¿Eliminar este adelanto? Esta acción no se puede deshacer.')) return;
+    try {
+      await API.delete('/api/personal/adelantos/' + id);
+      toast('Adelanto eliminado');
+      loadAdelantos();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // Tab inicial: viene de URL ?tab= (ej. ADMINISTRACION redirigida a ?tab=asistencia)
+  (function() {
+    const initTab = '{{ initial_tab|default("asistencia") }}';
+    const tabBtns = document.querySelectorAll('.tabs .tab');
+    const tabOrder = ['asistencia','liquidacion','empleados','historial','adelantos'];
+    const idx = tabOrder.indexOf(initTab);
+    if (idx > 0 && tabBtns[idx]) {
+      showTab(initTab, tabBtns[idx]);
+    } else {
+      loadAsistencia();
+    }
+  })();
+</script>
+{% endblock %}

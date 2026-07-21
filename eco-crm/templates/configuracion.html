@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+{% block title %}Configuración · Eco Módulos CRM{% endblock %}
+{% block page_title %}Configuración del Sistema{% endblock %}
+
+{% block content %}
+
+{% if not encryption_ok %}
+<div class="alert alert-warning" style="margin-bottom:16px">
+  ⚠️ <strong>Advertencia:</strong> La variable de entorno <code>ENCRYPTION_KEY</code> no está configurada.
+  Los secretos se guardarán en texto plano. Para activar el cifrado, ejecutá en Fly.io:<br>
+  <code style="font-size:12px">fly secrets set ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") --app eco-crm-dawn-fog-5476</code>
+</div>
+{% endif %}
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('api-keys', this)">🔑 API Keys</button>
+  <button class="tab" onclick="showTab('precios', this)">💲 Precios</button>
+  <button class="tab" onclick="showTab('empresa', this)">🏢 Empresa</button>
+  <button class="tab" onclick="showTab('leads', this)">👥 Distribución Leads</button>
+  <button class="tab" onclick="showTab('notificaciones', this)">🔔 Notificaciones</button>
+</div>
+
+<!-- ── API KEYS ── -->
+<div id="tab-api-keys">
+  <!-- Banner de IA activa -->
+  <div id="ai-status-banner" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;display:flex;align-items:center;gap:12px;font-size:13px"></div>
+
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">
+    Las claves se almacenan cifradas. Usá el botón <strong>Probar</strong> para verificar que funcionen.
+    Para la <strong>IA</strong>, el sistema usa Grok → Gemini → Claude en ese orden de prioridad.
+  </p>
+  <div id="api-keys-list"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- ── PRECIOS ── -->
+<div id="tab-precios" style="display:none">
+  <div id="precios-list"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- ── EMPRESA ── -->
+<div id="tab-empresa" style="display:none">
+  <div id="empresa-list"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- ── DISTRIBUCIÓN LEADS ── -->
+<div id="tab-leads" style="display:none">
+
+  <!-- Pool de asesores Round-Robin -->
+  <div class="card" style="padding:20px;margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:4px">👥 Asesores en el pool Round-Robin</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+      Marcá los asesores que reciben leads automáticamente. El cambio toma efecto en el próximo lead que llegue.
+    </p>
+    <div id="rr-pool-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      <div class="loading">Cargando asesores...</div>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted)">
+      💡 Los cambios se guardan automáticamente al tildar/destildar cada asesor.
+    </p>
+  </div>
+
+  <!-- Modo de distribución -->
+  <div class="card" style="padding:20px;margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:4px">⚙️ Modo de distribución</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+      Define cómo se asignan los leads nuevos (vía Zapia, importación o carga manual sin asesor).
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <label id="modo-rr" class="modo-card" onclick="seleccionarModo('ROUND_ROBIN')" style="cursor:pointer;padding:14px 16px;border:2px solid var(--border);border-radius:var(--radius);display:flex;align-items:flex-start;gap:12px">
+        <input type="radio" name="modo_dist" value="ROUND_ROBIN" style="margin-top:3px;flex-shrink:0">
+        <div>
+          <div style="font-weight:700">🔀 Round-Robin (recomendado)</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">Cada nuevo lead va al asesor del pool con menos leads activos. Distribución automática y pareja.</div>
+        </div>
+      </label>
+      <label id="modo-manual" class="modo-card" onclick="seleccionarModo('MANUAL')" style="cursor:pointer;padding:14px 16px;border:2px solid var(--border);border-radius:var(--radius);display:flex;align-items:flex-start;gap:12px">
+        <input type="radio" name="modo_dist" value="MANUAL" style="margin-top:3px;flex-shrink:0">
+        <div>
+          <div style="font-weight:700">👆 Manual</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">Los leads de Zapia/importación quedan sin asesor hasta que el admin los asigne manualmente.</div>
+        </div>
+      </label>
+      <label id="modo-rot" class="modo-card" onclick="seleccionarModo('ROTACION_24H')" style="cursor:pointer;padding:14px 16px;border:2px solid var(--border);border-radius:var(--radius);display:flex;align-items:flex-start;gap:12px">
+        <input type="radio" name="modo_dist" value="ROTACION_24H" style="margin-top:3px;flex-shrink:0">
+        <div>
+          <div style="font-weight:700">🔄 Round-Robin + Rotación automática</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">
+            Igual que round-robin, pero si un lead NUEVO no tiene actividad en el tiempo configurado se reasigna automáticamente a otro asesor del pool.
+          </div>
+          <div id="rotacion-horas-wrap" style="margin-top:10px;display:none">
+            <label style="font-size:13px;font-weight:600">Horas sin actividad antes de rotar:</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+              <input type="number" id="input-leads_rotacion_horas" min="1" max="168" style="width:80px" class="form-control" placeholder="24" value="24">
+              <span style="color:var(--text-secondary);font-size:13px">horas</span>
+              <button class="btn btn-primary btn-sm" onclick="saveConfig('leads_rotacion_horas')">💾 Guardar</button>
+            </div>
+          </div>
+        </div>
+      </label>
+    </div>
+    <button onclick="guardarModoDistribucion()" class="btn btn-primary">💾 Guardar modo de distribución</button>
+  </div>
+</div>
+
+<!-- ── NOTIFICACIONES ── -->
+<div id="tab-notificaciones" style="display:none">
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">
+    Números de WhatsApp que recibirán alertas automáticas. Formato internacional sin +: <code>5411XXXXXXXX</code>
+  </p>
+  <div id="notificaciones-list"><div class="loading">Cargando...</div></div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TABS = ['api-keys','precios','empresa','leads','notificaciones'];
+
+function showTab(name, el) {
+  TABS.forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
+  });
+  document.querySelectorAll('.tabs .tab').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+/* ─── DATA ─────────────────────────────────────────────────────────────── */
+let allConfig = [];
+
+async function loadConfig() {
+  try {
+    allConfig = await API.get('/api/config');
+    renderAll();
+    loadRRPool();  // cargar pool de asesores RR
+  } catch(e) {
+    toast('Error al cargar configuración: ' + e.message, 'error');
+  }
+}
+
+function renderAll() {
+  const cats = { 'api_keys': [], 'precios': [], 'empresa': [], 'notificaciones': [], 'leads': [] };
+  allConfig.forEach(c => { if (cats[c.categoria]) cats[c.categoria].push(c); });
+
+  document.getElementById('api-keys-list').innerHTML      = renderApiKeys(cats.api_keys);
+  document.getElementById('precios-list').innerHTML        = renderSimpleFields(cats.precios);
+  document.getElementById('empresa-list').innerHTML        = renderSimpleFields(cats.empresa);
+  document.getElementById('notificaciones-list').innerHTML = renderSimpleFields(cats.notificaciones);
+
+  // Sincronizar modo distribución desde config
+  const modoCfg = cats.leads.find(c => c.clave === 'leads_modo_distribucion');
+  if (modoCfg?.valor) seleccionarModo(modoCfg.valor, false);
+  const horasCfg = cats.leads.find(c => c.clave === 'leads_rotacion_horas');
+  if (horasCfg?.valor) {
+    const inp = document.getElementById('input-leads_rotacion_horas');
+    if (inp) inp.value = horasCfg.valor;
+  }
+}
+
+/* ─── POOL ROUND-ROBIN ───────────────────────────────────────────────────── */
+
+let _rrAsesores = [];  // [{id, nombre, en_rr}]
+
+async function loadRRPool() {
+  const container = document.getElementById('rr-pool-list');
+  if (!container) return;
+  try {
+    const data = await API.get('/api/leads/rr-config');
+    _rrAsesores = data.asesores || [];
+    renderRRPool();
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--error);font-size:13px">Error cargando asesores: ${e.message}</div>`;
+  }
+}
+
+function renderRRPool() {
+  const container = document.getElementById('rr-pool-list');
+  if (!container || !_rrAsesores.length) {
+    if (container) container.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No hay asesores con rol Asesor o Supervisor.</p>';
+    return;
+  }
+  container.innerHTML = _rrAsesores.map(a => `
+    <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;
+                  background:${a.en_rr ? 'rgba(45,158,79,0.07)' : 'var(--bg-secondary)'};
+                  border:1px solid ${a.en_rr ? 'rgba(45,158,79,0.35)' : 'var(--border)'};
+                  border-radius:var(--radius);cursor:pointer;transition:all 0.15s"
+           id="rr-row-${a.id}">
+      <input type="checkbox" id="rr-chk-${a.id}"
+             ${a.en_rr ? 'checked' : ''}
+             onchange="toggleRRMember(${a.id}, this.checked)"
+             style="width:18px;height:18px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
+      <div style="flex:1">
+        <span style="font-weight:${a.en_rr ? '700' : '500'};font-size:15px">${a.nombre}</span>
+        ${a.en_rr
+          ? '<span style="font-size:11px;color:var(--green-light);margin-left:8px">✓ En el pool</span>'
+          : '<span style="font-size:11px;color:var(--text-muted);margin-left:8px">Excluido</span>'}
+      </div>
+      <span id="rr-saving-${a.id}" style="font-size:12px;color:var(--text-muted);display:none">Guardando...</span>
+    </label>
+  `).join('');
+}
+
+async function toggleRRMember(id, checked) {
+  // Actualizar estado local inmediatamente
+  const a = _rrAsesores.find(x => x.id === id);
+  if (a) a.en_rr = checked;
+
+  const savingEl = document.getElementById(`rr-saving-${id}`);
+  if (savingEl) savingEl.style.display = 'inline';
+
+  try {
+    const ids = _rrAsesores.filter(x => x.en_rr).map(x => x.id);
+    await API.put('/api/leads/rr-config', { ids });
+    renderRRPool();  // re-render con estilos actualizados
+    toast(`${checked ? '✅ Agregado' : '⛔ Removido'} del pool round-robin`);
+  } catch(e) {
+    // Revertir si falló
+    if (a) a.en_rr = !checked;
+    renderRRPool();
+    toast(e.message, 'error');
+  }
+}
+
+function seleccionarModo(valor, highlight = true) {
+  document.querySelectorAll('[name="modo_dist"]').forEach(r => {
+    r.checked = r.value === valor;
+  });
+  document.querySelectorAll('.modo-card').forEach(el => {
+    el.style.borderColor = 'var(--border)';
+    el.style.background = 'transparent';
+  });
+  const modoMap = { 'ROUND_ROBIN': 'modo-rr', 'MANUAL': 'modo-manual', 'ROTACION_24H': 'modo-rot' };
+  const sel = document.getElementById(modoMap[valor]);
+  if (sel && highlight) {
+    sel.style.borderColor = 'var(--green)';
+    sel.style.background = 'rgba(45,158,79,0.06)';
+  } else if (sel) {
+    sel.style.borderColor = 'var(--green)';
+  }
+  const wrap = document.getElementById('rotacion-horas-wrap');
+  if (wrap) wrap.style.display = valor === 'ROTACION_24H' ? 'block' : 'none';
+}
+
+async function guardarModoDistribucion() {
+  const sel = document.querySelector('[name="modo_dist"]:checked');
+  if (!sel) return;
+  try {
+    await API.put('/api/config/leads_modo_distribucion', { valor: sel.value });
+    toast('✅ Modo de distribución guardado');
+    if (sel.value === 'ROTACION_24H') {
+      await saveConfig('leads_rotacion_horas');
+    }
+    allConfig = await API.get('/api/config');
+    renderAll();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ─── API KEYS (secreto + show/hide + test + link) ────────────────────── */
+function renderApiKeys(items) {
+  if (!items.length) return '<p class="text-secondary">Sin claves definidas.</p>';
+
+  // Detectar qué IA está activa (primera con tiene_valor entre las IA keys)
+  const iaKeys = ['grok_api_key', 'gemini_api_key', 'claude_api_key'];
+  const iaActiva = iaKeys.find(k => items.find(i => i.clave === k && i.tiene_valor));
+
+  return items.map(item => {
+    const esIaActiva = iaKeys.includes(item.clave) && item.clave === iaActiva && item.tiene_valor;
+    const esFallback = iaKeys.includes(item.clave) && iaKeys.indexOf(item.clave) > 0 && item.clave !== iaActiva;
+
+    return `
+  <div class="card" style="margin-bottom:12px;padding:16px;${esIaActiva ? 'border-left:3px solid #22c55e' : esFallback ? 'border-left:3px solid #94a3b8' : ''}" id="card-${item.clave}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${item.label}
+          ${esIaActiva ? '<span style="font-size:11px;background:#dcfce7;color:#16a34a;border-radius:20px;padding:2px 8px;font-weight:700">✓ IA ACTIVA</span>' : ''}
+          ${esFallback && item.tiene_valor ? '<span style="font-size:11px;background:#f1f5f9;color:#64748b;border-radius:20px;padding:2px 8px">fallback</span>' : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:3px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${item.updated_at ? '🕐 Actualizado: ' + fmtDate(item.updated_at) : 'Sin configurar aún'}
+          ${item.link_obtener ? `<a href="${item.link_obtener}" target="_blank" rel="noopener" style="color:var(--primary);font-size:11px;text-decoration:none;font-weight:600">🔗 ${item.link_label || 'Obtener API Key →'}</a>` : ''}
+        </div>
+      </div>
+      <span class="badge ${estadoBadgeClass(item.estado)}" id="badge-${item.clave}">
+        ${estadoLabel(item.estado, item.tiene_valor)}
+      </span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div style="position:relative;flex:1;min-width:220px">
+        <input
+          type="password"
+          id="input-${item.clave}"
+          class="input"
+          placeholder="${item.tiene_valor ? '••••••••••••• (guardado)' : item.placeholder}"
+          value=""
+          style="padding-right:42px;font-family:monospace"
+        >
+        <button
+          type="button"
+          onclick="toggleShow('${item.clave}')"
+          style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:2px"
+          title="Mostrar/ocultar"
+        >👁</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="saveConfig('${item.clave}')">
+        💾 Guardar
+      </button>
+      ${item.test_id ? `
+      <button class="btn btn-secondary btn-sm" onclick="testConfig('${item.clave}')" id="test-btn-${item.clave}">
+        🔌 Probar
+      </button>` : ''}
+    </div>
+  </div>`;
+  }).join('');
+}
+
+/* ─── CAMPOS SIMPLES (no secreto) ────────────────────────────────────── */
+function renderSimpleFields(items) {
+  if (!items.length) return '<p class="text-secondary">Sin campos definidos.</p>';
+  return `<div class="card" style="padding:20px">` + items.map(item => `
+  <div class="form-group" id="card-${item.clave}">
+    <label class="form-label">${item.label}</label>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input
+        type="text"
+        id="input-${item.clave}"
+        class="input"
+        placeholder="${item.placeholder}"
+        value="${escHtml(item.valor || '')}"
+        style="flex:1;min-width:180px"
+      >
+      <button class="btn btn-primary btn-sm" onclick="saveConfig('${item.clave}')">
+        💾 Guardar
+      </button>
+      ${item.updated_at ? `<span style="font-size:11px;color:var(--text-secondary)">${fmtDate(item.updated_at)}</span>` : ''}
+    </div>
+  </div>`).join('') + `</div>`;
+}
+
+/* ─── ACCIONES ───────────────────────────────────────────────────────── */
+function toggleShow(clave) {
+  const inp = document.getElementById('input-' + clave);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function saveConfig(clave) {
+  const inp = document.getElementById('input-' + clave);
+  if (!inp) return;
+  const valor = inp.value.trim();
+  if (!valor) {
+    toast('Ingresá un valor antes de guardar', 'error');
+    return;
+  }
+  try {
+    await API.put('/api/config/' + clave, { valor });
+    // Solo limpiar si es campo secreto (tipo password)
+    if (inp.type === 'password') {
+      inp.value = '';
+      inp.placeholder = '••••••••••••• (guardado)';
+    }
+    const badgeEl = document.getElementById('badge-' + clave);
+    if (badgeEl) { badgeEl.className = 'badge badge-success'; badgeEl.textContent = 'Activa'; }
+    toast('✓ ' + clave + ' guardado');
+    allConfig = await API.get('/api/config');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function testConfig(clave) {
+  const btn = document.getElementById('test-btn-' + clave);
+  const badge = document.getElementById('badge-' + clave);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Probando...'; }
+  try {
+    const res = await API.post('/api/config/' + clave + '/test', {});
+    if (badge) {
+      badge.className = res.ok ? 'badge badge-success' : 'badge badge-error';
+      badge.textContent = res.ok ? 'Activa' : 'Error';
+    }
+    toast(res.msg, res.ok ? 'success' : 'error');
+  } catch(e) {
+    toast('Error al probar: ' + e.message, 'error');
+    if (badge) { badge.className = 'badge badge-error'; badge.textContent = 'Error'; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔌 Probar'; }
+  }
+}
+
+/* ─── HELPERS ────────────────────────────────────────────────────────── */
+function estadoBadgeClass(estado) {
+  if (estado === 'activa') return 'badge-success';
+  if (estado === 'error')  return 'badge-error';
+  return 'badge-secondary';
+}
+
+function estadoLabel(estado, tiene_valor) {
+  if (!tiene_valor) return 'Sin configurar';
+  if (estado === 'activa') return 'Activa';
+  if (estado === 'error')  return 'Error';
+  return 'Configurada';
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadConfig();
+loadAiStatus();
+
+async function loadAiStatus() {
+  try {
+    const ai = await API.get('/api/config/ai-status');
+    const banner = document.getElementById('ai-status-banner');
+    if (!banner) return;
+    if (ai.configurado) {
+      const provNombre = { grok: 'Grok (xAI)', gemini: 'Gemini (Google)', claude: 'Claude (Anthropic)' }[ai.proveedor] || ai.proveedor;
+      banner.style.cssText = 'display:flex;margin-bottom:16px;padding:12px 16px;border-radius:10px;align-items:center;gap:12px;font-size:13px;background:#dcfce7;border:1px solid #86efac;color:#166534';
+      banner.innerHTML = `<span style="font-size:1.4rem">🤖</span><div><strong>IA activa: ${provNombre}</strong> · modelo <code>${ai.modelo}</code><br><span style="font-size:11px;opacity:0.8">Clave: ${ai.clave_parcial || '••••'}</span></div>`;
+    } else {
+      banner.style.cssText = 'display:flex;margin-bottom:16px;padding:12px 16px;border-radius:10px;align-items:center;gap:12px;font-size:13px;background:#fef3c7;border:1px solid #fcd34d;color:#92400e';
+      banner.innerHTML = `<span style="font-size:1.4rem">⚠️</span><div><strong>Sin IA configurada</strong><br>Configurá tu <strong>Grok API Key (xAI)</strong> para habilitar todas las funciones de inteligencia artificial. <a href="https://console.x.ai/" target="_blank" style="color:#1d4ed8;font-weight:600">Obtener en console.x.ai →</a></div>`;
+    }
+  } catch(e) { /* silencioso */ }
+}
+</script>
+{% endblock %}

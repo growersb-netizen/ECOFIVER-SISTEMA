@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Eco Módulos CRM{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<style>
+  .qa-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-bottom:22px; }
+  .qa-card { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+             text-decoration:none; padding:16px 10px; border-radius:12px; background:var(--bg-secondary,#1a1a2e);
+             border:1px solid var(--border,#2a2a3a); transition:transform .1s, box-shadow .15s, background .15s; text-align:center; }
+  .qa-card:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.18); background:var(--bg-hover,#252540); }
+  .qa-ico { font-size:26px; line-height:1; }
+  .qa-lbl { font-size:13px; font-weight:700; color:var(--text,#eee); }
+  .qa-titulo { font-size:13px; font-weight:700; color:var(--text-muted,#888); text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px; }
+</style>
+
+<div class="qa-titulo">⚡ Accesos rápidos</div>
+<div class="qa-grid">
+  {% if 'ADMIN' in roles %}
+  <a href="/trabajar" class="qa-card"><span class="qa-ico">▶️</span><span class="qa-lbl">Contactar</span></a>
+  <a href="/ventas-contado" class="qa-card"><span class="qa-ico">💰</span><span class="qa-lbl">Ventas</span></a>
+  <a href="/logistica" class="qa-card"><span class="qa-ico">🚚</span><span class="qa-lbl">Entregas</span></a>
+  <a href="/fabrica" class="qa-card"><span class="qa-ico">🏭</span><span class="qa-lbl">Órdenes fábrica</span></a>
+  <a href="/cobranzas" class="qa-card"><span class="qa-ico">💳</span><span class="qa-lbl">Cobranzas</span></a>
+  <a href="/control-agentes" class="qa-card"><span class="qa-ico">🧠</span><span class="qa-lbl">Control IA</span></a>
+  {% elif 'COORDINADOR_OPERATIVO' in roles %}
+  <a href="/logistica" class="qa-card"><span class="qa-ico">🚚</span><span class="qa-lbl">Entregas</span></a>
+  <a href="/logistica?tab=entregas" class="qa-card"><span class="qa-ico">📋</span><span class="qa-lbl">Pendientes coord.</span></a>
+  <a href="/fabrica" class="qa-card"><span class="qa-ico">🏭</span><span class="qa-lbl">Órdenes fábrica</span></a>
+  <a href="/contratos" class="qa-card"><span class="qa-ico">📄</span><span class="qa-lbl">Contratos</span></a>
+  <a href="/flota" class="qa-card"><span class="qa-ico">🚗</span><span class="qa-lbl">Flota</span></a>
+  {% elif 'FABRICA' in roles %}
+  <a href="/fabrica" class="qa-card"><span class="qa-ico">🏭</span><span class="qa-lbl">Órdenes</span></a>
+  <a href="/produccion" class="qa-card"><span class="qa-ico">⚙️</span><span class="qa-lbl">Producción</span></a>
+  <a href="/asistencia-rapida" class="qa-card"><span class="qa-ico">✅</span><span class="qa-lbl">Asistencia</span></a>
+  <a href="/panolero" class="qa-card"><span class="qa-ico">🗜️</span><span class="qa-lbl">Depósito</span></a>
+  {% elif 'ASESOR_APERTURA' in roles or 'SUPERVISOR_CIERRE' in roles %}
+  <a href="/trabajar" class="qa-card"><span class="qa-ico">▶️</span><span class="qa-lbl">Contactar</span></a>
+  <a href="/leads" class="qa-card"><span class="qa-ico">👥</span><span class="qa-lbl">Leads</span></a>
+  <a href="/ventas-contado" class="qa-card"><span class="qa-ico">💰</span><span class="qa-lbl">Nueva venta</span></a>
+  <a href="/videollamadas" class="qa-card"><span class="qa-ico">📹</span><span class="qa-lbl">Videollamadas</span></a>
+  <a href="/envios-cargo" class="qa-card"><span class="qa-ico">🚚</span><span class="qa-lbl">Envíos cargo</span></a>
+  {% elif 'COBRANZAS' in roles %}
+  <a href="/cobranzas" class="qa-card"><span class="qa-ico">💳</span><span class="qa-lbl">Cobranzas</span></a>
+  <a href="/ventas-contado" class="qa-card"><span class="qa-ico">💰</span><span class="qa-lbl">Ventas</span></a>
+  {% else %}
+  <a href="/asistencia-rapida" class="qa-card"><span class="qa-ico">✅</span><span class="qa-lbl">Asistencia</span></a>
+  <a href="/panolero" class="qa-card"><span class="qa-ico">🗜️</span><span class="qa-lbl">Depósito</span></a>
+  {% endif %}
+</div>
+
+{% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles or 'ADMINISTRACION' in roles or 'FABRICA' in roles %}
+<style>
+  .cs-wrap { margin-bottom:22px; }
+  .cs-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px; }
+  .cs-title { font-size:13px; font-weight:700; color:var(--text-muted,#888); text-transform:uppercase; letter-spacing:.04em; }
+  .cs-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .cs-card { border:1px solid var(--border,#2a2a3a); border-radius:12px; padding:14px; background:var(--bg-secondary,#1a1a2e); }
+  .cs-card.prod { border-left:4px solid #b45309; }
+  .cs-card.inst { border-left:4px solid #0d9488; }
+  .cs-card-t { font-weight:800; font-size:14px; margin-bottom:6px; }
+  .cs-nums { display:flex; gap:16px; margin-top:6px; }
+  .cs-num-v { font-size:22px; font-weight:800; line-height:1; }
+  .cs-num-l { font-size:11px; color:var(--text-muted,#888); }
+  .cs-val { font-size:14px; font-weight:700; margin-top:4px; }
+  @media (max-width:560px){ .cs-grid{ grid-template-columns:1fr; } }
+</style>
+<div class="cs-wrap">
+  <div class="cs-head">
+    <span class="cs-title">📊 Consumo del mes · Producción vs Instalación</span>
+    <a href="/panolero?tab=movimientos" style="font-size:12px;color:var(--text-muted,#888);text-decoration:none">Ver detalle →</a>
+  </div>
+  <div class="cs-grid" id="cs-grid">
+    <div class="cs-card prod"><div class="cs-card-t">🏭 Producción</div><div class="cs-num-l">Cargando…</div></div>
+    <div class="cs-card inst"><div class="cs-card-t">🚚 Instalación</div><div class="cs-num-l">Cargando…</div></div>
+  </div>
+</div>
+{% endif %}
+
+<div id="dashboard-content">
+  <div class="loading"><div class="spinner"></div> Cargando...</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const userRoles = {{ roles | tojson }};
+  const primaryRole = userRoles[0] || 'ADMIN';
+  loadDashboard(primaryRole);
+
+  // Resumen de consumo Producción vs Instalación (últimos 30 días)
+  (async function cargarConsumoDash() {
+    const grid = document.getElementById('cs-grid');
+    if (!grid) return;
+    try {
+      const r = await fetch('/api/panolero/consumo-por-sector?dias=30');
+      if (!r.ok) { grid.closest('.cs-wrap').style.display = 'none'; return; }
+      const d = await r.json();
+      const card = (cls, icono, titulo, a) => {
+        const val = (d.ver_costos && a.insumos_valor != null)
+          ? `<div class="cs-val" style="color:${cls==='prod'?'#b45309':'#0d9488'}">$${(a.insumos_valor||0).toLocaleString('es-AR')}</div>` : '';
+        return `<div class="cs-card ${cls}">
+          <div class="cs-card-t">${icono} ${titulo}</div>
+          ${val}
+          <div class="cs-nums">
+            <div><div class="cs-num-v">${a.insumos_movimientos||0}</div><div class="cs-num-l">salidas insumo</div></div>
+            <div><div class="cs-num-v">${a.herramientas_entregadas||0}</div><div class="cs-num-l">herramientas</div></div>
+          </div>
+        </div>`;
+      };
+      grid.innerHTML = card('prod','🏭','Producción',d.produccion) + card('inst','🚚','Instalación',d.instalacion);
+    } catch(e) {
+      const w = document.querySelector('.cs-wrap'); if (w) w.style.display = 'none';
+    }
+  })();
+</script>
+{% endblock %}

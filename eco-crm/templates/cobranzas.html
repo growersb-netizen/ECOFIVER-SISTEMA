@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Cobranzas · Eco Módulos CRM{% endblock %}
+{% block page_title %}Cobranzas{% endblock %}
+
+{% block content %}
+
+<!-- Stats rápidas -->
+<div class="stats-grid" id="cobranza-stats"></div>
+
+<div class="filters-bar">
+  <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
+         oninput="filtrarCartera(this.value)">
+  <select class="form-control" style="max-width:160px" onchange="ordenarCartera(this.value)">
+    <option value="atraso">Mayor atraso primero</option>
+    <option value="nombre">Por nombre</option>
+    <option value="vcto">Por vencimiento</option>
+  </select>
+</div>
+
+<div id="cartera-container">
+  <div class="loading"><div class="spinner"></div> Cargando cartera...</div>
+</div>
+
+<!-- Modal gestión -->
+<div class="modal-overlay" id="modal-gestion" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">Registrar Gestión</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-gestion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Canal</label>
+        <select id="gestion-canal" class="form-control">
+          <option value="WHATSAPP">WhatsApp</option>
+          <option value="LLAMADA">Llamada</option>
+          <option value="PRESENCIAL">Presencial</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Resultado</label>
+        <select id="gestion-resultado" class="form-control">
+          <option value="PROMETIO_PAGAR">Prometió pagar</option>
+          <option value="PAGO">Pagó ✓</option>
+          <option value="NO_CONTESTO">No contestó</option>
+          <option value="RECLAMA">Reclama</option>
+          <option value="ACUERDO_ESPECIAL">Acuerdo especial</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas</label>
+        <textarea id="gestion-notas" class="form-control" rows="3" placeholder="Detalle de la gestión..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-gestion')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveGestion()" class="btn btn-primary btn-lg">Guardar gestión</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let carteraData = [];
+  let cobFiltroActivo = null; // 'vencidas' | 'vencen_hoy' | null
+
+  function aplicarFiltroCob(tipo) {
+    cobFiltroActivo = cobFiltroActivo === tipo ? null : tipo; // toggle
+    // Resaltar tarjeta activa
+    document.querySelectorAll('#cobranza-stats .stat-card').forEach(el => {
+      el.style.opacity = cobFiltroActivo ? '0.5' : '1';
+    });
+    if (cobFiltroActivo) {
+      const idx = tipo === 'vencen_hoy' ? 0 : tipo === 'vencidas' ? 1 : -1;
+      if (idx >= 0) {
+        const cards = document.querySelectorAll('#cobranza-stats .stat-card');
+        if (cards[idx]) cards[idx].style.opacity = '1';
+      }
+    }
+    // Filtrar lista
+    if (!cobFiltroActivo) { renderCartera(carteraData); return; }
+    const hoy = new Date().toISOString().split('T')[0];
+    const filtrados = carteraData.filter(v => {
+      if (cobFiltroActivo === 'vencidas')   return v.dias_atraso > 0;
+      if (cobFiltroActivo === 'vencen_hoy') return v.alerta === 'AMARILLA' && v.dias_atraso === 0;
+      return true;
+    });
+    renderCartera(filtrados);
+    // Mostrar badge de filtro activo
+    const badge = document.getElementById('cob-filtro-badge');
+    if (badge) badge.style.display = cobFiltroActivo ? 'inline-block' : 'none';
+  }
+
+  // ── Reemplaza la loadCartera de main.js con la versión completa de esta página ──
+  window.loadCartera = async function() {
+    const container = document.getElementById('cartera-container');
+    if (!container) return;
+    container.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando cartera...</div>';
+    try {
+      const data = await API.get('/api/cobranzas/cartera');
+      if (!data) return;
+      carteraData = data;
+      renderCartera(data);
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar cartera: ${e.message}</div>`;
+    }
+  };
+
+  function renderCartera(data) {
+    const container = document.getElementById('cartera-container');
+    if (!container) return;
+    if (!data.length) {
+      container.innerHTML = '<div class="empty-state"><span class="empty-icon">💳</span><p>Sin clientes en cartera activa</p></div>';
+      return;
+    }
+
+    container.innerHTML = data.map(v => {
+      const clsCard = v.dias_atraso > 0 ? 'atraso' : v.alerta === 'AMARILLA' ? 'vence-hoy' : 'al-dia';
+      const pct = Math.min(100, Math.round(((v.cuotas_pagas || 0) / (v.cantidad_cuotas || 1)) * 100));
+
+      return `
+        <div class="cobranza-card ${clsCard}">
+          <div class="cliente-info">
+            <div>
+              <div style="font-size:16px;font-weight:700">${v.cliente_nombre}</div>
+              <div style="font-size:13px;color:var(--text-secondary)">${v.modelo_especifico || v.producto || '—'} · ${v.cliente_localidad || ''}</div>
+            </div>
+            <div style="text-align:right">
+              ${v.dias_atraso > 0
+                ? `<div style="color:var(--error);font-weight:800;font-size:15px">⚠ ${v.dias_atraso}d</div>
+                   <div style="font-size:12px;color:var(--error)">${formatMoney((v.valor_cuota || 0) * Math.ceil(v.dias_atraso / 30))} vencido</div>`
+                : v.alerta === 'AMARILLA'
+                  ? '<div style="color:var(--warning);font-size:13px">⏰ Vence en 3 días</div>'
+                  : '<div class="badge badge-green" style="font-size:11px">Al día</div>'
+              }
+            </div>
+          </div>
+
+          <div class="progress-bar" style="margin-top:10px">
+            <div class="progress-fill ${v.dias_atraso > 0 ? 'danger' : ''}" style="width:${pct}%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-top:4px">
+            <span>${v.cuotas_pagas}/${v.cantidad_cuotas} cuotas (${pct}%)</span>
+            <span>Próx. ${v.proximo_vencimiento ? formatDate(v.proximo_vencimiento) : '—'} · ${formatMoney(v.monto_proxima_cuota)}</span>
+          </div>
+
+          ${v.ultimo_contacto
+            ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">
+                 Último contacto: ${formatDate(v.ultimo_contacto)} · ${v.ultimo_resultado || ''}
+               </div>`
+            : ''}
+
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+            <a href="${whatsappLink(v.cliente_telefono || '', v.mensaje_whatsapp || '')}"
+               target="_blank" class="btn btn-whatsapp btn-sm">
+              📱 WhatsApp
+            </a>
+            <button onclick="openGestion(${v.id})" class="btn btn-sm btn-secondary">
+              + Registrar gestión
+            </button>
+            <span style="font-size:12px;color:var(--text-muted)">${v.cliente_telefono || ''}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function loadStats() {
+    try {
+      const data = await API.get('/api/cobranzas/resumen');
+      if (!data) return;
+      const grid = document.getElementById('cobranza-stats');
+      grid.innerHTML =
+        `<div class="stat-card warning stat-clickable" onclick="aplicarFiltroCob('vencen_hoy')" style="cursor:pointer">
+           <div class="stat-value">${data.vencen_hoy ?? 0}</div>
+           <div class="stat-label">Vencen hoy</div>
+           <div class="stat-hint">Ver detalle →</div>
+         </div>` +
+        `<div class="stat-card error stat-clickable" onclick="aplicarFiltroCob('vencidas')" style="cursor:pointer">
+           <div class="stat-value">${data.vencidas ?? 0}</div>
+           <div class="stat-label">Cuotas vencidas</div>
+           <div class="stat-hint">Ver detalle →</div>
+         </div>` +
+        statCard(data.gestiones_hoy, 'Gestiones hoy', 'teal') +
+        statCard(data.pagos_mes, 'Pagos este mes', 'green');
+    } catch(e) {
+      console.error('Error stats cobranzas:', e);
+    }
+  }
+
+  function filtrarCartera(search) {
+    const q = search.toLowerCase();
+    renderCartera(carteraData.filter(v =>
+      v.cliente_nombre.toLowerCase().includes(q) ||
+      (v.cliente_localidad || '').toLowerCase().includes(q)
+    ));
+  }
+
+  function ordenarCartera(orden) {
+    const sorted = [...carteraData].sort((a, b) => {
+      if (orden === 'atraso') return (b.dias_atraso || 0) - (a.dias_atraso || 0);
+      if (orden === 'nombre') return a.cliente_nombre.localeCompare(b.cliente_nombre);
+      if (orden === 'vcto') {
+        const da = a.proximo_vencimiento ? new Date(a.proximo_vencimiento) : new Date('9999-01-01');
+        const db = b.proximo_vencimiento ? new Date(b.proximo_vencimiento) : new Date('9999-01-01');
+        return da - db;
+      }
+      return 0;
+    });
+    renderCartera(sorted);
+  }
+
+  async function init() {
+    await window.loadCartera();
+    await loadStats();
+    // Pre-filter desde URL param (ej: /cobranzas?filtro=vencidas)
+    const p = new URLSearchParams(window.location.search);
+    const filtro = p.get('filtro');
+    if (filtro === 'vencidas' || filtro === 'vencen_hoy') {
+      aplicarFiltroCob(filtro);
+    }
+  }
+
+  init();
+</script>
+{% endblock %}

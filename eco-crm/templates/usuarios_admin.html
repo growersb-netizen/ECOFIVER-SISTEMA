@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+{% block title %}Usuarios · Eco Módulos CRM{% endblock %}
+{% block page_title %}👥 Gestión de Usuarios{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-primary" onclick="openModal()">+ Nuevo usuario</button>
+{% endblock %}
+
+{% block content %}
+
+<div id="users-list"><div class="loading">Cargando...</div></div>
+
+<!-- ═══ MODAL CREAR / EDITAR ═══ -->
+<div id="modal-user" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" style="max-width:520px;width:95vw">
+    <div class="modal-header">
+      <h3 id="modal-title">Nuevo usuario</h3>
+      <button class="btn btn-icon" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="user-form">
+        <input type="hidden" id="f-uid" value="">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label class="label">Nombre completo *</label>
+            <input id="f-nombre" class="input" required placeholder="Ej: Juan Pérez">
+          </div>
+          <div>
+            <label class="label">Email *</label>
+            <input id="f-email" class="input" type="email" required placeholder="juan@ecomodulos.com">
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label class="label">Contraseña <span id="pwd-hint" style="color:var(--text-muted);font-weight:400">(requerida para usuario nuevo)</span></label>
+          <input id="f-password" class="input" type="password" placeholder="Mínimo 6 caracteres">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Al editar, dejá vacío para no cambiar la contraseña</div>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <label class="label">Roles *</label>
+          <div id="roles-checkboxes" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            {% for rol_key, rol_label in roles_disponibles %}
+            <label class="role-check {% if rol_key == 'ADMIN' and not es_admin %}role-locked{% endif %}"
+                   id="lbl-{{ rol_key }}">
+              <input type="checkbox" name="roles" value="{{ rol_key }}"
+                     {% if rol_key == 'ADMIN' and not es_admin %}disabled{% endif %}>
+              <span class="role-name">{{ rol_label }}</span>
+              {% if rol_key == 'ADMIN' and not es_admin %}
+              <span style="font-size:10px;color:var(--text-muted)"> (solo ADMIN)</span>
+              {% endif %}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div id="activo-row" style="display:none;margin-bottom:12px">
+          <label class="role-check">
+            <input type="checkbox" id="f-activo" checked>
+            <span class="role-name">Usuario activo</span>
+          </label>
+          <label class="role-check" style="margin-top:8px">
+            <input type="checkbox" id="f-agente-ia">
+            <span class="role-name">🤖 Es agente IA (puede recibir leads y usar API de agente)</span>
+          </label>
+          <div id="agente-key-row" style="display:none;margin-top:8px;padding:8px 10px;background:rgba(99,102,241,.08);border-radius:8px;font-size:12px">
+            <div style="color:var(--text-muted);margin-bottom:4px">🔑 Agent Key (usar en header X-Agent-Key):</div>
+            <code id="agente-key-value" style="font-size:11px;word-break:break-all;color:#6366f1"></code>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUser()" id="btn-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.user-row {
+  display:flex; align-items:center; gap:12px;
+  padding:14px 16px; border-radius:8px; margin-bottom:8px;
+  background:var(--bg-secondary); border:1px solid var(--border);
+  transition:border-color .2s;
+}
+.user-row:hover { border-color:var(--teal); }
+.user-avatar-big {
+  width:42px; height:42px; border-radius:50%;
+  background:linear-gradient(135deg,#2d9e4f,#00b8a9);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; font-weight:700; color:#fff; flex-shrink:0;
+}
+.user-row-info { flex:1; min-width:0; }
+.user-row-name { font-weight:600; font-size:15px; }
+.user-row-email { font-size:12px; color:var(--text-muted); }
+.role-pill {
+  font-size:11px; padding:2px 8px; border-radius:12px; font-weight:600;
+  background:#1a2a3a; color:#42a5f5; border:1px solid #2a3a4a;
+  white-space:nowrap;
+}
+.role-pill.admin   { background:#2a1a1a; color:#f44336; border-color:#4a2a2a; }
+.role-pill.coord   { background:#1a2a1a; color:#4caf50; border-color:#2a4a2a; }
+.role-pill.inactive{ background:#222; color:#666; border-color:#333; }
+.role-check {
+  display:flex; align-items:center; gap:8px; cursor:pointer;
+  padding:8px 10px; border-radius:6px; border:1px solid var(--border);
+  background:var(--bg-secondary); transition:border-color .15s;
+}
+.role-check:hover { border-color:var(--teal); }
+.role-check input[type=checkbox] { width:16px; height:16px; accent-color:var(--teal); cursor:pointer; }
+.role-check.role-locked { opacity:.5; cursor:not-allowed; }
+.role-name { font-size:13px; font-weight:500; }
+</style>
+
+<script>
+let allUsers = [];
+let editingUid = null;
+
+// ─── Load users ───────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const el = document.getElementById('users-list');
+  try {
+    allUsers = await API.get('/api/usuarios');
+    renderUsers();
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function roleColor(r) {
+  if (r === 'ADMIN') return 'admin';
+  if (r === 'COORDINADOR_OPERATIVO') return 'coord';
+  return '';
+}
+
+function renderUsers() {
+  const el = document.getElementById('users-list');
+  if (!allUsers.length) {
+    el.innerHTML = '<div class="empty-state">Sin usuarios registrados</div>';
+    return;
+  }
+  el.innerHTML = allUsers.map(u => {
+    const initial = (u.nombre||'?')[0].toUpperCase();
+    const rolesPills = (u.roles||[]).map(r =>
+      `<span class="role-pill ${roleColor(r)}">${escHtml(r.replace('_',' '))}</span>`
+    ).join(' ');
+    return `
+    <div class="user-row" style="${!u.activo?'opacity:.55':''}">
+      <div class="user-avatar-big" style="${u.es_agente_ia?'background:linear-gradient(135deg,#6366f1,#8b5cf6)':''}">
+        ${u.es_agente_ia ? '🤖' : initial}
+      </div>
+      <div class="user-row-info">
+        <div class="user-row-name">
+          ${escHtml(u.nombre)}
+          ${!u.activo?'<span style="font-size:11px;color:#888">(inactivo)</span>':''}
+          ${u.es_agente_ia?'<span style="font-size:10px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:1px 7px;border-radius:10px;margin-left:4px">IA</span>':''}
+        </div>
+        <div class="user-row-email">${escHtml(u.email)}</div>
+        <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">${rolesPills}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="openEdit(${u.id})">✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleActivo(${u.id}, ${u.activo})"
+                title="${u.activo?'Desactivar':'Activar'}">${u.activo?'🔴':'🟢'}</button>
+        {% if es_admin %}
+        <button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})" title="Eliminar">🗑</button>
+        {% endif %}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function openModal() {
+  editingUid = null;
+  document.getElementById('modal-title').textContent = 'Nuevo usuario';
+  document.getElementById('f-uid').value = '';
+  document.getElementById('f-nombre').value = '';
+  document.getElementById('f-email').value = '';
+  document.getElementById('f-password').value = '';
+  document.getElementById('f-password').required = true;
+  document.getElementById('pwd-hint').textContent = '(requerida)';
+  document.getElementById('activo-row').style.display = 'none';
+  // Limpiar roles
+  document.querySelectorAll('#roles-checkboxes input[type=checkbox]').forEach(c => c.checked = false);
+  document.getElementById('modal-user').style.display = 'flex';
+}
+
+function openEdit(uid) {
+  const u = allUsers.find(x => x.id === uid);
+  if (!u) return;
+  editingUid = uid;
+  document.getElementById('modal-title').textContent = `Editar: ${u.nombre}`;
+  document.getElementById('f-uid').value = uid;
+  document.getElementById('f-nombre').value = u.nombre;
+  document.getElementById('f-email').value = u.email;
+  document.getElementById('f-password').value = '';
+  document.getElementById('f-password').required = false;
+  document.getElementById('pwd-hint').textContent = '(dejá vacío para no cambiar)';
+  document.getElementById('activo-row').style.display = '';
+  document.getElementById('f-activo').checked = u.activo;
+  document.getElementById('f-agente-ia').checked = u.es_agente_ia || false;
+  const keyRow = document.getElementById('agente-key-row');
+  if (u.es_agente_ia && u.agente_key) {
+    keyRow.style.display = 'block';
+    document.getElementById('agente-key-value').textContent = u.agente_key;
+  } else {
+    keyRow.style.display = 'none';
+  }
+  // Setear roles
+  document.querySelectorAll('#roles-checkboxes input[type=checkbox]').forEach(c => {
+    c.checked = (u.roles||[]).includes(c.value);
+  });
+  document.getElementById('modal-user').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('modal-user').style.display = 'none';
+}
+
+// ─── Save ─────────────────────────────────────────────────────────────────────
+async function saveUser() {
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const password = document.getElementById('f-password').value;
+  const roles = Array.from(
+    document.querySelectorAll('#roles-checkboxes input[type=checkbox]:checked')
+  ).map(c => c.value);
+
+  if (!nombre) return showToast('Ingresá el nombre', 'error');
+  if (!email)  return showToast('Ingresá el email', 'error');
+  if (!editingUid && !password) return showToast('Ingresá una contraseña', 'error');
+  if (password && password.length < 6) return showToast('Contraseña mínimo 6 caracteres', 'error');
+  if (!roles.length) return showToast('Seleccioná al menos un rol', 'error');
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  try {
+    if (editingUid) {
+      const payload = {
+        nombre, email, roles,
+        activo: document.getElementById('f-activo').checked,
+        es_agente_ia: document.getElementById('f-agente-ia').checked,
+      };
+      if (password) payload.password = password;
+      payload.activo = document.getElementById('f-activo').checked;
+      const res = await API.put(`/api/usuarios/${editingUid}`, payload);
+      let msg = 'Usuario actualizado ✅';
+      if (res.agente_key) {
+        msg += ` | Agent Key: ${res.agente_key}`;
+        document.getElementById('agente-key-row').style.display = 'block';
+        document.getElementById('agente-key-value').textContent = res.agente_key;
+      }
+      showToast(msg, 'success');
+    } else {
+      await API.post('/api/usuarios', { nombre, email, password, roles });
+      showToast('Usuario creado ✅', 'success');
+    }
+    closeModal();
+    loadUsers();
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar';
+  }
+}
+
+// ─── Toggle activo ────────────────────────────────────────────────────────────
+async function toggleActivo(uid, activo) {
+  const accion = activo ? 'desactivar' : 'activar';
+  const u = allUsers.find(x => x.id === uid);
+  if (!confirm(`¿${accion.charAt(0).toUpperCase()+accion.slice(1)} a ${u?.nombre}?`)) return;
+  try {
+    await API.put(`/api/usuarios/${uid}`, { activo: !activo });
+    showToast(`Usuario ${accion === 'activar' ? 'activado' : 'desactivado'}`, 'success');
+    loadUsers();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── Delete ───────────────────────────────────────────────────────────────────
+async function deleteUser(uid) {
+  const u = allUsers.find(x => x.id === uid);
+  if (!confirm(`¿Eliminar permanentemente a ${u?.nombre}?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await API.del(`/api/usuarios/${uid}`);
+    showToast('Usuario eliminado', 'success');
+    loadUsers();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── Init + helpers ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadUsers);
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+const API = {
+  async _req(method, url, body) {
+    const opts = { method, headers: {'Content-Type':'application/json'} };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    return d;
+  },
+  get: url       => API._req('GET',   url),
+  post:(url,b)   => API._req('POST',  url, b),
+  put: (url,b)   => API._req('PUT',   url, b),
+  del: url       => API._req('DELETE',url),
+};
+function showToast(msg, type='info') {
+  let t = document.getElementById('_toast');
+  if (!t) { t=document.createElement('div'); t.id='_toast'; t.style.cssText='position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px'; document.body.appendChild(t); }
+  const d=document.createElement('div');
+  d.style.cssText=`padding:12px 18px;border-radius:8px;font-size:14px;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.4);background:${type==='success'?'#1b3a1b':type==='error'?'#3a1b1b':'#1b2a3a'};color:${type==='success'?'#4caf50':type==='error'?'#f44336':'#42a5f5'};border:1px solid ${type==='success'?'#2d5a2d':type==='error'?'#5a2d2d':'#2d4a5a'}`;
+  d.textContent=msg; t.appendChild(d); setTimeout(()=>d.remove(),3500);
+}
+</script>
+{% endblock %}

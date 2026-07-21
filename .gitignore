@@ -1,0 +1,29 @@
+# Entornos virtuales
+eco-crm/venv/
+eco-multiagente/venv/
+venv/
+__pycache__/
+*.pyc
+
+# Variables de entorno — contienen tokens y claves, NO subir a GitHub
+oracle-deploy/.env.multiagente
+oracle-deploy/.env.crm
+.env
+*.env
+
+# Bases de datos
+*.db
+*.sqlite
+
+# Datos persistentes y uploads
+/data/
+eco-crm/data/
+eco-multiagente/data/
+eco-crm/uploads/
+
+# Logs y OS
+*.log
+.DS_Store
+Thumbs.db
+.claude/
+eco-crm/.claude/

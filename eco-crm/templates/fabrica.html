@@ -1,0 +1,557 @@
+{% extends "base.html" %}
+{% block title %}Fábrica · Eco Módulos CRM{% endblock %}
+{% block page_title %}Fábrica{% endblock %}
+
+{% block content %}
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('piscinas', this)">🏊 Piscinas</button>
+  <button class="tab" onclick="showTab('modulos', this)">🏠 Módulos</button>
+  <button class="tab" onclick="showTab('materiales', this)">📦 Materiales</button>
+  <button class="tab" onclick="showTab('stock', this)">📊 Stock</button>
+</div>
+
+<!-- PISCINAS -->
+<div id="tab-piscinas">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button onclick="nuevaOrdenPiscina()" class="btn btn-primary">+ Nueva orden piscina</button>
+  </div>
+  <div id="ordenes-piscinas-content"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- MÓDULOS -->
+<div id="tab-modulos" style="display:none">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button onclick="nuevaOrdenModulo()" class="btn btn-primary">+ Nueva orden módulo</button>
+  </div>
+  <div id="ordenes-modulos-content"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- MATERIALES -->
+<div id="tab-materiales" style="display:none">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button onclick="nuevoPedidoMaterial()" class="btn btn-primary">+ Pedido de material</button>
+  </div>
+  <div id="materiales-content"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- STOCK -->
+<div id="tab-stock" style="display:none">
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <button onclick="loadStockPiscinas()" class="btn btn-secondary btn-sm">🔄 Actualizar</button>
+    <button onclick="agregarStockPiscina()" class="btn btn-primary btn-sm">+ Stock piscina</button>
+  </div>
+  <h3 style="font-size:15px;font-weight:700;margin-bottom:10px;color:var(--text-secondary)">PISCINAS</h3>
+  <div id="stock-piscinas-content"><div class="loading">Cargando...</div></div>
+  <div class="divider"></div>
+  <h3 style="font-size:15px;font-weight:700;margin-bottom:10px;color:var(--text-secondary)">PANELES NCE</h3>
+  <div id="stock-paneles-content"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- Modal orden piscina -->
+<div class="modal-overlay" id="modal-orden-piscina" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="orden-piscina-title">Nueva Orden — Piscina</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-orden-piscina')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="orden-piscina-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cliente *</label>
+            <input name="cliente_nombre" class="input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Modelo *</label>
+            <select name="modelo" class="input" id="op-modelo">
+              {% for m in modelos_piscina %}
+              <option value="{{ m }}">{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Color *</label>
+            <select name="color" class="input">
+              {% for c in colores_piscina %}
+              <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="input">
+              <option value="EN_ESPERA">En espera</option>
+              <option value="EN_PROCESO">En proceso</option>
+              <option value="TERMINADA">Terminada</option>
+              <option value="ENTREGADA">Entregada</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Inicio fabricación</label>
+            <input type="datetime-local" name="fecha_inicio" class="input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estimado terminación</label>
+            <input type="datetime-local" name="fecha_estimada_fin" class="input">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea name="notas" class="input" rows="2"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-orden-piscina')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveOrdenPiscina()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal orden módulo -->
+<div class="modal-overlay" id="modal-orden-modulo" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="orden-modulo-title">Nueva Orden — Módulo</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-orden-modulo')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="orden-modulo-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cliente *</label>
+            <input name="cliente_nombre" class="input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Superficie m²</label>
+            <input type="number" name="superficie_m2" class="input" placeholder="36">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Configuración (ambientes, aberturas)</label>
+          <textarea name="configuracion" class="input" rows="2" placeholder="1 dormitorio, 1 baño, cocina-comedor..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="input">
+              <option value="EN_ESPERA">En espera</option>
+              <option value="EN_PROCESO">En proceso</option>
+              <option value="TERMINADA">Terminado</option>
+              <option value="ENTREGADA">Entregado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Inicio ensamblaje</label>
+            <input type="datetime-local" name="fecha_inicio" class="input">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fecha estimada terminación</label>
+          <input type="datetime-local" name="fecha_estimada_fin" class="input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea name="notas" class="input" rows="2"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-orden-modulo')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveOrdenModulo()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal pedido material -->
+<div class="modal-overlay" id="modal-material" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">Pedido de Material</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-material')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="material-form">
+        <div class="form-group">
+          <label class="form-label">Material *</label>
+          <input name="material" class="input" required placeholder="Ej: Fibra de vidrio, resina...">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cantidad</label>
+            <input type="number" name="cantidad" class="input" value="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unidad</label>
+            <input name="unidad" class="input" value="unidades" placeholder="kg, litros...">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Proveedor</label>
+          <input name="proveedor" class="input" placeholder="Nombre del proveedor">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estado</label>
+          <select name="estado" class="input">
+            <option value="PENDIENTE">Pendiente</option>
+            <option value="ENVIADO">Enviado</option>
+            <option value="RECIBIDO">Recibido</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea name="notas" class="input" rows="2"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-material')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveMaterial()" class="btn btn-primary">Guardar</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let ordenPiscinaEdit = null;
+  let ordenModuloEdit  = null;
+  let materialEdit     = null;
+
+  const ESTADO_MATERIAL = {
+    PENDIENTE: ['badge-yellow', 'Pendiente'],
+    ENVIADO:   ['badge-blue',   'Enviado'],
+    RECIBIDO:  ['badge-success','Recibido'],
+  };
+
+  function showTab(tab, btn) {
+    ['piscinas','modulos','materiales','stock'].forEach(t => {
+      document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
+    });
+    document.querySelectorAll('.tabs .tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (tab === 'piscinas')  loadOrdenesPiscinas();
+    if (tab === 'modulos')   loadOrdenesModulos();
+    if (tab === 'materiales') loadMateriales();
+    if (tab === 'stock')     { loadStockPiscinas(); loadStockPaneles(); }
+  }
+
+  // ── Órdenes piscinas ──────────────────────────────────────────────────────
+  async function loadOrdenesPiscinas() {
+    const container = document.getElementById('ordenes-piscinas-content');
+    container.innerHTML = '<div class="loading">Cargando órdenes...</div>';
+    try {
+      const data = await API.get('/api/fabrica/ordenes-piscinas');
+      if (!data) return;
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><span class="empty-icon">🏊</span><p>Sin órdenes de fabricación</p></div>';
+        return;
+      }
+      container.innerHTML = `<div class="table-container"><table class="table">
+        <thead><tr>
+          <th>Cliente</th><th>Modelo</th><th>Color</th>
+          <th>Inicio</th><th>Estimado fin</th><th>Estado</th><th>Cambiar estado</th>
+        </tr></thead>
+        <tbody>${data.map(o => `
+          <tr>
+            <td style="font-weight:600">${o.cliente_nombre}</td>
+            <td>${o.modelo}</td>
+            <td>${o.color}</td>
+            <td>${o.fecha_inicio ? formatDate(o.fecha_inicio) : '—'}</td>
+            <td>${o.fecha_estimada_fin ? formatDate(o.fecha_estimada_fin) : '—'}</td>
+            <td>${badge(ESTADO_ORDEN, o.estado)}</td>
+            <td>
+              <select onchange="cambiarEstadoOrdenPiscina(${o.id}, this.value)" class="input" style="max-width:140px;font-size:13px">
+                ${['EN_ESPERA','EN_PROCESO','TERMINADA','ENTREGADA'].map(e =>
+                  `<option value="${e}" ${e===o.estado?'selected':''}>${
+                    {EN_ESPERA:'En espera',EN_PROCESO:'En proceso',TERMINADA:'Terminada',ENTREGADA:'Entregada'}[e]
+                  }</option>`
+                ).join('')}
+              </select>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>`;
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    }
+  }
+
+  function nuevaOrdenPiscina() {
+    ordenPiscinaEdit = null;
+    document.getElementById('orden-piscina-form').reset();
+    document.getElementById('orden-piscina-title').textContent = 'Nueva Orden — Piscina';
+    openModal('modal-orden-piscina');
+  }
+
+  async function saveOrdenPiscina() {
+    const form = document.getElementById('orden-piscina-form');
+    const data = formToObj(form);
+    try {
+      if (ordenPiscinaEdit) {
+        await API.put(`/api/fabrica/ordenes-piscinas/${ordenPiscinaEdit}`, data);
+        toast('Orden actualizada');
+      } else {
+        await API.post('/api/fabrica/ordenes-piscinas', data);
+        toast('Orden creada');
+      }
+      closeModal('modal-orden-piscina');
+      loadOrdenesPiscinas();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function cambiarEstadoOrdenPiscina(id, estado) {
+    try {
+      await API.put(`/api/fabrica/ordenes-piscinas/${id}`, { estado });
+      if (estado === 'TERMINADA') toast('✅ Orden terminada — Renzo fue notificado');
+      else toast('Estado actualizado');
+      loadOrdenesPiscinas();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // ── Órdenes módulos ───────────────────────────────────────────────────────
+  async function loadOrdenesModulos() {
+    const container = document.getElementById('ordenes-modulos-content');
+    container.innerHTML = '<div class="loading">Cargando órdenes...</div>';
+    try {
+      const data = await API.get('/api/fabrica/ordenes-modulos');
+      if (!data) return;
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><span class="empty-icon">🏠</span><p>Sin órdenes de módulos</p></div>';
+        return;
+      }
+      container.innerHTML = `<div class="table-container"><table class="table">
+        <thead><tr>
+          <th>Cliente</th><th>Superficie</th><th>Configuración</th>
+          <th>Estimado fin</th><th>Estado</th><th>Cambiar estado</th>
+        </tr></thead>
+        <tbody>${data.map(o => `
+          <tr>
+            <td style="font-weight:600">${o.cliente_nombre}</td>
+            <td>${o.superficie_m2 ? o.superficie_m2 + 'm²' : '—'}</td>
+            <td style="font-size:13px;max-width:200px">${o.configuracion || '—'}</td>
+            <td>${o.fecha_estimada_fin ? formatDate(o.fecha_estimada_fin) : '—'}</td>
+            <td>${badge(ESTADO_ORDEN, o.estado)}</td>
+            <td>
+              <select onchange="cambiarEstadoOrdenModulo(${o.id}, this.value)" class="input" style="max-width:140px;font-size:13px">
+                ${['EN_ESPERA','EN_PROCESO','TERMINADA','ENTREGADA'].map(e =>
+                  `<option value="${e}" ${e===o.estado?'selected':''}>${
+                    {EN_ESPERA:'En espera',EN_PROCESO:'En proceso',TERMINADA:'Terminado',ENTREGADA:'Entregado'}[e]
+                  }</option>`
+                ).join('')}
+              </select>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>`;
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    }
+  }
+
+  function nuevaOrdenModulo() {
+    ordenModuloEdit = null;
+    document.getElementById('orden-modulo-form').reset();
+    document.getElementById('orden-modulo-title').textContent = 'Nueva Orden — Módulo';
+    openModal('modal-orden-modulo');
+  }
+
+  async function saveOrdenModulo() {
+    const data = formToObj(document.getElementById('orden-modulo-form'));
+    try {
+      if (ordenModuloEdit) {
+        await API.put(`/api/fabrica/ordenes-modulos/${ordenModuloEdit}`, data);
+        toast('Orden actualizada');
+      } else {
+        await API.post('/api/fabrica/ordenes-modulos', data);
+        toast('Orden creada');
+      }
+      closeModal('modal-orden-modulo');
+      loadOrdenesModulos();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function cambiarEstadoOrdenModulo(id, estado) {
+    try {
+      await API.put(`/api/fabrica/ordenes-modulos/${id}`, { estado });
+      if (estado === 'TERMINADA') toast('✅ Módulo terminado — Renzo fue notificado');
+      else toast('Estado actualizado');
+      loadOrdenesModulos();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // ── Materiales ────────────────────────────────────────────────────────────
+  async function loadMateriales() {
+    const container = document.getElementById('materiales-content');
+    container.innerHTML = '<div class="loading">Cargando pedidos...</div>';
+    try {
+      const data = await API.get('/api/fabrica/pedidos-materiales');
+      if (!data) return;
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><span class="empty-icon">📦</span><p>Sin pedidos de materiales</p></div>';
+        return;
+      }
+      container.innerHTML = `<div class="table-container"><table class="table">
+        <thead><tr>
+          <th>Material</th><th>Cantidad</th><th>Proveedor</th><th>Fecha</th><th>Estado</th><th>Cambiar estado</th>
+        </tr></thead>
+        <tbody>${data.map(p => `
+          <tr>
+            <td style="font-weight:600">${p.material}</td>
+            <td>${p.cantidad} ${p.unidad}</td>
+            <td>${p.proveedor || '—'}</td>
+            <td>${formatDate(p.fecha_pedido)}</td>
+            <td>${badge(ESTADO_MATERIAL, p.estado)}</td>
+            <td>
+              <select onchange="cambiarEstadoPedido(${p.id}, this.value)" class="input" style="max-width:130px;font-size:13px">
+                <option value="PENDIENTE" ${p.estado==='PENDIENTE'?'selected':''}>Pendiente</option>
+                <option value="ENVIADO"   ${p.estado==='ENVIADO'?'selected':''}>Enviado</option>
+                <option value="RECIBIDO"  ${p.estado==='RECIBIDO'?'selected':''}>Recibido</option>
+              </select>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>`;
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    }
+  }
+
+  function nuevoPedidoMaterial() {
+    materialEdit = null;
+    document.getElementById('material-form').reset();
+    openModal('modal-material');
+  }
+
+  async function saveMaterial() {
+    const data = formToObj(document.getElementById('material-form'));
+    try {
+      await API.post('/api/fabrica/pedidos-materiales', data);
+      toast('Pedido registrado');
+      closeModal('modal-material');
+      loadMateriales();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  async function cambiarEstadoPedido(id, estado) {
+    try {
+      await API.put(`/api/fabrica/pedidos-materiales/${id}`, { estado });
+      toast('Estado actualizado');
+      loadMateriales();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // ── Stock ─────────────────────────────────────────────────────────────────
+  async function loadStockPiscinas() {
+    const container = document.getElementById('stock-piscinas-content');
+    container.innerHTML = '<div class="loading">Cargando...</div>';
+    try {
+      const data = await API.get('/api/fabrica/stock-piscinas');
+      if (!data) return;
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><p>Sin stock registrado</p></div>';
+        return;
+      }
+      container.innerHTML = `<div class="table-container"><table class="table">
+        <thead><tr><th>Modelo</th><th>Color</th><th>Cantidad</th><th>Ajustar</th></tr></thead>
+        <tbody>${data.map(s => `
+          <tr ${s.alerta ? 'style="background:rgba(239,68,68,0.06)"' : ''}>
+            <td>${s.modelo}</td>
+            <td>${s.color}</td>
+            <td>
+              <span style="font-weight:700;${s.alerta?'color:var(--error)':''}">${s.cantidad}</span>
+              ${s.alerta ? ' <span class="badge badge-error">⚠ Crítico</span>' : ''}
+            </td>
+            <td>
+              <div style="display:flex;gap:4px">
+                <button onclick="ajustarStock('piscina',${s.id},-1,${s.cantidad})" class="btn btn-sm btn-ghost">−</button>
+                <button onclick="ajustarStock('piscina',${s.id},1,${s.cantidad})"  class="btn btn-sm btn-primary">+</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>`;
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    }
+  }
+
+  async function loadStockPaneles() {
+    const container = document.getElementById('stock-paneles-content');
+    container.innerHTML = '<div class="loading">Cargando...</div>';
+    try {
+      const data = await API.get('/api/fabrica/stock-paneles');
+      if (!data) return;
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><p>Sin stock de paneles</p></div>';
+        return;
+      }
+      container.innerHTML = `<div class="table-container"><table class="table">
+        <thead><tr><th>Tipo</th><th>Cantidad</th><th>Mínimo</th><th>Ajustar</th></tr></thead>
+        <tbody>${data.map(s => `
+          <tr ${s.alerta ? 'style="background:rgba(234,179,8,0.06)"' : ''}>
+            <td>${s.tipo_panel}</td>
+            <td style="font-weight:700;${s.alerta?'color:var(--warning)':''}">${s.cantidad}</td>
+            <td style="color:var(--text-secondary)">${s.stock_minimo}</td>
+            <td>
+              <div style="display:flex;gap:4px">
+                <button onclick="ajustarStock('panel',${s.id},-1,${s.cantidad})" class="btn btn-sm btn-ghost">−</button>
+                <button onclick="ajustarStock('panel',${s.id},1,${s.cantidad})"  class="btn btn-sm btn-primary">+</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>`;
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    }
+  }
+
+  async function ajustarStock(tipo, id, delta, cantidadActual) {
+    const nueva = Math.max(0, cantidadActual + delta);
+    try {
+      const url = tipo === 'piscina'
+        ? `/api/fabrica/stock-piscinas/${id}`
+        : `/api/fabrica/stock-paneles/${id}`;
+      await API.put(url, { cantidad: nueva });
+      if (tipo === 'piscina') loadStockPiscinas();
+      else loadStockPaneles();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function agregarStockPiscina() {
+    const modelo = prompt('Modelo de piscina:');
+    if (!modelo) return;
+    const color = prompt('Color:');
+    if (!color) return;
+    const cantidad = parseInt(prompt('Cantidad inicial:') || '0');
+    try {
+      await API.post('/api/fabrica/stock-piscinas', { modelo, color, cantidad });
+      toast('Stock agregado');
+      loadStockPiscinas();
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // Iniciar — con soporte para ?tab= en URL
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const tab = p.get('tab');
+    const validTabs = ['piscinas','modulos','materiales','stock'];
+    if (tab && validTabs.includes(tab)) {
+      const tabBtns = document.querySelectorAll('.tabs .tab');
+      const idx = validTabs.indexOf(tab);
+      showTab(tab, tabBtns[idx] || null);
+    } else {
+      loadOrdenesPiscinas();
+    }
+  })();
+</script>
+{% endblock %}

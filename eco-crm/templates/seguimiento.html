@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seguimiento de Entrega — Eco Módulos & Piscinas</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .logo-text {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    .logo-sub {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .saludo {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 0.4rem;
+    }
+    .subtitulo {
+      color: #64748b;
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+    }
+    .producto-chip {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+    /* Timeline de estados */
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+      margin-bottom: 2rem;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0.65rem;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #e2e8f0;
+    }
+    .tl-item {
+      position: relative;
+      padding-bottom: 1.5rem;
+    }
+    .tl-item:last-child { padding-bottom: 0; }
+    .tl-dot {
+      position: absolute;
+      left: -1.5rem;
+      top: 0.2rem;
+      width: 1.1rem;
+      height: 1.1rem;
+      border-radius: 50%;
+      background: #e2e8f0;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 2px #e2e8f0;
+    }
+    .tl-item.done .tl-dot { background: #22c55e; box-shadow: 0 0 0 2px #22c55e40; }
+    .tl-item.active .tl-dot { background: #3b82f6; box-shadow: 0 0 0 4px #3b82f640; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{box-shadow:0 0 0 4px #3b82f640} 50%{box-shadow:0 0 0 7px #3b82f620} }
+    .tl-label {
+      font-weight: 600;
+      color: #0f172a;
+      font-size: 0.95rem;
+    }
+    .tl-item:not(.done):not(.active) .tl-label { color: #94a3b8; }
+    .tl-desc { font-size: 0.82rem; color: #64748b; margin-top: 2px; }
+    /* Info entrega */
+    .info-grid {
+      display: grid;
+      gap: 0.8rem;
+      margin-bottom: 2rem;
+    }
+    .info-item {
+      background: #f8fafc;
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .info-icon { font-size: 1.3rem; }
+    .info-label { font-size: 0.75rem; color: #64748b; }
+    .info-value { font-weight: 600; color: #0f172a; font-size: 0.95rem; }
+    /* Botones */
+    .btn-wa {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: #25d366;
+      color: #fff;
+      border-radius: 12px;
+      padding: 0.9rem 1.5rem;
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      margin-bottom: 0.8rem;
+      transition: opacity 0.2s;
+    }
+    .btn-wa:hover { opacity: 0.9; }
+    .btn-testimonial {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
+      border-radius: 12px;
+      padding: 0.9rem 1.5rem;
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn-testimonial:hover { opacity: 0.9; }
+    .footer-note {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-text">🏡 Eco Módulos & Piscinas</div>
+    <div class="logo-sub">Zárate, Buenos Aires · fabricamos + instalamos</div>
+  </div>
+
+  <div class="saludo">¡Hola, {{ lead.nombre }}! 👋</div>
+  <div class="subtitulo">Acá podés ver el estado de tu instalación.</div>
+
+  {% if lead.modelo %}
+  <span class="producto-chip">{{ lead.modelo }}</span>
+  {% elif lead.producto %}
+  <span class="producto-chip">{{ lead.producto }}</span>
+  {% endif %}
+
+  <!-- Timeline de estados -->
+  <div class="timeline">
+    {% set estado = entrega.estado if entrega else 'SIN_INFO' %}
+    {% set estados_orden = ['COORDINADA', 'EN_CAMINO', 'INSTALADA'] %}
+
+    <div class="tl-item {% if estado in ['EN_CAMINO','INSTALADA'] %}done{% elif estado == 'COORDINADA' %}active{% endif %}">
+      <div class="tl-dot"></div>
+      <div class="tl-label">✅ Entrega coordinada</div>
+      <div class="tl-desc">Fecha y horario confirmados con el equipo</div>
+    </div>
+    <div class="tl-item {% if estado == 'INSTALADA' %}done{% elif estado == 'EN_CAMINO' %}active{% endif %}">
+      <div class="tl-dot"></div>
+      <div class="tl-label">🚛 Equipo en camino</div>
+      <div class="tl-desc">El equipo de instalación está en ruta</div>
+    </div>
+    <div class="tl-item {% if estado == 'INSTALADA' %}active{% endif %}">
+      <div class="tl-dot"></div>
+      <div class="tl-label">🎉 Instalación completada</div>
+      <div class="tl-desc">¡Tu producto ya está instalado!</div>
+    </div>
+  </div>
+
+  {% if entrega %}
+  <div class="info-grid">
+    {% if entrega.fecha_instalacion %}
+    <div class="info-item">
+      <span class="info-icon">📅</span>
+      <div>
+        <div class="info-label">Fecha de instalación</div>
+        <div class="info-value">{{ entrega.fecha_instalacion }}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if entrega.rango_horario %}
+    <div class="info-item">
+      <span class="info-icon">🕐</span>
+      <div>
+        <div class="info-label">Horario estimado</div>
+        <div class="info-value">{{ entrega.rango_horario }}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if entrega.localidad %}
+    <div class="info-item">
+      <span class="info-icon">📍</span>
+      <div>
+        <div class="info-label">Localidad</div>
+        <div class="info-value">{{ entrega.localidad }}</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if entrega and entrega.estado == 'INSTALADA' %}
+  <a href="/testimonial/{{ token }}" class="btn-testimonial">
+    ⭐ ¡Contanos cómo te fue!
+  </a>
+  {% else %}
+  <a href="https://wa.me/5493489424800" class="btn-wa">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    Consultar por WhatsApp
+  </a>
+  {% endif %}
+
+  <div class="footer-note">
+    Eco Módulos & Piscinas · info@ecomodulos.com.ar<br>
+    Zárate, Buenos Aires, Argentina
+  </div>
+</div>
+</body>
+</html>

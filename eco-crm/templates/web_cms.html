@@ -1,0 +1,1067 @@
+{% extends "base.html" %}
+{% block title %}Web CMS — Eco Módulos CRM{% endblock %}
+{% block page_title %}🌐 Web CMS{% endblock %}
+
+{% block top_actions %}
+<a href="{{ web_base_url }}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:12px">
+  🔗 Ver sitio
+</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  .cms-tabs { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:20px; border-bottom:2px solid var(--border-color); padding-bottom:8px; }
+  .cms-tab  { padding:8px 16px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:600;
+              background:var(--bg-secondary); color:var(--text-muted); border:1px solid transparent;
+              transition:all .15s; white-space:nowrap; }
+  .cms-tab:hover { background:var(--bg-card); color:var(--text-primary); }
+  .cms-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+  .cms-panel { display:none; }
+  .cms-panel.active { display:block; }
+
+  .product-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:16px; }
+  .product-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px;
+                  padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .product-img  { width:100%; height:180px; object-fit:cover; border-radius:8px; background:var(--bg-secondary);
+                  display:flex; align-items:center; justify-content:center; color:var(--text-muted);
+                  font-size:12px; border:2px dashed var(--border-color); overflow:hidden; cursor:pointer; }
+  .product-img img { width:100%; height:100%; object-fit:cover; }
+  .product-name { font-weight:700; font-size:15px; color:var(--text-primary); }
+  .product-meta { font-size:12px; color:var(--text-muted); }
+  .product-price { font-size:13px; color:var(--accent); font-weight:600; }
+  .field-row    { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .badge-activo   { background:#16a34a22; color:#16a34a; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; }
+  .badge-inactivo { background:#dc262622; color:#dc2626; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; }
+
+  .obra-card   { background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; overflow:hidden; }
+  .obra-img    { width:100%; height:160px; object-fit:cover; background:var(--bg-secondary); cursor:pointer; }
+  .obra-body   { padding:12px; }
+
+  .blog-card   { background:var(--bg-card); border:1px solid var(--border-color); border-radius:10px;
+                 padding:14px; display:flex; gap:12px; align-items:flex-start; }
+  .blog-img    { width:80px; height:60px; object-fit:cover; border-radius:6px; background:var(--bg-secondary);
+                 flex-shrink:0; cursor:pointer; }
+
+  .coef-table  { width:100%; border-collapse:collapse; }
+  .coef-table th { padding:10px 12px; text-align:left; font-size:12px; color:var(--text-muted); background:var(--bg-secondary); }
+  .coef-table td { padding:8px 12px; border-bottom:1px solid var(--border-color); }
+  .coef-input  { width:100%; background:var(--bg-secondary); border:1px solid var(--border-color);
+                 border-radius:6px; padding:6px 8px; color:var(--text-primary); font-size:13px; }
+
+  .config-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+  .config-field{ background:var(--bg-card); border:1px solid var(--border-color); border-radius:10px; padding:14px; }
+  .config-label{ font-size:12px; color:var(--text-muted); margin-bottom:4px; }
+  .config-input{ width:100%; background:var(--bg-secondary); border:1px solid var(--border-color);
+                 border-radius:6px; padding:8px 10px; color:var(--text-primary); font-size:13px; }
+
+  .upload-area  { border:2px dashed var(--border-color); border-radius:10px; padding:24px; text-align:center;
+                  cursor:pointer; color:var(--text-muted); font-size:13px; transition:border-color .2s; }
+  .upload-area:hover { border-color:var(--accent); color:var(--accent); }
+
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3);
+             border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* Modal */
+  .cms-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000;
+                       align-items:center; justify-content:center; }
+  .cms-modal-overlay.open { display:flex; }
+  .cms-modal { background:var(--bg-card); border-radius:14px; padding:24px; width:min(640px,95vw);
+               max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  .cms-modal h3 { margin:0 0 16px; font-size:16px; color:var(--text-primary); }
+
+  .form-group { margin-bottom:12px; }
+  .form-group label { display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px; font-weight:600; }
+  .form-control { width:100%; background:var(--bg-secondary); border:1px solid var(--border-color);
+                  border-radius:8px; padding:9px 12px; color:var(--text-primary); font-size:13px; }
+  .form-control:focus { outline:none; border-color:var(--accent); }
+  textarea.form-control { resize:vertical; min-height:80px; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .checkbox-row { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-primary); cursor:pointer; }
+</style>
+
+<!-- TABS -->
+<div class="cms-tabs">
+  <button class="cms-tab" data-tab="modulos"    onclick="showCmsTab('modulos')">📦 Módulos</button>
+  <button class="cms-tab" data-tab="piscinas"   onclick="showCmsTab('piscinas')">🏊 Piscinas</button>
+  <button class="cms-tab" data-tab="galeria"    onclick="showCmsTab('galeria')">🖼️ Galería</button>
+  <button class="cms-tab" data-tab="testimonios" onclick="showCmsTab('testimonios')">⭐ Testimonios</button>
+  <button class="cms-tab" data-tab="financiacion" onclick="showCmsTab('financiacion')">💳 Financiación</button>
+  <button class="cms-tab" data-tab="config"     onclick="showCmsTab('config')">⚙️ Config sitio</button>
+  <button class="cms-tab" data-tab="blog"       onclick="showCmsTab('blog')">📝 Blog</button>
+</div>
+
+<!-- ─── MÓDULOS ─────────────────────────────────────────────────────────────── -->
+<div id="panel-modulos" class="cms-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Click en la imagen o en ✏️ para editar cada módulo.</p>
+  </div>
+  <div id="modulos-grid" class="product-grid"><div style="color:var(--text-muted);font-size:14px">Cargando...</div></div>
+</div>
+
+<!-- ─── PISCINAS ────────────────────────────────────────────────────────────── -->
+<div id="panel-piscinas" class="cms-panel">
+  <div style="margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Click en la imagen o en ✏️ para editar cada piscina.</p>
+  </div>
+  <div id="piscinas-grid" class="product-grid"><div style="color:var(--text-muted);font-size:14px">Cargando...</div></div>
+</div>
+
+<!-- ─── GALERÍA DE OBRAS ─────────────────────────────────────────────────────── -->
+<div id="panel-galeria" class="cms-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Fotos de obras realizadas que aparecen en la galería del sitio.</p>
+    <button class="btn btn-primary btn-sm" onclick="openObraModal()">+ Nueva obra</button>
+  </div>
+  <div id="galeria-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">
+    <div style="color:var(--text-muted);font-size:14px">Cargando...</div>
+  </div>
+</div>
+
+<!-- ─── TESTIMONIOS ──────────────────────────────────────────────────────────── -->
+<div id="panel-testimonios" class="cms-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Reseñas de clientes que aparecen en la landing.</p>
+    <button class="btn btn-primary btn-sm" onclick="openTestimonioModal()">+ Nuevo testimonio</button>
+  </div>
+  <div id="testimonios-list" style="display:flex;flex-direction:column;gap:12px">
+    <div style="color:var(--text-muted);font-size:14px">Cargando...</div>
+  </div>
+</div>
+
+<!-- ─── FINANCIACIÓN ─────────────────────────────────────────────────────────── -->
+<div id="panel-financiacion" class="cms-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Coeficientes de cuotas que usa el simulador de la web.</p>
+    <button class="btn btn-primary btn-sm" onclick="saveCoeficientes()">💾 Guardar cambios</button>
+  </div>
+  <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;overflow:hidden">
+    <table class="coef-table">
+      <thead><tr>
+        <th>Cuotas</th><th>Coeficiente</th><th>Etiqueta</th><th>Activo</th>
+      </tr></thead>
+      <tbody id="coef-tbody"><tr><td colspan="4" style="color:var(--text-muted);padding:20px">Cargando...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── CONFIG SITIO ─────────────────────────────────────────────────────────── -->
+<div id="panel-config" class="cms-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Textos e info general que aparecen en el sitio.</p>
+    <button class="btn btn-primary btn-sm" onclick="saveConfig()">💾 Guardar cambios</button>
+  </div>
+  <div id="config-grid" class="config-grid"><div style="color:var(--text-muted);font-size:14px">Cargando...</div></div>
+</div>
+
+<!-- ─── BLOG ─────────────────────────────────────────────────────────────────── -->
+<div id="panel-blog" class="cms-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Artículos del blog de la web.</p>
+    <button class="btn btn-primary btn-sm" onclick="openBlogModal()">+ Nuevo artículo</button>
+  </div>
+  <div id="blog-list" style="display:flex;flex-direction:column;gap:12px">
+    <div style="color:var(--text-muted);font-size:14px">Cargando...</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODALES
+═══════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Modal edición producto (módulo o piscina) -->
+<div id="modal-producto" class="cms-modal-overlay">
+  <div class="cms-modal">
+    <h3 id="modal-producto-titulo">Editar producto</h3>
+    <input type="hidden" id="mp-id">
+    <input type="hidden" id="mp-tipo">
+
+    <div class="form-group">
+      <label>Imagen</label>
+      <div id="mp-img-preview" class="product-img" onclick="document.getElementById('mp-img-file').click()" style="height:140px;margin-bottom:8px">
+        <span>📷 Click para cambiar imagen</span>
+      </div>
+      <input type="file" id="mp-img-file" accept="image/*" style="display:none" onchange="handleProductImgChange(this)">
+      <input type="text" id="mp-imagen" class="form-control" placeholder="URL de imagen (o subir arriba)">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="mp-nombre" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Medida</label>
+        <input type="text" id="mp-medida" class="form-control" placeholder="ej: 6x3m">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea id="mp-descripcion" class="form-control"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Usos (uno por línea)</label>
+      <textarea id="mp-usos" class="form-control" style="min-height:70px" placeholder="Vivienda\nOficina\nDeposito"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Precio contado ($)</label>
+        <input type="number" id="mp-precio-contado" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Precio lista ($)</label>
+        <input type="number" id="mp-precio-lista" class="form-control" placeholder="Dejar vacío = contado×1.4">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Orden</label>
+        <input type="number" id="mp-orden" class="form-control" value="0">
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
+        <label class="checkbox-row">
+          <input type="checkbox" id="mp-activo" checked>
+          Activo en la web
+        </label>
+      </div>
+    </div>
+
+    <div id="mp-destacada-row" class="form-group" style="display:none">
+      <label class="checkbox-row">
+        <input type="checkbox" id="mp-destacada">
+        Destacada (aparece primero en piscinas)
+      </label>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-producto')">Cancelar</button>
+      <button class="btn btn-primary" id="mp-save-btn" onclick="saveProducto()">
+        <span id="mp-save-txt">Guardar</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal nueva/editar obra -->
+<div id="modal-obra" class="cms-modal-overlay">
+  <div class="cms-modal">
+    <h3 id="modal-obra-titulo">Nueva obra</h3>
+    <input type="hidden" id="mo-id">
+
+    <div class="form-group">
+      <label>Imagen</label>
+      <div id="mo-img-preview" class="product-img" onclick="document.getElementById('mo-img-file').click()" style="height:140px;margin-bottom:8px">
+        <span>📷 Click para subir imagen</span>
+      </div>
+      <input type="file" id="mo-img-file" accept="image/*" style="display:none" onchange="handleObraImgChange(this)">
+      <input type="text" id="mo-imagen" class="form-control" placeholder="URL de imagen">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Título</label>
+        <input type="text" id="mo-titulo" class="form-control" placeholder="ej: Módulo residencial Zárate">
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="mo-tipo" class="form-control">
+          <option value="modulo">Módulo</option>
+          <option value="piscina">Piscina</option>
+          <option value="mixto">Mixto</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Localidad</label>
+        <input type="text" id="mo-localidad" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Provincia</label>
+        <input type="text" id="mo-provincia" class="form-control" value="Buenos Aires">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Descripción (opcional)</label>
+      <textarea id="mo-descripcion" class="form-control"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="checkbox-row">
+        <input type="checkbox" id="mo-activo" checked>
+        Visible en galería
+      </label>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-obra')">Cancelar</button>
+      <button class="btn btn-danger btn-sm" id="mo-del-btn" style="display:none;margin-right:auto" onclick="deleteObra()">🗑 Eliminar</button>
+      <button class="btn btn-primary" id="mo-save-btn" onclick="saveObra()">
+        <span id="mo-save-txt">Guardar</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal nuevo/editar testimonio -->
+<div id="modal-testimonio" class="cms-modal-overlay">
+  <div class="cms-modal">
+    <h3 id="modal-test-titulo">Nuevo testimonio</h3>
+    <input type="hidden" id="mt-id">
+
+    <div class="form-group">
+      <label>Foto del cliente (opcional)</label>
+      <div id="mt-img-preview" class="product-img" onclick="document.getElementById('mt-img-file').click()" style="height:100px;width:100px;border-radius:50%;margin-bottom:8px">
+        <span style="font-size:10px">📷</span>
+      </div>
+      <input type="file" id="mt-img-file" accept="image/*" style="display:none" onchange="handleTestImgChange(this)">
+      <input type="text" id="mt-imagen" class="form-control" placeholder="URL de foto (o subir arriba)">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre del cliente</label>
+        <input type="text" id="mt-nombre" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Localidad</label>
+        <input type="text" id="mt-localidad" class="form-control">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Producto adquirido</label>
+        <input type="text" id="mt-producto" class="form-control" placeholder="ej: Módulo 6x3m">
+      </div>
+      <div class="form-group">
+        <label>Estrellas (1-5)</label>
+        <input type="number" id="mt-estrellas" class="form-control" value="5" min="1" max="5">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Texto del testimonio</label>
+      <textarea id="mt-texto" class="form-control" style="min-height:100px"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Orden</label>
+        <input type="number" id="mt-orden" class="form-control" value="0">
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
+        <label class="checkbox-row">
+          <input type="checkbox" id="mt-activo" checked>
+          Visible en web
+        </label>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-testimonio')">Cancelar</button>
+      <button class="btn btn-danger btn-sm" id="mt-del-btn" style="display:none;margin-right:auto" onclick="deleteTestimonio()">🗑 Eliminar</button>
+      <button class="btn btn-primary" id="mt-save-btn" onclick="saveTestimonio()">
+        <span id="mt-save-txt">Guardar</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal nuevo/editar artículo de blog -->
+<div id="modal-blog" class="cms-modal-overlay">
+  <div class="cms-modal" style="width:min(740px,95vw)">
+    <h3 id="modal-blog-titulo">Nuevo artículo</h3>
+    <input type="hidden" id="mb-id">
+
+    <div class="form-group">
+      <label>Imagen de portada</label>
+      <div id="mb-img-preview" class="product-img" onclick="document.getElementById('mb-img-file').click()" style="height:120px;margin-bottom:8px">
+        <span>📷 Click para subir portada</span>
+      </div>
+      <input type="file" id="mb-img-file" accept="image/*" style="display:none" onchange="handleBlogImgChange(this)">
+      <input type="text" id="mb-imagen" class="form-control" placeholder="URL de portada">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Título</label>
+        <input type="text" id="mb-titulo" class="form-control" oninput="autoSlug()">
+      </div>
+      <div class="form-group">
+        <label>Slug (URL)</label>
+        <input type="text" id="mb-slug" class="form-control" placeholder="auto-generado del título">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Categoría</label>
+        <select id="mb-categoria" class="form-control">
+          <option value="general">General</option>
+          <option value="modulos">Módulos</option>
+          <option value="piscinas">Piscinas</option>
+          <option value="construccion">Construcción</option>
+          <option value="financiacion">Financiación</option>
+          <option value="tips">Tips</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
+        <label class="checkbox-row">
+          <input type="checkbox" id="mb-publicado">
+          Publicado
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Resumen (aparece en listados)</label>
+      <textarea id="mb-resumen" class="form-control" style="min-height:60px"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Contenido (Markdown o HTML)</label>
+      <textarea id="mb-contenido" class="form-control" style="min-height:200px;font-family:monospace;font-size:12px"></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-blog')">Cancelar</button>
+      <button class="btn btn-danger btn-sm" id="mb-del-btn" style="display:none;margin-right:auto" onclick="deleteBlog()">🗑 Eliminar</button>
+      <button class="btn btn-primary" id="mb-save-btn" onclick="saveBlog()">
+        <span id="mb-save-txt">Guardar</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let _modulos = [], _piscinas = [], _obras = [], _testimonios = [], _coefs = [], _config = {}, _blog = [];
+const WEB = "{{ web_base_url }}";
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function showCmsTab(tab) {
+  document.querySelectorAll('.cms-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.cms-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
+  if (tab === 'modulos'     && !_modulos.length)    loadModulos();
+  if (tab === 'piscinas'    && !_piscinas.length)   loadPiscinas();
+  if (tab === 'galeria'     && !_obras.length)      loadObras();
+  if (tab === 'testimonios' && !_testimonios.length) loadTestimonios();
+  if (tab === 'financiacion'&& !_coefs.length)      loadCoeficientes();
+  if (tab === 'config'      && !Object.keys(_config).length) loadConfig();
+  if (tab === 'blog'        && !_blog.length)       loadBlog();
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const fmt = v => v ? new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(v) : '—';
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function setLoading(btnId, txtId, loading) {
+  const b = document.getElementById(btnId), t = document.getElementById(txtId);
+  b.disabled = loading;
+  t.innerHTML = loading ? '<span class="spinner"></span>' : t.dataset.orig || t.innerHTML;
+  if (!loading && !t.dataset.orig) t.dataset.orig = t.innerHTML;
+}
+
+async function uploadImg(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch('/api/web/upload', { method: 'POST', body: fd });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || 'Error al subir imagen');
+  return data.url;
+}
+
+function previewImg(previewEl, url) {
+  if (url) {
+    previewEl.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+  } else {
+    previewEl.innerHTML = '<span>📷 Click para cambiar imagen</span>';
+  }
+}
+
+function slugify(str) {
+  return str.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9\s-]/g,'').trim().replace(/\s+/g,'-');
+}
+
+// ─── MÓDULOS ──────────────────────────────────────────────────────────────────
+async function loadModulos() {
+  const r = await fetch('/api/web/modulos');
+  _modulos = await r.json();
+  renderModulos();
+}
+
+function renderModulos() {
+  const g = document.getElementById('modulos-grid');
+  if (!_modulos.length) { g.innerHTML = '<p style="color:var(--text-muted)">No hay módulos.</p>'; return; }
+  g.innerHTML = _modulos.map(m => `
+    <div class="product-card">
+      <div class="product-img" onclick="openProductModal('modulo','${m.id}')" title="Click para editar">
+        ${m.imagen ? `<img src="${m.imagen}">` : '📷 Sin imagen'}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="product-name">${m.nombre}</span>
+        <span class="${m.activo ? 'badge-activo' : 'badge-inactivo'}">${m.activo ? 'Activo' : 'Inactivo'}</span>
+      </div>
+      <div class="product-meta">📐 ${m.medida} · Orden: ${m.orden}</div>
+      <div class="product-price">${fmt(m.precio_contado)} contado · ${fmt(m.precio_lista)} lista</div>
+      <button class="btn btn-ghost btn-sm" onclick="openProductModal('modulo','${m.id}')">✏️ Editar</button>
+    </div>
+  `).join('');
+}
+
+// ─── PISCINAS ─────────────────────────────────────────────────────────────────
+async function loadPiscinas() {
+  const r = await fetch('/api/web/piscinas');
+  _piscinas = await r.json();
+  renderPiscinas();
+}
+
+function renderPiscinas() {
+  const g = document.getElementById('piscinas-grid');
+  if (!_piscinas.length) { g.innerHTML = '<p style="color:var(--text-muted)">No hay piscinas.</p>'; return; }
+  g.innerHTML = _piscinas.map(p => `
+    <div class="product-card">
+      <div class="product-img" onclick="openProductModal('piscina','${p.id}')" title="Click para editar">
+        ${p.imagen ? `<img src="${p.imagen}">` : '📷 Sin imagen'}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="product-name">${p.nombre}</span>
+        <span class="${p.activo ? 'badge-activo' : 'badge-inactivo'}">${p.activo ? 'Activo' : 'Inactivo'}</span>
+      </div>
+      <div class="product-meta">📐 ${p.medida} · Orden: ${p.orden}${p.destacada ? ' ⭐ Destacada' : ''}</div>
+      <div class="product-price">${fmt(p.precio_contado)} contado · ${fmt(p.precio_lista)} lista</div>
+      <button class="btn btn-ghost btn-sm" onclick="openProductModal('piscina','${p.id}')">✏️ Editar</button>
+    </div>
+  `).join('');
+}
+
+// ─── MODAL PRODUCTO ───────────────────────────────────────────────────────────
+function openProductModal(tipo, id) {
+  const arr = tipo === 'modulo' ? _modulos : _piscinas;
+  const item = arr.find(x => x.id === id);
+  if (!item) return;
+
+  document.getElementById('mp-id').value = id;
+  document.getElementById('mp-tipo').value = tipo;
+  document.getElementById('modal-producto-titulo').textContent = `Editar ${tipo === 'modulo' ? 'módulo' : 'piscina'}: ${item.nombre}`;
+  document.getElementById('mp-nombre').value = item.nombre;
+  document.getElementById('mp-medida').value = item.medida;
+  document.getElementById('mp-descripcion').value = item.descripcion || '';
+  document.getElementById('mp-imagen').value = item.imagen || '';
+  document.getElementById('mp-precio-contado').value = item.precio_contado;
+  document.getElementById('mp-precio-lista').value = item.precio_lista;
+  document.getElementById('mp-orden').value = item.orden;
+  document.getElementById('mp-activo').checked = item.activo;
+
+  // Usos
+  try {
+    const usos = JSON.parse(item.usos || '[]');
+    document.getElementById('mp-usos').value = usos.join('\n');
+  } catch { document.getElementById('mp-usos').value = ''; }
+
+  // Preview
+  previewImg(document.getElementById('mp-img-preview'), item.imagen);
+
+  // Piscina: mostrar destacada
+  const destRow = document.getElementById('mp-destacada-row');
+  if (tipo === 'piscina') {
+    destRow.style.display = '';
+    document.getElementById('mp-destacada').checked = item.destacada || false;
+  } else {
+    destRow.style.display = 'none';
+  }
+
+  document.getElementById('mp-save-txt').dataset.orig = 'Guardar';
+  openModal('modal-producto');
+}
+
+async function handleProductImgChange(input) {
+  if (!input.files[0]) return;
+  try {
+    showToast('Subiendo imagen...', 'info');
+    const url = await uploadImg(input.files[0]);
+    document.getElementById('mp-imagen').value = url;
+    previewImg(document.getElementById('mp-img-preview'), url);
+    showToast('Imagen subida ✓', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function saveProducto() {
+  const id = document.getElementById('mp-id').value;
+  const tipo = document.getElementById('mp-tipo').value;
+  const endpoint = tipo === 'modulo' ? 'modulos' : 'piscinas';
+
+  const usosRaw = document.getElementById('mp-usos').value;
+  const usos = usosRaw.split('\n').map(s => s.trim()).filter(Boolean);
+
+  const body = {
+    nombre: document.getElementById('mp-nombre').value,
+    medida: document.getElementById('mp-medida').value,
+    descripcion: document.getElementById('mp-descripcion').value,
+    imagen: document.getElementById('mp-imagen').value || null,
+    usos: JSON.stringify(usos),
+    precio_contado: parseInt(document.getElementById('mp-precio-contado').value) || 0,
+    precio_lista: parseInt(document.getElementById('mp-precio-lista').value) || 0,
+    orden: parseInt(document.getElementById('mp-orden').value) || 0,
+    activo: document.getElementById('mp-activo').checked,
+  };
+  if (tipo === 'piscina') body.destacada = document.getElementById('mp-destacada').checked;
+
+  setLoading('mp-save-btn', 'mp-save-txt', true);
+  try {
+    const r = await fetch(`/api/web/${endpoint}/${id}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+
+    // Update local state
+    const arr = tipo === 'modulo' ? _modulos : _piscinas;
+    const idx = arr.findIndex(x => x.id === id);
+    if (idx >= 0) arr[idx] = data;
+    tipo === 'modulo' ? renderModulos() : renderPiscinas();
+
+    closeModal('modal-producto');
+    showToast('Guardado en la web ✓', 'success');
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    setLoading('mp-save-btn', 'mp-save-txt', false);
+  }
+}
+
+
+// ─── GALERÍA ──────────────────────────────────────────────────────────────────
+async function loadObras() {
+  const r = await fetch('/api/web/obras');
+  _obras = await r.json();
+  renderObras();
+}
+
+function renderObras() {
+  const g = document.getElementById('galeria-grid');
+  if (!_obras.length) { g.innerHTML = '<p style="color:var(--text-muted)">No hay obras.</p>'; return; }
+  g.innerHTML = _obras.map(o => `
+    <div class="obra-card">
+      <div style="height:160px;background:var(--bg-secondary);overflow:hidden;cursor:pointer" onclick="openObraModal('${o.id}')">
+        ${o.imagen ? `<img src="${o.imagen}" style="width:100%;height:100%;object-fit:cover">` : '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px">📷 Sin imagen</div>'}
+      </div>
+      <div class="obra-body">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${o.titulo}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${o.localidad}, ${o.provincia} · ${o.tipo}</div>
+        <div style="margin-top:8px;display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openObraModal('${o.id}')">✏️ Editar</button>
+          <span class="${o.activo ? 'badge-activo' : 'badge-inactivo'}">${o.activo ? 'Visible' : 'Oculta'}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openObraModal(id) {
+  const o = id ? _obras.find(x => x.id === id) : null;
+  document.getElementById('modal-obra-titulo').textContent = o ? `Editar: ${o.titulo}` : 'Nueva obra';
+  document.getElementById('mo-id').value = o ? o.id : '';
+  document.getElementById('mo-titulo').value = o ? o.titulo : '';
+  document.getElementById('mo-localidad').value = o ? o.localidad : '';
+  document.getElementById('mo-provincia').value = o ? o.provincia : 'Buenos Aires';
+  document.getElementById('mo-tipo').value = o ? o.tipo : 'modulo';
+  document.getElementById('mo-descripcion').value = o ? (o.descripcion || '') : '';
+  document.getElementById('mo-imagen').value = o ? (o.imagen || '') : '';
+  document.getElementById('mo-activo').checked = o ? o.activo : true;
+  previewImg(document.getElementById('mo-img-preview'), o && o.imagen ? o.imagen : '');
+  document.getElementById('mo-del-btn').style.display = o ? '' : 'none';
+  openModal('modal-obra');
+}
+
+async function handleObraImgChange(input) {
+  if (!input.files[0]) return;
+  try {
+    showToast('Subiendo imagen...', 'info');
+    const url = await uploadImg(input.files[0]);
+    document.getElementById('mo-imagen').value = url;
+    previewImg(document.getElementById('mo-img-preview'), url);
+    showToast('Imagen subida ✓', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function saveObra() {
+  const id = document.getElementById('mo-id').value;
+  const body = {
+    titulo: document.getElementById('mo-titulo').value,
+    localidad: document.getElementById('mo-localidad').value,
+    provincia: document.getElementById('mo-provincia').value,
+    tipo: document.getElementById('mo-tipo').value,
+    imagen: document.getElementById('mo-imagen').value || null,
+    descripcion: document.getElementById('mo-descripcion').value || null,
+    activo: document.getElementById('mo-activo').checked,
+  };
+
+  setLoading('mo-save-btn', 'mo-save-txt', true);
+  try {
+    let r, data;
+    if (id) {
+      r = await fetch(`/api/web/obras/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    } else {
+      r = await fetch('/api/web/obras', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    }
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+
+    if (id) {
+      const idx = _obras.findIndex(x => x.id === id);
+      if (idx >= 0) _obras[idx] = data;
+    } else {
+      _obras.unshift(data);
+    }
+    renderObras();
+    closeModal('modal-obra');
+    showToast('Guardado en la web ✓', 'success');
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    setLoading('mo-save-btn', 'mo-save-txt', false);
+  }
+}
+
+async function deleteObra() {
+  const id = document.getElementById('mo-id').value;
+  if (!await showConfirm('¿Eliminar esta obra?', 'Se eliminará la obra y su imagen de la galería del sitio.')) return;
+  const r = await fetch(`/api/web/obras/${id}`, { method: 'DELETE' });
+  if (r.ok) {
+    _obras = _obras.filter(x => x.id !== id);
+    renderObras();
+    closeModal('modal-obra');
+    showToast('Obra eliminada', 'success');
+  } else {
+    showToast('Error al eliminar', 'error');
+  }
+}
+
+
+// ─── TESTIMONIOS ──────────────────────────────────────────────────────────────
+async function loadTestimonios() {
+  const r = await fetch('/api/web/testimonios');
+  _testimonios = await r.json();
+  renderTestimonios();
+}
+
+function renderTestimonios() {
+  const el = document.getElementById('testimonios-list');
+  if (!_testimonios.length) { el.innerHTML = '<p style="color:var(--text-muted)">No hay testimonios.</p>'; return; }
+  el.innerHTML = _testimonios.map(t => `
+    <div class="blog-card">
+      <div class="blog-img" onclick="openTestimonioModal('${t.id}')" style="width:60px;height:60px;border-radius:50%">
+        ${t.imagen ? `<img src="${t.imagen}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : '👤'}
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span style="font-weight:700;font-size:14px">${t.nombre}</span>
+          <span class="${t.activo ? 'badge-activo' : 'badge-inactivo'}">${t.activo ? 'Visible' : 'Oculto'}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted)">${t.localidad} · ${t.producto} · ${'⭐'.repeat(t.estrellas)}</div>
+        <div style="font-size:13px;color:var(--text-primary);margin-top:4px">${t.texto.substring(0,120)}${t.texto.length>120?'…':''}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="openTestimonioModal('${t.id}')">✏️ Editar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openTestimonioModal(id) {
+  const t = id ? _testimonios.find(x => x.id === id) : null;
+  document.getElementById('modal-test-titulo').textContent = t ? `Editar: ${t.nombre}` : 'Nuevo testimonio';
+  document.getElementById('mt-id').value = t ? t.id : '';
+  document.getElementById('mt-nombre').value = t ? t.nombre : '';
+  document.getElementById('mt-localidad').value = t ? t.localidad : '';
+  document.getElementById('mt-producto').value = t ? t.producto : '';
+  document.getElementById('mt-texto').value = t ? t.texto : '';
+  document.getElementById('mt-estrellas').value = t ? t.estrellas : 5;
+  document.getElementById('mt-orden').value = t ? t.orden : 0;
+  document.getElementById('mt-activo').checked = t ? t.activo : true;
+  document.getElementById('mt-imagen').value = t ? (t.imagen || '') : '';
+  previewImg(document.getElementById('mt-img-preview'), t && t.imagen ? t.imagen : '');
+  document.getElementById('mt-del-btn').style.display = t ? '' : 'none';
+  openModal('modal-testimonio');
+}
+
+async function handleTestImgChange(input) {
+  if (!input.files[0]) return;
+  try {
+    showToast('Subiendo imagen...', 'info');
+    const url = await uploadImg(input.files[0]);
+    document.getElementById('mt-imagen').value = url;
+    previewImg(document.getElementById('mt-img-preview'), url);
+    showToast('Imagen subida ✓', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function saveTestimonio() {
+  const id = document.getElementById('mt-id').value;
+  const body = {
+    nombre: document.getElementById('mt-nombre').value,
+    localidad: document.getElementById('mt-localidad').value,
+    producto: document.getElementById('mt-producto').value,
+    texto: document.getElementById('mt-texto').value,
+    estrellas: parseInt(document.getElementById('mt-estrellas').value) || 5,
+    imagen: document.getElementById('mt-imagen').value || null,
+    orden: parseInt(document.getElementById('mt-orden').value) || 0,
+    activo: document.getElementById('mt-activo').checked,
+  };
+
+  setLoading('mt-save-btn', 'mt-save-txt', true);
+  try {
+    let r, data;
+    if (id) {
+      r = await fetch(`/api/web/testimonios/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    } else {
+      r = await fetch('/api/web/testimonios', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    }
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+
+    if (id) { const i = _testimonios.findIndex(x=>x.id===id); if(i>=0) _testimonios[i]=data; }
+    else _testimonios.push(data);
+    renderTestimonios();
+    closeModal('modal-testimonio');
+    showToast('Guardado en la web ✓', 'success');
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    setLoading('mt-save-btn', 'mt-save-txt', false);
+  }
+}
+
+async function deleteTestimonio() {
+  const id = document.getElementById('mt-id').value;
+  if (!await showConfirm('¿Eliminar este testimonio?', 'Se eliminará del sitio web.')) return;
+  const r = await fetch(`/api/web/testimonios/${id}`, { method: 'DELETE' });
+  if (r.ok) {
+    _testimonios = _testimonios.filter(x => x.id !== id);
+    renderTestimonios();
+    closeModal('modal-testimonio');
+    showToast('Testimonio eliminado', 'success');
+  }
+}
+
+
+// ─── COEFICIENTES ─────────────────────────────────────────────────────────────
+async function loadCoeficientes() {
+  const r = await fetch('/api/web/coeficientes');
+  _coefs = await r.json();
+  renderCoeficientes();
+}
+
+function renderCoeficientes() {
+  const tb = document.getElementById('coef-tbody');
+  tb.innerHTML = _coefs.map(c => `
+    <tr data-id="${c.id}">
+      <td><input type="number" class="coef-input" value="${c.cuotas}" data-field="cuotas" style="width:80px"></td>
+      <td><input type="number" step="0.001" class="coef-input" value="${c.coef}" data-field="coef" style="width:100px"></td>
+      <td><input type="text" class="coef-input" value="${c.label}" data-field="label"></td>
+      <td><input type="checkbox" ${c.activo ? 'checked' : ''} data-field="activo"></td>
+    </tr>
+  `).join('');
+}
+
+async function saveCoeficientes() {
+  const rows = document.querySelectorAll('#coef-tbody tr[data-id]');
+  const body = Array.from(rows).map(row => {
+    const id = row.dataset.id;
+    return {
+      id,
+      cuotas: parseInt(row.querySelector('[data-field="cuotas"]').value),
+      coef: parseFloat(row.querySelector('[data-field="coef"]').value),
+      label: row.querySelector('[data-field="label"]').value,
+      activo: row.querySelector('[data-field="activo"]').checked,
+    };
+  });
+  const r = await fetch('/api/web/coeficientes', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (r.ok) showToast('Coeficientes guardados ✓', 'success');
+  else showToast('Error al guardar', 'error');
+}
+
+
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const CONFIG_LABELS = {
+  nombre_empresa: 'Nombre de la empresa',
+  telefono: 'Teléfono / WhatsApp',
+  email: 'Email de contacto',
+  direccion: 'Dirección',
+  slogan: 'Slogan / Tagline',
+  descripcion_hero: 'Descripción del hero',
+  titulo_modulos: 'Título sección Módulos',
+  titulo_piscinas: 'Título sección Piscinas',
+  precio_lista_multiplicador: 'Multiplicador precio lista (ej: 1.4)',
+  instagram: 'Instagram URL',
+  facebook: 'Facebook URL',
+};
+
+async function loadConfig() {
+  const r = await fetch('/api/web/config');
+  _config = await r.json();
+  renderConfig();
+}
+
+function renderConfig() {
+  const g = document.getElementById('config-grid');
+  const entries = Object.entries(_config);
+  if (!entries.length) { g.innerHTML = '<p style="color:var(--text-muted)">Sin configuración.</p>'; return; }
+  g.innerHTML = entries.map(([k, v]) => `
+    <div class="config-field">
+      <div class="config-label">${CONFIG_LABELS[k] || k}</div>
+      <input type="text" class="config-input" data-key="${k}" value="${v.replace(/"/g,'&quot;')}">
+    </div>
+  `).join('');
+}
+
+async function saveConfig() {
+  const body = {};
+  document.querySelectorAll('.config-input[data-key]').forEach(el => {
+    body[el.dataset.key] = el.value;
+  });
+  const r = await fetch('/api/web/config', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (r.ok) showToast('Configuración guardada ✓', 'success');
+  else showToast('Error al guardar', 'error');
+}
+
+
+// ─── BLOG ─────────────────────────────────────────────────────────────────────
+async function loadBlog() {
+  const r = await fetch('/api/web/blog');
+  _blog = await r.json();
+  renderBlog();
+}
+
+function renderBlog() {
+  const el = document.getElementById('blog-list');
+  if (!_blog.length) { el.innerHTML = '<p style="color:var(--text-muted)">No hay artículos.</p>'; return; }
+  el.innerHTML = _blog.map(a => `
+    <div class="blog-card">
+      <div class="blog-img" onclick="openBlogModal('${a.id}')">
+        ${a.imagen ? `<img src="${a.imagen}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">` : '📝'}
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <span style="font-weight:700;font-size:14px">${a.titulo}</span>
+          <span class="${a.publicado ? 'badge-activo' : 'badge-inactivo'}">${a.publicado ? 'Publicado' : 'Borrador'}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted)">${a.categoria || 'general'} · /${a.slug}</div>
+        <div style="font-size:13px;color:var(--text-primary);margin-top:4px">${(a.resumen||'').substring(0,100)}${(a.resumen||'').length>100?'…':''}</div>
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openBlogModal('${a.id}')">✏️ Editar</button>
+          <a href="${WEB}/blog/${a.slug}" target="_blank" class="btn btn-ghost btn-sm">🔗 Ver</a>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openBlogModal(id) {
+  const a = id ? _blog.find(x => x.id === id) : null;
+  document.getElementById('modal-blog-titulo').textContent = a ? `Editar: ${a.titulo}` : 'Nuevo artículo';
+  document.getElementById('mb-id').value = a ? a.id : '';
+  document.getElementById('mb-titulo').value = a ? a.titulo : '';
+  document.getElementById('mb-slug').value = a ? a.slug : '';
+  document.getElementById('mb-resumen').value = a ? (a.resumen || '') : '';
+  document.getElementById('mb-contenido').value = a ? (a.contenido || '') : '';
+  document.getElementById('mb-categoria').value = a ? (a.categoria || 'general') : 'general';
+  document.getElementById('mb-publicado').checked = a ? a.publicado : false;
+  document.getElementById('mb-imagen').value = a ? (a.imagen || '') : '';
+  previewImg(document.getElementById('mb-img-preview'), a && a.imagen ? a.imagen : '');
+  document.getElementById('mb-del-btn').style.display = a ? '' : 'none';
+  openModal('modal-blog');
+}
+
+function autoSlug() {
+  const titulo = document.getElementById('mb-titulo').value;
+  const slugEl = document.getElementById('mb-slug');
+  if (!slugEl.dataset.manual) slugEl.value = slugify(titulo);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('mb-slug').addEventListener('input', function() { this.dataset.manual = '1'; });
+});
+
+async function handleBlogImgChange(input) {
+  if (!input.files[0]) return;
+  try {
+    showToast('Subiendo imagen...', 'info');
+    const url = await uploadImg(input.files[0]);
+    document.getElementById('mb-imagen').value = url;
+    previewImg(document.getElementById('mb-img-preview'), url);
+    showToast('Imagen subida ✓', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function saveBlog() {
+  const id = document.getElementById('mb-id').value;
+  const body = {
+    titulo: document.getElementById('mb-titulo').value,
+    slug: document.getElementById('mb-slug').value || slugify(document.getElementById('mb-titulo').value),
+    resumen: document.getElementById('mb-resumen').value || null,
+    contenido: document.getElementById('mb-contenido').value,
+    imagen: document.getElementById('mb-imagen').value || null,
+    categoria: document.getElementById('mb-categoria').value,
+    publicado: document.getElementById('mb-publicado').checked,
+  };
+
+  setLoading('mb-save-btn', 'mb-save-txt', true);
+  try {
+    let r, data;
+    if (id) {
+      r = await fetch(`/api/web/blog/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    } else {
+      r = await fetch('/api/web/blog', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    }
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+
+    if (id) { const i = _blog.findIndex(x=>x.id===id); if(i>=0) _blog[i]=data; }
+    else _blog.unshift(data);
+    renderBlog();
+    closeModal('modal-blog');
+    showToast('Artículo guardado ✓', 'success');
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    setLoading('mb-save-btn', 'mb-save-txt', false);
+  }
+}
+
+async function deleteBlog() {
+  const id = document.getElementById('mb-id').value;
+  if (!await showConfirm('¿Eliminar este artículo?', 'Se eliminará permanentemente del blog.')) return;
+  const r = await fetch(`/api/web/blog/${id}`, { method:'DELETE' });
+  if (r.ok) {
+    _blog = _blog.filter(x => x.id !== id);
+    renderBlog();
+    closeModal('modal-blog');
+    showToast('Artículo eliminado', 'success');
+  }
+}
+
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const initTab = '{{ initial_tab|default("modulos") }}';
+  showCmsTab(initTab);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+{% block title %}Materiales — Eco Módulos{% endblock %}
+{% block page_title %}📦 Materiales y Compras{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px">
+  <button class="btn btn-primary" onclick="openModal('modal-nuevo-pedido')">+ Pedido</button>
+  <button class="btn btn-ghost" onclick="setTab('inventario')">📊 Stock</button>
+  <button class="btn btn-ghost" onclick="setTab('herramientas')">🔧 Herramientas</button>
+</div>
+{% endblock %}
+
+{% block content %}
+{% set embed = request.query_params.get('embed') %}
+{% if not embed %}
+<!-- Tabs -->
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+  <button class="btn" id="tab-pedidos" onclick="setTab('pedidos')" style="background:#10b981;color:#fff">📋 Pedidos</button>
+  <button class="btn btn-ghost" id="tab-inventario" onclick="setTab('inventario')">📦 Inventario</button>
+  <button class="btn btn-ghost" id="tab-herramientas" onclick="setTab('herramientas')">🔧 Herramientas</button>
+</div>
+{% endif %}
+
+<!-- TAB PEDIDOS -->
+<div id="tab-content-pedidos">
+  {% if embed %}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0">📥 Pedidos de compra del equipo</h3>
+    <button class="btn btn-primary" onclick="openModal('modal-nuevo-pedido')">+ Pedido</button>
+  </div>
+  {% endif %}
+  <!-- Filtros rápidos -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-ghost" onclick="cargarPedidos('PENDIENTE')" style="border-color:#f59e0b;color:#f59e0b">⏳ Pendientes</button>
+    <button class="btn btn-ghost" onclick="cargarPedidos('EN_PEDIDO')" style="border-color:#3b82f6;color:#3b82f6">🛒 En pedido</button>
+    <button class="btn btn-ghost" onclick="cargarPedidos('COMPRADO')">✅ Comprados</button>
+    <button class="btn btn-ghost" onclick="cargarPedidos('')">Todos</button>
+    <a href="/equipo/pedido?c=ECO2026" target="_blank" class="btn btn-ghost" style="border-color:#10b981;color:#10b981">📱 Link del equipo</a>
+  </div>
+  <div id="lista-pedidos">Cargando...</div>
+</div>
+
+{% if not embed %}
+<!-- TAB INVENTARIO -->
+<div id="tab-content-inventario" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h3 style="margin:0">Stock de materiales</h3>
+    <button class="btn btn-primary" onclick="openModal('modal-nuevo-material')">+ Material</button>
+  </div>
+  <div id="lista-inventario">Cargando...</div>
+</div>
+
+<!-- TAB HERRAMIENTAS -->
+<div id="tab-content-herramientas" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h3 style="margin:0">Control de herramientas</h3>
+    <button class="btn btn-primary" onclick="openModal('modal-nueva-herramienta')">+ Herramienta</button>
+  </div>
+  <div id="lista-herramientas">Cargando...</div>
+</div>
+{% endif %}
+
+<!-- MODAL: NUEVO PEDIDO -->
+<div id="modal-nuevo-pedido" class="modal" style="display:none">
+  <div class="modal-header"><h3>📋 Nuevo pedido de material</h3><button onclick="closeModal('modal-nuevo-pedido')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">¿Qué necesitás? *</label><input class="form-input" id="pm-desc" placeholder="Ej: Pintura blanca, tornillos, etc."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Cantidad</label><input class="form-input" id="pm-cantidad" placeholder="Ej: 3 litros"></div>
+      <div class="form-group"><label class="form-label">Urgencia</label>
+        <select class="form-select" id="pm-urgencia">
+          <option value="HOY">🔴 HOY</option>
+          <option value="ESTA_SEMANA" selected>🟡 Esta semana</option>
+          <option value="CUANDO_SE_PUEDA">🟢 Cuando se pueda</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Para qué obra/trabajo</label><input class="form-input" id="pm-para" placeholder="Ej: módulo de García"></div>
+    <div class="form-group"><label class="form-label">¿Quién lo pide?</label>
+      <select class="form-select" id="pm-empleado">
+        <option value="">Seleccionar...</option>
+        {% for e in empleados %}<option value="{{ e.id }}">{{ e.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nuevo-pedido')">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardarPedido()">Guardar pedido</button>
+  </div>
+</div>
+
+<!-- MODAL: MARCAR COMPRADO -->
+<div id="modal-comprado" class="modal" style="display:none">
+  <div class="modal-header"><h3>✅ Marcar como comprado</h3><button onclick="closeModal('modal-comprado')">✕</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="mc-pedido-id">
+    <div class="form-group"><label class="form-label">Precio pagado</label><input class="form-input" id="mc-precio" type="number" placeholder="0"></div>
+    <div class="form-group"><label class="form-label">Notas</label><input class="form-input" id="mc-notas" placeholder="Observaciones..."></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-comprado')">Cancelar</button>
+    <button class="btn btn-primary" onclick="marcarComprado()">Confirmar compra</button>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO MATERIAL -->
+<div id="modal-nuevo-material" class="modal" style="display:none">
+  <div class="modal-header"><h3>📦 Agregar material al inventario</h3><button onclick="closeModal('modal-nuevo-material')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">Nombre *</label><input class="form-input" id="mat-nombre" placeholder="Ej: Pintura blanca"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Unidad</label>
+        <select class="form-select" id="mat-unidad">
+          <option>litros</option><option>kg</option><option value="unidades" selected>unidades</option><option>metros</option><option>m²</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Stock actual</label><input class="form-input" id="mat-stock" type="number" value="0"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Stock mínimo</label><input class="form-input" id="mat-minimo" type="number" value="0"></div>
+      <div class="form-group"><label class="form-label">Precio ref.</label><input class="form-input" id="mat-precio" type="number"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Ubicación en fábrica</label><input class="form-input" id="mat-ubicacion" placeholder="Ej: Estantería A"></div>
+    <div class="form-group"><label class="form-label">Proveedor</label><input class="form-input" id="mat-proveedor"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nuevo-material')">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardarMaterial()">Guardar</button>
+  </div>
+</div>
+
+<!-- MODAL: AJUSTE STOCK -->
+<div id="modal-ajuste-stock" class="modal" style="display:none">
+  <div class="modal-header"><h3>📊 Ajustar stock</h3><button onclick="closeModal('modal-ajuste-stock')">✕</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="as-mat-id">
+    <p id="as-mat-nombre" style="font-weight:600;margin-bottom:12px"></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Tipo</label>
+        <select class="form-select" id="as-tipo">
+          <option value="ENTRADA">➕ Entrada</option>
+          <option value="SALIDA">➖ Salida</option>
+          <option value="AJUSTE">🔄 Ajuste</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Cantidad</label><input class="form-input" id="as-cantidad" type="number"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Motivo</label><input class="form-input" id="as-motivo"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-ajuste-stock')">Cancelar</button>
+    <button class="btn btn-primary" onclick="ajustarStock()">Confirmar</button>
+  </div>
+</div>
+
+<!-- MODAL: NUEVA HERRAMIENTA -->
+<div id="modal-nueva-herramienta" class="modal" style="display:none">
+  <div class="modal-header"><h3>🔧 Agregar herramienta</h3><button onclick="closeModal('modal-nueva-herramienta')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">Nombre *</label><input class="form-input" id="h-nombre" placeholder="Ej: Aspiradora industrial"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">N° de serie</label><input class="form-input" id="h-serie"></div>
+      <div class="form-group"><label class="form-label">Estado</label>
+        <select class="form-select" id="h-estado"><option value="OK">✅ OK</option><option value="ROTA">❌ Rota</option><option value="EN_REPARACION">🔧 En reparación</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Notas</label><input class="form-input" id="h-notas"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nueva-herramienta')">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardarHerramienta()">Guardar</button>
+  </div>
+</div>
+
+<!-- MODAL: PRESTAR HERRAMIENTA -->
+<div id="modal-prestar" class="modal" style="display:none">
+  <div class="modal-header"><h3>🔧 Prestar herramienta</h3><button onclick="closeModal('modal-prestar')">✕</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="pr-h-id">
+    <p id="pr-h-nombre" style="font-weight:600;margin-bottom:12px"></p>
+    <div class="form-group"><label class="form-label">¿Quién la lleva?</label>
+      <select class="form-select" id="pr-empleado">
+        <option value="">Seleccionar...</option>
+        {% for e in empleados %}<option value="{{ e.id }}">{{ e.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Destino/trabajo</label><input class="form-input" id="pr-destino" placeholder="Ej: instalación García"></div>
+    <div class="form-group"><label class="form-label">Notas</label><input class="form-input" id="pr-notas"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-prestar')">Cancelar</button>
+    <button class="btn btn-primary" onclick="confirmarPrestamo()">Prestar</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let tabActual = 'pedidos';
+
+function setTab(tab) {
+  tabActual = tab;
+  ['pedidos','inventario','herramientas'].forEach(t => {
+    const content = document.getElementById(`tab-content-${t}`);
+    if (content) content.style.display = t === tab ? 'block' : 'none';
+    const btn = document.getElementById(`tab-${t}`);
+    if (btn) {
+      btn.style.background = t === tab ? '#10b981' : '';
+      btn.style.color = t === tab ? '#fff' : '';
+      btn.className = t === tab ? 'btn' : 'btn btn-ghost';
+    }
+  });
+  if (tab === 'pedidos') cargarPedidos('PENDIENTE');
+  else if (tab === 'inventario') cargarInventario();
+  else if (tab === 'herramientas') cargarHerramientas();
+}
+
+// ─── PEDIDOS ───────────────────────────────────────────────────────────────
+async function cargarPedidos(estado = '') {
+  const el = document.getElementById('lista-pedidos');
+  el.innerHTML = '<p style="color:#94a3b8">Cargando...</p>';
+  try {
+    const url = '/api/materiales/pedidos' + (estado ? `?estado=${estado}` : '');
+    const pedidos = await API.get(url);
+    if (!pedidos?.length) { el.innerHTML = '<p style="color:#94a3b8">No hay pedidos</p>'; return; }
+
+    const urgColors = { HOY: '#ef4444', ESTA_SEMANA: '#f59e0b', CUANDO_SE_PUEDA: '#10b981' };
+    const estColors = { PENDIENTE: '#f59e0b', EN_PEDIDO: '#3b82f6', COMPRADO: '#10b981', RECHAZADO: '#ef4444' };
+
+    el.innerHTML = pedidos.map(p => `
+      <div class="card" style="margin-bottom:8px;border-left:4px solid ${urgColors[p.urgencia] || '#ccc'}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1">
+            <div style="font-weight:600;margin-bottom:4px">${p.material_descripcion}</div>
+            <div style="font-size:13px;color:#64748b">
+              ${p.cantidad ? `📦 ${p.cantidad}` : ''}
+              ${p.para_orden ? `· Para: ${p.para_orden}` : ''}
+              ${p.solicitado_por_nombre ? `· Por: ${p.solicitado_por_nombre}` : ''}
+            </div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:2px">${new Date(p.created_at).toLocaleDateString('es-AR')}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+            <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${urgColors[p.urgencia]}22;color:${urgColors[p.urgencia]};font-weight:600">${p.urgencia.replace('_',' ')}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${estColors[p.estado] || '#ccc'}22;color:${estColors[p.estado] || '#666'}">${p.estado}</span>
+          </div>
+        </div>
+        ${p.estado === 'PENDIENTE' ? `
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-ghost" style="flex:1;font-size:12px" onclick="abrirComprado(${p.id})">✅ Comprado</button>
+          <button class="btn btn-ghost" style="font-size:12px" onclick="cambiarEstado(${p.id},'EN_PEDIDO')">🛒 En pedido</button>
+          <button class="btn btn-ghost" style="color:#ef4444;font-size:12px" onclick="cambiarEstado(${p.id},'RECHAZADO')">✕</button>
+        </div>` : ''}
+      </div>
+    `).join('');
+  } catch(e) { el.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function guardarPedido() {
+  const desc = document.getElementById('pm-desc').value.trim();
+  if (!desc) { alert('Describí qué necesitás'); return; }
+  const empSelect = document.getElementById('pm-empleado');
+  const empId = empSelect.value || null;
+  const empNombre = empId ? empSelect.options[empSelect.selectedIndex].text : '';
+  try {
+    await API.post('/api/materiales/pedidos', {
+      material_descripcion: desc,
+      cantidad: document.getElementById('pm-cantidad').value,
+      urgencia: document.getElementById('pm-urgencia').value,
+      para_orden: document.getElementById('pm-para').value,
+      solicitado_por_empleado_id: empId ? parseInt(empId) : null,
+      solicitado_por_nombre: empNombre,
+    });
+    closeModal('modal-nuevo-pedido');
+    toast('✅ Pedido registrado');
+    cargarPedidos('PENDIENTE');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function abrirComprado(id) {
+  document.getElementById('mc-pedido-id').value = id;
+  document.getElementById('mc-precio').value = '';
+  document.getElementById('mc-notas').value = '';
+  openModal('modal-comprado');
+}
+
+async function marcarComprado() {
+  const id = document.getElementById('mc-pedido-id').value;
+  try {
+    await API.put(`/api/materiales/pedidos/${id}`, {
+      estado: 'COMPRADO',
+      precio_compra: parseFloat(document.getElementById('mc-precio').value) || null,
+      notas_rodrigo: document.getElementById('mc-notas').value,
+    });
+    closeModal('modal-comprado');
+    toast('✅ Marcado como comprado');
+    cargarPedidos('PENDIENTE');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function cambiarEstado(id, estado) {
+  try {
+    await API.put(`/api/materiales/pedidos/${id}`, { estado });
+    toast(`Estado → ${estado}`);
+    cargarPedidos('PENDIENTE');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ─── INVENTARIO ────────────────────────────────────────────────────────────
+async function cargarInventario() {
+  const el = document.getElementById('lista-inventario');
+  el.innerHTML = '<p style="color:#94a3b8">Cargando...</p>';
+  try {
+    const mats = await API.get('/api/materiales/inventario');
+    if (!mats?.length) { el.innerHTML = '<p style="color:#94a3b8">No hay materiales registrados</p>'; return; }
+    el.innerHTML = `<table class="table"><thead><tr><th>Material</th><th>Stock</th><th>Mín.</th><th>Ubicación</th><th></th></tr></thead><tbody>
+    ${mats.map(m => `<tr style="${m.bajo_stock ? 'background:#fef2f2' : ''}">
+      <td><strong>${m.nombre}</strong><br><small style="color:#94a3b8">${m.proveedor || ''}</small></td>
+      <td style="color:${m.bajo_stock ? '#ef4444' : '#10b981'};font-weight:600">${m.stock_actual} ${m.unidad}${m.bajo_stock ? ' ⚠️' : ''}</td>
+      <td style="color:#94a3b8">${m.stock_minimo} ${m.unidad}</td>
+      <td style="font-size:13px">${m.ubicacion || '—'}</td>
+      <td><button class="btn btn-ghost" style="font-size:12px" onclick="abrirAjuste(${m.id},'${m.nombre}')">Ajustar</button></td>
+    </tr>`).join('')}
+    </tbody></table>`;
+  } catch(e) { el.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function guardarMaterial() {
+  const nombre = document.getElementById('mat-nombre').value.trim();
+  if (!nombre) { alert('Nombre requerido'); return; }
+  try {
+    await API.post('/api/materiales/inventario', {
+      nombre, unidad: document.getElementById('mat-unidad').value,
+      stock_actual: parseFloat(document.getElementById('mat-stock').value) || 0,
+      stock_minimo: parseFloat(document.getElementById('mat-minimo').value) || 0,
+      precio_referencia: parseFloat(document.getElementById('mat-precio').value) || null,
+      ubicacion: document.getElementById('mat-ubicacion').value,
+      proveedor: document.getElementById('mat-proveedor').value,
+    });
+    closeModal('modal-nuevo-material');
+    toast('✅ Material agregado');
+    cargarInventario();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function abrirAjuste(id, nombre) {
+  document.getElementById('as-mat-id').value = id;
+  document.getElementById('as-mat-nombre').textContent = nombre;
+  document.getElementById('as-cantidad').value = '';
+  document.getElementById('as-motivo').value = '';
+  openModal('modal-ajuste-stock');
+}
+
+async function ajustarStock() {
+  const id = document.getElementById('as-mat-id').value;
+  try {
+    await API.post(`/api/materiales/inventario/${id}/movimiento`, {
+      tipo: document.getElementById('as-tipo').value,
+      cantidad: parseFloat(document.getElementById('as-cantidad').value),
+      motivo: document.getElementById('as-motivo').value,
+    });
+    closeModal('modal-ajuste-stock');
+    toast('✅ Stock actualizado');
+    cargarInventario();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ─── HERRAMIENTAS ──────────────────────────────────────────────────────────
+async function cargarHerramientas() {
+  const el = document.getElementById('lista-herramientas');
+  el.innerHTML = '<p style="color:#94a3b8">Cargando...</p>';
+  try {
+    const hers = await API.get('/api/materiales/herramientas');
+    if (!hers?.length) { el.innerHTML = '<p style="color:#94a3b8">No hay herramientas registradas</p>'; return; }
+    el.innerHTML = hers.map(h => `
+      <div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div>
+          <div style="font-weight:600">${h.nombre} ${h.estado !== 'OK' ? `<span style="color:#ef4444;font-size:12px">(${h.estado})</span>` : ''}</div>
+          ${h.prestado ? `<div style="font-size:13px;color:#f59e0b">📤 Con ${h.prestado_a} · ${h.destino || ''} · ${h.alerta || (Math.floor((Date.now()-new Date(h.prestado_desde))/86400000))+' días'}</div>` : '<div style="font-size:13px;color:#10b981">✅ Disponible</div>'}
+        </div>
+        <div>
+          ${h.prestado
+            ? `<button class="btn btn-ghost" style="font-size:12px" onclick="devolverHerramienta(${h.prestamo_id})">↩ Devolver</button>`
+            : `<button class="btn btn-primary" style="font-size:12px" onclick="abrirPrestar(${h.id},'${h.nombre}')">📤 Prestar</button>`
+          }
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { el.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function guardarHerramienta() {
+  const nombre = document.getElementById('h-nombre').value.trim();
+  if (!nombre) { alert('Nombre requerido'); return; }
+  try {
+    await API.post('/api/materiales/herramientas', {
+      nombre, numero_serie: document.getElementById('h-serie').value,
+      estado: document.getElementById('h-estado').value,
+      notas: document.getElementById('h-notas').value,
+    });
+    closeModal('modal-nueva-herramienta');
+    toast('✅ Herramienta agregada');
+    cargarHerramientas();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function abrirPrestar(id, nombre) {
+  document.getElementById('pr-h-id').value = id;
+  document.getElementById('pr-h-nombre').textContent = `🔧 ${nombre}`;
+  document.getElementById('pr-empleado').value = '';
+  document.getElementById('pr-destino').value = '';
+  openModal('modal-prestar');
+}
+
+async function confirmarPrestamo() {
+  const hId = document.getElementById('pr-h-id').value;
+  const empSel = document.getElementById('pr-empleado');
+  const empNombre = empSel.options[empSel.selectedIndex]?.text || '';
+  try {
+    await API.post(`/api/materiales/herramientas/${hId}/prestar`, {
+      empleado_id: empSel.value ? parseInt(empSel.value) : null,
+      empleado_nombre: empNombre,
+      destino: document.getElementById('pr-destino').value,
+      notas: document.getElementById('pr-notas').value,
+    });
+    closeModal('modal-prestar');
+    toast('✅ Préstamo registrado');
+    cargarHerramientas();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function devolverHerramienta(prestamoId) {
+  try {
+    await API.post(`/api/materiales/herramientas/prestamos/${prestamoId}/devolver`);
+    toast('✅ Devolución registrada');
+    cargarHerramientas();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// Inicializar
+setTab('pedidos');
+</script>
+{% endblock %}

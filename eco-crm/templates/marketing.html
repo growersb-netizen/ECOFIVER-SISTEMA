@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% block title %}Marketing · Eco Módulos CRM{% endblock %}
+{% block page_title %}📊 Marketing{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-ghost btn-sm" onclick="cargarDashboard()">↺ Actualizar</button>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ═══════════ MARKETING DASHBOARD ═══════════ */
+.mkt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.mkt-kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 14px 12px;
+  border-top: 3px solid transparent;
+  position: relative;
+}
+.mkt-kpi-val {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+.mkt-kpi-lbl {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+.mkt-kpi-sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.mkt-kpi.leads    { border-top-color: #16a34a; }
+.mkt-kpi.posts    { border-top-color: #7c3aed; }
+.mkt-kpi.ml       { border-top-color: #f59e0b; }
+.mkt-kpi.conv     { border-top-color: #0d9488; }
+.mkt-kpi.frio     { border-top-color: #ef4444; }
+.mkt-kpi.activo   { border-top-color: #3b82f6; }
+
+/* Secciones */
+.mkt-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.mkt-section-hdr {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mkt-section-body { padding: 16px; }
+
+/* Barras horizontales */
+.mkt-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.mkt-bar-lbl { min-width: 100px; color: var(--text-secondary); font-size: 12px; }
+.mkt-bar-wrap { flex: 1; height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; }
+.mkt-bar-fill { height: 100%; border-radius: 4px; transition: width .5s; }
+.mkt-bar-val { min-width: 32px; text-align: right; font-weight: 700; font-size: 12px; }
+
+/* Tendencia minibarras */
+.mkt-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 60px;
+  padding: 0 4px;
+}
+.mkt-trend-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: var(--primary);
+  opacity: .7;
+  min-width: 4px;
+  transition: opacity .15s;
+  cursor: pointer;
+  position: relative;
+}
+.mkt-trend-bar:hover { opacity: 1; }
+
+/* Recientes */
+.mkt-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+.mkt-list-item:last-child { border-bottom: none; }
+.mkt-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.mkt-badge.borrador   { background: rgba(100,116,139,.15); color: #64748b; }
+.mkt-badge.aprobado   { background: rgba(59,130,246,.15); color: #3b82f6; }
+.mkt-badge.publicado  { background: rgba(22,163,74,.15); color: #16a34a; }
+.mkt-badge.archivado  { background: rgba(107,114,128,.15); color: #6b7280; }
+
+/* Links rápidos */
+.mkt-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.mkt-link {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color .15s, background .15s;
+}
+.mkt-link:hover { border-color: var(--primary); background: rgba(var(--primary-rgb),.06); }
+
+/* Grilla 2 cols */
+.mkt-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 700px) { .mkt-2col { grid-template-columns: 1fr; } }
+</style>
+
+<!-- Quick links -->
+<div class="mkt-links">
+  <a href="/ecopost" class="mkt-link">📸 Ecopost</a>
+  <a href="/mercadolibre" class="mkt-link">🛒 MercadoLibre</a>
+  <a href="/leads" class="mkt-link">👥 Leads</a>
+  <a href="/gastos" class="mkt-link">💸 Gastos</a>
+  <a href="/web" class="mkt-link">🌐 Web CMS</a>
+</div>
+
+<!-- KPIs principales -->
+<div class="mkt-grid" id="mkt-kpis">
+  <div class="mkt-kpi leads"><div class="mkt-kpi-val">…</div><div class="mkt-kpi-lbl">Leads hoy</div></div>
+  <div class="mkt-kpi activo"><div class="mkt-kpi-val">…</div><div class="mkt-kpi-lbl">En pipeline</div></div>
+  <div class="mkt-kpi conv"><div class="mkt-kpi-val">…</div><div class="mkt-kpi-lbl">Conversión</div></div>
+  <div class="mkt-kpi frio"><div class="mkt-kpi-val">…</div><div class="mkt-kpi-lbl">Leads fríos</div></div>
+  <div class="mkt-kpi posts"><div class="mkt-kpi-val">…</div><div class="mkt-kpi-lbl">Posts activos</div></div>
+  <div class="mkt-kpi ml"><div class="mkt-kpi-val">…</div><div class="mkt-kpi-lbl">ML activas</div></div>
+</div>
+
+<!-- Cuerpo -->
+<div class="mkt-2col">
+
+  <!-- LEADS -->
+  <div>
+    <!-- Tendencia 30d -->
+    <div class="mkt-section">
+      <div class="mkt-section-hdr">
+        <span>📈 Leads — últimos 30 días</span>
+        <span id="leads-30d-total" style="font-size:12px;color:var(--text-secondary)"></span>
+      </div>
+      <div class="mkt-section-body">
+        <div class="mkt-trend" id="trend-leads" title="Leads por día"></div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;text-align:center">Pasá el cursor para ver el día</div>
+      </div>
+    </div>
+
+    <!-- Leads por agente -->
+    <div class="mkt-section">
+      <div class="mkt-section-hdr"><span>🤖 Por agente (30 días)</span></div>
+      <div class="mkt-section-body" id="agentes-bars">
+        <div class="loading">Cargando…</div>
+      </div>
+    </div>
+
+    <!-- Leads por producto -->
+    <div class="mkt-section">
+      <div class="mkt-section-hdr"><span>🏊 Por producto (30 días)</span></div>
+      <div class="mkt-section-body" id="productos-bars">
+        <div class="loading">Cargando…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ECOPOST + ML -->
+  <div>
+    <!-- Ecopost estados -->
+    <div class="mkt-section">
+      <div class="mkt-section-hdr">
+        <span>📸 Ecopost</span>
+        <a href="/ecopost" style="font-size:12px;color:var(--primary)">Ir al módulo →</a>
+      </div>
+      <div class="mkt-section-body">
+        <div id="ecopost-bars"><div class="loading">Cargando…</div></div>
+        <div style="margin-top:14px;border-top:1px solid var(--border-color);padding-top:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Últimos contenidos</div>
+          <div id="ecopost-recientes"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ecopost por tipo -->
+    <div class="mkt-section">
+      <div class="mkt-section-hdr"><span>📋 Tipo de contenido</span></div>
+      <div class="mkt-section-body" id="tipos-bars">
+        <div class="loading">Cargando…</div>
+      </div>
+    </div>
+
+    <!-- ML -->
+    <div class="mkt-section">
+      <div class="mkt-section-hdr">
+        <span>🛒 MercadoLibre</span>
+        <a href="/mercadolibre" style="font-size:12px;color:var(--primary)">Ir al módulo →</a>
+      </div>
+      <div class="mkt-section-body" id="ml-stats">
+        <div class="loading">Cargando…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _data = null;
+
+document.addEventListener('DOMContentLoaded', cargarDashboard);
+
+async function cargarDashboard() {
+  try {
+    _data = await API.get('/api/marketing/dashboard');
+    renderKPIs();
+    renderLeads();
+    renderEcopost();
+    renderML();
+  } catch(e) {
+    console.error('Error cargando dashboard marketing:', e);
+  }
+}
+
+/* ── KPIs ── */
+function renderKPIs() {
+  const d = _data;
+  const kpis = document.querySelectorAll('#mkt-kpis .mkt-kpi');
+  const vals = [
+    { val: d.leads.hoy,            sub: `${d.leads.ultimos_7d} esta semana` },
+    { val: d.leads.activos,        sub: `de ${d.leads.total} total` },
+    { val: d.leads.conversion_pct + '%', sub: `${d.leads.ganados} ganados` },
+    { val: d.leads.frios,          sub: '+48hs sin actividad' },
+    { val: d.ecopost.publicados,   sub: `${d.ecopost.aprobados} aprobados, ${d.ecopost.borradores} borradores` },
+    { val: d.mercadolibre.publicaciones_activas, sub: `${d.mercadolibre.publicaciones_total} total` },
+  ];
+  kpis.forEach((el, i) => {
+    const v = vals[i];
+    el.querySelector('.mkt-kpi-val').textContent = v.val;
+    let sub = el.querySelector('.mkt-kpi-sub');
+    if (!sub) {
+      sub = document.createElement('div');
+      sub.className = 'mkt-kpi-sub';
+      el.appendChild(sub);
+    }
+    sub.textContent = v.sub;
+  });
+}
+
+/* ── Leads ── */
+function renderLeads() {
+  const d = _data.leads;
+
+  // Tendencia 30d
+  const trend = d.tendencia_30d;
+  const trendEl = document.getElementById('trend-leads');
+  document.getElementById('leads-30d-total').textContent = d.ultimos_30d + ' leads';
+  if (trend.length) {
+    const maxQ = Math.max(...trend.map(t => t.qty), 1);
+    trendEl.innerHTML = trend.map(t => {
+      const pct = Math.max(4, Math.round((t.qty / maxQ) * 100));
+      const dia = t.dia ? t.dia.slice(5) : '';
+      return `<div class="mkt-trend-bar" style="height:${pct}%" title="${dia}: ${t.qty} leads"></div>`;
+    }).join('');
+  } else {
+    trendEl.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;text-align:center;width:100%">Sin datos</div>';
+  }
+
+  // Por agente
+  renderBars('agentes-bars', d.por_agente, '#3b82f6');
+
+  // Por producto
+  const prodMap = { PISCINA: '🏊 Piscina', MODULO: '🏠 Módulo', COMBO: '🎁 Combo', SIN_DEFINIR: '❓ Sin definir' };
+  const prodLabeled = {};
+  Object.entries(d.por_producto).forEach(([k, v]) => {
+    prodLabeled[prodMap[k] || k] = v;
+  });
+  renderBars('productos-bars', prodLabeled, '#0d9488');
+}
+
+/* ── Ecopost ── */
+function renderEcopost() {
+  const d = _data.ecopost;
+
+  // Barras de estado
+  const estadoMap = { publicados: '✅ Publicados', aprobados: '✔ Aprobados', borradores: '📝 Borradores' };
+  const estadoColors = { publicados: '#16a34a', aprobados: '#3b82f6', borradores: '#64748b' };
+  const maxEst = Math.max(d.publicados, d.aprobados, d.borradores, 1);
+  document.getElementById('ecopost-bars').innerHTML = Object.entries(estadoMap).map(([k, lbl]) => `
+    <div class="mkt-bar-row">
+      <div class="mkt-bar-lbl">${lbl}</div>
+      <div class="mkt-bar-wrap"><div class="mkt-bar-fill" style="width:${Math.round(d[k]/maxEst*100)}%;background:${estadoColors[k]}"></div></div>
+      <div class="mkt-bar-val">${d[k]}</div>
+    </div>`).join('');
+
+  // Recientes
+  const recEl = document.getElementById('ecopost-recientes');
+  if (!d.recientes.length) {
+    recEl.innerHTML = '<div style="font-size:12px;color:var(--text-secondary)">Sin contenido aún</div>';
+    return;
+  }
+  recEl.innerHTML = d.recientes.map(p => {
+    const tipoIcon = { flyer: '🖼', story: '📱', carrusel: '🗂', reel: '🎬' }[p.tipo] || '📄';
+    const fecha = p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR', {day:'2-digit',month:'short'}) : '';
+    return `<div class="mkt-list-item">
+      <span style="font-size:16px">${tipoIcon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.titulo)}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">${p.producto} · ${fecha}</div>
+      </div>
+      <span class="mkt-badge ${p.estado}">${p.estado}</span>
+    </div>`;
+  }).join('');
+
+  // Por tipo
+  renderBars('tipos-bars', d.por_tipo, '#7c3aed');
+}
+
+/* ── ML ── */
+function renderML() {
+  const d = _data.mercadolibre;
+  document.getElementById('ml-stats').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="text-align:center;padding:12px;background:var(--bg-secondary);border-radius:8px">
+        <div style="font-size:24px;font-weight:800;color:#f59e0b">${d.publicaciones_activas}</div>
+        <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px">Activas</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--bg-secondary);border-radius:8px">
+        <div style="font-size:24px;font-weight:800">${d.publicaciones_total}</div>
+        <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px">Total</div>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <a href="/mercadolibre" class="btn btn-ghost w-full" style="justify-content:center">Ver publicaciones →</a>
+    </div>`;
+}
+
+/* ── Helpers ── */
+function renderBars(containerId, dataObj, color) {
+  const el = document.getElementById(containerId);
+  const entries = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text-secondary)">Sin datos</div>';
+    return;
+  }
+  const max = Math.max(...entries.map(e => e[1]), 1);
+  el.innerHTML = entries.map(([lbl, val]) => `
+    <div class="mkt-bar-row">
+      <div class="mkt-bar-lbl">${escHtml(String(lbl))}</div>
+      <div class="mkt-bar-wrap"><div class="mkt-bar-fill" style="width:${Math.round(val/max*100)}%;background:${color}"></div></div>
+      <div class="mkt-bar-val">${val}</div>
+    </div>`).join('');
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

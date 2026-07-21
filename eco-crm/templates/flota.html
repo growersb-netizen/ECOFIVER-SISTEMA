@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+{% block title %}Flota — Eco Módulos{% endblock %}
+{% block page_title %}🚗 Flota{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px">
+  <button class="btn btn-primary" onclick="openModal('modal-nuevo-vehiculo')">+ Vehículo</button>
+  <button class="btn btn-ghost" onclick="setTab('dashboard')">📊 Dashboard</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+  <button class="btn" id="tab-hoy" onclick="setTab('hoy')" style="background:#10b981;color:#fff">📅 Hoy</button>
+  <button class="btn btn-ghost" id="tab-vehiculos" onclick="setTab('vehiculos')">🚗 Vehículos</button>
+  <button class="btn btn-ghost" id="tab-mantenimiento" onclick="setTab('mantenimiento')">🔧 Mantenimiento</button>
+  <button class="btn btn-ghost" id="tab-gastos" onclick="setTab('gastos')">💰 Gastos</button>
+  <button class="btn btn-ghost" id="tab-dashboard" onclick="setTab('dashboard')">📊 Dashboard</button>
+</div>
+
+<!-- HOY -->
+<div id="tab-content-hoy">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h3 style="margin:0">Asignaciones de hoy</h3>
+    <button class="btn btn-primary" onclick="openModal('modal-nueva-asignacion')">+ Asignar</button>
+  </div>
+  <div id="lista-hoy">Cargando...</div>
+</div>
+
+<!-- VEHÍCULOS -->
+<div id="tab-content-vehiculos" style="display:none">
+  <div id="lista-vehiculos">Cargando...</div>
+</div>
+
+<!-- MANTENIMIENTO -->
+<div id="tab-content-mantenimiento" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h3 style="margin:0">Mantenimientos</h3>
+    <button class="btn btn-primary" onclick="openModal('modal-nuevo-mant')">+ Registrar</button>
+  </div>
+  <div id="lista-mantenimiento">Cargando...</div>
+</div>
+
+<!-- GASTOS -->
+<div id="tab-content-gastos" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h3 style="margin:0">Gastos de flota</h3>
+    <button class="btn btn-primary" onclick="openModal('modal-nuevo-gasto')">+ Gasto</button>
+  </div>
+  <div id="lista-gastos">Cargando...</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="tab-content-dashboard" style="display:none">
+  <div id="dashboard-flota">Cargando...</div>
+</div>
+
+<!-- MODAL NUEVO VEHÍCULO -->
+<div id="modal-nuevo-vehiculo" class="modal" style="display:none">
+  <div class="modal-header"><h3>🚗 Registrar vehículo</h3><button onclick="closeModal('modal-nuevo-vehiculo')">✕</button></div>
+  <div class="modal-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Patente *</label><input class="form-input" id="v-patente" placeholder="ABC123" style="text-transform:uppercase"></div>
+      <div class="form-group"><label class="form-label">Tipo</label>
+        <select class="form-select" id="v-tipo">
+          <option value="CAMIONETA">🛻 Camioneta</option>
+          <option value="AUTO">🚗 Auto</option>
+          <option value="UTILITARIO">📦 Utilitario</option>
+          <option value="ACOPLADO">🚛 Acoplado</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Marca</label><input class="form-input" id="v-marca"></div>
+      <div class="form-group"><label class="form-label">Modelo</label><input class="form-input" id="v-modelo"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Año</label><input class="form-input" id="v-anio" type="number" placeholder="2020"></div>
+      <div class="form-group"><label class="form-label">Color</label><input class="form-input" id="v-color"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Venc. VTV</label><input class="form-input" id="v-vtv" type="date"></div>
+      <div class="form-group"><label class="form-label">Venc. Seguro</label><input class="form-input" id="v-seguro" type="date"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Observaciones</label><textarea class="form-input" id="v-obs" rows="2"></textarea></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nuevo-vehiculo')">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardarVehiculo()">Guardar</button>
+  </div>
+</div>
+
+<!-- MODAL NUEVA ASIGNACIÓN -->
+<div id="modal-nueva-asignacion" class="modal" style="display:none">
+  <div class="modal-header"><h3>📅 Asignar vehículo</h3><button onclick="closeModal('modal-nueva-asignacion')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">Vehículo *</label>
+      <select class="form-select" id="as-vehiculo"><option value="">Seleccionar...</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Conductor</label>
+      <select class="form-select" id="as-empleado">
+        <option value="">Seleccionar...</option>
+        {% for e in empleados %}<option value="{{ e.id }}">{{ e.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Sale a las</label><input class="form-input" id="as-salida" type="time" value="08:00"></div>
+      <div class="form-group"><label class="form-label">Vuelve a las</label><input class="form-input" id="as-regreso" type="time" value="17:00"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Destino</label><input class="form-input" id="as-destino" placeholder="Ej: Mar del Plata"></div>
+    <div class="form-group"><label class="form-label">Trabajo</label><input class="form-input" id="as-trabajo" placeholder="Ej: instalación García"></div>
+    <div class="form-group"><label class="form-label">Km al salir</label><input class="form-input" id="as-km-salida" type="number"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nueva-asignacion')">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardarAsignacion()">Asignar</button>
+  </div>
+</div>
+
+<!-- MODAL MANTENIMIENTO -->
+<div id="modal-nuevo-mant" class="modal" style="display:none">
+  <div class="modal-header"><h3>🔧 Registrar mantenimiento</h3><button onclick="closeModal('modal-nuevo-mant')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">Vehículo *</label>
+      <select class="form-select" id="mant-vehiculo"><option value="">Seleccionar...</option></select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Tipo</label>
+        <select class="form-select" id="mant-tipo">
+          <option value="PREVENTIVO">Preventivo</option>
+          <option value="REPARACION">Reparación</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Estado</label>
+        <select class="form-select" id="mant-estado">
+          <option value="PENDIENTE">Pendiente</option>
+          <option value="EN_TALLER">En taller</option>
+          <option value="RESUELTO">Resuelto</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Descripción</label><textarea class="form-input" id="mant-desc" rows="2"></textarea></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Costo</label><input class="form-input" id="mant-costo" type="number"></div>
+      <div class="form-group"><label class="form-label">Taller</label><input class="form-input" id="mant-taller"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Próx. service (fecha)</label><input class="form-input" id="mant-prox-fecha" type="date"></div>
+      <div class="form-group"><label class="form-label">Próx. service (km)</label><input class="form-input" id="mant-prox-km" type="number"></div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nuevo-mant')">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardarMantenimiento()">Guardar</button>
+  </div>
+</div>
+
+<!-- MODAL GASTO -->
+<div id="modal-nuevo-gasto" class="modal" style="display:none">
+  <div class="modal-header"><h3>💰 Registrar gasto</h3><button onclick="closeModal('modal-nuevo-gasto')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">Vehículo *</label>
+      <select class="form-select" id="g-vehiculo"><option value="">Seleccionar...</option></select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-group"><label class="form-label">Tipo</label>
+        <select class="form-select" id="g-tipo">
+          <option value="NAFTA">⛽ Nafta</option>
+          <option value="PEAJE">🛣️ Peaje</option>
+          <option value="REPARACION">🔧 Reparación</option>
+          <option value="SEGURO">🛡️ Seguro</option>
+          <option value="VTV">📋 VTV</option>
+          <option value="MULTA">⚠️ Multa</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Monto *</label><input class="form-input" id="g-monto" type="number"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Descripción</label><input class="form-input" id="g-desc"></div>
+    <div class="form-group"><label class="form-label">¿Quién pagó?</label><input class="form-input" id="g-quien"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('modal-nuevo-gasto')">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardarGasto()">Guardar</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let vehiculos = [];
+
+async function initVehiculos() {
+  try {
+    vehiculos = await API.get('/api/flota/vehiculos') || [];
+    const selects = ['as-vehiculo','mant-vehiculo','g-vehiculo'];
+    selects.forEach(id => {
+      const sel = document.getElementById(id);
+      if(!sel) return;
+      sel.innerHTML = '<option value="">Seleccionar...</option>' +
+        vehiculos.map(v=>`<option value="${v.id}">${v.patente} — ${v.marca} ${v.modelo} (${v.tipo})</option>`).join('');
+    });
+  } catch(e){}
+}
+
+function setTab(tab) {
+  ['hoy','vehiculos','mantenimiento','gastos','dashboard'].forEach(t => {
+    document.getElementById(`tab-content-${t}`).style.display = t===tab?'block':'none';
+    const btn = document.getElementById(`tab-${t}`);
+    if(btn){ btn.className=t===tab?'btn':'btn btn-ghost'; btn.style.background=t===tab?'#10b981':''; btn.style.color=t===tab?'#fff':''; }
+  });
+  if(tab==='hoy') cargarHoy();
+  else if(tab==='vehiculos') cargarVehiculos();
+  else if(tab==='mantenimiento') cargarMantenimiento();
+  else if(tab==='gastos') cargarGastos();
+  else if(tab==='dashboard') cargarDashboard();
+}
+
+async function cargarHoy() {
+  const el = document.getElementById('lista-hoy');
+  try {
+    const asigs = await API.get('/api/flota/asignaciones/hoy');
+    if(!asigs?.length){ el.innerHTML='<p style="color:#94a3b8">Sin asignaciones para hoy</p>'; return; }
+    const estColors = { PROGRAMADA:'#f59e0b', EN_VIAJE:'#10b981', COMPLETADA:'#94a3b8', CANCELADA:'#ef4444' };
+    el.innerHTML = asigs.map(a=>`
+      <div class="card" style="margin-bottom:8px;border-left:4px solid ${estColors[a.estado]||'#ccc'}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:700">${a.vehiculo_patente} <small style="color:#94a3b8">${a.vehiculo_tipo||''}</small></div>
+            <div style="font-size:14px;color:#374151;margin:2px 0">👤 ${a.conductor_nombre||'—'}</div>
+            <div style="font-size:13px;color:#64748b">📍 ${a.destino||'—'} ${a.trabajo?'· '+a.trabajo:''}</div>
+            <div style="font-size:12px;color:#94a3b8">⏰ ${a.horario_salida_estimado||'—'} → ${a.horario_regreso_estimado||'—'}</div>
+          </div>
+          <div>
+            <select style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px" onchange="cambiarEstadoAsig(${a.id},this.value)">
+              <option ${a.estado==='PROGRAMADA'?'selected':''} value="PROGRAMADA">Programada</option>
+              <option ${a.estado==='EN_VIAJE'?'selected':''} value="EN_VIAJE">En viaje</option>
+              <option ${a.estado==='COMPLETADA'?'selected':''} value="COMPLETADA">Completada</option>
+              <option ${a.estado==='CANCELADA'?'selected':''} value="CANCELADA">Cancelada</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e){ el.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function cargarVehiculos() {
+  const el = document.getElementById('lista-vehiculos');
+  try {
+    const veh = await API.get('/api/flota/vehiculos');
+    if(!veh?.length){ el.innerHTML='<p style="color:#94a3b8">No hay vehículos registrados</p>'; return; }
+    const estColors = { OPERATIVO:'#10b981', EN_REPARACION:'#f59e0b', FUERA_DE_SERVICIO:'#ef4444' };
+    el.innerHTML = veh.map(v=>`
+      <div class="card" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:700;font-size:16px">${v.patente} <small style="font-weight:400;color:#94a3b8">${v.tipo}</small></div>
+            <div style="color:#374151">${v.marca} ${v.modelo} ${v.anio?'('+v.anio+')':''} · ${v.color||''}</div>
+            <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${estColors[v.estado]||'#ccc'}22;color:${estColors[v.estado]||'#666'};font-weight:600">${v.estado}</span>
+            ${v.asignado_hoy?`<span style="font-size:11px;margin-left:6px;color:#f59e0b">· En uso: ${v.conductor_hoy||''}</span>`:''}
+          </div>
+        </div>
+        ${v.alertas?.length?`<div style="margin-top:8px">${v.alertas.map(a=>`<div style="font-size:12px;color:#ef4444">⚠️ ${a}</div>`).join('')}</div>`:''}
+      </div>
+    `).join('');
+  } catch(e){ el.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function cargarMantenimiento() {
+  const el = document.getElementById('lista-mantenimiento');
+  try {
+    const items = await API.get('/api/flota/mantenimientos');
+    if(!items?.length){ el.innerHTML='<p style="color:#94a3b8">No hay registros</p>'; return; }
+    const estColors = { PENDIENTE:'#f59e0b', EN_TALLER:'#3b82f6', RESUELTO:'#10b981' };
+    el.innerHTML = items.map(m=>`
+      <div class="card" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between">
+          <div>
+            <div style="font-weight:600">${m.vehiculo_patente} — ${m.tipo}</div>
+            <div style="font-size:13px;color:#374151;margin:2px 0">${m.descripcion||'—'}</div>
+            ${m.taller?`<div style="font-size:12px;color:#64748b">🔧 ${m.taller}</div>`:''}
+            ${m.costo?`<div style="font-size:12px;color:#64748b">💰 $${m.costo.toLocaleString('es-AR')}</div>`:''}
+          </div>
+          <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${estColors[m.estado]||'#ccc'}22;color:${estColors[m.estado]||'#666'};height:fit-content">${m.estado}</span>
+        </div>
+      </div>
+    `).join('');
+  } catch(e){ el.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function cargarGastos() {
+  const el = document.getElementById('lista-gastos');
+  try {
+    const gastos = await API.get('/api/flota/gastos');
+    if(!gastos?.length){ el.innerHTML='<p style="color:#94a3b8">No hay gastos registrados</p>'; return; }
+    const total = gastos.reduce((s,g)=>s+g.monto,0);
+    el.innerHTML = `<div class="card" style="margin-bottom:12px;background:#f0fdf4"><div style="font-size:13px;color:#64748b">Total registrado</div><div style="font-size:24px;font-weight:800;color:#10b981">$${total.toLocaleString('es-AR')}</div></div>`+
+    `<table class="table"><thead><tr><th>Vehículo</th><th>Tipo</th><th>Monto</th><th>Fecha</th></tr></thead><tbody>
+    ${gastos.map(g=>`<tr><td><strong>${g.vehiculo_patente}</strong></td><td>${g.tipo}</td><td>$${g.monto.toLocaleString('es-AR')}</td><td>${g.fecha?new Date(g.fecha).toLocaleDateString('es-AR'):''}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch(e){ el.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function cargarDashboard() {
+  const el = document.getElementById('dashboard-flota');
+  try {
+    const d = await API.get('/api/flota/dashboard');
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px">
+        <div class="card" style="text-align:center"><div style="font-size:28px;font-weight:800;color:#10b981">${d.operativos}</div><div style="color:#64748b;font-size:13px">Operativos</div></div>
+        <div class="card" style="text-align:center"><div style="font-size:28px;font-weight:800;color:#f59e0b">${d.en_reparacion}</div><div style="color:#64748b;font-size:13px">En reparación</div></div>
+        <div class="card" style="text-align:center"><div style="font-size:28px;font-weight:800;color:#6366f1">${d.km_semana.toFixed(0)}</div><div style="color:#64748b;font-size:13px">Km semana</div></div>
+        <div class="card" style="text-align:center"><div style="font-size:28px;font-weight:800;color:#ef4444">$${(d.gasto_mes/1000).toFixed(0)}k</div><div style="color:#64748b;font-size:13px">Gasto mes</div></div>
+      </div>
+      ${d.vencimientos_proximos?.length?`
+        <div class="card" style="border-left:4px solid #ef4444">
+          <div style="font-weight:600;margin-bottom:8px">⚠️ Vencimientos próximos (30 días)</div>
+          ${d.vencimientos_proximos.map(v=>`<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #f1f5f9">🚗 ${v.vehiculo} — ${v.tipo}: ${new Date(v.fecha).toLocaleDateString('es-AR')}</div>`).join('')}
+        </div>`:''
+      }
+      ${d.mantenimientos_pendientes?`<div class="card" style="margin-top:12px;border-left:4px solid #f59e0b"><div style="font-weight:600">🔧 Mantenimientos pendientes: ${d.mantenimientos_pendientes}</div></div>`:''}
+    `;
+  } catch(e){ el.innerHTML=`<div class="alert alert-error">${e.message}</div>`; }
+}
+
+async function guardarVehiculo() {
+  const patente = document.getElementById('v-patente').value.trim().toUpperCase();
+  if(!patente){ alert('Ingresá la patente'); return; }
+  try {
+    await API.post('/api/flota/vehiculos', {
+      patente, tipo: document.getElementById('v-tipo').value,
+      marca: document.getElementById('v-marca').value,
+      modelo: document.getElementById('v-modelo').value,
+      anio: parseInt(document.getElementById('v-anio').value)||null,
+      color: document.getElementById('v-color').value,
+      vencimiento_vtv: document.getElementById('v-vtv').value||null,
+      vencimiento_seguro: document.getElementById('v-seguro').value||null,
+      observaciones: document.getElementById('v-obs').value,
+    });
+    closeModal('modal-nuevo-vehiculo');
+    toast('✅ Vehículo registrado');
+    initVehiculos();
+    cargarVehiculos();
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function guardarAsignacion() {
+  const vId = document.getElementById('as-vehiculo').value;
+  if(!vId){ alert('Seleccioná un vehículo'); return; }
+  const empSel = document.getElementById('as-empleado');
+  const empNombre = empSel.value ? empSel.options[empSel.selectedIndex].text : '';
+  try {
+    await API.post('/api/flota/asignaciones', {
+      vehiculo_id: parseInt(vId),
+      empleado_id: empSel.value ? parseInt(empSel.value) : null,
+      conductor_nombre: empNombre,
+      horario_salida_estimado: document.getElementById('as-salida').value,
+      horario_regreso_estimado: document.getElementById('as-regreso').value,
+      destino: document.getElementById('as-destino').value,
+      trabajo: document.getElementById('as-trabajo').value,
+      km_salida: parseFloat(document.getElementById('as-km-salida').value)||null,
+      fecha: new Date().toISOString(),
+    });
+    closeModal('modal-nueva-asignacion');
+    toast('✅ Asignación creada');
+    cargarHoy();
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function guardarMantenimiento() {
+  const vId = document.getElementById('mant-vehiculo').value;
+  if(!vId){ alert('Seleccioná un vehículo'); return; }
+  try {
+    await API.post('/api/flota/mantenimientos', {
+      vehiculo_id: parseInt(vId),
+      tipo: document.getElementById('mant-tipo').value,
+      estado: document.getElementById('mant-estado').value,
+      descripcion: document.getElementById('mant-desc').value,
+      costo: parseFloat(document.getElementById('mant-costo').value)||null,
+      taller: document.getElementById('mant-taller').value,
+      proximo_service_fecha: document.getElementById('mant-prox-fecha').value||null,
+      proximo_service_km: parseFloat(document.getElementById('mant-prox-km').value)||null,
+    });
+    closeModal('modal-nuevo-mant');
+    toast('✅ Mantenimiento registrado');
+    cargarMantenimiento();
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function guardarGasto() {
+  const vId = document.getElementById('g-vehiculo').value;
+  const monto = parseFloat(document.getElementById('g-monto').value);
+  if(!vId||!monto){ alert('Completá vehículo y monto'); return; }
+  try {
+    await API.post('/api/flota/gastos', {
+      vehiculo_id: parseInt(vId),
+      tipo: document.getElementById('g-tipo').value,
+      monto, descripcion: document.getElementById('g-desc').value,
+      quien_pago: document.getElementById('g-quien').value,
+    });
+    closeModal('modal-nuevo-gasto');
+    toast('✅ Gasto registrado');
+    cargarGastos();
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function cambiarEstadoAsig(id, estado) {
+  try {
+    await API.put(`/api/flota/asignaciones/${id}`, { estado });
+    toast(`Estado → ${estado}`);
+  } catch(e){ toast(e.message,'error'); }
+}
+
+initVehiculos();
+setTab('hoy');
+</script>
+{% endblock %}

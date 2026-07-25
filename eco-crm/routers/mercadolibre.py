@@ -838,3 +838,22 @@ async def get_dashboard_ml(
         }
     except Exception as e:
         return {"conectado": False, "error": str(e)[:80]}
+
+
+@router.get("/api/ml/listing-types")
+async def ml_listing_types(
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Diagnóstico: tipos de publicación disponibles en MLA (con el token de la cuenta)."""
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
+    tok = await _ml_valid_token(db)
+    async with httpx.AsyncClient(timeout=12) as c:
+        r = await c.get(f"{ML_BASE}/sites/MLA/listing_types", headers=_ml_headers(tok))
+    if r.status_code != 200:
+        return {"status": r.status_code, "error": r.text[:300]}
+    return {"status": 200, "listing_types": [{"id": x.get("id"), "name": x.get("name")} for x in r.json()]}

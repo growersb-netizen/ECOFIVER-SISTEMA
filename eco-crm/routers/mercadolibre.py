@@ -857,3 +857,33 @@ async def ml_listing_types(
     if r.status_code != 200:
         return {"status": r.status_code, "error": r.text[:300]}
     return {"status": 200, "listing_types": [{"id": x.get("id"), "name": x.get("name")} for x in r.json()]}
+
+
+@router.get("/api/ml/precio-mercado")
+async def ml_precio_mercado(
+    q: str,
+    categoria: Optional[str] = None,
+    limite: int = 5,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Devuelve las publicaciones más baratas del sitio para un término (referencia de mercado)."""
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
+    tok = await _ml_valid_token(db)
+    params = {"q": q, "sort": "price_asc", "limit": max(1, min(limite, 20))}
+    if categoria:
+        params["category"] = categoria
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{ML_BASE}/sites/MLA/search", params=params, headers=_ml_headers(tok))
+    if r.status_code != 200:
+        return {"status": r.status_code, "error": r.text[:300]}
+    d = r.json()
+    res = [{"titulo": x.get("title"), "precio": x.get("price"),
+            "link": x.get("permalink")} for x in d.get("results", [])[:limite]]
+    precios = [x["precio"] for x in res if x.get("precio")]
+    return {"status": 200, "total": d.get("paging", {}).get("total"),
+            "mas_barato": min(precios) if precios else None, "resultados": res}

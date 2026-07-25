@@ -1232,3 +1232,36 @@ class SolicitudContador(Base):
     prefijo = Column(String(10), default="000")
     ultimo_numero = Column(Integer, default=13860152)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class BorradorML(Base):
+    """
+    Borrador de publicación para MercadoLibre (cola de carga unificada).
+    Origen: manual | masiva | catalogo. Se publica en lote vía API a ML.
+    """
+    __tablename__ = "borradores_ml"
+
+    id = Column(Integer, primary_key=True, index=True)
+    origen = Column(String(20), default="manual")          # manual | masiva | catalogo
+    titulo = Column(String(200), default="")               # máx 60 en ML
+    descripcion = Column(Text, default="")
+    categoria = Column(String(20), default="")             # MLA... (si vacío, se infiere del producto)
+    producto = Column(String(20), nullable=True)           # PISCINA | MODULO | COMBO
+    precio = Column(Float, default=0)
+    cantidad = Column(Integer, default=1)
+    condicion = Column(String(20), default="new")          # new | used
+    listing_type = Column(String(30), default="gold_special")   # Clásica por defecto
+    fotos_json = Column(Text, default="[]")                # lista de URLs
+    atributos_json = Column(Text, default="[]")            # atributos ML [{id,value_name}]
+    # ── Competitividad ──
+    precio_referencia = Column(Float, nullable=True)       # referencia manual del más barato
+    precio_competencia = Column(Float, nullable=True)      # auto (buy-box de catálogo), si hay
+    # ── Estado de publicación ──
+    estado = Column(String(20), default="borrador")        # borrador | publicando | publicada | error
+    item_id = Column(String(50), nullable=True)            # MLA... una vez publicada
+    permalink = Column(String(300), nullable=True)
+    error_msg = Column(Text, default="")
+    variante_de = Column(Integer, nullable=True)           # id del borrador base si es variante
+    created_by_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

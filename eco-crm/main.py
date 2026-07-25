@@ -273,6 +273,8 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/api/inbox/entrante",   # multiagente notifica mensajes
         "/api/inbox/modo/",      # multiagente consulta modo de atención
         "/equipo/pedido",           # pública con código de equipo
+        "/portal-aliado",           # portal de solo lectura del aliado (login por código+PIN)
+        "/api/public",              # endpoints públicos (landing, postulación aliado, portal)
         "/api/materiales/pedidos",  # POST público para pedidos del equipo
         "/operario/",               # panel operario por token (sin login)
         "/api/produccion/ordenes/", # operario registra etapas sin login

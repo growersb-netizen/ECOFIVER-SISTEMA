@@ -196,9 +196,14 @@ async def ml_callback(
 @router.get("/api/ml/conexion")
 async def ml_conexion(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(_require_config_access),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Estado de la conexión OAuth con MercadoLibre."""
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
     cid = get_config_value("ml_client_id", db)
     token = get_config_value("ml_access_token", db)
     uid = get_config_value("ml_user_id", db)

@@ -736,3 +736,46 @@ async def numero_actual(
         "ultimo_emitido": f"{c.prefijo}-{c.ultimo_numero}",
         "proximo": f"{c.prefijo}-{(c.ultimo_numero or 0) + 1}",
     }
+
+
+@router.post("/api/solicitudes/set-contador")
+async def set_contador(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Ajusta la base del contador de solicitudes (operación de gestión).
+    Uso: corregir continuidad o reajustar tras importar contratos históricos.
+    Body: { ultimo_numero: int, prefijo?: str }
+    El próximo número emitido será ultimo_numero + 1.
+    """
+    _auth(x_api_key, current_user)
+    _solo_gestion(current_user, x_api_key)
+    data = await request.json()
+
+    if "ultimo_numero" not in data:
+        raise HTTPException(400, "Falta 'ultimo_numero'")
+    try:
+        nuevo = int(data["ultimo_numero"])
+    except Exception:
+        raise HTTPException(400, "'ultimo_numero' debe ser un entero")
+
+    c = db.query(SolicitudContador).filter(SolicitudContador.id == 1).first()
+    if not c:
+        c = SolicitudContador(id=1, prefijo=data.get("prefijo", "000"), ultimo_numero=nuevo)
+        db.add(c)
+    else:
+        anterior = c.ultimo_numero
+        c.ultimo_numero = nuevo
+        if data.get("prefijo"):
+            c.prefijo = data["prefijo"]
+    db.commit()
+    db.refresh(c)
+    return {
+        "ok": True,
+        "ultimo_numero": c.ultimo_numero,
+        "prefijo": c.prefijo,
+        "proximo": f"{c.prefijo}-{c.ultimo_numero + 1}",
+    }

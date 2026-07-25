@@ -879,11 +879,33 @@ async def ml_precio_mercado(
         params["category"] = categoria
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.get(f"{ML_BASE}/sites/MLA/search", params=params, headers=_ml_headers(tok))
-    if r.status_code != 200:
-        return {"status": r.status_code, "error": r.text[:300]}
-    d = r.json()
-    res = [{"titulo": x.get("title"), "precio": x.get("price"),
-            "link": x.get("permalink")} for x in d.get("results", [])[:limite]]
-    precios = [x["precio"] for x in res if x.get("precio")]
-    return {"status": 200, "total": d.get("paging", {}).get("total"),
-            "mas_barato": min(precios) if precios else None, "resultados": res}
+        if r.status_code == 200:
+            d = r.json()
+            res = [{"titulo": x.get("title"), "precio": x.get("price"),
+                    "link": x.get("permalink")} for x in d.get("results", [])[:limite]]
+            precios = [x["precio"] for x in res if x.get("precio")]
+            return {"fuente": "search", "status": 200, "total": d.get("paging", {}).get("total"),
+                    "mas_barato": min(precios) if precios else None, "resultados": res}
+        # Fallback: API de catálogo (productos)
+        rc = await c.get(f"{ML_BASE}/products/search",
+                         params={"site_id": "MLA", "status": "active", "q": q},
+                         headers=_ml_headers(tok))
+        if rc.status_code != 200:
+            return {"fuente": "ninguna", "search_status": r.status_code,
+                    "catalogo_status": rc.status_code, "error": rc.text[:200]}
+        dc = rc.json()
+        prods = dc.get("results", [])[:limite]
+        salida = []
+        for p in prods:
+            pid = p.get("id")
+            precio = None
+            try:
+                rp = await c.get(f"{ML_BASE}/products/{pid}", headers=_ml_headers(tok))
+                if rp.status_code == 200:
+                    precio = (rp.json().get("buy_box_winner") or {}).get("price")
+            except Exception:
+                pass
+            salida.append({"titulo": p.get("name"), "precio": precio, "product_id": pid})
+    precios = [x["precio"] for x in salida if x.get("precio")]
+    return {"fuente": "catalogo", "status": 200, "total": dc.get("paging", {}).get("total"),
+            "mas_barato": min(precios) if precios else None, "resultados": salida}

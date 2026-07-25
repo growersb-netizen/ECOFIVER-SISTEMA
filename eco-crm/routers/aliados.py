@@ -794,3 +794,44 @@ async def set_contador(
         "prefijo": c.prefijo,
         "proximo": f"{c.prefijo}-{c.ultimo_numero + 1}",
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÚBLICO — postulación de aliados desde la landing (sin auth)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/public/aliado-postulacion")
+async def postulacion_aliado(request: Request, db: Session = Depends(get_db)):
+    """
+    PÚBLICO (sin auth): capta un postulante desde la landing.
+    Crea un Aliado en estado 'postulante' para que gestión lo evalúe/apruebe.
+    Idempotente por teléfono/DNI: no duplica si ya se postuló.
+    """
+    data = await request.json()
+    nombre = (data.get("nombre") or "").strip()
+    telefono = (data.get("telefono") or "").strip()
+    if not nombre or not telefono:
+        raise HTTPException(400, "Nombre y teléfono son obligatorios")
+
+    dni = (data.get("dni") or "").strip()
+    existente = db.query(Aliado).filter(Aliado.telefono == telefono, Aliado.telefono != "").first()
+    if not existente and dni:
+        existente = db.query(Aliado).filter(Aliado.dni == dni, Aliado.dni != "").first()
+    if existente:
+        return {"ok": True, "codigo": existente.codigo, "estado": existente.estado, "duplicado": True}
+
+    aliado = Aliado(
+        codigo=_generar_codigo_aliado(db),
+        nombre=nombre,
+        telefono=telefono,
+        dni=dni,
+        cuit_monotributo=(data.get("cuit_monotributo") or "").strip(),
+        zona=(data.get("zona") or "").strip(),
+        cbu_alias=(data.get("cbu_alias") or "").strip(),
+        estado="postulante",
+        notas=((data.get("notas") or "").strip() + " · postulación landing").strip(" ·"),
+    )
+    db.add(aliado)
+    db.commit()
+    db.refresh(aliado)
+    return {"ok": True, "codigo": aliado.codigo, "estado": "postulante"}

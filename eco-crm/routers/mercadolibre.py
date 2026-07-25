@@ -3,26 +3,97 @@ Módulo 13 — MercadoLibre
 Publicaciones, creación con IA, sincronización de precios y renovación automática.
 Acceso: ADMIN y COORDINADOR_OPERATIVO
 """
+import os
 import json
 import asyncio
+from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import PublicacionML, Usuario
+from database.models import PublicacionML, Usuario, ConfiguracionSistema
 from routers.auth import require_auth, get_user_roles
 from routers.configuracion import get_config_value, _require_config_access
+from database.encryption import encrypt_value
 from utils.ai_client import ai_complete
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 ML_BASE = "https://api.mercadolibre.com"
+ML_AUTH = "https://auth.mercadolibre.com.ar"
+ML_DEFAULT_REDIRECT = "https://eco-crm-production.up.railway.app/mercadolibre/callback"
+
+
+def _ml_save(db: Session, clave: str, valor: str, secreto: bool = False):
+    """Upsert de un valor de config (encripta si es secreto)."""
+    stored = encrypt_value(valor) if (secreto and valor) else valor
+    e = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
+    if e:
+        e.valor = stored
+        e.es_secreto = secreto
+        e.estado = "activa" if valor else "sin_configurar"
+    else:
+        db.add(ConfiguracionSistema(clave=clave, valor=stored, es_secreto=secreto,
+                                    estado="activa" if valor else "sin_configurar"))
+    db.commit()
+
+
+def _ml_redirect_uri(db: Session) -> str:
+    return get_config_value("ml_redirect_uri", db) or ML_DEFAULT_REDIRECT
+
+
+async def _ml_valid_token(db: Session) -> str:
+    """
+    Devuelve un access token válido, refrescándolo con el refresh_token si venció.
+    Los tokens de ML duran 6 horas; se refrescan automáticamente.
+    """
+    token = get_config_value("ml_access_token", db)
+    expira = get_config_value("ml_token_expira", db)
+    vencido = True
+    if token and expira:
+        try:
+            vencido = datetime.fromisoformat(expira) <= datetime.utcnow() + timedelta(minutes=5)
+        except Exception:
+            vencido = True
+    if token and not vencido:
+        return token
+
+    # Refrescar
+    refresh = get_config_value("ml_refresh_token", db)
+    cid = get_config_value("ml_client_id", db)
+    csec = get_config_value("ml_client_secret", db)
+    if not (refresh and cid and csec):
+        if token:
+            return token  # sin refresh disponible, probamos con el que hay
+        raise HTTPException(400, "MercadoLibre no está conectado. Andá a MercadoLibre → Conectar.")
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.post(f"{ML_BASE}/oauth/token", data={
+            "grant_type": "refresh_token", "client_id": cid,
+            "client_secret": csec, "refresh_token": refresh,
+        }, headers={"Accept": "application/json"})
+    if r.status_code != 200:
+        raise HTTPException(400, f"No se pudo refrescar el token de ML: {r.text[:200]}")
+    j = r.json()
+    _guardar_tokens(db, j)
+    return j["access_token"]
+
+
+def _guardar_tokens(db: Session, j: dict):
+    _ml_save(db, "ml_access_token", j.get("access_token", ""), secreto=True)
+    if j.get("refresh_token"):
+        _ml_save(db, "ml_refresh_token", j["refresh_token"], secreto=True)
+    if j.get("user_id"):
+        _ml_save(db, "ml_user_id", str(j["user_id"]), secreto=False)
+    exp = datetime.utcnow() + timedelta(seconds=int(j.get("expires_in", 21600)))
+    _ml_save(db, "ml_token_expira", exp.isoformat(), secreto=False)
 
 # Categorías ML para cada tipo de producto
 ML_CATEGORIAS = {
@@ -37,10 +108,8 @@ def _ml_headers(token: str) -> dict:
 
 
 async def _get_token(db: Session) -> str:
-    token = get_config_value("ml_access_token", db)
-    if not token:
-        raise HTTPException(400, "Access Token de MercadoLibre no configurado. Ir a Configuración → API Keys.")
-    return token
+    # Usa el token válido con auto-refresh (los tokens de ML vencen cada 6h)
+    return await _ml_valid_token(db)
 
 
 async def _get_user_id(token: str, db: Session) -> str:
@@ -53,6 +122,97 @@ async def _get_user_id(token: str, db: Session) -> str:
     if r.status_code != 200:
         raise HTTPException(400, f"No se pudo obtener usuario ML: {r.status_code}")
     return str(r.json()["id"])
+
+
+# ─── OAUTH — vinculación de la cuenta ─────────────────────────────────────────
+
+@router.post("/api/ml/credenciales")
+async def guardar_credenciales(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Guarda Client ID + Client Secret de la app de MercadoLibre (encriptado)."""
+    data = await request.json()
+    cid = (data.get("client_id") or "").strip()
+    csec = (data.get("client_secret") or "").strip()
+    if not cid or not csec:
+        raise HTTPException(400, "Faltan client_id o client_secret")
+    _ml_save(db, "ml_client_id", cid, secreto=False)
+    _ml_save(db, "ml_client_secret", csec, secreto=True)
+    if data.get("redirect_uri"):
+        _ml_save(db, "ml_redirect_uri", data["redirect_uri"].strip(), secreto=False)
+    return {"ok": True, "client_id": cid, "redirect_uri": _ml_redirect_uri(db)}
+
+
+@router.get("/mercadolibre/conectar")
+async def ml_conectar(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Redirige al usuario a MercadoLibre para autorizar la app (OAuth)."""
+    cid = get_config_value("ml_client_id", db)
+    if not cid:
+        raise HTTPException(400, "Primero cargá las credenciales (Client ID/Secret).")
+    params = urlencode({
+        "response_type": "code",
+        "client_id": cid,
+        "redirect_uri": _ml_redirect_uri(db),
+    })
+    return RedirectResponse(url=f"{ML_AUTH}/authorization?{params}", status_code=302)
+
+
+@router.get("/mercadolibre/callback")
+async def ml_callback(
+    request: Request,
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Recibe el código de ML y lo intercambia por access + refresh token."""
+    if error or not code:
+        return RedirectResponse(url="/mercadolibre?ml=error", status_code=302)
+    cid = get_config_value("ml_client_id", db)
+    csec = get_config_value("ml_client_secret", db)
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.post(f"{ML_BASE}/oauth/token", data={
+            "grant_type": "authorization_code",
+            "client_id": cid, "client_secret": csec,
+            "code": code, "redirect_uri": _ml_redirect_uri(db),
+        }, headers={"Accept": "application/json"})
+    if r.status_code != 200:
+        return RedirectResponse(url="/mercadolibre?ml=error", status_code=302)
+    _guardar_tokens(db, r.json())
+    return RedirectResponse(url="/mercadolibre?ml=conectado", status_code=302)
+
+
+@router.get("/api/ml/conexion")
+async def ml_conexion(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Estado de la conexión OAuth con MercadoLibre."""
+    cid = get_config_value("ml_client_id", db)
+    token = get_config_value("ml_access_token", db)
+    uid = get_config_value("ml_user_id", db)
+    nombre = None
+    if token:
+        try:
+            tok = await _ml_valid_token(db)
+            async with httpx.AsyncClient(timeout=8) as c:
+                rr = await c.get(f"{ML_BASE}/users/me", headers=_ml_headers(tok))
+            if rr.status_code == 200:
+                nombre = rr.json().get("nickname")
+        except Exception:
+            pass
+    return {
+        "credenciales_cargadas": bool(cid),
+        "conectado": bool(token and nombre),
+        "user_id": uid,
+        "nickname": nombre,
+        "redirect_uri": _ml_redirect_uri(db),
+    }
 
 
 # ─── PÁGINAS ──────────────────────────────────────────────────────────────────

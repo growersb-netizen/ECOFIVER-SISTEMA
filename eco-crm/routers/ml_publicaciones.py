@@ -9,16 +9,27 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import BorradorML, Usuario
 from routers.auth import get_current_user, get_user_roles
+from routers.configuracion import _require_config_access
 from routers.mercadolibre import (
     _ml_valid_token, _ml_headers, ML_BASE, ML_CATEGORIAS, API_KEY,
 )
 
 router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+
+
+@router.get("/mercadolibre/publicaciones", response_class=HTMLResponse)
+async def pagina_publicaciones(request: Request, current_user: Usuario = Depends(_require_config_access)):
+    return templates.TemplateResponse("ml_publicaciones.html", {
+        "request": request, "user": current_user, "roles": get_user_roles(current_user),
+    })
 
 
 def _auth(x_api_key, current_user):

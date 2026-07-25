@@ -187,6 +187,7 @@ def lead_to_dict(lead: Lead, db: Session) -> dict:
         "en_rellamados": bool(lead.en_rellamados),
         # ── Canal Aliados ────────────────────────────────────────────────────
         "aliado_codigo": lead.aliado_codigo or None,
+        "dni_cliente": lead.dni_cliente or "",
         "estado_verificacion": lead.estado_verificacion or "pendiente",
         "timestamp_comprobante": lead.timestamp_comprobante.isoformat() if lead.timestamp_comprobante else None,
     }
@@ -509,6 +510,7 @@ async def create_lead(
 
     lead = Lead(
         aliado_codigo=aliado_codigo,
+        dni_cliente=(data.get("dni_cliente") or data.get("dni") or "").strip() or None,
         timestamp_comprobante=ts_comprobante,
         estado_verificacion=data.get("estado_verificacion", "pendiente"),
         nombre=data.get("nombre", ""),

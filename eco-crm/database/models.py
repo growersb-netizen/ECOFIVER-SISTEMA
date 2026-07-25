@@ -204,6 +204,7 @@ class Lead(Base):
     en_rellamados = Column(Boolean, default=False)   # True = ya agotó las 3 recirculaciones → base RELLAMADOS
     # ── Canal Aliados Comerciales ─────────────────────────────────────────────
     aliado_codigo = Column(String(20), nullable=True, index=True)   # NULL = lead directo (no de canal)
+    dni_cliente = Column(String(20), nullable=True, index=True)     # DNI del cliente (anti-duplicados entre aliados)
     timestamp_comprobante = Column(DateTime(timezone=True), nullable=True)  # desempate en disputas de atribución
     estado_verificacion = Column(String(20), default="pendiente")   # pendiente | verificado | rechazado
     # ── Token para tracking público de entrega ───────────────────────────────
@@ -1177,6 +1178,7 @@ class Aliado(Base):
     estado = Column(String(20), default="postulante", index=True)
     fecha_alta = Column(DateTime(timezone=True), server_default=func.now())
     contrato_firmado = Column(Boolean, default=False)    # bloquea operativa si es False
+    pin = Column(String(12), nullable=True)              # PIN para el portal de solo lectura del aliado
     notas = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

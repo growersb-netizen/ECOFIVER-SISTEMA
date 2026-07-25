@@ -95,8 +95,10 @@ def run_migrations():
             "ALTER TABLE prestamos_herramienta ADD COLUMN destino_area TEXT",
             # ── Canal Aliados Comerciales ──────────────────────────────────────
             "ALTER TABLE leads ADD COLUMN aliado_codigo TEXT",
+            "ALTER TABLE leads ADD COLUMN dni_cliente TEXT",
             "ALTER TABLE leads ADD COLUMN timestamp_comprobante DATETIME",
             "ALTER TABLE leads ADD COLUMN estado_verificacion TEXT DEFAULT 'pendiente'",
+            "ALTER TABLE aliados ADD COLUMN pin TEXT",
             # ── Bandeja de entrada — modo de atención ─────────────────────────
             "ALTER TABLE leads ADD COLUMN modo_atencion TEXT DEFAULT 'bot'",
             # ── VentaContado: particularidades módulo ──────────────────────────

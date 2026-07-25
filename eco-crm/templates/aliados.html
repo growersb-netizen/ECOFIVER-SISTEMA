@@ -143,6 +143,10 @@
           </select>
         </div>
       </div>
+      <div class="form-row">
+        <div><label class="form-label">PIN del portal</label><input class="form-control" id="ma-pin" placeholder="ej. 1234" inputmode="numeric"></div>
+        <div style="display:flex;align-items:flex-end"><a href="/portal-aliado" target="_blank" style="color:var(--green);font-size:13px">Ver portal del aliado ↗</a></div>
+      </div>
       <label class="form-label">Notas</label><textarea class="form-control" id="ma-notas" rows="2"></textarea>
     </div>
     <div class="modal-footer">
@@ -190,7 +194,7 @@ async function cargarAliados(){
         <button class="btn btn-sm" onclick="verComisiones('${a.codigo}')">💸</button>
       </td></tr>`).join('')+`</tbody></table>`;
 }
-function nuevoAliado(){document.getElementById('ma-codigo-edit').value='';}
+function nuevoAliado(){document.getElementById('ma-codigo-edit').value='';document.getElementById('ma-titulo').textContent='🤝 Nuevo aliado';['nombre','telefono','dni','cuit','zona','cbu','notas','pin'].forEach(f=>ma(f,''));document.getElementById('ma-pin').placeholder='ej. 1234';document.getElementById('ma-estado').value='postulante';document.getElementById('ma-contrato').value='false';}
 function editar(a){
   document.getElementById('ma-titulo').textContent='✏️ Editar '+a.codigo;
   document.getElementById('ma-codigo-edit').value=a.codigo;
@@ -198,6 +202,7 @@ function editar(a){
   ma('zona',a.zona);ma('cbu',a.cbu_alias);ma('notas',a.notas);
   document.getElementById('ma-estado').value=a.estado;
   document.getElementById('ma-contrato').value=a.contrato_firmado?'true':'false';
+  const pinEl=document.getElementById('ma-pin'); pinEl.value=''; pinEl.placeholder=a.tiene_pin?'(ya tiene PIN — dejá vacío para no cambiarlo)':'ej. 1234';
   openModal('modal-nuevo-aliado');
 }
 function ma(f,v){document.getElementById('ma-'+f).value=v||'';}
@@ -206,6 +211,7 @@ async function guardarAliado(){
   const body={nombre:val('ma-nombre'),telefono:val('ma-telefono'),dni:val('ma-dni'),
     cuit_monotributo:val('ma-cuit'),zona:val('ma-zona'),cbu_alias:val('ma-cbu'),notas:val('ma-notas'),
     estado:val('ma-estado'),contrato_firmado:val('ma-contrato')==='true'};
+  const pin=val('ma-pin'); if(pin) body.pin=pin;   // sólo si se escribió, para no borrarlo
   if(!body.nombre){alert('El nombre es obligatorio');return;}
   const r=cod?await AL.send('/api/aliados/'+cod,'PUT',body):await AL.send('/api/aliados','POST',body);
   const j=await r.json();

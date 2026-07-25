@@ -11,14 +11,14 @@ from typing import Optional
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import PublicacionML, Usuario, ConfiguracionSistema
-from routers.auth import require_auth, get_user_roles
+from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.configuracion import get_config_value, _require_config_access
 from database.encryption import encrypt_value
 from utils.ai_client import ai_complete
@@ -26,6 +26,7 @@ from utils.ai_client import ai_complete
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
 ML_BASE = "https://api.mercadolibre.com"
 ML_AUTH = "https://auth.mercadolibre.com.ar"
 ML_DEFAULT_REDIRECT = "https://eco-crm-production.up.railway.app/mercadolibre/callback"
@@ -130,9 +131,14 @@ async def _get_user_id(token: str, db: Session) -> str:
 async def guardar_credenciales(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(_require_config_access),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Guarda Client ID + Client Secret de la app de MercadoLibre (encriptado)."""
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
     data = await request.json()
     cid = (data.get("client_id") or "").strip()
     csec = (data.get("client_secret") or "").strip()

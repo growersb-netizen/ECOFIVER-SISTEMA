@@ -53,6 +53,9 @@
       <a href="/semana-vls" class="nav-item"><span class="nav-icon">📅</span> Semana de VLs</a>
       {% endif %}
       <a href="/ventas-contado" class="nav-item"><span class="nav-icon">💰</span> Ventas</a>
+      {% if 'ADMIN' in roles or 'SUPERVISOR_CIERRE' in roles %}
+      <a href="/aliados" class="nav-item"><span class="nav-icon">🤝</span> Aliados</a>
+      {% endif %}
       <a href="/envios-cargo" class="nav-item"><span class="nav-icon">🚚</span> Envíos Vía Cargo</a>
       {% endif %}
 

@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, Query
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sqlfunc
 
@@ -22,9 +24,22 @@ from database.models import (
     Aliado, Comision, AuditoriaPaquete, SolicitudContador,
     Lead, Usuario, VentaContado,
 )
-from routers.auth import get_current_user, get_user_roles
+from routers.auth import get_current_user, get_user_roles, require_auth
 
 router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+
+
+# ─── PÁGINA (panel de gestión) ────────────────────────────────────────────────
+
+@router.get("/aliados", response_class=HTMLResponse)
+async def aliados_page(request: Request, current_user: Usuario = Depends(require_auth)):
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in ROLES_GESTION):
+        return RedirectResponse("/", status_code=302)
+    return templates.TemplateResponse("aliados.html", {
+        "request": request, "user": current_user, "roles": roles,
+    })
 
 API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
 

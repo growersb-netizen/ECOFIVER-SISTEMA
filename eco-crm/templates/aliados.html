@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}Aliados Comerciales · Eco Módulos CRM{% endblock %}
+{% block page_title %}🤝 Aliados Comerciales{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-primary" onclick="openModal('modal-nuevo-aliado')">+ Nuevo aliado</button>
+{% endblock %}
+
+{% block content %}
+<style>
+  .al-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+  .al-tab { padding:8px 14px; border-radius:10px; border:1px solid var(--border,#2a2a3a);
+            background:transparent; color:var(--text-secondary,#888); cursor:pointer; font-weight:700; font-size:14px; }
+  .al-tab.active { background:var(--green,#16a34a); color:#fff; border-color:var(--green,#16a34a); }
+  .al-pane { display:none; }
+  .al-pane.active { display:block; }
+  .al-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+  .al-badge { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; }
+  .b-postulante  { background:#3a3320; color:#fbbf24; }
+  .b-en_evaluacion{ background:#1f2a3a; color:#60a5fa; }
+  .b-activo      { background:#173a24; color:#4ade80; }
+  .b-inactivo    { background:#2a2a2a; color:#9ca3af; }
+  .b-suspendido  { background:#3a2a17; color:#fb923c; }
+  .b-rechazado   { background:#3a1a1a; color:#f87171; }
+  .b-verificado  { background:#173a24; color:#4ade80; }
+  .b-pendiente   { background:#3a3320; color:#fbbf24; }
+  .al-empty { text-align:center; color:var(--text-muted,#888); padding:24px; }
+  .al-table { width:100%; border-collapse:collapse; }
+  .al-table th { text-align:left; font-size:12px; color:var(--text-muted,#888); text-transform:uppercase; padding:8px 10px; border-bottom:1px solid var(--border,#2a2a3a); }
+  .al-table td { padding:10px; border-bottom:1px solid var(--border,#22222e); font-size:14px; vertical-align:top; }
+  .al-table tr:hover td { background:var(--bg-hover,#20202c); }
+</style>
+
+<div class="al-tabs">
+  <button class="al-tab active" onclick="alTab('aliados',this)">👥 Aliados</button>
+  <button class="al-tab" onclick="alTab('ranking',this)">🏆 Ranking</button>
+  <button class="al-tab" onclick="alTab('comisiones',this)">💸 Comisiones</button>
+  <button class="al-tab" onclick="alTab('verificacion',this)">🔎 Verificación</button>
+  <button class="al-tab" onclick="alTab('paquetes',this)">📦 Paquetes</button>
+</div>
+
+<!-- ═══ ALIADOS ═══ -->
+<div id="pane-aliados" class="al-pane active">
+  <div class="al-filters">
+    <input class="form-control" id="al-search" placeholder="🔍 Buscar nombre / código / DNI" oninput="cargarAliados()" style="max-width:260px">
+    <select class="form-control" id="al-estado" onchange="cargarAliados()" style="max-width:180px">
+      <option value="">Todos los estados</option>
+      <option value="postulante">Postulante</option>
+      <option value="en_evaluacion">En evaluación</option>
+      <option value="activo">Activo</option>
+      <option value="inactivo">Inactivo</option>
+      <option value="suspendido">Suspendido</option>
+      <option value="rechazado">Rechazado</option>
+    </select>
+    <span id="al-count" style="color:var(--text-muted);font-size:13px"></span>
+  </div>
+  <div id="al-lista"><div class="al-empty">Cargando...</div></div>
+</div>
+
+<!-- ═══ RANKING ═══ -->
+<div id="pane-ranking" class="al-pane">
+  <div class="al-filters">
+    <select class="form-control" id="rk-periodo" onchange="cargarRanking()" style="max-width:200px">
+      <option value="semana">Esta semana</option>
+      <option value="mes">Este mes</option>
+      <option value="trimestre">Trimestre</option>
+      <option value="anio">Año</option>
+      <option value="total">Histórico</option>
+    </select>
+  </div>
+  <div id="rk-lista"><div class="al-empty">Cargando...</div></div>
+</div>
+
+<!-- ═══ COMISIONES ═══ -->
+<div id="pane-comisiones" class="al-pane">
+  <div class="al-filters">
+    <input class="form-control" id="co-aliado" placeholder="Código de aliado (opcional)" style="max-width:200px">
+    <select class="form-control" id="co-estado" style="max-width:170px">
+      <option value="pendiente">Pendientes</option>
+      <option value="liquidada">Liquidadas</option>
+      <option value="">Todas</option>
+    </select>
+    <button class="btn btn-secondary" onclick="cargarComisiones()">Buscar</button>
+  </div>
+  <div id="co-lista"><div class="al-empty">Ingresá un código o tocá Buscar.</div></div>
+</div>
+
+<!-- ═══ VERIFICACIÓN ═══ -->
+<div id="pane-verificacion" class="al-pane">
+  <p style="color:var(--text-muted);font-size:13px;margin-bottom:10px">Cola de leads de canal esperando verificación (paquetes 🟡). Orden por comprobante más antiguo.</p>
+  <div id="vf-lista"><div class="al-empty">Cargando...</div></div>
+</div>
+
+<!-- ═══ PAQUETES ═══ -->
+<div id="pane-paquetes" class="al-pane">
+  <div class="al-filters">
+    <input class="form-control" id="pq-aliado" placeholder="Código de aliado (opcional)" style="max-width:200px" oninput="cargarPaquetes()">
+    <select class="form-control" id="pq-resultado" onchange="cargarPaquetes()" style="max-width:170px">
+      <option value="">Todos</option>
+      <option value="OK">OK</option>
+      <option value="FALTA">FALTA</option>
+      <option value="RECHAZO">RECHAZO</option>
+      <option value="sin_respuesta">Sin respuesta</option>
+    </select>
+  </div>
+  <div id="pq-lista"><div class="al-empty">Cargando...</div></div>
+</div>
+
+<!-- ═══ MODAL NUEVO ALIADO ═══ -->
+<div class="modal-overlay" id="modal-nuevo-aliado" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><span class="modal-title" id="ma-titulo">🤝 Nuevo aliado</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-nuevo-aliado')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ma-codigo-edit">
+      <div class="form-row">
+        <div><label class="form-label">Nombre *</label><input class="form-control" id="ma-nombre"></div>
+        <div><label class="form-label">Teléfono (WhatsApp)</label><input class="form-control" id="ma-telefono"></div>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">DNI</label><input class="form-control" id="ma-dni"></div>
+        <div><label class="form-label">CUIT / Monotributo</label><input class="form-control" id="ma-cuit"></div>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">Zona (localidad/partido)</label><input class="form-control" id="ma-zona"></div>
+        <div><label class="form-label">CBU / Alias (comisiones)</label><input class="form-control" id="ma-cbu"></div>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">Estado</label>
+          <select class="form-control" id="ma-estado">
+            <option value="postulante">Postulante</option>
+            <option value="en_evaluacion">En evaluación</option>
+            <option value="activo">Activo</option>
+            <option value="inactivo">Inactivo</option>
+            <option value="suspendido">Suspendido</option>
+            <option value="rechazado">Rechazado</option>
+          </select>
+        </div>
+        <div><label class="form-label">Contrato firmado</label>
+          <select class="form-control" id="ma-contrato">
+            <option value="false">No</option>
+            <option value="true">Sí</option>
+          </select>
+        </div>
+      </div>
+      <label class="form-label">Notas</label><textarea class="form-control" id="ma-notas" rows="2"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nuevo-aliado')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarAliado()">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const AL = { get:(u)=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
+  send:(u,m,b)=>fetch(u,{method:m,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}) };
+function esc(s){return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/'/g,"\\'");}
+function alTab(name,btn){
+  document.querySelectorAll('.al-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.al-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pane-'+name).classList.add('active'); if(btn) btn.classList.add('active');
+  if(name==='aliados') cargarAliados();
+  if(name==='ranking') cargarRanking();
+  if(name==='verificacion') cargarVerificacion();
+  if(name==='paquetes') cargarPaquetes();
+}
+
+// ── ALIADOS ──
+async function cargarAliados(){
+  const s=document.getElementById('al-search').value.trim();
+  const e=document.getElementById('al-estado').value;
+  let u='/api/aliados?'; if(s)u+='search='+encodeURIComponent(s)+'&'; if(e)u+='estado='+e;
+  const d=await AL.get(u); const el=document.getElementById('al-lista');
+  document.getElementById('al-count').textContent=(d.total||0)+' aliados';
+  if(!d.aliados||!d.aliados.length){el.innerHTML='<div class="al-empty">Sin aliados.</div>';return;}
+  el.innerHTML=`<table class="al-table"><thead><tr>
+    <th>Código</th><th>Nombre</th><th>Zona</th><th>Estado</th><th>Contrato</th><th>Acciones</th></tr></thead><tbody>`+
+    d.aliados.map(a=>`<tr>
+      <td><strong>${a.codigo}</strong></td>
+      <td>${a.nombre}<div style="font-size:11px;color:var(--text-muted)">${a.telefono||''}${a.dni?' · DNI '+a.dni:''}</div></td>
+      <td>${a.zona||'—'}</td>
+      <td><span class="al-badge b-${a.estado}">${a.estado}</span></td>
+      <td>${a.contrato_firmado?'✅':'❌'}${a.operativo?' <span style="color:var(--green)">·operativo</span>':''}</td>
+      <td style="white-space:nowrap">
+        ${a.estado==='postulante'||a.estado==='en_evaluacion'?`<button class="btn btn-sm btn-primary" onclick="aprobar('${a.codigo}')">Aprobar</button> `:''}
+        <button class="btn btn-sm btn-secondary" onclick='editar(${JSON.stringify(a)})'>Editar</button>
+        <button class="btn btn-sm" onclick="verComisiones('${a.codigo}')">💸</button>
+      </td></tr>`).join('')+`</tbody></table>`;
+}
+function nuevoAliado(){document.getElementById('ma-codigo-edit').value='';}
+function editar(a){
+  document.getElementById('ma-titulo').textContent='✏️ Editar '+a.codigo;
+  document.getElementById('ma-codigo-edit').value=a.codigo;
+  ma('nombre',a.nombre);ma('telefono',a.telefono);ma('dni',a.dni);ma('cuit',a.cuit_monotributo);
+  ma('zona',a.zona);ma('cbu',a.cbu_alias);ma('notas',a.notas);
+  document.getElementById('ma-estado').value=a.estado;
+  document.getElementById('ma-contrato').value=a.contrato_firmado?'true':'false';
+  openModal('modal-nuevo-aliado');
+}
+function ma(f,v){document.getElementById('ma-'+f).value=v||'';}
+async function guardarAliado(){
+  const cod=document.getElementById('ma-codigo-edit').value;
+  const body={nombre:val('ma-nombre'),telefono:val('ma-telefono'),dni:val('ma-dni'),
+    cuit_monotributo:val('ma-cuit'),zona:val('ma-zona'),cbu_alias:val('ma-cbu'),notas:val('ma-notas'),
+    estado:val('ma-estado'),contrato_firmado:val('ma-contrato')==='true'};
+  if(!body.nombre){alert('El nombre es obligatorio');return;}
+  const r=cod?await AL.send('/api/aliados/'+cod,'PUT',body):await AL.send('/api/aliados','POST',body);
+  const j=await r.json();
+  if(r.ok){closeModal('modal-nuevo-aliado');['nombre','telefono','dni','cuit','zona','cbu','notas'].forEach(f=>ma(f,''));document.getElementById('ma-codigo-edit').value='';cargarAliados();toast&&toast('Aliado guardado ✓');}
+  else alert(j.detail||'Error');
+}
+function val(id){return document.getElementById(id).value.trim();}
+async function aprobar(cod){
+  if(!confirm('¿Aprobar '+cod+' como ACTIVO? (recordá marcar contrato firmado)'))return;
+  const r=await AL.send('/api/aliados/'+cod,'PUT',{estado:'activo'});
+  if(r.ok)cargarAliados();else alert('Error');
+}
+
+// ── RANKING ──
+async function cargarRanking(){
+  const p=document.getElementById('rk-periodo').value;
+  const d=await AL.get('/api/aliados/ranking?periodo='+p); const el=document.getElementById('rk-lista');
+  if(!d.ranking||!d.ranking.length){el.innerHTML='<div class="al-empty">Sin datos en el período.</div>';return;}
+  el.innerHTML=`<table class="al-table"><thead><tr><th>#</th><th>Aliado</th><th>Leads</th><th>Verificados</th><th>Comisiones</th><th>$ Total</th><th>$ Pendiente</th></tr></thead><tbody>`+
+    d.ranking.map(f=>`<tr><td><strong>${f.puesto}</strong></td>
+      <td>${f.nombre}<div style="font-size:11px;color:var(--text-muted)">${f.codigo} · ${f.zona||''}</div></td>
+      <td>${f.leads_cargados}</td><td>${f.leads_verificados}</td><td>${f.comisiones_generadas}</td>
+      <td>$${(f.monto_total||0).toLocaleString('es-AR')}</td>
+      <td style="color:#fbbf24">$${(f.monto_pendiente||0).toLocaleString('es-AR')}</td></tr>`).join('')+`</tbody></table>`;
+}
+
+// ── COMISIONES ──
+async function verComisiones(cod){document.getElementById('co-aliado').value=cod;alTab('comisiones',document.querySelectorAll('.al-tab')[2]);cargarComisiones();}
+async function cargarComisiones(){
+  const cod=document.getElementById('co-aliado').value.trim().toUpperCase();
+  const est=document.getElementById('co-estado').value; const el=document.getElementById('co-lista');
+  if(!cod){el.innerHTML='<div class="al-empty">Ingresá un código de aliado.</div>';return;}
+  let u='/api/aliados/'+cod+'/comisiones'; if(est)u+='?estado='+est;
+  const d=await AL.get(u);
+  if(d.detail){el.innerHTML='<div class="al-empty">'+d.detail+'</div>';return;}
+  const head=`<div style="margin-bottom:10px;font-size:14px">Pendiente: <strong style="color:#fbbf24">$${(d.monto_pendiente||0).toLocaleString('es-AR')}</strong> · Liquidado: <strong style="color:var(--green)">$${(d.monto_liquidado||0).toLocaleString('es-AR')}</strong></div>`;
+  if(!d.comisiones||!d.comisiones.length){el.innerHTML=head+'<div class="al-empty">Sin comisiones.</div>';return;}
+  el.innerHTML=head+`<table class="al-table"><thead><tr><th>Solicitud</th><th>Tipo</th><th>Monto</th><th>Estado</th><th></th></tr></thead><tbody>`+
+    d.comisiones.map(c=>`<tr><td>${c.solicitud_numero||'—'}</td><td>${c.tipo}</td>
+      <td>$${(c.monto||0).toLocaleString('es-AR')}${c.ajuste_manual?' ⚠️':''}</td>
+      <td><span class="al-badge b-${c.estado==='liquidada'?'verificado':'pendiente'}">${c.estado}</span></td>
+      <td>${c.estado==='pendiente'?`<button class="btn btn-sm btn-primary" onclick="liquidar(${c.id})">Liquidar</button>`:''}</td></tr>`).join('')+`</tbody></table>`;
+}
+async function liquidar(id){if(!confirm('¿Marcar comisión como liquidada?'))return;const r=await AL.send('/api/comisiones/'+id+'/liquidar','POST',{});if(r.ok)cargarComisiones();else alert('Error');}
+
+// ── VERIFICACIÓN ──
+async function cargarVerificacion(){
+  const d=await AL.get('/api/solicitudes/pendientes-verificacion'); const el=document.getElementById('vf-lista');
+  if(!d.pendientes||!d.pendientes.length){el.innerHTML='<div class="al-empty">✅ Nada pendiente de verificar.</div>';return;}
+  el.innerHTML=`<table class="al-table"><thead><tr><th>Lead</th><th>Aliado</th><th>Comprobante</th><th>Acciones</th></tr></thead><tbody>`+
+    d.pendientes.map(l=>`<tr>
+      <td>${l.nombre}<div style="font-size:11px;color:var(--text-muted)">${l.telefono||''} · ${l.localidad||''}</div></td>
+      <td>${l.aliado_codigo}</td>
+      <td style="font-size:12px">${l.timestamp_comprobante?new Date(l.timestamp_comprobante).toLocaleString('es-AR'):'—'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm btn-primary" onclick="verificar(${l.lead_id},'verificado')">✓ Verificar</button>
+        <button class="btn btn-sm" style="color:#f87171" onclick="verificar(${l.lead_id},'rechazado')">✕ Rechazar</button>
+      </td></tr>`).join('')+`</tbody></table>`;
+}
+async function verificar(id,estado){
+  if(estado==='rechazado'&&!confirm('¿Rechazar este lead?'))return;
+  const r=await AL.send('/api/leads/'+id+'/marcar-verificacion','POST',{estado});
+  if(r.ok)cargarVerificacion();else alert('Error');
+}
+
+// ── PAQUETES ──
+async function cargarPaquetes(){
+  const cod=document.getElementById('pq-aliado').value.trim().toUpperCase();
+  const res=document.getElementById('pq-resultado').value;
+  let u='/api/auditoria/paquetes?'; if(cod)u+='aliado_codigo='+cod+'&'; if(res)u+='resultado='+res;
+  const d=await AL.get(u); const el=document.getElementById('pq-lista');
+  if(!d.paquetes||!d.paquetes.length){el.innerHTML='<div class="al-empty">Sin paquetes registrados.</div>';return;}
+  el.innerHTML=`<table class="al-table"><thead><tr><th>Aliado</th><th>Envío</th><th>Resultado</th><th>Contenido</th></tr></thead><tbody>`+
+    d.paquetes.map(p=>`<tr><td>${p.aliado_codigo||'—'}</td>
+      <td style="font-size:12px">${p.timestamp_envio?new Date(p.timestamp_envio).toLocaleString('es-AR'):'—'}</td>
+      <td><span class="al-badge b-${p.resultado==='OK'?'verificado':(p.resultado==='RECHAZO'?'rechazado':'pendiente')}">${p.resultado}</span></td>
+      <td style="font-size:12px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(p.contenido||'').substring(0,120)}</td></tr>`).join('')+`</tbody></table>`;
+}
+
+document.addEventListener('DOMContentLoaded',()=>{cargarAliados();
+  const b=document.querySelector('[onclick*="modal-nuevo-aliado"]'); if(b)b.addEventListener('click',nuevoAliado);
+});
+</script>
+{% endblock %}

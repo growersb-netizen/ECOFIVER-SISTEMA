@@ -26,7 +26,7 @@ from routers import (
     zapia, webhooks, materiales, produccion, flota, web_cms, gastos, envios_cargo,
     control_agentes, instalacion, panolero, asistencia_rapida, entrega_rapida,
     marketing, simulador, seguimiento, testimonial, inbox, public_landing,
-    aliados, ml_publicaciones,
+    aliados, ml_publicaciones, negocio,
 )
 
 log = logging.getLogger(__name__)
@@ -113,6 +113,7 @@ app.include_router(inbox.router)        # bandeja de entrada WhatsApp
 app.include_router(public_landing.router)  # público, sin API key: /api/public/landing-lead
 app.include_router(aliados.router)          # canal Aliados Comerciales (Franco)
 app.include_router(ml_publicaciones.router) # MercadoLibre — cola de publicaciones
+app.include_router(negocio.router)          # Configuración del negocio
 
 
 # ─── MANUAL DE USO ────────────────────────────────────────────────────────────

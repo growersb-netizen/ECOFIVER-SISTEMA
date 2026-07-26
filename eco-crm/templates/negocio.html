@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Configuración del negocio · Eco Módulos{% endblock %}
+{% block page_title %}🏢 Configuración del negocio{% endblock %}
+
+{% block content %}
+<style>
+  .ng-card{background:var(--bg-secondary,#171a21);border:1px solid var(--border,#252a33);border-radius:12px;padding:18px;margin-bottom:16px;max-width:820px}
+  .ng-card h3{margin:0 0 12px;font-size:15px}
+  .ng-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .ng-cuotas{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  label.form-label{margin-top:8px}
+  .ng-hint{font-size:12px;color:var(--text-muted,#9aa2ad);margin-top:2px}
+</style>
+
+<div class="ng-card">
+  <h3>🏷️ Identidad</h3>
+  <div class="ng-row">
+    <div><label class="form-label">Nombre del negocio</label><input class="form-control" id="n-nombre"></div>
+    <div><label class="form-label">Apodo / Marca</label><input class="form-control" id="n-apodo"></div>
+  </div>
+  <div class="ng-row">
+    <div><label class="form-label">CUIT</label><input class="form-control" id="n-cuit"></div>
+    <div><label class="form-label">Web</label><input class="form-control" id="n-web"></div>
+  </div>
+</div>
+
+<div class="ng-card">
+  <h3>📍 Contacto</h3>
+  <div class="ng-row">
+    <div><label class="form-label">Dirección</label><input class="form-control" id="n-direccion"></div>
+    <div><label class="form-label">Localidad</label><input class="form-control" id="n-localidad"></div>
+  </div>
+  <div class="ng-row">
+    <div><label class="form-label">Teléfono</label><input class="form-control" id="n-telefono"></div>
+    <div><label class="form-label">Email</label><input class="form-control" id="n-email"></div>
+  </div>
+</div>
+
+<div class="ng-card">
+  <h3>📄 Condiciones (se insertan en las descripciones)</h3>
+  <textarea class="form-control" id="n-condiciones" rows="4" placeholder="Garantía, formas de envío, condiciones de venta…"></textarea>
+  <div class="ng-hint">Este texto lo vas a poder sumar automáticamente al final de las publicaciones.</div>
+</div>
+
+<div class="ng-card">
+  <h3>💰 Variables de precio</h3>
+  <div class="ng-row">
+    <div><label class="form-label">Markup por defecto (%)</label><input class="form-control" type="number" id="n-markup"></div>
+    <div><label class="form-label">Flete de referencia ($/km)</label><input class="form-control" type="number" id="n-flete"></div>
+  </div>
+</div>
+
+<div class="ng-card">
+  <h3>💳 Costo de cuotas sin interés (%)</h3>
+  <div class="ng-hint" style="margin-bottom:10px">Cuánto te cuesta ofrecer cuotas sin interés (según tu Mercado Pago). Se usa para calcular la ganancia en Publicaciones ML.</div>
+  <div class="ng-cuotas">
+    <div><label class="form-label">3 cuotas</label><input class="form-control" type="number" id="n-c3"></div>
+    <div><label class="form-label">6 cuotas</label><input class="form-control" type="number" id="n-c6"></div>
+    <div><label class="form-label">9 cuotas</label><input class="form-control" type="number" id="n-c9"></div>
+    <div><label class="form-label">12 cuotas</label><input class="form-control" type="number" id="n-c12"></div>
+  </div>
+</div>
+
+<div style="max-width:820px;display:flex;justify-content:flex-end;gap:10px">
+  <span id="n-msg" style="align-self:center;color:var(--text-muted)"></span>
+  <button class="btn btn-primary" onclick="guardarNegocio()">💾 Guardar configuración</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const NG={get:u=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
+  send:(u,b)=>fetch(u,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})};
+const MAP={n_nombre:'negocio_nombre',n_apodo:'negocio_apodo',n_cuit:'negocio_cuit',n_web:'negocio_web',
+  n_direccion:'negocio_direccion',n_localidad:'negocio_localidad',n_telefono:'negocio_telefono',n_email:'negocio_email',
+  n_condiciones:'negocio_condiciones',n_markup:'negocio_markup',n_flete:'negocio_flete_km',
+  n_c3:'negocio_cuotas_3',n_c6:'negocio_cuotas_6',n_c9:'negocio_cuotas_9',n_c12:'negocio_cuotas_12'};
+function el(id){return document.getElementById(id.replace(/_/g,'-'));}
+async function cargarNegocio(){
+  const d=await NG.get('/api/negocio/config');
+  for(const k in MAP){const e=el(k);if(e)e.value=d[MAP[k]]||'';}
+}
+async function guardarNegocio(){
+  const body={};for(const k in MAP){const e=el(k);if(e)body[MAP[k]]=e.value;}
+  const r=await NG.send('/api/negocio/config',body);const j=await r.json();
+  document.getElementById('n-msg').textContent=r.ok?('✓ Guardado ('+j.guardados+' campos)'):'Error';
+  if(window.toast)toast(r.ok?'Configuración guardada ✓':'Error');
+  setTimeout(()=>document.getElementById('n-msg').textContent='',3000);
+}
+document.addEventListener('DOMContentLoaded',cargarNegocio);
+</script>
+{% endblock %}

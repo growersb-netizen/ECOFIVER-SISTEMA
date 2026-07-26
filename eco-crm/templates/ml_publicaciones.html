@@ -317,6 +317,11 @@ function collectAtributos(){
   return out;
 }
 
-document.addEventListener('DOMContentLoaded',()=>{conexion();cargar();});
+async function cargarTasas(){
+  try{const d=await MLAPI.get('/api/negocio/config');
+    if(d&&d.cuotas_rates){for(const k in d.cuotas_rates){COSTO_CUOTAS[k]=(d.cuotas_rates[k]||0)/100;}}
+  }catch(e){}
+}
+document.addEventListener('DOMContentLoaded',()=>{conexion();cargarTasas();cargar();});
 </script>
 {% endblock %}

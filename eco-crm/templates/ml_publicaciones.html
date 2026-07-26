@@ -107,6 +107,14 @@
         <button class="btn btn-sm" type="button" onclick="cargarAtributos()">Cargar requeridos</button>
       </div>
       <div id="mp-atributos" style="font-size:13px;color:var(--text-muted)">Tocá "Cargar requeridos" para ver qué pide la categoría.</div>
+      <div style="background:var(--bg-secondary,#171a21);border:1px solid var(--border,#252a33);border-radius:10px;padding:12px;margin-top:10px">
+        <label class="form-label" style="margin-top:0">✨ Generar título y descripción con IA</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-control" id="mp-ia-keywords" placeholder="Palabras clave: ej. piscina fibra 6x3, gris, 4 años garantía">
+          <button class="btn btn-secondary" type="button" onclick="generarConIA()" style="white-space:nowrap">✨ Generar</button>
+        </div>
+        <div id="mp-ia-msg" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+      </div>
       <label class="form-label">Descripción</label>
       <textarea class="form-control" id="mp-desc" rows="4"></textarea>
     </div>
@@ -179,11 +187,12 @@ function toggleTodos(c){
 function actLote(){document.getElementById('sel-n').textContent=SEL.size;document.getElementById('btn-lote').style.display=SEL.size?'inline-flex':'none';}
 
 function nuevaPub(){document.getElementById('mp-id').value='';document.getElementById('mp-tit').textContent='Nueva publicación';
-  ['mp-titulo','mp-precio','mp-costo','mp-ref','mp-cat','mp-fotos','mp-desc'].forEach(i=>document.getElementById(i).value='');
+  ['mp-titulo','mp-precio','mp-costo','mp-ref','mp-cat','mp-fotos','mp-desc','mp-ia-keywords'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('mp-cant').value=1;document.getElementById('mp-tlen').textContent='0';
   document.getElementById('mp-variantes').value='0';document.getElementById('mp-ganancia').textContent='';
   document.getElementById('mp-cuotas').value='0';document.getElementById('mp-cuota-val').textContent='';
   document.getElementById('mp-atributos').textContent='Tocá "Cargar requeridos" para ver qué pide la categoría.';
+  document.getElementById('mp-ia-msg').textContent='';
   document.getElementById('mp-foto-msg').textContent='';openModal('modal-pub');}
 function editar(b){document.getElementById('mp-id').value=b.id;document.getElementById('mp-tit').textContent='Editar publicación';
   document.getElementById('mp-titulo').value=b.titulo;document.getElementById('mp-precio').value=b.precio;
@@ -213,6 +222,21 @@ async function guardar(){
   if(!id && nv>0 && j.id){toast&&toast('Generando '+nv+' variantes con IA…');
     await MLAPI.send('/api/ml/borradores/'+j.id+'/variantes','POST',{cantidad:nv});}
   closeModal('modal-pub');cargar();toast&&toast(nv&&!id?('Guardado + '+nv+' variantes ✓'):'Guardado ✓');
+}
+async function generarConIA(){
+  const kw=document.getElementById('mp-ia-keywords').value.trim();
+  const msg=document.getElementById('mp-ia-msg');
+  if(!kw){msg.textContent='Escribí algunas palabras clave del producto primero.';msg.style.color='#f87171';return;}
+  msg.textContent='✨ Generando con IA…';msg.style.color='var(--text-muted)';
+  try{
+    const r=await MLAPI.send('/api/ml/generar-descripcion','POST',{palabras_clave:kw});
+    const j=await r.json();
+    if(!r.ok||!j.ok){msg.textContent=j.detail||'No se pudo generar';msg.style.color='#f87171';return;}
+    document.getElementById('mp-titulo').value=j.titulo||'';
+    document.getElementById('mp-tlen').textContent=(j.titulo||'').length;
+    document.getElementById('mp-desc').value=j.descripcion||'';
+    msg.textContent='✓ Listo, revisá y ajustá si hace falta';msg.style.color='var(--green,#4ade80)';
+  }catch(e){msg.textContent='Error de conexión con la IA';msg.style.color='#f87171';}
 }
 // Costo estimado (aprox, configurable) de ofrecer cuotas sin interés al vendedor
 const COSTO_CUOTAS={0:0,3:0.09,6:0.16,9:0.22,12:0.27};

@@ -17,7 +17,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import PublicacionML, Usuario, ConfiguracionSistema
+from database.models import PublicacionML, Usuario, ConfiguracionSistema, BorradorML
 from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.configuracion import get_config_value, _require_config_access
 from database.encryption import encrypt_value
@@ -394,90 +394,64 @@ async def cambiar_estado_publicacion(
 async def generar_descripcion(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(_require_config_access),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
-    claude_key = get_config_value("claude_api_key", db)
-    if not claude_key:
-        raise HTTPException(400, "Claude API Key no configurada. Ir a Configuración → API Keys.")
+    """
+    Genera título + descripción comercial para una publicación de MercadoLibre
+    a partir de palabras clave libres del producto. Usa el motor de IA unificado
+    del CRM (hoy OpenRouter/gpt-4o-mini, con fallback a Grok/Gemini/Claude).
+    """
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
 
     data = await request.json()
-    tipo = data.get("tipo", "PISCINA")
+    palabras = (data.get("palabras_clave") or data.get("keywords") or "").strip()
+    # Compatibilidad con el formato viejo (tipo/modelo/color/superficie)
+    tipo = data.get("tipo", "")
     modelo = data.get("modelo", "")
     color = data.get("color", "")
     superficie = data.get("superficie_m2", "")
+    if not palabras:
+        partes = [p for p in [tipo, modelo, color, f"{superficie}m²" if superficie else ""] if p]
+        palabras = ", ".join(partes)
+    if not palabras:
+        raise HTTPException(400, "Ingresá algunas palabras clave del producto")
 
-    detalles_producto = f"Tipo: {tipo}\nModelo: {modelo}"
-    if color:
-        detalles_producto += f"\nColor: {color}"
-    if superficie:
-        detalles_producto += f"\nSuperficie: {superficie}m²"
+    prompt = f"""Generá un anuncio de MercadoLibre Argentina optimizado para SEO a partir de estas palabras clave del producto:
 
-    prompt = f"""Generá un anuncio de MercadoLibre Argentina optimizado para SEO para este producto de Eco Módulos & Piscinas.
-
-IDIOMA Y TONO OBLIGATORIO: escribís siempre en castellano de Argentina — no en español neutro.
-Usás "vos", "acá", "querés", "podés", "tenés". Tono cálido, cercano y profesional: como un experto que le habla de igual a igual al comprador, genera confianza y lo invita a dar el paso, sin ser informal.
-
-Producto:
-{detalles_producto}
+{palabras}
 
 Necesito:
+1. TÍTULO (máximo 60 caracteres, con palabras clave de búsqueda relevantes)
+2. DESCRIPCIÓN COMERCIAL COMPLETA (mínimo 300 palabras) con: presentación del producto,
+   características y beneficios principales, por qué comprarlo, y un cierre que invite a consultar.
+   Integrá palabras clave SEO de forma natural.
 
-1. TÍTULO (máximo 60 caracteres, incluir palabras clave de búsqueda como "piscina", "módulo", "instalación", etc.)
-
-2. DESCRIPCIÓN COMPLETA (mínimo 400 palabras) con esta estructura:
-   - Presentación del producto con características técnicas
-   - {'Tecnología de fibra de vidrio de alta resistencia, proceso de laminación manual' if tipo == 'PISCINA' else 'Tecnología NCE (Núcleo de Celulosa Estructural), paneles termoacústicos'}
-   - Dimensiones y capacidades según el modelo
-   - Beneficios principales (durabilidad, bajo mantenimiento, garantía)
-   - Proceso de instalación incluida con cobertura nacional
-   - Financiación disponible: hasta 24 cuotas sin banco
-   - Fabricación propia en Zárate, Buenos Aires
-   - CTA final: "Consultá ahora por WhatsApp para más información y visitar nuestro showroom en CABA"
-   - Palabras clave SEO integradas naturalmente
-
-Respondé EXACTAMENTE con este JSON (sin markdown, sin texto extra):
+Respondé EXCLUSIVAMENTE con este JSON, sin markdown ni texto extra:
 {{"titulo": "...", "descripcion": "..."}}"""
 
     try:
-        async with httpx.AsyncClient(timeout=30) as c:
-            r = await c.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": claude_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-20240307",
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-        if r.status_code != 200:
-            raise HTTPException(r.status_code, f"Claude API error: {r.text[:200]}")
-
-        texto = r.json()["content"][0]["text"].strip()
-        # Intentar parsear JSON
-        try:
-            result = json.loads(texto)
-        except json.JSONDecodeError:
-            # Intentar extraer JSON con regex como fallback
-            import re
-            match = re.search(r'\{.*\}', texto, re.DOTALL)
-            if match:
-                result = json.loads(match.group())
-            else:
-                raise HTTPException(500, "Claude no devolvió JSON válido")
-
-        return {
-            "ok": True,
-            "titulo": result.get("titulo", ""),
-            "descripcion": result.get("descripcion", ""),
-        }
-    except HTTPException:
-        raise
+        texto = await ai_complete(db, prompt, max_tokens=1400, temperature=0.8)
     except Exception as e:
-        raise HTTPException(500, f"Error generando descripción: {str(e)[:200]}")
+        raise HTTPException(400, f"IA no disponible: {e}")
+
+    try:
+        result = json.loads(texto)
+    except json.JSONDecodeError:
+        import re as _re
+        match = _re.search(r'\{.*\}', texto, _re.DOTALL)
+        if not match:
+            raise HTTPException(500, "La IA no devolvió un JSON válido")
+        result = json.loads(match.group())
+
+    return {
+        "ok": True,
+        "titulo": (result.get("titulo") or "")[:60],
+        "descripcion": result.get("descripcion", ""),
+    }
 
 
 # ─── API — CREAR PUBLICACIÓN ──────────────────────────────────────────────────

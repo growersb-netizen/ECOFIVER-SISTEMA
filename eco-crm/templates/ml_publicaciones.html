@@ -49,11 +49,23 @@
       <button class="btn btn-icon" onclick="closeModal('modal-pub')">✕</button></div>
     <div class="modal-body">
       <input type="hidden" id="mp-id">
+      <div style="background:var(--bg-secondary,#171a21);border:1px solid var(--border,#252a33);border-radius:10px;padding:12px;margin-bottom:12px">
+        <label class="form-label" style="margin-top:0">📦 Producto del catálogo <small style="color:var(--text-muted)">(opcional — trae el precio de referencia real)</small></label>
+        <select class="form-control" id="mp-catalogo-sel" onchange="onCatalogoSel()">
+          <option value="">— Elegir del catálogo —</option>
+        </select>
+        <div id="mp-precio-ref-box" style="display:none;margin-top:8px;font-size:13px;line-height:1.7">
+          <div>💵 Precio contado (referencia): <b id="mp-pc-contado"></b> <span style="color:var(--text-muted)">— no publiques por menos de esto</span></div>
+          <div>🎯 Precio sugerido según costos de MercadoLibre: <b id="mp-pc-sugerido" style="color:var(--green,#4ade80)"></b>
+            <button type="button" class="btn btn-sm" onclick="usarPrecioSugerido()">Usar este precio</button></div>
+          <div id="mp-pc-warn" style="display:none;color:#f87171;font-weight:700;margin-top:2px">⚠️ El precio que pusiste está por debajo del contado — vas a perder plata</div>
+        </div>
+      </div>
       <label class="form-label">Título * <small style="color:var(--text-muted)">(máx 60)</small></label>
       <input class="form-control" id="mp-titulo" maxlength="60" oninput="document.getElementById('mp-tlen').textContent=this.value.length">
       <div style="font-size:11px;color:var(--text-muted);text-align:right"><span id="mp-tlen">0</span>/60</div>
       <div class="fp-row2">
-        <div><label class="form-label">Precio (ARS) *</label><input class="form-control" type="number" id="mp-precio" oninput="calcGanancia()"></div>
+        <div><label class="form-label">Precio (ARS) *</label><input class="form-control" type="number" id="mp-precio" oninput="calcGanancia();chequearPrecioBajoContado()"></div>
         <div><label class="form-label">Costo del producto</label><input class="form-control" type="number" id="mp-costo" placeholder="para calcular ganancia" oninput="calcGanancia()"></div>
       </div>
       <div class="fp-row2">
@@ -78,20 +90,18 @@
       </div>
       <div class="fp-row2">
         <div><label class="form-label">Tipo de publicación</label>
-          <select class="form-control" id="mp-listing" onchange="calcGanancia()">
-            <option value="gold_special">Clásica (comisión estándar)</option>
-            <option value="gold_pro">Premium (más visibilidad)</option>
+          <select class="form-control" id="mp-listing" onchange="calcGanancia();actualizarPrecioSugerido()">
+            <option value="gold_special">Clásica (1 pago, comisión estándar)</option>
+            <option value="gold_pro">Premium (habilita cuotas sin interés)</option>
           </select></div>
         <div><label class="form-label">Categoría ML <small style="color:var(--text-muted)">(opcional)</small></label><input class="form-control" id="mp-cat" placeholder="se infiere del producto"></div>
       </div>
       <div class="fp-row2">
         <div><label class="form-label">💳 Cuotas sin interés <small style="color:var(--text-muted)">(solo Premium)</small></label>
-          <select class="form-control" id="mp-cuotas" onchange="calcGanancia()">
+          <select class="form-control" id="mp-cuotas" onchange="calcGanancia();actualizarPrecioSugerido()">
             <option value="0">1 pago (sin cuotas)</option>
             <option value="3">3 cuotas sin interés</option>
             <option value="6">6 cuotas sin interés</option>
-            <option value="9">9 cuotas sin interés</option>
-            <option value="12">12 cuotas sin interés</option>
           </select></div>
         <div id="mp-cuota-val" style="align-self:flex-end;font-size:13px;color:var(--text-muted)"></div>
       </div>
@@ -193,6 +203,9 @@ function nuevaPub(){document.getElementById('mp-id').value='';document.getElemen
   document.getElementById('mp-cuotas').value='0';document.getElementById('mp-cuota-val').textContent='';
   document.getElementById('mp-atributos').textContent='Tocá "Cargar requeridos" para ver qué pide la categoría.';
   document.getElementById('mp-ia-msg').textContent='';
+  document.getElementById('mp-catalogo-sel').value='';document.getElementById('mp-precio-ref-box').style.display='none';
+  document.getElementById('mp-pc-warn').style.display='none';_precioContadoRef=null;
+  cargarCatalogoSelect();
   document.getElementById('mp-foto-msg').textContent='';openModal('modal-pub');}
 function editar(b){document.getElementById('mp-id').value=b.id;document.getElementById('mp-tit').textContent='Editar publicación';
   document.getElementById('mp-titulo').value=b.titulo;document.getElementById('mp-precio').value=b.precio;
@@ -202,6 +215,9 @@ function editar(b){document.getElementById('mp-id').value=b.id;document.getEleme
   document.getElementById('mp-cat').value=b.categoria||'';document.getElementById('mp-fotos').value=(b.fotos||[]).join('\n');
   document.getElementById('mp-cuotas').value=b.cuotas_sin_interes||0;
   document.getElementById('mp-desc').value=b.descripcion||'';document.getElementById('mp-tlen').textContent=(b.titulo||'').length;
+  document.getElementById('mp-catalogo-sel').value='';document.getElementById('mp-precio-ref-box').style.display='none';
+  document.getElementById('mp-pc-warn').style.display='none';_precioContadoRef=null;
+  cargarCatalogoSelect();
   openModal('modal-pub');setTimeout(calcGanancia,50);}
 async function guardar(){
   const id=document.getElementById('mp-id').value;
@@ -346,6 +362,83 @@ async function cargarTasas(){
     if(d&&d.cuotas_rates){for(const k in d.cuotas_rates){COSTO_CUOTAS[k]=(d.cuotas_rates[k]||0)/100;}}
   }catch(e){}
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PRODUCTO DEL CATÁLOGO -> precio contado de referencia + precio sugerido ML
+══════════════════════════════════════════════════════════════════════════ */
+let CATALOGO_ITEMS = {};   // valor del <option> -> {tipo, precioContado}
+let _precioContadoRef = null;
+
+async function cargarCatalogoSelect(){
+  const sel = document.getElementById('mp-catalogo-sel');
+  if (!sel || sel.dataset.loaded) return;
+  try{
+    const d = await MLAPI.get('/api/catalogo');
+    let html = '<option value="">— Elegir del catálogo —</option>';
+    CATALOGO_ITEMS = {};
+    const addGroup = (label, tipo, precios) => {
+      const nombres = Object.keys(precios || {});
+      if (!nombres.length) return;
+      html += `<optgroup label="${label}">`;
+      nombres.forEach(n => {
+        const key = tipo + '::' + n;
+        CATALOGO_ITEMS[key] = { tipo, precioContado: precios[n], nombre: n };
+        html += `<option value="${key}">${n} — ${fmt(precios[n])}</option>`;
+      });
+      html += '</optgroup>';
+    };
+    addGroup('🏊 Piscinas', 'PISCINA', d.piscinas && d.piscinas.precios);
+    addGroup('🏠 Módulos', 'MODULO', d.modulos && d.modulos.precios);
+    if (d.combos) {
+      const combosPrecios = {};
+      for (const nombre in d.combos) combosPrecios[nombre] = d.combos[nombre].precio_contado || d.combos[nombre].precio_lista;
+      addGroup('📦 Combos', 'COMBO', combosPrecios);
+    }
+    sel.innerHTML = html;
+    sel.dataset.loaded = '1';
+  }catch(e){}
+}
+
+function onCatalogoSel(){
+  const sel = document.getElementById('mp-catalogo-sel');
+  const item = CATALOGO_ITEMS[sel.value];
+  const box = document.getElementById('mp-precio-ref-box');
+  if (!item){ box.style.display='none'; _precioContadoRef=null; return; }
+  document.getElementById('mp-producto').value = item.tipo;
+  if (!document.getElementById('mp-titulo').value.trim()) {
+    document.getElementById('mp-titulo').value = item.nombre.substring(0,60);
+    document.getElementById('mp-tlen').textContent = document.getElementById('mp-titulo').value.length;
+  }
+  _precioContadoRef = item.precioContado || null;
+  box.style.display = _precioContadoRef ? '' : 'none';
+  document.getElementById('mp-pc-contado').textContent = fmt(_precioContadoRef);
+  actualizarPrecioSugerido();
+  chequearPrecioBajoContado();
+}
+
+async function actualizarPrecioSugerido(){
+  if (!_precioContadoRef) return;
+  const lt = document.getElementById('mp-listing').value;
+  const cuotas = lt === 'gold_pro' ? (parseInt(document.getElementById('mp-cuotas').value) || 0) : 0;
+  try{
+    const d = await MLAPI.get('/api/negocio/precio-sugerido-ml?precio_contado='+_precioContadoRef+'&cuotas='+cuotas+'&clasificada=true');
+    document.getElementById('mp-pc-sugerido').textContent = fmt(d.precio_sugerido) + ' (' + d.tasa_total_pct + '% costos ML)';
+  }catch(e){}
+}
+
+function usarPrecioSugerido(){
+  const txt = document.getElementById('mp-pc-sugerido').textContent;
+  const num = parseFloat(txt.replace(/[^\d.,]/g,'').replace(/\./g,'').replace(',','.'));
+  if (num) { document.getElementById('mp-precio').value = Math.round(num); calcGanancia(); chequearPrecioBajoContado(); }
+}
+
+function chequearPrecioBajoContado(){
+  const warn = document.getElementById('mp-pc-warn');
+  if (!warn) return;
+  const precio = parseFloat(document.getElementById('mp-precio').value) || 0;
+  warn.style.display = (_precioContadoRef && precio > 0 && precio < _precioContadoRef) ? '' : 'none';
+}
+
 document.addEventListener('DOMContentLoaded',()=>{conexion();cargarTasas();cargar();});
 </script>
 {% endblock %}

@@ -3,20 +3,32 @@ Catálogo de productos ampliable dinámicamente.
 Modelos de piscinas y módulos habitacionales.
 """
 import json
+import os
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import Usuario, PrecioHistorial
-from routers.auth import require_auth, require_roles, get_user_roles
+from routers.auth import require_auth, require_roles, get_user_roles, get_current_user
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+
+
+def _write_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):
+    """Escritura de catálogo: sesión con rol de gestión, o X-API-Key (integraciones)."""
+    if x_api_key and x_api_key == API_KEY:
+        return
+    if current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")):
+        return
+    raise HTTPException(403, "Sin permisos")
 
 CATALOGO_FILE = Path("data/catalogo.json")
 CATALOGO_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -192,9 +204,11 @@ async def add_modelo_piscina(
 @router.put("/api/catalogo/piscinas/modelos")
 async def set_modelos_piscinas(
     request: Request,
-    current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Reemplaza la lista completa de modelos de piscinas. Body: { modelos: [...] }"""
+    _write_auth(x_api_key, current_user)
     data = await request.json()
     modelos = data.get("modelos")
     if not isinstance(modelos, list) or not modelos:
@@ -277,8 +291,10 @@ async def update_precios_piscinas(
 @router.post("/api/catalogo/modulos/superficies")
 async def add_superficie(
     request: Request,
-    current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
+    _write_auth(x_api_key, current_user)
     data = await request.json()
     m2 = data.get("m2")
     if m2 is None:
@@ -373,7 +389,8 @@ async def update_precios_modulos(
 async def update_precios_unificado(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """
     Body: { "tipo": "piscinas"|"modulos", "campo": "precios"|"precios_lista" (opcional, default "precios"),
@@ -381,6 +398,7 @@ async def update_precios_unificado(
     "precios" = precio CONTADO (el que se cotiza al cliente).
     "precios_lista" = precio LISTA (base para financiación/cuotas — no confundir).
     """
+    _write_auth(x_api_key, current_user)
     data = await request.json()
     tipo = data.get("tipo", "").lower()
     campo = data.get("campo", "precios")
@@ -399,7 +417,7 @@ async def update_precios_unificado(
                 clave=f"{tipo}.{campo}.{clave}",
                 valor_anterior=float(valor_anterior) if valor_anterior is not None else None,
                 valor_nuevo=float(nuevo_valor),
-                cambiado_por_id=current_user.id,
+                cambiado_por_id=current_user.id if current_user else None,
             ))
     cat[tipo][campo].update(nuevos_precios)
     save_catalogo(cat)
@@ -413,9 +431,11 @@ async def update_precios_unificado(
 async def upsert_combo(
     nombre: str,
     request: Request,
-    current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Body: { precio_lista, precio_contado, descripcion, plazos_max }"""
+    _write_auth(x_api_key, current_user)
     data = await request.json()
     cat = load_catalogo()
     cat.setdefault("combos", {})

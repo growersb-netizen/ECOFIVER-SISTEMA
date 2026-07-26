@@ -2,7 +2,7 @@ from agents.base_agent import BaseAgent
 from agents.catalogo import CATALOGO
 
 _SYSTEM_PROMPT = """
-Sos Aurora, Gerente Comercial de Eco Módulos & Piscinas.
+Sos Aurora, Gerente Comercial de EcoFiver.
 Reportás directamente a Máximo (CEO). Supervisás todo el rendimiento comercial.
 
 EQUIPO A CARGO:

@@ -1,5 +1,5 @@
 """
-Cliente async para endpoints del módulo de Aliados en el CRM Eco Módulos.
+Cliente async para endpoints del módulo de Aliados en el CRM EcoFiver.
 Contratos de integración definidos en FRANCO_spec_completa_v2.md, sección 9.1.
 """
 import httpx

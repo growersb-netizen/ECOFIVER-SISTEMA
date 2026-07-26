@@ -24,7 +24,7 @@ API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
 
 # clave -> valor por defecto
 CAMPOS = {
-    "negocio_nombre": "Eco Módulos & Piscinas",
+    "negocio_nombre": "EcoFiver",
     "negocio_apodo": "",
     "negocio_cuit": "",
     "negocio_direccion": "",
@@ -35,12 +35,53 @@ CAMPOS = {
     "negocio_condiciones": "",     # texto para insertar en descripciones (garantía, envío, etc.)
     "negocio_markup": "0",         # % ganancia sugerido
     "negocio_flete_km": "3000",    # $/km de referencia
-    # Tasas (%) de costo de cuotas sin interés para el vendedor
-    "negocio_cuotas_3": "9",
-    "negocio_cuotas_6": "16",
-    "negocio_cuotas_9": "22",
-    "negocio_cuotas_12": "27",
+    # ── Costos de MercadoLibre (según simulación oficial provista) ──────────
+    "negocio_ml_comision_clasificada": "13",       # % comisión con producto clasificado en catálogo ML
+    "negocio_ml_comision_no_clasificada": "16.5",  # % comisión sin clasificar
+    "negocio_ml_iag": "1",       # % Impuesto a los Ingresos Brutos... IAG (fijo sobre precio)
+    "negocio_ml_iva": "3",       # % IVA (sobre comisión, expresado como % del precio)
+    "negocio_ml_iibb": "3.5",    # % Ingresos Brutos
+    # Costo (%) de financiar cuotas sin interés — "Cuota Simple" de Mercado Pago
+    "negocio_cuotas_3": "7.3",
+    "negocio_cuotas_6": "13.85",
 }
+
+
+def costo_total_rate(db: Session, cuotas: int = 0, clasificada: bool = True) -> float:
+    """
+    Devuelve la tasa total (como decimal, ej 0.205) que MercadoLibre descuenta de una venta:
+    comisión + IAG + IVA + IIBB + costo de financiar cuotas sin interés (si aplica).
+    Basado en la simulación oficial de costos de MercadoLibre.
+    """
+    comision = float(_get(db, "negocio_ml_comision_clasificada" if clasificada else "negocio_ml_comision_no_clasificada") or 0)
+    iag = float(_get(db, "negocio_ml_iag") or 0)
+    iva = float(_get(db, "negocio_ml_iva") or 0)
+    iibb = float(_get(db, "negocio_ml_iibb") or 0)
+    cuota_rate = 0.0
+    if cuotas == 3:
+        cuota_rate = float(_get(db, "negocio_cuotas_3") or 0)
+    elif cuotas == 6:
+        cuota_rate = float(_get(db, "negocio_cuotas_6") or 0)
+    return (comision + iag + iva + iibb + cuota_rate) / 100.0
+
+
+def precio_sugerido_ml(db: Session, precio_contado: float, cuotas: int = 0, clasificada: bool = True) -> dict:
+    """
+    Precio al que hay que publicar en ML para que, después de todos los costos,
+    el neto disponible sea igual al precio de contado (no perder margen).
+    """
+    rate = costo_total_rate(db, cuotas, clasificada)
+    if rate >= 1:
+        rate = 0.99
+    sugerido = precio_contado / (1 - rate) if precio_contado else 0
+    return {
+        "precio_contado": precio_contado,
+        "tasa_total_pct": round(rate * 100, 2),
+        "precio_sugerido": round(sugerido, 2),
+        "costo_total": round(sugerido - precio_contado, 2),
+        "cuotas": cuotas,
+        "clasificada": clasificada,
+    }
 
 
 def _auth(x_api_key, current_user):
@@ -84,10 +125,17 @@ async def get_config(db: Session = Depends(get_db), x_api_key: Optional[str] = H
     data["cuotas_rates"] = {
         "3": float(_get(db, "negocio_cuotas_3") or 0),
         "6": float(_get(db, "negocio_cuotas_6") or 0),
-        "9": float(_get(db, "negocio_cuotas_9") or 0),
-        "12": float(_get(db, "negocio_cuotas_12") or 0),
     }
     return data
+
+
+@router.get("/api/negocio/precio-sugerido-ml")
+async def api_precio_sugerido(precio_contado: float, cuotas: int = 0, clasificada: bool = True,
+                              db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+                              current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Precio de publicación sugerido en ML para no perder margen frente al precio de contado."""
+    _auth(x_api_key, current_user)
+    return precio_sugerido_ml(db, precio_contado, cuotas, clasificada)
 
 
 @router.post("/api/negocio/config")

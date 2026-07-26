@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Modo Trabajo · Eco Módulos CRM{% endblock %}
+{% block title %}Modo Trabajo · EcoFiver CRM{% endblock %}
 {% block page_title %}⚡ Modo Trabajo{% endblock %}
 
 {% block extra_css %}
@@ -428,16 +428,16 @@ function renderAcciones(lead) {
   let msg;
   if (estado === 'NUEVO' || estado === 'INTENTADO') {
     msg = prod
-      ? `Hola ${primer}! Te llamo de Eco Módulos y Piscinas por tu consulta de ${prod}. ¿Tenés un momento para hablar?`
-      : `Hola ${primer}! Te llamo de Eco Módulos y Piscinas. ¿Tenés un momento para hablar?`;
+      ? `Hola ${primer}! Te llamo de EcoFiver por tu consulta de ${prod}. ¿Tenés un momento para hablar?`
+      : `Hola ${primer}! Te llamo de EcoFiver. ¿Tenés un momento para hablar?`;
   } else if (estado === 'CONTACTADO' || estado === 'EN_SEGUIMIENTO') {
     msg = prod
-      ? `Hola ${primer}, te escribo de Eco Módulos y Piscinas con novedades sobre ${prod}. ¿Podemos hablar?`
-      : `Hola ${primer}, te escribo de Eco Módulos y Piscinas para darte seguimiento. ¿Podemos hablar?`;
+      ? `Hola ${primer}, te escribo de EcoFiver con novedades sobre ${prod}. ¿Podemos hablar?`
+      : `Hola ${primer}, te escribo de EcoFiver para darte seguimiento. ¿Podemos hablar?`;
   } else if (estado === 'CALIFICADO') {
     msg = `Hola ${primer}! Estamos listos para avanzar${prod ? ' con tu ' + prod : ''}. ¿Cuándo podemos agendar la videollamada?`;
   } else {
-    msg = `Hola ${primer}! Te llamo de Eco Módulos y Piscinas. ¿Tenés un momento?`;
+    msg = `Hola ${primer}! Te llamo de EcoFiver. ¿Tenés un momento?`;
   }
   const waUrl = whatsappLink(lead.telefono, msg);
   return `
@@ -486,10 +486,10 @@ function renderAccionesVL(vl) {
     ? new Date(vl.fecha_hora).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})
     : null;
   const msgVL = hora && prod
-    ? `Hola ${primer}! Te confirmo tu videollamada de Eco Módulos y Piscinas para hoy a las ${hora} sobre ${prod}. ¡Te esperamos!`
+    ? `Hola ${primer}! Te confirmo tu videollamada de EcoFiver para hoy a las ${hora} sobre ${prod}. ¡Te esperamos!`
     : hora
-    ? `Hola ${primer}! Te confirmo tu videollamada de Eco Módulos y Piscinas para hoy a las ${hora}. ¡Te esperamos!`
-    : `Hola ${primer}! Te confirmo tu videollamada de Eco Módulos y Piscinas. ¿Podemos hablar ahora?`;
+    ? `Hola ${primer}! Te confirmo tu videollamada de EcoFiver para hoy a las ${hora}. ¡Te esperamos!`
+    : `Hola ${primer}! Te confirmo tu videollamada de EcoFiver. ¿Podemos hablar ahora?`;
   const waUrl = whatsappLink(vl.cliente_telefono, msgVL);
   return `
     <a href="${waUrl}" target="_blank" class="wk-btn-wa" id="btn-wa" onclick="salioAWhatsapp()">

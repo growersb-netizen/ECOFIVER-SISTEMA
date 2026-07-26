@@ -1,5 +1,5 @@
 """
-Bandeja de entrada WhatsApp — CRM Eco Módulos & Piscinas
+Bandeja de entrada WhatsApp — CRM EcoFiver
 
 Permite al admin:
 - Ver todas las conversaciones en tiempo real

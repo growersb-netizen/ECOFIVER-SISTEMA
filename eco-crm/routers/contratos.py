@@ -44,7 +44,7 @@ def _plantilla_existe(tipo: str) -> bool:
 
 def _get_empresa(db: Session) -> dict:
     return {
-        "nombre":    get_config_value("empresa_nombre",    db) or "Eco Módulos & Piscinas",
+        "nombre":    get_config_value("empresa_nombre",    db) or "EcoFiver",
         "cuit":      get_config_value("empresa_cuit",      db) or "",
         "domicilio": get_config_value("empresa_domicilio", db) or "",
         "telefono":  get_config_value("empresa_telefono",  db) or "",

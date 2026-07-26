@@ -1,10 +1,10 @@
-/* ─── ECO MÓDULOS CRM — Service Worker (Web Push) ─────────────────────────── */
+/* ─── ECOFIVER CRM — Service Worker (Web Push) ─────────────────────────── */
 
 const CACHE_VERSION = 'eco-crm-v1';
 
 // Escuchar eventos push del servidor
 self.addEventListener('push', function (event) {
-  let data = { title: 'Eco Módulos CRM', body: '', url: '/' };
+  let data = { title: 'EcoFiver CRM', body: '', url: '/' };
 
   try {
     if (event.data) {

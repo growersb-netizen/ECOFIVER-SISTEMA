@@ -1,5 +1,5 @@
 """
-Canal Meta — Eco Módulos & Piscinas IA
+Canal Meta — EcoFiver IA
 Maneja dos flujos de captación automática:
 
 1. Meta Lead Ads — cuando alguien completa un formulario en una campaña
@@ -381,7 +381,7 @@ async def _procesar_comentario_ig(value: dict) -> None:
             f"El usuario {nombre} preguntó: '{texto}'. "
             "Contestá amablemente, decí que con gusto le mandás info por privado, "
             "invitalo a enviar un DM o WhatsApp. NO des precios ni detalles acá. "
-            "Sin hashtags ni emojis exagerados. Firmá como Eco Módulos.",
+            "Sin hashtags ni emojis exagerados. Firmá como EcoFiver.",
         )
         # Limpiar señales internas
         import re

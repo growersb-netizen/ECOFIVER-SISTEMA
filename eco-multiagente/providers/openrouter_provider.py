@@ -42,7 +42,7 @@ class OpenRouterProvider(BaseProvider):
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                         "HTTP-Referer": "https://www.ecomodulosypiscinas.com.ar",
-                        "X-Title": "Eco Modulos & Piscinas",
+                        "X-Title": "EcoFiver",
                     },
                     json={
                         "model": self._model,

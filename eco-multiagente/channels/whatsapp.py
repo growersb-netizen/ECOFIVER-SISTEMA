@@ -1,5 +1,5 @@
 """
-Handler de WhatsApp Business API Meta para Eco Módulos & Piscinas.
+Handler de WhatsApp Business API Meta para EcoFiver.
 Incluye debounce: acumula mensajes por 3.5 seg y responde una sola vez.
 """
 

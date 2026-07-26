@@ -1,4 +1,4 @@
-# 📖 MANUAL ZAPIA — Eco Módulos & Piscinas CRM
+# 📖 MANUAL ZAPIA — EcoFiver CRM
 > Versión 3.0 | Todas las funciones disponibles para el agente + API de agentes IA
 
 ---
@@ -32,7 +32,7 @@ Base URL: `https://eco-crm-dawn-fog-5476.fly.dev`
 | **COMBO** | Módulo + Piscina | Instalación propia |
 
 ### Formas de entrega
-- **Instalación propia**: equipo de Eco Módulos instala en el lugar (zona de cobertura)
+- **Instalación propia**: equipo de EcoFiver instala en el lugar (zona de cobertura)
 - **Vía Cargo / transporte terrestre**: producto terminado despachado a sucursal del cliente (todo el país)
   - Módulos hasta 24m² son aptos para este tipo de envío
   - Todas las piscinas son aptas para envío por Vía Cargo
@@ -558,4 +558,4 @@ GET  /api/ext/gastos                      → Lista gastos (filtros: sector, des
 
 ---
 
-*Eco Módulos & Piscinas — Sistema multiagente v2.0*
+*EcoFiver — Sistema multiagente v2.0*

@@ -1,6 +1,6 @@
 """
 Base de conocimiento técnico: Sistema Modular NCE
-Eco Módulos & Piscinas — Manual Constructivo v1.2
+EcoFiver — Manual Constructivo v1.2
 
 Este módulo centraliza el conocimiento del método constructivo NCE
 y es importado por todos los agentes que necesitan responder

@@ -341,7 +341,7 @@ def _enviar_wa_testimonio(telefono: str, nombre: str, token: str):
             f"Nos encantaría conocer tu experiencia. "
             f"¿Podés contarnos cómo te fue?\n\n"
             f"👉 {link}\n\n"
-            f"¡Gracias por confiar en Eco Módulos & Piscinas!"
+            f"¡Gracias por confiar en EcoFiver!"
         )
         wa_url = os.getenv("WA_SEND_URL")
         wa_key = os.getenv("WA_API_KEY")

@@ -1,5 +1,5 @@
 """
-Control Center del Sistema Multiagente — Eco Módulos & Piscinas.
+Control Center del Sistema Multiagente — EcoFiver.
 
 Permite enviar instrucciones al orquestador, monitorear el estado de los agentes
 y ejecutar flujos predefinidos desde una interfaz centralizada dentro del CRM.

@@ -1,5 +1,5 @@
 """
-Cliente async para el CRM Eco Módulos (FastAPI en Fly.io).
+Cliente async para el CRM EcoFiver (FastAPI en Fly.io).
 Si el CRM no está disponible, retorna datos vacíos para no romper el flujo.
 """
 
@@ -217,7 +217,7 @@ async def get_ventas_hoy() -> dict:
 
 async def simular_cuotas(tipo: str, precio: float, cuotas: int = None) -> dict:
     """
-    Simulación de cuotas con la fórmula propia de Eco Módulos.
+    Simulación de cuotas con la fórmula propia de EcoFiver.
     tipo: MODULO | PISCINA
     precio: precio de contado en ARS
     cuotas: número de cuotas (si None, devuelve tabla completa)

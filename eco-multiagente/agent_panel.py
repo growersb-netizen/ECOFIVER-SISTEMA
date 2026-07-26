@@ -1,5 +1,5 @@
 """
-Panel Operativo de Agentes — Eco Módulos & Piscinas IA
+Panel Operativo de Agentes — EcoFiver IA
 /panel  — Control completo del sistema multiagente.
 """
 
@@ -417,7 +417,7 @@ _LOGIN_HTML = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Panel Operativo — Eco Módulos IA</title>
+<title>Panel Operativo — EcoFiver IA</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -450,7 +450,7 @@ button:active{transform:translateY(0)}
 <div class="card">
   <div class="logo">🌿</div>
   <h1>Panel Operativo</h1>
-  <p class="sub">Eco Módulos &amp; Piscinas — Sistema IA</p>
+  <p class="sub">EcoFiver — Sistema IA</p>
   <div class="err" id="err">❌ Credenciales incorrectas. Verificá tu email y contraseña.</div>
   <form id="f">
     <div class="field">
@@ -498,7 +498,7 @@ _PANEL_HTML = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Panel Operativo — Eco Módulos IA</title>
+<title>Panel Operativo — EcoFiver IA</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -677,7 +677,7 @@ textarea.prompt-area:focus{border-color:#4CAF50}
 <div class="topbar">
   <span class="topbar-logo">🌿</span>
   <div>
-    <div class="topbar-title">Eco Módulos &amp; Piscinas — Sistema IA</div>
+    <div class="topbar-title">EcoFiver — Sistema IA</div>
     <div class="topbar-sub">15 agentes activos</div>
   </div>
   <div class="topbar-right">

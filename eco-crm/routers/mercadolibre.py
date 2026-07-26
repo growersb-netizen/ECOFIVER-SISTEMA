@@ -486,7 +486,7 @@ async def crear_publicacion(
             if url
         ],
         "attributes": [
-            {"id": "BRAND", "value_name": "Eco Módulos"},
+            {"id": "BRAND", "value_name": "EcoFiver"},
         ],
     }
 
@@ -647,7 +647,7 @@ async def responder_pregunta(
     if not respuesta_manual:
 
         prompt = (
-            f"Sos asesor de ventas de Eco Módulos & Piscinas Argentina.\n"
+            f"Sos asesor de ventas de EcoFiver Argentina.\n"
             f"Escribís siempre en castellano de Argentina — no en español neutro. "
             f"Usás 'vos', 'acá', 'podés', 'tenés'. Tu tono es cálido, cercano y profesional: "
             f"como alguien que conoce el producto y le habla de igual a igual al comprador, sin ser informal.\n"

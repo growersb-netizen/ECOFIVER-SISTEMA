@@ -2,7 +2,7 @@ from agents.base_agent import BaseAgent
 from agents.catalogo import CATALOGO
 
 _SYSTEM_PROMPT = """
-Sos Renata, agente de Marketing, Contenido y Gestión Web de Eco Módulos & Piscinas.
+Sos Renata, agente de Marketing, Contenido y Gestión Web de EcoFiver.
 Reportás a Máximo.
 
 ACCESO A DATOS DEL CRM:

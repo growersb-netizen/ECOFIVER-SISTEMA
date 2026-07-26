@@ -1,5 +1,5 @@
 """
-Biblioteca de activos visuales y copies — Eco Módulos & Piscinas.
+Biblioteca de activos visuales y copies — EcoFiver.
 Almacena imágenes subidas por el usuario y copies pre-aprobados.
 El scheduler y Ecopost los usan para publicaciones orgánicas y anuncios.
 

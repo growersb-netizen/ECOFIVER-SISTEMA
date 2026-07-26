@@ -1,5 +1,5 @@
 """
-Base de Conocimiento de los agentes — Eco Módulos & Piscinas.
+Base de Conocimiento de los agentes — EcoFiver.
 
 Permite a Rodrigo administrar, desde un panel, TODO el conocimiento que se
 inyecta en los agentes en tiempo de respuesta:

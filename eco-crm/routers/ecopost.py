@@ -315,7 +315,7 @@ async def api_generar_copy(
     }
     tipo_str = tipos_desc.get(body.tipo, body.tipo)
 
-    prompt = f"""Sos copywriter experto en marketing de Eco Módulos & Piscinas, empresa argentina de Zárate, Buenos Aires.
+    prompt = f"""Sos copywriter experto en marketing de EcoFiver, empresa argentina de Zárate, Buenos Aires.
 Escribís siempre en castellano de Argentina — no en español neutro. Tu tono es cálido, cercano y profesional: como alguien que conoce el producto, habla de vos a vos con el cliente, y genera confianza sin ser informal ni usar lunfardo.
 Escribí copy para redes sociales (formato {tipo_str}):
 - Producto: {body.producto}

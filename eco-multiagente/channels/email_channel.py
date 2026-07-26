@@ -1,5 +1,5 @@
 """
-Canal de email para Eco Módulos & Piscinas.
+Canal de email para EcoFiver.
 Recibe emails de clientes, los procesa con Valentina y responde automáticamente.
 
 Configuración env vars:
@@ -41,7 +41,7 @@ POLL_INTERVAL  = int(os.getenv("EMAIL_POLL_INTERVAL", "180"))  # 3 minutos
 
 # Asunto por defecto para las respuestas
 _SUBJECT_RE    = "Re: {original}"
-_FROM_NAME     = "Eco Módulos & Piscinas"
+_FROM_NAME     = "EcoFiver"
 
 # ── Decodificación de headers ────────────────────────────────────────────────
 

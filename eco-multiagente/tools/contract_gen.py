@@ -77,7 +77,7 @@ def _build_styles():
 def _header(styles, numero_contrato: str, tipo: str) -> list:
     tipo_label = "MÓDULO NCE" if tipo == "modulos" else "PISCINA DE FIBRA DE VIDRIO"
     elementos = [
-        Paragraph("ECO MÓDULOS & PISCINAS", styles["Titulo"]),
+        Paragraph("ECOFIVER", styles["Titulo"]),
         Paragraph("Cooperativa de Trabajo — Zárate, Buenos Aires", styles["Subtitulo"]),
         HRFlowable(width="100%", thickness=2, color=COLOR_VERDE),
         Spacer(1, 8),
@@ -112,7 +112,7 @@ def _clausulas(tipo: str, styles) -> list:
     producto = "módulo NCE" if tipo == "modulos" else "piscina de fibra de vidrio"
     texto = f"""
     <b>CLÁUSULAS Y CONDICIONES:</b><br/><br/>
-    1. La cooperativa ECO MÓDULOS & PISCINAS se compromete a entregar el {producto}
+    1. La cooperativa ECOFIVER se compromete a entregar el {producto}
     especificado en las condiciones acordadas y en el plazo estimado indicado en este contrato.<br/><br/>
     2. El adquirente abonará el ingreso inicial al momento de la firma del presente contrato,
     y las cuotas mensuales en las fechas pactadas, sin necesidad de recibo previo.<br/><br/>
@@ -137,7 +137,7 @@ def _firmas(styles) -> list:
         ["", ""],
         ["________________________", "________________________"],
         ["Firma del Adquirente", "Firma Cooperativa / Sello"],
-        [f"Aclaración:", "Eco Módulos & Piscinas"],
+        [f"Aclaración:", "EcoFiver"],
         [f"DNI:", f"Zárate, {fecha}"],
     ]
     tabla = Table(data, colWidths=[8.5 * cm, 8.5 * cm])
@@ -175,7 +175,7 @@ async def generar_contrato(tipo: str, datos: dict) -> bytes:
         leftMargin=2 * cm,
         topMargin=2 * cm,
         bottomMargin=2 * cm,
-        title="Contrato Eco Módulos & Piscinas",
+        title="Contrato EcoFiver",
     )
     styles = _build_styles()
     numero = _numero_contrato(tipo)

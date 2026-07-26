@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Configuración del negocio · Eco Módulos{% endblock %}
+{% block title %}Configuración del negocio · EcoFiver{% endblock %}
 {% block page_title %}🏢 Configuración del negocio{% endblock %}
 
 {% block content %}
@@ -51,13 +51,25 @@
 </div>
 
 <div class="ng-card">
+  <h3>🛒 Costos de MercadoLibre</h3>
+  <div class="ng-hint" style="margin-bottom:10px">Según la simulación oficial de ML. Se usan para calcular ganancia y el "precio sugerido" al publicar.</div>
+  <div class="ng-row">
+    <div><label class="form-label">Comisión — producto clasificado (%)</label><input class="form-control" type="number" step="0.01" id="n-com-clas"></div>
+    <div><label class="form-label">Comisión — sin clasificar (%)</label><input class="form-control" type="number" step="0.01" id="n-com-noclas"></div>
+  </div>
+  <div class="ng-row" style="grid-template-columns:1fr 1fr 1fr">
+    <div><label class="form-label">IAG (%)</label><input class="form-control" type="number" step="0.01" id="n-iag"></div>
+    <div><label class="form-label">IVA (%)</label><input class="form-control" type="number" step="0.01" id="n-iva"></div>
+    <div><label class="form-label">IIBB (%)</label><input class="form-control" type="number" step="0.01" id="n-iibb"></div>
+  </div>
+</div>
+
+<div class="ng-card">
   <h3>💳 Costo de cuotas sin interés (%)</h3>
-  <div class="ng-hint" style="margin-bottom:10px">Cuánto te cuesta ofrecer cuotas sin interés (según tu Mercado Pago). Se usa para calcular la ganancia en Publicaciones ML.</div>
-  <div class="ng-cuotas">
-    <div><label class="form-label">3 cuotas</label><input class="form-control" type="number" id="n-c3"></div>
-    <div><label class="form-label">6 cuotas</label><input class="form-control" type="number" id="n-c6"></div>
-    <div><label class="form-label">9 cuotas</label><input class="form-control" type="number" id="n-c9"></div>
-    <div><label class="form-label">12 cuotas</label><input class="form-control" type="number" id="n-c12"></div>
+  <div class="ng-hint" style="margin-bottom:10px">Cuánto te cuesta financiar cuotas sin interés (Cuota Simple / Premium). Clásica = 1 pago, sin este costo.</div>
+  <div class="ng-row">
+    <div><label class="form-label">3 cuotas</label><input class="form-control" type="number" step="0.01" id="n-c3"></div>
+    <div><label class="form-label">6 cuotas</label><input class="form-control" type="number" step="0.01" id="n-c6"></div>
   </div>
 </div>
 
@@ -74,7 +86,9 @@ const NG={get:u=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
 const MAP={n_nombre:'negocio_nombre',n_apodo:'negocio_apodo',n_cuit:'negocio_cuit',n_web:'negocio_web',
   n_direccion:'negocio_direccion',n_localidad:'negocio_localidad',n_telefono:'negocio_telefono',n_email:'negocio_email',
   n_condiciones:'negocio_condiciones',n_markup:'negocio_markup',n_flete:'negocio_flete_km',
-  n_c3:'negocio_cuotas_3',n_c6:'negocio_cuotas_6',n_c9:'negocio_cuotas_9',n_c12:'negocio_cuotas_12'};
+  n_com_clas:'negocio_ml_comision_clasificada',n_com_noclas:'negocio_ml_comision_no_clasificada',
+  n_iag:'negocio_ml_iag',n_iva:'negocio_ml_iva',n_iibb:'negocio_ml_iibb',
+  n_c3:'negocio_cuotas_3',n_c6:'negocio_cuotas_6'};
 function el(id){return document.getElementById(id.replace(/_/g,'-'));}
 async function cargarNegocio(){
   const d=await NG.get('/api/negocio/config');

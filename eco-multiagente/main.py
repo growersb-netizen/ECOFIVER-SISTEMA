@@ -1,5 +1,5 @@
 """
-Eco Módulos & Piscinas — Sistema Multiagente IA
+EcoFiver — Sistema Multiagente IA
 Entry point principal. FastAPI + Telegram + Scheduler.
 """
 
@@ -204,7 +204,7 @@ def _bootstrap_config():
 # ── Lifespan (startup / shutdown) ──────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🚀 Iniciando Eco Módulos IA — Sistema Multiagente")
+    logger.info("🚀 Iniciando EcoFiver IA — Sistema Multiagente")
 
     # Bootstrap config persistente (primera vez en Fly.io)
     _bootstrap_config()
@@ -232,15 +232,15 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     stop_scheduler()
-    logger.info("Sistema Eco Módulos IA apagado correctamente.")
+    logger.info("Sistema EcoFiver IA apagado correctamente.")
 
 
 # ── App FastAPI ────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Eco Módulos & Piscinas — Sistema IA",
+    title="EcoFiver — Sistema IA",
     description=(
         "Sistema multiagente con 16 agentes IA para "
-        "Eco Módulos & Piscinas. WhatsApp + Instagram + Web + Telegram."
+        "EcoFiver. WhatsApp + Instagram + Web + Telegram."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -396,7 +396,7 @@ async def home():
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Eco Módulos & Piscinas — Sistema IA</title>
+  <title>EcoFiver — Sistema IA</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -478,7 +478,7 @@ async def home():
 <body>
   <div class="card">
     <div class="logo">🌿</div>
-    <h1>Eco Módulos &amp; Piscinas</h1>
+    <h1>EcoFiver</h1>
     <p class="sub">Sistema Multiagente IA — v1.0.0</p>
     <span class="badge">✅ Sistema operativo</span>
 
@@ -558,7 +558,7 @@ async def privacy_policy():
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Política de Privacidad — Eco Módulos & Piscinas</title>
+  <title>Política de Privacidad — EcoFiver</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
            max-width: 800px; margin: 0 auto; padding: 40px 24px; color: #222; line-height: 1.7; }
@@ -574,7 +574,7 @@ async def privacy_policy():
   <h1>🌿 Política de Privacidad</h1>
   <p class="updated">Última actualización: mayo de 2026</p>
 
-  <p><strong>Eco Módulos &amp; Piscinas</strong> ("nosotros") opera un sistema de atención al cliente
+  <p><strong>EcoFiver</strong> ("nosotros") opera un sistema de atención al cliente
   mediante WhatsApp Business API. Esta política explica cómo recopilamos, usamos y protegemos
   tu información personal.</p>
 
@@ -624,7 +624,7 @@ async def privacy_policy():
 
   <hr style="margin-top:40px;border:none;border-top:1px solid #eee">
   <p style="font-size:13px;color:#888;text-align:center">
-    &copy; 2026 Eco Módulos &amp; Piscinas — Todos los derechos reservados
+    &copy; 2026 EcoFiver — Todos los derechos reservados
   </p>
 </body>
 </html>"""
@@ -636,7 +636,7 @@ async def health():
     """Health check para Replit / Fly.io."""
     return {
         "status": "ok",
-        "sistema": "Eco Módulos IA",
+        "sistema": "EcoFiver IA",
         "agentes": 16,
         "version": "1.0.0",
     }
@@ -646,7 +646,7 @@ async def health():
 @app.get("/widget-snippet", response_class=PlainTextResponse)
 async def widget_snippet():
     base_url = os.getenv("BASE_URL", "https://TU-URL.replit.app")
-    snippet = f"""<!-- Eco Módulos & Piscinas — Widget de Chat -->
+    snippet = f"""<!-- EcoFiver — Widget de Chat -->
 <script>
   window.ECO_CHAT_URL = '{base_url}/chat/web';
   window.ECO_WIDGET_BASE = '{base_url}';

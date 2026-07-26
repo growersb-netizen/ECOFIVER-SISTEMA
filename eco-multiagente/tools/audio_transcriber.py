@@ -152,7 +152,7 @@ async def _openrouter(audio_bytes: bytes, mime: str, model: str) -> str:
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type":  "application/json",
         "HTTP-Referer":  "https://eco-multiagente-polished-sunset-4227.fly.dev",
-        "X-Title":       "Eco Modulos IA",
+        "X-Title":       "EcoFiver IA",
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:

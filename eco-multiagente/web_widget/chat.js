@@ -1,5 +1,5 @@
 /**
- * Eco Módulos & Piscinas — Widget de Chat con Valentina
+ * EcoFiver — Widget de Chat con Valentina
  * Vanilla JS sin dependencias externas.
  * Conecta a: POST /chat/web
  */
@@ -9,7 +9,7 @@
   // ── Configuración ─────────────────────────────────────────────
   const API_URL     = window.ECO_CHAT_URL || "/chat/web";
   const AGENT_NAME  = "Valentina";
-  const COMPANY     = "Eco Módulos & Piscinas";
+  const COMPANY     = "EcoFiver";
   const WELCOME_MSG =
     "¡Hola! ¿Cómo estás? 😊\nContame, ¿estás buscando una piscina o un módulo?";
 

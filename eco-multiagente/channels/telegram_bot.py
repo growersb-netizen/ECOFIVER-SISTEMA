@@ -1,5 +1,5 @@
 """
-Bot de Telegram — Eco Módulos & Piscinas IA
+Bot de Telegram — EcoFiver IA
 Control total del sistema multiagente por conversación natural.
 Solo responde al CHAT_ID configurado en env (Rodrigo / dueño).
 """
@@ -381,7 +381,7 @@ async def cmd_nuevo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @solo_rodrigo
 async def cmd_agentes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Lista todos los agentes disponibles con su comando."""
-    lines = ["👥 EQUIPO ECO MÓDULOS IA\n"]
+    lines = ["👥 EQUIPO ECOFIVER IA\n"]
     for key, cfg in AGENTS_CONFIG.items():
         lines.append(f"{cfg['emoji']} /{key} — {cfg['nombre']} · {cfg['desc']}")
     lines.append("\nTambién podés pedirme directamente: 'llamá a Camila', 'necesito hablar con Valentín', etc.")
@@ -487,7 +487,7 @@ async def cmd_estado(update: Update, context: ContextTypes.DEFAULT_TYPE):
         key     = sess["agent"]
         cfg     = AGENTS_CONFIG[key]
         await update.message.reply_text(
-            f"🤖 SISTEMA ECO MÓDULOS IA\n\n"
+            f"🤖 SISTEMA ECOFIVER IA\n\n"
             f"Agentes activos: 16\n"
             f"Leads hoy: {stats.get('leads_recibidos', 0)}\n"
             f"Cierres hoy: {stats.get('cierres_contado', 0)}\n"
@@ -504,7 +504,7 @@ async def cmd_estado(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @solo_rodrigo
 async def cmd_ayuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = (
-        "🤖 ECO MÓDULOS IA — Sistema de agentes\n\n"
+        "🤖 ECOFIVER IA — Sistema de agentes\n\n"
         "CONVERSACIÓN LIBRE:\n"
         "Escribí directamente y el agente activo te responde.\n"
         "Pedí cambios en lenguaje natural:\n"

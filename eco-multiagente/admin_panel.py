@@ -1,5 +1,5 @@
 """
-Panel de configuración del sistema Eco Módulos IA.
+Panel de configuración del sistema EcoFiver IA.
 Soporta Gemini, Claude (Anthropic) y OpenAI con toggle de proveedor activo.
 """
 import os
@@ -68,7 +68,7 @@ def render_panel(env: dict, msg: str = "", msg_type: str = "ok") -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Config — Eco Módulos IA</title>
+  <title>Config — EcoFiver IA</title>
   <style>
     *{{box-sizing:border-box;margin:0;padding:0}}
     body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -134,7 +134,7 @@ def render_panel(env: dict, msg: str = "", msg_type: str = "ok") -> str:
 <div class="header">
   <span style="font-size:28px">⚙️</span>
   <div>
-    <h1>Panel de Configuración — Eco Módulos IA</h1>
+    <h1>Panel de Configuración — EcoFiver IA</h1>
     <p>Configurá todas las integraciones. Los cambios se aplican inmediatamente.</p>
   </div>
 </div>
@@ -311,7 +311,7 @@ def render_panel(env: dict, msg: str = "", msg_type: str = "ok") -> str:
 
   <!-- ── CRM ── -->
   <div class="card">
-    <div class="card-header"><span>🗄️</span><div><h2>CRM Eco Módulos</h2></div></div>
+    <div class="card-header"><span>🗄️</span><div><h2>CRM EcoFiver</h2></div></div>
     <div class="card-body">
       <div class="row">
         <div class="field">
@@ -532,7 +532,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Login — Eco Módulos IA</title>
+  <title>Login — EcoFiver IA</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -557,7 +557,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="icon">🔐</div>
   <h1>Panel de Configuración</h1>
-  <p>Eco Módulos & Piscinas — Sistema IA</p>
+  <p>EcoFiver — Sistema IA</p>
   <div class="err" id="err">Contraseña incorrecta</div>
   <form id="loginForm">
     <input type="password" id="pw" placeholder="Contraseña del panel" autofocus>
@@ -670,7 +670,7 @@ async def admin_test(servicio: str, request: Request):
                         "Authorization": f"Bearer {key}",
                         "Content-Type": "application/json",
                         "HTTP-Referer": "https://www.ecomodulosypiscinas.com.ar",
-                        "X-Title": "Eco Modulos & Piscinas",
+                        "X-Title": "EcoFiver",
                     },
                     json={"model": model, "max_tokens": 10,
                           "messages": [{"role": "user", "content": "Respondé solo: OK"}]},

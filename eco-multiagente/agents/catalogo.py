@@ -1,5 +1,5 @@
 """
-Catálogo oficial de productos Eco Módulos & Piscinas.
+Catálogo oficial de productos EcoFiver.
 Este archivo es importado por TODOS los agentes.
 """
 

@@ -1,5 +1,5 @@
 """
-Scheduler de tareas programadas para Eco Módulos & Piscinas.
+Scheduler de tareas programadas para EcoFiver.
 Zona horaria: America/Argentina/Buenos_Aires (GMT-3 fijo, sin DST).
 """
 
@@ -189,19 +189,19 @@ async def tarea_seguimiento_leads_frios():
                 "Generá un mensaje corto de seguimiento (1-2 oraciones, informal, sin presión) "
                 "para {nombre} que consultó por {producto} hace más de 2 días y no respondió. "
                 "No mencionés que sos IA. Solo preguntá si sigue con dudas o necesita más info. "
-                "Firmá como Valentina de Eco Módulos."
+                "Firmá como Valentina de EcoFiver."
             ),
             1: (
                 "Generá un segundo mensaje de seguimiento corto para {nombre} que consultó por {producto}. "
                 "Esta es la segunda vez que lo contactamos. Mencioná algún beneficio clave "
                 "(financiación propia, instalación incluida, o piscinas de fibra premium). "
-                "Tono amigable y sin presión. Firmá como Valentina de Eco Módulos."
+                "Tono amigable y sin presión. Firmá como Valentina de EcoFiver."
             ),
             2: (
                 "Generá el ÚLTIMO mensaje de seguimiento para {nombre} que consultó por {producto}. "
                 "Es el tercer contacto. Decí que entendés que quizás no es el momento, "
                 "pero que quedás disponible cuando lo necesite. Dejá la puerta abierta. "
-                "Tono muy cálido. Firmá como Valentina de Eco Módulos."
+                "Tono muy cálido. Firmá como Valentina de EcoFiver."
             ),
         }
 
@@ -266,7 +266,7 @@ async def tarea_contacto_leads_nuevos():
                 continue
             msg = await valentina.respond(
                 f"Primer contacto para {nombre} que se interesó en {producto}. "
-                "Mensaje cálido, breve, 1-2 oraciones. Presentate como Valentina de Eco Módulos."
+                "Mensaje cálido, breve, 1-2 oraciones. Presentate como Valentina de EcoFiver."
             )
             import re
             msg = re.sub(r"\[DERIVAR:\w+\]|\[AGENDA_VV:[^\]]+\]|\[LLAMADA_SUP:[^\]]+\]", "", msg).strip()
@@ -301,7 +301,7 @@ async def tarea_recordatorio_videollamadas():
             msg = (
                 f"Hola {nombre}! Te recuerdo que en breve tenemos nuestra videollamada "
                 f"a las {hora}. ¿Confirmás que vas a poder estar? "
-                f"Recordá tener a todos los que van a decidir presentes. Saludos, equipo Eco Módulos."
+                f"Recordá tener a todos los que van a decidir presentes. Saludos, equipo EcoFiver."
             )
             await send_whatsapp_message(telefono, msg)
             logger.info(f"[CRON] Recordatorio VV enviado a {nombre} ({telefono})")
@@ -336,7 +336,7 @@ async def tarea_nutricion_24h():
                 f"Mensaje de nutrición (educativo, no de venta) para {nombre} "
                 f"que consultó por {producto} ayer. "
                 "Compartí un beneficio clave o dato interesante del producto. "
-                "Máx 3 oraciones. Sin presión. Firmá como Valentina de Eco Módulos."
+                "Máx 3 oraciones. Sin presión. Firmá como Valentina de EcoFiver."
             )
             msg = re.sub(r"\[DERIVAR:\w+\]|\[AGENDA_VV:[^\]]+\]|\[LLAMADA_SUP:[^\]]+\]", "", msg).strip()
             if msg:
@@ -433,7 +433,7 @@ async def tarea_reactivacion_leads_frios():
                 f"por {producto} hace más de 30 días y no respondió más. "
                 "Contexto de temporada actual. Mencioná una novedad o beneficio. "
                 "Tono muy cálido, sin presión, dejá la puerta abierta. "
-                "Firmá como Valentina de Eco Módulos."
+                "Firmá como Valentina de EcoFiver."
             )
             msg = re.sub(r"\[DERIVAR:\w+\]|\[AGENDA_VV:[^\]]+\]|\[LLAMADA_SUP:[^\]]+\]", "", msg).strip()
             if msg:
@@ -465,7 +465,7 @@ async def tarea_llamada_supervisora_pendiente():
             if not telefono:
                 continue
             msg = (
-                f"Hola {nombre}! Te escribimos del equipo de Eco Módulos. "
+                f"Hola {nombre}! Te escribimos del equipo de EcoFiver. "
                 f"Quedamos en hablar{' a las ' + hora if hora else ''} y no pudimos conectar. "
                 "¿Podemos reagendar? Decinos qué horario te viene mejor. Gracias!"
             )

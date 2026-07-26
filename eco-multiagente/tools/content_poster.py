@@ -82,7 +82,7 @@ async def generar_contenido(config: dict | None = None) -> dict | None:
 
     prompts = {
         "producto": (
-            f"Generá un post para Facebook/Instagram de Eco Módulos & Piscinas. "
+            f"Generá un post para Facebook/Instagram de EcoFiver. "
             f"Temporada: {temporada}. Producto foco: {foco}. "
             "Tipo: post de producto atractivo que muestre los beneficios principales. "
             "Incluir: característica estrella, precio referencial o financiación, CTA claro. "
@@ -93,7 +93,7 @@ async def generar_contenido(config: dict | None = None) -> dict | None:
             "Al final, en una línea separada, escribí 8 hashtags relevantes para Argentina."
         ),
         "educativo": (
-            f"Generá un post educativo para Facebook/Instagram de Eco Módulos & Piscinas. "
+            f"Generá un post educativo para Facebook/Instagram de EcoFiver. "
             f"Tema: {foco}. "
             "Tipo: contenido que enseña algo útil (proceso de compra, qué incluye la instalación, "
             "cómo funciona la financiación, diferencias entre productos). "
@@ -103,13 +103,13 @@ async def generar_contenido(config: dict | None = None) -> dict | None:
         ),
         "testimonio": (
             "Generá un post de testimonio/caso de éxito INVENTADO PERO VEROSÍMIL para "
-            "Eco Módulos & Piscinas. Familia argentina real (nombre, ciudad, producto). "
+            "EcoFiver. Familia argentina real (nombre, ciudad, producto). "
             "Que cuente el antes y el después. Emotivo pero concreto. "
             "Nota: este es un testimonio representativo de nuestros clientes. "
             "Sin markdown. Máx 200 palabras. Al final: 8 hashtags."
         ),
         "aspiracional": (
-            "Generá un post aspiracional/lifestyle para Eco Módulos & Piscinas. "
+            "Generá un post aspiracional/lifestyle para EcoFiver. "
             "Que pinte el imaginario: tener la piscina o la casa de los sueños. "
             "Verano, familia, disfrute, independencia. Sin hablar solo de producto — hablar de vida. "
             "CTA suave: 'escribinos y lo hacemos posible'. "

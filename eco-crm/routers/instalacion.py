@@ -1,5 +1,5 @@
 """
-Módulo de Instalación y Equipos — Eco Módulos & Piscinas.
+Módulo de Instalación y Equipos — EcoFiver.
 
 Gestiona:
   - Equipos instaladores (Rodrigo, equipos externos)

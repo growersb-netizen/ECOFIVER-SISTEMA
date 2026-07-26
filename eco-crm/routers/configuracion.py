@@ -152,8 +152,8 @@ CONFIG_DEFS: dict = {
         "categoria": "empresa",
         "es_secreto": False,
         "test_id": None,
-        "placeholder": "Eco Módulos & Piscinas",
-        "default": "Eco Módulos & Piscinas",
+        "placeholder": "EcoFiver",
+        "default": "EcoFiver",
     },
     "empresa_cuit": {
         "label": "CUIT",
@@ -536,7 +536,7 @@ async def _run_test(test_id: Optional[str], clave: str, valor: str, db: Session)
                         "Authorization": f"Bearer {valor}",
                         "Content-Type": "application/json",
                         "HTTP-Referer": "https://www.ecomodulosypiscinas.com.ar",
-                        "X-Title": "Eco Modulos & Piscinas",
+                        "X-Title": "EcoFiver",
                     },
                     json={
                         "model": "openai/gpt-4o-mini",

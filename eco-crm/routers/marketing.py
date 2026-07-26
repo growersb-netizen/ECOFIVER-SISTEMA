@@ -207,11 +207,11 @@ async def generar_articulo_blog(
     if not api_key:
         raise HTTPException(400, "No hay API key de IA configurada. Configurar Grok, Gemini o Claude en Configuración → API Keys.")
 
-    palabras_str = ", ".join(palabras_clave) if palabras_clave else "piscinas Argentina, módulos habitacionales, Eco Módulos"
+    palabras_str = ", ".join(palabras_clave) if palabras_clave else "piscinas Argentina, módulos habitacionales, EcoFiver"
     palabras_count = {"corta": "500-700", "media": "900-1200", "larga": "1500-2000"}.get(longitud, "900-1200")
 
-    prompt = f"""Sos redactor SEO experto en construcción y diseño de hogares, especializado en Eco Módulos & Piscinas.
-Empresa: Eco Módulos & Piscinas — fabricamos e instalamos piscinas de fibra y módulos habitacionales.
+    prompt = f"""Sos redactor SEO experto en construcción y diseño de hogares, especializado en EcoFiver.
+Empresa: EcoFiver — fabricamos e instalamos piscinas de fibra y módulos habitacionales.
 Ubicados en Zárate, Buenos Aires. Ofrecemos financiación propia, instalación incluida en todo el país.
 
 IDIOMA Y TONO OBLIGATORIO: escribís siempre en castellano de Argentina — no en español neutro ni latinoamericano genérico.

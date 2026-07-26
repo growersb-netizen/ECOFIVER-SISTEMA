@@ -22,7 +22,7 @@ PLAZOS_DEFAULT = [6, 12, 18, 24, 36, 48]
 
 
 def calcular_cuota(precio: float, n: int, factor: float) -> float:
-    """Cuota mensual según la fórmula de Eco Módulos."""
+    """Cuota mensual según la fórmula de EcoFiver."""
     return precio / (n + factor)
 
 

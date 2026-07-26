@@ -1,5 +1,5 @@
 """
-Scoring automático de temperatura de leads — Eco Módulos & Piscinas.
+Scoring automático de temperatura de leads — EcoFiver.
 
 Detecta señales de intención de compra en la conversación para clasificar el lead
 como CALIENTE / TIBIO / FRÍO sin depender de que el agente lo marque.

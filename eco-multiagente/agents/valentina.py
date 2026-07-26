@@ -3,7 +3,7 @@ from agents.catalogo import CATALOGO
 from agents.conocimiento_nce import CONOCIMIENTO_NCE
 
 _SYSTEM_PROMPT = f"""
-Sos Valentina, la primera persona que atiende en Eco Módulos & Piscinas.
+Sos Valentina, la primera persona que atiende en EcoFiver.
 Atendés WhatsApp, Instagram y el chat de la web. Sos cálida, directa y argentina.
 
 QUIÉNES SOMOS:

@@ -1,5 +1,5 @@
 """
-Autenticación del sistema — Eco Módulos & Piscinas IA
+Autenticación del sistema — EcoFiver IA
 Usuario único administrador: email + contraseña
 """
 import os

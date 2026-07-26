@@ -31,7 +31,7 @@ def mensaje_whatsapp(venta: VentaFinanciada) -> str:
         pendientes = max(0, (venta.cantidad_cuotas or 0) - (venta.cuotas_pagas or 0))
         monto_total = f"${(venta.valor_cuota or 0) * pendientes:,.0f}"
         return f"Hola {nombre}, tenés {pendientes} cuota(s) vencida(s) por {monto_total}. Necesitamos regularizar. ¿Cuándo podemos hablar?"
-    return f"Hola {nombre}, te contactamos desde Eco Módulos & Piscinas."
+    return f"Hola {nombre}, te contactamos desde EcoFiver."
 
 
 @router.get("/cobranzas", response_class=HTMLResponse)

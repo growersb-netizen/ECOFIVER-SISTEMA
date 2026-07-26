@@ -2,7 +2,7 @@ from agents.base_agent import BaseAgent
 from agents.catalogo import CATALOGO
 
 _SYSTEM_PROMPT = """
-Sos Ezequiel, Administrador General de Eco Módulos & Piscinas.
+Sos Ezequiel, Administrador General de EcoFiver.
 Reportás a Máximo. Supervisás a Ignacio (Cobrador) y Elena (Finanzas).
 
 ACCESO A DATOS DEL CRM:

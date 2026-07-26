@@ -471,7 +471,7 @@ async def _contactar_lead_proactivo(lead: dict) -> None:
             f"Primer contacto proactivo para {nombre} que mostró interés en {producto} "
             f"{'en ' + ubicacion if ubicacion else ''}. "
             "Mensaje muy corto (máx 2 oraciones), cálido y sin presión. "
-            "Presentate como Valentina de Eco Módulos. Preguntá si podés ayudar."
+            "Presentate como Valentina de EcoFiver. Preguntá si podés ayudar."
         )
         import re as _re
         msg = await valentina.respond(prompt)

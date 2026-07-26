@@ -317,7 +317,7 @@ _CONFIG_DEFAULTS = {
     "flete_precio_km":           ("3000",                        "precios"),
     "flete_miniportante_km":     ("2000",                        "precios"),
     "descuento_combo_pct":       ("25",                          "precios"),
-    "empresa_nombre":            ("Eco Módulos & Piscinas",      "empresa"),
+    "empresa_nombre":            ("EcoFiver",      "empresa"),
     "empresa_dir_planta":        ("Zárate, Buenos Aires",        "empresa"),
     "empresa_dir_showroom":      ("Av. Paseo Colón 1013, CABA", "empresa"),
     "ml_renovacion_automatica":  ("false",                       "ml_config"),

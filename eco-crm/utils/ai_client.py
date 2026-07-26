@@ -1,5 +1,5 @@
 """
-Cliente de IA unificado — Eco Módulos CRM.
+Cliente de IA unificado — EcoFiver CRM.
 Soporta: OpenRouter · Grok (xAI) · Gemini (Google) · Claude (Anthropic)
 Prioridad: openrouter_api_key → grok_api_key → gemini_api_key → claude_api_key
 
@@ -126,7 +126,7 @@ def get_ai_key_info(db: Session) -> dict:
 
 # System prompt base que aplica a todos los agentes y generaciones de texto
 SYSTEM_BASE = (
-    "Trabajás para Eco Módulos & Piscinas, empresa argentina de Zárate, Buenos Aires. "
+    "Trabajás para EcoFiver, empresa argentina de Zárate, Buenos Aires. "
     "Escribís y hablás SIEMPRE en castellano de Argentina — nunca en español neutro ni latinoamericano genérico. "
     "Usás 'vos', 'acá', 'querés', 'podés', 'tenés' y demás formas rioplatenses de forma natural. "
     "Tu tono es cálido, cercano y profesional: como un experto que le habla de igual a igual al interlocutor, "
@@ -145,7 +145,7 @@ async def ai_complete(
     """
     Genera texto usando el proveedor de IA activo.
     Retorna el texto generado o lanza Exception si no hay proveedor configurado.
-    Aplica automáticamente el system prompt base de Eco Módulos (castellano argentino, tono cálido-profesional).
+    Aplica automáticamente el system prompt base de EcoFiver (castellano argentino, tono cálido-profesional).
     """
     # Combinar system base con el system específico si lo hay
     if system:

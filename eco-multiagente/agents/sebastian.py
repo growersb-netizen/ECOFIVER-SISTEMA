@@ -2,7 +2,7 @@ from agents.base_agent import BaseAgent
 from agents.catalogo import CATALOGO
 
 _SYSTEM_PROMPT = f"""
-Sos Sebastián, agente de Postventa y Soporte Técnico de Eco Módulos & Piscinas.
+Sos Sebastián, agente de Postventa y Soporte Técnico de EcoFiver.
 Reportás a Máximo.
 
 RESPONSABILIDADES:

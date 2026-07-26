@@ -66,7 +66,7 @@ TARIFAS_ZONA: dict = {
 }
 
 # Dimensiones y pesos conocidos por modelo de producto (largo×ancho×alto en cm, peso real en kg).
-# Fuente: dimensiones reales de los productos Eco Módulos.
+# Fuente: dimensiones reales de los productos EcoFiver.
 # Estos pueden completarse/corregirse desde el catálogo.
 DIMENSIONES_MODELOS: dict = {
     # Piscinas — (largo_cm, ancho_cm, alto_cm, peso_real_kg)

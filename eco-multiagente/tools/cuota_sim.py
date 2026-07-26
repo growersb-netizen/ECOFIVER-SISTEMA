@@ -1,5 +1,5 @@
 """
-Simulador de cuotas para productos Eco Módulos & Piscinas.
+Simulador de cuotas para productos EcoFiver.
 
 Reglas de ingreso:
   Módulos:  ingreso = 2   cuotas del plan elegido

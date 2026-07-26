@@ -46,7 +46,7 @@ seed_config_defaults()
 seed_rr_defaults()
 
 app = FastAPI(
-    title="Eco Módulos & Piscinas — CRM",
+    title="EcoFiver — CRM",
     description="Sistema de gestión comercial y operativo",
     version="1.0.0",
     docs_url="/api/docs",
@@ -298,7 +298,7 @@ async def auth_redirect_middleware(request: Request, call_next):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "sistema": "Eco Módulos CRM", "version": "1.0.0"}
+    return {"status": "ok", "sistema": "EcoFiver CRM", "version": "1.0.0"}
 
 
 if __name__ == "__main__":

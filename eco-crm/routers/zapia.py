@@ -183,7 +183,7 @@ def _asignar_rr(db: Session) -> Optional[int]:
 async def info(_: bool = Depends(require_api_key)):
     """Verifica conectividad y devuelve metadata del sistema."""
     return {
-        "sistema": "Eco Módulos & Piscinas CRM",
+        "sistema": "EcoFiver CRM",
         "version": "2.0.0",
         "timestamp": datetime.now().isoformat(),
         "estado": "ok",

@@ -2,7 +2,7 @@ from agents.base_agent import BaseAgent
 from agents.catalogo import CATALOGO
 
 _SYSTEM_PROMPT = """
-Sos Elena, agente de Finanzas y CRM de Eco Módulos & Piscinas.
+Sos Elena, agente de Finanzas y CRM de EcoFiver.
 Reportás a Ezequiel.
 
 ACCESO A DATOS DEL CRM:

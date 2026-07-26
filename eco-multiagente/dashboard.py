@@ -1,5 +1,5 @@
 """
-Dashboard de Control — Eco Módulos & Piscinas IA
+Dashboard de Control — EcoFiver IA
 Ruta base: /dashboard
 Contraseña: ADMIN_PASSWORD del .env (default: ecomodulos2026)
 """
@@ -376,7 +376,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Dashboard — Eco Módulos IA</title>
+  <title>Dashboard — EcoFiver IA</title>
   <style>
     :root {
       --verde: #1A5C38; --verde2: #2E7D32; --verde-claro: #e8f5e9;
@@ -653,7 +653,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <!-- ── SIDEBAR ─────────────────────────────────────── -->
 <nav id="sidebar">
   <div class="sidebar-logo">
-    <h1>🌿 Eco Módulos IA</h1>
+    <h1>🌿 EcoFiver IA</h1>
     <p>Panel de control</p>
   </div>
 
@@ -1919,7 +1919,7 @@ function loadConfig() {
   document.getElementById('webhook-url').textContent = base + '/webhook/whatsapp';
   document.getElementById('webhook-token').textContent = ENV['WA_VERIFY_TOKEN'] || 'eco_modules_verify_2026';
   // Snippet
-  const snippet = `<!-- Eco Módulos & Piscinas — Widget Chat -->
+  const snippet = `<!-- EcoFiver — Widget Chat -->
 <script>
   window.ECO_CHAT_URL = '${base}/chat/web';
   window.ECO_WIDGET_BASE = '${base}';
@@ -3111,7 +3111,7 @@ DASHBOARD_LOGIN = """<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Dashboard — Eco Módulos IA</title>
+  <title>Dashboard — EcoFiver IA</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -3139,7 +3139,7 @@ DASHBOARD_LOGIN = """<!DOCTYPE html>
 <body>
 <div class="card">
   <div class="icon">🌿</div>
-  <h1>Eco Módulos IA</h1>
+  <h1>EcoFiver IA</h1>
   <p>Dashboard de control — ingresá tu contraseña</p>
   <div class="err" id="err">Contraseña incorrecta. Intentá de nuevo.</div>
   <form id="f">
@@ -3240,7 +3240,7 @@ async def dashboard_save_catalogo(request: Request):
         "factor_ingreso_modulos":  2.0,
         "factor_ingreso_piscinas": 1.5,
     }
-    content = f'"""\nCatálogo oficial de productos Eco Módulos & Piscinas.\nEste archivo es importado por TODOS los agentes.\n"""\n\nCATALOGO = {json.dumps(catalogo, ensure_ascii=False, indent=2)}\n'
+    content = f'"""\nCatálogo oficial de productos EcoFiver.\nEste archivo es importado por TODOS los agentes.\n"""\n\nCATALOGO = {json.dumps(catalogo, ensure_ascii=False, indent=2)}\n'
     catalogo_path.write_text(content, encoding="utf-8")
     return JSONResponse({"ok": True, "message": "Catálogo guardado"})
 
@@ -3514,7 +3514,7 @@ async def ecopost_generar(request: Request):
     tono        = (body.get("tono") or "cálido y aspiracional").strip()
     con_imagen  = body.get("con_imagen", True)
 
-    foco = _ECOPOST_FOCOS.get(producto, "productos de Eco Módulos & Piscinas")
+    foco = _ECOPOST_FOCOS.get(producto, "productos de EcoFiver")
 
     # ── Copy con Renata (cadena de IA con fallback, confiable) ──────────────
     copy_text, hashtags = "", ""
@@ -3522,7 +3522,7 @@ async def ecopost_generar(request: Request):
         from agents.renata import get_agent
         renata = get_agent()
         prompt = (
-            f"Generá el texto para un posteo de redes sociales de Eco Módulos & Piscinas "
+            f"Generá el texto para un posteo de redes sociales de EcoFiver "
             f"(empresa argentina de Zárate). Producto: {foco}. "
             f"{'Indicación extra: ' + descripcion if descripcion else ''} "
             f"Formato: {'story vertical' if tipo == 'story' else 'posteo de feed'}. "

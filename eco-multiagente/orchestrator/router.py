@@ -1,5 +1,5 @@
 """
-Router principal del sistema multiagente Eco Módulos & Piscinas.
+Router principal del sistema multiagente EcoFiver.
 Recibe mensajes de cualquier canal, determina el agente correcto
 y gestiona el ciclo completo de conversación con el CRM.
 """

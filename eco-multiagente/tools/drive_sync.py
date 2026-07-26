@@ -3,7 +3,7 @@ Sincronización Google Drive → Galería de Activos.
 
 El usuario organiza sus imágenes en una carpeta de Drive con esta estructura:
 
-  📁 Eco Módulos y Piscinas (root, DRIVE_GALLERY_FOLDER_ID)
+  📁 EcoFiver (root, DRIVE_GALLERY_FOLDER_ID)
     📁 modulos/
     📁 piscinas/
     📁 combo/

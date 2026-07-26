@@ -84,6 +84,17 @@
           </select></div>
         <div><label class="form-label">Categoría ML <small style="color:var(--text-muted)">(opcional)</small></label><input class="form-control" id="mp-cat" placeholder="se infiere del producto"></div>
       </div>
+      <div class="fp-row2">
+        <div><label class="form-label">💳 Cuotas sin interés <small style="color:var(--text-muted)">(solo Premium)</small></label>
+          <select class="form-control" id="mp-cuotas" onchange="calcGanancia()">
+            <option value="0">1 pago (sin cuotas)</option>
+            <option value="3">3 cuotas sin interés</option>
+            <option value="6">6 cuotas sin interés</option>
+            <option value="9">9 cuotas sin interés</option>
+            <option value="12">12 cuotas sin interés</option>
+          </select></div>
+        <div id="mp-cuota-val" style="align-self:flex-end;font-size:13px;color:var(--text-muted)"></div>
+      </div>
       <label class="form-label">Fotos</label>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
         <label class="btn btn-sm btn-secondary" style="cursor:pointer">📸 Subir foto
@@ -171,6 +182,7 @@ function nuevaPub(){document.getElementById('mp-id').value='';document.getElemen
   ['mp-titulo','mp-precio','mp-costo','mp-ref','mp-cat','mp-fotos','mp-desc'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('mp-cant').value=1;document.getElementById('mp-tlen').textContent='0';
   document.getElementById('mp-variantes').value='0';document.getElementById('mp-ganancia').textContent='';
+  document.getElementById('mp-cuotas').value='0';document.getElementById('mp-cuota-val').textContent='';
   document.getElementById('mp-atributos').textContent='Tocá "Cargar requeridos" para ver qué pide la categoría.';
   document.getElementById('mp-foto-msg').textContent='';openModal('modal-pub');}
 function editar(b){document.getElementById('mp-id').value=b.id;document.getElementById('mp-tit').textContent='Editar publicación';
@@ -179,7 +191,9 @@ function editar(b){document.getElementById('mp-id').value=b.id;document.getEleme
   document.getElementById('mp-ref').value=b.precio_referencia||'';document.getElementById('mp-producto').value=b.producto||'MODULO';
   document.getElementById('mp-cant').value=b.cantidad;document.getElementById('mp-listing').value=b.listing_type;
   document.getElementById('mp-cat').value=b.categoria||'';document.getElementById('mp-fotos').value=(b.fotos||[]).join('\n');
-  document.getElementById('mp-desc').value=b.descripcion||'';document.getElementById('mp-tlen').textContent=(b.titulo||'').length;openModal('modal-pub');}
+  document.getElementById('mp-cuotas').value=b.cuotas_sin_interes||0;
+  document.getElementById('mp-desc').value=b.descripcion||'';document.getElementById('mp-tlen').textContent=(b.titulo||'').length;
+  openModal('modal-pub');setTimeout(calcGanancia,50);}
 async function guardar(){
   const id=document.getElementById('mp-id').value;
   const fotos=document.getElementById('mp-fotos').value.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -189,6 +203,7 @@ async function guardar(){
     precio_referencia:parseFloat(document.getElementById('mp-ref').value)||null,
     producto:document.getElementById('mp-producto').value,cantidad:parseInt(document.getElementById('mp-cant').value)||1,
     listing_type:document.getElementById('mp-listing').value,categoria:document.getElementById('mp-cat').value.trim(),
+    cuotas_sin_interes:parseInt(document.getElementById('mp-cuotas').value)||0,
     fotos,descripcion:document.getElementById('mp-desc').value,atributos:collectAtributos()};
   if(!body.titulo){alert('El título es obligatorio');return;}
   const r=id?await MLAPI.send('/api/ml/borradores/'+id,'PUT',body):await MLAPI.send('/api/ml/borradores','POST',body);
@@ -199,16 +214,28 @@ async function guardar(){
     await MLAPI.send('/api/ml/borradores/'+j.id+'/variantes','POST',{cantidad:nv});}
   closeModal('modal-pub');cargar();toast&&toast(nv&&!id?('Guardado + '+nv+' variantes ✓'):'Guardado ✓');
 }
+// Costo estimado (aprox, configurable) de ofrecer cuotas sin interés al vendedor
+const COSTO_CUOTAS={0:0,3:0.09,6:0.16,9:0.22,12:0.27};
 async function calcGanancia(){
   const precio=parseFloat(document.getElementById('mp-precio').value)||0;
   const costo=parseFloat(document.getElementById('mp-costo').value)||0;
-  const g=document.getElementById('mp-ganancia');
-  if(!precio){g.textContent='';return;}
   const lt=document.getElementById('mp-listing').value, cat=document.getElementById('mp-cat').value.trim();
+  const cuotas=parseInt(document.getElementById('mp-cuotas').value)||0;
+  const g=document.getElementById('mp-ganancia'), cv=document.getElementById('mp-cuota-val');
+  // Valor de la cuota que ve el comprador
+  if(cuotas>0&&precio){cv.innerHTML=(lt!=='gold_pro'?'⚠️ Las cuotas requieren Premium. ':'')+'Se publica en <b>'+cuotas+' cuotas de '+fmt(precio/cuotas)+'</b> sin interés';}
+  else cv.textContent='';
+  if(!precio){g.textContent='';return;}
   let u='/api/ml/fees?precio='+precio+'&listing_type='+lt+(cat?'&categoria='+encodeURIComponent(cat):'')+(costo?'&costo='+costo:'');
   try{const d=await MLAPI.get(u);
-    if(d.ok&&d.comision!=null){g.innerHTML='💸 Comisión ML: <b>'+fmt(d.comision)+'</b> · '+(costo?('Ganancia neta: <b style="color:var(--green)">'+fmt(d.ganancia)+'</b>'):('Te queda: <b style="color:var(--green)">'+fmt(d.neto)+'</b> (sin descontar costo)'));}
-    else g.textContent='';}catch(e){g.textContent='';}
+    if(!(d.ok&&d.comision!=null)){g.textContent='';return;}
+    const costoFin=(cuotas>0&&lt==='gold_pro')?precio*(COSTO_CUOTAS[cuotas]||0):0;
+    const gan=(d.neto!=null?d.neto:precio)-(costo||0)-costoFin;
+    let txt='💸 Comisión ML: <b>'+fmt(d.comision)+'</b>';
+    if(costoFin)txt+=' · 💳 Costo cuotas s/interés (aprox): <b>'+fmt(costoFin)+'</b>';
+    txt+=' · '+(costo||costoFin?'Ganancia neta: ':'Te queda: ')+'<b style="color:var(--green)">'+fmt(gan)+'</b>'+(!costo?' <small>(sin costo)</small>':'');
+    g.innerHTML=txt;
+  }catch(e){g.textContent='';}
 }
 async function borrar(id){if(!confirm('¿Borrar esta publicación?'))return;const r=await MLAPI.send('/api/ml/borradores/'+id,'DELETE');if(r.ok){SEL.delete(id);cargar();}}
 async function competencia(id){toast&&toast('Buscando en ML…');const r=await MLAPI.send('/api/ml/borradores/'+id+'/competencia','POST');const j=await r.json();

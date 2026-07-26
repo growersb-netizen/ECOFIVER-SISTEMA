@@ -60,7 +60,8 @@ def _dict(b: BorradorML) -> dict:
         "id": b.id, "origen": b.origen, "titulo": b.titulo, "descripcion": b.descripcion or "",
         "categoria": b.categoria or "", "producto": b.producto or "", "precio": b.precio or 0,
         "cantidad": b.cantidad or 1, "condicion": b.condicion or "new", "costo": b.costo,
-        "listing_type": b.listing_type or "gold_special", "fotos": fotos,
+        "listing_type": b.listing_type or "gold_special", "cuotas_sin_interes": b.cuotas_sin_interes or 0,
+        "fotos": fotos,
         "precio_referencia": b.precio_referencia, "precio_competencia": b.precio_competencia,
         "referencia_usada": ref, "semaforo": semaforo,
         "estado": b.estado, "item_id": b.item_id, "permalink": b.permalink,
@@ -99,6 +100,7 @@ async def crear(request: Request, db: Session = Depends(get_db),
         cantidad=int(d.get("cantidad") or 1),
         condicion=d.get("condicion", "new"),
         listing_type=d.get("listing_type", "gold_special"),
+        cuotas_sin_interes=int(d.get("cuotas_sin_interes") or 0),
         fotos_json=json.dumps(d.get("fotos") or []),
         atributos_json=json.dumps(d.get("atributos") or []),
         precio_referencia=(float(d["precio_referencia"]) if d.get("precio_referencia") else None),
@@ -122,6 +124,8 @@ async def editar(bid: int, request: Request, db: Session = Depends(get_db),
     for f in ("descripcion", "categoria", "condicion", "listing_type"):
         if f in d:
             setattr(b, f, d[f])
+    if "cuotas_sin_interes" in d:
+        b.cuotas_sin_interes = int(d["cuotas_sin_interes"] or 0)
     if "producto" in d:
         b.producto = (d["producto"] or "").strip().upper() or None
     if "precio" in d:

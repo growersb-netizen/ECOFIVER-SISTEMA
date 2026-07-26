@@ -1252,6 +1252,7 @@ class BorradorML(Base):
     cantidad = Column(Integer, default=1)
     condicion = Column(String(20), default="new")          # new | used
     listing_type = Column(String(30), default="gold_special")   # Clásica por defecto
+    cuotas_sin_interes = Column(Integer, default=0)        # 0 = 1 pago; 3/6/9/12 = cuotas sin interés (Premium)
     fotos_json = Column(Text, default="[]")                # lista de URLs
     atributos_json = Column(Text, default="[]")            # atributos ML [{id,value_name}]
     # ── Competitividad ──

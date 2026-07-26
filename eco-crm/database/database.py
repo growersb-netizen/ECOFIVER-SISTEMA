@@ -99,6 +99,7 @@ def run_migrations():
             "ALTER TABLE leads ADD COLUMN timestamp_comprobante DATETIME",
             "ALTER TABLE leads ADD COLUMN estado_verificacion TEXT DEFAULT 'pendiente'",
             "ALTER TABLE aliados ADD COLUMN pin TEXT",
+            "ALTER TABLE borradores_ml ADD COLUMN costo REAL",
             # ── Bandeja de entrada — modo de atención ─────────────────────────
             "ALTER TABLE leads ADD COLUMN modo_atencion TEXT DEFAULT 'bot'",
             # ── VentaContado: particularidades módulo ──────────────────────────

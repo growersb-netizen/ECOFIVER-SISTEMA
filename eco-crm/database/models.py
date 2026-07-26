@@ -1248,6 +1248,7 @@ class BorradorML(Base):
     categoria = Column(String(20), default="")             # MLA... (si vacío, se infiere del producto)
     producto = Column(String(20), nullable=True)           # PISCINA | MODULO | COMBO
     precio = Column(Float, default=0)
+    costo = Column(Float, nullable=True)                    # costo del producto (para calcular ganancia)
     cantidad = Column(Integer, default=1)
     condicion = Column(String(20), default="new")          # new | used
     listing_type = Column(String(30), default="gold_special")   # Clásica por defecto

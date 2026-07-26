@@ -59,7 +59,7 @@ def _dict(b: BorradorML) -> dict:
     return {
         "id": b.id, "origen": b.origen, "titulo": b.titulo, "descripcion": b.descripcion or "",
         "categoria": b.categoria or "", "producto": b.producto or "", "precio": b.precio or 0,
-        "cantidad": b.cantidad or 1, "condicion": b.condicion or "new",
+        "cantidad": b.cantidad or 1, "condicion": b.condicion or "new", "costo": b.costo,
         "listing_type": b.listing_type or "gold_special", "fotos": fotos,
         "precio_referencia": b.precio_referencia, "precio_competencia": b.precio_competencia,
         "referencia_usada": ref, "semaforo": semaforo,
@@ -95,6 +95,7 @@ async def crear(request: Request, db: Session = Depends(get_db),
         categoria=(d.get("categoria") or "").strip(),
         producto=(d.get("producto") or "").strip().upper() or None,
         precio=float(d.get("precio") or 0),
+        costo=(float(d["costo"]) if d.get("costo") else None),
         cantidad=int(d.get("cantidad") or 1),
         condicion=d.get("condicion", "new"),
         listing_type=d.get("listing_type", "gold_special"),
@@ -125,6 +126,8 @@ async def editar(bid: int, request: Request, db: Session = Depends(get_db),
         b.producto = (d["producto"] or "").strip().upper() or None
     if "precio" in d:
         b.precio = float(d["precio"] or 0)
+    if "costo" in d:
+        b.costo = float(d["costo"]) if d["costo"] else None
     if "cantidad" in d:
         b.cantidad = int(d["cantidad"] or 1)
     if "fotos" in d:
@@ -332,10 +335,9 @@ async def desde_catalogo(db: Session = Depends(get_db), x_api_key=Header(None),
                          current_user: Optional[Usuario] = Depends(get_current_user)):
     """Genera borradores a partir del catálogo del CRM (mejor esfuerzo)."""
     _auth(x_api_key, current_user)
-    import json as _json
     try:
-        from routers.catalogo import get_catalogo_data
-        cat = get_catalogo_data(db) or {}
+        from routers.catalogo import load_catalogo
+        cat = load_catalogo() or {}
     except Exception as e:
         raise HTTPException(400, f"No se pudo leer el catálogo: {e}")
 
@@ -353,11 +355,14 @@ async def desde_catalogo(db: Session = Depends(get_db), x_api_key=Header(None),
         creados += 1
 
     pis = (cat.get("piscinas") or {})
-    for modelo, precio in (pis.get("precios") or {}).items():
-        _agregar(f"Piscina {modelo}", precio, "PISCINA")
+    precios_p = pis.get("precios") or {}
+    for modelo in pis.get("modelos") or []:
+        _agregar(f"Piscina {modelo}", precios_p.get(modelo, 0), "PISCINA")
     mod = (cat.get("modulos") or {})
-    for modelo, precio in (mod.get("precios") or {}).items():
-        _agregar(f"Módulo {modelo}", precio, "MODULO")
+    precios_m = mod.get("precios") or {}
+    modelos_mod = (mod.get("modelos") or []) + (mod.get("modelos_custom") or [])
+    for modelo in modelos_mod:
+        _agregar(f"Módulo {modelo}", precios_m.get(modelo, 0), "MODULO")
     db.commit()
     return {"ok": True, "creados": creados}
 
@@ -493,3 +498,57 @@ async def categoria_sugerida(titulo: str, db: Session = Depends(get_db), x_api_k
         except Exception:
             pass
     return {"categoria": cat, "nombre": nombre}
+
+
+@router.get("/api/ml/fees")
+async def calcular_fees(precio: float, listing_type: str = "gold_special",
+                        categoria: Optional[str] = None, costo: Optional[float] = None,
+                        db: Session = Depends(get_db), x_api_key=Header(None),
+                        current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Comisión de MercadoLibre por venta y ganancia neta, en función del precio."""
+    _auth(x_api_key, current_user)
+    tok = await _ml_valid_token(db)
+    params = {"price": precio, "listing_type_id": listing_type}
+    if categoria:
+        params["category_id"] = categoria
+    async with httpx.AsyncClient(timeout=12) as c:
+        r = await c.get(f"{ML_BASE}/sites/MLA/listing_prices", params=params, headers=_ml_headers(tok))
+    if r.status_code != 200:
+        return {"ok": False, "error": r.text[:200]}
+    data = r.json()
+    fee = None
+    if isinstance(data, list):
+        for x in data:
+            if x.get("listing_type_id") == listing_type:
+                fee = x.get("sale_fee_amount")
+                break
+        if fee is None and data:
+            fee = data[0].get("sale_fee_amount")
+    elif isinstance(data, dict):
+        fee = data.get("sale_fee_amount")
+    neto = (precio - fee) if fee is not None else None
+    ganancia = (neto - costo) if (neto is not None and costo) else neto
+    return {"ok": True, "precio": precio, "comision": fee, "neto": neto,
+            "costo": costo, "ganancia": ganancia}
+
+
+@router.post("/api/ml/borradores/{bid}/duplicar")
+async def duplicar(bid: int, db: Session = Depends(get_db), x_api_key=Header(None),
+                   current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Duplica un borrador (para cargar rápido variaciones a mano)."""
+    _auth(x_api_key, current_user)
+    b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+    if not b:
+        raise HTTPException(404, "Borrador no encontrado")
+    nuevo = BorradorML(
+        origen=b.origen, titulo=(b.titulo + " (copia)")[:60], descripcion=b.descripcion,
+        categoria=b.categoria, producto=b.producto, precio=b.precio, costo=b.costo,
+        cantidad=b.cantidad, condicion=b.condicion, listing_type=b.listing_type,
+        fotos_json=b.fotos_json, atributos_json=b.atributos_json,
+        precio_referencia=b.precio_referencia, precio_competencia=b.precio_competencia,
+        variante_de=b.id, created_by_id=current_user.id if current_user else None,
+    )
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return {"ok": True, **_dict(nuevo)}

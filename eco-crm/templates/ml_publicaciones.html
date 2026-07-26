@@ -53,9 +53,20 @@
       <input class="form-control" id="mp-titulo" maxlength="60" oninput="document.getElementById('mp-tlen').textContent=this.value.length">
       <div style="font-size:11px;color:var(--text-muted);text-align:right"><span id="mp-tlen">0</span>/60</div>
       <div class="fp-row2">
-        <div><label class="form-label">Precio (ARS) *</label><input class="form-control" type="number" id="mp-precio"></div>
-        <div><label class="form-label">Precio referencia (competencia)</label><input class="form-control" type="number" id="mp-ref" placeholder="el más barato que viste"></div>
+        <div><label class="form-label">Precio (ARS) *</label><input class="form-control" type="number" id="mp-precio" oninput="calcGanancia()"></div>
+        <div><label class="form-label">Costo del producto</label><input class="form-control" type="number" id="mp-costo" placeholder="para calcular ganancia" oninput="calcGanancia()"></div>
       </div>
+      <div class="fp-row2">
+        <div><label class="form-label">Precio referencia (competencia)</label><input class="form-control" type="number" id="mp-ref" placeholder="el más barato que viste"></div>
+        <div><label class="form-label">🧬 Variantes a generar al guardar</label>
+          <select class="form-control" id="mp-variantes">
+            <option value="0">Sin variantes (1 publicación)</option>
+            <option value="3">3 variantes</option>
+            <option value="5">5 variantes</option>
+            <option value="10">10 variantes</option>
+          </select></div>
+      </div>
+      <div id="mp-ganancia" style="font-size:13px;margin:2px 0 8px;color:var(--text-muted)"></div>
       <div class="fp-row2">
         <div><label class="form-label">Producto</label>
           <select class="form-control" id="mp-producto">
@@ -67,7 +78,7 @@
       </div>
       <div class="fp-row2">
         <div><label class="form-label">Tipo de publicación</label>
-          <select class="form-control" id="mp-listing">
+          <select class="form-control" id="mp-listing" onchange="calcGanancia()">
             <option value="gold_special">Clásica (comisión estándar)</option>
             <option value="gold_pro">Premium (más visibilidad)</option>
           </select></div>
@@ -135,8 +146,10 @@ async function cargar(){
       <div class="pm-actions">
         ${b.estado!=='publicada'?`<button class="btn btn-sm btn-primary" onclick="publicar(${b.id})">Publicar</button>`:''}
         ${b.estado!=='publicada'?`<button class="btn btn-sm btn-secondary" onclick='editar(${JSON.stringify(b)})'>Editar</button>`:''}
+        <button class="btn btn-sm" onclick="verCostos(${b.id},${b.precio||0},'${b.listing_type}','${b.categoria||''}',${b.costo||0})" title="Comisión ML y ganancia">💰 Costos</button>
         <button class="btn btn-sm" onclick="competencia(${b.id})" title="Buscar precio competencia (auto)">🔍 Competencia</button>
         ${b.estado!=='publicada'?`<button class="btn btn-sm" onclick="variantes(${b.id})" title="Generar variantes con IA">🤖 Variantes</button>`:''}
+        <button class="btn btn-sm" onclick="duplicar(${b.id})" title="Duplicar publicación">📋 Duplicar</button>
         ${verML}
         ${b.estado!=='publicada'?`<button class="btn btn-sm" style="color:#f87171" onclick="borrar(${b.id})">Borrar</button>`:''}
       </div></div>`;
@@ -155,12 +168,14 @@ function toggleTodos(c){
 function actLote(){document.getElementById('sel-n').textContent=SEL.size;document.getElementById('btn-lote').style.display=SEL.size?'inline-flex':'none';}
 
 function nuevaPub(){document.getElementById('mp-id').value='';document.getElementById('mp-tit').textContent='Nueva publicación';
-  ['mp-titulo','mp-precio','mp-ref','mp-cat','mp-fotos','mp-desc'].forEach(i=>document.getElementById(i).value='');
+  ['mp-titulo','mp-precio','mp-costo','mp-ref','mp-cat','mp-fotos','mp-desc'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('mp-cant').value=1;document.getElementById('mp-tlen').textContent='0';
+  document.getElementById('mp-variantes').value='0';document.getElementById('mp-ganancia').textContent='';
   document.getElementById('mp-atributos').textContent='Tocá "Cargar requeridos" para ver qué pide la categoría.';
   document.getElementById('mp-foto-msg').textContent='';openModal('modal-pub');}
 function editar(b){document.getElementById('mp-id').value=b.id;document.getElementById('mp-tit').textContent='Editar publicación';
   document.getElementById('mp-titulo').value=b.titulo;document.getElementById('mp-precio').value=b.precio;
+  document.getElementById('mp-costo').value=b.costo||'';document.getElementById('mp-variantes').value='0';document.getElementById('mp-ganancia').textContent='';
   document.getElementById('mp-ref').value=b.precio_referencia||'';document.getElementById('mp-producto').value=b.producto||'MODULO';
   document.getElementById('mp-cant').value=b.cantidad;document.getElementById('mp-listing').value=b.listing_type;
   document.getElementById('mp-cat').value=b.categoria||'';document.getElementById('mp-fotos').value=(b.fotos||[]).join('\n');
@@ -170,13 +185,30 @@ async function guardar(){
   const fotos=document.getElementById('mp-fotos').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const body={titulo:document.getElementById('mp-titulo').value.trim(),
     precio:parseFloat(document.getElementById('mp-precio').value)||0,
+    costo:parseFloat(document.getElementById('mp-costo').value)||null,
     precio_referencia:parseFloat(document.getElementById('mp-ref').value)||null,
     producto:document.getElementById('mp-producto').value,cantidad:parseInt(document.getElementById('mp-cant').value)||1,
     listing_type:document.getElementById('mp-listing').value,categoria:document.getElementById('mp-cat').value.trim(),
     fotos,descripcion:document.getElementById('mp-desc').value,atributos:collectAtributos()};
   if(!body.titulo){alert('El título es obligatorio');return;}
   const r=id?await MLAPI.send('/api/ml/borradores/'+id,'PUT',body):await MLAPI.send('/api/ml/borradores','POST',body);
-  if(r.ok){closeModal('modal-pub');cargar();toast&&toast('Guardado ✓');}else{const e=await r.json();alert(e.detail||'Error');}
+  const j=await r.json();
+  if(!r.ok){alert(j.detail||'Error');return;}
+  const nv=parseInt(document.getElementById('mp-variantes').value)||0;
+  if(!id && nv>0 && j.id){toast&&toast('Generando '+nv+' variantes con IA…');
+    await MLAPI.send('/api/ml/borradores/'+j.id+'/variantes','POST',{cantidad:nv});}
+  closeModal('modal-pub');cargar();toast&&toast(nv&&!id?('Guardado + '+nv+' variantes ✓'):'Guardado ✓');
+}
+async function calcGanancia(){
+  const precio=parseFloat(document.getElementById('mp-precio').value)||0;
+  const costo=parseFloat(document.getElementById('mp-costo').value)||0;
+  const g=document.getElementById('mp-ganancia');
+  if(!precio){g.textContent='';return;}
+  const lt=document.getElementById('mp-listing').value, cat=document.getElementById('mp-cat').value.trim();
+  let u='/api/ml/fees?precio='+precio+'&listing_type='+lt+(cat?'&categoria='+encodeURIComponent(cat):'')+(costo?'&costo='+costo:'');
+  try{const d=await MLAPI.get(u);
+    if(d.ok&&d.comision!=null){g.innerHTML='💸 Comisión ML: <b>'+fmt(d.comision)+'</b> · '+(costo?('Ganancia neta: <b style="color:var(--green)">'+fmt(d.ganancia)+'</b>'):('Te queda: <b style="color:var(--green)">'+fmt(d.neto)+'</b> (sin descontar costo)'));}
+    else g.textContent='';}catch(e){g.textContent='';}
 }
 async function borrar(id){if(!confirm('¿Borrar esta publicación?'))return;const r=await MLAPI.send('/api/ml/borradores/'+id,'DELETE');if(r.ok){SEL.delete(id);cargar();}}
 async function competencia(id){toast&&toast('Buscando en ML…');const r=await MLAPI.send('/api/ml/borradores/'+id+'/competencia','POST');const j=await r.json();
@@ -210,6 +242,17 @@ async function variantes(id){
   const r=await MLAPI.send('/api/ml/borradores/'+id+'/variantes','POST',{cantidad:parseInt(n)||3});
   const j=await r.json();
   if(r.ok){cargar();toast&&toast('Variantes creadas: '+(j.creados||0));}else alert(j.detail||'Error IA');
+}
+async function duplicar(id){const r=await MLAPI.send('/api/ml/borradores/'+id+'/duplicar','POST');if(r.ok){cargar();toast&&toast('Duplicada ✓');}else alert('Error');}
+async function verCostos(id,precio,lt,cat,costo){
+  toast&&toast('Consultando comisión ML…');
+  let u='/api/ml/fees?precio='+precio+'&listing_type='+lt+(cat?'&categoria='+encodeURIComponent(cat):'')+(costo?'&costo='+costo:'');
+  const d=await MLAPI.get(u);
+  if(d.ok&&d.comision!=null){
+    alert('💰 Costos de la publicación\n\nPrecio de venta: '+fmt(precio)+
+      '\nComisión MercadoLibre: '+fmt(d.comision)+
+      (costo?('\nCosto del producto: '+fmt(costo)+'\n\nGANANCIA NETA: '+fmt(d.ganancia)):('\n\nTe queda (sin descontar costo): '+fmt(d.neto)+'\n(Cargá el costo en Editar para ver la ganancia real)')));
+  }else alert('ML no devolvió la comisión (revisá precio/categoría).');
 }
 // ── Subida de fotos a ML ──
 async function subirFoto(input){

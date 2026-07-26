@@ -348,6 +348,36 @@
   }
 
   // ────────────────────────────────────────────────────────────
+  // Popup "Antes del Verano": aparece una vez por sesión, poco
+  // después de entrar a la página.
+  // ────────────────────────────────────────────────────────────
+  const popupOverlay = document.getElementById("popup-overlay");
+  if (popupOverlay) {
+    const POPUP_SESSION_KEY = "ecofiver_popup_antes_del_verano";
+
+    function cerrarPopup() {
+      popupOverlay.classList.remove("open");
+    }
+
+    document.getElementById("popup-close").addEventListener("click", cerrarPopup);
+    document.getElementById("popup-dismiss").addEventListener("click", cerrarPopup);
+    document.getElementById("popup-wa-cta").addEventListener("click", cerrarPopup);
+    popupOverlay.addEventListener("click", function (e) {
+      if (e.target === popupOverlay) cerrarPopup();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") cerrarPopup();
+    });
+
+    if (!sessionStorage.getItem(POPUP_SESSION_KEY)) {
+      setTimeout(function () {
+        popupOverlay.classList.add("open");
+        sessionStorage.setItem(POPUP_SESSION_KEY, "1");
+      }, 1500);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
   // Animación sutil al hacer scroll (respeta "reducir movimiento")
   // ────────────────────────────────────────────────────────────
   if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {

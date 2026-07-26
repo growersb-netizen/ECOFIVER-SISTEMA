@@ -226,6 +226,25 @@ async def ml_conexion(
     }
 
 
+@router.post("/mercadolibre/notifications")
+async def ml_notifications(request: Request, db: Session = Depends(get_db)):
+    """
+    Webhook público de MercadoLibre (Notifications callback URL).
+    IMPORTANTE: hay que responder 200 rápido (ML reintenta y, si falla
+    seguido, desactiva/revoca el permiso de la app). No requiere auth:
+    lo llama MercadoLibre, no un usuario logueado.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    try:
+        _ml_save(db, "ml_ultima_notificacion", json.dumps(data, ensure_ascii=False)[:2000], secreto=False)
+    except Exception:
+        pass
+    return {"ok": True}
+
+
 # ─── PÁGINAS ──────────────────────────────────────────────────────────────────
 
 @router.get("/mercadolibre", response_class=HTMLResponse)

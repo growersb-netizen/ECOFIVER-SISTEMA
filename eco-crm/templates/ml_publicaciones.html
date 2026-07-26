@@ -98,13 +98,13 @@
 
 {% block extra_js %}
 <script>
-const API={get:u=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
+const MLAPI={get:u=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
   send:(u,m,b)=>fetch(u,{method:m,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined})};
 const SEL=new Set();
 const fmt=n=>'$'+(Number(n)||0).toLocaleString('es-AR');
 
 async function conexion(){
-  try{const d=await API.get('/api/ml/conexion');
+  try{const d=await MLAPI.get('/api/ml/conexion');
     document.getElementById('ml-conexion').innerHTML = d.conectado
       ? '🟢 ML conectado: <b>'+(d.nickname||'')+'</b>' : '🔴 ML no conectado';
   }catch(e){}
@@ -112,7 +112,7 @@ async function conexion(){
 const SEM={rompes:['sem-rompes','🟢 Rompés mercado'],en_linea:['sem-en_linea','🟡 En línea'],caro:['sem-caro','🔴 Estás caro']};
 async function cargar(){
   const e=document.getElementById('f-estado').value;
-  const d=await API.get('/api/ml/borradores'+(e?'?estado='+e:''));
+  const d=await MLAPI.get('/api/ml/borradores'+(e?'?estado='+e:''));
   const cont=document.getElementById('pm-lista');
   document.getElementById('pm-count').textContent=(d.total||0)+' publicaciones';
   if(!d.borradores||!d.borradores.length){cont.innerHTML='<div class="empty">Todavía no cargaste publicaciones. Tocá <b>+ Nueva publicación</b>.</div>';return;}
@@ -175,17 +175,17 @@ async function guardar(){
     listing_type:document.getElementById('mp-listing').value,categoria:document.getElementById('mp-cat').value.trim(),
     fotos,descripcion:document.getElementById('mp-desc').value,atributos:collectAtributos()};
   if(!body.titulo){alert('El título es obligatorio');return;}
-  const r=id?await API.send('/api/ml/borradores/'+id,'PUT',body):await API.send('/api/ml/borradores','POST',body);
+  const r=id?await MLAPI.send('/api/ml/borradores/'+id,'PUT',body):await MLAPI.send('/api/ml/borradores','POST',body);
   if(r.ok){closeModal('modal-pub');cargar();toast&&toast('Guardado ✓');}else{const e=await r.json();alert(e.detail||'Error');}
 }
-async function borrar(id){if(!confirm('¿Borrar esta publicación?'))return;const r=await API.send('/api/ml/borradores/'+id,'DELETE');if(r.ok){SEL.delete(id);cargar();}}
-async function competencia(id){toast&&toast('Buscando en ML…');const r=await API.send('/api/ml/borradores/'+id+'/competencia','POST');const j=await r.json();
+async function borrar(id){if(!confirm('¿Borrar esta publicación?'))return;const r=await MLAPI.send('/api/ml/borradores/'+id,'DELETE');if(r.ok){SEL.delete(id);cargar();}}
+async function competencia(id){toast&&toast('Buscando en ML…');const r=await MLAPI.send('/api/ml/borradores/'+id+'/competencia','POST');const j=await r.json();
   if(r.ok){cargar();toast&&toast(j.precio_competencia?('Competencia: '+fmt(j.precio_competencia)):'ML no devolvió precio para este producto');}else alert('Error');}
 async function publicar(id){if(!confirm('¿Publicar en MercadoLibre ahora?'))return;toast&&toast('Publicando…');
-  const r=await API.send('/api/ml/borradores/'+id+'/publicar','POST');const j=await r.json();
+  const r=await MLAPI.send('/api/ml/borradores/'+id+'/publicar','POST');const j=await r.json();
   if(j.ok){cargar();toast&&toast('Publicada ✓');}else{cargar();alert('No se pudo publicar:\n'+(j.error_msg||'error'));}}
 async function publicarLote(){if(!SEL.size)return;if(!confirm('¿Publicar '+SEL.size+' publicaciones en MercadoLibre?'))return;
-  toast&&toast('Publicando lote…');const r=await API.send('/api/ml/borradores/publicar-lote','POST',{ids:[...SEL]});const j=await r.json();
+  toast&&toast('Publicando lote…');const r=await MLAPI.send('/api/ml/borradores/publicar-lote','POST',{ids:[...SEL]});const j=await r.json();
   SEL.clear();cargar();alert('Publicadas: '+j.publicadas+' · Errores: '+j.errores);}
 
 // ── Importación masiva ──
@@ -200,14 +200,14 @@ async function importarArchivo(input){
 async function importarCatalogo(){
   if(!confirm('¿Traer los productos del catálogo del CRM como borradores?'))return;
   toast&&toast('Importando catálogo…');
-  const r=await API.send('/api/ml/borradores/desde-catalogo','POST');const j=await r.json();
+  const r=await MLAPI.send('/api/ml/borradores/desde-catalogo','POST');const j=await r.json();
   if(r.ok){cargar();alert('Importados del catálogo: '+(j.creados||0));}else alert(j.detail||'Error');
 }
 // ── Variantes con IA ──
 async function variantes(id){
   const n=prompt('¿Cuántas variantes generar con IA? (1 a 8)','3');if(!n)return;
   toast&&toast('Generando variantes con IA…');
-  const r=await API.send('/api/ml/borradores/'+id+'/variantes','POST',{cantidad:parseInt(n)||3});
+  const r=await MLAPI.send('/api/ml/borradores/'+id+'/variantes','POST',{cantidad:parseInt(n)||3});
   const j=await r.json();
   if(r.ok){cargar();toast&&toast('Variantes creadas: '+(j.creados||0));}else alert(j.detail||'Error IA');
 }
@@ -231,7 +231,7 @@ async function cargarAtributos(){
   if(!cat&&!tit){cont.textContent='Escribí primero el título (o la categoría) para detectar los atributos.';return;}
   cont.textContent='Consultando ML…';
   let u='/api/ml/categoria-atributos?'+(cat?'categoria='+encodeURIComponent(cat):'titulo='+encodeURIComponent(tit));
-  const d=await API.get(u);
+  const d=await MLAPI.get(u);
   if(d.categoria&&!cat){document.getElementById('mp-cat').value=d.categoria;}
   if(!d.atributos||!d.atributos.length){cont.innerHTML='<span style="color:var(--green)">✓ Esta categoría no exige atributos obligatorios.</span>';return;}
   cont.innerHTML=d.atributos.map(a=>{

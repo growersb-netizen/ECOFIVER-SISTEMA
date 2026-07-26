@@ -5,6 +5,9 @@
 {% block top_actions %}
 <span id="ml-conexion" style="font-size:13px;color:var(--text-muted)">…</span>
 <button class="btn btn-primary" onclick="nuevaPub()">+ Nueva publicación</button>
+<label class="btn btn-secondary" style="cursor:pointer">📥 Importar CSV/Excel
+  <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importarArchivo(this)"></label>
+<button class="btn btn-secondary" onclick="importarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
 <button class="btn btn-secondary" id="btn-lote" onclick="publicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="sel-n">0</span>)</button>
 {% endblock %}
 
@@ -70,8 +73,18 @@
           </select></div>
         <div><label class="form-label">Categoría ML <small style="color:var(--text-muted)">(opcional)</small></label><input class="form-control" id="mp-cat" placeholder="se infiere del producto"></div>
       </div>
-      <label class="form-label">Fotos (URLs, una por línea)</label>
-      <textarea class="form-control" id="mp-fotos" rows="2" placeholder="https://... (después sumamos subida directa)"></textarea>
+      <label class="form-label">Fotos</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <label class="btn btn-sm btn-secondary" style="cursor:pointer">📸 Subir foto
+          <input type="file" accept="image/*" style="display:none" onchange="subirFoto(this)"></label>
+        <span id="mp-foto-msg" style="font-size:12px;color:var(--text-muted)"></span>
+      </div>
+      <textarea class="form-control" id="mp-fotos" rows="2" placeholder="URLs (una por línea). O usá 'Subir foto' y se agrega sola."></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+        <label class="form-label" style="margin:0">Atributos obligatorios de ML</label>
+        <button class="btn btn-sm" type="button" onclick="cargarAtributos()">Cargar requeridos</button>
+      </div>
+      <div id="mp-atributos" style="font-size:13px;color:var(--text-muted)">Tocá "Cargar requeridos" para ver qué pide la categoría.</div>
       <label class="form-label">Descripción</label>
       <textarea class="form-control" id="mp-desc" rows="4"></textarea>
     </div>
@@ -123,6 +136,7 @@ async function cargar(){
         ${b.estado!=='publicada'?`<button class="btn btn-sm btn-primary" onclick="publicar(${b.id})">Publicar</button>`:''}
         ${b.estado!=='publicada'?`<button class="btn btn-sm btn-secondary" onclick='editar(${JSON.stringify(b)})'>Editar</button>`:''}
         <button class="btn btn-sm" onclick="competencia(${b.id})" title="Buscar precio competencia (auto)">🔍 Competencia</button>
+        ${b.estado!=='publicada'?`<button class="btn btn-sm" onclick="variantes(${b.id})" title="Generar variantes con IA">🤖 Variantes</button>`:''}
         ${verML}
         ${b.estado!=='publicada'?`<button class="btn btn-sm" style="color:#f87171" onclick="borrar(${b.id})">Borrar</button>`:''}
       </div></div>`;
@@ -142,7 +156,9 @@ function actLote(){document.getElementById('sel-n').textContent=SEL.size;documen
 
 function nuevaPub(){document.getElementById('mp-id').value='';document.getElementById('mp-tit').textContent='Nueva publicación';
   ['mp-titulo','mp-precio','mp-ref','mp-cat','mp-fotos','mp-desc'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('mp-cant').value=1;document.getElementById('mp-tlen').textContent='0';openModal('modal-pub');}
+  document.getElementById('mp-cant').value=1;document.getElementById('mp-tlen').textContent='0';
+  document.getElementById('mp-atributos').textContent='Tocá "Cargar requeridos" para ver qué pide la categoría.';
+  document.getElementById('mp-foto-msg').textContent='';openModal('modal-pub');}
 function editar(b){document.getElementById('mp-id').value=b.id;document.getElementById('mp-tit').textContent='Editar publicación';
   document.getElementById('mp-titulo').value=b.titulo;document.getElementById('mp-precio').value=b.precio;
   document.getElementById('mp-ref').value=b.precio_referencia||'';document.getElementById('mp-producto').value=b.producto||'MODULO';
@@ -157,7 +173,7 @@ async function guardar(){
     precio_referencia:parseFloat(document.getElementById('mp-ref').value)||null,
     producto:document.getElementById('mp-producto').value,cantidad:parseInt(document.getElementById('mp-cant').value)||1,
     listing_type:document.getElementById('mp-listing').value,categoria:document.getElementById('mp-cat').value.trim(),
-    fotos,descripcion:document.getElementById('mp-desc').value};
+    fotos,descripcion:document.getElementById('mp-desc').value,atributos:collectAtributos()};
   if(!body.titulo){alert('El título es obligatorio');return;}
   const r=id?await API.send('/api/ml/borradores/'+id,'PUT',body):await API.send('/api/ml/borradores','POST',body);
   if(r.ok){closeModal('modal-pub');cargar();toast&&toast('Guardado ✓');}else{const e=await r.json();alert(e.detail||'Error');}
@@ -171,6 +187,62 @@ async function publicar(id){if(!confirm('¿Publicar en MercadoLibre ahora?'))ret
 async function publicarLote(){if(!SEL.size)return;if(!confirm('¿Publicar '+SEL.size+' publicaciones en MercadoLibre?'))return;
   toast&&toast('Publicando lote…');const r=await API.send('/api/ml/borradores/publicar-lote','POST',{ids:[...SEL]});const j=await r.json();
   SEL.clear();cargar();alert('Publicadas: '+j.publicadas+' · Errores: '+j.errores);}
+
+// ── Importación masiva ──
+async function importarArchivo(input){
+  if(!input.files||!input.files[0])return;
+  const fd=new FormData();fd.append('file',input.files[0]);
+  toast&&toast('Importando…');
+  const r=await fetch('/api/ml/borradores/importar',{method:'POST',credentials:'same-origin',body:fd});
+  const j=await r.json();input.value='';
+  if(r.ok){cargar();alert('Importados: '+(j.creados||0)+' borradores');}else alert(j.detail||'Error al importar');
+}
+async function importarCatalogo(){
+  if(!confirm('¿Traer los productos del catálogo del CRM como borradores?'))return;
+  toast&&toast('Importando catálogo…');
+  const r=await API.send('/api/ml/borradores/desde-catalogo','POST');const j=await r.json();
+  if(r.ok){cargar();alert('Importados del catálogo: '+(j.creados||0));}else alert(j.detail||'Error');
+}
+// ── Variantes con IA ──
+async function variantes(id){
+  const n=prompt('¿Cuántas variantes generar con IA? (1 a 8)','3');if(!n)return;
+  toast&&toast('Generando variantes con IA…');
+  const r=await API.send('/api/ml/borradores/'+id+'/variantes','POST',{cantidad:parseInt(n)||3});
+  const j=await r.json();
+  if(r.ok){cargar();toast&&toast('Variantes creadas: '+(j.creados||0));}else alert(j.detail||'Error IA');
+}
+// ── Subida de fotos a ML ──
+async function subirFoto(input){
+  if(!input.files||!input.files[0])return;
+  const msg=document.getElementById('mp-foto-msg');msg.textContent='Subiendo…';
+  const fd=new FormData();fd.append('file',input.files[0]);
+  try{
+    const r=await fetch('/api/ml/fotos',{method:'POST',credentials:'same-origin',body:fd});
+    const j=await r.json();input.value='';
+    if(j.ok&&j.url){const ta=document.getElementById('mp-fotos');ta.value=(ta.value?ta.value+'\n':'')+j.url;msg.textContent='✓ Foto agregada';}
+    else msg.textContent='Error: '+(j.error||'no se pudo subir');
+  }catch(e){msg.textContent='Error de red';}
+}
+// ── Atributos obligatorios ──
+async function cargarAtributos(){
+  const cat=document.getElementById('mp-cat').value.trim();
+  const prod=document.getElementById('mp-producto').value;
+  const cont=document.getElementById('mp-atributos');cont.textContent='Consultando ML…';
+  let u='/api/ml/categoria-atributos?'+(cat?'categoria='+cat:'producto='+prod);
+  const d=await API.get(u);
+  if(!d.atributos||!d.atributos.length){cont.innerHTML='<span style="color:var(--green)">✓ Esta categoría no exige atributos obligatorios.</span>';return;}
+  cont.innerHTML=d.atributos.map(a=>{
+    const inp=a.valores&&a.valores.length
+      ? `<select class="form-control attr-inp" data-id="${a.id}"><option value="">—</option>`+a.valores.map(v=>`<option>${v}</option>`).join('')+`</select>`
+      : `<input class="form-control attr-inp" data-id="${a.id}" placeholder="${a.name}">`;
+    return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name} *</label>${inp}</div>`;
+  }).join('');
+}
+function collectAtributos(){
+  const out=[];document.querySelectorAll('#mp-atributos .attr-inp').forEach(el=>{
+    const v=(el.value||'').trim();if(v)out.push({id:el.dataset.id,value_name:v});});
+  return out;
+}
 
 document.addEventListener('DOMContentLoaded',()=>{conexion();cargar();});
 </script>

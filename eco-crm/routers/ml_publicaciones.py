@@ -7,8 +7,10 @@ Reutiliza el OAuth/token del módulo mercadolibre.
 import json
 from typing import Optional
 
+import io
+import re
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Header, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -20,6 +22,7 @@ from routers.configuracion import _require_config_access
 from routers.mercadolibre import (
     _ml_valid_token, _ml_headers, ML_BASE, ML_CATEGORIAS, API_KEY,
 )
+from utils.ai_client import ai_complete
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -260,3 +263,194 @@ async def publicar_lote(request: Request, db: Session = Depends(get_db),
         db.commit()
         detalle.append({"id": bid, "ok": res["ok"], "item_id": b.item_id, "error": b.error_msg})
     return {"ok": True, "publicadas": pub, "errores": err, "detalle": detalle}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CARGA MASIVA · CATÁLOGO · VARIANTES IA · ATRIBUTOS · FOTOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _col(row, *names):
+    for n in names:
+        for k in row.keys():
+            if str(k).strip().lower() == n:
+                v = row[k]
+                return "" if v is None else str(v).strip()
+    return ""
+
+
+@router.post("/api/ml/borradores/importar")
+async def importar_masiva(file: UploadFile = File(...), db: Session = Depends(get_db),
+                          x_api_key=Header(None), current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Carga masiva desde Excel/CSV. Columnas: titulo, precio, producto, descripcion, cantidad, fotos, precio_referencia."""
+    _auth(x_api_key, current_user)
+    import pandas as pd
+    content = await file.read()
+    try:
+        if (file.filename or "").lower().endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(content))
+        else:
+            df = pd.read_excel(io.BytesIO(content))
+    except Exception as e:
+        raise HTTPException(400, f"No se pudo leer el archivo: {e}")
+
+    creados = 0
+    for _, r in df.iterrows():
+        row = r.to_dict()
+        titulo = _col(row, "titulo", "title", "nombre", "producto")
+        if not titulo or titulo.lower() == "nan":
+            continue
+        precio_raw = _col(row, "precio", "price").replace("$", "").replace(".", "").replace(",", ".")
+        ref_raw = _col(row, "precio_referencia", "referencia", "competencia").replace("$", "").replace(".", "").replace(",", ".")
+        fotos = [u.strip() for u in re.split(r"[;\n|]", _col(row, "fotos", "imagenes", "fotos_urls")) if u.strip()]
+        try:
+            precio = float(precio_raw) if precio_raw else 0
+        except Exception:
+            precio = 0
+        try:
+            ref = float(ref_raw) if ref_raw else None
+        except Exception:
+            ref = None
+        b = BorradorML(
+            origen="masiva", titulo=titulo[:60],
+            descripcion=_col(row, "descripcion", "description", "detalle"),
+            producto=(_col(row, "producto", "tipo").upper() or "MODULO"),
+            precio=precio, precio_referencia=ref,
+            cantidad=int(float(_col(row, "cantidad", "stock") or 1)),
+            fotos_json=__import__("json").dumps(fotos),
+            created_by_id=current_user.id if current_user else None,
+        )
+        db.add(b)
+        creados += 1
+    db.commit()
+    return {"ok": True, "creados": creados}
+
+
+@router.post("/api/ml/borradores/desde-catalogo")
+async def desde_catalogo(db: Session = Depends(get_db), x_api_key=Header(None),
+                         current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Genera borradores a partir del catálogo del CRM (mejor esfuerzo)."""
+    _auth(x_api_key, current_user)
+    import json as _json
+    try:
+        from routers.catalogo import get_catalogo_data
+        cat = get_catalogo_data(db) or {}
+    except Exception as e:
+        raise HTTPException(400, f"No se pudo leer el catálogo: {e}")
+
+    creados = 0
+
+    def _agregar(nombre, precio, producto):
+        nonlocal creados
+        if not nombre:
+            return
+        b = BorradorML(origen="catalogo", titulo=str(nombre)[:60],
+                       producto=producto, precio=float(precio or 0),
+                       cantidad=1, fotos_json="[]",
+                       created_by_id=current_user.id if current_user else None)
+        db.add(b)
+        creados += 1
+
+    pis = (cat.get("piscinas") or {})
+    for modelo, precio in (pis.get("precios") or {}).items():
+        _agregar(f"Piscina {modelo}", precio, "PISCINA")
+    mod = (cat.get("modulos") or {})
+    for modelo, precio in (mod.get("precios") or {}).items():
+        _agregar(f"Módulo {modelo}", precio, "MODULO")
+    db.commit()
+    return {"ok": True, "creados": creados}
+
+
+@router.post("/api/ml/borradores/{bid}/variantes")
+async def generar_variantes(bid: int, request: Request, db: Session = Depends(get_db),
+                            x_api_key=Header(None), current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Genera N variantes (título + descripción) con IA a partir de un borrador base."""
+    _auth(x_api_key, current_user)
+    import json as _json
+    base = db.query(BorradorML).filter(BorradorML.id == bid).first()
+    if not base:
+        raise HTTPException(404, "Borrador no encontrado")
+    d = await request.json()
+    n = max(1, min(int(d.get("cantidad") or 3), 8))
+
+    prompt = (
+        f"Generá {n} variantes DISTINTAS para vender este producto en MercadoLibre Argentina. "
+        f"Producto: '{base.titulo}'. Descripción base: '{(base.descripcion or '')[:400]}'. "
+        f"Cada variante: un título atractivo y con palabras clave DISTINTO (máximo 60 caracteres) y "
+        f"una descripción de venta de 2-4 líneas. Variá el enfoque/keywords para cubrir más búsquedas. "
+        f"Devolvé EXCLUSIVAMENTE un JSON array válido, sin texto extra, con este formato: "
+        f'[{{"titulo":"...","descripcion":"..."}}]'
+    )
+    try:
+        txt = await ai_complete(db, prompt, max_tokens=1200, temperature=0.9)
+    except Exception as e:
+        raise HTTPException(400, f"IA no disponible: {e}")
+
+    m = re.search(r"\[.*\]", txt, re.S)
+    try:
+        variantes = _json.loads(m.group(0) if m else txt)
+    except Exception:
+        raise HTTPException(400, "La IA no devolvió un formato válido, probá de nuevo.")
+
+    creados = 0
+    for v in variantes[:n]:
+        tit = (v.get("titulo") or "").strip()[:60]
+        if not tit:
+            continue
+        b = BorradorML(
+            origen=base.origen, titulo=tit, descripcion=(v.get("descripcion") or "").strip(),
+            categoria=base.categoria, producto=base.producto, precio=base.precio,
+            cantidad=base.cantidad, condicion=base.condicion, listing_type=base.listing_type,
+            fotos_json=base.fotos_json, atributos_json=base.atributos_json,
+            precio_referencia=base.precio_referencia, precio_competencia=base.precio_competencia,
+            variante_de=base.id, created_by_id=current_user.id if current_user else None,
+        )
+        db.add(b)
+        creados += 1
+    db.commit()
+    return {"ok": True, "creados": creados}
+
+
+@router.get("/api/ml/categoria-atributos")
+async def categoria_atributos(categoria: Optional[str] = None, producto: Optional[str] = None,
+                              db: Session = Depends(get_db), x_api_key=Header(None),
+                              current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Atributos OBLIGATORIOS de una categoría de ML (para que la publicación no falle)."""
+    _auth(x_api_key, current_user)
+    cat = categoria or ML_CATEGORIAS.get((producto or "").upper(), "MLA1647")
+    tok = await _ml_valid_token(db)
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{ML_BASE}/categories/{cat}/attributes", headers=_ml_headers(tok))
+    if r.status_code != 200:
+        return {"categoria": cat, "atributos": [], "error": r.text[:200]}
+    reqd = []
+    for a in r.json():
+        tags = a.get("tags") or {}
+        if tags.get("required") or tags.get("catalog_required"):
+            reqd.append({
+                "id": a.get("id"), "name": a.get("name"),
+                "tipo": a.get("value_type"),
+                "valores": [v.get("name") for v in (a.get("values") or [])][:40],
+            })
+    return {"categoria": cat, "atributos": reqd}
+
+
+@router.post("/api/ml/fotos")
+async def subir_foto(file: UploadFile = File(...), db: Session = Depends(get_db),
+                     x_api_key=Header(None), current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Sube una foto a los servidores de MercadoLibre y devuelve su URL."""
+    _auth(x_api_key, current_user)
+    tok = await _ml_valid_token(db)
+    content = await file.read()
+    async with httpx.AsyncClient(timeout=40) as c:
+        r = await c.post(f"{ML_BASE}/pictures",
+                         headers={"Authorization": f"Bearer {tok}"},
+                         files={"file": (file.filename or "foto.jpg", content, file.content_type or "image/jpeg")})
+    if r.status_code not in (200, 201):
+        return {"ok": False, "error": r.text[:300]}
+    j = r.json()
+    url = None
+    variations = j.get("variations") or []
+    if variations:
+        url = variations[0].get("url") or variations[0].get("secure_url")
+    url = url or j.get("url")
+    return {"ok": True, "id": j.get("id"), "url": url}

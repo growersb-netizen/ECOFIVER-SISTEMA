@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}WhatsApp Business · EcoFiver{% endblock %}
+{% block page_title %}💬 Perfil de WhatsApp Business{% endblock %}
+
+{% block content %}
+<style>
+  .wb-card{background:var(--bg-secondary,#171a21);border:1px solid var(--border,#252a33);border-radius:12px;padding:18px;margin-bottom:16px;max-width:760px}
+  .wb-card h3{margin:0 0 12px;font-size:15px}
+  .wb-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .wb-hint{font-size:12px;color:var(--text-muted,#9aa2ad);margin-top:2px}
+  .wb-readonly{background:var(--bg-card,#0d0f13);border:1px solid var(--border,#252a33);border-radius:10px;padding:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .wb-pic{width:64px;height:64px;border-radius:50%;object-fit:cover;background:#0d0f13}
+  .wb-warn{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.35);border-radius:10px;padding:12px;font-size:13px;margin-bottom:16px;max-width:760px}
+</style>
+
+<div class="wb-warn">
+  ⚠️ <strong>El nombre visible del WhatsApp no se puede cambiar acá.</strong> Meta exige una revisión manual del "Display Name".
+  Se pide desde <strong>Meta Business Suite → WhatsApp Manager → tu número → Editar perfil → Nombre visible</strong> (puede tardar días en aprobarse).
+  Acá abajo ves el nombre verificado actual.
+</div>
+
+<div class="wb-card">
+  <h3>📱 Estado del número</h3>
+  <div id="wb-numero-box" class="wb-readonly">Cargando...</div>
+</div>
+
+<div class="wb-card">
+  <h3>🖼️ Foto de perfil</h3>
+  <div style="display:flex;gap:14px;align-items:center">
+    <img id="wb-foto-actual" class="wb-pic" src="" alt="">
+    <label class="btn btn-secondary" style="cursor:pointer">📸 Subir nueva foto
+      <input type="file" accept="image/*" style="display:none" onchange="subirFoto(this)"></label>
+    <span id="wb-foto-msg" style="font-size:12px;color:var(--text-muted)"></span>
+  </div>
+</div>
+
+<div class="wb-card">
+  <h3>ℹ️ Info del negocio (perfil público de WhatsApp)</h3>
+  <label class="form-label">About <small style="color:var(--text-muted)">(máx 139 — el estado corto debajo del nombre)</small></label>
+  <input class="form-control" id="wb-about" maxlength="139">
+  <label class="form-label">Descripción del negocio</label>
+  <textarea class="form-control" id="wb-description" rows="3" maxlength="512"></textarea>
+  <div class="wb-row">
+    <div><label class="form-label">Dirección</label><input class="form-control" id="wb-address"></div>
+    <div><label class="form-label">Email</label><input class="form-control" id="wb-email"></div>
+  </div>
+  <div class="wb-row">
+    <div><label class="form-label">Sitio web 1</label><input class="form-control" id="wb-web1" placeholder="https://..."></div>
+    <div><label class="form-label">Sitio web 2</label><input class="form-control" id="wb-web2" placeholder="https://..."></div>
+  </div>
+  <label class="form-label">Rubro</label>
+  <select class="form-control" id="wb-vertical">
+    <option value="">— Sin definir —</option>
+    {% for id, label in verticals %}
+    <option value="{{ id }}">{{ label }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<div style="max-width:760px;display:flex;justify-content:flex-end;gap:10px">
+  <span id="wb-msg" style="align-self:center;color:var(--text-muted)"></span>
+  <button class="btn btn-primary" onclick="guardarPerfil()">💾 Guardar en WhatsApp</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const WB={get:u=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
+  put:(u,b)=>fetch(u,{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})};
+
+async function cargarPerfil(){
+  const box=document.getElementById('wb-numero-box');
+  try{
+    const d=await WB.get('/api/whatsapp/perfil');
+    if(!d.ok){box.textContent='No se pudo cargar: '+(d.detail||'error');return;}
+    const n=d.numero, p=d.perfil;
+    box.innerHTML = `<div><strong>${n.display_phone_number||'—'}</strong>
+      <div class="wb-hint">Nombre verificado: <b>${n.verified_name||'—'}</b> · Calidad: ${n.quality_rating||'—'}</div></div>`;
+    document.getElementById('wb-about').value = p.about||'';
+    document.getElementById('wb-description').value = p.description||'';
+    document.getElementById('wb-address').value = p.address||'';
+    document.getElementById('wb-email').value = p.email||'';
+    document.getElementById('wb-web1').value = (p.websites&&p.websites[0])||'';
+    document.getElementById('wb-web2').value = (p.websites&&p.websites[1])||'';
+    document.getElementById('wb-vertical').value = p.vertical||'';
+    if(p.profile_picture_url) document.getElementById('wb-foto-actual').src = p.profile_picture_url;
+  }catch(e){ box.textContent='Error de conexión'; }
+}
+
+async function guardarPerfil(){
+  const body={
+    about: document.getElementById('wb-about').value,
+    description: document.getElementById('wb-description').value,
+    address: document.getElementById('wb-address').value,
+    email: document.getElementById('wb-email').value,
+    websites: [document.getElementById('wb-web1').value, document.getElementById('wb-web2').value],
+    vertical: document.getElementById('wb-vertical').value,
+  };
+  const msg=document.getElementById('wb-msg');
+  msg.textContent='Guardando en WhatsApp...';
+  try{
+    const r=await WB.put('/api/whatsapp/perfil', body);
+    const j=await r.json();
+    if(r.ok){msg.textContent='✓ Guardado en WhatsApp Business'; if(window.toast)toast('Perfil actualizado ✓');}
+    else{msg.textContent='Error: '+(j.detail||'no se pudo guardar');}
+  }catch(e){msg.textContent='Error de conexión';}
+  setTimeout(()=>msg.textContent='',4000);
+}
+
+async function subirFoto(input){
+  if(!input.files||!input.files[0])return;
+  const msg=document.getElementById('wb-foto-msg');
+  msg.textContent='Subiendo...';
+  const fd=new FormData(); fd.append('file', input.files[0]);
+  try{
+    const r=await fetch('/api/whatsapp/foto-perfil',{method:'POST',credentials:'same-origin',body:fd});
+    const j=await r.json();
+    input.value='';
+    if(r.ok){msg.textContent='✓ Foto actualizada'; cargarPerfil();}
+    else{msg.textContent='Error: '+(j.detail||'no se pudo subir');}
+  }catch(e){msg.textContent='Error de conexión';}
+}
+
+document.addEventListener('DOMContentLoaded', cargarPerfil);
+</script>
+{% endblock %}

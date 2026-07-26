@@ -198,7 +198,7 @@ h1, h2, h3, h4 {
 }
 .promo-hero-bg {
   position: absolute; inset: 0;
-  background-size: cover; background-position: center;
+  background-size: cover; background-position: 15% center;
   opacity: 1;
   z-index: -3;
 }
@@ -208,7 +208,7 @@ h1, h2, h3, h4 {
               linear-gradient(0deg, rgba(6,14,32,.55) 0%, transparent 30%);
   z-index: -2;
 }
-.promo-hero-inner { position: relative; max-width: 620px; }
+.promo-hero-inner { position: relative; max-width: 460px; }
 
 .promo-badge-mundial {
   display: inline-flex;
@@ -233,7 +233,9 @@ h1, h2, h3, h4 {
   color: #fff;
   margin-bottom: 22px;
 }
-.promo-h1 .hl { color: #8fd3ff; }
+.promo-h1 .hl { color: #8fd3ff; font-size: 0.5em; display: block; margin-top: 6px; letter-spacing: .2px; }
+
+.plan18-lead { font-size: 16px; color: rgba(255,255,255,.82); max-width: 380px; line-height: 1.5; margin-bottom: 22px; }
 
 .promo-chips { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
 .promo-chip {
@@ -270,7 +272,7 @@ h1, h2, h3, h4 {
   border-radius: 100px;
   margin-bottom: 22px;
   box-shadow: 0 12px 26px -10px rgba(246,180,14,.55);
-  max-width: 460px;
+  max-width: 360px;
 }
 .promo-gift-icon { font-size: 22px; flex-shrink: 0; }
 .promo-gift-text { font-size: 14.5px; font-weight: 600; line-height: 1.35; }
@@ -283,7 +285,7 @@ h1, h2, h3, h4 {
   padding: 22px 26px;
   margin-bottom: 22px;
   box-shadow: var(--shadow-lg);
-  max-width: 460px;
+  max-width: 360px;
 }
 .promo-price-model { font-size: 14.5px; color: #3a5578; margin-bottom: 6px; }
 .promo-price-model strong { color: #0b2350; }
@@ -306,7 +308,7 @@ h1, h2, h3, h4 {
   color: #fff;
   padding: 16px 24px;
   border-radius: var(--radius-sm);
-  max-width: 460px;
+  max-width: 360px;
   margin-bottom: 20px;
   box-shadow: 0 14px 30px -10px rgba(37,211,102,.6);
   transition: transform .15s ease;
@@ -316,8 +318,35 @@ h1, h2, h3, h4 {
 .promo-wa-text strong { font-family: var(--font-display); font-size: 18px; letter-spacing: .2px; }
 .promo-wa-text small { font-size: 13px; opacity: .9; }
 
-.promo-fine-print { font-size: 12px; color: rgba(255,255,255,.6); margin-bottom: 10px; max-width: 460px; }
+.promo-fine-print { font-size: 12px; color: rgba(255,255,255,.6); margin-bottom: 10px; max-width: 360px; }
 .promo-footer-line { font-size: 13px; color: rgba(255,255,255,.75); }
+
+/* ─── Banner secundario: Antes del Verano ─────────────────── */
+.promo-mundial-strip {
+  background: linear-gradient(90deg, #e9f6f4, #eaf3fb);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+}
+.promo-mundial-strip-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.promo-mundial-strip-text { font-size: 14.5px; color: var(--text); max-width: 720px; line-height: 1.4; }
+.promo-mundial-strip-text strong { color: #0b2350; }
+.promo-mundial-strip-link {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: #0b2350;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--teal);
+  padding-bottom: 2px;
+}
+.promo-mundial-strip-link:hover { color: var(--teal); }
 
 /* ─── Announce bar ───────────────────────────────────────── */
 .announce-bar {
@@ -401,6 +430,18 @@ h1, h2, h3, h4 {
 }
 .coop-trust-item span { font-size: 12.5px; color: var(--text-muted); line-height: 1.35; display: block; }
 .coop-cta { text-align: center; }
+
+.productos-nota-plan18 {
+  text-align: center;
+  font-size: 14.5px;
+  color: var(--text-soft);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  max-width: 720px;
+  margin: 0 auto 36px;
+}
 
 /* ─── Product cards ──────────────────────────────────────── */
 .product-grid {
@@ -634,6 +675,16 @@ h1, h2, h3, h4 {
 .sim-result-detail { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
 .sim-result-detail div { display: flex; justify-content: space-between; font-size: 14.5px; color: var(--text-on-dark-soft); border-bottom: 1px dashed rgba(255,255,255,.12); padding-bottom: 6px; }
 .sim-result-detail strong { color: #fff; }
+.sim-plan18-nota {
+  font-size: 13.5px;
+  color: #0b2350;
+  background: rgba(78,195,181,.12);
+  border: 1px solid rgba(78,195,181,.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-top: 14px;
+  font-weight: 600;
+}
 .sim-disclaimer { font-size: 12.5px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }
 
 /* ─── Steps / proceso ────────────────────────────────────── */
@@ -642,6 +693,17 @@ h1, h2, h3, h4 {
   grid-template-columns: repeat(4, 1fr);
   gap: 24px;
 }
+.steps-grid-5 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+.proceso-photo {
+  margin-top: 40px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  max-height: 420px;
+}
+.proceso-photo img { width: 100%; height: 100%; max-height: 420px; object-fit: cover; display: block; }
+.proceso-photo.img-fallback { background: linear-gradient(135deg, #0b2350, #124a8c); min-height: 220px; }
 .step-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -671,6 +733,7 @@ h1, h2, h3, h4 {
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
 }
+.features-grid-5, .features-grid-4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .feature-card {
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(255,255,255,.08);
@@ -680,6 +743,14 @@ h1, h2, h3, h4 {
 .feature-icon { font-size: 34px; display: block; margin-bottom: 14px; }
 .feature-card h3 { font-size: 20px; margin-bottom: 8px; color: #fff; }
 .feature-card p { font-size: 14.5px; color: var(--text-on-dark-soft); }
+
+.feature-card-light {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+.feature-card-light h3 { color: var(--text); }
+.feature-card-light p { color: var(--text-soft); margin-bottom: 16px; }
 
 /* ─── Testimonials ───────────────────────────────────────── */
 .testimonial-grid {
@@ -814,6 +885,7 @@ h1, h2, h3, h4 {
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .footer-brand p { margin-top: 14px; font-size: 14px; color: var(--text-on-dark-soft); max-width: 40ch; }
+.footer-tagline { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--teal-light); margin-top: 8px !important; }
 .footer-col h4 { font-size: 16px; margin-bottom: 14px; color: #fff; }
 .footer-col p { margin-bottom: 8px; font-size: 14.5px; color: var(--text-on-dark-soft); }
 .footer-col a:hover { color: var(--teal-light); }

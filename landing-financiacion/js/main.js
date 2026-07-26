@@ -78,23 +78,28 @@
   // Todos los CTA de WhatsApp: arman el link con mensaje contextual
   // ────────────────────────────────────────────────────────────
   const MENSAJES_WA = {
-    "header": "Hola! Vi la landing de EcoFiver y quiero info sobre financiación.",
+    "header": "Hola! Vi la landing de EcoFiver y quiero info sobre el Plan 18 Pasos.",
     "hero": "Hola! Quiero financiar una piscina o un módulo en pesos.",
+    "hero-plan18": null, // se arma dinámicamente
     "promo-mundial": null, // se arma dinámicamente
     "cooperativa": "Hola! Quiero hablar con la cooperativa sobre financiar mi vivienda, una piscina, o ambas cosas.",
     "combo-quincho-piscina": null, // se arma dinámicamente
     "producto-piscina": "Hola! Quiero información para financiar una piscina.",
-    "producto-modulo": "Hola! Quiero información para financiar un módulo habitable.",
+    "producto-modulo": "Hola! Quiero información sobre el Plan 18 Pasos para financiar un módulo habitable.",
     "simulador-modulo": null, // se arma dinámicamente
     "simulador-piscina": null, // se arma dinámicamente
-    "footer": "Hola! Vi la landing de EcoFiver y quiero hacer una consulta.",
-    "float": "Hola! Quiero consultar por financiación de piscinas o módulos."
+    "segmento-alquiler": "Hola! Hoy alquilo y quiero saber cómo el Plan 18 Pasos me ayuda a tener mi vivienda propia.",
+    "segmento-terreno": "Hola! Tengo un terreno propio y quiero saber cómo financiar mi vivienda ahí con el Plan 18 Pasos.",
+    "segmento-ampliar": "Hola! Quiero ampliar o mejorar mi vivienda actual y quiero saber cómo funciona el Plan 18 Pasos.",
+    "segmento-sin-credito": "Hola! Soy independiente/monotributista y quiero saber cómo financiar mi vivienda con el Plan 18 Pasos, sin pasar por un banco.",
+    "footer": "Hola! Vi la landing de EcoFiver y quiero hacer una consulta sobre el Plan 18 Pasos.",
+    "float": "Hola! Quiero consultar por el Plan 18 Pasos o por financiación de piscinas."
   };
 
   function actualizarLinksWhatsapp() {
     document.querySelectorAll("[data-wa-cta]").forEach(function (el) {
       const key = el.getAttribute("data-wa-cta");
-      if (key === "simulador-modulo" || key === "simulador-piscina" || key === "promo-mundial" || key === "combo-quincho-piscina") return; // se arman aparte
+      if (key === "simulador-modulo" || key === "simulador-piscina" || key === "promo-mundial" || key === "combo-quincho-piscina" || key === "hero-plan18") return; // se arman aparte
       el.setAttribute("href", waLink(MENSAJES_WA[key] || MENSAJES_WA.hero));
     });
     document.querySelectorAll("[data-wa-display]").forEach(function (el) {
@@ -103,30 +108,49 @@
   }
 
   // ────────────────────────────────────────────────────────────
-  // Hero Promo Mundial: tarjeta de precio (misma fuente de datos que el simulador)
+  // Banner secundario "Antes del Verano": arma el link de WhatsApp
+  // con datos reales (mismos precios que el simulador de piscinas,
+  // valores vigentes de la temporada pasada — verano 2025).
   // ────────────────────────────────────────────────────────────
   const PROMO_MODELO_INDEX = 11; // Minimalista Grande (6,40x3x1,40)
-  const PROMO_CUOTAS = 36;
+  const PROMO_CUOTAS = 36; // cuota más baja = mayor plazo disponible para piscinas
 
   function pintarPromoMundial() {
     const modelo = PISCINAS[PROMO_MODELO_INDEX];
     const cuota = modelo.lista / (PROMO_CUOTAS + 2);
-    const nombreEl = document.getElementById("promo-modelo-nombre");
-    const medidasEl = document.getElementById("promo-modelo-medidas");
-    const cuotaEl = document.getElementById("promo-cuota");
-    const cuotasNEl = document.getElementById("promo-cuotas-n");
-    if (!nombreEl) return;
-
-    nombreEl.textContent = modelo.nombre;
-    medidasEl.textContent = modelo.medidas;
-    cuotaEl.textContent = formatearPesos(cuota);
-    cuotasNEl.textContent = PROMO_CUOTAS;
 
     const promoCta = document.querySelector('[data-wa-cta="promo-mundial"]');
     if (promoCta) {
-      const msg = "Hola! Vi la Promo Mundial de la piscina " + modelo.nombre + " (" + modelo.medidas +
-        ") a $" + formatearPesos(cuota) + "/mes en " + PROMO_CUOTAS + " cuotas fijas. Quiero reservar mi lugar y la pérgola de regalo de las primeras 100 suscripciones.";
+      const msg = "Hola! Vi la promo Antes del Verano de la piscina " + modelo.nombre + " (" + modelo.medidas +
+        ") a $" + formatearPesos(cuota) + "/mes en " + PROMO_CUOTAS + " cuotas, con precio de la temporada pasada (verano 2025) y entrega programada para este verano. Quiero reservar mi lugar y la pérgola de regalo de las primeras 100 suscripciones.";
       promoCta.setAttribute("href", waLink(msg));
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Hero Plan 18 Pasos: tarjeta de precio (ejemplo real de vivienda,
+  // misma fórmula que el simulador de módulos: cuota = (m2 * $/m2) / (cuotas + 2))
+  // ────────────────────────────────────────────────────────────
+  const PLAN18_M2 = 36;
+  const PLAN18_CUOTAS = 120;
+
+  function pintarPlan18Pasos() {
+    const total = PLAN18_M2 * MODULO_PRECIO_M2_FINANCIADO;
+    const cuota = total / (PLAN18_CUOTAS + MODULO_FACTOR_INGRESO);
+    const m2El = document.getElementById("plan18-modelo-m2");
+    const cuotasNEl = document.getElementById("plan18-cuotas-n");
+    const cuotaEl = document.getElementById("plan18-cuota");
+    if (!m2El) return;
+
+    m2El.textContent = PLAN18_M2 + " m²";
+    cuotasNEl.textContent = PLAN18_CUOTAS;
+    cuotaEl.textContent = formatearPesos(cuota);
+
+    const heroCta = document.querySelector('[data-wa-cta="hero-plan18"]');
+    if (heroCta) {
+      const msg = "Hola! Vi el Plan 18 Pasos de EcoFiver (ejemplo: vivienda de " + PLAN18_M2 +
+        " m² a $" + formatearPesos(cuota) + "/mes en " + PLAN18_CUOTAS + " cuotas). Quiero saber cómo arranco mi grupo.";
+      heroCta.setAttribute("href", waLink(msg));
     }
   }
 
@@ -293,7 +317,7 @@
       fetch(CRM_LEAD_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: nombre, telefono: telefono, localidad: localidad, interes: interes, mensaje: mensaje, origen: "LANDING_PROMO_MUNDIAL" }),
+        body: JSON.stringify({ nombre: nombre, telefono: telefono, localidad: localidad, interes: interes, mensaje: mensaje, origen: "LANDING_PLAN_18_PASOS" }),
         signal: controller.signal
       }).catch(function () { /* silencioso: WhatsApp sigue funcionando igual */ });
     } catch (err) { /* fetch no disponible o CRM caído: no bloquea nada */ }
@@ -318,7 +342,7 @@
   if (shareBtn) {
     shareBtn.addEventListener("click", function (e) {
       e.preventDefault();
-      const msg = "Mirá esta promo de EcoFiver: pileta financiada en cuotas fijas + pérgola de regalo. " + window.location.href;
+      const msg = "Mirá el Plan 18 Pasos de EcoFiver: financiá tu vivienda propia directo de fábrica, hasta 120 cuotas en pesos. " + window.location.href;
       window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank", "noopener");
     });
   }
@@ -348,6 +372,7 @@
   // Init
   // ────────────────────────────────────────────────────────────
   actualizarLinksWhatsapp();
+  pintarPlan18Pasos();
   pintarPromoMundial();
   pintarCombo();
   calcularModulo();

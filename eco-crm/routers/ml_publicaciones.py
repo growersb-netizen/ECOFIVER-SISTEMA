@@ -188,7 +188,9 @@ async def competencia(bid: int, db: Session = Depends(get_db),
 async def _publicar(db: Session, b: BorradorML) -> dict:
     """Crea el ítem en ML a partir del borrador."""
     tok = await _ml_valid_token(db)
-    categoria = b.categoria or ML_CATEGORIAS.get((b.producto or "").upper(), "MLA1647")
+    categoria = b.categoria or await _ml_categoria_sugerida(db, b.titulo)
+    if not categoria:
+        return {"ok": False, "error": "No se pudo detectar la categoría de ML para este título. Cargá la categoría manualmente en el borrador."}
     try:
         fotos = json.loads(b.fotos_json or "[]")
     except Exception:
@@ -412,11 +414,16 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
 
 @router.get("/api/ml/categoria-atributos")
 async def categoria_atributos(categoria: Optional[str] = None, producto: Optional[str] = None,
+                              titulo: Optional[str] = None,
                               db: Session = Depends(get_db), x_api_key=Header(None),
                               current_user: Optional[Usuario] = Depends(get_current_user)):
     """Atributos OBLIGATORIOS de una categoría de ML (para que la publicación no falle)."""
     _auth(x_api_key, current_user)
-    cat = categoria or ML_CATEGORIAS.get((producto or "").upper(), "MLA1647")
+    cat = categoria
+    if not cat and titulo:
+        cat = await _ml_categoria_sugerida(db, titulo)
+    if not cat:
+        return {"categoria": None, "atributos": [], "error": "Indicá categoría o título para detectarla."}
     tok = await _ml_valid_token(db)
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.get(f"{ML_BASE}/categories/{cat}/attributes", headers=_ml_headers(tok))
@@ -454,3 +461,35 @@ async def subir_foto(file: UploadFile = File(...), db: Session = Depends(get_db)
         url = variations[0].get("url") or variations[0].get("secure_url")
     url = url or j.get("url")
     return {"ok": True, "id": j.get("id"), "url": url}
+
+
+async def _ml_categoria_sugerida(db, titulo: str):
+    """Predice la categoría de ML a partir del título (domain_discovery)."""
+    try:
+        tok = await _ml_valid_token(db)
+        async with httpx.AsyncClient(timeout=12) as c:
+            r = await c.get(f"{ML_BASE}/sites/MLA/domain_discovery/search",
+                            params={"q": titulo, "limit": 1}, headers=_ml_headers(tok))
+        if r.status_code == 200 and r.json():
+            return r.json()[0].get("category_id")
+    except Exception:
+        pass
+    return None
+
+
+@router.get("/api/ml/categoria-sugerida")
+async def categoria_sugerida(titulo: str, db: Session = Depends(get_db), x_api_key=Header(None),
+                             current_user: Optional[Usuario] = Depends(get_current_user)):
+    _auth(x_api_key, current_user)
+    cat = await _ml_categoria_sugerida(db, titulo)
+    nombre = None
+    if cat:
+        try:
+            tok = await _ml_valid_token(db)
+            async with httpx.AsyncClient(timeout=10) as c:
+                rr = await c.get(f"{ML_BASE}/categories/{cat}", headers=_ml_headers(tok))
+            if rr.status_code == 200:
+                nombre = rr.json().get("name")
+        except Exception:
+            pass
+    return {"categoria": cat, "nombre": nombre}

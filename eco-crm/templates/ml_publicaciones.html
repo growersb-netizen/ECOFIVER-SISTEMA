@@ -226,10 +226,13 @@ async function subirFoto(input){
 // ── Atributos obligatorios ──
 async function cargarAtributos(){
   const cat=document.getElementById('mp-cat').value.trim();
-  const prod=document.getElementById('mp-producto').value;
-  const cont=document.getElementById('mp-atributos');cont.textContent='Consultando ML…';
-  let u='/api/ml/categoria-atributos?'+(cat?'categoria='+cat:'producto='+prod);
+  const tit=document.getElementById('mp-titulo').value.trim();
+  const cont=document.getElementById('mp-atributos');
+  if(!cat&&!tit){cont.textContent='Escribí primero el título (o la categoría) para detectar los atributos.';return;}
+  cont.textContent='Consultando ML…';
+  let u='/api/ml/categoria-atributos?'+(cat?'categoria='+encodeURIComponent(cat):'titulo='+encodeURIComponent(tit));
   const d=await API.get(u);
+  if(d.categoria&&!cat){document.getElementById('mp-cat').value=d.categoria;}
   if(!d.atributos||!d.atributos.length){cont.innerHTML='<span style="color:var(--green)">✓ Esta categoría no exige atributos obligatorios.</span>';return;}
   cont.innerHTML=d.atributos.map(a=>{
     const inp=a.valores&&a.valores.length

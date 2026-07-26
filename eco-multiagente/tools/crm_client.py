@@ -215,15 +215,23 @@ async def get_ventas_hoy() -> dict:
         }
 
 
-async def simular_cuotas(tipo: str, precio: float, cuotas: int = None) -> dict:
+async def simular_cuotas(tipo: str, precio: float = 0, cuotas: int = None, modelo: str = None) -> dict:
     """
     Simulación de cuotas con la fórmula propia de EcoFiver.
-    tipo: MODULO | PISCINA
-    precio: precio de contado en ARS
+    tipo: MODULO | PISCINA | COMBO
+    modelo: (RECOMENDADO) nombre exacto del modelo — el CRM resuelve el precio
+            de LISTA correcto desde el catálogo. Usar esto SIEMPRE que se pueda,
+            en vez de "precio", para no cotizar mal la financiación.
+    precio: precio de LISTA en ARS — usar solo si no se conoce el nombre exacto del modelo.
+            OJO: NUNCA pasar el precio de contado acá, la fórmula es sobre LISTA.
     cuotas: número de cuotas (si None, devuelve tabla completa)
     """
     try:
-        params = {"tipo": tipo, "precio": precio}
+        params = {"tipo": tipo}
+        if modelo:
+            params["modelo"] = modelo
+        if precio:
+            params["precio"] = precio
         if cuotas:
             params["cuotas"] = cuotas
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
@@ -235,8 +243,8 @@ async def simular_cuotas(tipo: str, precio: float, cuotas: int = None) -> dict:
             return r.json()
     except Exception as e:
         logger.warning(f"[CRM] simular_cuotas falló: {e}")
-        # Cálculo local de fallback
-        factor = 2.0 if tipo.upper() == "MODULO" else 1.5
+        # Cálculo local de fallback (mismo factor que el CRM: 2.0 para todos los tipos)
+        factor = 2.0
         if cuotas:
             cuota = precio / (cuotas + factor)
             ingreso = factor * cuota

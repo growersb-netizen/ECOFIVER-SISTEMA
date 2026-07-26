@@ -32,21 +32,38 @@ DEFAULT_CATALOGO = {
             "Miniportante", "Autoportante", "Minideck Chico", "Minideck Grande"
         ],
         "colores": ["Blanco", "Beige", "Verde agua", "Celeste", "Azul"],
-        "precios": {}
+        "precios": {},          # precio CONTADO (el que se cotiza al cliente)
+        "precios_lista": {},    # precio LISTA (base para financiación/cuotas)
     },
     "modulos": {
         "superficies_m2": [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72],
         "tecnologia": "NCE (Nautical Composite Engineering)",
         "modelos_custom": [],
-        "precios": {}
-    }
+        "precios": {},          # precio CONTADO
+        "precios_lista": {},    # precio LISTA (base para financiación/cuotas)
+    },
+    "combos": {}  # nombre -> {"precio_lista":..., "precio_contado":..., "descripcion":...}
 }
 
 
 def load_catalogo() -> dict:
     if CATALOGO_FILE.exists():
         try:
-            return json.loads(CATALOGO_FILE.read_text(encoding="utf-8"))
+            cat = json.loads(CATALOGO_FILE.read_text(encoding="utf-8"))
+            # Migración: completar claves nuevas si el archivo es de un esquema viejo
+            cambiado = False
+            for seccion in ("piscinas", "modulos"):
+                cat.setdefault(seccion, {})
+                for campo, default in DEFAULT_CATALOGO[seccion].items():
+                    if campo not in cat[seccion]:
+                        cat[seccion][campo] = default if not isinstance(default, (list, dict)) else type(default)()
+                        cambiado = True
+            if "combos" not in cat:
+                cat["combos"] = {}
+                cambiado = True
+            if cambiado:
+                save_catalogo(cat)
+            return cat
         except Exception:
             pass
     save_catalogo(DEFAULT_CATALOGO)
@@ -101,13 +118,16 @@ async def get_catalogo(current_user: Usuario = Depends(require_auth)):
             "modelos": cat["piscinas"]["modelos"],
             "colores": cat["piscinas"]["colores"],
             "precios": cat["piscinas"].get("precios", {}),
+            "precios_lista": cat["piscinas"].get("precios_lista", {}),
         },
         "modulos": {
             "superficies_m2": cat["modulos"]["superficies_m2"],
             "tecnologia": cat["modulos"]["tecnologia"],
             "modelos_custom": cat["modulos"].get("modelos_custom", []),
             "precios": cat["modulos"].get("precios", {}),
-        }
+            "precios_lista": cat["modulos"].get("precios_lista", {}),
+        },
+        "combos": cat.get("combos", {}),
     }
 
 
@@ -120,13 +140,16 @@ async def get_catalogo_publico():
             "modelos": cat["piscinas"]["modelos"],
             "colores": cat["piscinas"]["colores"],
             "precios": cat["piscinas"].get("precios", {}),
+            "precios_lista": cat["piscinas"].get("precios_lista", {}),
         },
         "modulos": {
             "superficies_m2": cat["modulos"]["superficies_m2"],
             "tecnologia": cat["modulos"]["tecnologia"],
             "modelos_custom": cat["modulos"].get("modelos_custom", []),
             "precios": cat["modulos"].get("precios", {}),
-        }
+            "precios_lista": cat["modulos"].get("precios_lista", {}),
+        },
+        "combos": cat.get("combos", {}),
     }
 
 
@@ -164,6 +187,22 @@ async def add_modelo_piscina(
     cat["piscinas"]["modelos"].append(nombre)
     save_catalogo(cat)
     return {"ok": True, "modelos": cat["piscinas"]["modelos"]}
+
+
+@router.put("/api/catalogo/piscinas/modelos")
+async def set_modelos_piscinas(
+    request: Request,
+    current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
+):
+    """Reemplaza la lista completa de modelos de piscinas. Body: { modelos: [...] }"""
+    data = await request.json()
+    modelos = data.get("modelos")
+    if not isinstance(modelos, list) or not modelos:
+        raise HTTPException(400, "modelos debe ser una lista no vacía")
+    cat = load_catalogo()
+    cat["piscinas"]["modelos"] = modelos
+    save_catalogo(cat)
+    return {"ok": True, "modelos": modelos}
 
 
 @router.delete("/api/catalogo/piscinas/modelos/{nombre}")
@@ -337,28 +376,75 @@ async def update_precios_unificado(
     current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
 ):
     """
-    Body: { "tipo": "piscinas"|"modulos", "precios": { "clave": valor, ... } }
+    Body: { "tipo": "piscinas"|"modulos", "campo": "precios"|"precios_lista" (opcional, default "precios"),
+            "precios": { "clave": valor, ... } }
+    "precios" = precio CONTADO (el que se cotiza al cliente).
+    "precios_lista" = precio LISTA (base para financiación/cuotas — no confundir).
     """
     data = await request.json()
     tipo = data.get("tipo", "").lower()
+    campo = data.get("campo", "precios")
     if tipo not in ("piscinas", "modulos"):
         raise HTTPException(400, "tipo debe ser 'piscinas' o 'modulos'")
+    if campo not in ("precios", "precios_lista"):
+        raise HTTPException(400, "campo debe ser 'precios' o 'precios_lista'")
     nuevos_precios = data.get("precios", {})
     cat = load_catalogo()
-    precios_actuales = cat[tipo].get("precios", {})
+    cat[tipo].setdefault(campo, {})
+    precios_actuales = cat[tipo].get(campo, {})
     for clave, nuevo_valor in nuevos_precios.items():
         valor_anterior = precios_actuales.get(clave)
         if valor_anterior != nuevo_valor:
             db.add(PrecioHistorial(
-                clave=f"{tipo}.{clave}",
+                clave=f"{tipo}.{campo}.{clave}",
                 valor_anterior=float(valor_anterior) if valor_anterior is not None else None,
                 valor_nuevo=float(nuevo_valor),
                 cambiado_por_id=current_user.id,
             ))
-    cat[tipo]["precios"].update(nuevos_precios)
+    cat[tipo][campo].update(nuevos_precios)
     save_catalogo(cat)
     db.commit()
-    return {"ok": True, "tipo": tipo, "precios_actualizados": len(nuevos_precios)}
+    return {"ok": True, "tipo": tipo, "campo": campo, "precios_actualizados": len(nuevos_precios)}
+
+
+# ─── COMBOS ───────────────────────────────────────────────────────────────────
+
+@router.put("/api/catalogo/combos/{nombre}")
+async def upsert_combo(
+    nombre: str,
+    request: Request,
+    current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
+):
+    """Body: { precio_lista, precio_contado, descripcion, plazos_max }"""
+    data = await request.json()
+    cat = load_catalogo()
+    cat.setdefault("combos", {})
+    cat["combos"][nombre] = {
+        "precio_lista": float(data.get("precio_lista") or 0),
+        "precio_contado": float(data["precio_contado"]) if data.get("precio_contado") else None,
+        "descripcion": data.get("descripcion", ""),
+        "plazos_max": int(data.get("plazos_max") or 60),
+    }
+    save_catalogo(cat)
+    return {"ok": True, "combos": cat["combos"]}
+
+
+@router.delete("/api/catalogo/combos/{nombre}")
+async def delete_combo(
+    nombre: str,
+    current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO"))
+):
+    cat = load_catalogo()
+    if nombre not in cat.get("combos", {}):
+        raise HTTPException(404, "Combo no encontrado")
+    del cat["combos"][nombre]
+    save_catalogo(cat)
+    return {"ok": True}
+
+
+@router.get("/api/catalogo/combos")
+async def list_combos(current_user: Usuario = Depends(require_auth)):
+    return load_catalogo().get("combos", {})
 
 
 @router.get("/api/catalogo/historial-precios")

@@ -127,6 +127,88 @@ async def get_gestiones(
     } for g in gestiones]
 
 
+@router.get("/api/cobranzas/morosidad")
+async def get_morosidad(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """
+    Panel de morosidad: SOLO cuentas con cuota vencida (atraso > 0), agrupadas
+    por severidad, con el monto total adeudado (cuotas vencidas × valor_cuota,
+    no el saldo total del contrato). Vigencia: vencimiento día 10 de cada mes.
+    """
+    ventas = db.query(VentaFinanciada).filter(
+        VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"])
+    ).all()
+
+    morosos = []
+    for v in ventas:
+        atraso = dias_atraso(v)
+        if atraso <= 0:
+            continue
+        severidad = "leve" if atraso <= 15 else ("moderada" if atraso <= 30 else "grave")
+        ultima_gestion = db.query(GestionCobranza).filter(
+            GestionCobranza.venta_financiada_id == v.id
+        ).order_by(GestionCobranza.fecha_contacto.desc()).first()
+        morosos.append({
+            **venta_to_dict(v),
+            "severidad": severidad,
+            "monto_adeudado": v.valor_cuota or 0,
+            "mensaje_whatsapp": mensaje_whatsapp(v),
+            "ultimo_contacto": ultima_gestion.fecha_contacto.isoformat() if ultima_gestion else None,
+            "ultimo_resultado": ultima_gestion.resultado if ultima_gestion else None,
+        })
+
+    morosos.sort(key=lambda x: x["dias_atraso"], reverse=True)
+    return {
+        "total_cuentas": len(morosos),
+        "total_adeudado": sum(m["monto_adeudado"] for m in morosos),
+        "leve": [m for m in morosos if m["severidad"] == "leve"],
+        "moderada": [m for m in morosos if m["severidad"] == "moderada"],
+        "grave": [m for m in morosos if m["severidad"] == "grave"],
+    }
+
+
+@router.get("/api/cobranzas/proyeccion")
+async def get_proyeccion_cobranza(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """
+    Cobranza esperada este mes y el mes siguiente (vigencia: vencimiento día
+    10, no pagar antes hace perder las promociones). Usa el mismo cálculo
+    que dashboard/metricas-avanzadas (calcular_proximo_vencimiento), pero
+    separado en "este mes" vs "mes que viene" en vez de una ventana de 30 días.
+    """
+    hoy = datetime.now()
+    ventas = db.query(VentaFinanciada).filter(
+        VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"])
+    ).all()
+
+    este_mes, mes_siguiente = [], []
+    total_este_mes = total_mes_siguiente = 0.0
+    for v in ventas:
+        prox = calcular_proximo_vencimiento(v)
+        if not prox:
+            continue
+        item = {
+            "venta_id": v.id, "numero_solicitud": v.numero_solicitud or "",
+            "cliente_nombre": v.cliente_nombre, "monto": v.valor_cuota or 0,
+            "vencimiento": prox.isoformat(),
+        }
+        if prox.year == hoy.year and prox.month == hoy.month:
+            este_mes.append(item)
+            total_este_mes += item["monto"]
+        elif (prox.year, prox.month) == ((hoy.year + 1, 1) if hoy.month == 12 else (hoy.year, hoy.month + 1)):
+            mes_siguiente.append(item)
+            total_mes_siguiente += item["monto"]
+
+    return {
+        "este_mes": {"total": total_este_mes, "cantidad": len(este_mes), "detalle": este_mes},
+        "mes_siguiente": {"total": total_mes_siguiente, "cantidad": len(mes_siguiente), "detalle": mes_siguiente},
+    }
+
+
 @router.get("/api/cobranzas/resumen")
 async def resumen_cobranzas(
     db: Session = Depends(get_db),

@@ -699,6 +699,30 @@ async def get_metricas_avanzadas() -> dict:
         return {}
 
 
+async def get_morosidad() -> dict:
+    """Panel de morosidad: cuentas con cuota vencida, agrupadas por severidad."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
+            r = await client.get(f"{CRM_BASE_URL}/api/cobranzas/morosidad", headers=HEADERS)
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] get_morosidad falló: {e}")
+        return {}
+
+
+async def get_proyeccion_cobranza() -> dict:
+    """Cobranza esperada este mes y el mes siguiente (vigencia día 10)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
+            r = await client.get(f"{CRM_BASE_URL}/api/cobranzas/proyeccion", headers=HEADERS)
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] get_proyeccion_cobranza falló: {e}")
+        return {}
+
+
 async def get_ranking_ventas(periodo: str = "mes") -> dict:
     """Obtiene el ranking de ventas por vendedor/asesor."""
     try:

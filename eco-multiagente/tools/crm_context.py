@@ -25,11 +25,11 @@ AGENT_CRM_NEEDS: dict[str, list[str]] = {
         "precios", "flete",
         # Contexto completo para conocimiento total del negocio:
         "todos_leads", "ventas_contado", "ventas_financiadas",
-        "metricas_avanzadas", "ranking",
+        "metricas_avanzadas", "ranking", "morosidad", "proyeccion_cobranza",
     ],
     "Aurora":    ["pipeline_stats", "ventas_hoy", "leads_sin_respuesta", "precios", "flete"],
     "Tomás":     ["pipeline_stats", "leads_sin_respuesta"],
-    "Ignacio":   ["cuotas_vencidas"],
+    "Ignacio":   ["cuotas_vencidas", "morosidad", "proyeccion_cobranza"],
     "Elena":     ["pipeline_stats", "ventas_hoy", "cuotas_vencidas", "precios"],
     "Bruno":     ["stock", "pipeline_stats", "materiales", "stock_piscinas", "flete"],
     "Ezequiel":  ["pipeline_stats", "cuotas_vencidas"],
@@ -94,6 +94,10 @@ async def get_crm_context(agent_name: str) -> str:
         tasks["metricas_avanzadas"] = crm_client.get_metricas_avanzadas()
     if "ranking" in needs:
         tasks["ranking"] = crm_client.get_ranking_ventas("mes")
+    if "morosidad" in needs:
+        tasks["morosidad"] = crm_client.get_morosidad()
+    if "proyeccion_cobranza" in needs:
+        tasks["proyeccion_cobranza"] = crm_client.get_proyeccion_cobranza()
 
     try:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -375,6 +379,37 @@ def _build_context_parts(parts: list, data: dict) -> None:
                 monto  = v.get("monto", v.get("monto_total", 0))
                 lines.append(f"  {i}. {nombre}: {ventas} ventas — ${monto:,.0f}")
             parts.append("\n".join(lines))
+
+    # ── Morosidad ──────────────────────────────────────────────────────────
+    if "morosidad" in data and isinstance(data["morosidad"], dict) and data["morosidad"]:
+        mor = data["morosidad"]
+        total_cuentas = mor.get("total_cuentas", 0)
+        if total_cuentas:
+            lines = [f"MOROSIDAD ({total_cuentas} cuentas, $ {mor.get('total_adeudado',0):,.0f} adeudado):"]
+            for sev, emoji in (("grave", "🔴"), ("moderada", "🟡"), ("leve", "🟢")):
+                items = mor.get(sev, [])
+                if items:
+                    lines.append(f"  {emoji} {sev.upper()} ({len(items)}):")
+                    for it in items[:15]:
+                        lines.append(
+                            f"    • [V#{it.get('id','?')}] {it.get('cliente_nombre','?')} — "
+                            f"${it.get('monto_adeudado',0):,.0f} — {it.get('dias_atraso',0)}d — Tel: {it.get('cliente_telefono','')}"
+                        )
+            parts.append("\n".join(lines))
+        else:
+            parts.append("Morosidad: sin cuentas vencidas ✅")
+
+    # ── Proyección de cobranza (vigencia mensual) ───────────────────────────
+    if "proyeccion_cobranza" in data and isinstance(data["proyeccion_cobranza"], dict) and data["proyeccion_cobranza"]:
+        pc = data["proyeccion_cobranza"]
+        este = pc.get("este_mes", {})
+        prox = pc.get("mes_siguiente", {})
+        lines = [
+            "PROYECCIÓN DE COBRANZA (vigencia — vencimiento día 10):",
+            f"  Este mes: {este.get('cantidad',0)} cuotas — $ {este.get('total',0):,.0f}",
+            f"  Mes que viene: {prox.get('cantidad',0)} cuotas — $ {prox.get('total',0):,.0f}",
+        ]
+        parts.append("\n".join(lines))
 
     if len(parts) == 1:  # solo el header
         return ""

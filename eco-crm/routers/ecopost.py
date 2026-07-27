@@ -184,7 +184,8 @@ async def _generate_image_openrouter(api_key: str, prompt: str, tipo: str) -> Op
 
 async def _generate_image(db: Session, prompt: str, tipo: str) -> Optional[str]:
     """Intenta OpenRouter primero (motor configurado por defecto), con fallbacks legacy."""
-    or_key = get_config_value("openrouter_api_key", db)
+    import os
+    or_key = get_config_value("openrouter_api_key", db) or os.getenv("OPENROUTER_API_KEY", "")
     if or_key:
         b64 = await _generate_image_openrouter(or_key, prompt, tipo)
         if b64:

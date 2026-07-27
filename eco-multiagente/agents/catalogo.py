@@ -44,8 +44,9 @@ CATALOGO = {
         "120": {"cuotas": 120},
     },
     # Ingreso = N cuotas del plan elegido (no porcentaje fijo)
-    # Módulos:  ingreso = 2   cuotas del plan
-    # Piscinas: ingreso = 1.5 cuotas del plan
+    # Mismo factor para módulos y piscinas — regla real confirmada (antes
+    # piscinas usaba 1.5, un bug que las prompts de los agentes ya daban
+    # por corregido pero el simulador real seguía usando el valor viejo).
     "factor_ingreso_modulos":  2.0,
-    "factor_ingreso_piscinas": 1.5,
+    "factor_ingreso_piscinas": 2.0,
 }

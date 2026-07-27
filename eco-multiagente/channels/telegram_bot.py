@@ -36,6 +36,46 @@ _app: Application | None = None
 # ── Patrón de derivación ────────────────────────────────────────────────────
 _DERIVAR_RE = re.compile(r"\[DERIVAR:(\w+)\]", re.IGNORECASE)
 
+# Limpia cualquier señal interna que se filtre al texto visible si algo falla
+# (misma red de seguridad que usa el panel de pruebas — ver agent_panel.py).
+_SIGNAL_LEAK_RE = re.compile(
+    r"\[(?:LLAMADA_SUP|AGENDA_VV|DERIVAR|ALERTA|NOTIF|SEGUIMIENTO|LEAD_CALIENTE|SIMULAR)[^\]]*\]",
+    re.IGNORECASE,
+)
+
+
+async def _post_procesar_reply(reply: str) -> str:
+    """
+    Ejecuta acciones CRM reales ([CRM_ACTION:...]) y sustituye el simulador de
+    cuotas ([SIMULAR:...]) por el cálculo real — el mismo post-procesamiento
+    que aplica orchestrator/router.py, pero este bot habla directo con el
+    agente (agente.respond()) sin pasar por el router, así que antes ninguna
+    acción real se ejecutaba ni el simulador se sustituía en este canal.
+    """
+    from tools.crm_actions import detectar_acciones, limpiar_acciones, ejecutar_acciones
+
+    acciones = detectar_acciones(reply)
+    resultado_acciones = ""
+    if acciones:
+        try:
+            resultado_acciones = await ejecutar_acciones(acciones)
+            logger.info(f"[TG] Acciones ejecutadas: {[a.get('tipo','?') for a in acciones]}")
+        except Exception as e:
+            logger.error(f"[TG] Error ejecutando acciones CRM: {e}")
+            resultado_acciones = f"⚠️ Error al ejecutar la acción: {e}"
+
+    try:
+        from tools.cuota_sim import procesar_simulaciones
+        reply = procesar_simulaciones(reply)
+    except Exception:
+        pass
+
+    reply = limpiar_acciones(reply)
+    reply = _SIGNAL_LEAK_RE.sub("", reply).strip()
+    if resultado_acciones:
+        reply = f"{reply}\n\n{resultado_acciones}".strip()
+    return reply
+
 
 # ── Catálogo de agentes ─────────────────────────────────────────────────────
 
@@ -223,8 +263,8 @@ async def _responder_agente(
                 await update.message.reply_text(f"❌ No pude conectar con {cfg_to['nombre']}: {e}")
                 return
 
-            # Limpiar marcas y enviar respuesta del nuevo agente
-            reply = _DERIVAR_RE.sub("", reply).strip()
+            # Limpiar marcas, ejecutar acciones reales y enviar respuesta del nuevo agente
+            reply = await _post_procesar_reply(_DERIVAR_RE.sub("", reply).strip())
             sess["history"].append({"role": "user",      "content": mensaje})
             sess["history"].append({"role": "assistant",  "content": reply})
             if len(sess["history"]) > 80:
@@ -235,7 +275,7 @@ async def _responder_agente(
             return
 
     # ── Sin derivación: respuesta normal ────────────────────────────────
-    reply = _DERIVAR_RE.sub("", reply).strip()
+    reply = await _post_procesar_reply(_DERIVAR_RE.sub("", reply).strip())
 
     sess["history"].append({"role": "user",      "content": mensaje})
     sess["history"].append({"role": "assistant",  "content": reply})

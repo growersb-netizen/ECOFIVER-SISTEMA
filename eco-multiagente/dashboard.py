@@ -3238,7 +3238,7 @@ async def dashboard_save_catalogo(request: Request):
             for k in body.get("planes_financiacion", {}).keys()
         },
         "factor_ingreso_modulos":  2.0,
-        "factor_ingreso_piscinas": 1.5,
+        "factor_ingreso_piscinas": 2.0,
     }
     content = f'"""\nCatálogo oficial de productos EcoFiver.\nEste archivo es importado por TODOS los agentes.\n"""\n\nCATALOGO = {json.dumps(catalogo, ensure_ascii=False, indent=2)}\n'
     catalogo_path.write_text(content, encoding="utf-8")

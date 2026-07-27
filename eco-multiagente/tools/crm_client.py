@@ -780,3 +780,23 @@ async def get_aliado_comisiones(codigo: str) -> dict:
     except Exception as e:
         logger.warning(f"[CRM] get_aliado_comisiones({codigo}) falló: {e}")
         return {"total": 0, "monto_pendiente": 0, "monto_liquidado": 0, "comisiones": []}
+
+
+# ── Emisión de contratos (endpoint unificado, mismo que usa el MCP server) ──
+
+async def crear_contrato(payload: dict) -> dict:
+    """
+    Crea una venta financiada + número de solicitud atómico + PDF real.
+    payload debe tener la forma: {cliente, producto, financiacion, entrega?,
+    pago_registrado?, origen, forzar?} — ver spec_endpoint_contratos.md.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
+            r = await client.post(f"{CRM_BASE_URL}/api/contratos", headers=HEADERS, json=payload)
+            if r.status_code == 409:
+                return {"error": "DNI ya tiene una solicitud activa", "detail": r.json()}
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] crear_contrato falló: {e}")
+        return {"error": str(e)}

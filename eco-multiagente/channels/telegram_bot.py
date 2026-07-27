@@ -19,6 +19,7 @@ from telegram.ext import (
 from dotenv import load_dotenv
 from tools import crm_client
 from tools.audio_transcriber import transcribir_bytes
+from tools.vision import extraer_datos_documento
 
 load_dotenv()
 
@@ -112,9 +113,10 @@ _sessions: dict[int, dict] = {}
 def _get_session(chat_id: int) -> dict:
     if chat_id not in _sessions:
         _sessions[chat_id] = {
-            "agent":    "maximo",
-            "history":  [],
-            "instance": None,
+            "agent":       "maximo",
+            "history":     [],
+            "instance":    None,
+            "dni_pendiente": None,  # dict con datos extraídos de la última foto de DNI, sin confirmar
         }
     return _sessions[chat_id]
 
@@ -170,6 +172,16 @@ async def _responder_agente(
     if not sess["instance"]:
         sess["instance"] = _instanciar_agente(agent_key)
         sess["instance"].history = sess["history"]
+
+    # Si hay datos de un DNI recién escaneado sin confirmar, se los sumamos
+    # al contexto para que el agente (Máximo) pueda usarlos si Rodrigo los
+    # confirma o pide emitir el contrato con esos datos.
+    if sess.get("dni_pendiente"):
+        import json as _json
+        contexto = (
+            f"[DNI ESCANEADO, PENDIENTE DE CONFIRMACIÓN — no lo uses hasta que Rodrigo lo confirme]\n"
+            f"{_json.dumps(sess['dni_pendiente'], ensure_ascii=False)}\n\n{contexto}"
+        )
 
     await _app.bot.send_chat_action(chat_id=chat_id, action="typing")
 
@@ -314,6 +326,58 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"[TG] Error procesando audio: {e}")
         await update.message.reply_text(f"❌ No pude procesar el audio: {e}")
+
+
+# ── HANDLER DE FOTOS (lectura de DNI) ───────────────────────────────────────
+
+@solo_rodrigo
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Lee un documento (DNI) enviado por foto usando visión real, muestra los
+    datos extraídos para que Rodrigo los confirme antes de usarlos, y los
+    deja disponibles en la sesión (dni_pendiente) para que Máximo pueda
+    emitir el contrato una vez confirmados.
+    """
+    chat_id = update.effective_chat.id
+    if not update.message.photo:
+        return
+
+    await _app.bot.send_chat_action(chat_id=chat_id, action="typing")
+    await update.message.reply_text("📄 Leyendo el documento...")
+
+    try:
+        foto = update.message.photo[-1]  # la de mayor resolución
+        file_obj = await context.bot.get_file(foto.file_id)
+        image_bytes = await file_obj.download_as_bytearray()
+
+        datos = await extraer_datos_documento(bytes(image_bytes), "image/jpeg")
+
+        if datos.get("error"):
+            await update.message.reply_text(f"❌ No pude leer el documento: {datos['error']}")
+            return
+
+        sess = _get_session(chat_id)
+        sess["dni_pendiente"] = datos
+
+        campos = [
+            ("Nombre", datos.get("nombre")),
+            ("Apellido", datos.get("apellido")),
+            ("DNI", datos.get("dni")),
+            ("Fecha de nacimiento", datos.get("fecha_nacimiento")),
+            ("Domicilio", datos.get("domicilio")),
+            ("Lugar de nacimiento", datos.get("lugar_nacimiento")),
+        ]
+        lineas = [f"📄 *Datos leídos* (confianza: {datos.get('confianza','?')}):", ""]
+        for etiqueta, valor in campos:
+            lineas.append(f"• {etiqueta}: {valor if valor else '_no legible_'}")
+        lineas.append("")
+        lineas.append("¿Están bien? Confirmame o corregime lo que esté mal antes de usarlos para el contrato.")
+
+        await update.message.reply_text("\n".join(lineas), parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"[TG] Error procesando foto de documento: {e}")
+        await update.message.reply_text(f"❌ No pude procesar la foto: {e}")
 
 
 # ── COMANDOS POR AGENTE ─────────────────────────────────────────────────────
@@ -646,6 +710,11 @@ async def start_telegram():
     # ── Handler de mensajes de voz y audio ───────────────────────────────
     _app.add_handler(
         MessageHandler(filters.VOICE | filters.AUDIO, handle_voice)
+    )
+
+    # ── Handler de fotos (lectura de DNI) ─────────────────────────────────
+    _app.add_handler(
+        MessageHandler(filters.PHOTO, handle_photo)
     )
 
     # ── Registrar lista de comandos en Telegram (menú de autocompletado) ─

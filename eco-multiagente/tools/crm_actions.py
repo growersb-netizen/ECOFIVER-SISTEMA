@@ -111,6 +111,9 @@ async def _ejecutar_una(tipo: str, datos: dict) -> str:
     # ── Conocimiento persistente ────────────────────────────────────────────
     elif tipo == "recordar":
         return await _recordar(datos)
+    # ── Emisión de contratos ─────────────────────────────────────────────────
+    elif tipo == "emitir_contrato":
+        return await _emitir_contrato(datos)
     else:
         return f"⚠️ Tipo de acción desconocido: '{tipo}'"
 
@@ -424,3 +427,44 @@ async def _recordar(datos: dict) -> str:
         return f"✅ Guardado de forma permanente (para: {quienes}): \"{contenido[:80]}{'...' if len(contenido)>80 else ''}\""
     except Exception as e:
         return f"❌ Error guardando: {e}"
+
+
+async def _emitir_contrato(datos: dict) -> str:
+    """
+    Emite un contrato real: crea la venta financiada, asigna el número de
+    solicitud de forma atómica y genera el PDF. Mismo endpoint unificado que
+    usa el servidor MCP — nunca se pisa un número entre canales.
+    datos debe traer: cliente{nombre,apellido,dni,...}, producto{tipo,modelo,...},
+    financiacion{valor_mercado,pago_inicial,cant_cuotas,valor_cuota}, y
+    opcionalmente entrega{}, pago_registrado{}. origen se completa solo.
+    """
+    for campo in ("cliente", "producto", "financiacion"):
+        if not datos.get(campo):
+            return f"❌ Falta '{campo}' para emitir el contrato"
+
+    payload = {
+        "cliente": datos["cliente"],
+        "producto": datos["producto"],
+        "financiacion": datos["financiacion"],
+        "origen": {"canal": "whatsapp_maximo", "operador": "Rodrigo (vía Máximo)"},
+    }
+    if datos.get("conyuge"):
+        payload["conyuge"] = datos["conyuge"]
+    if datos.get("entrega"):
+        payload["entrega"] = datos["entrega"]
+    if datos.get("pago_registrado"):
+        payload["pago_registrado"] = datos["pago_registrado"]
+    if datos.get("forzar"):
+        payload["forzar"] = True
+
+    result = await crm_client.crear_contrato(payload)
+    if result.get("error"):
+        if "DNI ya tiene" in result["error"]:
+            existente = result.get("detail", {}).get("numero_solicitud", "?")
+            return f"⚠️ El DNI ya tiene una solicitud activa: {existente}. Si es correcto crear otra igual, reintentá con \"forzar\":true."
+        return f"❌ Error al emitir el contrato: {result['error']}"
+
+    numero = result.get("numero_solicitud", "?")
+    pdf = result.get("pdf_url")
+    linea_pdf = f" — PDF: {pdf}" if pdf else " — el PDF no se pudo generar, se puede regenerar después"
+    return f"✅ Contrato emitido — Solicitud N° {numero}{linea_pdf}"

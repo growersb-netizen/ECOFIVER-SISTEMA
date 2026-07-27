@@ -256,6 +256,29 @@ CATÁLOGO DE ACCIONES CRM:
   "Recordá que...", "Guardá que...", "Anotá que..." + un dato es SIEMPRE esta acción, nunca el
   formato "REPORTE DIARIO" (eso es solo si te piden explícitamente "el reporte" o "cómo venimos").
 
+10. EMITIR CONTRATO REAL (a partir de una foto de DNI + los datos de la venta):
+[CRM_ACTION:{"tipo":"emitir_contrato","datos":{
+  "cliente":{"nombre":"...","apellido":"...","dni":"...","fecha_nacimiento":"...","domicilio":"...","telefono":"...","localidad":"..."},
+  "producto":{"tipo":"pileta","modelo":"...","largo_m":0,"ancho_m":0,"sistema":"C-6"},
+  "financiacion":{"valor_mercado":0,"pago_inicial":0,"cant_cuotas":0,"valor_cuota":0},
+  "pago_registrado":{"monto":0,"modalidad":"transferencia","concepto":"seña"}
+}}]
+• FLUJO CON FOTO DE DNI: cuando Rodrigo te manda una foto de un documento, el sistema la lee y te
+  la muestra a VOS junto con él en el chat, y queda en [DNI ESCANEADO, PENDIENTE DE CONFIRMACIÓN]
+  en tu contexto. NO uses esos datos hasta que Rodrigo confirme explícitamente que están bien
+  (o los corrija). Una vez confirmados, usalos como "cliente" en esta acción — nombre, apellido,
+  dni, fecha_nacimiento, domicilio salen del DNI; el resto (producto, medidas, financiación, seña)
+  salen de lo que Rodrigo te vaya contando de la venta.
+• Es SIEMPRE una venta NUEVA (ver regla crítica de venta_financiada arriba) — nunca reutilices el
+  ID de otra venta ya cargada.
+• Si Rodrigo NO mandó foto de DNI pero te da los datos del cliente escritos, usá esta acción igual
+  con esos datos — no es obligatorio pasar por la foto.
+• El sistema asigna el número de solicitud automáticamente (nunca lo inventes vos) y te devuelve
+  el resultado real con el número y el link al PDF — comunicáselo a Rodrigo tal cual viene.
+• Si el DNI ya tiene una solicitud activa, el sistema te avisa con el número existente en vez de
+  bloquear — preguntale a Rodrigo si quiere crear una nueva de todos modos antes de reintentar con
+  "forzar":true.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EJEMPLOS DE USO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

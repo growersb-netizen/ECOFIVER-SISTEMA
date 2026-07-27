@@ -931,7 +931,7 @@ async def consultar_contrato_por_numero(
     return _contrato_a_dict(contrato, venta)
 
 
-@router.post("/api/contratos/solicitud/{numero_solicitud}/pagos")
+@router.post("/api/contratos/{numero_solicitud}/pagos")
 async def registrar_pago_por_numero(
     numero_solicitud: str,
     request: Request,
@@ -971,10 +971,30 @@ async def registrar_pago_por_numero(
     db.commit()
 
     saldo = max(0.0, (venta.precio_total or 0) - (venta.anticipo or 0))
+    estado_inscripcion = "completa" if saldo <= 0 else "parcial"
+
+    concepto_recibo = {
+        "seña": "Cuota inicial", "pago_a_cuenta": "Pago a cuenta", "pago_inicial_completo": "Cuota inicial",
+    }.get(concepto, concepto.replace("_", " ").capitalize() or "Pago")
+
+    recibo_pdf_url = None
+    try:
+        recibo = await generar_recibo_pdf(
+            db, venta, monto_recibido=monto, concepto=concepto_recibo, modalidad=modalidad,
+            overrides={"op_numero": pago_registrado.get("comprobante_numero_operacion", "")},
+        )
+        recibo_pdf_url = f"/api/contratos/{recibo.id}/download"
+    except Exception as e:
+        logger_err = str(e)  # el pago ya quedó registrado — el recibo se puede regenerar después
+    else:
+        logger_err = None
+
     return {
         "ok": True,
         "numero_solicitud": numero_solicitud,
         "monto_registrado": monto,
         "saldo_inscripcion_pendiente": saldo,
-        "estado_inscripcion": "completa" if saldo <= 0 else "parcial",
+        "estado_inscripcion": estado_inscripcion,
+        "recibo_pdf_url": recibo_pdf_url,
+        **({"error_recibo": logger_err} if logger_err else {}),
     }

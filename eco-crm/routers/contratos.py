@@ -23,7 +23,7 @@ from utils.documentos import render_html, html_to_pdf, monto_en_letras, split_no
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-UPLOAD_DIR   = Path("uploads/contratos")
+UPLOAD_DIR   = Path("data/contratos")  # dentro del volumen persistente (/app/data) — no ephemeral
 TEMPLATE_DIR = Path("data/plantillas_contratos")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)

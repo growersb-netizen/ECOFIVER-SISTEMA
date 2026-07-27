@@ -12,7 +12,7 @@ RUN playwright install --with-deps chromium
 
 COPY . .
 
-RUN mkdir -p uploads/contratos data
+RUN mkdir -p data/contratos
 
 EXPOSE 8000
 

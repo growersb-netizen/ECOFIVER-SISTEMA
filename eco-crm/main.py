@@ -36,7 +36,7 @@ Base.metadata.create_all(bind=engine)
 run_migrations()
 
 # Ensure directories exist
-Path("uploads/contratos").mkdir(parents=True, exist_ok=True)
+Path("data/contratos").mkdir(parents=True, exist_ok=True)  # persistente (/app/data)
 Path("data").mkdir(parents=True, exist_ok=True)
 Path("data/backups").mkdir(parents=True, exist_ok=True)
 

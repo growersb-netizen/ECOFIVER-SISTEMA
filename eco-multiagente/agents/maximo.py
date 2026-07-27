@@ -249,6 +249,7 @@ class Maximo(BaseAgent):
         super().__init__(
             name="Máximo",
             system_prompt=_SYSTEM_PROMPT,
+            atiende_clientes=False,  # Telegram: canal exclusivo de Rodrigo, nunca de clientes
         )
 
 

@@ -89,6 +89,7 @@ class Valentin(BaseAgent):
         super().__init__(
             name="Valentín",
             system_prompt=_SYSTEM_PROMPT,
+            atiende_clientes=False,  # terapeuta personal de Rodrigo, nunca habla con clientes
         )
 
 

@@ -106,7 +106,13 @@ REGLA ABSOLUTA — PROHIBIDO INVENTAR Y PROHIBIDO MENTIR SOBRE ACCIONES
 Inventar o mentir sobre acciones, precios o cualquier dato es el peor error posible: Rodrigo y
 los clientes confían en que lo que decís es real y toman decisiones en base a eso. Toda invención
 queda registrada en el audit log.
+"""
 
+# ── Instrucciones de venta/derivación — SOLO para agentes que hablan con CLIENTES ──
+# Máximo (y cualquier agente 100% interno) NO las recibe: Telegram es el canal
+# exclusivo del dueño, nunca de clientes, y si Máximo hereda este guión termina
+# tratando a Rodrigo como si fuera un lead ("¿buscás piscina o módulo?", etc.).
+_INSTRUCCIONES_VENTA_CLIENTE = """
 ---
 ENRUTAMIENTO ENTRE AGENTES — TODOS deben saber identificar y derivar (NUNCA rechazar):
 Cualquier agente que reciba una consulta fuera de su especialidad debe derivar al correcto con
@@ -139,7 +145,10 @@ Siempre hay un plan (financiación propia de fábrica) y un especialista. Deriv�
 LEAD CALIENTE: si el cliente muestra clara intención de comprar (quiere avanzar, reservar, pregunta
 cómo pagar, pide videollamada, dice "lo quiero"), incluí la señal [LEAD_CALIENTE] al final.
 El sistema la borra del mensaje, marca el lead como caliente y le avisa a Rodrigo para priorizarlo.
+"""
 
+# ── Instrucciones comunes (parte 2) — para TODOS los agentes ──────────────────
+_PANEL_INSTRUCTIONS_2 = """
 SIMULADOR DE CUOTAS EXACTO (no inventes números de financiación):
 Cuando tengas que dar cuotas/financiación de un precio, NO calcules de cabeza ni inventes.
 Emití la señal [SIMULAR:tipo:precio] y el sistema la reemplaza por el cálculo REAL y exacto.
@@ -205,7 +214,14 @@ def _load_custom_prompt(agent_name: str) -> str | None:
 
 
 class BaseAgent:
-    def __init__(self, name: str, system_prompt: str, model: str = None):
+    def __init__(self, name: str, system_prompt: str, model: str = None, atiende_clientes: bool = True):
+        """
+        atiende_clientes: True (default) para agentes que pueden hablar con clientes
+        reales (ventas, postventa, marketing, etc.) — reciben el guión de
+        identificación/derivación de consultas de venta. False para agentes 100%
+        internos (Máximo, Valentín) que SOLO hablan con Rodrigo por Telegram/panel:
+        no deben recibir ese guión o terminan tratando a Rodrigo como si fuera un lead.
+        """
         self.name = name
         self._model_override = model
         self._dedicated_provider = None  # lazy — solo para agentes con modelo propio
@@ -214,7 +230,11 @@ class BaseAgent:
         base = custom if custom else system_prompt
         # Agregar instrucciones de panel a TODOS los agentes (a menos que ya las tengan)
         if "MODO PANEL" not in base:
-            self.system_prompt = base + _PANEL_INSTRUCTIONS
+            extra = _PANEL_INSTRUCTIONS
+            if atiende_clientes:
+                extra += _INSTRUCCIONES_VENTA_CLIENTE
+            extra += _PANEL_INSTRUCTIONS_2
+            self.system_prompt = base + extra
         else:
             self.system_prompt = base
 

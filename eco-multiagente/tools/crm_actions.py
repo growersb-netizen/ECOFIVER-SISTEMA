@@ -102,6 +102,9 @@ async def _ejecutar_una(tipo: str, datos: dict) -> str:
         return await _disparar_scraping(datos)
     elif tipo == "reactivar_leads_frios":
         return await _reactivar_leads_frios(datos)
+    # ── Conocimiento persistente ────────────────────────────────────────────
+    elif tipo == "recordar":
+        return await _recordar(datos)
     else:
         return f"⚠️ Tipo de acción desconocido: '{tipo}'"
 
@@ -396,3 +399,22 @@ async def _reactivar_leads_frios(datos: dict) -> str:
     except Exception as e:
         return f"❌ Error reactivando: {e}"
     return f"✅ Reactivé {enviados} lead(s) frío(s) por WhatsApp"
+
+
+async def _recordar(datos: dict) -> str:
+    """
+    Guarda un hecho/instrucción como conocimiento PERMANENTE del agente —
+    sobrevive a reinicios y deploys (a diferencia del historial de chat).
+    datos: {"contenido": "texto a recordar", "agentes": ["maximo"] (opcional,
+    default solo Máximo), "titulo": "..." (opcional)}
+    """
+    contenido = (datos.get("contenido") or "").strip()
+    if not contenido:
+        return "❌ Falta 'contenido' para recordar"
+    try:
+        from tools.knowledge_base import aprender
+        doc = aprender(contenido, agentes=datos.get("agentes"), titulo=datos.get("titulo"))
+        quienes = ", ".join(doc.get("agentes", []))
+        return f"✅ Guardado de forma permanente (para: {quienes}): \"{contenido[:80]}{'...' if len(contenido)>80 else ''}\""
+    except Exception as e:
+        return f"❌ Error guardando: {e}"

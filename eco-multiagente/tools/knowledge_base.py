@@ -344,6 +344,22 @@ def guardar_doc(doc: dict) -> dict:
     return nuevo
 
 
+def aprender(contenido: str, agentes: list[str] | None = None, titulo: str | None = None) -> dict:
+    """
+    Guarda un hecho/instrucción como conocimiento PERSISTENTE (sobrevive a
+    reinicios y deploys — a diferencia del historial de conversación, que se
+    pierde). Usado por la acción [CRM_ACTION:{"tipo":"recordar",...}] cuando
+    Rodrigo le dice a un agente "recordá que...".
+    """
+    return guardar_doc({
+        "titulo": titulo or f"Recordado por Rodrigo — {time.strftime('%Y-%m-%d %H:%M')}",
+        "contenido": contenido,
+        "agentes": agentes or ["maximo"],
+        "activo": True,
+        "orden": 5,
+    })
+
+
 def borrar_doc(doc_id: str) -> bool:
     data = _load()
     antes = len(data.get("docs", []))

@@ -102,6 +102,21 @@ async def get_crm_context(agent_name: str) -> str:
 
     parts = ["[DATOS CRM EN TIEMPO REAL]"]
 
+    try:
+        _build_context_parts(parts, data)
+    except Exception:
+        logger.exception(f"[CRMCtx] Error armando contexto para {agent_name} (se usa lo parcial)")
+
+    if len(parts) == 1:  # solo el header — nada se pudo armar
+        return ""
+
+    return "\n\n".join(parts)
+
+
+def _build_context_parts(parts: list, data: dict) -> None:
+    """Agrega secciones a `parts` in-place. Si una sección individual falla,
+    se loguea y se sigue con las demás (nunca se pierde todo el contexto)."""
+
     # ── Pipeline ─────────────────────────────────────────────────────────────
     if "pipeline" in data and isinstance(data["pipeline"], dict):
         p = data["pipeline"]

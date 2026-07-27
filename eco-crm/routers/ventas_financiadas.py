@@ -1,18 +1,30 @@
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import VentaFinanciada, Pago, Usuario, Lead, Interaccion
-from routers.auth import require_auth, require_roles, get_user_roles
+from database.models import VentaFinanciada, Pago, Usuario, Lead, Interaccion, SolicitudContador
+from routers.auth import require_auth, require_roles, get_user_roles, get_current_user
 from routers.notificaciones import notificar_nueva_venta
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+
+
+def _import_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):
+    """Importación histórica: sesión ADMIN, o X-API-Key (uso puntual/scripts)."""
+    if x_api_key and x_api_key == API_KEY:
+        return
+    if current_user and "ADMIN" in get_user_roles(current_user):
+        return
+    raise HTTPException(403, "Sin permisos")
 
 
 def calcular_proximo_vencimiento(venta: VentaFinanciada) -> Optional[datetime]:
@@ -42,6 +54,13 @@ def venta_to_dict(v: VentaFinanciada) -> dict:
         "cliente_nombre": v.cliente_nombre,
         "cliente_telefono": v.cliente_telefono or "",
         "cliente_localidad": v.cliente_localidad or "",
+        "numero_solicitud": v.numero_solicitud or "",
+        "cliente_dni": v.cliente_dni or "",
+        "cliente_cuil": v.cliente_cuil or "",
+        "cliente_domicilio": v.cliente_domicilio or "",
+        "cliente_estado_civil": v.cliente_estado_civil or "",
+        "cliente_ocupacion": v.cliente_ocupacion or "",
+        "cliente_email": v.cliente_email or "",
         "producto": v.producto or "",
         "modelo_especifico": v.modelo_especifico or "",
         "color": v.color or "",
@@ -258,3 +277,145 @@ async def get_venta_financiada(
     if not venta:
         raise HTTPException(404, "Venta no encontrada")
     return venta_to_dict(venta)
+
+
+# ─── Importación de contratos históricos (numeración 000-13860XXX) ───────────
+# Registros cuyo teléfono/email quedó cruzado entre sí en el origen (misma
+# fuente reportó el mismo dato de contacto para 3 clientes distintos) —
+# se importan sin contacto, marcados para verificar antes de escribirles.
+_CONTACTO_A_VERIFICAR = {"000-13860151", "000-13860155", "000-13860158"}
+
+
+def _parse_fecha(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s[:10], "%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def _categoria_producto(producto: Optional[str]) -> str:
+    if not producto:
+        return ""
+    p = producto.lower()
+    if "combo" in p:
+        return "COMBO"
+    return "PISCINA"
+
+
+@router.post("/api/ventas-financiadas/importar-historico")
+async def importar_historico(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Importación puntual de contratos históricos (numeración 000-13860XXX)
+    generados fuera del CRM. Idempotente por numero_solicitud: si ya existe,
+    se omite (no pisa datos existentes).
+    """
+    _import_auth(x_api_key, current_user)
+    data = await request.json()
+    contratos = data.get("contratos") or []
+    if not isinstance(contratos, list) or not contratos:
+        raise HTTPException(400, "Falta 'contratos' (lista)")
+
+    creados, omitidos, contacto_limpiado, incompletos = [], [], [], []
+    max_numero = None
+
+    for c in contratos:
+        numero = (c.get("numero_solicitud") or "").strip()
+        if not numero:
+            continue
+
+        # Trackear el número más alto visto para reacomodar el contador al final
+        try:
+            n_int = int(numero.split("-")[-1])
+            max_numero = n_int if max_numero is None else max(max_numero, n_int)
+        except Exception:
+            pass
+
+        ya_existe = db.query(VentaFinanciada).filter(VentaFinanciada.numero_solicitud == numero).first()
+        if ya_existe:
+            omitidos.append(numero)
+            continue
+
+        telefono, email = c.get("telefono"), c.get("email")
+        notas_partes = []
+        if numero in _CONTACTO_A_VERIFICAR:
+            notas_partes.append(
+                "⚠️ CONTACTO SIN VERIFICAR: el teléfono/email de origen quedó "
+                "cruzado con el de otro cliente en la fuente — se dejó vacío a "
+                "propósito. Confirmar con el cliente antes de contactarlo."
+            )
+            telefono, email = None, None
+            contacto_limpiado.append(numero)
+
+        incompleto = not c.get("producto") and not c.get("dni")
+        if incompleto:
+            notas_partes.append("⚠️ INCOMPLETO: contrato referenciado con datos faltantes en el origen.")
+            incompletos.append(numero)
+
+        for campo in ("nota", "nota_error"):
+            if c.get(campo):
+                notas_partes.append(f"[{campo}] {c[campo]}")
+
+        for campo, etiqueta in (
+            ("medidas", "Medidas"), ("medidas_piscina", "Medidas piscina"),
+            ("sistema", "Sistema"), ("entrega", "Entrega"),
+            ("estado_inscripcion", "Estado inscripción"),
+            ("inscripcion_total", "Inscripción total"),
+            ("saldo_inscripcion", "Saldo inscripción"),
+            ("incluye", "Incluye"),
+            ("dni_conyuge", "DNI cónyuge"), ("cuil_conyuge", "CUIL cónyuge"),
+            ("telefono_conyuge", "Tel. cónyuge"), ("ocupacion_conyuge", "Ocupación cónyuge"),
+            ("fecha_contrato", "Fecha contrato (origen)"),
+        ):
+            if c.get(campo) not in (None, ""):
+                notas_partes.append(f"{etiqueta}: {c[campo]}")
+
+        venta = VentaFinanciada(
+            cliente_nombre=c.get("cliente") or "(sin nombre)",
+            cliente_telefono=telefono,
+            cliente_email=email,
+            producto=_categoria_producto(c.get("producto")),
+            modelo_especifico=c.get("producto") or "",
+            forma_pago="HISTORICO",
+            precio_total=c.get("valor_total") or 0,
+            anticipo=c.get("pagado_inscripcion") or 0,
+            cantidad_cuotas=c.get("cant_cuotas") or 1,
+            valor_cuota=c.get("valor_cuota") or 0,
+            fecha_inicio_plan=_parse_fecha(c.get("fecha_contrato")),
+            estado_plan="ACTIVO",
+            estado_admision="INCOMPLETO" if incompleto else None,
+            numero_solicitud=numero,
+            cliente_dni=c.get("dni"),
+            cliente_cuil=c.get("cuil"),
+            cliente_domicilio=c.get("domicilio"),
+            cliente_estado_civil=c.get("estado_civil"),
+            cliente_ocupacion=c.get("ocupacion"),
+            notas="\n".join(notas_partes),
+        )
+        db.add(venta)
+        creados.append(numero)
+
+    # Reacomodar el contador de numeración para que el próximo emitido no colisione
+    if max_numero is not None:
+        contador = db.query(SolicitudContador).filter(SolicitudContador.id == 1).first()
+        if not contador:
+            contador = SolicitudContador(id=1, prefijo="000", ultimo_numero=max_numero)
+            db.add(contador)
+        elif (contador.ultimo_numero or 0) < max_numero:
+            contador.ultimo_numero = max_numero
+
+    db.commit()
+    return {
+        "ok": True,
+        "creados": creados,
+        "omitidos_ya_existian": omitidos,
+        "contacto_limpiado_a_verificar": contacto_limpiado,
+        "incompletos": incompletos,
+        "total_creados": len(creados),
+    }

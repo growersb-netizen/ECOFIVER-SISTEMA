@@ -109,6 +109,14 @@ def run_migrations():
             "ALTER TABLE ventas_contado ADD COLUMN con_puerta_ingreso BOOLEAN DEFAULT 0",
             "ALTER TABLE ventas_contado ADD COLUMN con_ventana_balcon BOOLEAN DEFAULT 0",
             "ALTER TABLE ventas_contado ADD COLUMN sobre_piso TEXT",
+            # ── VentaFinanciada: ficha completa para importación de contratos históricos ──
+            "ALTER TABLE ventas_financiadas ADD COLUMN numero_solicitud TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN cliente_dni TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN cliente_cuil TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN cliente_domicilio TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN cliente_estado_civil TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN cliente_ocupacion TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN cliente_email TEXT",
         ]
         for stmt in migrations:
             try:

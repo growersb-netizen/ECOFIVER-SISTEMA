@@ -319,6 +319,13 @@ class VentaFinanciada(Base):
     estado_plan = Column(String(20), default="ACTIVO")
     estado_admision = Column(String(20), nullable=True)
     notas = Column(Text, default="")
+    numero_solicitud = Column(String(30), nullable=True, index=True)
+    cliente_dni = Column(String(20), nullable=True)
+    cliente_cuil = Column(String(20), nullable=True)
+    cliente_domicilio = Column(String(300), nullable=True)
+    cliente_estado_civil = Column(String(30), nullable=True)
+    cliente_ocupacion = Column(String(100), nullable=True)
+    cliente_email = Column(String(150), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

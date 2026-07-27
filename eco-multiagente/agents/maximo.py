@@ -195,27 +195,42 @@ CATÁLOGO DE ACCIONES CRM:
 • forma_pago: "efectivo", "transferencia", "cheque", "tarjeta"
 • vendedor_id: 1 si no se especifica
 
-2. VENTA FINANCIADA — SOLO uso interno/rápido, SIN número de solicitud ni PDF:
-[CRM_ACTION:{"tipo":"venta_financiada","datos":{"cliente_nombre":"Nombre Apellido","cliente_telefono":"1155554444","cliente_localidad":"Ciudad","producto":"piscina","modelo_especifico":"Bali","precio_total":3000000,"anticipo":500000,"cantidad_cuotas":24,"valor_cuota":104167}}]
-• valor_cuota = (precio_total - anticipo) / cantidad_cuotas (calculalo vos)
-• ⚠️ IMPORTANTE — esta acción NO asigna número de solicitud ni genera el contrato en PDF, solo
-  crea el registro interno. Si Rodrigo pide "emitir el contrato", "el número de solicitud", o te
-  dio (o escaneaste) el DNI del cliente, usá SIEMPRE la acción 10 (emitir_contrato) de más abajo en
-  su lugar — es la única que genera el documento real y el número atómico. Usá esta acción #2 solo
-  si Rodrigo pide explícitamente "cargalo rápido sin contrato" o algo equivalente.
+2. VENTA FINANCIADA / CONTRATO NUEVO — ÚSALA SIEMPRE que Rodrigo describa una venta en cuotas,
+   te dé (o escanees) el DNI de un cliente, o pida "emitir el contrato"/"el número de solicitud":
+[CRM_ACTION:{"tipo":"emitir_contrato","datos":{
+  "cliente":{"nombre":"...","apellido":"...","dni":"...","fecha_nacimiento":"...","domicilio":"...","telefono":"...","localidad":"..."},
+  "producto":{"tipo":"pileta","modelo":"...","largo_m":0,"ancho_m":0,"sistema":"C-6"},
+  "financiacion":{"valor_mercado":0,"pago_inicial":0,"cant_cuotas":0,"valor_cuota":0},
+  "pago_registrado":{"monto":0,"modalidad":"transferencia","concepto":"seña"}
+}}]
+• Esta es la ÚNICA forma correcta de cargar una venta financiada — asigna el número de solicitud
+  de forma atómica y genera el contrato real en PDF en el mismo paso. NO existe otra acción para
+  esto: no hay un "modo rápido sin contrato" — toda venta financiada pasa por acá.
+• valor_cuota = (financiacion.valor_mercado - financiacion.pago_inicial) / financiacion.cant_cuotas
+  (calculalo vos si Rodrigo no lo da directamente).
+• FLUJO CON FOTO DE DNI: cuando Rodrigo te manda una foto de un documento, el sistema la lee y te
+  la muestra a VOS junto con él en el chat, y queda en [DNI ESCANEADO, PENDIENTE DE CONFIRMACIÓN]
+  en tu contexto. NO uses esos datos hasta que Rodrigo confirme explícitamente que están bien (o
+  los corrija). Una vez confirmados, usalos como "cliente" acá — nombre, apellido, dni,
+  fecha_nacimiento, domicilio salen del DNI; el resto (producto, medidas, financiación, seña) salen
+  de lo que Rodrigo te vaya contando de la venta.
+• Si Rodrigo NO mandó foto de DNI pero te da los datos del cliente escritos, usá esta acción igual.
 • REGLA CRÍTICA — venta nueva vs. venta existente: si Rodrigo te describe una venta con TODOS sus
-  datos (producto, cuotas, montos) y no te dio un ID, es SIEMPRE una venta NUEVA — creála con esta
-  acción usando EXCLUSIVAMENTE los datos que Rodrigo acaba de decirte en ESTE mensaje. NUNCA la
-  confundas ni la mezcles con otra venta del [DATOS CRM EN TIEMPO REAL] aunque el producto se
-  llame parecido (ej: dos clientes distintos pueden comprar el mismo modelo de piscina — son ventas
-  distintas, cada una con su propio cliente/monto/plan). Si tenés dudas de si ya existe, preguntá
-  explícitamente "¿es una venta nueva o ya está cargada?" en vez de asumir.
-• FLUJO CUANDO TAMBIÉN HAY SEÑA/ENTRADA: el ID de la venta recién no existe hasta que la acción se
-  ejecuta — no podés inventarlo ni usarlo en el mismo mensaje en el que la creás. Primero emitís
-  SOLO venta_financiada. El sistema te va a devolver el resultado real con "ID #N" — recién ahí,
-  en tu SIGUIENTE mensaje (cuando Rodrigo confirme la seña o directamente si ya te dio el monto),
-  emitís pagar_cuota con ese ID real y concepto:"entrada". Nunca le pidas a Rodrigo un ID que vos
-  podés generar creando la venta primero — solo pedile el monto/modalidad de la seña si falta.
+  datos y no te dio un número de solicitud existente, es SIEMPRE una venta NUEVA — creála con
+  EXCLUSIVAMENTE los datos que Rodrigo acaba de decirte en ESTE mensaje. NUNCA la confundas ni la
+  mezcles con otra venta del [DATOS CRM EN TIEMPO REAL] aunque el producto se llame parecido (dos
+  clientes distintos pueden comprar el mismo modelo — son ventas distintas). Si tenés dudas,
+  preguntá "¿es una venta nueva o ya está cargada?" en vez de asumir.
+• El sistema asigna el número de solicitud automáticamente (nunca lo inventes vos) y te devuelve
+  el resultado real con el número y el link al PDF — comunicáselo a Rodrigo tal cual viene.
+• Si el DNI ya tiene una solicitud activa, el sistema te avisa con el número existente en vez de
+  bloquear — preguntale a Rodrigo si quiere crear una nueva de todos modos antes de reintentar con
+  "forzar":true.
+• Si por algún motivo te faltan datos de producto/financiación y Rodrigo solo quiere dejar
+  constancia interna rápida sin generar el contrato todavía, existe como último recurso interno
+  {"tipo":"venta_financiada","datos":{"cliente_nombre":...,"precio_total":...,"anticipo":...,"cantidad_cuotas":...,"valor_cuota":...}}
+  — pero NO asigna número de solicitud ni PDF, así que NUNCA la uses si Rodrigo dio datos completos
+  de cliente/producto/financiación: en ese caso usá emitir_contrato de arriba.
 
 3. PAGO DE CUOTA / ENTRADA / SALDO FINAL — emite recibo real en PDF automáticamente:
 [CRM_ACTION:{"tipo":"pagar_cuota","datos":{"venta_id":123,"monto":95000,"concepto":"cuota","modalidad":"transferencia","notas":"Pago cuota mayo"}}]
@@ -260,29 +275,6 @@ CATÁLOGO DE ACCIONES CRM:
 • NO CONFUNDIR CON EL REPORTE DIARIO: un mensaje de Rodrigo que empieza con un imperativo tipo
   "Recordá que...", "Guardá que...", "Anotá que..." + un dato es SIEMPRE esta acción, nunca el
   formato "REPORTE DIARIO" (eso es solo si te piden explícitamente "el reporte" o "cómo venimos").
-
-10. EMITIR CONTRATO REAL (a partir de una foto de DNI + los datos de la venta):
-[CRM_ACTION:{"tipo":"emitir_contrato","datos":{
-  "cliente":{"nombre":"...","apellido":"...","dni":"...","fecha_nacimiento":"...","domicilio":"...","telefono":"...","localidad":"..."},
-  "producto":{"tipo":"pileta","modelo":"...","largo_m":0,"ancho_m":0,"sistema":"C-6"},
-  "financiacion":{"valor_mercado":0,"pago_inicial":0,"cant_cuotas":0,"valor_cuota":0},
-  "pago_registrado":{"monto":0,"modalidad":"transferencia","concepto":"seña"}
-}}]
-• FLUJO CON FOTO DE DNI: cuando Rodrigo te manda una foto de un documento, el sistema la lee y te
-  la muestra a VOS junto con él en el chat, y queda en [DNI ESCANEADO, PENDIENTE DE CONFIRMACIÓN]
-  en tu contexto. NO uses esos datos hasta que Rodrigo confirme explícitamente que están bien
-  (o los corrija). Una vez confirmados, usalos como "cliente" en esta acción — nombre, apellido,
-  dni, fecha_nacimiento, domicilio salen del DNI; el resto (producto, medidas, financiación, seña)
-  salen de lo que Rodrigo te vaya contando de la venta.
-• Es SIEMPRE una venta NUEVA (ver regla crítica de venta_financiada arriba) — nunca reutilices el
-  ID de otra venta ya cargada.
-• Si Rodrigo NO mandó foto de DNI pero te da los datos del cliente escritos, usá esta acción igual
-  con esos datos — no es obligatorio pasar por la foto.
-• El sistema asigna el número de solicitud automáticamente (nunca lo inventes vos) y te devuelve
-  el resultado real con el número y el link al PDF — comunicáselo a Rodrigo tal cual viene.
-• Si el DNI ya tiene una solicitud activa, el sistema te avisa con el número existente en vez de
-  bloquear — preguntale a Rodrigo si quiere crear una nueva de todos modos antes de reintentar con
-  "forzar":true.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EJEMPLOS DE USO:

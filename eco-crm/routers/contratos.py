@@ -458,7 +458,7 @@ async def upload_contrato_pdf(
 async def download_contrato(
     contrato_id: int,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     contrato = db.query(Contrato).filter(Contrato.id == contrato_id).first()
     if not contrato or not contrato.archivo_pdf:
@@ -500,8 +500,7 @@ async def emitir_contrato(
     venta_financiada_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    x_api_key: Optional[str] = Header(None),
-    current_user: Optional[Usuario] = Depends(get_current_user),
+    current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     """
     Genera el Contrato de Financiación real (HTML → PDF con Playwright),
@@ -510,9 +509,6 @@ async def emitir_contrato(
     en el body como "datos": {...} — ver templates/documentos/contrato_template.html
     para la lista completa de placeholders.
     """
-    if not (x_api_key and x_api_key == os.getenv("API_KEY", "eco-crm-api-key-2024")) and not current_user:
-        raise HTTPException(401, "No autenticado")
-
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_financiada_id).first()
     if not venta:
         raise HTTPException(404, "Venta financiada no encontrada")
@@ -578,8 +574,7 @@ async def emitir_recibo(
     venta_financiada_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    x_api_key: Optional[str] = Header(None),
-    current_user: Optional[Usuario] = Depends(get_current_user),
+    current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     """
     Genera un Recibo de Pago real (seña, pago a cuenta, saldo final o pago
@@ -591,9 +586,6 @@ async def emitir_recibo(
       "datos": { ...overrides opcionales de cualquier placeholder... }
     }
     """
-    if not (x_api_key and x_api_key == os.getenv("API_KEY", "eco-crm-api-key-2024")) and not current_user:
-        raise HTTPException(401, "No autenticado")
-
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_financiada_id).first()
     if not venta:
         raise HTTPException(404, "Venta financiada no encontrada")

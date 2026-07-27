@@ -20,6 +20,12 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
+# Algunos endpoints (routers/negocio.py) validan X-API-Key en vez de Bearer.
+HEADERS_XKEY = {
+    "X-API-Key": CRM_API_KEY,
+    "Content-Type": "application/json",
+}
+
 TIMEOUT = 10.0
 
 
@@ -274,6 +280,18 @@ async def get_precios_actuales() -> dict:
     except Exception as e:
         logger.warning(f"[CRM] get_precios_actuales falló: {e}")
         return {"piscinas": {"modelos": [], "precios": {}}, "modulos": {"superficies_m2": [], "precios": {}}}
+
+
+async def get_flete_config() -> dict:
+    """Obtiene la configuración vigente del negocio (flete $/km y afines)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(f"{CRM_BASE_URL}/api/negocio/config", headers=HEADERS_XKEY)
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] get_flete_config falló: {e}")
+        return {}
 
 
 async def incrementar_intentos_seguimiento(lead_id: int) -> bool:

@@ -22,24 +22,25 @@ AGENT_CRM_NEEDS: dict[str, list[str]] = {
     "Máximo":    [
         "pipeline_stats", "ventas_hoy", "cuotas_vencidas",
         "leads_sin_respuesta", "stock", "materiales", "stock_piscinas",
+        "precios", "flete",
         # Contexto completo para conocimiento total del negocio:
         "todos_leads", "ventas_contado", "ventas_financiadas",
         "metricas_avanzadas", "ranking",
     ],
-    "Aurora":    ["pipeline_stats", "ventas_hoy", "leads_sin_respuesta"],
+    "Aurora":    ["pipeline_stats", "ventas_hoy", "leads_sin_respuesta", "precios", "flete"],
     "Tomás":     ["pipeline_stats", "leads_sin_respuesta"],
     "Ignacio":   ["cuotas_vencidas"],
-    "Elena":     ["pipeline_stats", "ventas_hoy", "cuotas_vencidas"],
-    "Bruno":     ["stock", "pipeline_stats", "materiales", "stock_piscinas"],
+    "Elena":     ["pipeline_stats", "ventas_hoy", "cuotas_vencidas", "precios"],
+    "Bruno":     ["stock", "pipeline_stats", "materiales", "stock_piscinas", "flete"],
     "Ezequiel":  ["pipeline_stats", "cuotas_vencidas"],
     "Renata":    ["pipeline_stats"],
     "Daniela":   ["pipeline_stats"],
-    # Agentes de ventas: precios para cotizar con exactitud
-    "Valentina": ["precios"],
-    "Camila":    ["precios"],
-    "Mateo":     ["precios"],
-    "Nicolás":   ["precios"],
-    "Luciano":   ["precios"],
+    # Agentes de ventas: precios y flete para cotizar con exactitud, siempre en vivo
+    "Valentina": ["precios", "flete"],
+    "Camila":    ["precios", "flete"],
+    "Mateo":     ["precios", "flete"],
+    "Nicolás":   ["precios", "flete"],
+    "Luciano":   ["precios", "flete"],
     "Sebastián": ["pipeline_stats"],
 }
 
@@ -76,6 +77,8 @@ async def get_crm_context(agent_name: str) -> str:
         tasks["stock"] = crm_client.get_stock()
     if "precios" in needs:
         tasks["precios"] = crm_client.get_precios_actuales()
+    if "flete" in needs:
+        tasks["flete"] = crm_client.get_flete_config()
     if "materiales" in needs:
         tasks["materiales"] = crm_client.get_materiales_inventario()
     if "stock_piscinas" in needs:
@@ -200,16 +203,30 @@ def _build_context_parts(parts: list, data: dict) -> None:
         piscinas = pr.get("piscinas", {})
         modulos  = pr.get("modulos", {})
         if piscinas:
-            lines.append("  Piscinas:")
+            lines.append("  Piscinas (precio de lista, contado):")
             precios_p = piscinas.get("precios", {})
-            for modelo, precio in list(precios_p.items())[:8]:
+            for modelo, precio in precios_p.items():
                 lines.append(f"    • {modelo}: ${precio:,.0f}")
         if modulos:
-            lines.append("  Módulos:")
+            lines.append("  Módulos (precio de lista, contado):")
             precios_m = modulos.get("precios", {})
-            for sup, precio in list(precios_m.items())[:6]:
+            for sup, precio in precios_m.items():
                 lines.append(f"    • {sup}: ${precio:,.0f}")
+        combos = pr.get("combos", {})
+        if combos:
+            lines.append("  Combos:")
+            for nombre, c in combos.items():
+                pl = c.get("precio_lista", c.get("precio", 0)) if isinstance(c, dict) else c
+                lines.append(f"    • {nombre}: ${pl:,.0f}")
+        lines.append("  NOTA: estos son TODOS los precios reales vigentes — si un modelo pedido no está en esta lista, decí que no está cargado, NUNCA inventes un precio para completarlo.")
         parts.append("\n".join(lines))
+
+    # ── Flete ────────────────────────────────────────────────────────────────
+    if "flete" in data and isinstance(data["flete"], dict) and data["flete"]:
+        fl = data["flete"]
+        km = fl.get("negocio_flete_km")
+        if km:
+            parts.append(f"Flete vigente: ${km}/km desde Zárate (valor único real — usar SIEMPRE este, nunca uno de memoria).")
 
     # ── Materiales / Insumos ──────────────────────────────────────────────────
     if "materiales" in data and isinstance(data["materiales"], list) and data["materiales"]:

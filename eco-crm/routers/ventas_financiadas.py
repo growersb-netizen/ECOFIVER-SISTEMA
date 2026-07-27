@@ -269,26 +269,60 @@ async def registrar_pago(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_auth_or_apikey)
 ):
+    """
+    Registra un pago (cuota mensual, seña/entrada o saldo final) y emite el
+    recibo real en PDF automáticamente. Body:
+    {"monto": 120000, "notas": "...", "concepto": "cuota"|"entrada"|"saldo_final",
+     "modalidad": "transferencia"|"efectivo"}
+    concepto default "cuota" (incrementa cuotas_pagas); "entrada"/"saldo_final"
+    no tocan cuotas_pagas, solo suman al anticipo/saldo.
+    """
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
     if not venta:
         raise HTTPException(404, "Venta no encontrada")
 
     data = await request.json()
+    monto = data.get("monto", venta.valor_cuota or 0)
+    concepto = (data.get("concepto") or "cuota").lower()
+
     pago = Pago(
         venta_financiada_id=venta_id,
-        monto=data.get("monto", venta.valor_cuota or 0),
+        monto=monto,
         notas=data.get("notas", ""),
     )
     db.add(pago)
-    venta.cuotas_pagas = (venta.cuotas_pagas or 0) + 1
 
-    if venta.cuotas_pagas >= venta.cantidad_cuotas:
+    if concepto == "cuota":
+        venta.cuotas_pagas = (venta.cuotas_pagas or 0) + 1
+    else:
+        venta.anticipo = (venta.anticipo or 0) + float(monto)
+
+    if venta.cuotas_pagas >= venta.cantidad_cuotas or (venta.anticipo or 0) + (venta.cuotas_pagas or 0) * (venta.valor_cuota or 0) >= (venta.precio_total or 0):
         venta.estado_plan = "FINALIZADO"
     elif dias_atraso(venta) > 0:
         venta.estado_plan = "ACTIVO"
 
     db.commit()
-    return {"ok": True, "cuotas_pagas": venta.cuotas_pagas}
+
+    concepto_recibo = {"cuota": "Pago de cuota", "entrada": "Cuota inicial", "saldo_final": "Saldo final"}.get(concepto, "Pago")
+    resultado = {"ok": True, "cuotas_pagas": venta.cuotas_pagas, "recibo": None}
+    try:
+        from routers.contratos import generar_recibo_pdf
+        recibo = await generar_recibo_pdf(
+            db, venta, monto_recibido=float(monto), concepto=concepto_recibo,
+            modalidad=data.get("modalidad", ""),
+        )
+        resultado["recibo"] = {
+            "recibo_id": recibo.id,
+            "download_url": f"/api/contratos/{recibo.id}/download",
+            "saldo_pendiente": recibo.saldo_pendiente,
+            "es_cierre": recibo.es_cierre,
+        }
+    except Exception as e:
+        logger_msg = f"No se pudo generar el recibo automático: {e}"
+        resultado["recibo_error"] = logger_msg
+
+    return resultado
 
 
 @router.get("/api/ventas-financiadas/{venta_id}")

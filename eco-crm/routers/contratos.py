@@ -573,40 +573,21 @@ async def emitir_contrato(
             "download_url": f"/api/contratos/{contrato.id}/download"}
 
 
-@router.post("/api/contratos/emitir-recibo/{venta_financiada_id}")
-async def emitir_recibo(
-    venta_financiada_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth_or_apikey),
-):
+async def generar_recibo_pdf(
+    db: Session,
+    venta: VentaFinanciada,
+    monto_recibido: float,
+    concepto: str = "Pago",
+    modalidad: str = "",
+    overrides: Optional[dict] = None,
+) -> Contrato:
     """
-    Genera un Recibo de Pago real (seña, pago a cuenta, saldo final o pago
-    inicial completo). Body esperado:
-    {
-      "monto_recibido": 150000,
-      "concepto": "Cuota inicial" | "Pago de cuota" | "Saldo final" | ...,
-      "modalidad": "Transferencia" | "Efectivo",
-      "datos": { ...overrides opcionales de cualquier placeholder... }
-    }
+    Arma el contexto, renderiza el PDF real del recibo y guarda el registro
+    de Contrato (tipo_documento=RECIBO). Reusado por el endpoint de contratos
+    y por el registro de pago de cuota (ventas_financiadas.py) para que
+    CUALQUIER pago — cuota mensual o entrada/suscripción — emita recibo real.
     """
-    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_financiada_id).first()
-    if not venta:
-        raise HTTPException(404, "Venta financiada no encontrada")
-
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        pass
-    if not isinstance(body, dict):
-        body = {}
-    overrides = body.get("datos", {})
-
-    monto_recibido = float(body.get("monto_recibido") or 0)
-    concepto = body.get("concepto") or "Pago"
-    modalidad = body.get("modalidad") or ""
-
+    overrides = overrides or {}
     precio_total = venta.precio_total or 0
     anticipo_pagado = venta.anticipo or 0
     valor_cuota = venta.valor_cuota or 0
@@ -672,7 +653,7 @@ async def emitir_recibo(
     await html_to_pdf(html, out_path)
 
     recibo = Contrato(
-        venta_financiada_id=venta_financiada_id,
+        venta_financiada_id=venta.id,
         cliente_nombre=venta.cliente_nombre,
         tipo_contrato=concepto,
         tipo_documento="RECIBO",
@@ -685,8 +666,50 @@ async def emitir_recibo(
     db.commit()
     db.refresh(recibo)
 
-    return {"ok": True, "recibo_id": recibo.id, "archivo": nombre_archivo,
-            "saldo_pendiente": saldo_pendiente, "es_cierre": es_cierre,
+    recibo.saldo_pendiente = saldo_pendiente  # atributo en memoria, no persistido
+    recibo.es_cierre = es_cierre
+    recibo.nombre_archivo = nombre_archivo
+    return recibo
+
+
+@router.post("/api/contratos/emitir-recibo/{venta_financiada_id}")
+async def emitir_recibo(
+    venta_financiada_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """
+    Genera un Recibo de Pago real (seña, pago a cuenta, saldo final o pago
+    inicial completo). Body esperado:
+    {
+      "monto_recibido": 150000,
+      "concepto": "Cuota inicial" | "Pago de cuota" | "Saldo final" | ...,
+      "modalidad": "Transferencia" | "Efectivo",
+      "datos": { ...overrides opcionales de cualquier placeholder... }
+    }
+    """
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_financiada_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta financiada no encontrada")
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    if not isinstance(body, dict):
+        body = {}
+
+    recibo = await generar_recibo_pdf(
+        db, venta,
+        monto_recibido=float(body.get("monto_recibido") or 0),
+        concepto=body.get("concepto") or "Pago",
+        modalidad=body.get("modalidad") or "",
+        overrides=body.get("datos", {}),
+    )
+    return {"ok": True, "recibo_id": recibo.id, "archivo": recibo.nombre_archivo,
+            "saldo_pendiente": recibo.saldo_pendiente, "es_cierre": recibo.es_cierre,
             "download_url": f"/api/contratos/{recibo.id}/download"}
 
 

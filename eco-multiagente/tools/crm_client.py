@@ -492,20 +492,30 @@ async def registrar_venta_financiada(data: dict) -> dict:
         return {"error": str(e)}
 
 
-async def pagar_cuota(venta_id: int, monto: float, notas: str = "") -> bool:
-    """Registra el pago de una cuota de una venta financiada."""
+async def pagar_cuota(
+    venta_id: int, monto: float, notas: str = "",
+    concepto: str = "cuota", modalidad: str = "",
+) -> dict:
+    """
+    Registra un pago (cuota mensual, entrada/seña o saldo final) y el CRM
+    emite el recibo real en PDF automáticamente.
+    concepto: "cuota" (default) | "entrada" | "saldo_final".
+    Retorna {"ok": bool, "recibo": {...} | None} — recibo trae download_url.
+    """
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/ventas-financiadas/{venta_id}/pago",
                 headers=HEADERS,
-                json={"monto": monto, "notas": notas},
+                json={"monto": monto, "notas": notas, "concepto": concepto, "modalidad": modalidad},
             )
             r.raise_for_status()
-            return True
+            data = r.json()
+            data["ok"] = True
+            return data
     except Exception as e:
         logger.warning(f"[CRM] pagar_cuota({venta_id}) falló: {e}")
-        return False
+        return {"ok": False, "error": str(e)}
 
 
 async def agregar_stock_piscina(data: dict) -> dict:

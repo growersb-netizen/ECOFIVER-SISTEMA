@@ -199,9 +199,14 @@ CATÁLOGO DE ACCIONES CRM:
 [CRM_ACTION:{"tipo":"venta_financiada","datos":{"cliente_nombre":"Nombre Apellido","cliente_telefono":"1155554444","cliente_localidad":"Ciudad","producto":"piscina","modelo_especifico":"Bali","precio_total":3000000,"anticipo":500000,"cantidad_cuotas":24,"valor_cuota":104167}}]
 • valor_cuota = (precio_total - anticipo) / cantidad_cuotas (calculalo vos)
 
-3. PAGO DE CUOTA:
-[CRM_ACTION:{"tipo":"pagar_cuota","datos":{"venta_id":123,"monto":95000,"notas":"Pago cuota mayo"}}]
-• Si Rodrigo dice "cobré la cuota de [cliente]", pedís el ID de venta o buscás en cuotas vencidas
+3. PAGO DE CUOTA / ENTRADA / SALDO FINAL — emite recibo real en PDF automáticamente:
+[CRM_ACTION:{"tipo":"pagar_cuota","datos":{"venta_id":123,"monto":95000,"concepto":"cuota","modalidad":"transferencia","notas":"Pago cuota mayo"}}]
+• concepto: "cuota" (default, pago mensual — suma a cuotas pagas), "entrada" (seña/derecho de
+  suscripción inicial) o "saldo_final" (cancela lo que quede pendiente). NO usar "cuota" para la
+  entrada — son cosas distintas y afectan el cálculo distinto.
+• modalidad: "transferencia" | "efectivo" (aparece en el recibo).
+• Si Rodrigo dice "cobré la cuota de [cliente]", pedís el ID de venta o buscás en cuotas vencidas.
+• El sistema devuelve el link de descarga del recibo real — pasáselo a Rodrigo en tu respuesta.
 
 4. INGRESO DE STOCK DE PISCINA (fábrica terminó un modelo):
 [CRM_ACTION:{"tipo":"stock_piscina_add","datos":{"modelo":"Bali","color":"azul","cantidad":2}}]

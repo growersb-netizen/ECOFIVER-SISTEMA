@@ -136,12 +136,20 @@ async def _pagar_cuota(datos: dict) -> str:
     venta_id = datos.get("venta_id")
     monto = datos.get("monto")
     notas = datos.get("notas", "Pago registrado desde WhatsApp")
+    concepto = datos.get("concepto", "cuota")  # "cuota" | "entrada" | "saldo_final"
+    modalidad = datos.get("modalidad", "")
     if not venta_id or monto is None:
         return "❌ Falta venta_id o monto para registrar cuota"
-    ok = await crm_client.pagar_cuota(int(venta_id), float(monto), notas)
-    if ok:
-        return f"✅ Cuota pagada — Venta #{venta_id} — ${float(monto):,.0f}"
-    return f"❌ Error al registrar pago de cuota — Venta #{venta_id}"
+    r = await crm_client.pagar_cuota(int(venta_id), float(monto), notas, concepto, modalidad)
+    if not r.get("ok"):
+        return f"❌ Error al registrar pago — Venta #{venta_id}: {r.get('error','')}"
+    base = f"✅ Pago registrado — Venta #{venta_id} — ${float(monto):,.0f}"
+    recibo = r.get("recibo")
+    if recibo and recibo.get("download_url"):
+        base += f" — recibo: {recibo['download_url']}"
+        if recibo.get("es_cierre"):
+            base += " (saldo cancelado)"
+    return base
 
 
 async def _stock_piscina_add(datos: dict) -> str:

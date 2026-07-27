@@ -20,8 +20,14 @@ logger = logging.getLogger(__name__)
 # Regex que soporta un nivel de anidamiento en el JSON ({"tipo":"...","datos":{...}})
 # Tolerante a variaciones que suelen escribir los LLM: CRM_ACTION, CRCM_ACTION,
 # "CRM ACTION", CRM_ACCION, ACTION:, etc. (case-insensitive).
+# Soporta hasta 3 niveles de anidamiento de JSON (ej: {"tipo":..,"datos":{"campos":{...}}})
+# — con solo 1 nivel, acciones como update_lead (que anida "campos" dentro de "datos")
+# no matcheaban nunca: quedaban como texto crudo visible y jamás se ejecutaban.
+_SIN_LLAVES = r'[^{}]*'
+_NIVEL_1 = r'(?:[^{}]|\{' + _SIN_LLAVES + r'\})*'
+_NIVEL_2 = r'(?:[^{}]|\{' + _NIVEL_1 + r'\})*'
 CRM_ACTION_PATTERN = re.compile(
-    r'\[[A-Z_ ]*(?:ACTION|ACCION)\s*:\s*(\{(?:[^{}]|\{[^{}]*\})*\})\]',
+    r'\[[A-Z_ ]*(?:ACTION|ACCION)\s*:\s*(\{' + _NIVEL_2 + r'\})\]',
     re.IGNORECASE | re.DOTALL,
 )
 

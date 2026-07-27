@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import VentaFinanciada, GestionCobranza, Usuario
-from routers.auth import require_auth, require_roles, get_user_roles
+from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.ventas_financiadas import venta_to_dict, dias_atraso, calcular_proximo_vencimiento
 
 router = APIRouter()
@@ -81,7 +81,7 @@ async def registrar_gestion(
     venta_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
     if not venta:

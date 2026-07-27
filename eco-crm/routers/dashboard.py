@@ -14,7 +14,7 @@ from database.models import (
     OrdenFabricaPiscina, OrdenFabricaModulo, Empleado, Asistencia,
     LiquidacionSemanal, Notificacion, Reclamo, Usuario, Contrato
 )
-from routers.auth import require_auth, get_user_roles
+from routers.auth import require_auth, get_user_roles, require_auth_or_apikey
 from routers.ventas_financiadas import dias_atraso
 
 router = APIRouter()
@@ -345,7 +345,7 @@ async def marcar_todas_leidas(
 async def get_ranking(
     periodo: str = "mes",
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     """
     Ranking de ventas por asesor/vendedor basado en ventas reales del período.
@@ -484,7 +484,7 @@ async def get_ranking(
 @router.get("/api/dashboard/metricas-avanzadas")
 async def get_metricas_avanzadas(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     """
     Métricas avanzadas de negocio:

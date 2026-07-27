@@ -13,7 +13,7 @@ from sqlalchemy import or_, and_
 
 from database.database import get_db
 from database.models import Lead, Videollamada, Usuario, Notificacion, ConfiguracionSistema, Interaccion
-from routers.auth import require_auth, require_roles, get_user_roles, get_current_user
+from routers.auth import require_auth, require_roles, get_user_roles, get_current_user, require_auth_or_apikey
 
 log = logging.getLogger(__name__)
 
@@ -433,7 +433,7 @@ async def list_leads(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     roles = get_user_roles(current_user)
     q = db.query(Lead)
@@ -887,7 +887,7 @@ async def update_lead(
     lead_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:

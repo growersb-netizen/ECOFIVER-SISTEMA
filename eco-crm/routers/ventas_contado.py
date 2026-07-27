@@ -13,7 +13,7 @@ from database.models import (
     Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, Lead, Interaccion,
     OrdenProduccion,
 )
-from routers.auth import require_auth, require_roles, get_user_roles
+from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
 
 router = APIRouter()
@@ -195,7 +195,7 @@ async def list_ventas_contado(
     estado: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     q = db.query(VentaContado)
     if estado:
@@ -210,7 +210,7 @@ async def list_ventas_contado(
 async def create_venta_contado(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     data = await request.json()
 

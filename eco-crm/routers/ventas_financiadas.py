@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import VentaFinanciada, Pago, Usuario, Lead, Interaccion, SolicitudContador
-from routers.auth import require_auth, require_roles, get_user_roles, get_current_user
+from routers.auth import require_auth, require_roles, get_user_roles, get_current_user, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
 
 router = APIRouter()
@@ -108,7 +108,7 @@ async def list_ventas_financiadas(
     search: Optional[str] = None,
     con_atraso: Optional[bool] = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     q = db.query(VentaFinanciada)
     if estado_plan:
@@ -130,7 +130,7 @@ async def list_ventas_financiadas(
 async def create_venta_financiada(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     data = await request.json()
 
@@ -243,7 +243,7 @@ async def registrar_pago(
     venta_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
     if not venta:

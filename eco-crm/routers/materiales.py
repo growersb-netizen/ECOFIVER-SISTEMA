@@ -18,7 +18,7 @@ from database.models import (
     Herramienta, PrestamoHerramienta, Empleado, Usuario,
     ConfiguracionSistema,
 )
-from routers.auth import require_auth, get_user_roles
+from routers.auth import require_auth, get_user_roles, require_auth_or_apikey
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -179,7 +179,7 @@ async def delete_pedido(
 async def list_inventario(
     bajo_stock: Optional[bool] = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     _check_fabrica(current_user, db)
     q = db.query(MaterialInventario).filter(MaterialInventario.activo == True)
@@ -237,7 +237,7 @@ async def registrar_movimiento(
     mat_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     _check_fabrica(current_user, db)
     mat = db.query(MaterialInventario).filter(MaterialInventario.id == mat_id).first()

@@ -88,6 +88,46 @@ def require_auth(
     return user
 
 
+_AGENTE_SISTEMA_EMAIL = "agentes-ia@ecofiver.local"
+
+
+def _get_or_create_agente_sistema(db: Session) -> Usuario:
+    """Usuario técnico que representa al sistema de agentes IA (Máximo y equipo)
+    cuando llaman al CRM con la API key estática en vez de una sesión humana."""
+    u = db.query(Usuario).filter(Usuario.email == _AGENTE_SISTEMA_EMAIL).first()
+    if u:
+        return u
+    u = Usuario(
+        nombre="Agentes IA (sistema)",
+        email=_AGENTE_SISTEMA_EMAIL,
+        password_hash=pwd_context.hash(os.urandom(24).hex()),
+        roles_json=json.dumps(["ADMIN"]),
+        activo=True,
+        es_agente_ia=True,
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
+def require_auth_or_apikey(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(oauth2_scheme),
+) -> Usuario:
+    """
+    Sesión humana normal (cookie o JWT), o Bearer con la API key estática del
+    sistema (usada por el sistema de agentes IA — mismo header que ya acepta
+    routers/agentes.py). Devuelve un Usuario real ("Agentes IA (sistema)")
+    para que created_by/vendedor_id/etc. queden con un id válido.
+    """
+    api_key_env = os.getenv("API_KEY", "eco-crm-api-key-2024")
+    if token and token == api_key_env:
+        return _get_or_create_agente_sistema(db)
+    return require_auth(request, db, token)
+
+
 def require_roles(*roles):
     def checker(user: Usuario = Depends(require_auth)) -> Usuario:
         user_roles = get_user_roles(user)

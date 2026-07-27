@@ -12,7 +12,7 @@ from database.models import (
     StockPanel, OrdenFabricaModulo,
     PedidoMaterial, Usuario, Notificacion
 )
-from routers.auth import require_auth, require_roles, get_user_roles
+from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -66,7 +66,7 @@ async def fabrica_page(request: Request, current_user: Usuario = Depends(require
 @router.get("/api/fabrica/stock-piscinas")
 async def get_stock_piscinas(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     stock = db.query(StockPiscina).order_by(StockPiscina.modelo, StockPiscina.color).all()
     return [{
@@ -95,7 +95,7 @@ async def update_stock_piscina(
 async def create_stock_piscina(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     data = await request.json()
     existing = db.query(StockPiscina).filter(

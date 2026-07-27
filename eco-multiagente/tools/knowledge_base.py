@@ -63,6 +63,34 @@ def _default_data() -> dict:
 #    o borra, su decisión se respeta (no se vuelven a agregar). ────────────────
 _SEED_DOCS = [
     {
+        "id": "piscinas_tecnico",
+        "titulo": "Piscinas de fibra de vidrio (técnico) — GENÉRICO, falta validar con Rodrigo",
+        "agentes": ["camila", "nicolas", "sebastian", "maximo"],
+        "contenido": """=== PISCINAS DE FIBRA DE VIDRIO — ARGUMENTOS TÉCNICOS ===
+⚠️ Este contenido es conocimiento GENÉRICO del rubro (válido para fibra de vidrio en general),
+NO son las especificaciones exactas y propias del proceso de fabricación de EcoFiver — a
+diferencia del doc de módulos (NCE), todavía no está confirmado con Rodrigo el detalle real de
+planta. Usalo como argumento de venta razonable, pero si el cliente pregunta algo MUY específico
+del proceso propio (espesor exacto de gelcoat, garantía en años, marca de resina), no lo inventes:
+decí que lo confirmás.
+
+VENTAJAS ESTRUCTURALES (genéricas del rubro, aplican a fibra de vidrio en general):
+- Pieza única moldeada de una sola vez: sin uniones ni costuras que puedan filtrar agua con el tiempo.
+- Superficie de gelcoat no porosa: no favorece el crecimiento de algas como el hormigón, por lo que
+  se usa menos cantidad de químicos de mantenimiento.
+- Cierta flexibilidad estructural: acompaña mejor los movimientos del terreno que una piscina de
+  hormigón rígida, reduciendo el riesgo de fisuras.
+- Instalación mucho más rápida que una piscina de obra tradicional (días vs. semanas/meses).
+- Mantenimiento más simple: menos horas de limpieza y químicos que hormigón/liner.
+
+ARGUMENTOS DE VENTA:
+- "Es una pieza única, no tiene costuras ni juntas que puedan filtrar con el tiempo."
+- "La superficie no es porosa como el hormigón: se ensucia menos y usás menos químicos."
+- "Se instala en el día, no en semanas de obra como una piscina tradicional."
+- "Acompaña el movimiento del terreno mejor que el hormigón rígido."
+""",
+    },
+    {
         "id": "nce_tecnico",
         "titulo": "Sistema constructivo NCE (técnico) — módulos",
         "agentes": ["luciano", "mateo", "sebastian", "maximo"],
@@ -192,6 +220,30 @@ de contado; en financiación el flete queda bonificado).
 
 Con este contexto, además de reportar números, PODÉS opinar y recomendar decisiones de negocio
 reales: eso es tu criterio de CEO, no inventar datos.
+""",
+    },
+    {
+        "id": "cobranza_vigencia",
+        "titulo": "Vigencia de pago y guion de mora (cobranza)",
+        "agentes": ["ignacio", "ezequiel", "maximo"],
+        "contenido": """=== REGLA DE VIGENCIA (contractual, no negociable) ===
+Cada cuota debe abonarse ENTRE EL DÍA 1 Y EL 10 de cada mes para mantener vigentes las
+promociones asignadas en el contrato. Pagar después del día 10 hace perder la promoción, aunque
+la deuda se termine regularizando — esto es un dato clave para explicarle al cliente el POR QUÉ
+de la urgencia (no es solo "cobrar", es que pierde un beneficio real si no paga a tiempo).
+La venta entra al ciclo de cobro recién el mes SIGUIENTE al del pago de la entrada (que equivale
+a 2 cuotas de ingreso) — nunca el mismo mes de la firma.
+
+=== CÓMO USAR ESTO EN EL CONTACTO CON EL CLIENTE ===
+- Día 1-10 (dentro de la ventana): no es mora, es el recordatorio normal del mes.
+- Día 11 en adelante: ya perdió la promo de ese mes — mencionalo con tacto, no como castigo:
+  "Che, viste que se pasó la fecha del 10 así que esta cuota ya no entra en la promo vigente,
+  pero igual la regularizamos ya para no acumular más atraso."
+- Nunca es solo "pagá porque sí": el argumento de la promo perdida es real y ayuda a que el
+  cliente entienda la urgencia sin sentir presión artificial.
+- Si el cliente pide dar de baja su solicitud: no se reintegra la seña/entrada por ningún
+  concepto, y la empresa tiene hasta 180 días hábiles para poner los fondos a disposición si
+  correspondiera algún reintegro. Esto es contractual — comunicalo con calma, no como amenaza.
 """,
     },
     {

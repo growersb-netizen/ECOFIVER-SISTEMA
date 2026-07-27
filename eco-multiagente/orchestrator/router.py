@@ -285,7 +285,37 @@ async def _route_aliados(session_id: str, mensaje: str, msg_type: str) -> dict:
 
     # ── FRANCO NORMAL ────────────────────────────────────────────────────────
     historial = await crm_client.get_conversation_history(session_id, limit=10)
-    contexto = f"Historial previo:\n{historial}" if historial else ""
+    partes_ctx = [f"Historial previo:\n{historial}"] if historial else []
+
+    # Identificar al aliado por su WhatsApp e inyectar sus datos reales (nunca inventar)
+    try:
+        aliado = await crm_client.get_aliado_por_telefono(session_id)
+        if aliado:
+            codigo = aliado.get("codigo", "")
+            ventas = await crm_client.get_aliado_ventas(codigo)
+            comisiones = await crm_client.get_aliado_comisiones(codigo)
+            bloque = [
+                "[DATOS REALES DEL ALIADO — usar estos, nunca inventar]",
+                f"Código: {codigo} — Nombre: {aliado.get('nombre','')} — Estado: {aliado.get('estado','')} — Zona: {aliado.get('zona','')}",
+                f"Ventas/leads cargados: {ventas.get('total',0)}",
+            ]
+            for v in ventas.get("ventas", [])[:10]:
+                venta_info = f" — venta ${v['venta']['precio_final']:,.0f} ({v['venta']['estado']})" if v.get("venta") else " — sin venta registrada aún"
+                bloque.append(f"  • {v.get('nombre','?')} — {v.get('estado','?')}{venta_info}")
+            bloque.append(
+                f"Comisiones: $ {comisiones.get('monto_pendiente',0):,.0f} pendiente — "
+                f"$ {comisiones.get('monto_liquidado',0):,.0f} liquidado ({comisiones.get('total',0)} registros)"
+            )
+            partes_ctx.append("\n".join(bloque))
+        else:
+            partes_ctx.append(
+                "[DATOS REALES DEL ALIADO] Este teléfono no corresponde a ningún aliado registrado "
+                "en el CRM — si dice que ya es aliado, escalá a Rodrigo para verificar, no lo asumas."
+            )
+    except Exception as e:
+        logger.warning(f"[Router] No se pudo obtener datos de aliado para {session_id}: {e}")
+
+    contexto = "\n\n".join(partes_ctx)
     reply = await franco.respond(mensaje, contexto)
 
     await registrar_interaccion(

@@ -196,6 +196,7 @@ async def listar_aliados(
     estado: Optional[str] = None,
     zona: Optional[str] = None,
     search: Optional[str] = None,
+    telefono: Optional[str] = Query(None, description="Busca por sufijo de teléfono (WhatsApp del aliado)"),
     inactivos_dias: Optional[int] = Query(None, description="Aliados sin actividad en los últimos N días"),
     db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None),
@@ -208,6 +209,10 @@ async def listar_aliados(
         q = q.filter(Aliado.estado == estado.lower())
     if zona:
         q = q.filter(Aliado.zona.ilike(f"%{zona}%"))
+    if telefono:
+        solo_digitos = "".join(c for c in telefono if c.isdigit())
+        if solo_digitos:
+            q = q.filter(Aliado.telefono.ilike(f"%{solo_digitos[-8:]}%"))
     if search:
         q = q.filter(
             (Aliado.nombre.ilike(f"%{search}%"))

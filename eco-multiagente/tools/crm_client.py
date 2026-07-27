@@ -6,6 +6,7 @@ Si el CRM no está disponible, retorna datos vacíos para no romper el flujo.
 import httpx
 import os
 import logging
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -737,3 +738,45 @@ async def get_ranking_ventas(periodo: str = "mes") -> dict:
     except Exception as e:
         logger.warning(f"[CRM] get_ranking_ventas falló: {e}")
         return {}
+
+
+# ── Aliados Comerciales (Franco) ──────────────────────────────────────────
+
+async def get_aliado_por_telefono(telefono: str) -> Optional[dict]:
+    """Busca el aliado cuyo WhatsApp coincide con este teléfono (sufijo de 8 dígitos)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(
+                f"{CRM_BASE_URL}/api/aliados", headers=HEADERS_XKEY, params={"telefono": telefono},
+            )
+            r.raise_for_status()
+            data = r.json()
+            aliados = data.get("aliados", [])
+            return aliados[0] if aliados else None
+    except Exception as e:
+        logger.warning(f"[CRM] get_aliado_por_telefono falló: {e}")
+        return None
+
+
+async def get_aliado_ventas(codigo: str) -> dict:
+    """Ventas/leads registrados por un aliado (por código)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(f"{CRM_BASE_URL}/api/aliados/{codigo}/ventas", headers=HEADERS_XKEY)
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] get_aliado_ventas({codigo}) falló: {e}")
+        return {"total": 0, "ventas": []}
+
+
+async def get_aliado_comisiones(codigo: str) -> dict:
+    """Comisiones devengadas/liquidadas de un aliado (por código)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(f"{CRM_BASE_URL}/api/aliados/{codigo}/comisiones", headers=HEADERS_XKEY)
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] get_aliado_comisiones({codigo}) falló: {e}")
+        return {"total": 0, "monto_pendiente": 0, "monto_liquidado": 0, "comisiones": []}

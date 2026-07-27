@@ -8,6 +8,7 @@
   <button class="tab active" onclick="showTabCob('cartera', this)">💳 Cartera</button>
   <button class="tab" onclick="showTabCob('morosidad', this)">⚠️ Morosidad</button>
   <button class="tab" onclick="showTabCob('proyeccion', this)">📈 Proyección</button>
+  <button class="tab" onclick="showTabCob('construsol', this)">🏗️ Cobranza Histórica (Construsol)</button>
 </div>
 
 <!-- ═══════════════════ TAB: CARTERA ═══════════════════ -->
@@ -43,6 +44,105 @@
   <div class="stats-grid" id="proyeccion-stats"></div>
   <div id="proyeccion-container">
     <div class="loading"><div class="spinner"></div> Cargando proyección...</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: CONSTRUSOL (cobranza histórica, independiente de EcoFiver) ═══════════════════ -->
+<div id="tab-cob-construsol" style="display:none">
+  <div class="alert" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--text-secondary)">
+    🏗️ Cartera de Construsol — totalmente independiente de EcoFiver. No comparte clientes, contadores ni cálculos.
+  </div>
+
+  <div class="stats-grid" id="construsol-stats"></div>
+
+  <div class="filters-bar">
+    <select class="form-control" style="max-width:200px" id="construsol-linea-filtro" onchange="loadConstrusol()">
+      <option value="">Todas las líneas</option>
+      <option value="viviendas">Viviendas</option>
+      <option value="piscinas">Piscinas</option>
+    </select>
+    <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
+           oninput="filtrarConstrusol(this.value)">
+    <button class="btn btn-primary btn-sm" onclick="openNuevoClienteConstrusol()">+ Nuevo cliente</button>
+  </div>
+
+  <div id="construsol-container">
+    <div class="loading"><div class="spinner"></div> Cargando Construsol...</div>
+  </div>
+</div>
+
+<!-- Modal registrar pago (Construsol) -->
+<div class="modal-overlay" id="modal-pago-construsol" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Registrar pago — Construsol</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-pago-construsol')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Monto</label>
+        <input type="number" id="pago-construsol-monto" class="form-control" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mes correspondiente</label>
+        <input type="text" id="pago-construsol-mes" class="form-control" placeholder="ej. 2026-08">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas</label>
+        <textarea id="pago-construsol-notas" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-pago-construsol')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarPagoConstrusol()" class="btn btn-primary btn-lg">Guardar pago</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal nuevo cliente (Construsol) -->
+<div class="modal-overlay" id="modal-cliente-construsol" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title">Nuevo cliente — Construsol</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-cliente-construsol')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Línea</label>
+        <select id="cliente-construsol-linea" class="form-control">
+          <option value="viviendas">Viviendas</option>
+          <option value="piscinas">Piscinas</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Proyecto (opcional)</label>
+        <input type="text" id="cliente-construsol-proyecto" class="form-control" placeholder="ej. Eco Zárate">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Apellido y nombre</label>
+        <input type="text" id="cliente-construsol-nombre" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Teléfono</label>
+        <input type="text" id="cliente-construsol-telefono" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">DNI (opcional)</label>
+        <input type="text" id="cliente-construsol-dni" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Metros / Modelo (opcional)</label>
+        <input type="text" id="cliente-construsol-metros" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cuota actual</label>
+        <input type="number" id="cliente-construsol-cuota" class="form-control" placeholder="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-cliente-construsol')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarClienteConstrusol()" class="btn btn-primary btn-lg">Crear cliente</button>
+    </div>
   </div>
 </div>
 
@@ -92,15 +192,150 @@
   let cobFiltroActivo = null; // 'vencidas' | 'vencen_hoy' | null
   let morosidadCargada = false;
   let proyeccionCargada = false;
+  let construsolData = [];
+  let construsolClienteActivo = null;
 
   function showTabCob(nombre, btn) {
     document.querySelectorAll('#tabs-cobranzas .tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
-    ['cartera', 'morosidad', 'proyeccion'].forEach(n => {
+    ['cartera', 'morosidad', 'proyeccion', 'construsol'].forEach(n => {
       document.getElementById('tab-cob-' + n).style.display = (n === nombre) ? '' : 'none';
     });
     if (nombre === 'morosidad' && !morosidadCargada) loadMorosidad();
     if (nombre === 'proyeccion' && !proyeccionCargada) loadProyeccion();
+    if (nombre === 'construsol') loadConstrusol();
+  }
+
+  // ═══════════════════ CONSTRUSOL (cobranza histórica) ═══════════════════
+
+  async function loadConstrusol() {
+    const statsEl = document.getElementById('construsol-stats');
+    const container = document.getElementById('construsol-container');
+    const linea = document.getElementById('construsol-linea-filtro').value;
+    container.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando Construsol...</div>';
+    try {
+      const [resumen, clientes] = await Promise.all([
+        API.get('/api/cobranza-historica/resumen'),
+        API.get('/api/cobranza-historica/cartera' + (linea ? `?linea=${linea}` : '')),
+      ]);
+      statsEl.innerHTML =
+        statCard(resumen.viviendas.cantidad_clientes + resumen.piscinas.cantidad_clientes, 'Clientes Construsol', 'teal') +
+        `<div class="stat-card"><div class="stat-value">${formatMoney(resumen.viviendas.emitido_mes + resumen.piscinas.emitido_mes)}</div><div class="stat-label">Emitido este mes</div></div>` +
+        `<div class="stat-card"><div class="stat-value">${formatMoney(resumen.viviendas.cobrado_mes + resumen.piscinas.cobrado_mes)}</div><div class="stat-label">Cobrado este mes</div></div>` +
+        `<div class="stat-card error"><div class="stat-value">${resumen.viviendas.cantidad_morosos + resumen.piscinas.cantidad_morosos}</div><div class="stat-label">Morosos</div></div>`;
+
+      construsolData = clientes;
+      renderConstrusol(clientes);
+    } catch (e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar Construsol: ${e.message}</div>`;
+    }
+  }
+
+  function renderConstrusol(data) {
+    const container = document.getElementById('construsol-container');
+    if (!data.length) {
+      container.innerHTML = '<div class="empty-state"><span class="empty-icon">🏗️</span><p>Sin clientes cargados en esta línea</p></div>';
+      return;
+    }
+    container.innerHTML = data.map(c => `
+      <div class="cobranza-card ${c.estado_plan === 'ATRASADO' ? 'atraso' : 'al-dia'}">
+        <div class="cliente-info">
+          <div>
+            <div style="font-size:16px;font-weight:700">${c.apellido_nombre}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">
+              ${c.linea === 'viviendas' ? '🏠 Viviendas' : '🏊 Piscinas'}${c.proyecto ? ' · ' + c.proyecto : ''}${c.metros_o_modelo ? ' · ' + c.metros_o_modelo : ''}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:800;font-size:15px">${formatMoney(c.cuota_actual)}</div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              <span class="badge ${c.estado_plan === 'ATRASADO' ? 'badge-red' : 'badge-green'}" style="font-size:10px">${c.estado_plan}</span>
+            </div>
+          </div>
+        </div>
+        ${c.ultimo_pago ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Último pago: ${formatMoney(c.ultimo_pago.monto)} · ${formatDate(c.ultimo_pago.fecha_pago)}</div>` : ''}
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+          ${c.telefono ? `<a href="${whatsappLink(c.telefono, '')}" target="_blank" class="btn btn-whatsapp btn-sm">📱 WhatsApp</a>` : ''}
+          <button onclick="openPagoConstrusol(${c.id})" class="btn btn-sm btn-secondary">+ Registrar pago</button>
+          <button onclick="toggleAtrasoConstrusol(${c.id}, '${c.estado_plan}')" class="btn btn-sm btn-ghost">
+            ${c.estado_plan === 'ATRASADO' ? '✓ Marcar al día' : '⚠ Marcar atrasado'}
+          </button>
+          <span style="font-size:12px;color:var(--text-muted)">${c.telefono || ''}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function filtrarConstrusol(search) {
+    const q = search.toLowerCase();
+    renderConstrusol(construsolData.filter(c => c.apellido_nombre.toLowerCase().includes(q)));
+  }
+
+  function openPagoConstrusol(clienteId) {
+    construsolClienteActivo = clienteId;
+    document.getElementById('pago-construsol-monto').value = '';
+    document.getElementById('pago-construsol-mes').value = '';
+    document.getElementById('pago-construsol-notas').value = '';
+    document.getElementById('modal-pago-construsol').style.display = 'flex';
+  }
+
+  async function guardarPagoConstrusol() {
+    const monto = parseFloat(document.getElementById('pago-construsol-monto').value || '0');
+    if (!monto || monto <= 0) return showToast('Ingresá un monto válido', 'error');
+    try {
+      await API.post(`/api/cobranza-historica/clientes/${construsolClienteActivo}/pago`, {
+        monto,
+        mes_correspondiente: document.getElementById('pago-construsol-mes').value || null,
+        notas: document.getElementById('pago-construsol-notas').value || '',
+      });
+      closeModal('modal-pago-construsol');
+      showToast('Pago registrado ✓', 'success');
+      loadConstrusol();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  async function toggleAtrasoConstrusol(clienteId, estadoActual) {
+    const nuevoEstado = estadoActual === 'ATRASADO' ? 'ACTIVO' : 'ATRASADO';
+    try {
+      await API.put(`/api/cobranza-historica/clientes/${clienteId}`, { estado_plan: nuevoEstado });
+      loadConstrusol();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  function openNuevoClienteConstrusol() {
+    document.getElementById('cliente-construsol-linea').value = 'viviendas';
+    document.getElementById('cliente-construsol-proyecto').value = '';
+    document.getElementById('cliente-construsol-nombre').value = '';
+    document.getElementById('cliente-construsol-telefono').value = '';
+    document.getElementById('cliente-construsol-dni').value = '';
+    document.getElementById('cliente-construsol-metros').value = '';
+    document.getElementById('cliente-construsol-cuota').value = '';
+    document.getElementById('modal-cliente-construsol').style.display = 'flex';
+  }
+
+  async function guardarClienteConstrusol() {
+    const nombre = document.getElementById('cliente-construsol-nombre').value.trim();
+    if (!nombre) return showToast('Falta el apellido y nombre', 'error');
+    try {
+      await API.post('/api/cobranza-historica/clientes', {
+        linea: document.getElementById('cliente-construsol-linea').value,
+        proyecto: document.getElementById('cliente-construsol-proyecto').value || null,
+        apellido_nombre: nombre,
+        telefono: document.getElementById('cliente-construsol-telefono').value || '',
+        dni: document.getElementById('cliente-construsol-dni').value || null,
+        metros_o_modelo: document.getElementById('cliente-construsol-metros').value || null,
+        cuota_actual: parseFloat(document.getElementById('cliente-construsol-cuota').value || '0'),
+      });
+      closeModal('modal-cliente-construsol');
+      showToast('Cliente creado ✓', 'success');
+      loadConstrusol();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
   }
 
   function renderGrupoMorosos(titulo, items, icono) {

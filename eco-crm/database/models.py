@@ -1277,4 +1277,48 @@ class BorradorML(Base):
     variante_de = Column(Integer, nullable=True)           # id del borrador base si es variante
     created_by_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ─── COBRANZA HISTÓRICA (CONSTRUSOL) ───────────────────────────────────────────
+# Cartera de cobranza totalmente independiente de VentaFinanciada/ventas_financiadas
+# (EcoFiver). No comparte tablas, contadores ni queries con la cobranza de
+# EcoFiver — separación exigida explícitamente por el negocio: "no se tocan ni
+# se cruzan nunca los datos". "empresa" queda fijo en "construsol" (única por
+# ahora); "linea" separa las dos carteras de Construsol (viviendas | piscinas).
+
+class ClienteCobranzaHistorica(Base):
+    __tablename__ = "clientes_cobranza_historica"
+
+    id = Column(Integer, primary_key=True, index=True)
+    empresa = Column(String(30), default="construsol", index=True)
+    linea = Column(String(30), nullable=False, index=True)   # "viviendas" | "piscinas"
+    proyecto = Column(String(100), nullable=True)             # ej. "Eco Zárate" (desarrollo específico, opcional)
+    apellido_nombre = Column(String(150), nullable=False)
+    telefono = Column(String(30), default="")
+    dni = Column(String(20), nullable=True)
+    metros_o_modelo = Column(String(100), nullable=True)     # metros del lote (viviendas) o modelo (piletas)
+    cantidad_cuotas = Column(Integer, nullable=True)
+    anticipo = Column(Float, nullable=True)
+    precio_total = Column(Float, nullable=True)
+    cuota_actual = Column(Float, default=0)                  # valor de la cuota vigente este mes (con CAC aplicado)
+    cac_pct = Column(Float, nullable=True)                   # último coeficiente de ajuste aplicado (%)
+    estado_plan = Column(String(20), default="ACTIVO")       # ACTIVO | ATRASADO | FINALIZADO | CANCELADO
+    notas = Column(Text, default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    pagos = relationship("PagoCobranzaHistorica", back_populates="cliente")
+
+
+class PagoCobranzaHistorica(Base):
+    __tablename__ = "pagos_cobranza_historica"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cliente_id = Column(Integer, ForeignKey("clientes_cobranza_historica.id"), nullable=False, index=True)
+    monto = Column(Float, nullable=False)
+    mes_correspondiente = Column(String(20), nullable=True)  # ej. "2026-08" — a qué mes de cuota corresponde
+    fecha_pago = Column(DateTime(timezone=True), server_default=func.now())
+    notas = Column(Text, default="")
+
+    cliente = relationship("ClienteCobranzaHistorica", back_populates="pagos")
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

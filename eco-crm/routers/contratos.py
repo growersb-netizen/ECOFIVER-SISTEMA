@@ -29,6 +29,13 @@ TEMPLATE_DIR = Path("data/plantillas_contratos")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
 
+UMBRAL_REDONDEO_INSCRIPCION = 5.0  # diferencias de hasta $5 (redondeo de comprobante) cuentan como saldo 0
+
+
+def _abs_url(request: Request, path: str) -> str:
+    """Arma una URL absoluta con el host público real de la request (evita rutas relativas que Claude no puede abrir)."""
+    return f"{str(request.base_url).rstrip('/')}{path}"
+
 
 def _fmt_ar(monto) -> str:
     """Formato argentino: punto de miles, sin decimales. Ej: 2500000 -> '2.500.000'."""
@@ -722,21 +729,26 @@ async def emitir_recibo(
 _TIPO_PRODUCTO_MAP = {"pileta": "PISCINA", "modulo": "MODULO", "combo": "COMBO", "exterior": "PISCINA"}
 
 
-def _contrato_a_dict(contrato: Contrato, venta: Optional[VentaFinanciada]) -> dict:
+def _contrato_a_dict(contrato: Contrato, venta: Optional[VentaFinanciada], request: Optional[Request] = None) -> dict:
     datos = json.loads(contrato.datos_json) if contrato.datos_json else {}
     saldo = 0.0
+    estado_inscripcion = datos.get("estado_inscripcion", "")
     if venta:
-        ya_pagado = (venta.anticipo or 0) + (venta.cuotas_pagas or 0) * (venta.valor_cuota or 0)
-        saldo = max(0.0, (venta.precio_total or 0) - ya_pagado)
+        objetivo_inscripcion = venta.monto_inscripcion if venta.monto_inscripcion is not None else (venta.precio_total or 0)
+        saldo = max(0.0, objetivo_inscripcion - (venta.anticipo or 0))
+        if saldo <= UMBRAL_REDONDEO_INSCRIPCION:
+            saldo = 0.0
+        estado_inscripcion = "completa" if saldo <= 0 else ("parcial" if (venta.anticipo or 0) > 0 else "pendiente")
+    pdf_path = f"/api/contratos/{contrato.id}/download"
     return {
         "numero_solicitud": contrato.numero_solicitud or "",
         "contrato_id": contrato.id,
         "cliente_nombre": contrato.cliente_nombre or "",
         "tipo_contrato": contrato.tipo_contrato or "",
         "estado": contrato.estado or "",
-        "estado_inscripcion": datos.get("estado_inscripcion", ""),
+        "estado_inscripcion": estado_inscripcion,
         "saldo_inscripcion_pendiente": saldo,
-        "pdf_url": f"/api/contratos/{contrato.id}/download",
+        "pdf_url": _abs_url(request, pdf_path) if request else pdf_path,
         "creado_en": contrato.fecha_generacion.isoformat() if contrato.fecha_generacion else "",
         "venta_financiada_id": contrato.venta_financiada_id,
         "historial_pagos": [
@@ -797,7 +809,10 @@ async def crear_contrato_unificado(
     tipo_producto = _TIPO_PRODUCTO_MAP.get((producto.get("tipo") or "").lower(), "PISCINA")
     cliente_nombre = f"{cliente['apellido']}, {cliente['nombre']}"
     pago_inicial = float(financiacion["pago_inicial"])
-    estado_inscripcion = "completa" if monto_pago >= pago_inicial else ("parcial" if monto_pago > 0 else "pendiente")
+    saldo_inscripcion = max(0.0, pago_inicial - monto_pago)
+    if saldo_inscripcion <= UMBRAL_REDONDEO_INSCRIPCION:
+        saldo_inscripcion = 0.0
+    estado_inscripcion = "completa" if saldo_inscripcion <= 0 else ("parcial" if monto_pago > 0 else "pendiente")
 
     venta = VentaFinanciada(
         cliente_nombre=cliente_nombre,
@@ -807,9 +822,10 @@ async def crear_contrato_unificado(
         modelo_especifico=producto["modelo"],
         color=producto.get("color"),
         superficie_m2=producto.get("superficie_m2"),
-        forma_pago="HISTORICO" if origen.get("canal") == "claude_chat" else "PMI",
+        forma_pago="PMI",
         precio_total=float(financiacion["valor_mercado"]),
         anticipo=monto_pago if monto_pago else 0,
+        monto_inscripcion=pago_inicial,
         cantidad_cuotas=int(financiacion["cant_cuotas"]),
         valor_cuota=float(financiacion["valor_cuota"]),
         fecha_inicio_plan=ahora,
@@ -892,7 +908,7 @@ async def crear_contrato_unificado(
         db.add(contrato)
         db.commit()
         db.refresh(contrato)
-        pdf_url = f"/api/contratos/{contrato.id}/download"
+        pdf_url = _abs_url(request, f"/api/contratos/{contrato.id}/download")
     except Exception as e:
         # La venta y el número YA quedaron registrados — el PDF se puede regenerar después.
         return {
@@ -901,7 +917,7 @@ async def crear_contrato_unificado(
             "pdf_url": None,
             "error_pdf": str(e),
             "estado_inscripcion": estado_inscripcion,
-            "saldo_inscripcion_pendiente": max(0.0, float(financiacion["valor_mercado"]) - monto_pago),
+            "saldo_inscripcion_pendiente": saldo_inscripcion,
         }
 
     return {
@@ -910,7 +926,7 @@ async def crear_contrato_unificado(
         "contrato_id": contrato.id,
         "pdf_url": pdf_url,
         "estado_inscripcion": estado_inscripcion,
-        "saldo_inscripcion_pendiente": max(0.0, float(financiacion["valor_mercado"]) - monto_pago),
+        "saldo_inscripcion_pendiente": saldo_inscripcion,
         "creado_en": ahora.isoformat(),
     }
 
@@ -918,6 +934,7 @@ async def crear_contrato_unificado(
 @router.get("/api/contratos/solicitud/{numero_solicitud}")
 async def consultar_contrato_por_numero(
     numero_solicitud: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_auth_or_apikey),
 ):
@@ -928,7 +945,7 @@ async def consultar_contrato_por_numero(
     if not contrato:
         raise HTTPException(404, "Solicitud no encontrada")
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == contrato.venta_financiada_id).first()
-    return _contrato_a_dict(contrato, venta)
+    return _contrato_a_dict(contrato, venta, request)
 
 
 @router.post("/api/contratos/{numero_solicitud}/pagos")
@@ -970,7 +987,10 @@ async def registrar_pago_por_numero(
         venta.estado_plan = "FINALIZADO"
     db.commit()
 
-    saldo = max(0.0, (venta.precio_total or 0) - (venta.anticipo or 0))
+    objetivo_inscripcion = venta.monto_inscripcion if venta.monto_inscripcion is not None else (venta.precio_total or 0)
+    saldo = max(0.0, objetivo_inscripcion - (venta.anticipo or 0))
+    if saldo <= UMBRAL_REDONDEO_INSCRIPCION:
+        saldo = 0.0
     estado_inscripcion = "completa" if saldo <= 0 else "parcial"
 
     concepto_recibo = {
@@ -983,7 +1003,7 @@ async def registrar_pago_por_numero(
             db, venta, monto_recibido=monto, concepto=concepto_recibo, modalidad=modalidad,
             overrides={"op_numero": pago_registrado.get("comprobante_numero_operacion", "")},
         )
-        recibo_pdf_url = f"/api/contratos/{recibo.id}/download"
+        recibo_pdf_url = _abs_url(request, f"/api/contratos/{recibo.id}/download")
     except Exception as e:
         logger_err = str(e)  # el pago ya quedó registrado — el recibo se puede regenerar después
     else:

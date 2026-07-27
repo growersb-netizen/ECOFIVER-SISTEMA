@@ -121,6 +121,8 @@ def run_migrations():
             "ALTER TABLE contratos ADD COLUMN numero_solicitud TEXT",
             "ALTER TABLE contratos ADD COLUMN datos_json TEXT",
             "ALTER TABLE contratos ADD COLUMN tipo_documento TEXT DEFAULT 'CONTRATO'",
+            # ── VentaFinanciada: objetivo real de pago_inicial (saldo de inscripción) ──
+            "ALTER TABLE ventas_financiadas ADD COLUMN monto_inscripcion REAL",
         ]
         for stmt in migrations:
             try:

@@ -309,6 +309,7 @@ class VentaFinanciada(Base):
     forma_pago = Column(String(20))
     precio_total = Column(Float, default=0)
     anticipo = Column(Float, default=0)
+    monto_inscripcion = Column(Float, nullable=True)  # objetivo de pago_inicial (distinto de precio_total)
     cantidad_cuotas = Column(Integer, default=1)
     valor_cuota = Column(Float, default=0)
     fecha_inicio_plan = Column(DateTime(timezone=True), nullable=True)

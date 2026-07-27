@@ -15,9 +15,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import Contrato, VentaFinanciada, VentaContado, Usuario, ConfiguracionSistema
+from database.models import Contrato, VentaFinanciada, VentaContado, Usuario, ConfiguracionSistema, Pago
 from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey, get_current_user
 from routers.configuracion import get_config_value
+from routers.aliados import siguiente_numero_solicitud
 from utils.documentos import render_html, html_to_pdf, monto_en_letras, split_nombre_apellido
 
 router = APIRouter()
@@ -684,3 +685,270 @@ async def emitir_recibo(
     return {"ok": True, "recibo_id": recibo.id, "archivo": nombre_archivo,
             "saldo_pendiente": saldo_pendiente, "es_cierre": es_cierre,
             "download_url": f"/api/contratos/{recibo.id}/download"}
+
+
+# ─── ENDPOINT UNIFICADO — fuente única de verdad para crear contratos ────────
+# Usado por: Claude.ai (vía MCP), Máximo (WhatsApp/Telegram), futuro frontend.
+# Asigna numero_solicitud de forma atómica (mismo mecanismo que aliados.py),
+# crea la venta financiada, genera el PDF real y, si viene, registra el pago
+# inicial — todo en una sola llamada para que no puedan pisarse dos canales.
+
+_TIPO_PRODUCTO_MAP = {"pileta": "PISCINA", "modulo": "MODULO", "combo": "COMBO", "exterior": "PISCINA"}
+
+
+def _contrato_a_dict(contrato: Contrato, venta: Optional[VentaFinanciada]) -> dict:
+    datos = json.loads(contrato.datos_json) if contrato.datos_json else {}
+    saldo = 0.0
+    if venta:
+        ya_pagado = (venta.anticipo or 0) + (venta.cuotas_pagas or 0) * (venta.valor_cuota or 0)
+        saldo = max(0.0, (venta.precio_total or 0) - ya_pagado)
+    return {
+        "numero_solicitud": contrato.numero_solicitud or "",
+        "contrato_id": contrato.id,
+        "cliente_nombre": contrato.cliente_nombre or "",
+        "tipo_contrato": contrato.tipo_contrato or "",
+        "estado": contrato.estado or "",
+        "estado_inscripcion": datos.get("estado_inscripcion", ""),
+        "saldo_inscripcion_pendiente": saldo,
+        "pdf_url": f"/api/contratos/{contrato.id}/download",
+        "creado_en": contrato.fecha_generacion.isoformat() if contrato.fecha_generacion else "",
+        "venta_financiada_id": contrato.venta_financiada_id,
+        "historial_pagos": [
+            {"monto": p.monto, "fecha_pago": p.fecha_pago.isoformat() if p.fecha_pago else "", "notas": p.notas or ""}
+            for p in (venta.pagos if venta else [])
+        ],
+    }
+
+
+@router.post("/api/contratos", status_code=201)
+async def crear_contrato_unificado(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """
+    Crea la venta financiada, asigna numero_solicitud atómicamente y genera
+    el PDF del contrato real. Ver spec completa en spec_endpoint_contratos.md
+    (campos: cliente, conyuge, producto, financiacion, entrega, pago_registrado, origen).
+    """
+    body = await request.json()
+    cliente = body.get("cliente") or {}
+    conyuge = body.get("conyuge") or {}
+    producto = body.get("producto") or {}
+    financiacion = body.get("financiacion") or {}
+    entrega = body.get("entrega") or {}
+    pago_registrado = body.get("pago_registrado") or {}
+    origen = body.get("origen") or {}
+
+    for campo in ("nombre", "apellido", "dni"):
+        if not cliente.get(campo):
+            raise HTTPException(400, f"cliente.{campo} es requerido")
+    if not producto.get("tipo") or not producto.get("modelo"):
+        raise HTTPException(400, "producto.tipo y producto.modelo son requeridos")
+    for campo in ("valor_mercado", "pago_inicial", "cant_cuotas", "valor_cuota"):
+        if financiacion.get(campo) is None:
+            raise HTTPException(400, f"financiacion.{campo} es requerido")
+
+    monto_pago = float(pago_registrado.get("monto") or 0)
+    if monto_pago > float(financiacion["valor_mercado"]):
+        raise HTTPException(422, "pago_registrado.monto no puede superar financiacion.valor_mercado")
+
+    # DNI ya tiene una solicitud activa — advertencia, no bloqueo (a menos que se pida forzar)
+    dni = str(cliente["dni"]).strip()
+    existente = db.query(VentaFinanciada).filter(
+        VentaFinanciada.cliente_dni == dni,
+        VentaFinanciada.estado_plan.notin_(["CANCELADO", "FINALIZADO"]),
+    ).first()
+    if existente and not body.get("forzar"):
+        raise HTTPException(409, {
+            "mensaje": "El DNI ya tiene una solicitud activa sin resolver",
+            "numero_solicitud": existente.numero_solicitud,
+        })
+
+    numero_solicitud = siguiente_numero_solicitud(db)
+    ahora = datetime.now()
+
+    tipo_producto = _TIPO_PRODUCTO_MAP.get((producto.get("tipo") or "").lower(), "PISCINA")
+    cliente_nombre = f"{cliente['apellido']}, {cliente['nombre']}"
+    pago_inicial = float(financiacion["pago_inicial"])
+    estado_inscripcion = "completa" if monto_pago >= pago_inicial else ("parcial" if monto_pago > 0 else "pendiente")
+
+    venta = VentaFinanciada(
+        cliente_nombre=cliente_nombre,
+        cliente_telefono=cliente.get("telefono") or "",
+        cliente_localidad=cliente.get("localidad") or "",
+        producto=tipo_producto,
+        modelo_especifico=producto["modelo"],
+        color=producto.get("color"),
+        superficie_m2=producto.get("superficie_m2"),
+        forma_pago="HISTORICO" if origen.get("canal") == "claude_chat" else "PMI",
+        precio_total=float(financiacion["valor_mercado"]),
+        anticipo=monto_pago if monto_pago else 0,
+        cantidad_cuotas=int(financiacion["cant_cuotas"]),
+        valor_cuota=float(financiacion["valor_cuota"]),
+        fecha_inicio_plan=ahora,
+        estado_plan="ACTIVO",
+        estado_admision=estado_inscripcion.upper(),
+        numero_solicitud=numero_solicitud,
+        cliente_dni=dni,
+        cliente_cuil=cliente.get("cuil"),
+        cliente_domicilio=cliente.get("domicilio"),
+        cliente_estado_civil=cliente.get("estado_civil"),
+        cliente_ocupacion=cliente.get("ocupacion"),
+        cliente_email=cliente.get("email"),
+        notas=f"Origen: {origen.get('canal','')} — operador: {origen.get('operador','')}",
+    )
+    db.add(venta)
+    db.commit()
+    db.refresh(venta)
+
+    if monto_pago > 0:
+        db.add(Pago(
+            venta_financiada_id=venta.id,
+            monto=monto_pago,
+            notas=f"{pago_registrado.get('concepto','')} — {pago_registrado.get('modalidad','')} — "
+                  f"op {pago_registrado.get('comprobante_numero_operacion','')}",
+        ))
+        db.commit()
+
+    # ── Render del contrato real ──────────────────────────────────────────
+    observaciones = entrega.get("observacion_libre") or (
+        f"ASIGNACIÓN DE FECHA PARA INSTALACIÓN EN {entrega['mes'].upper()} {entrega.get('anio','')}"
+        if entrega.get("mes") else
+        "LA FECHA DE INSTALACIÓN SE ASIGNARÁ CONFORME AL PLAN DE PRODUCCIÓN VIGENTE."
+    )
+    tipologia = producto["modelo"] + (" (medida especial)" if producto.get("medida_especial") else "")
+
+    context = {
+        "fecha_contrato": ahora.strftime("%d de %B de %Y"),
+        "fecha_nacimiento": cliente.get("fecha_nacimiento") or "",
+        "telefono_alt": cliente.get("telefono_alt") or "",
+        "piso": cliente.get("piso") or "", "depto": cliente.get("depto") or "",
+        "provincia": cliente.get("provincia") or "",
+        "lugar_nacimiento": cliente.get("lugar_nacimiento") or "",
+        "conyuge_nombre": conyuge.get("nombre") or "", "conyuge_apellido": conyuge.get("apellido") or "",
+        "conyuge_dni": conyuge.get("dni") or "", "conyuge_nacimiento": conyuge.get("fecha_nacimiento") or "",
+        "conyuge_telefono": conyuge.get("telefono") or "", "conyuge_email": conyuge.get("email") or "",
+        "tipologia": tipologia,
+        "largo": producto.get("largo_m") or "", "ancho": producto.get("ancho_m") or "",
+        "profundidad_min": producto.get("profundidad_min_m") or "",
+        "profundidad_max": producto.get("profundidad_max_m") or "",
+        "sistema": producto.get("sistema") or "C-6",
+        "observaciones": observaciones,
+        "check_efectivo": "", "mark_efectivo": "", "check_transferencia": "", "mark_transferencia": "",
+        "firma_productor_block": "",
+    }
+    modalidad = (pago_registrado.get("modalidad") or "").lower()
+    if modalidad == "efectivo":
+        context["check_efectivo"], context["mark_efectivo"] = "checked", "✓"
+    elif modalidad == "transferencia":
+        context["check_transferencia"], context["mark_transferencia"] = "checked", "✓"
+    context.update(_venta_base_dict(venta))
+    context["estado_inscripcion"] = estado_inscripcion
+
+    pdf_url = None
+    try:
+        html = render_html("contrato_template.html", context)
+        nombre_archivo = f"contrato_{cliente_nombre.replace(' ', '_').replace(',', '')}_{ahora:%Y%m%d%H%M%S}.pdf"
+        out_path = UPLOAD_DIR / nombre_archivo
+        await html_to_pdf(html, out_path)
+
+        contrato = Contrato(
+            venta_financiada_id=venta.id,
+            cliente_nombre=cliente_nombre,
+            tipo_contrato=f"{tipo_producto} — {venta.forma_pago}",
+            tipo_documento="CONTRATO",
+            numero_solicitud=numero_solicitud,
+            archivo_pdf=str(out_path),
+            datos_json=json.dumps(context, ensure_ascii=False),
+            estado="BORRADOR",
+        )
+        db.add(contrato)
+        db.commit()
+        db.refresh(contrato)
+        pdf_url = f"/api/contratos/{contrato.id}/download"
+    except Exception as e:
+        # La venta y el número YA quedaron registrados — el PDF se puede regenerar después.
+        return {
+            "numero_solicitud": numero_solicitud,
+            "venta_financiada_id": venta.id,
+            "pdf_url": None,
+            "error_pdf": str(e),
+            "estado_inscripcion": estado_inscripcion,
+            "saldo_inscripcion_pendiente": max(0.0, float(financiacion["valor_mercado"]) - monto_pago),
+        }
+
+    return {
+        "numero_solicitud": numero_solicitud,
+        "venta_financiada_id": venta.id,
+        "contrato_id": contrato.id,
+        "pdf_url": pdf_url,
+        "estado_inscripcion": estado_inscripcion,
+        "saldo_inscripcion_pendiente": max(0.0, float(financiacion["valor_mercado"]) - monto_pago),
+        "creado_en": ahora.isoformat(),
+    }
+
+
+@router.get("/api/contratos/solicitud/{numero_solicitud}")
+async def consultar_contrato_por_numero(
+    numero_solicitud: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """Estado completo de una solicitud (para 'cuánto le falta pagar a X')."""
+    contrato = db.query(Contrato).filter(
+        Contrato.numero_solicitud == numero_solicitud, Contrato.tipo_documento == "CONTRATO"
+    ).order_by(Contrato.fecha_generacion.desc()).first()
+    if not contrato:
+        raise HTTPException(404, "Solicitud no encontrada")
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == contrato.venta_financiada_id).first()
+    return _contrato_a_dict(contrato, venta)
+
+
+@router.post("/api/contratos/solicitud/{numero_solicitud}/pagos")
+async def registrar_pago_por_numero(
+    numero_solicitud: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """
+    Registra un pago posterior (a cuenta, saldo final) sobre una solicitud
+    ya existente. Mismo objeto pago_registrado del endpoint de creación.
+    Emite el recibo real y recalcula el estado de inscripción.
+    """
+    contrato = db.query(Contrato).filter(
+        Contrato.numero_solicitud == numero_solicitud, Contrato.tipo_documento == "CONTRATO"
+    ).order_by(Contrato.fecha_generacion.desc()).first()
+    if not contrato or not contrato.venta_financiada_id:
+        raise HTTPException(404, "Solicitud no encontrada")
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == contrato.venta_financiada_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta financiada no encontrada")
+
+    body = await request.json()
+    pago_registrado = body.get("pago_registrado") or body
+    monto = float(pago_registrado.get("monto") or 0)
+    if monto <= 0:
+        raise HTTPException(400, "pago_registrado.monto debe ser mayor a 0")
+    concepto = pago_registrado.get("concepto", "pago")
+    modalidad = pago_registrado.get("modalidad", "")
+
+    db.add(Pago(
+        venta_financiada_id=venta.id,
+        monto=monto,
+        notas=f"{concepto} — {modalidad} — op {pago_registrado.get('comprobante_numero_operacion','')}",
+    ))
+    venta.anticipo = (venta.anticipo or 0) + monto
+    if venta.anticipo >= (venta.precio_total or 0):
+        venta.estado_plan = "FINALIZADO"
+    db.commit()
+
+    saldo = max(0.0, (venta.precio_total or 0) - (venta.anticipo or 0))
+    return {
+        "ok": True,
+        "numero_solicitud": numero_solicitud,
+        "monto_registrado": monto,
+        "saldo_inscripcion_pendiente": saldo,
+        "estado_inscripcion": "completa" if saldo <= 0 else "parcial",
+    }

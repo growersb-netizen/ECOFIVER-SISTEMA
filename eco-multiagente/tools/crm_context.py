@@ -95,6 +95,7 @@ async def get_crm_context(agent_name: str) -> str:
     try:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         data = dict(zip(tasks.keys(), results))
+        logger.info(f"[CRMCtx] DEBUG {agent_name} needs={needs} data_types={ {k: type(v).__name__ for k,v in data.items()} } todos_leads={data.get('todos_leads')!r}")
     except Exception as e:
         logger.warning(f"[CRMCtx] Error fetching para {agent_name}: {e}")
         return ""

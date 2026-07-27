@@ -95,7 +95,6 @@ async def get_crm_context(agent_name: str) -> str:
     try:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         data = dict(zip(tasks.keys(), results))
-        logger.info(f"[CRMCtx] DEBUG {agent_name} needs={needs} data_types={ {k: type(v).__name__ for k,v in data.items()} } todos_leads={data.get('todos_leads')!r}")
     except Exception as e:
         logger.warning(f"[CRMCtx] Error fetching para {agent_name}: {e}")
         return ""
@@ -148,12 +147,13 @@ def _build_context_parts(parts: list, data: dict) -> None:
         if cuotas:
             lines = [f"Cuotas vencidas ({len(cuotas)} total):"]
             for c in cuotas[:20]:
-                cliente  = c.get("cliente", c.get("nombre", "Sin nombre"))
-                monto    = c.get("monto", 0)
-                dias     = c.get("dias_vencido", c.get("dias", 0))
-                telefono = c.get("telefono", c.get("phone", ""))
-                venta_id = c.get("venta_id", c.get("id", "?"))
-                lines.append(f"  • [V#{venta_id}] {cliente} — ${monto:,.0f} — {dias}d vencida — Tel: {telefono}")
+                cliente  = c.get("cliente_nombre", c.get("cliente", c.get("nombre", "Sin nombre")))
+                monto    = c.get("valor_cuota", c.get("monto", 0)) or 0
+                dias     = c.get("dias_atraso", c.get("dias_vencido", c.get("dias", 0))) or 0
+                telefono = c.get("cliente_telefono", c.get("telefono", c.get("phone", "")))
+                venta_id = c.get("id", c.get("venta_id", "?"))
+                producto = c.get("modelo_especifico", c.get("producto", ""))
+                lines.append(f"  • [V#{venta_id}] {cliente} — {producto} — ${monto:,.0f} — {dias}d vencida — Tel: {telefono}")
             if len(cuotas) > 20:
                 lines.append(f"  ... y {len(cuotas) - 20} más")
             parts.append("\n".join(lines))
@@ -167,24 +167,31 @@ def _build_context_parts(parts: list, data: dict) -> None:
             lines = [f"Leads sin respuesta +2hs ({len(leads)} total):"]
             for l in leads[:10]:
                 nombre  = l.get("nombre", "Sin nombre")
-                canal   = l.get("canal_origen", "?")
+                canal   = l.get("origen", l.get("canal_origen", "?"))
                 agente  = l.get("agente_asignado", "?")
-                horas   = l.get("horas_sin_respuesta", "?")
-                lines.append(f"  • {nombre} — {canal} — Agente: {agente} — {horas}hs sin respuesta")
+                tel     = l.get("telefono", "")
+                lines.append(f"  • {nombre} — {canal} — Agente: {agente} — Tel: {tel}")
             if len(leads) > 10:
                 lines.append(f"  ... y {len(leads) - 10} más")
             parts.append("\n".join(lines))
         else:
             parts.append("Leads sin respuesta: ninguno ✅")
 
-    # ── Stock ─────────────────────────────────────────────────────────────────
+    # ── Stock (piscinas + paneles) ───────────────────────────────────────────
     if "stock" in data and isinstance(data["stock"], dict) and data["stock"]:
         st = data["stock"]
         lines = ["Stock actual:"]
-        for producto, cantidad in st.items():
+        for p in st.get("piscinas", []) or []:
+            cantidad = p.get("cantidad", 0) or 0
             icono = "🔴" if cantidad == 0 else "🟡" if cantidad <= 3 else "🟢"
-            lines.append(f"  {icono} {producto}: {cantidad} unidades")
-        parts.append("\n".join(lines))
+            lines.append(f"  {icono} Piscina {p.get('modelo','?')} {p.get('color','')}: {cantidad} unidades")
+        for pa in st.get("paneles", []) or []:
+            cantidad = pa.get("cantidad", 0) or 0
+            bajo = pa.get("bajo_minimo", False)
+            icono = "🔴" if bajo else "🟢"
+            lines.append(f"  {icono} Panel {pa.get('tipo','?')}: {cantidad} unidades")
+        if len(lines) > 1:
+            parts.append("\n".join(lines))
 
     # ── Precios actuales ──────────────────────────────────────────────────────
     if "precios" in data and isinstance(data["precios"], dict) and data["precios"]:
@@ -316,10 +323,13 @@ def _build_context_parts(parts: list, data: dict) -> None:
                 )
                 if funnel.get("perdidos"):
                     lines.append(f"  Perdidos: {funnel.get('perdidos',0)}")
-            tp = ma.get("ticket_promedio", 0)
+            tp = ma.get("ticket_promedio", 0) or 0
             if tp:
                 lines.append(f"  Ticket promedio: ${tp:,.0f}")
-            perf = ma.get("performance", [])
+            total_ventas_mes = ma.get("total_ventas_mes", 0) or 0
+            revenue_mes = ma.get("revenue_mes", 0) or 0
+            lines.append(f"  Ventas del mes: {total_ventas_mes} — Facturación del mes: ${revenue_mes:,.0f}")
+            perf = ma.get("performance_asesores", [])
             if perf:
                 perf_strs = []
                 for p in perf[:8]:
@@ -328,10 +338,12 @@ def _build_context_parts(parts: list, data: dict) -> None:
                         f"({p.get('conversion',0)}%) | {p.get('leads_activos',0)} activos"
                     )
                 lines.append("  Performance asesores:\n    " + "\n    ".join(perf_strs))
-            flujo = ma.get("flujo_30d", {})
-            if flujo:
-                total_flujo = sum(flujo.values()) if isinstance(flujo, dict) else 0
-                lines.append(f"  Flujo esperado próximos 30d: ${total_flujo:,.0f}")
+            total_flujo = ma.get("total_flujo_esperado_30d", 0) or 0
+            lines.append(f"  Cobranza esperada próximos 30 días: ${total_flujo:,.0f}")
+            flujo_detalle = ma.get("flujo_caja_30d", [])
+            if flujo_detalle and isinstance(flujo_detalle, list):
+                det_strs = [f"{f.get('fecha','?')}: ${f.get('monto',0):,.0f}" for f in flujo_detalle[:10]]
+                lines.append("  Detalle por fecha:\n    " + "\n    ".join(det_strs))
             parts.append("\n".join(lines))
 
     # ── Ranking de ventas ─────────────────────────────────────────────────────

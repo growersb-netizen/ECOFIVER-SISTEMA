@@ -277,7 +277,6 @@ class BaseAgent:
         parts = [p for p in [kb_ctx, fecha_ctx, crm_ctx, context] if p]
         prefix = "\n\n".join(parts)
         full_msg = f"{prefix}\n\nMensaje: {message}" if prefix else message
-        logger.info(f"[{self.name}] DEBUG full_msg len={len(full_msg)} crm_ctx_len={len(crm_ctx)} | crm_ctx_snippet={crm_ctx[:600]!r}")
         provider = self._get_provider()
 
         try:

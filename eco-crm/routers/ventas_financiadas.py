@@ -419,3 +419,41 @@ async def importar_historico(
         "incompletos": incompletos,
         "total_creados": len(creados),
     }
+
+
+@router.post("/api/ventas-financiadas/corregir-fechas-historico")
+async def corregir_fechas_historico(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """
+    Corrige dos problemas de los contratos importados desde el historial
+    (numero_solicitud 000-138601xx):
+    1) created_at quedó en la fecha de la IMPORTACIÓN (hoy), no la fecha real
+       del contrato — contaminaba "ventas de hoy" / "ventas del mes".
+    2) fecha_primer_vencimiento nunca se seteó (el origen no la traía) —
+       calcular_proximo_vencimiento() las excluye del todo del cálculo de
+       cobranza esperada a 30 días, que por eso quedaba desactualizado.
+    Idempotente: solo toca ventas con numero_solicitud "000-1386%" cuyo
+    created_at coincide con fecha_inicio_plan siendo distinto (o falta
+    fecha_primer_vencimiento).
+    """
+    ventas = db.query(VentaFinanciada).filter(
+        VentaFinanciada.numero_solicitud.like("000-1386%")
+    ).all()
+
+    corregidas = []
+    for v in ventas:
+        cambio = False
+        if v.fecha_inicio_plan:
+            if v.created_at is None or v.created_at.date() != v.fecha_inicio_plan.date():
+                v.created_at = v.fecha_inicio_plan
+                cambio = True
+            if not v.fecha_primer_vencimiento:
+                v.fecha_primer_vencimiento = v.fecha_inicio_plan + timedelta(days=30)
+                cambio = True
+        if cambio:
+            corregidas.append(v.numero_solicitud)
+
+    db.commit()
+    return {"ok": True, "corregidas": corregidas, "total": len(corregidas)}

@@ -9,8 +9,9 @@ from .base_provider import BaseProvider
 
 logger = logging.getLogger(__name__)
 
-# Modelo por defecto: GRATUITO (no consume créditos). Se puede override con OPENROUTER_MODEL.
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+# Modelo por defecto. El anterior modelo gratuito (llama-3.3-70b-instruct:free)
+# fue dado de baja por OpenRouter (404). Se puede override con OPENROUTER_MODEL.
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 

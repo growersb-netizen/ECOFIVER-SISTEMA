@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 11px; background: white; color: #111; }
+  .page { width: 794px; min-height: 1123px; background: white; padding: 0; position: relative; }
+  .header-bar { background: #1a3a6b; height: 5px; width: 100%; }
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 28px 10px 28px; border-bottom: 2px solid #1a3a6b; }
+  .logo-img { width: 90px; height: 60px; background: #1a3a6b; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+  .logo-text-fallback { font-size: 8px; color: white; text-align: center; font-weight: bold; letter-spacing: 0.5px; padding: 4px; line-height: 1.4; }
+  .doc-title { font-size: 16px; font-weight: bold; color: #1a3a6b; letter-spacing: 0.5px; text-transform: uppercase; text-align: center; }
+  .doc-subtitle { font-size: 9.5px; color: #555; text-align: center; margin-top: 2px; letter-spacing: 0.3px; }
+  .doc-number { font-size: 13px; font-weight: bold; color: #1a3a6b; margin-top: 3px; text-align: center; }
+  .header-date { text-align: right; font-size: 12px; font-weight: bold; color: #1a3a6b; white-space: nowrap; }
+  .gold-line { height: 3px; background: linear-gradient(90deg, #c8902a, #e8b84b, #c8902a); }
+
+  .empresa-bar { background: #f5f5f5; border: 1px solid #ccc; border-top: none; padding: 6px 10px; font-size: 9px; color: #333; display: flex; justify-content: space-between; }
+  .empresa-bar strong { color: #1a3a6b; }
+
+  .section { margin: 0; border: 1px solid #ccc; border-top: none; }
+  .section-header { background: #1a3a6b; color: white; font-weight: bold; font-size: 10px; padding: 4px 10px; text-transform: uppercase; letter-spacing: 0.8px; }
+  .row { display: flex; border-bottom: 1px solid #e0e0e0; }
+  .row:last-child { border-bottom: none; }
+  .cell { flex: 1; padding: 4px 6px; border-right: 1px solid #e0e0e0; font-size: 10.5px; line-height: 1.4; }
+  .cell:last-child { border-right: none; }
+  .cell-label { color: #555; font-size: 9.5px; display: block; }
+  .cell-value { font-weight: bold; color: #111; font-size: 11px; }
+  .medidas-box { display: inline-block; border: 1px solid #1a3a6b; padding: 2px 8px; margin-right: 4px; font-weight: bold; color: #1a3a6b; font-size: 11px; border-radius: 2px; }
+  .pago-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .pago-cell { padding: 5px 8px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; font-size: 10.5px; }
+  .pago-cell:nth-child(even) { border-right: none; }
+  .plabel { font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pvalue { font-weight: bold; color: #1a3a6b; font-size: 12px; margin-top: 1px; }
+  .modalidad-row { padding: 5px 8px; font-size: 10.5px; display: flex; align-items: center; gap: 20px; }
+  .box { width: 12px; height: 12px; border: 1px solid #333; display: inline-block; text-align: center; line-height: 11px; font-size: 10px; }
+  .box.checked { background: #1a3a6b; color: white; font-weight: bold; }
+  .financiado-badge { background: #1a3a6b; color: white; padding: 2px 10px; border-radius: 10px; font-size: 9px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; margin-left: auto; }
+  .recibo-box { border: 1px solid #aaa; padding: 10px; margin: 0; background: #fafafa; }
+  .recibo-title { font-weight: bold; font-size: 11px; margin-bottom: 6px; text-transform: uppercase; color: #1a3a6b; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .recibo-line { display: flex; align-items: baseline; gap: 6px; font-size: 10.5px; margin-bottom: 4px; }
+  .recibo-underline { flex: 1; border-bottom: 1px solid #333; min-width: 200px; height: 14px; }
+  .cuota-inicial-bold { font-weight: bold; text-decoration: underline; }
+  .legal-text { font-size: 8px; color: #333; line-height: 1.4; padding: 8px 10px; background: #f9f9f9; border-top: 1px solid #ddd; text-align: justify; }
+  .sig-row { display: flex; justify-content: space-around; padding: 16px 40px 10px 40px; margin-top: 6px; border-top: 1px solid #ddd; gap: 30px; }
+  .sig-block { flex: 1; text-align: center; }
+  .sig-line-draw { border-bottom: 1px solid #333; height: 30px; margin-bottom: 4px; }
+  .sig-label { font-size: 9px; color: #444; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sig-sublabel { font-size: 8.5px; color: #666; margin-top: 2px; }
+  .footer { text-align: center; font-size: 9px; color: #555; padding: 6px; background: #f0f0f0; border-top: 1px solid #ddd; font-weight: bold; line-height: 1.5; }
+  .obs-row { padding: 5px 8px; font-size: 10px; border-top: 1px solid #ddd; }
+  .servicio-row { padding: 4px 8px; font-size: 10px; font-weight: bold; background: #f5f5f5; border-top: 1px solid #ddd; color: #1a3a6b; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header-bar"></div>
+  <div class="header">
+    <div class="logo-img"><div class="logo-text-fallback">ECO MÓDULOS<br>&<br>PISCINAS</div></div>
+    <div style="flex:1; text-align:center; padding:0 20px;">
+      <div class="doc-title">Contrato de Financiación de Piscina</div>
+      <div class="doc-subtitle">Cooperativa de Trabajo Eco Zárate Ltda. — CUIT 30-71807393-2</div>
+      <div class="doc-number">N° {{numero_solicitud}}</div>
+    </div>
+    <div class="header-date">{{fecha_contrato}}</div>
+  </div>
+  <div class="gold-line"></div>
+
+  <div class="empresa-bar">
+    <span><strong>Razón Social:</strong> Cooperativa de Trabajo Eco Zárate Ltda. &nbsp;·&nbsp; <strong>CUIT:</strong> 30-71807393-2</span>
+    <span><strong>Domicilio:</strong> Avda. Antártida Argentina 3100, Zárate</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Datos del Adquiriente</div>
+    <div class="row">
+      <div class="cell" style="flex:1.2"><span class="cell-label">Nombre</span><span class="cell-value">{{nombre}}</span></div>
+      <div class="cell" style="flex:1.2"><span class="cell-label">Apellido</span><span class="cell-value">{{apellido}}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell"><span class="cell-label">DNI / CI / LC Nº</span><span class="cell-value">{{dni}}</span></div>
+      <div class="cell"><span class="cell-label">CUIL</span><span class="cell-value">{{cuil}}</span></div>
+      <div class="cell"><span class="cell-label">Fecha de nacimiento</span><span class="cell-value">{{fecha_nacimiento}}</span></div>
+      <div class="cell"><span class="cell-label">Estado civil</span><span class="cell-value">{{estado_civil}}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell" style="flex:1.5"><span class="cell-label">E-mail</span><span class="cell-value">{{email}}</span></div>
+      <div class="cell"><span class="cell-label">Teléfono</span><span class="cell-value">{{telefono}}</span></div>
+      <div class="cell" style="flex:0.8"><span class="cell-label">Teléfono alternativo</span><span class="cell-value">{{telefono_alt}}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell" style="flex:1.5"><span class="cell-label">Domicilio</span><span class="cell-value">{{domicilio}}</span></div>
+      <div class="cell" style="flex:0.4"><span class="cell-label">Piso</span><span class="cell-value">{{piso}}</span></div>
+      <div class="cell" style="flex:0.4"><span class="cell-label">Dept</span><span class="cell-value">{{depto}}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell"><span class="cell-label">Localidad</span><span class="cell-value">{{localidad}}</span></div>
+      <div class="cell"><span class="cell-label">Provincia</span><span class="cell-value">{{provincia}}</span></div>
+      <div class="cell"><span class="cell-label">Lugar de nacimiento</span><span class="cell-value">{{lugar_nacimiento}}</span></div>
+      <div class="cell"><span class="cell-label">Profesión / Ocupación</span><span class="cell-value">{{ocupacion}}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Datos Cónyuge o Apoderado</div>
+    <div class="row">
+      <div class="cell"><span class="cell-label">Nombre</span><span class="cell-value">{{conyuge_nombre}}</span></div>
+      <div class="cell"><span class="cell-label">Apellido</span><span class="cell-value">{{conyuge_apellido}}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell"><span class="cell-label">DNI / CI / LC Nº</span><span class="cell-value">{{conyuge_dni}}</span></div>
+      <div class="cell"><span class="cell-label">Fecha de nacimiento</span><span class="cell-value">{{conyuge_nacimiento}}</span></div>
+      <div class="cell"><span class="cell-label">Teléfono</span><span class="cell-value">{{conyuge_telefono}}</span></div>
+      <div class="cell"><span class="cell-label">E-mail</span><span class="cell-value">{{conyuge_email}}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Piscina Solicitada</div>
+    <div class="row">
+      <div class="cell" style="flex:0.6; background:#f5f5f5; font-weight:bold; font-size:10px; color:#333;">Modelo</div>
+      <div class="cell" style="flex:2.4; font-weight:bold; color:#1a3a6b; font-size:11.5px;">{{modelo}}</div>
+    </div>
+    <div class="row">
+      <div class="cell" style="flex:0.6; background:#f5f5f5; font-weight:bold; font-size:10px; color:#333;">Tipología</div>
+      <div class="cell" style="flex:2.4; font-weight:bold; color:#1a3a6b;">Piscina de Fibra de Vidrio — {{tipologia}}</div>
+    </div>
+    <div class="row">
+      <div class="cell" style="flex:0.6; background:#f5f5f5; font-weight:bold; font-size:10px; color:#333;">Medidas</div>
+      <div class="cell" style="flex:2.4;">
+        <span class="medidas-box">{{largo}}</span><span style="font-weight:bold; margin-right:4px;">X</span>
+        <span class="medidas-box">{{ancho}}</span><span style="font-weight:bold; margin-right:4px;">X</span>
+        <span class="medidas-box">{{profundidad_min}}</span><span style="font-weight:bold; color:#555; font-size:10px; margin-right:4px;">A</span>
+        <span class="medidas-box">{{profundidad_max}}</span>
+        <span style="font-size:9px; color:#666; margin-left:8px;">(profundidad variable: {{profundidad_min}}m → {{profundidad_max}}m)</span>
+      </div>
+    </div>
+    <div class="row">
+      <div class="cell" style="flex:0.6; background:#f5f5f5; font-weight:bold; font-size:10px; color:#333;">Sistema</div>
+      <div class="cell" style="flex:2.4; font-weight:bold; color:#1a3a6b;">{{sistema}}</div>
+    </div>
+    <div class="obs-row"><span style="font-weight:bold;">Observaciones: </span>{{observaciones}}</div>
+    <div class="servicio-row">Servicio Completo</div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Sistema de Pago &nbsp;•&nbsp; 100% Financiado</div>
+    <div class="pago-grid">
+      <div class="pago-cell"><div class="plabel">Valor de mercado</div><div class="pvalue">$ {{valor_mercado}}</div></div>
+      <div class="pago-cell"><div class="plabel">Pago inicial</div><div class="pvalue">$ {{pago_inicial}}</div></div>
+      <div class="pago-cell"><div class="plabel">Cantidad de cuotas propuesta</div><div class="pvalue">{{cant_cuotas}} cuotas</div></div>
+      <div class="pago-cell"><div class="plabel">Cuota ofrecida</div><div class="pvalue">$ {{valor_cuota}}.- &nbsp;<span style="font-size:9px; background:#1a3a6b; color:white; padding:1px 6px; border-radius:3px;">M - Fija</span></div></div>
+    </div>
+    <div class="modalidad-row">
+      <span style="font-weight:bold; font-size:10px;">Modalidad de pago:</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;"><span class="box {{check_efectivo}}">{{mark_efectivo}}</span> Efectivo</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;"><span class="box {{check_transferencia}}">{{mark_transferencia}}</span> Transferencia</span>
+      <span class="financiado-badge">100% Financiado</span>
+    </div>
+  </div>
+
+  <div class="recibo-box">
+    <div class="recibo-title">Recibo Autorizado &nbsp;&nbsp; {{numero_solicitud}}</div>
+    <div class="recibo-line"><span>Recibimos de</span><span class="recibo-underline"></span></div>
+    <div class="recibo-line"><span>la suma de</span><span class="recibo-underline"></span></div>
+    <div class="recibo-line"><span>como pago de <span class="cuota-inicial-bold">Cuota inicial</span> en concepto de ingreso de derecho de suscripción y gasto detallado anteriormente.</span></div>
+  </div>
+
+  <div class="legal-text">
+    Declaro bajo juramento que los datos procedentemente son verdaderos y en función de ellos, solicito mi pedido de acuerdo a los términos del contrato que declaro conocer y aceptar; por otra parte, reconozco que lo abonado en este caso como suscripción inicial no me será reintegrado por ningún concepto. En caso de recisión o resolución contractual por parte de la empresa. Por último, reconozco estar en conocimiento que de solicitar la baja de la presente solicitud en cualquier momento una vez iniciada la misma la empresa tendrá un plazo no menor a 180 días hábiles para la puesta a disposición de los fondos. El pago de cada cuota debe realizarse entre los días 1 y 10 de cada mes para mantener vigentes las promociones asignadas.
+  </div>
+
+  <div class="sig-row">
+    <div class="sig-block">
+      <div class="sig-line-draw"></div>
+      <div class="sig-label">[...............................................] <br>Firma del Adquiriente</div>
+      <div class="sig-sublabel">{{apellido}}, {{nombre}} — DNI {{dni}}</div>
+    </div>
+    {{firma_productor_block}}
+  </div>
+
+  <div class="footer">
+    Cooperativa de Trabajo Eco Zárate Ltda. — CUIT 30-71807393-2<br>
+    AVDA Antártida Argentina 3100 - Zárate
+  </div>
+</div>
+</body>
+</html>

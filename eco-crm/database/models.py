@@ -529,6 +529,9 @@ class Contrato(Base):
     estado = Column(String(20), default="BORRADOR")
     notas = Column(Text, default="")
     responsable_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    numero_solicitud = Column(String(30), nullable=True, index=True)
+    datos_json = Column(Text, nullable=True)  # snapshot completo usado para renderizar el documento
+    tipo_documento = Column(String(20), default="CONTRATO")  # CONTRATO | RECIBO
 
 
 class Empleado(Base):

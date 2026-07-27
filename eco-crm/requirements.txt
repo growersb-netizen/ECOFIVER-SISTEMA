@@ -16,3 +16,5 @@ docxtpl==0.17.0
 cryptography==43.0.3
 apscheduler==3.10.4
 pywebpush==2.0.0
+playwright==1.49.0
+num2words==0.5.13

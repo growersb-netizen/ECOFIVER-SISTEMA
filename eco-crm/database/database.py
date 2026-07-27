@@ -117,6 +117,10 @@ def run_migrations():
             "ALTER TABLE ventas_financiadas ADD COLUMN cliente_estado_civil TEXT",
             "ALTER TABLE ventas_financiadas ADD COLUMN cliente_ocupacion TEXT",
             "ALTER TABLE ventas_financiadas ADD COLUMN cliente_email TEXT",
+            # ── Contrato: snapshot de datos usado para render HTML/PDF ─────────
+            "ALTER TABLE contratos ADD COLUMN numero_solicitud TEXT",
+            "ALTER TABLE contratos ADD COLUMN datos_json TEXT",
+            "ALTER TABLE contratos ADD COLUMN tipo_documento TEXT DEFAULT 'CONTRATO'",
         ]
         for stmt in migrations:
             try:

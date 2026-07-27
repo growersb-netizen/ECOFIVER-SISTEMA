@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Arial', sans-serif; background: #f4f6f9; display: flex; justify-content: center; padding: 30px 20px; }
+  .page { width: 794px; background: #ffffff; box-shadow: 0 4px 30px rgba(0,0,0,0.12); position: relative; overflow: hidden; }
+  .top-bar { height: 6px; background: linear-gradient(90deg, #1a3a6b 0%, #c8902a 50%, #1a3a6b 100%); }
+  .header { background: #1a3a6b; padding: 28px 40px; display: flex; justify-content: space-between; align-items: center; }
+  .logo-title { font-family: Georgia, serif; font-size: 22px; font-weight: 700; color: #ffffff; }
+  .logo-subtitle { font-size: 11px; color: #c8902a; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; font-weight: 600; }
+  .logo-tagline { font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 6px; font-style: italic; }
+  .doc-type { font-family: Georgia, serif; font-size: 26px; font-weight: 700; color: #c8902a; text-transform: uppercase; text-align: right; }
+  .doc-number { font-size: 13px; color: rgba(255,255,255,0.8); margin-top: 4px; text-align: right; }
+  .doc-date { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 3px; text-align: right; }
+  .gold-line { height: 2px; background: linear-gradient(90deg, #c8902a, #e8b84b, #c8902a); }
+  .amount-banner { background: linear-gradient(135deg, #1a3a6b 0%, #0d2347 100%); padding: 22px 40px; display: flex; justify-content: space-between; align-items: center; }
+  .amount-label { font-size: 11px; color: #c8902a; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; margin-bottom: 6px; }
+  .amount-value { font-family: Georgia, serif; font-size: 42px; font-weight: 700; color: #ffffff; }
+  .amount-words { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px; font-style: italic; }
+  .amount-badge { background: rgba(200,144,42,0.15); border: 1px solid #c8902a; border-radius: 6px; padding: 10px 18px; text-align: center; }
+  .badge-label { font-size: 9px; color: #c8902a; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+  .badge-value { font-size: 14px; color: #ffffff; font-weight: 700; margin-top: 2px; }
+  .op-row { background: #1a3a6b; padding: 10px 40px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  .op-label { font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px; }
+  .op-value { font-size: 10px; color: #c8902a; font-weight: 700; font-family: monospace; }
+  .body { padding: 30px 40px; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-family: Georgia, serif; font-size: 13px; font-weight: 600; color: #1a3a6b; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #c8902a; padding-bottom: 6px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .section-title::before { content: ''; width: 4px; height: 14px; background: #c8902a; border-radius: 2px; display: inline-block; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 30px; }
+  .field { display: flex; flex-direction: column; }
+  .field-label { font-size: 9.5px; color: #999; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 3px; }
+  .field-value { font-size: 13px; color: #1a1a1a; font-weight: 600; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+  .product-box { background: linear-gradient(135deg, #f8f5ef 0%, #faf8f4 100%); border: 1px solid #e8d5a3; border-left: 4px solid #c8902a; border-radius: 4px; padding: 16px 20px; margin-bottom: 24px; }
+  .product-header { font-family: Georgia, serif; font-size: 16px; color: #1a3a6b; font-weight: 700; margin-bottom: 10px; }
+  .product-specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .spec-item { display: flex; flex-direction: column; align-items: center; background: white; border: 1px solid #e8d5a3; border-radius: 4px; padding: 8px 10px; text-align: center; }
+  .spec-label { font-size: 8.5px; color: #999; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-bottom: 3px; }
+  .spec-value { font-size: 12px; color: #1a3a6b; font-weight: 700; }
+  .payment-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  .payment-table th { background: #1a3a6b; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 9px 14px; text-align: left; font-weight: 600; }
+  .payment-table td { padding: 9px 14px; font-size: 12.5px; color: #333; border-bottom: 1px solid #f0f0f0; }
+  .payment-table tr:nth-child(even) td { background: #f9f9f9; }
+  .payment-table .highlight td { background: linear-gradient(90deg, #f8f5ef, #faf8f4); font-weight: 700; color: #1a3a6b; font-size: 13px; }
+  .payment-table .saldo-row td { background: #fff0f0; font-weight: 700; color: #8b1a1a; font-size: 13px; }
+  .payment-table .cancelada-row td { background: #f0fff5; font-weight: 700; color: #1a6b3a; font-size: 13px; }
+  .tag-paid { display: inline-block; background: #1a6b3a; color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
+  .tag-pending { display: inline-block; background: #c8902a; color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
+  .tag-este { display: inline-block; background: #6b1a1a; color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
+  .tag-saldo { display: inline-block; background: #8b1a1a; color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
+  .tag-cancelada { display: inline-block; background: #1a6b3a; color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
+  .notice { background: {{notice_bg}}; border: 1px solid {{notice_border}}; border-radius: 4px; padding: 12px 16px; font-size: 11px; color: {{notice_color}}; line-height: 1.5; margin-top: 6px; }
+  .notice strong { color: {{notice_strong}}; }
+  .footer { background: #1a3a6b; padding: 14px 40px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .footer-text { font-size: 9.5px; color: rgba(255,255,255,0.6); }
+  .footer-text strong { color: #c8902a; }
+  .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-family: Georgia, serif; font-size: 80px; font-weight: 700; color: rgba(26,58,107,0.04); text-transform: uppercase; pointer-events: none; white-space: nowrap; z-index: 0; }
+  .content-wrap { position: relative; z-index: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="watermark">EcoFiver</div>
+  <div class="top-bar"></div>
+
+  <div class="header">
+    <div>
+      <div class="logo-title">ECOFIVER</div>
+      <div class="logo-subtitle">Fábrica Directa · Financiación Propia</div>
+      <div class="logo-tagline">Av. Antártida Argentina 3100, Zárate — Buenos Aires</div>
+    </div>
+    <div>
+      <div class="doc-type">Recibo de Pago</div>
+      <div class="doc-number">N° {{numero_solicitud}} · {{concepto_corto}}</div>
+      <div class="doc-date">{{fecha_recibo}}</div>
+    </div>
+  </div>
+
+  <div class="gold-line"></div>
+
+  <div class="amount-banner">
+    <div>
+      <div class="amount-label">Monto recibido</div>
+      <div class="amount-value">$ {{monto_recibido}}</div>
+      <div class="amount-words">{{monto_en_letras}}</div>
+    </div>
+    <div style="display:flex; gap:12px;">
+      <div class="amount-badge"><div class="badge-label">Modalidad</div><div class="badge-value">{{modalidad}}</div></div>
+      <div class="amount-badge"><div class="badge-label">Concepto</div><div class="badge-value">{{concepto}}</div></div>
+    </div>
+  </div>
+
+  <div class="op-row">
+    {{op_data_blocks}}
+  </div>
+
+  <div class="content-wrap">
+  <div class="body">
+
+    <div class="section">
+      <div class="section-title">Datos del Cliente</div>
+      <div class="grid-2">
+        <div class="field"><span class="field-label">Apellido y Nombre</span><span class="field-value">{{apellido}}, {{nombre}}</span></div>
+        <div class="field"><span class="field-label">DNI / CUIL</span><span class="field-value">{{dni}} — {{cuil}}</span></div>
+        <div class="field"><span class="field-label">Teléfono</span><span class="field-value">{{telefono}}</span></div>
+        <div class="field"><span class="field-label">E-mail</span><span class="field-value">{{email}}</span></div>
+        <div class="field"><span class="field-label">Domicilio</span><span class="field-value">{{domicilio_completo}}</span></div>
+        <div class="field"><span class="field-label">Estado Civil / Ocupación</span><span class="field-value">{{estado_civil}} · {{ocupacion}}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Producto Contratado</div>
+      <div class="product-box">
+        <div class="product-header">Piscina de Fibra de Vidrio — {{modelo}}</div>
+        <div class="product-specs">
+          <div class="spec-item"><span class="spec-label">Largo</span><span class="spec-value">{{largo}} m</span></div>
+          <div class="spec-item"><span class="spec-label">Ancho</span><span class="spec-value">{{ancho}} m</span></div>
+          <div class="spec-item"><span class="spec-label">Profundidad</span><span class="spec-value">{{profundidad_min}} → {{profundidad_max}} m</span></div>
+          <div class="spec-item"><span class="spec-label">Sistema</span><span class="spec-value">{{sistema}}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Estado de Cuenta — Solicitud N° {{numero_solicitud}}</div>
+      <table class="payment-table">
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Detalle</th>
+            <th style="text-align:right;">Monto</th>
+            <th style="text-align:center;">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{tabla_filas}}
+        </tbody>
+      </table>
+      <div class="notice">
+        {{nota_final}}
+      </div>
+    </div>
+
+  </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-text"><strong>EcoFiver</strong> · Av. Antártida Argentina 3100, Zárate</div>
+    <div class="footer-text">Solicitud N° <strong>{{numero_solicitud}}</strong> · {{fecha_recibo}}</div>
+  </div>
+  <div class="top-bar"></div>
+</div>
+</body>
+</html>

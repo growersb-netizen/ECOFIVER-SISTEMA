@@ -3,20 +3,22 @@ Módulo — Contratos
 Gestión de contratos: plantillas Word subidas por admin, generación con datos del cliente.
 """
 import os
+import json
 import shutil
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Header
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import Contrato, VentaFinanciada, VentaContado, Usuario, ConfiguracionSistema
-from routers.auth import require_auth, require_roles, get_user_roles
+from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey, get_current_user
 from routers.configuracion import get_config_value
+from utils.documentos import render_html, html_to_pdf, monto_en_letras, split_nombre_apellido
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -25,6 +27,14 @@ UPLOAD_DIR   = Path("uploads/contratos")
 TEMPLATE_DIR = Path("data/plantillas_contratos")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _fmt_ar(monto) -> str:
+    """Formato argentino: punto de miles, sin decimales. Ej: 2500000 -> '2.500.000'."""
+    try:
+        return f"{float(monto or 0):,.0f}".replace(",", ".")
+    except Exception:
+        return "0"
 
 TIPOS_PLANTILLA = {
     "modulo":  "Módulo habitacional",
@@ -457,3 +467,228 @@ async def download_contrato(
     mt = "application/pdf" if str(path).endswith(".pdf") else \
          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     return FileResponse(str(path), media_type=mt)
+
+
+# ─── MOTOR REAL — CONTRATO Y RECIBO (templates HTML + Playwright) ─────────────
+# Genera documentos idénticos a los que ya se venían emitiendo manualmente.
+
+def _venta_base_dict(venta: VentaFinanciada) -> dict:
+    """Campos que ya existen en VentaFinanciada, listos para el template."""
+    nombre, apellido = split_nombre_apellido(venta.cliente_nombre)
+    return {
+        "numero_solicitud": venta.numero_solicitud or "",
+        "nombre": nombre,
+        "apellido": apellido,
+        "dni": venta.cliente_dni or "",
+        "cuil": venta.cliente_cuil or "",
+        "estado_civil": venta.cliente_estado_civil or "",
+        "ocupacion": venta.cliente_ocupacion or "",
+        "email": venta.cliente_email or "",
+        "telefono": venta.cliente_telefono or "",
+        "domicilio": venta.cliente_domicilio or "",
+        "localidad": venta.cliente_localidad or "",
+        "modelo": venta.modelo_especifico or venta.producto or "",
+        "valor_mercado": _fmt_ar(venta.precio_total),
+        "pago_inicial": _fmt_ar(venta.anticipo),
+        "cant_cuotas": str(venta.cantidad_cuotas or ""),
+        "valor_cuota": _fmt_ar(venta.valor_cuota),
+    }
+
+
+@router.post("/api/contratos/emitir/{venta_financiada_id}")
+async def emitir_contrato(
+    venta_financiada_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Genera el Contrato de Financiación real (HTML → PDF con Playwright),
+    idéntico al que se venía emitiendo manualmente. Los datos que no están
+    en VentaFinanciada (cónyuge, medidas, fecha nacimiento, etc.) se pasan
+    en el body como "datos": {...} — ver templates/documentos/contrato_template.html
+    para la lista completa de placeholders.
+    """
+    if not (x_api_key and x_api_key == os.getenv("API_KEY", "eco-crm-api-key-2024")) and not current_user:
+        raise HTTPException(401, "No autenticado")
+
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_financiada_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta financiada no encontrada")
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    overrides = body.get("datos", {}) if isinstance(body, dict) else {}
+
+    hoy = datetime.now()
+    context = {
+        # Defaults
+        "fecha_contrato": hoy.strftime("%d de %B de %Y"),
+        "fecha_nacimiento": "", "telefono_alt": "", "piso": "", "depto": "",
+        "provincia": "", "lugar_nacimiento": "",
+        "conyuge_nombre": "", "conyuge_apellido": "", "conyuge_dni": "",
+        "conyuge_nacimiento": "", "conyuge_telefono": "", "conyuge_email": "",
+        "tipologia": "", "largo": "", "ancho": "", "profundidad_min": "",
+        "profundidad_max": "", "sistema": "", "observaciones":
+            "LA FECHA DE INSTALACIÓN SE ASIGNARÁ CONFORME AL PLAN DE PRODUCCIÓN VIGENTE.",
+        "check_efectivo": "", "mark_efectivo": "",
+        "check_transferencia": "", "mark_transferencia": "",
+        "firma_productor_block": "",
+    }
+    context.update(_venta_base_dict(venta))
+    context.update(overrides)
+
+    modalidad = (overrides.get("modalidad_pago") or "").lower()
+    if modalidad == "efectivo":
+        context["check_efectivo"], context["mark_efectivo"] = "checked", "✓"
+    elif modalidad == "transferencia":
+        context["check_transferencia"], context["mark_transferencia"] = "checked", "✓"
+
+    html = render_html("contrato_template.html", context)
+
+    nombre_archivo = f"contrato_{(venta.cliente_nombre or 'cliente').replace(' ', '_').replace(',', '')}_{hoy:%Y%m%d%H%M%S}.pdf"
+    out_path = UPLOAD_DIR / nombre_archivo
+    await html_to_pdf(html, out_path)
+
+    contrato = db.query(Contrato).filter(Contrato.venta_financiada_id == venta_financiada_id).first()
+    if not contrato:
+        contrato = Contrato(venta_financiada_id=venta_financiada_id)
+        db.add(contrato)
+    contrato.cliente_nombre = venta.cliente_nombre
+    contrato.tipo_contrato = f"{venta.producto or ''} — {venta.forma_pago or ''}"
+    contrato.tipo_documento = "CONTRATO"
+    contrato.numero_solicitud = context.get("numero_solicitud") or ""
+    contrato.archivo_pdf = str(out_path)
+    contrato.datos_json = json.dumps(context, ensure_ascii=False)
+    if contrato.estado is None:
+        contrato.estado = "BORRADOR"
+    db.commit()
+    db.refresh(contrato)
+
+    return {"ok": True, "contrato_id": contrato.id, "archivo": nombre_archivo,
+            "download_url": f"/api/contratos/{contrato.id}/download"}
+
+
+@router.post("/api/contratos/emitir-recibo/{venta_financiada_id}")
+async def emitir_recibo(
+    venta_financiada_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Genera un Recibo de Pago real (seña, pago a cuenta, saldo final o pago
+    inicial completo). Body esperado:
+    {
+      "monto_recibido": 150000,
+      "concepto": "Cuota inicial" | "Pago de cuota" | "Saldo final" | ...,
+      "modalidad": "Transferencia" | "Efectivo",
+      "datos": { ...overrides opcionales de cualquier placeholder... }
+    }
+    """
+    if not (x_api_key and x_api_key == os.getenv("API_KEY", "eco-crm-api-key-2024")) and not current_user:
+        raise HTTPException(401, "No autenticado")
+
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_financiada_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta financiada no encontrada")
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    if not isinstance(body, dict):
+        body = {}
+    overrides = body.get("datos", {})
+
+    monto_recibido = float(body.get("monto_recibido") or 0)
+    concepto = body.get("concepto") or "Pago"
+    modalidad = body.get("modalidad") or ""
+
+    precio_total = venta.precio_total or 0
+    anticipo_pagado = venta.anticipo or 0
+    valor_cuota = venta.valor_cuota or 0
+    cuotas_pagas = venta.cuotas_pagas or 0
+    cant_cuotas = venta.cantidad_cuotas or 0
+    ya_pagado_total = anticipo_pagado + (cuotas_pagas * valor_cuota)
+    saldo_pendiente = max(0, precio_total - ya_pagado_total)
+    es_cierre = saldo_pendiente <= 0
+
+    tabla_filas = (
+        f"<tr><td>Precio total</td><td>Piscina/módulo</td><td style='text-align:right'>$ {_fmt_ar(precio_total)}</td><td style='text-align:center'></td></tr>"
+        f"<tr class='highlight'><td>Este recibo</td><td>{concepto}</td><td style='text-align:right'>$ {_fmt_ar(monto_recibido)}</td>"
+        f"<td style='text-align:center'><span class='tag-paid'>Pagado</span></td></tr>"
+        f"<tr class='{'cancelada-row' if es_cierre else 'saldo-row'}'><td>Saldo pendiente</td><td>Luego de este pago</td>"
+        f"<td style='text-align:right'>$ {_fmt_ar(saldo_pendiente)}</td>"
+        f"<td style='text-align:center'><span class='{'tag-cancelada' if es_cierre else 'tag-pending'}'>{'Cancelado' if es_cierre else 'Pendiente'}</span></td></tr>"
+    )
+    if cant_cuotas:
+        tabla_filas += (
+            f"<tr><td>Plan de cuotas</td><td>{cant_cuotas} cuotas de $ {_fmt_ar(valor_cuota)}</td>"
+            f"<td style='text-align:right'>{cuotas_pagas}/{cant_cuotas} pagas</td><td style='text-align:center'></td></tr>"
+        )
+
+    if es_cierre:
+        notice_bg, notice_border, notice_color, notice_strong = "#f0fff5", "#1a6b3a", "#1a1a1a", "#1a6b3a"
+        nota_final = "<strong>Pago completo.</strong> No queda saldo pendiente sobre esta solicitud."
+    else:
+        notice_bg, notice_border, notice_color, notice_strong = "rgba(200,144,42,0.1)", "#c8902a", "#1a1a1a", "#c8902a"
+        nota_final = (
+            f"<strong>Saldo pendiente: $ {_fmt_ar(saldo_pendiente)}.</strong> "
+            "El pago de cada cuota debe realizarse entre los días 1 y 10 de cada mes para mantener vigentes las promociones asignadas."
+        )
+
+    hoy = datetime.now()
+    op_data_blocks = (
+        f"<div><div class='op-label'>N° operación</div><div class='op-value'>{overrides.get('op_numero','—')}</div></div>"
+        f"<div><div class='op-label'>Hora</div><div class='op-value'>{hoy.strftime('%H:%M')}</div></div>"
+    )
+
+    context = {
+        "numero_solicitud": venta.numero_solicitud or "",
+        "concepto_corto": concepto,
+        "fecha_recibo": hoy.strftime("%d/%m/%Y"),
+        "monto_recibido": _fmt_ar(monto_recibido),
+        "monto_en_letras": monto_en_letras(monto_recibido),
+        "modalidad": modalidad,
+        "concepto": concepto,
+        "domicilio_completo": venta.cliente_domicilio or "",
+        "largo": "", "ancho": "", "profundidad_min": "", "profundidad_max": "", "sistema": "",
+        "op_data_blocks": op_data_blocks,
+        "tabla_filas": tabla_filas,
+        "nota_final": nota_final,
+        "notice_bg": notice_bg, "notice_border": notice_border,
+        "notice_color": notice_color, "notice_strong": notice_strong,
+    }
+    context.update(_venta_base_dict(venta))
+    context.update(overrides)
+
+    html = render_html("recibo_template.html", context)
+
+    nombre_archivo = f"recibo_{(venta.cliente_nombre or 'cliente').replace(' ', '_').replace(',', '')}_{hoy:%Y%m%d%H%M%S}.pdf"
+    out_path = UPLOAD_DIR / nombre_archivo
+    await html_to_pdf(html, out_path)
+
+    recibo = Contrato(
+        venta_financiada_id=venta_financiada_id,
+        cliente_nombre=venta.cliente_nombre,
+        tipo_contrato=concepto,
+        tipo_documento="RECIBO",
+        numero_solicitud=context.get("numero_solicitud") or "",
+        archivo_pdf=str(out_path),
+        datos_json=json.dumps(context, ensure_ascii=False),
+        estado="EMITIDO",
+    )
+    db.add(recibo)
+    db.commit()
+    db.refresh(recibo)
+
+    return {"ok": True, "recibo_id": recibo.id, "archivo": nombre_archivo,
+            "saldo_pendiente": saldo_pendiente, "es_cierre": es_cierre,
+            "download_url": f"/api/contratos/{recibo.id}/download"}

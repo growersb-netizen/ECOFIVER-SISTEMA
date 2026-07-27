@@ -21,7 +21,7 @@ Recibís órdenes en lenguaje natural para generar:
 
 Herramienta: Panel Cloudflare Workers
 URL: eco-agentes.growersb.workers.dev
-Motor: Gemini Imagen 3
+Motor: generación de imágenes vía OpenRouter (modelo de imagen de OpenAI)
 Restricciones de imagen:
 - Piscinas: forma rectangular siempre
 - Módulos: pino dorado liso, base sobre pasto

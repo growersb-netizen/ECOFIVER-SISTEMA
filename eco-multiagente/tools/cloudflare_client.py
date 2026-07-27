@@ -118,19 +118,22 @@ async def generar_imagen(
         raise
 
 
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_IMAGE_MODEL = os.getenv("OPENROUTER_IMAGE_MODEL", "openai/gpt-5-image-mini")
+
+
 async def generar_imagen_gemini(prompt_es: str, tipo: str = "flyer") -> bytes:
     """
-    Genera una imagen directamente con los modelos Gemini de imagen
-    (generateContent con responseModalities=IMAGE). Útil cuando el worker
-    de Cloudflare no tiene GEMINI_API_KEY propia.
-
-    Prueba varios modelos en orden. Si todos dan 429 (cuota agotada del free
-    tier), levanta un error claro para que la UI lo muestre.
+    Genera una imagen vía OpenRouter (modelo de imagen de OpenAI, el más barato
+    disponible — ver OPENROUTER_IMAGE_MODEL). Antes llamaba directo a la API de
+    Gemini con GEMINI_API_KEY propia; se migró para usar la misma cuenta/crédito
+    de OpenRouter que ya usa todo el resto del sistema (agentes, visión de DNI).
+    El nombre de la función se mantiene por compatibilidad con los callers
+    existentes (dashboard.py, content_poster.py).
     Returns: bytes PNG/JPEG.
     """
-    key = os.getenv("GEMINI_API_KEY", "")
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY no configurada")
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("OPENROUTER_API_KEY no configurada")
 
     orientacion = "vertical 9:16 (story)" if tipo == "story" else "cuadrada 1:1 (feed)"
     full_prompt = (
@@ -139,44 +142,34 @@ async def generar_imagen_gemini(prompt_es: str, tipo: str = "flyer") -> bytes:
         f"módulos habitables y piscinas de fibra. {prompt_es}. "
         f"Sin texto ni logos superpuestos, iluminación natural, estética aspiracional."
     )
-    body = {
-        "contents": [{"parts": [{"text": full_prompt}]}],
-        "generationConfig": {"responseModalities": ["IMAGE"]},
-    }
 
-    modelos = ["gemini-2.5-flash-image", "gemini-3.1-flash-image", "gemini-3-pro-image"]
-    ultimo_err = ""
-    cuota_agotada = False
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://www.ecomodulosypiscinas.com.ar",
+                    "X-Title": "EcoFiver",
+                },
+                json={
+                    "model": OPENROUTER_IMAGE_MODEL,
+                    "messages": [{"role": "user", "content": full_prompt}],
+                    "modalities": ["image", "text"],
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        raise RuntimeError(f"No se pudo generar la imagen: {str(e)[:150]}")
 
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        for modelo in modelos:
-            try:
-                r = await client.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={key}",
-                    json=body,
-                )
-                if r.status_code == 429:
-                    cuota_agotada = True
-                    ultimo_err = "cuota de generación de imágenes agotada"
-                    continue
-                r.raise_for_status()
-                data = r.json()
-                for cand in data.get("candidates", []):
-                    for part in cand.get("content", {}).get("parts", []):
-                        idata = part.get("inlineData") or part.get("inline_data")
-                        if idata and idata.get("data"):
-                            return base64.b64decode(idata["data"])
-                ultimo_err = "el modelo no devolvió imagen"
-            except Exception as e:
-                ultimo_err = str(e)[:120]
-                continue
-
-    if cuota_agotada:
-        raise RuntimeError(
-            "Se alcanzó el límite diario de generación de imágenes (plan gratuito). "
-            "Probá de nuevo más tarde o subí tu propia foto."
-        )
-    raise RuntimeError(f"No se pudo generar la imagen: {ultimo_err}")
+    msg = data.get("choices", [{}])[0].get("message", {})
+    for img in msg.get("images", []):
+        url = img.get("image_url", {}).get("url", "")
+        if url.startswith("data:"):
+            return base64.b64decode(url.split(",", 1)[1])
+    raise RuntimeError("El modelo no devolvió ninguna imagen")
 
 
 async def generar_copy(

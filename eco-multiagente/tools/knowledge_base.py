@@ -65,7 +65,7 @@ _SEED_DOCS = [
     {
         "id": "nce_tecnico",
         "titulo": "Sistema constructivo NCE (técnico) — módulos",
-        "agentes": ["luciano", "mateo", "sebastian"],
+        "agentes": ["luciano", "mateo", "sebastian", "maximo"],
         "contenido": """=== SISTEMA CONSTRUCTIVO NCE (Núcleo de Celulosa Encapsulada) ===
 
 PROCESO DE FABRICACIÓN (planta, Zárate):
@@ -90,7 +90,7 @@ ARGUMENTOS TÉCNICOS DE VENTA:
     {
         "id": "captacion_contacto",
         "titulo": "Captación de contacto (convertir charlas en leads)",
-        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano"],
+        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano", "maximo"],
         "contenido": """OBJETIVO: que ninguna conversación quede sin datos de contacto cargados.
 Apenas haya interés real, pedí de forma natural y temprana (sin interrogar):
 - NOMBRE: "¿Cómo es tu nombre así te asesoro mejor?"
@@ -104,7 +104,7 @@ mejor podemos seguirlo. No cierres la charla sin haber intentado al menos pedir 
     {
         "id": "objeciones_financiacion",
         "titulo": "Manejo de objeciones de financiación / precio",
-        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano", "tomas"],
+        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano", "tomas", "maximo"],
         "contenido": """RESPUESTAS A OBJECIONES (financiación propia de fábrica, sin banco):
 - "No tengo el dinero junto" → "Justamente para eso está la financiación propia: cuotas sin interés,
   sin banco ni financiera. Reservás hoy y la tenés para el verano."
@@ -121,7 +121,7 @@ NUNCA cierres con un "no". Toda objeción se responde con una opción concreta y
     {
         "id": "upsell_ticket",
         "titulo": "Aumentar el ticket (upsell / cross-sell) — más ingreso por venta",
-        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano"],
+        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano", "maximo"],
         "contenido": """OBJETIVO: subir el monto de cada venta sin perder el cierre.
 - COMBO módulo + piscina: ofrecelo siempre que tenga terreno. "Si sumás el módulo al combo, te
   queda 25% más barato que comprarlos por separado, y financiado." (más ticket + más margen).
@@ -136,7 +136,7 @@ Nunca pierdas la venta base por insistir en el upsell.
     {
         "id": "cierre_urgencia",
         "titulo": "Técnicas de cierre y urgencia — más conversión",
-        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano", "tomas"],
+        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano", "tomas", "maximo"],
         "contenido": """CERRÁ, no informes. Después de dar precio/cuota, SIEMPRE proponé el próximo paso concreto.
 - Cierre por asunción: "¿Para qué semana lo coordinamos?" / "¿Te reservo el cupo de esta quincena?"
 - Urgencia real: "Los cupos de fabricación por quincena se llenan; te puedo reservar uno hoy."
@@ -145,6 +145,53 @@ Nunca pierdas la venta base por insistir en el upsell.
 - Quita de riesgo: "Se abona en domicilio, obra terminada. Ves todo funcionando antes de pagar."
 - Si duda: identificá la objeción puntual y respondela (ver doc de objeciones), después volvé a cerrar.
 Cada respuesta tuya termina con un paso hacia el cierre (reservar, coordinar, agendar). Nunca con un final pasivo.
+""",
+    },
+    {
+        "id": "negocio_contexto_total",
+        "titulo": "Contexto total del negocio — legal, contractual, financiero, operativo (SOLO Máximo)",
+        "agentes": ["maximo"],
+        "contenido": """=== QUIÉNES SOMOS (marco legal real) ===
+Razón social: Cooperativa de Trabajo Eco Zárate Ltda. — CUIT 30-71807393-2.
+Domicilio legal: Avda. Antártida Argentina 3100, Zárate, Buenos Aires.
+Marca comercial al público: EcoFiver. Más de 15 años, planta propia de 7.000m² en Zárate.
+Dos líneas de producto: piscinas de fibra de vidrio (16 modelos) y viviendas modulares NCE (6m² a 72m²).
+
+=== MARCO CONTRACTUAL — LO QUE DICE CADA CONTRATO QUE FIRMAMOS ===
+- La suscripción inicial (entrada/seña) NO se reintegra por ningún concepto ante rescisión o
+  resolución contractual por parte de la empresa.
+- Si el cliente pide la baja de su solicitud en cualquier momento, la empresa tiene un plazo NO
+  MENOR A 180 DÍAS HÁBILES para poner los fondos a disposición. Esto es contractual, no arbitrario.
+- VIGENCIA DE PAGO: cada cuota debe abonarse ENTRE EL DÍA 1 Y EL 10 de cada mes para mantener
+  vigentes las promociones asignadas al contrato. Pagar fuera de esa ventana hace perder la promo.
+- La venta entra al ciclo de cobro (cobranza) recién el mes SIGUIENTE al del pago de la entrada
+  (que equivale a 2 cuotas de ingreso) — nunca el mismo mes de la firma.
+- Combo módulo+piscina: 25% de descuento, pero SOLO está disponible en financiación, nunca de contado.
+
+=== FÓRMULA REAL DE FINANCIACIÓN (memorizar, no aproximar) ===
+cuota = precio_lista / (cantidad_cuotas + 2)
+entrada = 2 × cuota
+Total abonado = entrada + (cuota × cantidad_cuotas)
+El factor 2 es el MISMO para piscinas y para módulos — no hay un factor distinto por producto.
+Para dar una cifra a Rodrigo o a un cliente, usá siempre la señal [SIMULAR:tipo:precio] — nunca la
+calcules de memoria vos mismo salvo para explicar el concepto en abstracto.
+
+=== SISTEMA CONSTRUCTIVO (resumen ejecutivo — el detalle técnico completo lo tiene Luciano/Mateo) ===
+Módulos NCE: estructura wood frame + paneles con núcleo de celulosa encapsulada + blindaje de
+resina náutica (la madera queda encapsulada de por vida, sin humedad ni bichos) + acabado en obra
+blanca + montaje en seco. Muy superior térmicamente a steel frame o construcción tradicional.
+Piscinas: fibra de vidrio, 16 modelos, instalación incluida en el precio (el flete se suma aparte
+de contado; en financiación el flete queda bonificado).
+
+=== CÓMO OPERA COMERCIALMENTE LA EMPRESA ===
+- Temporada verano (nov-mar): pico de piscinas, se vende mucho de CONTADO.
+- Fuera de temporada: se vende igual, con foco en FINANCIACIÓN PROPIA (sin banco, sin scoring).
+- Nunca existe "no es temporada" — es una regla de oro comercial, no una opinión.
+- Precios y flete: SIEMPRE el valor vigente en [DATOS CRM EN TIEMPO REAL], nunca de memoria.
+- Cupos de fabricación limitados por quincena — es un argumento real de urgencia, no inventado.
+
+Con este contexto, además de reportar números, PODÉS opinar y recomendar decisiones de negocio
+reales: eso es tu criterio de CEO, no inventar datos.
 """,
     },
     {

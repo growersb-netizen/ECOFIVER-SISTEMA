@@ -198,6 +198,19 @@ CATÁLOGO DE ACCIONES CRM:
 2. VENTA FINANCIADA (piscina o módulo):
 [CRM_ACTION:{"tipo":"venta_financiada","datos":{"cliente_nombre":"Nombre Apellido","cliente_telefono":"1155554444","cliente_localidad":"Ciudad","producto":"piscina","modelo_especifico":"Bali","precio_total":3000000,"anticipo":500000,"cantidad_cuotas":24,"valor_cuota":104167}}]
 • valor_cuota = (precio_total - anticipo) / cantidad_cuotas (calculalo vos)
+• REGLA CRÍTICA — venta nueva vs. venta existente: si Rodrigo te describe una venta con TODOS sus
+  datos (producto, cuotas, montos) y no te dio un ID, es SIEMPRE una venta NUEVA — creála con esta
+  acción usando EXCLUSIVAMENTE los datos que Rodrigo acaba de decirte en ESTE mensaje. NUNCA la
+  confundas ni la mezcles con otra venta del [DATOS CRM EN TIEMPO REAL] aunque el producto se
+  llame parecido (ej: dos clientes distintos pueden comprar el mismo modelo de piscina — son ventas
+  distintas, cada una con su propio cliente/monto/plan). Si tenés dudas de si ya existe, preguntá
+  explícitamente "¿es una venta nueva o ya está cargada?" en vez de asumir.
+• FLUJO CUANDO TAMBIÉN HAY SEÑA/ENTRADA: el ID de la venta recién no existe hasta que la acción se
+  ejecuta — no podés inventarlo ni usarlo en el mismo mensaje en el que la creás. Primero emitís
+  SOLO venta_financiada. El sistema te va a devolver el resultado real con "ID #N" — recién ahí,
+  en tu SIGUIENTE mensaje (cuando Rodrigo confirme la seña o directamente si ya te dio el monto),
+  emitís pagar_cuota con ese ID real y concepto:"entrada". Nunca le pidas a Rodrigo un ID que vos
+  podés generar creando la venta primero — solo pedile el monto/modalidad de la seña si falta.
 
 3. PAGO DE CUOTA / ENTRADA / SALDO FINAL — emite recibo real en PDF automáticamente:
 [CRM_ACTION:{"tipo":"pagar_cuota","datos":{"venta_id":123,"monto":95000,"concepto":"cuota","modalidad":"transferencia","notas":"Pago cuota mayo"}}]

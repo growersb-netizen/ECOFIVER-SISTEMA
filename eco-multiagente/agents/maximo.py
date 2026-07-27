@@ -245,7 +245,6 @@ class Maximo(BaseAgent):
         super().__init__(
             name="Máximo",
             system_prompt=_SYSTEM_PROMPT,
-            model="gemini-2.5-flash",
         )
 
 

@@ -89,7 +89,6 @@ class Valentin(BaseAgent):
         super().__init__(
             name="Valentín",
             system_prompt=_SYSTEM_PROMPT,
-            model="gemini-2.5-flash",
         )
 
 

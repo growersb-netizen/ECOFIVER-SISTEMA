@@ -27,12 +27,36 @@ def _import_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):
     raise HTTPException(403, "Sin permisos")
 
 
+_DIAS_MES = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+
+def _es_bisiesto(anio: int) -> bool:
+    return anio % 4 == 0 and (anio % 100 != 0 or anio % 400 == 0)
+
+
+def _sumar_meses(fecha: datetime, n: int) -> datetime:
+    """Suma n meses calendario a fecha, ajustando el día si el mes destino es más corto."""
+    mes_total = fecha.month - 1 + n
+    anio = fecha.year + mes_total // 12
+    mes = mes_total % 12 + 1
+    dia_max = 29 if (mes == 2 and _es_bisiesto(anio)) else _DIAS_MES[mes - 1]
+    return fecha.replace(year=anio, month=mes, day=min(fecha.day, dia_max))
+
+
 def calcular_proximo_vencimiento(venta: VentaFinanciada) -> Optional[datetime]:
-    if not venta.fecha_primer_vencimiento:
+    """
+    Vigencia mensual: la venta entra en cobro el mes SIGUIENTE al del pago de
+    la entrada (2 cuotas de ingreso). Cada cuota vence entre el día 1 y el 10
+    del mes que corresponda — no abonar dentro de esa ventana hace perder las
+    promociones vigentes del contrato. Se usa el día 10 (límite) como fecha
+    de vencimiento de referencia.
+    """
+    base = venta.fecha_inicio_plan or venta.fecha_primer_vencimiento
+    if not base:
         return None
     cuotas_pagadas = venta.cuotas_pagas or 0
-    proximo = venta.fecha_primer_vencimiento + timedelta(days=30 * cuotas_pagadas)
-    return proximo
+    mes_objetivo = _sumar_meses(base, 1 + cuotas_pagadas)
+    return mes_objetivo.replace(day=10, hour=23, minute=59, second=59, microsecond=0)
 
 
 def dias_atraso(venta: VentaFinanciada) -> int:
@@ -427,16 +451,12 @@ async def corregir_fechas_historico(
     current_user: Usuario = Depends(require_auth_or_apikey),
 ):
     """
-    Corrige dos problemas de los contratos importados desde el historial
-    (numero_solicitud 000-138601xx):
-    1) created_at quedó en la fecha de la IMPORTACIÓN (hoy), no la fecha real
-       del contrato — contaminaba "ventas de hoy" / "ventas del mes".
-    2) fecha_primer_vencimiento nunca se seteó (el origen no la traía) —
-       calcular_proximo_vencimiento() las excluye del todo del cálculo de
-       cobranza esperada a 30 días, que por eso quedaba desactualizado.
-    Idempotente: solo toca ventas con numero_solicitud "000-1386%" cuyo
-    created_at coincide con fecha_inicio_plan siendo distinto (o falta
-    fecha_primer_vencimiento).
+    Corrige los contratos importados desde el historial (numero_solicitud
+    000-138601xx): created_at quedó en la fecha de la IMPORTACIÓN (hoy), no
+    la fecha real del contrato — contaminaba "ventas de hoy"/"ventas del
+    mes". calcular_proximo_vencimiento() ya usa fecha_inicio_plan como base
+    (vigencia mensual, día 10), así que no hace falta tocar
+    fecha_primer_vencimiento. Idempotente.
     """
     ventas = db.query(VentaFinanciada).filter(
         VentaFinanciada.numero_solicitud.like("000-1386%")
@@ -444,15 +464,8 @@ async def corregir_fechas_historico(
 
     corregidas = []
     for v in ventas:
-        cambio = False
-        if v.fecha_inicio_plan:
-            if v.created_at is None or v.created_at.date() != v.fecha_inicio_plan.date():
-                v.created_at = v.fecha_inicio_plan
-                cambio = True
-            if not v.fecha_primer_vencimiento:
-                v.fecha_primer_vencimiento = v.fecha_inicio_plan + timedelta(days=30)
-                cambio = True
-        if cambio:
+        if v.fecha_inicio_plan and (v.created_at is None or v.created_at.date() != v.fecha_inicio_plan.date()):
+            v.created_at = v.fecha_inicio_plan
             corregidas.append(v.numero_solicitud)
 
     db.commit()

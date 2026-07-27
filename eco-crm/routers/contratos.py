@@ -341,12 +341,15 @@ async def ventas_sin_contrato(
     } for v in ventas]
 
 
-@router.post("/api/contratos")
+@router.post("/api/contratos/manual")
 async def create_contrato(
     request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_roles("COORDINADOR_OPERATIVO")),
 ):
+    """Alta manual simple de un registro de Contrato (sin generar PDF ni venta) —
+    usada por el formulario de contratos.html. Para generar el documento real y
+    la venta, usar POST /api/contratos (endpoint unificado)."""
     data = await request.json()
     contrato = Contrato(
         venta_contado_id=data.get("venta_contado_id"),

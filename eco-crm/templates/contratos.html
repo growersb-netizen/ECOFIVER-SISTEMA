@@ -257,7 +257,7 @@ async function saveContrato() {
   const data = Object.fromEntries(new FormData(form));
   if (!data.cliente_nombre) { showToast('Ingresá el nombre del cliente', 'error'); return; }
   try {
-    await API.post('/api/contratos', data);
+    await API.post('/api/contratos/manual', data);
     showToast('Contrato guardado', 'success');
     form.reset();
     loadContratos();

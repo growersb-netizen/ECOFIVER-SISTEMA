@@ -250,7 +250,8 @@
         <tr class="${rowClass}" onclick="editVF(${v.id})" style="cursor:pointer">
           <td>
             <div style="font-weight:600">${v.cliente_nombre}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${v.cliente_localidad}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${v.cliente_localidad || v.cliente_domicilio || ''}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${[v.numero_solicitud, v.cliente_dni ? 'DNI '+v.cliente_dni : ''].filter(Boolean).join(' · ')}</div>
           </td>
           <td>
             <div>${v.producto}</div>

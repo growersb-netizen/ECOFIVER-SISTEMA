@@ -150,11 +150,51 @@ async def _generate_image_gemini(api_key: str, prompt: str, tipo: str) -> Option
         return None
 
 
-async def _generate_image(api_key: str, prompt: str, tipo: str) -> Optional[str]:
-    """Intenta worker primero, luego Gemini directo."""
+async def _generate_image_openrouter(api_key: str, prompt: str, tipo: str) -> Optional[str]:
+    """
+    Genera imagen vía OpenRouter (modelo de imagen de OpenAI) — mismo motor que
+    usa el módulo Ecopost del agente Renata en eco-multiagente.
+    """
+    import os
+    model = os.getenv("OPENROUTER_IMAGE_MODEL", "openai/gpt-5-image-mini")
+    aspecto = "cuadrada 1:1 estilo publicación de Instagram" if tipo != "story" else "vertical 9:16 estilo Instagram Story"
+    prompt_final = f"{prompt}. Formato de imagen {aspecto}, alta calidad, fotografía profesional."
+    try:
+        async with httpx.AsyncClient(timeout=60) as c:
+            r = await c.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt_final}],
+                    "modalities": ["image", "text"],
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+            imagenes = data["choices"][0]["message"].get("images") or []
+            if not imagenes:
+                return None
+            data_url = imagenes[0]["image_url"]["url"]  # "data:image/png;base64,...."
+            return data_url.split(",", 1)[1] if "," in data_url else None
+    except Exception as e:
+        logger.error(f"[ecopost] OpenRouter generar_imagen falló: {e}")
+        return None
+
+
+async def _generate_image(db: Session, prompt: str, tipo: str) -> Optional[str]:
+    """Intenta OpenRouter primero (motor configurado por defecto), con fallbacks legacy."""
+    or_key = get_config_value("openrouter_api_key", db)
+    if or_key:
+        b64 = await _generate_image_openrouter(or_key, prompt, tipo)
+        if b64:
+            return b64
     b64 = await _generate_image_worker(prompt, tipo)
-    if not b64 and api_key:
-        b64 = await _generate_image_gemini(api_key, prompt, tipo)
+    if b64:
+        return b64
+    gemini_key = get_config_value("gemini_api_key", db)
+    if gemini_key:
+        b64 = await _generate_image_gemini(gemini_key, prompt, tipo)
     return b64
 
 
@@ -356,12 +396,9 @@ async def api_generar_imagen(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    # Para imagen usamos Gemini (única que soporta imagen-3.0)
-    api_key = get_config_value("gemini_api_key", db) or ""
-
-    b64 = await _generate_image(api_key, body.prompt, body.tipo)
+    b64 = await _generate_image(db, body.prompt, body.tipo)
     if not b64:
-        raise HTTPException(502, "No se pudo generar la imagen. La generación de imágenes requiere API key de Gemini (Google) en Configuración.")
+        raise HTTPException(502, "No se pudo generar la imagen. Verificá que haya una API key de OpenRouter configurada en Configuración → API Keys.")
 
     return {"ok": True, "image_base64": b64, "mime_type": "image/png"}
 

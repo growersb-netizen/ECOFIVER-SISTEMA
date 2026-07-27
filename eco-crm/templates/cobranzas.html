@@ -4,21 +4,46 @@
 
 {% block content %}
 
-<!-- Stats rápidas -->
-<div class="stats-grid" id="cobranza-stats"></div>
-
-<div class="filters-bar">
-  <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
-         oninput="filtrarCartera(this.value)">
-  <select class="form-control" style="max-width:160px" onchange="ordenarCartera(this.value)">
-    <option value="atraso">Mayor atraso primero</option>
-    <option value="nombre">Por nombre</option>
-    <option value="vcto">Por vencimiento</option>
-  </select>
+<div class="tabs" id="tabs-cobranzas">
+  <button class="tab active" onclick="showTabCob('cartera', this)">💳 Cartera</button>
+  <button class="tab" onclick="showTabCob('morosidad', this)">⚠️ Morosidad</button>
+  <button class="tab" onclick="showTabCob('proyeccion', this)">📈 Proyección</button>
 </div>
 
-<div id="cartera-container">
-  <div class="loading"><div class="spinner"></div> Cargando cartera...</div>
+<!-- ═══════════════════ TAB: CARTERA ═══════════════════ -->
+<div id="tab-cob-cartera">
+  <!-- Stats rápidas -->
+  <div class="stats-grid" id="cobranza-stats"></div>
+
+  <div class="filters-bar">
+    <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
+           oninput="filtrarCartera(this.value)">
+    <select class="form-control" style="max-width:160px" onchange="ordenarCartera(this.value)">
+      <option value="atraso">Mayor atraso primero</option>
+      <option value="nombre">Por nombre</option>
+      <option value="vcto">Por vencimiento</option>
+    </select>
+  </div>
+
+  <div id="cartera-container">
+    <div class="loading"><div class="spinner"></div> Cargando cartera...</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: MOROSIDAD ═══════════════════ -->
+<div id="tab-cob-morosidad" style="display:none">
+  <div class="stats-grid" id="morosidad-stats"></div>
+  <div id="morosidad-container">
+    <div class="loading"><div class="spinner"></div> Cargando morosidad...</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: PROYECCIÓN ═══════════════════ -->
+<div id="tab-cob-proyeccion" style="display:none">
+  <div class="stats-grid" id="proyeccion-stats"></div>
+  <div id="proyeccion-container">
+    <div class="loading"><div class="spinner"></div> Cargando proyección...</div>
+  </div>
 </div>
 
 <!-- Modal gestión -->
@@ -65,6 +90,104 @@
 <script>
   let carteraData = [];
   let cobFiltroActivo = null; // 'vencidas' | 'vencen_hoy' | null
+  let morosidadCargada = false;
+  let proyeccionCargada = false;
+
+  function showTabCob(nombre, btn) {
+    document.querySelectorAll('#tabs-cobranzas .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    ['cartera', 'morosidad', 'proyeccion'].forEach(n => {
+      document.getElementById('tab-cob-' + n).style.display = (n === nombre) ? '' : 'none';
+    });
+    if (nombre === 'morosidad' && !morosidadCargada) loadMorosidad();
+    if (nombre === 'proyeccion' && !proyeccionCargada) loadProyeccion();
+  }
+
+  function renderGrupoMorosos(titulo, items, icono) {
+    if (!items.length) return '';
+    return `<h3 style="margin:20px 0 10px;font-size:15px">${icono} ${titulo} (${items.length})</h3>` +
+      items.map(v => `
+        <div class="cobranza-card atraso">
+          <div class="cliente-info">
+            <div>
+              <div style="font-size:16px;font-weight:700">${v.cliente_nombre}</div>
+              <div style="font-size:13px;color:var(--text-secondary)">${v.modelo_especifico || v.producto || '—'} · ${v.cliente_localidad || ''}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="color:var(--error);font-weight:800;font-size:15px">⚠ ${v.dias_atraso}d</div>
+              <div style="font-size:12px;color:var(--error)">${formatMoney(v.monto_adeudado)} adeudado</div>
+            </div>
+          </div>
+          ${v.ultimo_contacto
+            ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Último contacto: ${formatDate(v.ultimo_contacto)} · ${v.ultimo_resultado || ''}</div>`
+            : ''}
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+            <a href="${whatsappLink(v.cliente_telefono || '', v.mensaje_whatsapp || '')}" target="_blank" class="btn btn-whatsapp btn-sm">📱 WhatsApp</a>
+            <button onclick="openGestion(${v.id})" class="btn btn-sm btn-secondary">+ Registrar gestión</button>
+            <span style="font-size:12px;color:var(--text-muted)">${v.cliente_telefono || ''}</span>
+          </div>
+        </div>
+      `).join('');
+  }
+
+  async function loadMorosidad() {
+    morosidadCargada = true;
+    const statsEl = document.getElementById('morosidad-stats');
+    const container = document.getElementById('morosidad-container');
+    try {
+      const data = await API.get('/api/cobranzas/morosidad');
+      statsEl.innerHTML =
+        `<div class="stat-card error"><div class="stat-value">${data.total_cuentas}</div><div class="stat-label">Cuentas morosas</div></div>` +
+        `<div class="stat-card error"><div class="stat-value">${formatMoney(data.total_adeudado)}</div><div class="stat-label">Total adeudado</div></div>` +
+        `<div class="stat-card warning"><div class="stat-value">${data.leve.length}</div><div class="stat-label">Leve (≤15 días)</div></div>` +
+        `<div class="stat-card error"><div class="stat-value">${data.moderada.length}</div><div class="stat-label">Moderada (16-30 días)</div></div>` +
+        `<div class="stat-card error"><div class="stat-value">${data.grave.length}</div><div class="stat-label">Grave (+30 días)</div></div>`;
+
+      if (!data.total_cuentas) {
+        container.innerHTML = '<div class="empty-state"><span class="empty-icon">✅</span><p>Sin cuentas morosas</p></div>';
+        return;
+      }
+      container.innerHTML =
+        renderGrupoMorosos('Grave — más de 30 días', data.grave, '🔴') +
+        renderGrupoMorosos('Moderada — 16 a 30 días', data.moderada, '🟠') +
+        renderGrupoMorosos('Leve — hasta 15 días', data.leve, '🟡');
+    } catch (e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar morosidad: ${e.message}</div>`;
+    }
+  }
+
+  function renderTablaProyeccion(titulo, bloque) {
+    if (!bloque.detalle.length) {
+      return `<h3 style="margin:20px 0 10px;font-size:15px">${titulo}</h3><div class="empty-state"><p>Sin cuotas proyectadas</p></div>`;
+    }
+    return `<h3 style="margin:20px 0 10px;font-size:15px">${titulo}</h3>` +
+      '<div class="table-wrapper"><table><thead><tr><th>Cliente</th><th>N° Solicitud</th><th>Vencimiento</th><th style="text-align:right">Monto</th></tr></thead><tbody>' +
+      bloque.detalle.map(d => `<tr>
+        <td>${d.cliente_nombre}</td>
+        <td>${d.numero_solicitud || '—'}</td>
+        <td>${formatDate(d.vencimiento)}</td>
+        <td style="text-align:right">${formatMoney(d.monto)}</td>
+      </tr>`).join('') +
+      '</tbody></table></div>';
+  }
+
+  async function loadProyeccion() {
+    proyeccionCargada = true;
+    const statsEl = document.getElementById('proyeccion-stats');
+    const container = document.getElementById('proyeccion-container');
+    try {
+      const data = await API.get('/api/cobranzas/proyeccion');
+      statsEl.innerHTML =
+        `<div class="stat-card teal"><div class="stat-value">${formatMoney(data.este_mes.total)}</div><div class="stat-label">Cobranza esperada este mes</div><div class="stat-hint">${data.este_mes.cantidad} cuota(s)</div></div>` +
+        `<div class="stat-card teal"><div class="stat-value">${formatMoney(data.mes_siguiente.total)}</div><div class="stat-label">Cobranza esperada mes que viene</div><div class="stat-hint">${data.mes_siguiente.cantidad} cuota(s)</div></div>`;
+
+      container.innerHTML =
+        renderTablaProyeccion('Este mes', data.este_mes) +
+        renderTablaProyeccion('Mes que viene', data.mes_siguiente);
+    } catch (e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar proyección: ${e.message}</div>`;
+    }
+  }
 
   function aplicarFiltroCob(tipo) {
     cobFiltroActivo = cobFiltroActivo === tipo ? null : tipo; // toggle

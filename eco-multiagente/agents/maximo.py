@@ -195,9 +195,14 @@ CATÁLOGO DE ACCIONES CRM:
 • forma_pago: "efectivo", "transferencia", "cheque", "tarjeta"
 • vendedor_id: 1 si no se especifica
 
-2. VENTA FINANCIADA (piscina o módulo):
+2. VENTA FINANCIADA — SOLO uso interno/rápido, SIN número de solicitud ni PDF:
 [CRM_ACTION:{"tipo":"venta_financiada","datos":{"cliente_nombre":"Nombre Apellido","cliente_telefono":"1155554444","cliente_localidad":"Ciudad","producto":"piscina","modelo_especifico":"Bali","precio_total":3000000,"anticipo":500000,"cantidad_cuotas":24,"valor_cuota":104167}}]
 • valor_cuota = (precio_total - anticipo) / cantidad_cuotas (calculalo vos)
+• ⚠️ IMPORTANTE — esta acción NO asigna número de solicitud ni genera el contrato en PDF, solo
+  crea el registro interno. Si Rodrigo pide "emitir el contrato", "el número de solicitud", o te
+  dio (o escaneaste) el DNI del cliente, usá SIEMPRE la acción 10 (emitir_contrato) de más abajo en
+  su lugar — es la única que genera el documento real y el número atómico. Usá esta acción #2 solo
+  si Rodrigo pide explícitamente "cargalo rápido sin contrato" o algo equivalente.
 • REGLA CRÍTICA — venta nueva vs. venta existente: si Rodrigo te describe una venta con TODOS sus
   datos (producto, cuotas, montos) y no te dio un ID, es SIEMPRE una venta NUEVA — creála con esta
   acción usando EXCLUSIVAMENTE los datos que Rodrigo acaba de decirte en ESTE mensaje. NUNCA la

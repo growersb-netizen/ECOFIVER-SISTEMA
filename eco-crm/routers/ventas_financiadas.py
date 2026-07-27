@@ -235,7 +235,7 @@ async def update_venta_financiada(
     venta_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth)
+    current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
     if not venta:

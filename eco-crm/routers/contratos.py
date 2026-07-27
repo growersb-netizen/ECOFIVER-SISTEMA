@@ -33,8 +33,16 @@ UMBRAL_REDONDEO_INSCRIPCION = 5.0  # diferencias de hasta $5 (redondeo de compro
 
 
 def _abs_url(request: Request, path: str) -> str:
-    """Arma una URL absoluta con el host público real de la request (evita rutas relativas que Claude no puede abrir)."""
-    return f"{str(request.base_url).rstrip('/')}{path}"
+    """
+    Arma una URL absoluta con el host público real de la request (evita rutas
+    relativas que Claude no puede abrir). Uvicorn no confía en X-Forwarded-Proto
+    por defecto, así que request.base_url suele devolver "http://" aunque el
+    tráfico real llegue por HTTPS detrás del proxy de Railway — se prioriza el
+    header por sobre el scheme que infiere Starlette.
+    """
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+    return f"{proto}://{host}{path}"
 
 
 def _fmt_ar(monto) -> str:

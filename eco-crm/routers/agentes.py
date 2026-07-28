@@ -266,7 +266,9 @@ async def stats_pipeline(
     leads_hoy = db.query(Lead).filter(Lead.created_at >= inicio_hoy).count()
     leads_calificados = db.query(Lead).filter(Lead.estado == "CALIFICADO").count()
 
-    vc_hoy = db.query(VentaContado).filter(VentaContado.created_at >= inicio_hoy).all()
+    vc_hoy = db.query(VentaContado).filter(
+        VentaContado.created_at >= inicio_hoy, VentaContado.estado != "CANCELADO",
+    ).all()
     monto_contado = sum(v.precio_final or 0 for v in vc_hoy)
 
     vls = db.query(Videollamada).filter(Videollamada.created_at >= inicio_hoy).count()
@@ -578,8 +580,14 @@ async def ventas_hoy(
     hoy = datetime.utcnow()
     inicio_hoy = hoy.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    vc = db.query(VentaContado).filter(VentaContado.created_at >= inicio_hoy).all()
-    vf = db.query(VentaFinanciada).filter(VentaFinanciada.created_at >= inicio_hoy).all()
+    # Excluye CANCELADO — si no, una venta de prueba dada de baja (ej. datos de
+    # testeo técnico) se cuenta igual como cierre real del día.
+    vc = db.query(VentaContado).filter(
+        VentaContado.created_at >= inicio_hoy, VentaContado.estado != "CANCELADO",
+    ).all()
+    vf = db.query(VentaFinanciada).filter(
+        VentaFinanciada.created_at >= inicio_hoy, VentaFinanciada.estado_plan != "CANCELADO",
+    ).all()
     leads_nuevos = db.query(Lead).filter(Lead.created_at >= inicio_hoy).count()
 
     monto_total = sum(v.precio_final or 0 for v in vc)

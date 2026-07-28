@@ -66,8 +66,12 @@ async def _get_dashboard_impl(
             Videollamada.fecha_hora >= inicio_hoy, Videollamada.fecha_hora <= fin_hoy
         ).count()
 
-        ventas_mes = db.query(VentaContado).filter(VentaContado.created_at >= inicio_mes).count()
-        ventas_mes += db.query(VentaFinanciada).filter(VentaFinanciada.created_at >= inicio_mes).count()
+        ventas_mes = db.query(VentaContado).filter(
+            VentaContado.created_at >= inicio_mes, VentaContado.estado != "CANCELADO",
+        ).count()
+        ventas_mes += db.query(VentaFinanciada).filter(
+            VentaFinanciada.created_at >= inicio_mes, VentaFinanciada.estado_plan != "CANCELADO",
+        ).count()
 
         ventas_fin = db.query(VentaFinanciada).filter(
             VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"])
@@ -99,11 +103,19 @@ async def _get_dashboard_impl(
 
         leads_sin_contactar = db.query(Lead).filter(Lead.estado.in_(["NUEVO", "INTENTADO"])).count()
 
-        ventas_semana = db.query(VentaContado).filter(VentaContado.created_at >= inicio_semana).count()
-        ventas_semana += db.query(VentaFinanciada).filter(VentaFinanciada.created_at >= inicio_semana).count()
+        ventas_semana = db.query(VentaContado).filter(
+            VentaContado.created_at >= inicio_semana, VentaContado.estado != "CANCELADO",
+        ).count()
+        ventas_semana += db.query(VentaFinanciada).filter(
+            VentaFinanciada.created_at >= inicio_semana, VentaFinanciada.estado_plan != "CANCELADO",
+        ).count()
 
-        ventas_dia = db.query(VentaContado).filter(VentaContado.created_at >= inicio_hoy).count()
-        ventas_dia += db.query(VentaFinanciada).filter(VentaFinanciada.created_at >= inicio_hoy).count()
+        ventas_dia = db.query(VentaContado).filter(
+            VentaContado.created_at >= inicio_hoy, VentaContado.estado != "CANCELADO",
+        ).count()
+        ventas_dia += db.query(VentaFinanciada).filter(
+            VentaFinanciada.created_at >= inicio_hoy, VentaFinanciada.estado_plan != "CANCELADO",
+        ).count()
 
         reclamos_abiertos = db.query(Reclamo).filter(Reclamo.estado.in_(["NUEVO", "EN_GESTION"])).count()
 
@@ -138,11 +150,13 @@ async def _get_dashboard_impl(
 
         mis_cierres_mes = db.query(VentaContado).filter(
             VentaContado.vendedor_id == current_user.id,
-            VentaContado.created_at >= inicio_mes
+            VentaContado.created_at >= inicio_mes,
+            VentaContado.estado != "CANCELADO",
         ).count()
         mis_cierres_mes += db.query(VentaFinanciada).filter(
             VentaFinanciada.asesor_apertura_id == current_user.id,
-            VentaFinanciada.created_at >= inicio_mes
+            VentaFinanciada.created_at >= inicio_mes,
+            VentaFinanciada.estado_plan != "CANCELADO",
         ).count()
 
         # Sin contactar +48hs
@@ -182,7 +196,8 @@ async def _get_dashboard_impl(
 
         mis_cierres_mes = db.query(VentaFinanciada).filter(
             VentaFinanciada.supervisor_cierre_id == current_user.id,
-            VentaFinanciada.created_at >= inicio_mes
+            VentaFinanciada.created_at >= inicio_mes,
+            VentaFinanciada.estado_plan != "CANCELADO",
         ).count()
 
         return {
@@ -518,8 +533,12 @@ async def get_metricas_avanzadas(
     funnel["tasa_conversion"]  = round(funnel["ventas"]     / total_leads * 100, 1) if total_leads else 0
 
     # ── Ticket promedio (mes actual) ───────────────────────────────────────────
-    vc_mes = db.query(VentaContado).filter(VentaContado.created_at >= inicio_mes).all()
-    vf_mes = db.query(VentaFinanciada).filter(VentaFinanciada.created_at >= inicio_mes).all()
+    vc_mes = db.query(VentaContado).filter(
+        VentaContado.created_at >= inicio_mes, VentaContado.estado != "CANCELADO",
+    ).all()
+    vf_mes = db.query(VentaFinanciada).filter(
+        VentaFinanciada.created_at >= inicio_mes, VentaFinanciada.estado_plan != "CANCELADO",
+    ).all()
     montos = [v.precio_final or 0 for v in vc_mes] + [v.precio_total or 0 for v in vf_mes]
     ticket_promedio = round(sum(montos) / len(montos)) if montos else 0
 

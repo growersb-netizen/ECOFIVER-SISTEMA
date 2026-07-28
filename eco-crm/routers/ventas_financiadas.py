@@ -192,6 +192,12 @@ async def create_venta_financiada(
         estado_plan=data.get("estado_plan", "ACTIVO"),
         estado_admision=data.get("estado_admision"),
         notas=data.get("notas", ""),
+        cliente_dni=data.get("cliente_dni"),
+        cliente_cuil=data.get("cliente_cuil"),
+        cliente_domicilio=data.get("cliente_domicilio"),
+        cliente_estado_civil=data.get("cliente_estado_civil"),
+        cliente_ocupacion=data.get("cliente_ocupacion"),
+        cliente_email=data.get("cliente_email"),
     )
     db.add(venta)
     db.commit()
@@ -254,7 +260,8 @@ async def update_venta_financiada(
                   "modelo_especifico", "color", "superficie_m2", "forma_pago", "precio_total",
                   "anticipo", "cantidad_cuotas", "valor_cuota", "cuotas_pagas",
                   "asesor_apertura_id", "supervisor_cierre_id", "estado_plan",
-                  "estado_admision", "notas"]:
+                  "estado_admision", "notas", "cliente_dni", "cliente_cuil",
+                  "cliente_domicilio", "cliente_estado_civil", "cliente_ocupacion", "cliente_email"]:
         if field in data:
             setattr(venta, field, data[field])
 

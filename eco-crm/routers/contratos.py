@@ -786,14 +786,31 @@ async def crear_contrato_unificado(
     pago_registrado = body.get("pago_registrado") or {}
     origen = body.get("origen") or {}
 
-    for campo in ("nombre", "apellido", "dni"):
+    # Validación completa: se juntan TODOS los campos faltantes en un solo error
+    # (no se corta en el primero) para que quien emite el contrato sepa de una
+    # sola vez todo lo que falta pedirle al cliente — un contrato con domicilio
+    # o fecha de nacimiento en blanco sale incompleto y no es aceptable.
+    faltantes = []
+    for campo in ("nombre", "apellido", "dni", "telefono", "domicilio", "localidad",
+                  "fecha_nacimiento", "estado_civil", "ocupacion", "email"):
         if not cliente.get(campo):
-            raise HTTPException(400, f"cliente.{campo} es requerido")
-    if not producto.get("tipo") or not producto.get("modelo"):
-        raise HTTPException(400, "producto.tipo y producto.modelo son requeridos")
+            faltantes.append(f"cliente.{campo}")
+    if not producto.get("tipo"):
+        faltantes.append("producto.tipo")
+    if not producto.get("modelo"):
+        faltantes.append("producto.modelo")
+    if producto.get("tipo") == "pileta":
+        for campo in ("largo_m", "ancho_m"):
+            if producto.get(campo) is None:
+                faltantes.append(f"producto.{campo}")
     for campo in ("valor_mercado", "pago_inicial", "cant_cuotas", "valor_cuota"):
         if financiacion.get(campo) is None:
-            raise HTTPException(400, f"financiacion.{campo} es requerido")
+            faltantes.append(f"financiacion.{campo}")
+    if faltantes:
+        raise HTTPException(400, {
+            "mensaje": "Faltan datos obligatorios para emitir el contrato — no se genera incompleto.",
+            "campos_faltantes": faltantes,
+        })
 
     monto_pago = float(pago_registrado.get("monto") or 0)
     if monto_pago > float(financiacion["valor_mercado"]):

@@ -442,10 +442,51 @@ async def _emitir_contrato(datos: dict) -> str:
         if not datos.get(campo):
             return f"❌ Falta '{campo}' para emitir el contrato"
 
+    cliente = datos["cliente"]
+    producto = datos["producto"]
+    financiacion = dict(datos["financiacion"])
+
+    # ── Completar financiación automáticamente — nunca calcular a mano ──────
+    # Con el modelo (o el precio) + UNO de {entrada, cuota, cant_cuotas} alcanza
+    # para derivar todo el resto por la fórmula real (precio=cuota*(n+factor),
+    # entrada=factor*cuota). Si falta algo de esto, se completa acá antes de
+    # llamar al CRM en vez de dejar que el agente lo intente estimar solo.
+    if any(financiacion.get(k) is None for k in ("valor_mercado", "cant_cuotas", "valor_cuota", "pago_inicial")):
+        from tools.cuota_sim import resolver_financiacion
+        resuelto = resolver_financiacion(
+            tipo=producto.get("tipo", "piscina"),
+            modelo=producto.get("modelo"),
+            precio=financiacion.get("valor_mercado"),
+            entrada=financiacion.get("pago_inicial"),
+            cuota=financiacion.get("valor_cuota"),
+            n_cuotas=financiacion.get("cant_cuotas"),
+        )
+        if not resuelto.get("ok"):
+            return f"❌ No pude completar la financiación automáticamente: {resuelto.get('error')} Pedile ese dato a Rodrigo antes de reintentar."
+        financiacion = {
+            "valor_mercado": resuelto["precio"],
+            "pago_inicial": resuelto["entrada"],
+            "cant_cuotas": resuelto["n_cuotas"],
+            "valor_cuota": resuelto["cuota"],
+        }
+
+    # ── El contrato NUNCA sale incompleto — validar datos del cliente antes ──
+    campos_cliente_obligatorios = (
+        "nombre", "apellido", "dni", "telefono", "domicilio", "localidad",
+        "fecha_nacimiento", "estado_civil", "ocupacion", "email",
+    )
+    faltantes_cliente = [c for c in campos_cliente_obligatorios if not cliente.get(c)]
+    if faltantes_cliente:
+        return (
+            "❌ Faltan datos del cliente para emitir el contrato (no se genera incompleto): "
+            + ", ".join(faltantes_cliente)
+            + ". Pedíselos a Rodrigo antes de reintentar la emisión."
+        )
+
     payload = {
-        "cliente": datos["cliente"],
-        "producto": datos["producto"],
-        "financiacion": datos["financiacion"],
+        "cliente": cliente,
+        "producto": producto,
+        "financiacion": financiacion,
         "origen": {"canal": "whatsapp_maximo", "operador": "Rodrigo (vía Máximo)"},
     }
     if datos.get("conyuge"):

@@ -166,6 +166,97 @@ def simular_combo(
     )
 
 
+def _buscar_precio_modelo(tipo: str, modelo: str) -> float | None:
+    """Busca el precio de lista real: piscina por nombre de modelo, módulo por m2 financiado."""
+    catalogo = _catalogo()
+    if not modelo:
+        return None
+    if tipo == "modulo":
+        m = _re.search(r"(\d+)", modelo)
+        if not m:
+            return None
+        m2 = int(m.group(1))
+        if m2 not in catalogo["modulos_m2"]:
+            return None
+        return m2 * catalogo["modulos_precio_m2_financiado"]
+
+    modelo_norm = modelo.strip().lower()
+    for p in catalogo["piscinas"]:
+        if p["modelo"].strip().lower() == modelo_norm:
+            return p["precio"]
+    # match parcial si no hay coincidencia exacta (ej. "Playa Abanico" vs "Playa y Abanico")
+    for p in catalogo["piscinas"]:
+        nombre = p["modelo"].strip().lower()
+        if modelo_norm in nombre or nombre in modelo_norm:
+            return p["precio"]
+    return None
+
+
+def resolver_financiacion(
+    tipo: str = "piscina",
+    modelo: str | None = None,
+    precio: float | None = None,
+    entrada: float | None = None,
+    cuota: float | None = None,
+    n_cuotas: float | None = None,
+) -> dict:
+    """
+    Resuelve los valores de financiación que falten a partir de los que se
+    conocen, usando la relación real (NUNCA a mano, siempre esta cuenta):
+        precio = cuota * (n_cuotas + factor)
+        entrada = factor * cuota
+    Con precio (o modelo, para buscarlo en catálogo) + UNO de {entrada, cuota,
+    n_cuotas} alcanza para derivar todo el resto — es álgebra simple, no hace
+    falta que el agente calcule nada de memoria.
+
+    Devuelve {"ok": True, "precio", "entrada", "cuota", "n_cuotas", "factor"}
+    o {"ok": False, "error": "..."} si no hay suficiente información.
+    """
+    catalogo = _catalogo()
+    tipo = "modulo" if "mod" in (tipo or "").lower() else "piscina"
+    factor = catalogo["factor_ingreso_modulos"] if tipo == "modulo" else catalogo["factor_ingreso_piscinas"]
+
+    if precio is None and modelo:
+        precio = _buscar_precio_modelo(tipo, modelo)
+
+    if precio is None:
+        return {
+            "ok": False,
+            "error": "No se pudo determinar el precio de lista: falta 'precio' explícito o un 'modelo' que exista en el catálogo.",
+        }
+
+    if cuota is None and entrada is not None and entrada > 0:
+        cuota = entrada / factor
+    if entrada is None and cuota is not None:
+        entrada = factor * cuota
+
+    if n_cuotas is None:
+        if not cuota:
+            return {
+                "ok": False,
+                "error": "Falta la entrada, la cuota o la cantidad de cuotas — con el precio solo no alcanza para calcular el resto.",
+            }
+        n_cuotas = round((precio / cuota) - factor)
+    else:
+        n_cuotas = round(n_cuotas)
+
+    if n_cuotas <= 0:
+        return {"ok": False, "error": "La cantidad de cuotas calculada da 0 o negativa — revisá los datos (el ingreso no puede ser mayor o igual al precio de lista)."}
+
+    if cuota is None:
+        cuota = precio / (n_cuotas + factor)
+        entrada = factor * cuota
+
+    return {
+        "ok": True,
+        "precio": round(precio),
+        "entrada": round(entrada),
+        "cuota": round(cuota),
+        "n_cuotas": int(n_cuotas),
+        "factor": factor,
+    }
+
+
 def simular_todos_los_planes(precio: float, tipo: str = "piscina") -> list[dict]:
     """
     Devuelve todos los planes calculados como lista de dicts.

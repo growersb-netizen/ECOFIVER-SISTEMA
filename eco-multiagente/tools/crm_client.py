@@ -795,6 +795,11 @@ async def crear_contrato(payload: dict) -> dict:
             r = await client.post(f"{CRM_BASE_URL}/api/contratos", headers=HEADERS, json=payload)
             if r.status_code == 409:
                 return {"error": "DNI ya tiene una solicitud activa", "detail": r.json()}
+            if r.status_code == 400:
+                detail = r.json().get("detail", "")
+                if isinstance(detail, dict) and detail.get("campos_faltantes"):
+                    return {"error": "Faltan campos obligatorios: " + ", ".join(detail["campos_faltantes"])}
+                return {"error": str(detail) or "Datos inválidos"}
             r.raise_for_status()
             return r.json()
     except Exception as e:

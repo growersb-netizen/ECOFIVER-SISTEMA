@@ -449,17 +449,22 @@ async def _emitir_contrato(datos: dict) -> str:
     # ── Completar financiación automáticamente — nunca calcular a mano ──────
     # Con el modelo (o el precio) + UNO de {entrada, cuota, cant_cuotas} alcanza
     # para derivar todo el resto por la fórmula real (precio=cuota*(n+factor),
-    # entrada=factor*cuota). Si falta algo de esto, se completa acá antes de
-    # llamar al CRM en vez de dejar que el agente lo intente estimar solo.
-    if any(financiacion.get(k) is None for k in ("valor_mercado", "cant_cuotas", "valor_cuota", "pago_inicial")):
+    # entrada=factor*cuota). Ninguno de estos 4 campos puede valer 0 en un
+    # contrato real, así que un 0 se trata igual que un null (el agente a
+    # veces manda un "placeholder" 0 en vez de omitir el campo).
+    financiacion_num = {
+        k: (financiacion.get(k) if financiacion.get(k) else None)
+        for k in ("valor_mercado", "cant_cuotas", "valor_cuota", "pago_inicial")
+    }
+    if any(v is None for v in financiacion_num.values()):
         from tools.cuota_sim import resolver_financiacion
         resuelto = resolver_financiacion(
             tipo=producto.get("tipo", "piscina"),
             modelo=producto.get("modelo"),
-            precio=financiacion.get("valor_mercado"),
-            entrada=financiacion.get("pago_inicial"),
-            cuota=financiacion.get("valor_cuota"),
-            n_cuotas=financiacion.get("cant_cuotas"),
+            precio=financiacion_num.get("valor_mercado"),
+            entrada=financiacion_num.get("pago_inicial"),
+            cuota=financiacion_num.get("valor_cuota"),
+            n_cuotas=financiacion_num.get("cant_cuotas"),
         )
         if not resuelto.get("ok"):
             return f"❌ No pude completar la financiación automáticamente: {resuelto.get('error')} Pedile ese dato a Rodrigo antes de reintentar."

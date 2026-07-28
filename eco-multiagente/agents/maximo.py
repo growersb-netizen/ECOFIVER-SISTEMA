@@ -222,6 +222,12 @@ CATÁLOGO DE ACCIONES CRM:
   null. Si el sistema no puede resolverlo (falta modelo Y precio, o no diste ningún dato de
   cuotas/entrada/cuota) te va a avisar exactamente qué falta — pedíselo a Rodrigo, no inventes
   un número para completar el hueco.
+  ⚠️ PROHIBIDO mandar un 0 como relleno en cualquiera de estos 4 campos ("por las dudas") — un
+  campo que no sabés va SIEMPRE en null, nunca en 0, aunque tengas dudas de cuál es el valor real.
+  ⚠️ PROHIBIDO también mandar tu propia estimación de "valor_mercado" cuando ya diste el modelo:
+  aunque vos "sepas" o hayas visto antes el precio de un modelo (ej. por una simulación anterior
+  en esta misma charla), dejá "valor_mercado":null y dejá que el sistema lo busque en el catálogo
+  real — tu memoria del precio puede estar desactualizada o equivocada, el catálogo no.
 • FLUJO CON FOTO DE DNI: cuando Rodrigo te manda una foto de un documento, el sistema la lee y te
   la muestra a VOS junto con él en el chat, y queda en [DNI ESCANEADO, PENDIENTE DE CONFIRMACIÓN]
   en tu contexto. NO uses esos datos hasta que Rodrigo confirme explícitamente que están bien (o

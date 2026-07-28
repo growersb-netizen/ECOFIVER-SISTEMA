@@ -292,9 +292,11 @@ async def registrar_pago(
     Registra un pago (cuota mensual, seña/entrada o saldo final) y emite el
     recibo real en PDF automáticamente. Body:
     {"monto": 120000, "notas": "...", "concepto": "cuota"|"entrada"|"saldo_final",
-     "modalidad": "transferencia"|"efectivo"}
+     "modalidad": "transferencia"|"efectivo", "fecha_pago": "2026-08-15" (opcional)}
     concepto default "cuota" (incrementa cuotas_pagas); "entrada"/"saldo_final"
-    no tocan cuotas_pagas, solo suman al anticipo/saldo.
+    no tocan cuotas_pagas, solo suman al anticipo/saldo. fecha_pago permite
+    asentar un pago con fecha distinta a hoy (ej. se carga un día tarde) —
+    el recibo se emite mostrando esa fecha, no la de carga en el sistema.
     """
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
     if not venta:
@@ -303,12 +305,24 @@ async def registrar_pago(
     data = await request.json()
     monto = data.get("monto", venta.valor_cuota or 0)
     concepto = (data.get("concepto") or "cuota").lower()
+    modalidad = (data.get("modalidad") or "").strip()
+    if not modalidad:
+        raise HTTPException(400, "modalidad es requerida (transferencia/efectivo) — el recibo no puede salir incompleto")
+
+    fecha_pago = None
+    if data.get("fecha_pago"):
+        try:
+            fecha_pago = datetime.fromisoformat(data["fecha_pago"])
+        except Exception:
+            raise HTTPException(400, "fecha_pago inválida, formato esperado YYYY-MM-DD")
 
     pago = Pago(
         venta_financiada_id=venta_id,
         monto=monto,
         notas=data.get("notas", ""),
     )
+    if fecha_pago:
+        pago.fecha_pago = fecha_pago
     db.add(pago)
 
     if concepto == "cuota":
@@ -327,9 +341,10 @@ async def registrar_pago(
     resultado = {"ok": True, "cuotas_pagas": venta.cuotas_pagas, "recibo": None}
     try:
         from routers.contratos import generar_recibo_pdf
+        overrides = {"fecha_recibo": fecha_pago.strftime("%d/%m/%Y")} if fecha_pago else {}
         recibo = await generar_recibo_pdf(
             db, venta, monto_recibido=float(monto), concepto=concepto_recibo,
-            modalidad=data.get("modalidad", ""),
+            modalidad=modalidad, overrides=overrides,
         )
         resultado["recibo"] = {
             "recibo_id": recibo.id,

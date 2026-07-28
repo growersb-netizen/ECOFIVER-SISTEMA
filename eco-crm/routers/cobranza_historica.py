@@ -5,6 +5,7 @@ Cartera de cobranza completamente independiente de la de EcoFiver
 separación exigida explícitamente por el negocio.
 """
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,12 +13,107 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import ClienteCobranzaHistorica, PagoCobranzaHistorica, Usuario
+from database.models import ClienteCobranzaHistorica, PagoCobranzaHistorica, Contrato, Usuario
 from routers.auth import require_auth_or_apikey, get_user_roles
+from utils.documentos import render_html, html_to_pdf, monto_en_letras, split_nombre_apellido
 
 router = APIRouter()
 
 LINEAS_VALIDAS = {"viviendas", "piscinas"}
+
+UPLOAD_DIR = Path("data/contratos")  # mismo volumen persistente que usa contratos.py
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _fmt_ar(monto) -> str:
+    try:
+        return f"{float(monto or 0):,.0f}".replace(",", ".")
+    except Exception:
+        return "0"
+
+
+async def generar_recibo_pdf_construsol(
+    db: Session,
+    cliente: ClienteCobranzaHistorica,
+    monto_recibido: float,
+    concepto: str,
+    modalidad: str,
+    fecha_pago: Optional[datetime] = None,
+) -> Contrato:
+    """
+    Recibo real en PDF para pagos de Construsol — mismo template que usa
+    EcoFiver (recibo_template.html), adaptado al modelo más simple de
+    ClienteCobranzaHistorica (sin numero_solicitud atómico, sin tracking de
+    cuotas_pagas exacto). No se calcula "saldo pendiente sobre el total"
+    porque esta cartera residual no trackea el progreso completo del plan —
+    el recibo muestra la cuota vigente y el monto recibido, no el cierre.
+    """
+    nombre, apellido = split_nombre_apellido(cliente.apellido_nombre)
+    fecha_recibo = fecha_pago or datetime.now()
+
+    tabla_filas = (
+        f"<tr><td>Cuota vigente</td><td>{cliente.linea.capitalize()} — {cliente.metros_o_modelo or ''}</td>"
+        f"<td style='text-align:right'>$ {_fmt_ar(cliente.cuota_actual)}</td><td style='text-align:center'></td></tr>"
+        f"<tr class='highlight'><td>Este recibo</td><td>{concepto}</td><td style='text-align:right'>$ {_fmt_ar(monto_recibido)}</td>"
+        f"<td style='text-align:center'><span class='tag-paid'>Pagado</span></td></tr>"
+    )
+    nota_final = (
+        "<strong>Recibo de pago — cartera Construsol.</strong> "
+        "El pago de cada cuota debe realizarse entre los días 1 y 10 de cada mes para mantener vigentes las promociones asignadas."
+    )
+    op_data_blocks = (
+        f"<div><div class='op-label'>N° operación</div><div class='op-value'>—</div></div>"
+        f"<div><div class='op-label'>Hora</div><div class='op-value'>{fecha_recibo.strftime('%H:%M')}</div></div>"
+    )
+
+    context = {
+        "numero_solicitud": f"CONSTRUSOL-{cliente.id}",
+        "concepto_corto": concepto,
+        "fecha_recibo": fecha_recibo.strftime("%d/%m/%Y"),
+        "monto_recibido": _fmt_ar(monto_recibido),
+        "monto_en_letras": monto_en_letras(monto_recibido),
+        "modalidad": modalidad,
+        "concepto": concepto,
+        "nombre": nombre, "apellido": apellido,
+        "dni": cliente.dni or "",
+        "cuil": "", "estado_civil": "", "ocupacion": "", "email": "",
+        "telefono": cliente.telefono or "",
+        "domicilio_completo": cliente.proyecto or "",
+        "localidad": "",
+        "modelo": cliente.metros_o_modelo or cliente.linea,
+        "valor_mercado": _fmt_ar(cliente.precio_total),
+        "pago_inicial": _fmt_ar(cliente.anticipo),
+        "cant_cuotas": str(cliente.cantidad_cuotas or ""),
+        "valor_cuota": _fmt_ar(cliente.cuota_actual),
+        "largo": "", "ancho": "", "profundidad_min": "", "profundidad_max": "", "sistema": "",
+        "op_data_blocks": op_data_blocks,
+        "tabla_filas": tabla_filas,
+        "nota_final": nota_final,
+        "notice_bg": "#f0fff5", "notice_border": "#1a6b3a",
+        "notice_color": "#1a1a1a", "notice_strong": "#1a6b3a",
+    }
+
+    html = render_html("recibo_template.html", context)
+    nombre_archivo = f"recibo_construsol_{(cliente.apellido_nombre or 'cliente').replace(' ', '_').replace(',', '')}_{fecha_recibo:%Y%m%d%H%M%S}.pdf"
+    out_path = UPLOAD_DIR / nombre_archivo
+    await html_to_pdf(html, out_path)
+
+    recibo = Contrato(
+        venta_financiada_id=None,
+        cliente_nombre=cliente.apellido_nombre,
+        tipo_contrato=concepto,
+        tipo_documento="RECIBO",
+        numero_solicitud=f"CONSTRUSOL-{cliente.id}",
+        archivo_pdf=str(out_path),
+        datos_json=None,
+        estado="EMITIDO",
+        notas="Construsol",
+    )
+    db.add(recibo)
+    db.commit()
+    db.refresh(recibo)
+    recibo.nombre_archivo = nombre_archivo
+    return recibo
 
 
 def _require_access(user: Usuario = Depends(require_auth_or_apikey)) -> Usuario:
@@ -43,7 +139,9 @@ class ClienteCobranzaHistoricaReq(BaseModel):
 
 
 class PagoReq(BaseModel):
-    monto: float
+    monto: Optional[float] = None  # si no se manda, se toma cuota_actual del sistema
+    modalidad: str  # transferencia | efectivo — obligatorio, el recibo no sale incompleto
+    fecha_pago: Optional[str] = None  # YYYY-MM-DD, default hoy
     mes_correspondiente: Optional[str] = None
     notas: Optional[str] = ""
 
@@ -212,19 +310,45 @@ async def registrar_pago_historico(
     ).first()
     if not cliente:
         raise HTTPException(404, "Cliente no encontrado")
-    if body.monto <= 0:
-        raise HTTPException(400, "monto debe ser mayor a 0")
+
+    modalidad = (body.modalidad or "").strip()
+    if not modalidad:
+        raise HTTPException(400, "modalidad es requerida (transferencia/efectivo) — el recibo no puede salir incompleto")
+
+    # El monto se toma de la cuota vigente cargada en el sistema, no se le pide al cobrador.
+    monto = body.monto if body.monto is not None else (cliente.cuota_actual or 0)
+    if monto <= 0:
+        raise HTTPException(400, "El cliente no tiene una cuota vigente cargada para registrar el pago")
+
+    fecha_pago = datetime.now()
+    if body.fecha_pago:
+        try:
+            fecha_pago = datetime.fromisoformat(body.fecha_pago)
+        except Exception:
+            raise HTTPException(400, "fecha_pago inválida, formato esperado YYYY-MM-DD")
 
     pago = PagoCobranzaHistorica(
-        cliente_id=cliente.id, monto=body.monto,
+        cliente_id=cliente.id, monto=monto,
         mes_correspondiente=body.mes_correspondiente, notas=body.notas or "",
+        fecha_pago=fecha_pago,
     )
     db.add(pago)
     if cliente.estado_plan == "ATRASADO":
         cliente.estado_plan = "ACTIVO"
     db.commit()
     db.refresh(cliente)
-    return {"ok": True, "cliente": _cliente_dict(cliente)}
+
+    resultado = {"ok": True, "cliente": _cliente_dict(cliente), "recibo": None}
+    try:
+        recibo = await generar_recibo_pdf_construsol(
+            db, cliente, monto_recibido=float(monto), concepto="Pago de cuota",
+            modalidad=modalidad, fecha_pago=fecha_pago,
+        )
+        resultado["recibo"] = {"recibo_id": recibo.id, "download_url": f"/api/contratos/{recibo.id}/download"}
+    except Exception as e:
+        resultado["recibo_error"] = f"No se pudo generar el recibo automático: {e}"
+
+    return resultado
 
 
 @router.post("/api/cobranza-historica/aplicar-icac")

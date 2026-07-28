@@ -101,21 +101,32 @@
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Monto</label>
-        <input type="number" id="pago-construsol-monto" class="form-control" placeholder="0">
+        <div id="pago-construsol-cliente" style="font-weight:700;margin-bottom:4px"></div>
+        <div style="font-size:13px;color:var(--text-secondary)">Cuota a registrar: <strong id="pago-construsol-monto-display"></strong> (tomada del sistema)</div>
       </div>
       <div class="form-group">
-        <label class="form-label">Mes correspondiente</label>
+        <label class="form-label">Fecha en que abonó</label>
+        <input type="date" id="pago-construsol-fecha" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Medio de pago</label>
+        <select id="pago-construsol-modalidad" class="form-control">
+          <option value="transferencia">Transferencia</option>
+          <option value="efectivo">Efectivo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mes correspondiente (opcional)</label>
         <input type="text" id="pago-construsol-mes" class="form-control" placeholder="ej. 2026-08">
       </div>
       <div class="form-group">
-        <label class="form-label">Notas</label>
+        <label class="form-label">Notas (opcional)</label>
         <textarea id="pago-construsol-notas" class="form-control" rows="2"></textarea>
       </div>
     </div>
     <div class="modal-footer">
       <button onclick="closeModal('modal-pago-construsol')" class="btn btn-secondary">Cancelar</button>
-      <button onclick="guardarPagoConstrusol()" class="btn btn-primary btn-lg">Guardar pago</button>
+      <button onclick="guardarPagoConstrusol()" class="btn btn-primary btn-lg">Registrar pago y emitir recibo</button>
     </div>
   </div>
 </div>
@@ -163,6 +174,41 @@
     <div class="modal-footer">
       <button onclick="closeModal('modal-cliente-construsol')" class="btn btn-secondary">Cancelar</button>
       <button onclick="guardarClienteConstrusol()" class="btn btn-primary btn-lg">Crear cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal registrar pago (EcoFiver) -->
+<div class="modal-overlay" id="modal-pago-ecofiver" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Registrar pago — EcoFiver</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-pago-ecofiver')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <div id="pago-ecofiver-cliente" style="font-weight:700;margin-bottom:4px"></div>
+        <div style="font-size:13px;color:var(--text-secondary)">Cuota a registrar: <strong id="pago-ecofiver-monto-display"></strong> (tomada del sistema)</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha en que abonó</label>
+        <input type="date" id="pago-ecofiver-fecha" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Medio de pago</label>
+        <select id="pago-ecofiver-modalidad" class="form-control">
+          <option value="transferencia">Transferencia</option>
+          <option value="efectivo">Efectivo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas (opcional)</label>
+        <textarea id="pago-ecofiver-notas" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-pago-ecofiver')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarPagoEcoFiver()" class="btn btn-primary btn-lg">Registrar pago y emitir recibo</button>
     </div>
   </div>
 </div>
@@ -287,7 +333,7 @@
         ${c.ultimo_pago ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Último pago: ${formatMoney(c.ultimo_pago.monto)} · ${formatDate(c.ultimo_pago.fecha_pago)}</div>` : ''}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
           ${c.telefono ? `<a href="${whatsappLink(c.telefono, '')}" target="_blank" class="btn btn-whatsapp btn-sm">📱 WhatsApp</a>` : ''}
-          <button onclick="openPagoConstrusol(${c.id})" class="btn btn-sm btn-secondary">+ Registrar pago</button>
+          <button onclick="openPagoConstrusol(${c.id}, ${c.cuota_actual || 0}, '${(c.apellido_nombre || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-primary">💰 Registrar pago</button>
           <button onclick="toggleAtrasoConstrusol(${c.id}, '${c.estado_plan}')" class="btn btn-sm btn-ghost">
             ${c.estado_plan === 'ATRASADO' ? '✓ Marcar al día' : '⚠ Marcar atrasado'}
           </button>
@@ -302,26 +348,61 @@
     renderConstrusol(construsolData.filter(c => c.apellido_nombre.toLowerCase().includes(q)));
   }
 
-  function openPagoConstrusol(clienteId) {
+  function openPagoConstrusol(clienteId, cuota, nombre) {
     construsolClienteActivo = clienteId;
-    document.getElementById('pago-construsol-monto').value = '';
+    document.getElementById('pago-construsol-cliente').textContent = nombre;
+    document.getElementById('pago-construsol-monto-display').textContent = formatMoney(cuota);
+    document.getElementById('pago-construsol-fecha').value = new Date().toISOString().split('T')[0];
+    document.getElementById('pago-construsol-modalidad').value = 'transferencia';
     document.getElementById('pago-construsol-mes').value = '';
     document.getElementById('pago-construsol-notas').value = '';
     document.getElementById('modal-pago-construsol').style.display = 'flex';
   }
 
   async function guardarPagoConstrusol() {
-    const monto = parseFloat(document.getElementById('pago-construsol-monto').value || '0');
-    if (!monto || monto <= 0) return showToast('Ingresá un monto válido', 'error');
     try {
-      await API.post(`/api/cobranza-historica/clientes/${construsolClienteActivo}/pago`, {
-        monto,
+      const r = await API.post(`/api/cobranza-historica/clientes/${construsolClienteActivo}/pago`, {
+        modalidad: document.getElementById('pago-construsol-modalidad').value,
+        fecha_pago: document.getElementById('pago-construsol-fecha').value || null,
         mes_correspondiente: document.getElementById('pago-construsol-mes').value || null,
         notas: document.getElementById('pago-construsol-notas').value || '',
       });
       closeModal('modal-pago-construsol');
-      showToast('Pago registrado ✓', 'success');
+      showToast('Pago registrado ✓ recibo emitido', 'success');
+      if (r.recibo) window.open(r.recibo.download_url, '_blank');
       loadConstrusol();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  // ═══════════════════ CARTERA ECOFIVER — registrar pago ═══════════════════
+
+  let ecofiverVentaActiva = null;
+
+  function openPagoEcoFiver(ventaId, cuota, nombre) {
+    ecofiverVentaActiva = ventaId;
+    document.getElementById('pago-ecofiver-cliente').textContent = nombre;
+    document.getElementById('pago-ecofiver-monto-display').textContent = formatMoney(cuota);
+    document.getElementById('pago-ecofiver-fecha').value = new Date().toISOString().split('T')[0];
+    document.getElementById('pago-ecofiver-modalidad').value = 'transferencia';
+    document.getElementById('pago-ecofiver-notas').value = '';
+    document.getElementById('modal-pago-ecofiver').style.display = 'flex';
+  }
+
+  async function guardarPagoEcoFiver() {
+    try {
+      const r = await API.post(`/api/ventas-financiadas/${ecofiverVentaActiva}/pago`, {
+        concepto: 'cuota',
+        modalidad: document.getElementById('pago-ecofiver-modalidad').value,
+        fecha_pago: document.getElementById('pago-ecofiver-fecha').value || null,
+        notas: document.getElementById('pago-ecofiver-notas').value || '',
+      });
+      closeModal('modal-pago-ecofiver');
+      showToast('Pago registrado ✓ recibo emitido', 'success');
+      if (r.recibo && r.recibo.download_url) window.open(r.recibo.download_url, '_blank');
+      await window.loadCartera();
+      _aplicarTodosLosFiltrosCartera();
     } catch (e) {
       showToast(`Error: ${e.message}`, 'error');
     }
@@ -618,6 +699,9 @@
                target="_blank" class="btn btn-whatsapp btn-sm">
               📱 WhatsApp
             </a>
+            <button onclick="openPagoEcoFiver(${v.id}, ${v.valor_cuota || 0}, '${(v.cliente_nombre || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-primary">
+              💰 Registrar pago
+            </button>
             <button onclick="openGestion(${v.id})" class="btn btn-sm btn-secondary">
               + Registrar gestión
             </button>

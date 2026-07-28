@@ -208,7 +208,11 @@ async def get_proyeccion_cobranza(
             "cliente_nombre": v.cliente_nombre, "monto": v.valor_cuota or 0,
             "vencimiento": prox.isoformat(),
         }
-        categoria = "confirmada" if (v.cuotas_pagas or 0) > 0 else "potencial"
+        # HISTORICO = ventas reales conocidas importadas antes de trackear cuotas_pagas
+        # con precisión — se cuentan como confirmada aunque cuotas_pagas haya quedado en 0.
+        # Solo las ventas NUEVAS (no históricas) que todavía no pagaron ninguna cuota real
+        # entran en "potencial" (señadas, cobranza no garantizada).
+        categoria = "confirmada" if (v.cuotas_pagas or 0) > 0 or v.forma_pago == "HISTORICO" else "potencial"
 
         if prox.year == hoy.year and prox.month == hoy.month:
             bloque = este_mes[categoria]

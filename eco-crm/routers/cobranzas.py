@@ -179,14 +179,26 @@ async def get_proyeccion_cobranza(
     10, no pagar antes hace perder las promociones). Usa el mismo cálculo
     que dashboard/metricas-avanzadas (calcular_proximo_vencimiento), pero
     separado en "este mes" vs "mes que viene" en vez de una ventana de 30 días.
+
+    Cada bloque se separa a su vez en:
+    - "confirmada": ventas que YA pagaron al menos una cuota real (cuotas_pagas > 0)
+      — historial de pago comprobado, cobranza sólida.
+    - "potencial": ventas que solo tienen la seña/entrada pagada y NINGUNA cuota
+      todavía (cuotas_pagas == 0) — son ventas reales, pero la cobranza de sus
+      cuotas depende de que el cliente efectivamente complete el pago. No se
+      cuentan como cobranza segura hasta que paguen la primera cuota.
     """
     hoy = datetime.now()
     ventas = db.query(VentaFinanciada).filter(
         VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"])
     ).all()
 
-    este_mes, mes_siguiente = [], []
-    total_este_mes = total_mes_siguiente = 0.0
+    def _bloque_vacio():
+        return {"confirmada": {"total": 0.0, "cantidad": 0, "detalle": []},
+                "potencial": {"total": 0.0, "cantidad": 0, "detalle": []}}
+
+    este_mes, mes_siguiente = _bloque_vacio(), _bloque_vacio()
+
     for v in ventas:
         prox = calcular_proximo_vencimiento(v)
         if not prox:
@@ -196,17 +208,19 @@ async def get_proyeccion_cobranza(
             "cliente_nombre": v.cliente_nombre, "monto": v.valor_cuota or 0,
             "vencimiento": prox.isoformat(),
         }
-        if prox.year == hoy.year and prox.month == hoy.month:
-            este_mes.append(item)
-            total_este_mes += item["monto"]
-        elif (prox.year, prox.month) == ((hoy.year + 1, 1) if hoy.month == 12 else (hoy.year, hoy.month + 1)):
-            mes_siguiente.append(item)
-            total_mes_siguiente += item["monto"]
+        categoria = "confirmada" if (v.cuotas_pagas or 0) > 0 else "potencial"
 
-    return {
-        "este_mes": {"total": total_este_mes, "cantidad": len(este_mes), "detalle": este_mes},
-        "mes_siguiente": {"total": total_mes_siguiente, "cantidad": len(mes_siguiente), "detalle": mes_siguiente},
-    }
+        if prox.year == hoy.year and prox.month == hoy.month:
+            bloque = este_mes[categoria]
+        elif (prox.year, prox.month) == ((hoy.year + 1, 1) if hoy.month == 12 else (hoy.year, hoy.month + 1)):
+            bloque = mes_siguiente[categoria]
+        else:
+            continue
+        bloque["detalle"].append(item)
+        bloque["total"] += item["monto"]
+        bloque["cantidad"] += 1
+
+    return {"este_mes": este_mes, "mes_siguiente": mes_siguiente}
 
 
 @router.get("/api/cobranzas/resumen")

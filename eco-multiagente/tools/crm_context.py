@@ -404,10 +404,21 @@ def _build_context_parts(parts: list, data: dict) -> None:
         pc = data["proyeccion_cobranza"]
         este = pc.get("este_mes", {})
         prox = pc.get("mes_siguiente", {})
+        este_conf = este.get("confirmada", {})
+        este_pot  = este.get("potencial", {})
+        prox_conf = prox.get("confirmada", {})
+        prox_pot  = prox.get("potencial", {})
         lines = [
             "PROYECCIÓN DE COBRANZA (vigencia — vencimiento día 10):",
-            f"  Este mes: {este.get('cantidad',0)} cuotas — $ {este.get('total',0):,.0f}",
-            f"  Mes que viene: {prox.get('cantidad',0)} cuotas — $ {prox.get('total',0):,.0f}",
+            "⚠️ REGLA: 'confirmada' = clientes que ya pagaron al menos 1 cuota real (cobranza sólida). "
+            "'potencial' = clientes que SOLO pagaron la seña/entrada, ninguna cuota todavía — es "
+            "cobranza que depende de que efectivamente paguen, NUNCA la des por segura ni la sumes "
+            "a la confirmada al responder. Si Rodrigo pregunta 'cuánto vamos a cobrar', aclarás las"
+            " dos cifras por separado.",
+            f"  Este mes — CONFIRMADA: {este_conf.get('cantidad',0)} cuotas — $ {este_conf.get('total',0):,.0f}",
+            f"  Este mes — potencial (señada, no confirmar): {este_pot.get('cantidad',0)} cuotas — $ {este_pot.get('total',0):,.0f}",
+            f"  Mes que viene — CONFIRMADA: {prox_conf.get('cantidad',0)} cuotas — $ {prox_conf.get('total',0):,.0f}",
+            f"  Mes que viene — potencial (señada, no confirmar): {prox_pot.get('cantidad',0)} cuotas — $ {prox_pot.get('total',0):,.0f}",
         ]
         parts.append("\n".join(lines))
 

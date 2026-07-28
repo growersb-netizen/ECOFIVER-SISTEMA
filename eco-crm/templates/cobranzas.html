@@ -441,9 +441,9 @@
     }
   }
 
-  function renderTablaProyeccion(titulo, bloque) {
+  function renderTablaProyeccion(titulo, bloque, esPotencial) {
     if (!bloque.detalle.length) {
-      return `<h3 style="margin:20px 0 10px;font-size:15px">${titulo}</h3><div class="empty-state"><p>Sin cuotas proyectadas</p></div>`;
+      return `<h3 style="margin:20px 0 10px;font-size:15px">${titulo}</h3><div class="empty-state"><p>Sin cuotas ${esPotencial ? 'señadas' : 'proyectadas'}</p></div>`;
     }
     return `<h3 style="margin:20px 0 10px;font-size:15px">${titulo}</h3>` +
       '<div class="table-wrapper"><table><thead><tr><th>Cliente</th><th>N° Solicitud</th><th>Vencimiento</th><th style="text-align:right">Monto</th></tr></thead><tbody>' +
@@ -462,13 +462,23 @@
     const container = document.getElementById('proyeccion-container');
     try {
       const data = await API.get('/api/cobranzas/proyeccion');
+      const ec = data.este_mes.confirmada, ep = data.este_mes.potencial;
+      const mc = data.mes_siguiente.confirmada, mp = data.mes_siguiente.potencial;
+
       statsEl.innerHTML =
-        `<div class="stat-card teal"><div class="stat-value">${formatMoney(data.este_mes.total)}</div><div class="stat-label">Cobranza esperada este mes</div><div class="stat-hint">${data.este_mes.cantidad} cuota(s)</div></div>` +
-        `<div class="stat-card teal"><div class="stat-value">${formatMoney(data.mes_siguiente.total)}</div><div class="stat-label">Cobranza esperada mes que viene</div><div class="stat-hint">${data.mes_siguiente.cantidad} cuota(s)</div></div>`;
+        `<div class="stat-card teal"><div class="stat-value">${formatMoney(ec.total)}</div><div class="stat-label">✅ Confirmada — este mes</div><div class="stat-hint">${ec.cantidad} cuota(s) con historial de pago</div></div>` +
+        `<div class="stat-card warning"><div class="stat-value">${formatMoney(ep.total)}</div><div class="stat-label">🕒 Potencial (señada) — este mes</div><div class="stat-hint">${ep.cantidad} venta(s) solo con seña, sin cuotas pagadas aún</div></div>` +
+        `<div class="stat-card teal"><div class="stat-value">${formatMoney(mc.total)}</div><div class="stat-label">✅ Confirmada — mes que viene</div><div class="stat-hint">${mc.cantidad} cuota(s) con historial de pago</div></div>` +
+        `<div class="stat-card warning"><div class="stat-value">${formatMoney(mp.total)}</div><div class="stat-label">🕒 Potencial (señada) — mes que viene</div><div class="stat-hint">${mp.cantidad} venta(s) solo con seña, sin cuotas pagadas aún</div></div>`;
 
       container.innerHTML =
-        renderTablaProyeccion('Este mes', data.este_mes) +
-        renderTablaProyeccion('Mes que viene', data.mes_siguiente);
+        `<div class="alert" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--text-secondary)">
+           🕒 <strong>Potencial</strong> = ventas reales que todavía no pagaron ninguna cuota mensual (solo la seña/entrada) — no está garantizado que ese ingreso se concrete. No sumar a la cobranza confirmada hasta que paguen la primera cuota.
+         </div>` +
+        renderTablaProyeccion('✅ Este mes — Confirmada', ec, false) +
+        renderTablaProyeccion('🕒 Este mes — Potencial (señada)', ep, true) +
+        renderTablaProyeccion('✅ Mes que viene — Confirmada', mc, false) +
+        renderTablaProyeccion('🕒 Mes que viene — Potencial (señada)', mp, true);
     } catch (e) {
       container.innerHTML = `<div class="alert alert-error">Error al cargar proyección: ${e.message}</div>`;
     }

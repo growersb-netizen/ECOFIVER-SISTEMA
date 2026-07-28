@@ -39,9 +39,19 @@ def _abs_url(request: Request, path: str) -> str:
     por defecto, así que request.base_url suele devolver "http://" aunque el
     tráfico real llegue por HTTPS detrás del proxy de Railway — se prioriza el
     header por sobre el scheme que infiere Starlette.
+
+    Las llamadas service-to-service dentro de Railway (ej. eco-multiagente →
+    eco-crm) no pasan por el proxy público: el Host que llega es el DNS
+    interno "*.railway.internal", inalcanzable desde afuera (Claude, un
+    navegador). En ese caso se ignora el host de la request y se usa el
+    dominio público real de la variable de entorno que Railway inyecta solo.
     """
-    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+    if host and ".railway.internal" in host:
+        public_host = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+        if public_host:
+            return f"https://{public_host}{path}"
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
     return f"{proto}://{host}{path}"
 
 

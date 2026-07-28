@@ -225,3 +225,47 @@ async def registrar_pago_historico(
     db.commit()
     db.refresh(cliente)
     return {"ok": True, "cliente": _cliente_dict(cliente)}
+
+
+@router.post("/api/cobranza-historica/aplicar-icac")
+async def aplicar_icac_historico(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(_require_access),
+):
+    """
+    Indexación mensual por ICAC para Construsol — por defecto solo aplica a
+    "viviendas" (las piscinas de Construsol no indexan por CAC, según los
+    datos reales de la cartera). cuota_nueva = cuota_actual × (1 + pct/100).
+    """
+    body = await request.json()
+    pct = float(body.get("pct") or 0)
+    linea = body.get("linea", "viviendas")
+    if pct <= 0:
+        raise HTTPException(400, "pct debe ser mayor a 0")
+    if linea not in LINEAS_VALIDAS:
+        raise HTTPException(400, f"linea debe ser una de: {sorted(LINEAS_VALIDAS)}")
+
+    clientes = db.query(ClienteCobranzaHistorica).filter(
+        ClienteCobranzaHistorica.empresa == "construsol",
+        ClienteCobranzaHistorica.linea == linea,
+        ClienteCobranzaHistorica.estado_plan != "CANCELADO",
+    ).all()
+
+    ahora = datetime.now()
+    afectados = []
+    for c in clientes:
+        anterior = c.cuota_actual or 0
+        nueva = round(anterior * (1 + pct / 100))
+        c.cuota_actual = nueva
+        c.cac_pct = pct
+        c.ultima_indexacion = ahora
+        c.notas = (c.notas or "").strip()
+        c.notas += f"\n[ICAC {ahora:%m/%Y}: +{pct}%] cuota ${anterior:,.0f} → ${nueva:,.0f}"
+        afectados.append({
+            "id": c.id, "apellido_nombre": c.apellido_nombre,
+            "cuota_anterior": anterior, "cuota_nueva": nueva,
+        })
+
+    db.commit()
+    return {"ok": True, "pct": pct, "linea": linea, "cantidad_actualizados": len(afectados), "clientes": afectados}

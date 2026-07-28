@@ -123,6 +123,10 @@ def run_migrations():
             "ALTER TABLE contratos ADD COLUMN tipo_documento TEXT DEFAULT 'CONTRATO'",
             # ── VentaFinanciada: objetivo real de pago_inicial (saldo de inscripción) ──
             "ALTER TABLE ventas_financiadas ADD COLUMN monto_inscripcion REAL",
+            # ── Indexación ICAC mensual (módulos/viviendas) ──
+            "ALTER TABLE ventas_financiadas ADD COLUMN cac_pct REAL",
+            "ALTER TABLE ventas_financiadas ADD COLUMN ultima_indexacion TIMESTAMP",
+            "ALTER TABLE clientes_cobranza_historica ADD COLUMN ultima_indexacion TIMESTAMP",
         ]
         for stmt in migrations:
             try:

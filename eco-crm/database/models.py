@@ -327,6 +327,8 @@ class VentaFinanciada(Base):
     cliente_estado_civil = Column(String(30), nullable=True)
     cliente_ocupacion = Column(String(100), nullable=True)
     cliente_email = Column(String(150), nullable=True)
+    cac_pct = Column(Float, nullable=True)  # último % de ICAC aplicado (solo módulos/viviendas)
+    ultima_indexacion = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -1302,6 +1304,7 @@ class ClienteCobranzaHistorica(Base):
     precio_total = Column(Float, nullable=True)
     cuota_actual = Column(Float, default=0)                  # valor de la cuota vigente este mes (con CAC aplicado)
     cac_pct = Column(Float, nullable=True)                   # último coeficiente de ajuste aplicado (%)
+    ultima_indexacion = Column(DateTime(timezone=True), nullable=True)
     estado_plan = Column(String(20), default="ACTIVO")       # ACTIVO | ATRASADO | FINALIZADO | CANCELADO
     notas = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

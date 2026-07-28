@@ -523,3 +523,46 @@ async def corregir_fechas_historico(
 
     db.commit()
     return {"ok": True, "corregidas": corregidas, "total": len(corregidas)}
+
+
+@router.post("/api/ventas-financiadas/aplicar-icac")
+async def aplicar_icac(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey),
+):
+    """
+    Indexación mensual por ICAC — SOLO aplica a módulos (viviendas
+    industrializadas): las piscinas no indexan por CAC. El cobrador ingresa
+    el % del mes y se aplica sobre la cuota VIGENTE de cada venta de módulo
+    activa/atrasada: cuota_nueva = cuota_actual × (1 + pct/100). Queda
+    registrado en cac_pct/ultima_indexacion y una línea en notas por
+    trazabilidad (no hay tabla de historial de cuotas separada).
+    """
+    body = await request.json()
+    pct = float(body.get("pct") or 0)
+    if pct <= 0:
+        raise HTTPException(400, "pct debe ser mayor a 0")
+
+    ventas = db.query(VentaFinanciada).filter(
+        VentaFinanciada.producto == "MODULO",
+        VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"]),
+    ).all()
+
+    ahora = datetime.now()
+    afectados = []
+    for v in ventas:
+        anterior = v.valor_cuota or 0
+        nueva = round(anterior * (1 + pct / 100))
+        v.valor_cuota = nueva
+        v.cac_pct = pct
+        v.ultima_indexacion = ahora
+        v.notas = (v.notas or "").strip()
+        v.notas += f"\n[ICAC {ahora:%m/%Y}: +{pct}%] cuota ${anterior:,.0f} → ${nueva:,.0f}"
+        afectados.append({
+            "id": v.id, "cliente_nombre": v.cliente_nombre,
+            "cuota_anterior": anterior, "cuota_nueva": nueva,
+        })
+
+    db.commit()
+    return {"ok": True, "pct": pct, "cantidad_actualizados": len(afectados), "clientes": afectados}

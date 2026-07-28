@@ -13,18 +13,25 @@
 
 <!-- ═══════════════════ TAB: CARTERA ═══════════════════ -->
 <div id="tab-cob-cartera">
+  <div class="tabs" id="subtabs-cartera-producto" style="margin-bottom:16px">
+    <button class="tab active" onclick="showProductoCartera('PISCINA', this)">🏊 Piscinas</button>
+    <button class="tab" onclick="showProductoCartera('MODULO', this)">🏠 Módulos (viviendas)</button>
+  </div>
+
+  <div id="icac-ecofiver-box" style="display:none;margin-bottom:16px">
+    <div class="card" style="padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <strong>📐 Indexación ICAC del mes:</strong>
+      <input type="number" id="icac-ecofiver-pct" class="form-control" style="max-width:120px" placeholder="% ej. 4.5" step="0.1">
+      <button class="btn btn-primary btn-sm" onclick="confirmarAplicarIcacEcoFiver()">Aplicar a todos los módulos</button>
+    </div>
+  </div>
+
   <!-- Stats rápidas -->
   <div class="stats-grid" id="cobranza-stats"></div>
 
   <div class="filters-bar">
     <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
            oninput="filtrarCartera(this.value)">
-    <select class="form-control" style="max-width:160px" id="cartera-producto-filtro" onchange="filtrarCarteraPorProducto(this.value)">
-      <option value="">Todos los productos</option>
-      <option value="PISCINA">Piscinas</option>
-      <option value="MODULO">Módulos (viviendas)</option>
-      <option value="COMBO">Combo</option>
-    </select>
     <select class="form-control" style="max-width:160px" onchange="ordenarCartera(this.value)">
       <option value="atraso">Mayor atraso primero</option>
       <option value="nombre">Por nombre</option>
@@ -59,14 +66,22 @@
     🏗️ Cartera de Construsol — totalmente independiente de EcoFiver. No comparte clientes, contadores ni cálculos.
   </div>
 
+  <div class="tabs" id="subtabs-construsol-linea" style="margin-bottom:16px">
+    <button class="tab active" onclick="showLineaConstrusol('viviendas', this)">🏠 Viviendas</button>
+    <button class="tab" onclick="showLineaConstrusol('piscinas', this)">🏊 Piscinas</button>
+  </div>
+
+  <div id="icac-construsol-box" style="margin-bottom:16px">
+    <div class="card" style="padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <strong>📐 Indexación ICAC del mes:</strong>
+      <input type="number" id="icac-construsol-pct" class="form-control" style="max-width:120px" placeholder="% ej. 4.5" step="0.1">
+      <button class="btn btn-primary btn-sm" onclick="confirmarAplicarIcacConstrusol()">Aplicar a todas las viviendas</button>
+    </div>
+  </div>
+
   <div class="stats-grid" id="construsol-stats"></div>
 
   <div class="filters-bar">
-    <select class="form-control" style="max-width:200px" id="construsol-linea-filtro" onchange="loadConstrusol()">
-      <option value="">Todas las líneas</option>
-      <option value="viviendas">Viviendas</option>
-      <option value="piscinas">Piscinas</option>
-    </select>
     <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
            oninput="filtrarConstrusol(this.value)">
     <button class="btn btn-primary btn-sm" onclick="openNuevoClienteConstrusol()">+ Nuevo cliente</button>
@@ -214,10 +229,20 @@
 
   // ═══════════════════ CONSTRUSOL (cobranza histórica) ═══════════════════
 
+  let construsolLineaActiva = 'viviendas';
+
+  function showLineaConstrusol(linea, btn) {
+    document.querySelectorAll('#subtabs-construsol-linea .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    construsolLineaActiva = linea;
+    document.getElementById('icac-construsol-box').style.display = linea === 'viviendas' ? '' : 'none';
+    loadConstrusol();
+  }
+
   async function loadConstrusol() {
     const statsEl = document.getElementById('construsol-stats');
     const container = document.getElementById('construsol-container');
-    const linea = document.getElementById('construsol-linea-filtro').value;
+    const linea = construsolLineaActiva;
     container.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando Construsol...</div>';
     try {
       const [resumen, clientes] = await Promise.all([
@@ -344,6 +369,25 @@
     }
   }
 
+  async function confirmarAplicarIcacConstrusol() {
+    const pct = parseFloat(document.getElementById('icac-construsol-pct').value || '0');
+    if (!pct || pct <= 0) return showToast('Ingresá un % válido', 'error');
+    const cantidad = construsolData.filter(c => c.linea === 'viviendas').length;
+    const ok = await showConfirm(
+      `Se va a aplicar +${pct}% a la cuota de ${cantidad} cliente(s) de viviendas de Construsol. Esta acción actualiza las cuotas reales y no se puede deshacer con un click. ¿Confirmás?`,
+      'Aplicar indexación ICAC — Construsol'
+    );
+    if (!ok) return;
+    try {
+      const r = await API.post('/api/cobranza-historica/aplicar-icac', { pct, linea: 'viviendas' });
+      showToast(`✓ ${r.cantidad_actualizados} cuota(s) de viviendas actualizadas (+${pct}%)`, 'success');
+      document.getElementById('icac-construsol-pct').value = '';
+      loadConstrusol();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
   function renderGrupoMorosos(titulo, items, icono) {
     if (!items.length) return '';
     return `<h3 style="margin:20px 0 10px;font-size:15px">${icono} ${titulo} (${items.length})</h3>` +
@@ -431,12 +475,15 @@
   }
 
   let carteraBusquedaActiva = '';
-  let carteraProductoActivo = '';
+  let carteraProductoActivo = 'PISCINA'; // arranca en la solapa Piscinas (default de la UI)
 
   function _aplicarTodosLosFiltrosCartera() {
     let filtrados = carteraData;
-    if (carteraProductoActivo) {
-      filtrados = filtrados.filter(v => v.producto === carteraProductoActivo);
+    if (carteraProductoActivo === 'MODULO') {
+      filtrados = filtrados.filter(v => v.producto === 'MODULO');
+    } else if (carteraProductoActivo === 'PISCINA') {
+      // El combo lleva piscina + módulo — se agrupa junto a Piscinas.
+      filtrados = filtrados.filter(v => v.producto === 'PISCINA' || v.producto === 'COMBO');
     }
     if (carteraBusquedaActiva) {
       const q = carteraBusquedaActiva.toLowerCase();
@@ -469,9 +516,32 @@
     if (badge) badge.style.display = cobFiltroActivo ? 'inline-block' : 'none';
   }
 
-  function filtrarCarteraPorProducto(producto) {
+  function showProductoCartera(producto, btn) {
+    document.querySelectorAll('#subtabs-cartera-producto .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
     carteraProductoActivo = producto;
+    document.getElementById('icac-ecofiver-box').style.display = producto === 'MODULO' ? '' : 'none';
     _aplicarTodosLosFiltrosCartera();
+  }
+
+  async function confirmarAplicarIcacEcoFiver() {
+    const pct = parseFloat(document.getElementById('icac-ecofiver-pct').value || '0');
+    if (!pct || pct <= 0) return showToast('Ingresá un % válido', 'error');
+    const cantidad = carteraData.filter(v => v.producto === 'MODULO').length;
+    const ok = await showConfirm(
+      `Se va a aplicar +${pct}% a la cuota de ${cantidad} cliente(s) de módulos de EcoFiver. Esta acción actualiza las cuotas reales y no se puede deshacer con un click. ¿Confirmás?`,
+      'Aplicar indexación ICAC — EcoFiver'
+    );
+    if (!ok) return;
+    try {
+      const r = await API.post('/api/ventas-financiadas/aplicar-icac', { pct });
+      showToast(`✓ ${r.cantidad_actualizados} cuota(s) de módulos actualizadas (+${pct}%)`, 'success');
+      document.getElementById('icac-ecofiver-pct').value = '';
+      await window.loadCartera();
+      _aplicarTodosLosFiltrosCartera();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
   }
 
   // ── Reemplaza la loadCartera de main.js con la versión completa de esta página ──

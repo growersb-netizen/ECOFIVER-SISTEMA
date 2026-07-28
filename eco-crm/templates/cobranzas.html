@@ -19,6 +19,12 @@
   <div class="filters-bar">
     <input type="text" class="form-control search-input" placeholder="🔍 Buscar cliente..."
            oninput="filtrarCartera(this.value)">
+    <select class="form-control" style="max-width:160px" id="cartera-producto-filtro" onchange="filtrarCarteraPorProducto(this.value)">
+      <option value="">Todos los productos</option>
+      <option value="PISCINA">Piscinas</option>
+      <option value="MODULO">Módulos (viviendas)</option>
+      <option value="COMBO">Combo</option>
+    </select>
     <select class="form-control" style="max-width:160px" onchange="ordenarCartera(this.value)">
       <option value="atraso">Mayor atraso primero</option>
       <option value="nombre">Por nombre</option>
@@ -424,6 +430,26 @@
     }
   }
 
+  let carteraBusquedaActiva = '';
+  let carteraProductoActivo = '';
+
+  function _aplicarTodosLosFiltrosCartera() {
+    let filtrados = carteraData;
+    if (carteraProductoActivo) {
+      filtrados = filtrados.filter(v => v.producto === carteraProductoActivo);
+    }
+    if (carteraBusquedaActiva) {
+      const q = carteraBusquedaActiva.toLowerCase();
+      filtrados = filtrados.filter(v =>
+        v.cliente_nombre.toLowerCase().includes(q) ||
+        (v.cliente_localidad || '').toLowerCase().includes(q)
+      );
+    }
+    if (cobFiltroActivo === 'vencidas')   filtrados = filtrados.filter(v => v.dias_atraso > 0);
+    if (cobFiltroActivo === 'vencen_hoy') filtrados = filtrados.filter(v => v.alerta === 'AMARILLA' && v.dias_atraso === 0);
+    renderCartera(filtrados);
+  }
+
   function aplicarFiltroCob(tipo) {
     cobFiltroActivo = cobFiltroActivo === tipo ? null : tipo; // toggle
     // Resaltar tarjeta activa
@@ -437,18 +463,15 @@
         if (cards[idx]) cards[idx].style.opacity = '1';
       }
     }
-    // Filtrar lista
-    if (!cobFiltroActivo) { renderCartera(carteraData); return; }
-    const hoy = new Date().toISOString().split('T')[0];
-    const filtrados = carteraData.filter(v => {
-      if (cobFiltroActivo === 'vencidas')   return v.dias_atraso > 0;
-      if (cobFiltroActivo === 'vencen_hoy') return v.alerta === 'AMARILLA' && v.dias_atraso === 0;
-      return true;
-    });
-    renderCartera(filtrados);
+    _aplicarTodosLosFiltrosCartera();
     // Mostrar badge de filtro activo
     const badge = document.getElementById('cob-filtro-badge');
     if (badge) badge.style.display = cobFiltroActivo ? 'inline-block' : 'none';
+  }
+
+  function filtrarCarteraPorProducto(producto) {
+    carteraProductoActivo = producto;
+    _aplicarTodosLosFiltrosCartera();
   }
 
   // ── Reemplaza la loadCartera de main.js con la versión completa de esta página ──
@@ -549,15 +572,12 @@
   }
 
   function filtrarCartera(search) {
-    const q = search.toLowerCase();
-    renderCartera(carteraData.filter(v =>
-      v.cliente_nombre.toLowerCase().includes(q) ||
-      (v.cliente_localidad || '').toLowerCase().includes(q)
-    ));
+    carteraBusquedaActiva = search;
+    _aplicarTodosLosFiltrosCartera();
   }
 
   function ordenarCartera(orden) {
-    const sorted = [...carteraData].sort((a, b) => {
+    carteraData.sort((a, b) => {
       if (orden === 'atraso') return (b.dias_atraso || 0) - (a.dias_atraso || 0);
       if (orden === 'nombre') return a.cliente_nombre.localeCompare(b.cliente_nombre);
       if (orden === 'vcto') {
@@ -567,7 +587,7 @@
       }
       return 0;
     });
-    renderCartera(sorted);
+    _aplicarTodosLosFiltrosCartera();
   }
 
   async function init() {

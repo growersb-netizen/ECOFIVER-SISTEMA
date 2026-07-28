@@ -162,6 +162,7 @@ class Franco(BaseAgent):
         super().__init__(
             name="Franco",
             system_prompt=_SYSTEM_PROMPT,
+            atiende_clientes=False,  # habla con Aliados/postulantes, nunca con clientes finales
         )
 
 

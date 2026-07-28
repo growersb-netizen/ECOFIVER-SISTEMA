@@ -19,9 +19,12 @@ logger = logging.getLogger(__name__)
 PREGUNTAS = [
     {
         "num": 1,
-        "texto": "¿En qué provincia opera el programa de Aliados Comerciales?",
+        "texto": "¿En qué zona geográfica opera el programa de Aliados Comerciales?",
         "tipo": "cerrada",
-        "respuesta_correcta": ["buenos aires", "pba", "provincia de buenos aires"],
+        "respuesta_correcta": [
+            "todo el pais", "en todo el pais", "todo el país", "en todo el país",
+            "nacional", "argentina", "todo el territorio nacional", "en todo el territorio nacional",
+        ],
     },
     {
         "num": 2,

@@ -363,6 +363,35 @@ async def _finalizar_quiz(session_id: str, franco) -> dict:
     }
 
 
+_PALABRAS_CLAVE_ALIADOS = ("aliado", "aliados", "socio comercial", "reclutamiento")
+
+
+async def _es_canal_aliados(session_id: str, mensaje: str) -> bool:
+    """
+    El canal de Aliados comparte el mismo número de WhatsApp que los clientes
+    (no hay una línea dedicada) — esta función detecta si un mensaje entrante
+    en realidad corresponde a un Aliado/postulante, para no perderlo en el
+    flujo normal de leads:
+    (a) el teléfono ya está en medio del quiz de postulación,
+    (b) el teléfono ya es un Aliado real registrado en el CRM, o
+    (c) el mensaje contiene la palabra clave de la campaña de reclutamiento
+        (ej. "Escribinos ALIADO a este WhatsApp").
+    """
+    from tools.franco_quiz import esta_en_quiz
+    if esta_en_quiz(session_id):
+        return True
+    texto = (mensaje or "").lower()
+    if any(p in texto for p in _PALABRAS_CLAVE_ALIADOS):
+        return True
+    try:
+        aliado = await crm_client.get_aliado_por_telefono(session_id)
+        if aliado:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 async def route_message(
     canal: str,
     session_id: str,
@@ -388,6 +417,13 @@ async def route_message(
 
     # ── Canal aliados: mensajes del grupo de aliados → Franco ───────────────
     if canal == "aliados_wa":
+        return await _route_aliados(session_id, mensaje, msg_type)
+
+    # ── Detección de Aliados sobre el WhatsApp compartido con clientes ─────
+    # No hay línea de WhatsApp dedicada a Aliados — sin esto, un postulante
+    # o Aliado activo que escribe por el mismo número termina asignado a
+    # Valentina como un lead más, y nunca llega al quiz ni a Franco.
+    if canal == "whatsapp" and await _es_canal_aliados(session_id, mensaje):
         return await _route_aliados(session_id, mensaje, msg_type)
 
     # ── 1. Determinar agente: cache local primero, luego CRM ───────────────

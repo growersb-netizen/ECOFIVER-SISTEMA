@@ -127,6 +127,9 @@ def run_migrations():
             "ALTER TABLE ventas_financiadas ADD COLUMN cac_pct REAL",
             "ALTER TABLE ventas_financiadas ADD COLUMN ultima_indexacion TIMESTAMP",
             "ALTER TABLE clientes_cobranza_historica ADD COLUMN ultima_indexacion TIMESTAMP",
+            # ── Excepción de CAC por cliente (reemplaza al % general al indexar) ──
+            "ALTER TABLE ventas_financiadas ADD COLUMN cac_excepcion_pct REAL",
+            "ALTER TABLE clientes_cobranza_historica ADD COLUMN cac_excepcion_pct REAL",
         ]
         for stmt in migrations:
             try:

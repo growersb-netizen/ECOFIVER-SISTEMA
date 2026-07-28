@@ -178,6 +178,33 @@
   </div>
 </div>
 
+<!-- Modal excepción CAC (compartido EcoFiver/Construsol) -->
+<div class="modal-overlay" id="modal-cac-excepcion" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Excepción de ICAC</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-cac-excepcion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <div id="cac-excepcion-cliente" style="font-weight:700;margin-bottom:4px"></div>
+        <div style="font-size:13px;color:var(--text-secondary)">
+          Si este cliente tiene un % propio (no se rige por el índice general del mes), cargalo acá.
+          Al aplicar el ICAC mensual, este % reemplaza al general SOLO para este cliente.
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">% propio de este cliente</label>
+        <input type="number" id="cac-excepcion-pct" class="form-control" placeholder="ej. 3.5" step="0.1">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="quitarExcepcionCac()" class="btn btn-secondary">Quitar excepción</button>
+      <button onclick="guardarExcepcionCac()" class="btn btn-primary btn-lg">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal registrar pago (EcoFiver) -->
 <div class="modal-overlay" id="modal-pago-ecofiver" style="display:none">
   <div class="modal" style="max-width:420px">
@@ -331,12 +358,18 @@
           </div>
         </div>
         ${c.ultimo_pago ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Último pago: ${formatMoney(c.ultimo_pago.monto)} · ${formatDate(c.ultimo_pago.fecha_pago)}</div>` : ''}
+        ${c.linea === 'viviendas' && c.cac_excepcion_pct != null
+          ? `<div style="font-size:12px;color:var(--warning);margin-top:6px">⚙️ CAC propio: ${c.cac_excepcion_pct}% (no sigue el índice general)</div>`
+          : ''}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
           ${c.telefono ? `<a href="${whatsappLink(c.telefono, '')}" target="_blank" class="btn btn-whatsapp btn-sm">📱 WhatsApp</a>` : ''}
           <button onclick="openPagoConstrusol(${c.id}, ${c.cuota_actual || 0}, '${(c.apellido_nombre || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-primary">💰 Registrar pago</button>
           <button onclick="toggleAtrasoConstrusol(${c.id}, '${c.estado_plan}')" class="btn btn-sm btn-ghost">
             ${c.estado_plan === 'ATRASADO' ? '✓ Marcar al día' : '⚠ Marcar atrasado'}
           </button>
+          ${c.linea === 'viviendas'
+            ? `<button onclick="openCacExcepcion('construsol', ${c.id}, ${c.cac_excepcion_pct != null ? c.cac_excepcion_pct : 'null'}, '${(c.apellido_nombre || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-ghost">⚙️ CAC propio</button>`
+            : ''}
           <span style="font-size:12px;color:var(--text-muted)">${c.telefono || ''}</span>
         </div>
       </div>
@@ -464,6 +497,53 @@
       showToast(`✓ ${r.cantidad_actualizados} cuota(s) de viviendas actualizadas (+${pct}%)`, 'success');
       document.getElementById('icac-construsol-pct').value = '';
       loadConstrusol();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  // ═══════════════════ EXCEPCIÓN DE CAC POR CLIENTE (EcoFiver + Construsol) ═══════════════════
+
+  let cacExcepcionSistema = null; // 'ecofiver' | 'construsol'
+  let cacExcepcionId = null;
+
+  function openCacExcepcion(sistema, id, pctActual, nombre) {
+    cacExcepcionSistema = sistema;
+    cacExcepcionId = id;
+    document.getElementById('cac-excepcion-cliente').textContent = nombre;
+    document.getElementById('cac-excepcion-pct').value = (pctActual === null || pctActual === undefined) ? '' : pctActual;
+    document.getElementById('modal-cac-excepcion').style.display = 'flex';
+  }
+
+  async function _guardarCacExcepcionValor(valor) {
+    const url = cacExcepcionSistema === 'ecofiver'
+      ? `/api/ventas-financiadas/${cacExcepcionId}`
+      : `/api/cobranza-historica/clientes/${cacExcepcionId}`;
+    await API.put(url, { cac_excepcion_pct: valor });
+    closeModal('modal-cac-excepcion');
+    if (cacExcepcionSistema === 'ecofiver') {
+      await window.loadCartera();
+      _aplicarTodosLosFiltrosCartera();
+    } else {
+      loadConstrusol();
+    }
+  }
+
+  async function guardarExcepcionCac() {
+    const pct = parseFloat(document.getElementById('cac-excepcion-pct').value);
+    if (isNaN(pct)) return showToast('Ingresá un % válido', 'error');
+    try {
+      await _guardarCacExcepcionValor(pct);
+      showToast('Excepción de CAC guardada ✓', 'success');
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  async function quitarExcepcionCac() {
+    try {
+      await _guardarCacExcepcionValor(null);
+      showToast('Excepción quitada — vuelve a seguir el índice general', 'success');
     } catch (e) {
       showToast(`Error: ${e.message}`, 'error');
     }
@@ -688,6 +768,10 @@
             <span>Próx. ${v.proximo_vencimiento ? formatDate(v.proximo_vencimiento) : '—'} · ${formatMoney(v.monto_proxima_cuota)}</span>
           </div>
 
+          ${v.producto === 'MODULO' && v.cac_excepcion_pct != null
+            ? `<div style="font-size:12px;color:var(--warning);margin-top:6px">⚙️ CAC propio: ${v.cac_excepcion_pct}% (no sigue el índice general)</div>`
+            : ''}
+
           ${v.ultimo_contacto
             ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">
                  Último contacto: ${formatDate(v.ultimo_contacto)} · ${v.ultimo_resultado || ''}
@@ -705,6 +789,9 @@
             <button onclick="openGestion(${v.id})" class="btn btn-sm btn-secondary">
               + Registrar gestión
             </button>
+            ${v.producto === 'MODULO'
+              ? `<button onclick="openCacExcepcion('ecofiver', ${v.id}, ${v.cac_excepcion_pct != null ? v.cac_excepcion_pct : 'null'}, '${(v.cliente_nombre || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-ghost">⚙️ CAC propio</button>`
+              : ''}
             <span style="font-size:12px;color:var(--text-muted)">${v.cliente_telefono || ''}</span>
           </div>
         </div>

@@ -108,6 +108,8 @@ def venta_to_dict(v: VentaFinanciada) -> dict:
         "estado_plan": v.estado_plan or "ACTIVO",
         "estado_admision": v.estado_admision,
         "notas": v.notas or "",
+        "cac_pct": v.cac_pct,
+        "cac_excepcion_pct": v.cac_excepcion_pct,
         "created_at": v.created_at.isoformat() if v.created_at else "",
         "alerta": "ROJA" if atraso > 0 else ("AMARILLA" if proximo_vcto and (proximo_vcto - datetime.now()).days <= 3 else None),
     }
@@ -273,7 +275,8 @@ async def update_venta_financiada(
                   "anticipo", "cantidad_cuotas", "valor_cuota", "cuotas_pagas",
                   "asesor_apertura_id", "supervisor_cierre_id", "estado_plan",
                   "estado_admision", "notas", "cliente_dni", "cliente_cuil",
-                  "cliente_domicilio", "cliente_estado_civil", "cliente_ocupacion", "cliente_email"]:
+                  "cliente_domicilio", "cliente_estado_civil", "cliente_ocupacion", "cliente_email",
+                  "cac_excepcion_pct"]:
         if field in data:
             setattr(venta, field, data[field])
 
@@ -567,16 +570,21 @@ async def aplicar_icac(
     ahora = datetime.now()
     afectados = []
     for v in ventas:
+        # Excepción por cliente: si tiene su propio % cargado, se usa ese en
+        # vez del % general del mes — hay clientes que no se rigen por el
+        # índice oficial.
+        pct_aplicado = v.cac_excepcion_pct if v.cac_excepcion_pct is not None else pct
         anterior = v.valor_cuota or 0
-        nueva = round(anterior * (1 + pct / 100))
+        nueva = round(anterior * (1 + pct_aplicado / 100))
         v.valor_cuota = nueva
-        v.cac_pct = pct
+        v.cac_pct = pct_aplicado
         v.ultima_indexacion = ahora
         v.notas = (v.notas or "").strip()
-        v.notas += f"\n[ICAC {ahora:%m/%Y}: +{pct}%] cuota ${anterior:,.0f} → ${nueva:,.0f}"
+        etiqueta = f"+{pct_aplicado}% (excepción propia)" if v.cac_excepcion_pct is not None else f"+{pct_aplicado}%"
+        v.notas += f"\n[ICAC {ahora:%m/%Y}: {etiqueta}] cuota ${anterior:,.0f} → ${nueva:,.0f}"
         afectados.append({
             "id": v.id, "cliente_nombre": v.cliente_nombre,
-            "cuota_anterior": anterior, "cuota_nueva": nueva,
+            "cuota_anterior": anterior, "cuota_nueva": nueva, "pct_aplicado": pct_aplicado,
         })
 
     db.commit()

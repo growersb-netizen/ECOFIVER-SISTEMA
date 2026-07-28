@@ -184,6 +184,7 @@ def _cliente_dict(c: ClienteCobranzaHistorica) -> dict:
         "precio_total": c.precio_total,
         "cuota_actual": c.cuota_actual or 0,
         "cac_pct": c.cac_pct,
+        "cac_excepcion_pct": c.cac_excepcion_pct,
         "estado_plan": c.estado_plan or "ACTIVO",
         "notas": c.notas or "",
         "ultimo_pago": (
@@ -311,7 +312,7 @@ async def actualizar_cliente_historico(
     campos_editables = (
         "linea", "proyecto", "apellido_nombre", "telefono", "dni", "metros_o_modelo",
         "cantidad_cuotas", "anticipo", "precio_total", "cuota_actual", "cac_pct",
-        "estado_plan", "notas",
+        "cac_excepcion_pct", "estado_plan", "notas",
     )
     for campo in campos_editables:
         if campo in body:
@@ -402,15 +403,17 @@ async def aplicar_icac_historico(
     ahora = datetime.now()
     afectados = []
     for c in clientes:
+        pct_aplicado = c.cac_excepcion_pct if c.cac_excepcion_pct is not None else pct
         anterior = c.cuota_actual or 0
-        nueva = round(anterior * (1 + pct / 100))
+        nueva = round(anterior * (1 + pct_aplicado / 100))
         c.cuota_actual = nueva
-        c.cac_pct = pct
+        c.cac_pct = pct_aplicado
         c.ultima_indexacion = ahora
         c.notas = (c.notas or "").strip()
-        c.notas += f"\n[ICAC {ahora:%m/%Y}: +{pct}%] cuota ${anterior:,.0f} → ${nueva:,.0f}"
+        etiqueta = f"+{pct_aplicado}% (excepción propia)" if c.cac_excepcion_pct is not None else f"+{pct_aplicado}%"
+        c.notas += f"\n[ICAC {ahora:%m/%Y}: {etiqueta}] cuota ${anterior:,.0f} → ${nueva:,.0f}"
         afectados.append({
-            "id": c.id, "apellido_nombre": c.apellido_nombre,
+            "id": c.id, "apellido_nombre": c.apellido_nombre, "pct_aplicado": pct_aplicado,
             "cuota_anterior": anterior, "cuota_nueva": nueva,
         })
 

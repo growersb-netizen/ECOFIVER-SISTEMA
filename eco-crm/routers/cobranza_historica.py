@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from database.database import get_db
 from database.models import ClienteCobranzaHistorica, PagoCobranzaHistorica, Contrato, Usuario
 from routers.auth import require_auth_or_apikey, get_user_roles
-from utils.documentos import render_html, html_to_pdf, monto_en_letras, split_nombre_apellido
+from utils.documentos import render_html, html_to_pdf, monto_en_letras
 
 router = APIRouter()
 
@@ -30,6 +30,28 @@ def _fmt_ar(monto) -> str:
         return f"{float(monto or 0):,.0f}".replace(",", ".")
     except Exception:
         return "0"
+
+
+def _split_nombre_construsol(apellido_nombre: str) -> tuple[str, str]:
+    """
+    Convención de origen de Construsol: "APELLIDO NOMBRE" (apellido primero) —
+    al revés que la convención de EcoFiver ("Apellido, Nombre") que usa
+    split_nombre_apellido(). Para 2 palabras se asume 1ra=apellido, 2da=nombre
+    (patrón verificado contra los datos reales: "GONZALEZ ELSA", "LEDESMA
+    ALCIRA", etc.). Con 3+ palabras hay ambigüedad real (apellido compuesto
+    vs. nombre compuesto, ej. "DE LA VIÑA ENRIQUE") — se muestra el nombre
+    completo sin partir para no adivinar mal.
+    """
+    partes = (apellido_nombre or "").strip().split()
+    if len(partes) == 2:
+        return partes[1], partes[0]  # nombre, apellido
+    return "", apellido_nombre or ""
+
+
+_PRODUCTO_LABEL_CONSTRUSOL = {
+    "viviendas": "Vivienda Industrializada",
+    "piscinas": "Piscina de Fibra de Vidrio",
+}
 
 
 async def generar_recibo_pdf_construsol(
@@ -48,7 +70,7 @@ async def generar_recibo_pdf_construsol(
     porque esta cartera residual no trackea el progreso completo del plan —
     el recibo muestra la cuota vigente y el monto recibido, no el cierre.
     """
-    nombre, apellido = split_nombre_apellido(cliente.apellido_nombre)
+    nombre, apellido = _split_nombre_construsol(cliente.apellido_nombre)
     fecha_recibo = fecha_pago or datetime.now()
 
     tabla_filas = (
@@ -81,6 +103,7 @@ async def generar_recibo_pdf_construsol(
         "domicilio_completo": cliente.proyecto or "",
         "localidad": "",
         "modelo": cliente.metros_o_modelo or cliente.linea,
+        "tipo_producto_label": _PRODUCTO_LABEL_CONSTRUSOL.get(cliente.linea, "Vivienda Industrializada"),
         "valor_mercado": _fmt_ar(cliente.precio_total),
         "pago_inicial": _fmt_ar(cliente.anticipo),
         "cant_cuotas": str(cliente.cantidad_cuotas or ""),

@@ -31,6 +31,15 @@ TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
 
 UMBRAL_REDONDEO_INSCRIPCION = 5.0  # diferencias de hasta $5 (redondeo de comprobante) cuentan como saldo 0
 
+# Etiqueta del producto para el recibo — antes estaba hardcodeada a "Piscina de
+# Fibra de Vidrio" en el template, así que un recibo de MÓDULO salía con el
+# nombre de producto equivocado.
+_PRODUCTO_LABEL_RECIBO = {
+    "PISCINA": "Piscina de Fibra de Vidrio",
+    "COMBO": "Combo Piscina + Módulo",
+    "MODULO": "Módulo Habitacional Industrializado",
+}
+
 
 def _abs_url(request: Request, path: str) -> str:
     """
@@ -563,6 +572,7 @@ async def emitir_contrato(
         "check_efectivo": "", "mark_efectivo": "",
         "check_transferencia": "", "mark_transferencia": "",
         "firma_productor_block": "",
+        "tipo_producto_label": _PRODUCTO_LABEL_RECIBO.get(venta.producto, "Piscina de Fibra de Vidrio"),
     }
     context.update(_venta_base_dict(venta))
     context.update(overrides)
@@ -661,6 +671,7 @@ async def generar_recibo_pdf(
         "modalidad": modalidad,
         "concepto": concepto,
         "domicilio_completo": venta.cliente_domicilio or "",
+        "tipo_producto_label": _PRODUCTO_LABEL_RECIBO.get(venta.producto, "Piscina de Fibra de Vidrio"),
         "largo": "", "ancho": "", "profundidad_min": "", "profundidad_max": "", "sistema": "",
         "op_data_blocks": op_data_blocks,
         "tabla_filas": tabla_filas,
@@ -912,6 +923,7 @@ async def crear_contrato_unificado(
         "profundidad_max": producto.get("profundidad_max_m") or "",
         "sistema": producto.get("sistema") or "C-6",
         "observaciones": observaciones,
+        "tipo_producto_label": _PRODUCTO_LABEL_RECIBO.get(tipo_producto, "Piscina de Fibra de Vidrio"),
         "check_efectivo": "", "mark_efectivo": "", "check_transferencia": "", "mark_transferencia": "",
         "firma_productor_block": "",
     }

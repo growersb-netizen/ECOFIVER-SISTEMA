@@ -256,6 +256,18 @@ async def update_venta_financiada(
             except Exception:
                 pass
 
+    # created_at: permite corregir la fecha de un import histórico (o vaciarla
+    # con null si la fecha real es desconocida) para que no contamine los
+    # contadores de "ventas de hoy/semana/mes" con la fecha de carga.
+    if "created_at" in data:
+        if data["created_at"]:
+            try:
+                venta.created_at = datetime.fromisoformat(data["created_at"])
+            except Exception:
+                pass
+        else:
+            venta.created_at = None
+
     for field in ["cliente_nombre", "cliente_telefono", "cliente_localidad", "producto",
                   "modelo_especifico", "color", "superficie_m2", "forma_pago", "precio_total",
                   "anticipo", "cantidad_cuotas", "valor_cuota", "cuotas_pagas",

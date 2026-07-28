@@ -10,6 +10,7 @@ from database.database import get_db
 from database.models import VentaFinanciada, GestionCobranza, Usuario
 from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.ventas_financiadas import venta_to_dict, dias_atraso, calcular_proximo_vencimiento
+from routers.contratos import UMBRAL_REDONDEO_INSCRIPCION
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -180,13 +181,20 @@ async def get_proyeccion_cobranza(
     que dashboard/metricas-avanzadas (calcular_proximo_vencimiento), pero
     separado en "este mes" vs "mes que viene" en vez de una ventana de 30 días.
 
-    Cada bloque se separa a su vez en:
-    - "confirmada": ventas que YA pagaron al menos una cuota real (cuotas_pagas > 0)
-      — historial de pago comprobado, cobranza sólida.
-    - "potencial": ventas que solo tienen la seña/entrada pagada y NINGUNA cuota
-      todavía (cuotas_pagas == 0) — son ventas reales, pero la cobranza de sus
-      cuotas depende de que el cliente efectivamente complete el pago. No se
-      cuentan como cobranza segura hasta que paguen la primera cuota.
+    Regla real del negocio (aclarada explícitamente): lo que distingue
+    confirmada de potencial es si la INSCRIPCIÓN (seña/entrada) está
+    completa, no si ya pagaron una cuota:
+    - "potencial": la inscripción NO está completa — venta real con contrato
+      emitido, pero el cliente no terminó de pagar la seña. SIEMPRE se
+      proyecta a "mes que viene" (nunca a "este mes" — no existe potencial
+      señada del mes en curso, justo porque recién al completar la
+      inscripción la venta empieza a generar cuota, y esa cuota arranca el
+      mes siguiente por la regla de vigencia).
+    - "confirmada": la inscripción SÍ está completa. Se ubica en el mes que
+      corresponda según calcular_proximo_vencimiento — que para una venta
+      recién cerrada este mes YA da "mes que viene" (la producción nueva
+      pasa a ser cobranza recién el mes siguiente), y para un cliente ya
+      existente da el mes real que le toque cobrar.
     """
     hoy = datetime.now()
     ventas = db.query(VentaFinanciada).filter(
@@ -197,9 +205,32 @@ async def get_proyeccion_cobranza(
         return {"confirmada": {"total": 0.0, "cantidad": 0, "detalle": []},
                 "potencial": {"total": 0.0, "cantidad": 0, "detalle": []}}
 
+    def _inscripcion_completa(v: VentaFinanciada) -> bool:
+        # HISTORICO = cliente real conocido importado antes de trackear
+        # monto_inscripcion con precisión — se cuenta como completa (no es
+        # una venta nueva a medio señar).
+        if v.forma_pago == "HISTORICO":
+            return True
+        objetivo = v.monto_inscripcion if v.monto_inscripcion is not None else (v.precio_total or 0)
+        saldo = max(0.0, objetivo - (v.anticipo or 0))
+        return saldo <= UMBRAL_REDONDEO_INSCRIPCION
+
     este_mes, mes_siguiente = _bloque_vacio(), _bloque_vacio()
 
     for v in ventas:
+        if not _inscripcion_completa(v):
+            # Potencial: nunca "este mes" — es una proyección a futuro de lo
+            # que se sumaría el mes que viene SI completan la seña.
+            item = {
+                "venta_id": v.id, "numero_solicitud": v.numero_solicitud or "",
+                "cliente_nombre": v.cliente_nombre, "monto": v.valor_cuota or 0,
+                "vencimiento": None,
+            }
+            mes_siguiente["potencial"]["detalle"].append(item)
+            mes_siguiente["potencial"]["total"] += item["monto"]
+            mes_siguiente["potencial"]["cantidad"] += 1
+            continue
+
         prox = calcular_proximo_vencimiento(v)
         if not prox:
             continue
@@ -208,16 +239,10 @@ async def get_proyeccion_cobranza(
             "cliente_nombre": v.cliente_nombre, "monto": v.valor_cuota or 0,
             "vencimiento": prox.isoformat(),
         }
-        # HISTORICO = ventas reales conocidas importadas antes de trackear cuotas_pagas
-        # con precisión — se cuentan como confirmada aunque cuotas_pagas haya quedado en 0.
-        # Solo las ventas NUEVAS (no históricas) que todavía no pagaron ninguna cuota real
-        # entran en "potencial" (señadas, cobranza no garantizada).
-        categoria = "confirmada" if (v.cuotas_pagas or 0) > 0 or v.forma_pago == "HISTORICO" else "potencial"
-
         if prox.year == hoy.year and prox.month == hoy.month:
-            bloque = este_mes[categoria]
+            bloque = este_mes["confirmada"]
         elif (prox.year, prox.month) == ((hoy.year + 1, 1) if hoy.month == 12 else (hoy.year, hoy.month + 1)):
-            bloque = mes_siguiente[categoria]
+            bloque = mes_siguiente["confirmada"]
         else:
             continue
         bloque["detalle"].append(item)

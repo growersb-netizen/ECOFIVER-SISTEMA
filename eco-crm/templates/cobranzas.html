@@ -4,11 +4,19 @@
 
 {% block content %}
 
+<!-- ═══════════════════ SELECTOR DE EMPRESA ═══════════════════ -->
+<div class="tabs" id="selector-empresa-cobranza" style="margin-bottom:20px">
+  <button class="tab active" onclick="cambiarEmpresaCobranza('ecofiver', this)" style="font-size:15px;padding:10px 20px">🏠 EcoFiver</button>
+  <button class="tab" onclick="cambiarEmpresaCobranza('construsol', this)" style="font-size:15px;padding:10px 20px">🏗️ Construsol</button>
+</div>
+
+<!-- ═══════════════════ EMPRESA: ECOFIVER ═══════════════════ -->
+<div id="empresa-ecofiver">
+
 <div class="tabs" id="tabs-cobranzas">
   <button class="tab active" onclick="showTabCob('cartera', this)">💳 Cartera</button>
   <button class="tab" onclick="showTabCob('morosidad', this)">⚠️ Morosidad</button>
   <button class="tab" onclick="showTabCob('proyeccion', this)">📈 Proyección</button>
-  <button class="tab" onclick="showTabCob('construsol', this)">🏗️ Cobranza Histórica (Construsol)</button>
 </div>
 
 <!-- ═══════════════════ TAB: CARTERA ═══════════════════ -->
@@ -60,20 +68,26 @@
   </div>
 </div>
 
-<!-- ═══════════════════ TAB: CONSTRUSOL (cobranza histórica, independiente de EcoFiver) ═══════════════════ -->
-<div id="tab-cob-construsol" style="display:none">
+</div><!-- /empresa-ecofiver -->
+
+<!-- ═══════════════════ EMPRESA: CONSTRUSOL ═══════════════════ -->
+<div id="empresa-construsol" style="display:none">
   <div class="alert" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--text-secondary)">
-    🏗️ Cartera de Construsol — totalmente independiente de EcoFiver. No comparte clientes, contadores ni cálculos.
+    🏗️ Cobranza de Construsol — totalmente independiente de EcoFiver. No comparte clientes, contadores ni cálculos.
   </div>
 
-  <div class="tabs" id="subtabs-construsol-linea" style="margin-bottom:16px">
-    <button class="tab active" onclick="showLineaConstrusol('viviendas', this)">🏠 Viviendas</button>
-    <button class="tab" onclick="showLineaConstrusol('piscinas', this)">🏊 Piscinas</button>
-    <button class="tab" onclick="showLineaConstrusol('morosos', this)">⚠️ Morosos</button>
+  <div class="tabs" id="tabs-construsol-principal" style="margin-bottom:16px">
+    <button class="tab active" onclick="showTabConstrusolPrincipal('cartera', this)">💳 Cartera</button>
+    <button class="tab" onclick="showTabConstrusolPrincipal('morosidad', this)">⚠️ Morosidad</button>
   </div>
 
   <!-- Vista Cartera (viviendas/piscinas) -->
   <div id="construsol-vista-cartera">
+    <div class="tabs" id="subtabs-construsol-linea" style="margin-bottom:16px">
+      <button class="tab active" onclick="showLineaConstrusol('viviendas', this)">🏠 Viviendas</button>
+      <button class="tab" onclick="showLineaConstrusol('piscinas', this)">🏊 Piscinas</button>
+    </div>
+
     <div id="icac-construsol-box" style="margin-bottom:16px">
       <div class="card" style="padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <strong>📐 Indexación ICAC del mes:</strong>
@@ -95,7 +109,7 @@
     </div>
   </div>
 
-  <!-- Vista Morosos (leve/moderada/grave, todas las líneas de Construsol) -->
+  <!-- Vista Morosidad (leve/moderada/grave, todas las líneas de Construsol) -->
   <div id="construsol-vista-morosos" style="display:none">
     <div class="stats-grid" id="morosidad-construsol-stats"></div>
     <div id="morosidad-construsol-container">
@@ -304,36 +318,51 @@
   function showTabCob(nombre, btn) {
     document.querySelectorAll('#tabs-cobranzas .tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
-    ['cartera', 'morosidad', 'proyeccion', 'construsol'].forEach(n => {
+    ['cartera', 'morosidad', 'proyeccion'].forEach(n => {
       document.getElementById('tab-cob-' + n).style.display = (n === nombre) ? '' : 'none';
     });
     if (nombre === 'morosidad' && !morosidadCargada) loadMorosidad();
     if (nombre === 'proyeccion' && !proyeccionCargada) loadProyeccion();
-    if (nombre === 'construsol') loadConstrusol();
   }
 
   // ═══════════════════ CONSTRUSOL (cobranza histórica) ═══════════════════
 
   let construsolLineaActiva = 'viviendas';
+  let construsolCargadaAlMenosUnaVez = false;
 
   let morosidadConstrusolCargada = false;
 
   function showLineaConstrusol(linea, btn) {
     document.querySelectorAll('#subtabs-construsol-linea .tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
-
-    if (linea === 'morosos') {
-      document.getElementById('construsol-vista-cartera').style.display = 'none';
-      document.getElementById('construsol-vista-morosos').style.display = '';
-      loadMorosidadConstrusol();
-      return;
-    }
-    document.getElementById('construsol-vista-cartera').style.display = '';
-    document.getElementById('construsol-vista-morosos').style.display = 'none';
-
     construsolLineaActiva = linea;
     document.getElementById('icac-construsol-box').style.display = linea === 'viviendas' ? '' : 'none';
     loadConstrusol();
+  }
+
+  function showTabConstrusolPrincipal(tab, btn) {
+    document.querySelectorAll('#tabs-construsol-principal .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    if (tab === 'morosidad') {
+      document.getElementById('construsol-vista-cartera').style.display = 'none';
+      document.getElementById('construsol-vista-morosos').style.display = '';
+      loadMorosidadConstrusol();
+    } else {
+      document.getElementById('construsol-vista-cartera').style.display = '';
+      document.getElementById('construsol-vista-morosos').style.display = 'none';
+    }
+  }
+
+  function cambiarEmpresaCobranza(empresa, btn) {
+    document.querySelectorAll('#selector-empresa-cobranza .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('empresa-ecofiver').style.display = empresa === 'ecofiver' ? '' : 'none';
+    document.getElementById('empresa-construsol').style.display = empresa === 'construsol' ? '' : 'none';
+    try { localStorage.setItem('cobranzas_empresa_activa', empresa); } catch (e) {}
+    if (empresa === 'construsol' && !construsolCargadaAlMenosUnaVez) {
+      construsolCargadaAlMenosUnaVez = true;
+      loadConstrusol();
+    }
   }
 
   async function loadMorosidadConstrusol() {
@@ -918,6 +947,14 @@
     const filtro = p.get('filtro');
     if (filtro === 'vencidas' || filtro === 'vencen_hoy') {
       aplicarFiltroCob(filtro);
+    }
+
+    // Restaurar la última empresa elegida
+    let empresaGuardada = 'ecofiver';
+    try { empresaGuardada = localStorage.getItem('cobranzas_empresa_activa') || 'ecofiver'; } catch (e) {}
+    if (empresaGuardada === 'construsol') {
+      const botones = document.querySelectorAll('#selector-empresa-cobranza .tab');
+      cambiarEmpresaCobranza('construsol', botones[1]);
     }
   }
 

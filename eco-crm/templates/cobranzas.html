@@ -5,9 +5,12 @@
 {% block content %}
 
 <!-- ═══════════════════ SELECTOR DE EMPRESA ═══════════════════ -->
-<div class="tabs" id="selector-empresa-cobranza" style="margin-bottom:20px">
-  <button class="tab active" onclick="cambiarEmpresaCobranza('ecofiver', this)" style="font-size:15px;padding:10px 20px">🏠 EcoFiver</button>
-  <button class="tab" onclick="cambiarEmpresaCobranza('construsol', this)" style="font-size:15px;padding:10px 20px">🏗️ Construsol</button>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+  <div class="tabs" id="selector-empresa-cobranza" style="margin-bottom:0">
+    <button class="tab active" onclick="cambiarEmpresaCobranza('ecofiver', this)" style="font-size:15px;padding:10px 20px">🏠 EcoFiver</button>
+    <button class="tab" onclick="cambiarEmpresaCobranza('construsol', this)" style="font-size:15px;padding:10px 20px">🏗️ Construsol</button>
+  </div>
+  <button class="btn btn-primary" onclick="abrirModalCargarOperacion()">➕ Cargar operación</button>
 </div>
 
 <!-- ═══════════════════ EMPRESA: ECOFIVER ═══════════════════ -->
@@ -304,6 +307,146 @@
   </div>
 </div>
 
+<!-- Modal cargar operación manual -->
+<div class="modal-overlay" id="modal-cargar-operacion" style="display:none">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title">➕ Cargar operación para cobro</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-cargar-operacion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Empresa</label>
+          <select id="cargarop-empresa" class="form-control" onchange="onEmpresaCargarOperacionChange()">
+            <option value="ecofiver">🏠 EcoFiver</option>
+            <option value="construsol">🏗️ Construsol</option>
+          </select>
+        </div>
+        <div class="form-group" id="cargarop-producto-group">
+          <label class="form-label">Producto</label>
+          <select id="cargarop-producto" class="form-control">
+            <option value="PISCINA">Piscina</option>
+            <option value="MODULO">Módulo</option>
+            <option value="COMBO">Combo Módulo + Piscina</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Nombre y apellido del cliente</label>
+        <input type="text" id="cargarop-nombre" class="form-control" placeholder="Apellido, Nombre">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input type="text" id="cargarop-telefono" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">DNI</label>
+          <input type="text" id="cargarop-dni" class="form-control">
+        </div>
+      </div>
+
+      <!-- ── Campos EcoFiver ── -->
+      <div id="cargarop-ecofiver-fields">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Localidad</label>
+            <input type="text" id="cargarop-localidad" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Modelo</label>
+            <input type="text" id="cargarop-modelo" class="form-control" placeholder="ej. Minideck, Módulo 45m²">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">CUIL</label>
+            <input type="text" id="cargarop-cuil" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="text" id="cargarop-email" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Domicilio</label>
+          <input type="text" id="cargarop-domicilio" class="form-control">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Estado civil</label>
+            <input type="text" id="cargarop-estado-civil" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ocupación</label>
+            <input type="text" id="cargarop-ocupacion" class="form-control">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Campos Construsol ── -->
+      <div id="cargarop-construsol-fields" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Línea</label>
+            <select id="cargarop-linea" class="form-control">
+              <option value="viviendas">Viviendas</option>
+              <option value="piscinas">Piscinas</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Metros / modelo</label>
+            <input type="text" id="cargarop-metros-modelo" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Proyecto (opcional)</label>
+          <input type="text" id="cargarop-proyecto" class="form-control" placeholder="ej. Eco Zárate">
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);margin:14px 0"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Precio total</label>
+          <input type="number" id="cargarop-precio-total" class="form-control" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Anticipo / seña ya pagada</label>
+          <input type="number" id="cargarop-anticipo" class="form-control" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cantidad de cuotas</label>
+          <input type="number" id="cargarop-cant-cuotas" class="form-control" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label" id="cargarop-valor-cuota-label">Valor de cuota</label>
+          <input type="number" id="cargarop-valor-cuota" class="form-control" min="0">
+        </div>
+      </div>
+      <div class="form-group" id="cargarop-fecha-inicio-group">
+        <label class="form-label">Fecha de inicio del plan</label>
+        <input type="date" id="cargarop-fecha-inicio" class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Notas</label>
+        <textarea id="cargarop-notas" class="form-control" rows="2" placeholder="Origen, observaciones..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-cargar-operacion')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarOperacionManual()" class="btn btn-primary btn-lg" id="btn-guardar-cargarop">Incorporar a la cobranza</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -536,6 +679,99 @@
       _aplicarTodosLosFiltrosCartera();
     } catch (e) {
       showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  // ═══════════════════ CARGAR OPERACIÓN MANUAL (Jorge) ═══════════════════
+
+  function onEmpresaCargarOperacionChange() {
+    const empresa = document.getElementById('cargarop-empresa').value;
+    const esEcoFiver = empresa === 'ecofiver';
+    document.getElementById('cargarop-producto-group').style.display = esEcoFiver ? '' : 'none';
+    document.getElementById('cargarop-ecofiver-fields').style.display = esEcoFiver ? '' : 'none';
+    document.getElementById('cargarop-construsol-fields').style.display = esEcoFiver ? 'none' : '';
+    document.getElementById('cargarop-fecha-inicio-group').style.display = esEcoFiver ? '' : 'none';
+    document.getElementById('cargarop-valor-cuota-label').textContent = esEcoFiver ? 'Valor de cuota' : 'Cuota vigente';
+  }
+
+  function abrirModalCargarOperacion() {
+    ['cargarop-nombre', 'cargarop-telefono', 'cargarop-dni', 'cargarop-localidad', 'cargarop-modelo',
+     'cargarop-cuil', 'cargarop-email', 'cargarop-domicilio', 'cargarop-estado-civil', 'cargarop-ocupacion',
+     'cargarop-metros-modelo', 'cargarop-proyecto', 'cargarop-precio-total', 'cargarop-anticipo',
+     'cargarop-cant-cuotas', 'cargarop-valor-cuota', 'cargarop-notas'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('cargarop-empresa').value = 'ecofiver';
+    document.getElementById('cargarop-producto').value = 'PISCINA';
+    document.getElementById('cargarop-linea').value = 'viviendas';
+    document.getElementById('cargarop-fecha-inicio').value = new Date().toISOString().split('T')[0];
+    onEmpresaCargarOperacionChange();
+    document.getElementById('modal-cargar-operacion').style.display = 'flex';
+  }
+
+  async function guardarOperacionManual() {
+    const empresa = document.getElementById('cargarop-empresa').value;
+    const nombre = document.getElementById('cargarop-nombre').value.trim();
+    if (!nombre) return showToast('Falta el nombre del cliente', 'error');
+
+    const precioTotal = parseFloat(document.getElementById('cargarop-precio-total').value || '0');
+    const anticipo = parseFloat(document.getElementById('cargarop-anticipo').value || '0');
+    const cantCuotas = parseInt(document.getElementById('cargarop-cant-cuotas').value || '0');
+    const valorCuota = parseFloat(document.getElementById('cargarop-valor-cuota').value || '0');
+    if (!cantCuotas || !valorCuota) return showToast('Faltan cantidad de cuotas o valor de cuota', 'error');
+
+    const btn = document.getElementById('btn-guardar-cargarop');
+    btn.disabled = true;
+    btn.textContent = '⏳ Guardando...';
+
+    try {
+      if (empresa === 'ecofiver') {
+        await API.post('/api/ventas-financiadas', {
+          cliente_nombre: nombre,
+          cliente_telefono: document.getElementById('cargarop-telefono').value || '',
+          cliente_localidad: document.getElementById('cargarop-localidad').value || '',
+          cliente_dni: document.getElementById('cargarop-dni').value || null,
+          cliente_cuil: document.getElementById('cargarop-cuil').value || null,
+          cliente_domicilio: document.getElementById('cargarop-domicilio').value || null,
+          cliente_estado_civil: document.getElementById('cargarop-estado-civil').value || null,
+          cliente_ocupacion: document.getElementById('cargarop-ocupacion').value || null,
+          cliente_email: document.getElementById('cargarop-email').value || null,
+          producto: document.getElementById('cargarop-producto').value,
+          modelo_especifico: document.getElementById('cargarop-modelo').value || '',
+          precio_total: precioTotal,
+          anticipo: anticipo,
+          cantidad_cuotas: cantCuotas,
+          valor_cuota: valorCuota,
+          fecha_inicio_plan: document.getElementById('cargarop-fecha-inicio').value || null,
+          estado_plan: 'ACTIVO',
+          notas: document.getElementById('cargarop-notas').value || '',
+        });
+        showToast('Operación cargada ✓ ya está en la cobranza de EcoFiver', 'success');
+        await window.loadCartera();
+        _aplicarTodosLosFiltrosCartera();
+      } else {
+        await API.post('/api/cobranza-historica/clientes', {
+          linea: document.getElementById('cargarop-linea').value,
+          proyecto: document.getElementById('cargarop-proyecto').value || null,
+          apellido_nombre: nombre,
+          telefono: document.getElementById('cargarop-telefono').value || '',
+          dni: document.getElementById('cargarop-dni').value || null,
+          metros_o_modelo: document.getElementById('cargarop-metros-modelo').value || null,
+          cantidad_cuotas: cantCuotas,
+          anticipo: anticipo,
+          precio_total: precioTotal,
+          cuota_actual: valorCuota,
+          notas: document.getElementById('cargarop-notas').value || '',
+        });
+        showToast('Operación cargada ✓ ya está en la cobranza de Construsol', 'success');
+        _recargarVistaConstrusolActual();
+      }
+      closeModal('modal-cargar-operacion');
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Incorporar a la cobranza';
     }
   }
 

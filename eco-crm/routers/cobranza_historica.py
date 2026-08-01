@@ -375,6 +375,72 @@ async def registrar_pago_historico(
     return resultado
 
 
+@router.post("/api/cobranza-historica/limpiar-pagos-cuota")
+async def limpiar_pagos_cuota_historico(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(_require_access),
+):
+    """
+    Herramienta de corrección puntual (uso administrativo): borra pagos
+    registrados dentro de un rango de fechas (única vía de pago que existe
+    para Construsol, siempre es cuota mensual — no hay seña/inscripción
+    separada en este modelo). Borra también los recibos generados para esos
+    pagos. Usar con dry_run=true primero para revisar la lista antes de
+    ejecutar el borrado real.
+
+    Body: {"desde": "2026-07-01", "hasta": "2026-07-31", "dry_run": true}
+    """
+    data = await request.json()
+    try:
+        desde = datetime.fromisoformat(data["desde"])
+        from datetime import timedelta
+        hasta = datetime.fromisoformat(data["hasta"]) + timedelta(days=1) - timedelta(seconds=1)
+    except Exception:
+        raise HTTPException(400, "desde/hasta inválidos (formato YYYY-MM-DD)")
+    dry_run = data.get("dry_run", True)
+
+    pagos = db.query(PagoCobranzaHistorica).filter(
+        PagoCobranzaHistorica.fecha_pago >= desde, PagoCobranzaHistorica.fecha_pago <= hasta,
+    ).all()
+
+    a_borrar = []
+    for p in pagos:
+        cliente = db.query(ClienteCobranzaHistorica).filter(ClienteCobranzaHistorica.id == p.cliente_id).first()
+        a_borrar.append({
+            "pago_id": p.id, "cliente_id": p.cliente_id,
+            "cliente": cliente.apellido_nombre if cliente else None,
+            "monto": p.monto, "mes_correspondiente": p.mes_correspondiente,
+            "fecha_pago": p.fecha_pago.isoformat() if p.fecha_pago else None,
+        })
+
+    resultado = {"dry_run": dry_run, "total_evaluados": len(pagos), "a_borrar": a_borrar}
+
+    if dry_run:
+        return resultado
+
+    recibos_borrados = 0
+    clientes_ids = {item["cliente_id"] for item in a_borrar}
+    for cliente_id in clientes_ids:
+        recibos = db.query(Contrato).filter(
+            Contrato.numero_solicitud == f"CONSTRUSOL-{cliente_id}",
+            Contrato.tipo_documento == "RECIBO",
+            Contrato.fecha_generacion >= desde, Contrato.fecha_generacion <= hasta,
+        ).all()
+        for r in recibos:
+            db.delete(r)
+            recibos_borrados += 1
+
+    ids_a_borrar = [item["pago_id"] for item in a_borrar]
+    if ids_a_borrar:
+        db.query(PagoCobranzaHistorica).filter(PagoCobranzaHistorica.id.in_(ids_a_borrar)).delete(synchronize_session=False)
+    db.commit()
+
+    resultado["borrados"] = len(ids_a_borrar)
+    resultado["recibos_borrados"] = recibos_borrados
+    return resultado
+
+
 @router.post("/api/cobranza-historica/aplicar-icac")
 async def aplicar_icac_historico(
     request: Request,

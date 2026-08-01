@@ -362,6 +362,100 @@ async def registrar_pago(
     return resultado
 
 
+@router.post("/api/ventas-financiadas/limpiar-pagos-cuota")
+async def limpiar_pagos_cuota(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Herramienta de corrección puntual (uso administrativo): borra pagos de
+    CUOTA MENSUAL (no seña/inscripción) registrados dentro de un rango de
+    fechas, revirtiendo cuotas_pagas y estado_plan, y borrando los recibos
+    generados para esos pagos. Usar con dry_run=true primero para revisar
+    la lista exacta antes de ejecutar el borrado real.
+
+    Body: {"desde": "2026-07-01", "hasta": "2026-07-31", "dry_run": true}
+
+    Un Pago se considera "de cuota" si su monto cae dentro de una tolerancia
+    del valor_cuota vigente de la venta — las señas/inscripciones tienen
+    montos muy distintos al de una cuota mensual, así que quedan afuera.
+    La tabla Pago no guarda el concepto del pago, por eso esta heurística;
+    todo lo que no calza claramente queda en "excluidos" para revisión manual.
+    """
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and "ADMIN" in get_user_roles(current_user))
+    if not ok:
+        raise HTTPException(403, "Sin permisos (requiere ADMIN)")
+
+    data = await request.json()
+    try:
+        desde = datetime.fromisoformat(data["desde"])
+        hasta = datetime.fromisoformat(data["hasta"]) + timedelta(days=1) - timedelta(seconds=1)
+    except Exception:
+        raise HTTPException(400, "desde/hasta inválidos (formato YYYY-MM-DD)")
+    dry_run = data.get("dry_run", True)
+
+    pagos = db.query(Pago).filter(Pago.fecha_pago >= desde, Pago.fecha_pago <= hasta).all()
+
+    incluidos, excluidos = [], []
+    for p in pagos:
+        venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == p.venta_financiada_id).first()
+        if not venta or not venta.valor_cuota:
+            excluidos.append({"pago_id": p.id, "venta_id": p.venta_financiada_id, "monto": p.monto,
+                               "motivo": "venta no encontrada o sin valor_cuota"})
+            continue
+        tolerancia = max(500.0, venta.valor_cuota * 0.05)
+        item = {
+            "pago_id": p.id, "venta_id": venta.id, "cliente": venta.cliente_nombre,
+            "monto": p.monto, "valor_cuota": venta.valor_cuota,
+            "fecha_pago": p.fecha_pago.isoformat() if p.fecha_pago else None,
+            "notas": p.notas,
+        }
+        if abs(p.monto - venta.valor_cuota) <= tolerancia:
+            incluidos.append(item)
+        else:
+            item["motivo"] = "monto no coincide con valor_cuota (posible seña/inscripción) — revisar a mano"
+            excluidos.append(item)
+
+    resultado = {"dry_run": dry_run, "total_evaluados": len(pagos),
+                 "a_borrar": incluidos, "excluidos": excluidos}
+
+    if dry_run:
+        return resultado
+
+    from database.models import Contrato
+    ventas_afectadas: dict = {}
+    for item in incluidos:
+        ventas_afectadas[item["venta_id"]] = ventas_afectadas.get(item["venta_id"], 0) + 1
+
+    recibos_borrados = 0
+    for venta_id, cantidad in ventas_afectadas.items():
+        venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+        if venta:
+            venta.cuotas_pagas = max(0, (venta.cuotas_pagas or 0) - cantidad)
+            if venta.estado_plan == "FINALIZADO" and venta.cuotas_pagas < (venta.cantidad_cuotas or 0):
+                venta.estado_plan = "ACTIVO"
+        recibos = db.query(Contrato).filter(
+            Contrato.venta_financiada_id == venta_id,
+            Contrato.tipo_documento == "RECIBO",
+            Contrato.fecha_generacion >= desde, Contrato.fecha_generacion <= hasta,
+        ).all()
+        for r in recibos:
+            db.delete(r)
+            recibos_borrados += 1
+
+    ids_a_borrar = [item["pago_id"] for item in incluidos]
+    if ids_a_borrar:
+        db.query(Pago).filter(Pago.id.in_(ids_a_borrar)).delete(synchronize_session=False)
+    db.commit()
+
+    resultado["borrados"] = len(ids_a_borrar)
+    resultado["recibos_borrados"] = recibos_borrados
+    return resultado
+
+
 @router.get("/api/ventas-financiadas/{venta_id}")
 async def get_venta_financiada(
     venta_id: int,

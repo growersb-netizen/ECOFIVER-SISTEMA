@@ -1361,18 +1361,21 @@ async def debug_visitas(
         resultado["visits_items"] = {"status": r1.status_code, "body": r1.text[:1000]}
 
     hoy = datetime.utcnow()
-    inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00Z")
-    ahora = hoy.strftime("%Y-%m-%dT%H:%M:%SZ")
-    async with httpx.AsyncClient(timeout=15) as c:
-        r2 = await c.get(f"{ML_BASE}/users/{user_id}/items_visits", headers=_ml_headers(tok),
-                         params={"date_from": inicio_hoy, "date_to": ahora})
-    resultado["items_visits_hoy"] = {"status": r2.status_code, "body": r2.text[:1000]}
-
-    if item_ids:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r3 = await c.get(f"{ML_BASE}/items/{item_ids[0]}/visits",
-                             headers=_ml_headers(tok), params={"date_from": inicio_hoy, "date_to": ahora})
-        resultado["items_id_visits_alt"] = {"status": r3.status_code, "body": r3.text[:500]}
+    variantes_fecha = {
+        "z_sin_ms":       (hoy.strftime("%Y-%m-%dT00:00:00Z"), hoy.strftime("%Y-%m-%dT%H:%M:%SZ")),
+        "offset_-03:00":  (hoy.strftime("%Y-%m-%dT00:00:00-03:00"), hoy.strftime("%Y-%m-%dT%H:%M:%S-03:00")),
+        "offset_-00:00_ms": (hoy.strftime("%Y-%m-%dT00:00:00.000-00:00"), hoy.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")),
+        "solo_fecha":     (hoy.strftime("%Y-%m-%d"), hoy.strftime("%Y-%m-%d")),
+    }
+    resultado["items_visits_hoy_variantes"] = {}
+    for nombre, (df, dt) in variantes_fecha.items():
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r2 = await c.get(f"{ML_BASE}/users/{user_id}/items_visits", headers=_ml_headers(tok),
+                                 params={"date_from": df, "date_to": dt})
+            resultado["items_visits_hoy_variantes"][nombre] = {"status": r2.status_code, "body": r2.text[:300]}
+        except Exception as e:
+            resultado["items_visits_hoy_variantes"][nombre] = {"error": str(e)[:200]}
 
     return resultado
 

@@ -330,6 +330,7 @@ async def ml_page(
                 "fotos": cat["modulos"].get("fotos", {}),
                 "precios_lista": cat["modulos"].get("precios_lista", {}),
                 "cuotas_max": cat["modulos"].get("cuotas_max", 60),
+                "tecnologia": cat["modulos"].get("tecnologia", ""),
             },
             "modulos_deposito": cat.get("modulos_deposito", {"tamanos": {}}),
         }
@@ -397,18 +398,33 @@ async def _ml_visitas_items(token: str, item_ids: list) -> dict:
     return resultado
 
 
-async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, limit: int = 50) -> list:
-    """Trae publicaciones activas con detalle + ventas + visitas reales. Compartido por el listado y el dashboard."""
-    async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.get(
-            f"{ML_BASE}/users/{user_id}/items/search",
-            headers=_ml_headers(token),
-            params={"limit": limit, "offset": 0},
-        )
-    if r.status_code != 200:
-        raise HTTPException(r.status_code, f"Error ML: {r.text[:200]}")
-
-    item_ids = r.json().get("results", [])
+async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, limit: int = 1000) -> list:
+    """
+    Trae publicaciones activas con detalle + ventas + visitas reales. Compartido
+    por el listado y el dashboard. Pagina hasta `limit` (ML devuelve máx 50 por
+    página) para que el total no quede recortado — antes el listado mostraba
+    solo las primeras 50 mientras el dashboard mostraba el total real de ML,
+    lo que daba números inconsistentes entre pestañas.
+    """
+    item_ids: list = []
+    offset = 0
+    while len(item_ids) < limit:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(
+                f"{ML_BASE}/users/{user_id}/items/search",
+                headers=_ml_headers(token),
+                params={"limit": 50, "offset": offset},
+            )
+        if r.status_code != 200:
+            raise HTTPException(r.status_code, f"Error ML: {r.text[:200]}")
+        data = r.json()
+        pagina = data.get("results", [])
+        item_ids.extend(pagina)
+        total_ml = data.get("paging", {}).get("total", len(item_ids))
+        offset += 50
+        if not pagina or len(item_ids) >= total_ml:
+            break
+    item_ids = item_ids[:limit]
     if not item_ids:
         return []
 
@@ -478,10 +494,10 @@ async def cambiar_estado_publicacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_config_access),
 ):
-    """Pausa, activa o renueva una publicación."""
+    """Pausa, activa, renueva o cierra (elimina) una publicación."""
     token = await _get_token(db)
     data = await request.json()
-    accion = data.get("accion")  # pause | activate | renew
+    accion = data.get("accion")  # pause | activate | renew | close
 
     payload: dict = {}
     if accion == "pause":
@@ -490,8 +506,13 @@ async def cambiar_estado_publicacion(
         payload = {"status": "active"}
     elif accion == "renew":
         payload = {"status": "active"}
+    elif accion == "close":
+        # ML no permite borrado real de publicaciones con historial — el
+        # equivalente real es cerrarla, que es lo mismo que ve el usuario
+        # como "eliminar" (deja de estar activa y de listarse).
+        payload = {"status": "closed"}
     else:
-        raise HTTPException(400, "Acción inválida. Usar: pause | activate | renew")
+        raise HTTPException(400, "Acción inválida. Usar: pause | activate | renew | close")
 
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.put(
@@ -509,6 +530,57 @@ async def cambiar_estado_publicacion(
         db.commit()
 
     return {"ok": True, "item_id": item_id, "accion": accion}
+
+
+@router.put("/api/ml/publicaciones/{item_id}")
+async def editar_publicacion(
+    item_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Edita título/precio/stock/descripción de una publicación ya activa en ML.
+    Body: { titulo?, precio?, stock?, descripcion? } — solo se mandan los campos presentes.
+    """
+    token = await _get_token(db)
+    data = await request.json()
+
+    payload: dict = {}
+    if "titulo" in data and data["titulo"]:
+        payload["title"] = data["titulo"][:60]
+    if "precio" in data and data["precio"]:
+        payload["price"] = float(data["precio"])
+    if "stock" in data and data["stock"] is not None:
+        payload["available_quantity"] = int(data["stock"])
+
+    if payload:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.put(f"{ML_BASE}/items/{item_id}", headers=_ml_headers(token), json=payload)
+        if r.status_code not in (200, 204):
+            raise HTTPException(r.status_code, f"Error ML al editar: {r.text[:300]}")
+
+    if "descripcion" in data and data["descripcion"] is not None:
+        async with httpx.AsyncClient(timeout=15) as c:
+            rd = await c.post(
+                f"{ML_BASE}/items/{item_id}/description",
+                headers=_ml_headers(token),
+                json={"plain_text": data["descripcion"]},
+            )
+        if rd.status_code not in (200, 201):
+            raise HTTPException(rd.status_code, f"Se guardaron los otros campos pero la descripción falló: {rd.text[:300]}")
+
+    pub = db.query(PublicacionML).filter(PublicacionML.item_id == item_id).first()
+    if pub:
+        if "titulo" in data and data["titulo"]:
+            pub.titulo = data["titulo"][:60]
+        if "precio" in data and data["precio"]:
+            pub.precio = float(data["precio"])
+        if "descripcion" in data and data["descripcion"] is not None:
+            pub.descripcion = data["descripcion"]
+        db.commit()
+
+    return {"ok": True, "item_id": item_id}
 
 
 # ─── API — GENERAR DESCRIPCIÓN CON CLAUDE ────────────────────────────────────

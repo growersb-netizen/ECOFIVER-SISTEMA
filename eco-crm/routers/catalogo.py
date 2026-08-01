@@ -59,7 +59,10 @@ DEFAULT_CATALOGO = {
         # Viviendas modulares: se venden financiadas, por m². No confundir con
         # "modulos_deposito" (calidad inferior, de contado, para depósito).
         "superficies_m2": [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72],
-        "tecnologia": "NCE (Nautical Composite Engineering)",
+        "tecnologia": (
+            "Sistema constructivo Wood Frame: estructura de madera, revestimiento exterior en "
+            "placas cementicias y terminación interior en Durlock. Llave en mano, con terminaciones incluidas."
+        ),
         "modelos_custom": [],
         "precios": {},          # precio CONTADO
         "precios_lista": {},    # precio LISTA (base para financiación/cuotas)
@@ -451,6 +454,24 @@ async def update_precios_piscinas(
 
 
 # ─── MÓDULOS ──────────────────────────────────────────────────────────────────
+
+@router.put("/api/catalogo/modulos/tecnologia")
+async def set_tecnologia_modulos(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Body: { texto }. Descripción del sistema constructivo, se usa como contexto en las publicaciones de ML."""
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    texto = (data.get("texto") or "").strip()
+    if not texto:
+        raise HTTPException(400, "texto requerido")
+    cat = load_catalogo()
+    cat["modulos"]["tecnologia"] = texto
+    save_catalogo(cat)
+    return {"ok": True, "tecnologia": texto}
+
 
 @router.post("/api/catalogo/modulos/superficies")
 async def add_superficie(

@@ -63,6 +63,7 @@
       <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="borImportarArchivo(this)"></label>
     <button class="btn btn-secondary btn-sm" onclick="borImportarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
+    <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
     <select class="input" id="bor-f-estado" onchange="borCargar()" style="max-width:180px">
       <option value="">Todos</option>
       <option value="borrador">Borradores</option>
@@ -347,7 +348,42 @@
         <button class="btn btn-secondary" onclick="accionPub('pause')" id="btn-pausar">⏸ Pausar publicación</button>
         <button class="btn btn-primary"   onclick="accionPub('activate')" id="btn-activar">▶ Activar publicación</button>
         <button class="btn btn-ghost"     onclick="accionPub('renew')">🔄 Renovar publicación</button>
+        <button class="btn btn-ghost" style="color:#ef4444" onclick="eliminarPub(currentItemId)">🗑️ Eliminar publicación</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar publicación activa -->
+<div class="modal-overlay" id="modal-editar-pub" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title">✏️ Editar publicación</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-editar-pub')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Título <small style="color:var(--text-secondary)">(máx 60)</small></label>
+        <input type="text" class="input" id="editpub-titulo" maxlength="60">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Precio (ARS)</label>
+          <input type="number" class="input" id="editpub-precio" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock</label>
+          <input type="number" class="input" id="editpub-stock" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción</label>
+        <textarea class="input" id="editpub-descripcion" rows="6"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-editar-pub')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-guardar-editpub" onclick="guardarEdicionPub()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -447,21 +483,31 @@ async function loadDashboardML() {
 }
 
 /* ─── PUBLICACIONES ──────────────────────────────────────────────────── */
+let PUB_ITEMS_CACHE = {};
+const PUB_SEL = new Set();
+
 async function loadPublicaciones() {
   const cont = document.getElementById('publicaciones-content');
   cont.innerHTML = '<div class="loading">Cargando publicaciones desde MercadoLibre...</div>';
+  PUB_SEL.clear();
   try {
     const items = await API.get('/api/ml/publicaciones');
+    PUB_ITEMS_CACHE = {};
+    items.forEach(it => PUB_ITEMS_CACHE[it.item_id] = it);
     document.getElementById('pub-count').textContent = `${items.length} publicacion${items.length !== 1 ? 'es' : ''}`;
     if (!items.length) {
       cont.innerHTML = '<div class="empty-state"><p>No hay publicaciones activas.</p></div>';
       return;
     }
     cont.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <label style="font-size:13px;color:var(--text-secondary)"><input type="checkbox" id="pub-sel-all" onchange="togglePubSelAll(this)"> Seleccionar todo</label>
+      <button class="btn btn-sm" style="color:#ef4444;display:none" id="btn-pub-borrar-lote" onclick="eliminarPubLote()">🗑️ Eliminar seleccionadas (<span id="pub-sel-n">0</span>)</button>
+    </div>
     <div class="table-container">
     <table class="table">
       <thead><tr>
-        <th>Imagen</th><th>Título</th><th>Precio</th><th>Estado</th><th>Visitas</th><th>Ventas</th><th>Stock</th><th>Acciones</th>
+        <th></th><th>Imagen</th><th>Título</th><th>Precio</th><th>Estado</th><th>Visitas</th><th>Ventas</th><th>Stock</th><th>Acciones</th>
       </tr></thead>
       <tbody>
         ${items.map(renderPubRow).join('')}
@@ -469,6 +515,70 @@ async function loadPublicaciones() {
     </table></div>`;
   } catch(e) {
     cont.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+  }
+}
+
+function togglePubSel(itemId, checked) {
+  checked ? PUB_SEL.add(itemId) : PUB_SEL.delete(itemId);
+  document.getElementById('pub-sel-n').textContent = PUB_SEL.size;
+  document.getElementById('btn-pub-borrar-lote').style.display = PUB_SEL.size ? '' : 'none';
+}
+function togglePubSelAll(el) {
+  document.querySelectorAll('.pub-row-check').forEach(cb => { cb.checked = el.checked; togglePubSel(cb.dataset.id, el.checked); });
+}
+async function eliminarPubLote() {
+  if (!PUB_SEL.size) return;
+  const ok = await showConfirm(`Esto va a cerrar ${PUB_SEL.size} publicación(es) en MercadoLibre (dejan de estar activas). ¿Confirmás?`, 'Eliminar publicaciones');
+  if (!ok) return;
+  for (const id of [...PUB_SEL]) {
+    try { await API.post('/api/ml/publicaciones/' + id + '/estado', { accion: 'close' }); } catch(e) {}
+  }
+  showToast('✓ Publicaciones eliminadas', 'success');
+  loadPublicaciones();
+}
+async function eliminarPub(itemId) {
+  if (!itemId) return;
+  const ok = await showConfirm('Esto va a cerrar la publicación en MercadoLibre (deja de estar activa). ¿Confirmás?', 'Eliminar publicación');
+  if (!ok) return;
+  try {
+    await API.post('/api/ml/publicaciones/' + itemId + '/estado', { accion: 'close' });
+    closeModal('modal-pub-accion');
+    showToast('✓ Publicación eliminada', 'success');
+    loadPublicaciones();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+function abrirEditarPub(itemId) {
+  const item = PUB_ITEMS_CACHE[itemId];
+  if (!item) return;
+  currentItemId = itemId;
+  document.getElementById('editpub-titulo').value = item.titulo || '';
+  document.getElementById('editpub-precio').value = item.precio || '';
+  document.getElementById('editpub-stock').value = item.stock ?? '';
+  document.getElementById('editpub-descripcion').value = '';
+  document.getElementById('modal-editar-pub').style.display = 'flex';
+}
+async function guardarEdicionPub() {
+  if (!currentItemId) return;
+  const body = {
+    titulo: document.getElementById('editpub-titulo').value.trim(),
+    precio: parseFloat(document.getElementById('editpub-precio').value) || null,
+    stock: document.getElementById('editpub-stock').value === '' ? null : parseInt(document.getElementById('editpub-stock').value),
+    descripcion: document.getElementById('editpub-descripcion').value.trim() || null,
+  };
+  const btn = document.getElementById('btn-guardar-editpub');
+  btn.disabled = true;
+  try {
+    await API.put('/api/ml/publicaciones/' + currentItemId, body);
+    closeModal('modal-editar-pub');
+    showToast('✓ Publicación actualizada', 'success');
+    loadPublicaciones();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -480,6 +590,7 @@ function renderPubRow(item) {
     : '<div style="width:48px;height:48px;background:var(--bg-secondary);border-radius:4px;display:flex;align-items:center;justify-content:center">📦</div>';
 
   return `<tr>
+    <td><input type="checkbox" class="pub-row-check" data-id="${item.item_id}" onchange="togglePubSel('${item.item_id}', this.checked)"></td>
     <td>${thumb}</td>
     <td>
       <div style="font-weight:500;font-size:13px;max-width:250px">${escHtml(item.titulo || '')}</div>
@@ -491,10 +602,10 @@ function renderPubRow(item) {
     <td>${item.visitas || 0}</td>
     <td>${item.ventas || 0}</td>
     <td>${item.stock ?? '-'}</td>
-    <td>
-      <button class="btn btn-ghost btn-sm" onclick="abrirAccionPub('${item.item_id}','${escHtml(item.titulo||'')}','${item.estado_ml}')">
-        ⋯ Gestionar
-      </button>
+    <td style="white-space:nowrap">
+      <button class="btn btn-ghost btn-sm" onclick="abrirEditarPub('${item.item_id}')" title="Editar">✏️</button>
+      <button class="btn btn-ghost btn-sm" onclick="abrirAccionPub('${item.item_id}','${escHtml(item.titulo||'')}','${item.estado_ml}')" title="Gestionar">⋯</button>
+      <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="eliminarPub('${item.item_id}')" title="Eliminar">🗑️</button>
     </td>
   </tr>`;
 }
@@ -695,6 +806,12 @@ function getNombreProductoActual() {
       ? (CATALOGO.modulos_deposito?.descripcion_premium || '')
       : (CATALOGO.modulos_deposito?.descripcion_base || '');
     return `Modulo de deposito de chapa ${tamano}m2 linea ${esPremium ? 'premium' : 'base'}, ${detalle}`;
+  }
+  if (tipo === 'MODULO') {
+    const modelo = document.getElementById('crear-modelo').value;
+    if (!modelo) return '';
+    const tecnologia = CATALOGO.modulos?.tecnologia || '';
+    return tecnologia ? `Vivienda modular financiada ${modelo}, ${tecnologia}` : modelo;
   }
   return LINEAS_CON_CATALOGO.includes(tipo)
     ? document.getElementById('crear-modelo').value
@@ -1040,7 +1157,20 @@ function borToggleTodos(c) {
 }
 function borActLote() {
   document.getElementById('bor-sel-n').textContent = BOR_SEL.size;
+  document.getElementById('bor-sel-n2').textContent = BOR_SEL.size;
   document.getElementById('bor-btn-lote').style.display = BOR_SEL.size ? 'inline-flex' : 'none';
+  document.getElementById('bor-btn-borrar-lote').style.display = BOR_SEL.size ? 'inline-flex' : 'none';
+}
+async function borBorrarLote() {
+  if (!BOR_SEL.size) return;
+  const ok = await showConfirm(`¿Borrar ${BOR_SEL.size} borrador(es)? Esto no se puede deshacer.`, 'Borrar borradores');
+  if (!ok) return;
+  for (const id of [...BOR_SEL]) {
+    try { await API.delete('/api/ml/borradores/' + id); } catch(e) {}
+  }
+  BOR_SEL.clear();
+  borCargar();
+  showToast('✓ Borradores eliminados', 'success');
 }
 
 function borNuevaPub() {
@@ -1159,7 +1289,7 @@ async function borCalcGanancia() {
 async function borBorrar(id) {
   const ok = await showConfirm('¿Borrar esta publicación?', 'Borrar borrador');
   if (!ok) return;
-  await API.del('/api/ml/borradores/' + id);
+  await API.delete('/api/ml/borradores/' + id);
   BOR_SEL.delete(id);
   borCargar();
 }

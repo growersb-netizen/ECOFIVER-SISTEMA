@@ -5,8 +5,8 @@
   // CONFIG — reemplazar antes de publicar
   // ────────────────────────────────────────────────────────────
   // Número real de WhatsApp comercial de esta campaña.
-  const WHATSAPP_NUMBER = "5491168733406"; // formato: código país + área + número, sin + ni espacios
-  const WHATSAPP_DISPLAY = "+54 9 11 6873-3406";
+  const WHATSAPP_NUMBER = "5491126036495"; // formato: código país + área + número, sin + ni espacios
+  const WHATSAPP_DISPLAY = "+54 9 11 2603-6495";
 
   // Endpoint público (sin API key) del CRM real para guardar leads del formulario.
   // Si el CRM no responde, el formulario igual abre WhatsApp — no depende de esto.

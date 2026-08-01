@@ -129,7 +129,7 @@
             <option value="gold_special">Clásica (1 pago, comisión estándar)</option>
             <option value="gold_pro">Premium (habilita cuotas sin interés)</option>
           </select></div>
-        <div class="form-group"><label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(opcional)</small></label><input class="input" id="mp-cat" placeholder="se infiere del producto"></div>
+        <div class="form-group"><label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(opcional)</small></label><input class="input" id="mp-cat" placeholder="se infiere del producto" onchange="borActualizarPrecioSugerido()"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">💳 Cuotas sin interés <small style="color:var(--text-secondary)">(solo Premium)</small></label>
@@ -162,6 +162,7 @@
       </div>
       <label class="form-label">Descripción</label>
       <textarea class="input" id="mp-desc" rows="4" style="width:100%"></textarea>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">El texto de "Condiciones" (Configuración del negocio) se agrega solo al publicar.</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-bor')">Cancelar</button>
@@ -234,6 +235,17 @@
       </div>
     </div>
 
+    <div class="form-group" id="medidas-piscina-group" style="display:none">
+      <div id="medidas-piscina-hint" style="font-size:12px;color:var(--text-secondary);margin-bottom:6px"></div>
+      <div id="medidas-piscina-editor" style="display:none;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div><label class="form-label" style="font-size:11px">Largo (m)</label><input type="number" step="0.01" class="input" id="med-largo" style="width:90px"></div>
+        <div><label class="form-label" style="font-size:11px">Ancho (m)</label><input type="number" step="0.01" class="input" id="med-ancho" style="width:90px"></div>
+        <div><label class="form-label" style="font-size:11px">Prof. mín (m)</label><input type="number" step="0.01" class="input" id="med-prof-min" style="width:90px"></div>
+        <div><label class="form-label" style="font-size:11px">Prof. máx (m)</label><input type="number" step="0.01" class="input" id="med-prof-max" style="width:90px"></div>
+        <button class="btn btn-secondary btn-sm" onclick="guardarMedidasPiscina()">💾 Guardar medidas del modelo</button>
+      </div>
+    </div>
+
     <div class="form-group" id="modo-cuota-group" style="display:none">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
         <input type="checkbox" id="crear-modo-cuota" onchange="onModoCuotaChange()">
@@ -276,6 +288,7 @@
     <div class="form-group">
       <label class="form-label">Descripción</label>
       <textarea class="input" id="crear-descripcion" rows="8" placeholder="Descripción del producto..."></textarea>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">El texto de "Condiciones" (Configuración del negocio) se agrega solo al publicar.</div>
     </div>
 
     <div class="form-group">
@@ -502,7 +515,10 @@ async function loadPublicaciones() {
     cont.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <label style="font-size:13px;color:var(--text-secondary)"><input type="checkbox" id="pub-sel-all" onchange="togglePubSelAll(this)"> Seleccionar todo</label>
-      <button class="btn btn-sm" style="color:#ef4444;display:none" id="btn-pub-borrar-lote" onclick="eliminarPubLote()">🗑️ Eliminar seleccionadas (<span id="pub-sel-n">0</span>)</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" style="display:none" id="btn-pub-ia-lote" onclick="generarIAPubLote()">✨ Generar título y descripción con IA (<span id="pub-sel-n-ia">0</span>)</button>
+        <button class="btn btn-sm" style="color:#ef4444;display:none" id="btn-pub-borrar-lote" onclick="eliminarPubLote()">🗑️ Eliminar seleccionadas (<span id="pub-sel-n">0</span>)</button>
+      </div>
     </div>
     <div class="table-container">
     <table class="table">
@@ -521,7 +537,29 @@ async function loadPublicaciones() {
 function togglePubSel(itemId, checked) {
   checked ? PUB_SEL.add(itemId) : PUB_SEL.delete(itemId);
   document.getElementById('pub-sel-n').textContent = PUB_SEL.size;
+  document.getElementById('pub-sel-n-ia').textContent = PUB_SEL.size;
   document.getElementById('btn-pub-borrar-lote').style.display = PUB_SEL.size ? '' : 'none';
+  document.getElementById('btn-pub-ia-lote').style.display = PUB_SEL.size ? '' : 'none';
+}
+
+async function generarIAPubLote() {
+  if (!PUB_SEL.size) return;
+  const extra = prompt(`Vas a regenerar título y descripción para ${PUB_SEL.size} publicación(es) con IA, a partir del título actual de cada una.\n\n¿Palabras clave extra para sumar a todas (opcional)?`, '');
+  if (extra === null) return; // canceló
+
+  let ok = 0, err = 0;
+  for (const id of [...PUB_SEL]) {
+    const item = PUB_ITEMS_CACHE[id];
+    if (!item) { err++; continue; }
+    try {
+      const palabras = extra ? `${item.titulo}, ${extra}` : item.titulo;
+      const gen = await API.post('/api/ml/generar-descripcion', { palabras_clave: palabras });
+      await API.put('/api/ml/publicaciones/' + id, { titulo: gen.titulo, descripcion: gen.descripcion });
+      ok++;
+    } catch (e) { err++; }
+  }
+  showToast(`✓ Generado y aplicado en ${ok} publicación(es)${err ? ` · ${err} con error` : ''}`, err ? 'warning' : 'success');
+  loadPublicaciones();
 }
 function togglePubSelAll(el) {
   document.querySelectorAll('.pub-row-check').forEach(cb => { cb.checked = el.checked; togglePubSel(cb.dataset.id, el.checked); });
@@ -752,6 +790,52 @@ function onModeloChange() {
   }
 
   if (document.getElementById('crear-modo-cuota').checked) recalcularPrecioCuota();
+  actualizarMedidasPiscina(tipo, modelo);
+}
+
+function actualizarMedidasPiscina(tipo, modelo) {
+  const group = document.getElementById('medidas-piscina-group');
+  const hint = document.getElementById('medidas-piscina-hint');
+  const editor = document.getElementById('medidas-piscina-editor');
+  if (tipo !== 'PISCINA' && tipo !== 'COMBO') { group.style.display = 'none'; return; }
+  group.style.display = '';
+
+  const m = (CATALOGO.piscinas?.medidas || {})[modelo];
+  if (m && m.litros) {
+    hint.innerHTML = `📐 Medidas: ${m.largo_m}m x ${m.ancho_m}m, profundidad ${m.profundidad_min_m}-${m.profundidad_max_m}m — ` +
+      `<b>≈ ${m.litros.toLocaleString('es-AR')} litros</b> <button class="btn btn-ghost btn-sm" onclick="mostrarEditorMedidas('${modelo}')">✏️ Editar</button>`;
+    hint.style.color = 'var(--text-secondary)';
+    editor.style.display = 'none';
+  } else {
+    hint.innerHTML = '⚠ Sin medidas cargadas para este modelo — ML pide los litros como atributo obligatorio en piscinas. Cargalas acá una vez y quedan guardadas para siempre.';
+    hint.style.color = 'var(--warning, #f59e0b)';
+    mostrarEditorMedidas(modelo);
+  }
+}
+function mostrarEditorMedidas(modelo) {
+  const m = (CATALOGO.piscinas?.medidas || {})[modelo] || {};
+  document.getElementById('med-largo').value = m.largo_m || '';
+  document.getElementById('med-ancho').value = m.ancho_m || '';
+  document.getElementById('med-prof-min').value = m.profundidad_min_m || '';
+  document.getElementById('med-prof-max').value = m.profundidad_max_m || '';
+  document.getElementById('medidas-piscina-editor').style.display = 'flex';
+}
+async function guardarMedidasPiscina() {
+  const modelo = document.getElementById('crear-modelo').value;
+  if (!modelo) return;
+  try {
+    const res = await API.put('/api/catalogo/piscinas/medidas', {
+      modelo,
+      largo_m: parseFloat(document.getElementById('med-largo').value || '0'),
+      ancho_m: parseFloat(document.getElementById('med-ancho').value || '0'),
+      profundidad_min_m: parseFloat(document.getElementById('med-prof-min').value || '0'),
+      profundidad_max_m: parseFloat(document.getElementById('med-prof-max').value || '0'),
+    });
+    CATALOGO.piscinas.medidas = CATALOGO.piscinas.medidas || {};
+    CATALOGO.piscinas.medidas[modelo] = res.medidas;
+    showToast('✓ Medidas guardadas — ya quedan disponibles para siempre', 'success');
+    actualizarMedidasPiscina('PISCINA', modelo);
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 function onModoCuotaChange() {
@@ -793,6 +877,21 @@ function recalcularPrecioCuota() {
 
 function updateTitleCount(el) {
   document.getElementById('titulo-count').textContent = el.value.length + ' / 60';
+}
+
+function getClaveModeloCatalogo() {
+  // Clave EXACTA del catálogo (no el texto enriquecido para IA) — se usa para
+  // vincular la publicación a su modelo y poder sincronizar fotos/datos después.
+  const tipo = document.getElementById('crear-tipo').value;
+  if (tipo === 'MODULO_DEPOSITO') {
+    const tamano = document.getElementById('crear-deposito-tamano').value;
+    const linea = document.getElementById('crear-deposito-linea').value;
+    return tamano ? `${tamano}_${linea}` : '';
+  }
+  if (tipo === 'PISCINA' || tipo === 'MODULO' || tipo === 'COMBO') {
+    return document.getElementById('crear-modelo').value;
+  }
+  return '';
 }
 
 function getNombreProductoActual() {
@@ -859,6 +958,8 @@ async function generarConIA() {
   }
 }
 
+let ULTIMA_CATEGORIA_DETECTADA = null; // {category_id, category_name} — se resetea si cambia el título/tipo
+
 async function detectarCategoria() {
   const titulo = document.getElementById('crear-titulo').value.trim();
   const box     = document.getElementById('categoria-detectada');
@@ -870,6 +971,7 @@ async function detectarCategoria() {
   btn.disabled = true;
   box.style.color = 'var(--text-secondary)';
   box.textContent = 'Consultando categoría en MercadoLibre...';
+  ULTIMA_CATEGORIA_DETECTADA = null;
 
   try {
     const res = await API.get('/api/ml/categoria-predictor?titulo=' + encodeURIComponent(tituloParaDetectar));
@@ -877,6 +979,7 @@ async function detectarCategoria() {
     if (top) {
       box.style.color = '#22c55e';
       box.textContent = `✓ Categoría detectada: ${top.category_name} (${top.category_id})`;
+      ULTIMA_CATEGORIA_DETECTADA = top;
     } else {
       box.style.color = '#ef4444';
       box.textContent = 'No se pudo detectar una categoría para ese título.';
@@ -895,7 +998,8 @@ async function publicarEnML() {
   const precio      = parseFloat(document.getElementById('crear-precio').value);
   const stock       = parseInt(document.getElementById('crear-stock').value) || 1;
   const tipo        = document.getElementById('crear-tipo').value;
-  const modelo      = getNombreProductoActual();
+  const modeloIA    = getNombreProductoActual();       // enriquecido, para el título/descripción IA
+  const modelo      = getClaveModeloCatalogo() || modeloIA; // clave limpia del catálogo, para vincular la publicación al modelo (sincronizar fotos, etc.)
   const color       = document.getElementById('crear-color').value;
   const categoria   = document.getElementById('crear-categoria').value.trim();
   const fotosRaw    = document.getElementById('crear-fotos').value.trim();
@@ -903,6 +1007,28 @@ async function publicarEnML() {
   if (!titulo)        { showToast('Ingresá un título', 'warning'); return; }
   if (!descripcion)   { showToast('Ingresá una descripción', 'warning'); return; }
   if (!precio || isNaN(precio)) { showToast('Ingresá un precio válido', 'warning'); return; }
+
+  // MercadoLibre NO permite cambiar la categoría después de publicar — si queda
+  // mal hay que rehacer toda la publicación. Por eso siempre se confirma antes.
+  if (!categoria) {
+    if (!ULTIMA_CATEGORIA_DETECTADA) {
+      await detectarCategoria();
+    }
+    if (ULTIMA_CATEGORIA_DETECTADA) {
+      const ok = await showConfirm(
+        `Categoría detectada: "${ULTIMA_CATEGORIA_DETECTADA.category_name}" (${ULTIMA_CATEGORIA_DETECTADA.category_id}).\n\n` +
+        `MercadoLibre NO permite cambiar la categoría después de publicar — si está mal, hay que borrar y rehacer toda la publicación. ¿Confirmás que es correcta?`,
+        'Confirmar categoría antes de publicar'
+      );
+      if (!ok) return;
+    } else {
+      const ok = await showConfirm(
+        'No se pudo detectar automáticamente la categoría. Si publicás así, MercadoLibre va a elegir una por su cuenta y NO se puede cambiar después. ¿Preferís cargar la categoría a mano en "ID de categoría ML" o publicar igual?',
+        'Sin categoría detectada'
+      );
+      if (!ok) return;
+    }
+  }
 
   const fotos_urls = fotosRaw ? fotosRaw.split('\n').map(s => s.trim()).filter(Boolean) : [];
 
@@ -917,6 +1043,7 @@ async function publicarEnML() {
       precio, stock,
       fotos_urls,
       categoria_ml_id: categoria || null,
+      litros_estimados: (tipo === 'PISCINA' || tipo === 'COMBO') ? ((CATALOGO.piscinas?.medidas || {})[modelo]?.litros || null) : null,
     });
     if (res.ok) {
       const catInfo = res.categoria_nombre ? ` — categoría: ${res.categoria_nombre}` : '';
@@ -1108,11 +1235,14 @@ const BOR_SEM = {
   caro: ['sem-caro', '🔴 Estás caro'],
 };
 
+let BOR_DATA_CACHE = {};
 async function borCargar() {
   const e = document.getElementById('bor-f-estado').value;
   const d = await API.get('/api/ml/borradores' + (e ? '?estado=' + e : ''));
   const cont = document.getElementById('bor-lista');
   document.getElementById('bor-count').textContent = (d.total || 0) + ' publicaciones';
+  BOR_DATA_CACHE = {};
+  (d.borradores || []).forEach(b => BOR_DATA_CACHE[b.id] = b);
   if (!d.borradores || !d.borradores.length) {
     cont.innerHTML = '<div class="empty" style="text-align:center;color:var(--text-secondary);padding:30px">Todavía no cargaste publicaciones acá. Tocá <b>+ Nueva publicación</b>.</div>';
     return;
@@ -1302,7 +1432,12 @@ async function borCompetencia(id) {
   } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 async function borPublicar(id) {
-  const ok = await showConfirm('¿Publicar en MercadoLibre ahora?', 'Publicar');
+  const b = BOR_DATA_CACHE[id];
+  const catTxt = b && b.categoria ? `Categoría: ${b.categoria}.` : 'No tiene categoría cargada — ML va a detectar una sola, sin que la confirmes.';
+  const ok = await showConfirm(
+    `${catTxt}\n\nMercadoLibre NO permite cambiar la categoría después de publicar — si está mal hay que borrar y rehacer la publicación. ¿Confirmás?`,
+    'Publicar en MercadoLibre'
+  );
   if (!ok) return;
   showToast('Publicando…', 'info');
   try {
@@ -1313,7 +1448,9 @@ async function borPublicar(id) {
 }
 async function borPublicarLote() {
   if (!BOR_SEL.size) return;
-  const ok = await showConfirm(`¿Publicar ${BOR_SEL.size} publicaciones en MercadoLibre?`, 'Publicar en lote');
+  const sinCategoria = [...BOR_SEL].filter(id => !BOR_DATA_CACHE[id]?.categoria).length;
+  const avisoCat = sinCategoria ? `\n\n⚠ ${sinCategoria} de ellas no tienen categoría cargada — ML va a elegir sola, sin confirmación, y no se puede cambiar después.` : '';
+  const ok = await showConfirm(`¿Publicar ${BOR_SEL.size} publicaciones en MercadoLibre?${avisoCat}`, 'Publicar en lote');
   if (!ok) return;
   showToast('Publicando lote…', 'info');
   const j = await API.post('/api/ml/borradores/publicar-lote', { ids: [...BOR_SEL] });
@@ -1393,10 +1530,13 @@ async function borCargarAtributos() {
   if (d.categoria && !cat) { document.getElementById('mp-cat').value = d.categoria; }
   if (!d.atributos || !d.atributos.length) { cont.innerHTML = '<span style="color:#4ade80">✓ Esta categoría no exige atributos obligatorios.</span>'; return; }
   cont.innerHTML = d.atributos.map(a => {
+    const esLitros = /litro|capacidad|volumen/i.test(a.name || '') && _borLitrosActual;
+    const valorAuto = esLitros ? _borLitrosActual : '';
     const inp = a.valores && a.valores.length
       ? `<select class="input attr-inp" data-id="${a.id}"><option value="">—</option>` + a.valores.map(v => `<option>${v}</option>`).join('') + `</select>`
-      : `<input class="input attr-inp" data-id="${a.id}" placeholder="${a.name}">`;
-    return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name} *</label>${inp}</div>`;
+      : `<input class="input attr-inp" data-id="${a.id}" placeholder="${a.name}" value="${valorAuto}">`;
+    const nota = esLitros ? ' <small style="color:#22c55e">(calculado desde las medidas del catálogo)</small>' : '';
+    return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name} *${nota}</label>${inp}</div>`;
   }).join('');
 }
 function borCollectAtributos() {
@@ -1453,15 +1593,21 @@ async function borCargarCatalogoSelect() {
     sel.innerHTML = html;
   } catch (e) {}
 }
+let _borLitrosActual = '';
 function borOnCatalogoSel() {
   const sel = document.getElementById('mp-catalogo-sel');
   const item = BOR_CATALOGO_ITEMS[sel.value];
   const box = document.getElementById('mp-precio-ref-box');
+  _borLitrosActual = '';
   if (!item) { box.style.display = 'none'; _borPrecioContadoRef = null; return; }
   document.getElementById('mp-producto').value = item.tipo;
   if (!document.getElementById('mp-titulo').value.trim()) {
     document.getElementById('mp-titulo').value = item.nombre.substring(0, 60);
     document.getElementById('mp-tlen').textContent = document.getElementById('mp-titulo').value.length;
+  }
+  if (item.tipo === 'PISCINA' || item.tipo === 'COMBO') {
+    const m = (CATALOGO.piscinas?.medidas || {})[item.nombre];
+    if (m && m.litros) _borLitrosActual = String(m.litros);
   }
   _borPrecioContadoRef = item.precioContado || null;
   box.style.display = _borPrecioContadoRef ? '' : 'none';
@@ -1473,9 +1619,13 @@ async function borActualizarPrecioSugerido() {
   if (!_borPrecioContadoRef) return;
   const lt = document.getElementById('mp-listing').value;
   const cuotas = lt === 'gold_pro' ? (parseInt(document.getElementById('mp-cuotas').value) || 0) : 0;
+  const cat = document.getElementById('mp-cat').value.trim();
   try {
-    const d = await API.get('/api/negocio/precio-sugerido-ml?precio_contado=' + _borPrecioContadoRef + '&cuotas=' + cuotas + '&clasificada=true');
-    document.getElementById('mp-pc-sugerido').textContent = borFmt(d.precio_sugerido) + ' (' + d.tasa_total_pct + '% costos ML)';
+    let u = '/api/negocio/precio-sugerido-ml?precio_contado=' + _borPrecioContadoRef + '&cuotas=' + cuotas + '&clasificada=true&listing_type=' + lt;
+    if (cat) u += '&categoria=' + encodeURIComponent(cat);
+    const d = await API.get(u);
+    const fuenteTxt = d.fuente === 'real_ml' ? ' — tasa real de ML' : ' — estimado';
+    document.getElementById('mp-pc-sugerido').textContent = borFmt(d.precio_sugerido) + ' (' + d.tasa_total_pct + '% costos ML' + fuenteTxt + ')';
   } catch (e) {}
 }
 function borUsarPrecioSugerido() {

@@ -7,6 +7,7 @@
   <button class="tab active" onclick="showTab('piscinas', this)">🏊 Piscinas</button>
   <button class="tab" onclick="showTab('modulos', this)">🏠 Viviendas modulares (financiado)</button>
   <button class="tab" onclick="showTab('modulos-deposito', this)">📦 Módulos de depósito (contado)</button>
+  <button class="tab" onclick="showTab('combos', this)">🎁 Combos</button>
 </div>
 
 <!-- ═══ TAB PISCINAS ═══ -->
@@ -155,6 +156,29 @@
     </div>
   </div>
   <div id="grid-modulos-deposito" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px"></div>
+</div>
+
+<!-- ═══ TAB COMBOS ═══ -->
+<div id="tab-combos" style="display:none">
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><strong>+ Nuevo combo / editar existente</strong></div>
+    <div class="card-body">
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label class="form-label">Nombre <small style="color:var(--text-muted)">(clave — si escribís uno existente, lo edita)</small></label>
+          <input class="input" id="combo-nombre" placeholder="ej. Combo Módulo 30m² + Piscina Minideck"></div>
+        <div><label class="form-label">Plazo máximo de cuotas</label>
+          <input class="input" type="number" id="combo-plazos" value="60" min="1"></div>
+      </div>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label class="form-label">Precio contado</label><input class="input" type="number" id="combo-precio-contado" min="0"></div>
+        <div><label class="form-label">Precio de lista (financiación)</label><input class="input" type="number" id="combo-precio-lista" min="0"></div>
+      </div>
+      <label class="form-label">Descripción</label>
+      <textarea class="input" id="combo-descripcion" rows="2" style="width:100%;margin-bottom:10px"></textarea>
+      <button class="btn btn-primary" onclick="guardarCombo()">💾 Guardar combo</button>
+    </div>
+  </div>
+  <div id="grid-combos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
 </div>
 
 <!-- Modal fotos (compartido) -->
@@ -308,15 +332,23 @@ async function deleteCustom(nombre) {
 }
 
 // ─── Precios ─────────────────────────────────────────────────────────────────
+function thumbOrDot(fotos) {
+  if (fotos && fotos.length) {
+    return `<img src="${fotos[0]}" style="width:22px;height:22px;object-fit:cover;border-radius:4px;border:1px solid var(--border-color)" title="${fotos.length} foto(s)">`;
+  }
+  return `<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block" title="Sin fotos"></span>`;
+}
+
 function renderPrecios() {
   // Piscinas
   const pGrid = document.getElementById('precios-piscinas-grid');
   const modelos = CATALOGO.piscinas?.modelos || [];
   const preciosPis = CATALOGO.piscinas?.precios || {};
   const preciosListaPis = CATALOGO.piscinas?.precios_lista || {};
+  const fotosPis = CATALOGO.piscinas?.fotos || {};
   pGrid.innerHTML = modelos.map(m => `
     <div class="precio-item">
-      <label>${escHtml(m)}</label>
+      <label style="display:flex;align-items:center;gap:6px">${thumbOrDot(fotosPis[m])} ${escHtml(m)}</label>
       <div style="display:flex;gap:6px">
         <input type="number" class="input precio-piscina" data-modelo="${escHtml(m)}"
                value="${preciosPis[m] || ''}" placeholder="Contado" min="0" style="flex:1" title="Precio contado">
@@ -331,11 +363,12 @@ function renderPrecios() {
   const sups = CATALOGO.modulos?.superficies_m2 || [];
   const preciosMod = CATALOGO.modulos?.precios || {};
   const preciosListaMod = CATALOGO.modulos?.precios_lista || {};
+  const fotosMod = CATALOGO.modulos?.fotos || {};
   mGrid.innerHTML = sups.map(s => {
     const clave = `Módulo ${s}m²`;
     return `
     <div class="precio-item">
-      <label>${s}m²</label>
+      <label style="display:flex;align-items:center;gap:6px">${thumbOrDot(fotosMod[clave])} ${s}m²</label>
       <div style="display:flex;gap:6px">
         <input type="number" class="input precio-modulo" data-sup="${escHtml(clave)}"
                value="${preciosMod[clave] || ''}" placeholder="Contado" min="0" style="flex:1" title="Precio contado">
@@ -453,7 +486,7 @@ async function eliminarFoto(index) {
 
 async function guardarFotos(fotos) {
   const { tipo, clave } = fotosModalContexto;
-  await API.put('/api/catalogo/fotos', { tipo, clave, fotos });
+  const res = await API.put('/api/catalogo/fotos', { tipo, clave, fotos });
   if (tipo === 'modulos_deposito') {
     const [tamano, linea] = clave.split('_');
     CATALOGO.modulos_deposito.tamanos[tamano][linea].fotos = fotos;
@@ -462,7 +495,8 @@ async function guardarFotos(fotos) {
     CATALOGO[tipo].fotos[clave] = fotos;
   }
   renderFotosActuales();
-  showToast('Fotos actualizadas ✓', 'success');
+  const syncTxt = res.sincronizadas ? ` — actualizado en ${res.sincronizadas} publicación(es) activa(s) de MercadoLibre` : '';
+  showToast('Fotos actualizadas ✓' + syncTxt, 'success');
 }
 
 async function savePrecios(tipo) {
@@ -500,7 +534,71 @@ function reloadPage() {
 document.addEventListener('DOMContentLoaded', () => {
   renderPrecios();
   renderModulosDeposito();
+  cargarCombos();
 });
+
+// ─── Combos ─────────────────────────────────────────────────────────────────
+let COMBOS_DATA = {};
+async function cargarCombos() {
+  try {
+    COMBOS_DATA = await API.get('/api/catalogo/combos');
+    renderCombos();
+  } catch (e) { showToast('Error al cargar combos: ' + e.message, 'error'); }
+}
+function renderCombos() {
+  const grid = document.getElementById('grid-combos');
+  const nombres = Object.keys(COMBOS_DATA);
+  if (!nombres.length) { grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Todavía no hay combos cargados.</p>'; return; }
+  grid.innerHTML = nombres.map(n => {
+    const c = COMBOS_DATA[n];
+    return `
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="font-size:13px">${escHtml(n)}</strong>
+        <button class="btn btn-ghost btn-sm" onclick="deleteCombo('${escHtml(n).replace(/'/g, "\\'")}')" title="Eliminar">🗑</button>
+      </div>
+      <div class="card-body" style="font-size:13px">
+        <div>💵 Contado: <b>${fmt(c.precio_contado)}</b></div>
+        <div>📋 Lista: <b>${fmt(c.precio_lista)}</b></div>
+        <div style="color:var(--text-muted);margin:4px 0">${escHtml(c.descripcion || '')}</div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-sm" onclick='editarCombo(${JSON.stringify(n)})'>✏️ Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('combos', '${escHtml(n).replace(/'/g, "\\'")}', '${escHtml(n).replace(/'/g, "\\'")}')">📷 Fotos</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function editarCombo(nombre) {
+  const c = COMBOS_DATA[nombre];
+  if (!c) return;
+  document.getElementById('combo-nombre').value = nombre;
+  document.getElementById('combo-precio-contado').value = c.precio_contado || '';
+  document.getElementById('combo-precio-lista').value = c.precio_lista || '';
+  document.getElementById('combo-descripcion').value = c.descripcion || '';
+  document.getElementById('combo-plazos').value = c.plazos_max || 60;
+}
+async function guardarCombo() {
+  const nombre = document.getElementById('combo-nombre').value.trim();
+  if (!nombre) return showToast('Falta el nombre del combo', 'error');
+  try {
+    await API.put('/api/catalogo/combos/' + encodeURIComponent(nombre), {
+      precio_contado: parseFloat(document.getElementById('combo-precio-contado').value || '0'),
+      precio_lista: parseFloat(document.getElementById('combo-precio-lista').value || '0'),
+      descripcion: document.getElementById('combo-descripcion').value,
+      plazos_max: parseInt(document.getElementById('combo-plazos').value || '60'),
+    });
+    showToast('Combo guardado ✓', 'success');
+    ['combo-nombre', 'combo-precio-contado', 'combo-precio-lista', 'combo-descripcion'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('combo-plazos').value = 60;
+    cargarCombos();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+async function deleteCombo(nombre) {
+  if (!confirm(`¿Eliminar el combo "${nombre}"?`)) return;
+  try { await API.del('/api/catalogo/combos/' + encodeURIComponent(nombre)); cargarCombos(); showToast('Combo eliminado', 'success'); }
+  catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
 
 // ─── API + Toast helpers ──────────────────────────────────────────────────────
 function escHtml(s) {

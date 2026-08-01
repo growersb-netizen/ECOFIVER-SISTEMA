@@ -229,8 +229,10 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         item = r.json()
         if b.descripcion:
             try:
+                from routers.mercadolibre import _agregar_condiciones
+                descripcion_final = _agregar_condiciones(db, b.descripcion)
                 await c.post(f"{ML_BASE}/items/{item['id']}/description",
-                             json={"plain_text": b.descripcion}, headers=_ml_headers(tok))
+                             json={"plain_text": descripcion_final}, headers=_ml_headers(tok))
             except Exception:
                 pass
     return {"ok": True, "item_id": item.get("id"), "permalink": item.get("permalink")}
@@ -387,15 +389,25 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
     n = max(1, min(int(d.get("cantidad") or 3), 8))
 
     prompt = (
-        f"Generá {n} variantes DISTINTAS para vender este producto en MercadoLibre Argentina. "
-        f"Producto: '{base.titulo}'. Descripción base: '{(base.descripcion or '')[:400]}'. "
-        f"Cada variante: un título atractivo y con palabras clave DISTINTO (máximo 60 caracteres) y "
-        f"una descripción de venta de 2-4 líneas. Variá el enfoque/keywords para cubrir más búsquedas. "
-        f"Devolvé EXCLUSIVAMENTE un JSON array válido, sin texto extra, con este formato: "
-        f'[{{"titulo":"...","descripcion":"..."}}]'
+        f"Sos especialista en publicaciones de MercadoLibre Argentina. Generá {n} variantes DISTINTAS "
+        f"para vender este producto, para publicar {n} anuncios separados sin que ML los detecte como "
+        f"duplicados. Producto: '{base.titulo}'."
+        + (f" Descripción de referencia (mantené la misma información real, no inventes datos nuevos): "
+           f"'{(base.descripcion or '')[:600]}'." if base.descripcion else
+           " No hay descripción de referencia — escribí una descripción comercial completa y realista "
+           "para este producto vos mismo, basándote en el título.")
+        + "\n\nCada variante necesita:\n"
+        "1. TÍTULO (máx 60 caracteres): sin comas/guiones/pipes/signos/mayúsculas sostenidas, "
+        "keywords longtail al frente, DISTINTO de las otras variantes en orden y palabras usadas.\n"
+        "2. DESCRIPCIÓN COMPLETA (mínimo 200 palabras, NUNCA vacía): presentación, características, "
+        "beneficios, cierre con llamado a la acción. Cada variante debe decir lo MISMO en cuanto a "
+        "información real (mismo producto, mismas características), pero con palabras y estructura "
+        "de oraciones distintas entre sí — para cubrir más términos de búsqueda sin ser copias.\n\n"
+        "Devolvé EXCLUSIVAMENTE un JSON array válido, sin texto extra, con este formato: "
+        '[{"titulo":"...","descripcion":"..."}]'
     )
     try:
-        txt = await ai_complete(db, prompt, max_tokens=1200, temperature=0.9)
+        txt = await ai_complete(db, prompt, max_tokens=min(600 * n + 400, 6000), temperature=0.9)
     except Exception as e:
         raise HTTPException(400, f"IA no disponible: {e}")
 

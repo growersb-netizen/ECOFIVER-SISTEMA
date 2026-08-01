@@ -54,6 +54,8 @@ DEFAULT_CATALOGO = {
         "precios_lista": {},    # precio LISTA (base para financiación/cuotas)
         "fotos": {},            # modelo -> [urls] (para armar publicaciones de ML automáticamente)
         "cuotas_max": 36,       # plazo más largo ofrecido — usado para publicar en ML al valor de la cuota
+        "medidas": {},          # modelo -> {largo_m, ancho_m, profundidad_min_m, profundidad_max_m, litros}
+                                 # litros se calcula solo al guardar — lo pide ML como atributo obligatorio
     },
     "modulos": {
         # Viviendas modulares: se venden financiadas, por m². No confundir con
@@ -169,6 +171,7 @@ async def get_catalogo(current_user: Usuario = Depends(require_auth)):
             "precios_lista": cat["piscinas"].get("precios_lista", {}),
             "fotos": cat["piscinas"].get("fotos", {}),
             "cuotas_max": cat["piscinas"].get("cuotas_max", 36),
+            "medidas": cat["piscinas"].get("medidas", {}),
         },
         "modulos": {
             "superficies_m2": cat["modulos"]["superficies_m2"],
@@ -248,6 +251,7 @@ async def get_foto_catalogo(filename: str):
 @router.put("/api/catalogo/fotos")
 async def set_fotos_catalogo(
     request: Request,
+    db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
@@ -255,7 +259,10 @@ async def set_fotos_catalogo(
     Asocia una lista de URLs de foto a una clave del catálogo.
     Body: { "tipo": "piscinas"|"modulos"|"combos"|"modulos_deposito",
             "clave": "<modelo o tamaño_LINEA>", "fotos": ["url1", "url2", ...] }
-    Reemplaza la lista completa (no agrega incremental).
+    Reemplaza la lista completa (no agrega incremental). Además, sincroniza las
+    fotos nuevas en TODAS las publicaciones de MercadoLibre activas que estén
+    vinculadas a ese modelo (así renovar fotos no exige entrar publicación por
+    publicación) — best-effort, no bloquea el guardado si ML falla.
     """
     _write_auth(x_api_key, current_user)
     data = await request.json()
@@ -286,7 +293,53 @@ async def set_fotos_catalogo(
         cat[tipo]["fotos"][clave] = fotos
 
     save_catalogo(cat)
-    return {"ok": True, "tipo": tipo, "clave": clave, "fotos": fotos}
+
+    sincronizadas = 0
+    try:
+        from routers.mercadolibre import _sincronizar_fotos_publicaciones
+        sincronizadas = await _sincronizar_fotos_publicaciones(db, tipo, clave, fotos)
+    except Exception as e:
+        return {"ok": True, "tipo": tipo, "clave": clave, "fotos": fotos,
+                "sincronizadas": 0, "sync_error": str(e)[:200]}
+
+    return {"ok": True, "tipo": tipo, "clave": clave, "fotos": fotos, "sincronizadas": sincronizadas}
+
+
+# ─── MEDIDAS DE PISCINAS (para calcular litros — atributo obligatorio en ML) ──
+
+@router.put("/api/catalogo/piscinas/medidas")
+async def set_medidas_piscina(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Body: { "modelo": "...", "largo_m": 6, "ancho_m": 3, "profundidad_min_m": 1.2, "profundidad_max_m": 1.5 }
+    Calcula y guarda los litros aproximados (largo x ancho x profundidad promedio x 1000),
+    para no tener que buscarlos a mano cada vez que se publica en MercadoLibre.
+    """
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    modelo = (data.get("modelo") or "").strip()
+    if not modelo:
+        raise HTTPException(400, "modelo requerido")
+
+    largo = float(data.get("largo_m") or 0)
+    ancho = float(data.get("ancho_m") or 0)
+    prof_min = float(data.get("profundidad_min_m") or 0)
+    prof_max = float(data.get("profundidad_max_m") or 0)
+    prof_prom = (prof_min + prof_max) / 2 if (prof_min or prof_max) else 0
+    litros = round(largo * ancho * prof_prom * 1000) if (largo and ancho and prof_prom) else None
+
+    cat = load_catalogo()
+    cat["piscinas"].setdefault("medidas", {})
+    cat["piscinas"]["medidas"][modelo] = {
+        "largo_m": largo, "ancho_m": ancho,
+        "profundidad_min_m": prof_min, "profundidad_max_m": prof_max,
+        "litros": litros,
+    }
+    save_catalogo(cat)
+    return {"ok": True, "modelo": modelo, "medidas": cat["piscinas"]["medidas"][modelo]}
 
 
 # ─── MÓDULOS DE DEPÓSITO (línea de contado, calidad inferior) ────────────────

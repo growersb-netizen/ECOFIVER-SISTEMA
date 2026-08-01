@@ -48,6 +48,16 @@
     <div><label class="form-label">Markup por defecto (%)</label><input class="form-control" type="number" id="n-markup"></div>
     <div><label class="form-label">Flete de referencia ($/km)</label><input class="form-control" type="number" id="n-flete"></div>
   </div>
+  <div class="ng-row" style="margin-top:10px">
+    <div>
+      <label class="form-label">Margen fijo por venta en MercadoLibre ($)</label>
+      <input class="form-control" type="number" id="n-margen-ml">
+      <p style="font-size:12px;color:var(--text-muted);margin-top:4px">
+        El precio sugerido en MercadoLibre se calcula para que, después de descontar TODOS los costos de ML
+        (comisión real + cuotas sin interés si aplica), quede neto el precio de contado + este monto.
+      </p>
+    </div>
+  </div>
 </div>
 
 <div class="ng-card">
@@ -86,6 +96,7 @@ const NG={get:u=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
 const MAP={n_nombre:'negocio_nombre',n_apodo:'negocio_apodo',n_cuit:'negocio_cuit',n_web:'negocio_web',
   n_direccion:'negocio_direccion',n_localidad:'negocio_localidad',n_telefono:'negocio_telefono',n_email:'negocio_email',
   n_condiciones:'negocio_condiciones',n_markup:'negocio_markup',n_flete:'negocio_flete_km',
+  n_margen_ml:'negocio_margen_fijo_ml',
   n_com_clas:'negocio_ml_comision_clasificada',n_com_noclas:'negocio_ml_comision_no_clasificada',
   n_iag:'negocio_ml_iag',n_iva:'negocio_ml_iva',n_iibb:'negocio_ml_iibb',
   n_c3:'negocio_cuotas_3',n_c6:'negocio_cuotas_6'};

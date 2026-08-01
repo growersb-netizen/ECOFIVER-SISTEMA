@@ -7,6 +7,7 @@ Se guarda en ConfiguracionSistema (claves negocio_*).
 import os
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -35,6 +36,7 @@ CAMPOS = {
     "negocio_condiciones": "",     # texto para insertar en descripciones (garantía, envío, etc.)
     "negocio_markup": "0",         # % ganancia sugerido
     "negocio_flete_km": "3000",    # $/km de referencia
+    "negocio_margen_fijo_ml": "150000",  # $ de ganancia fija que debe quedar limpia en cada venta de ML, además del contado
     # ── Costos de MercadoLibre (según simulación oficial provista) ──────────
     "negocio_ml_comision_clasificada": "13",       # % comisión con producto clasificado en catálogo ML
     "negocio_ml_comision_no_clasificada": "16.5",  # % comisión sin clasificar
@@ -65,22 +67,105 @@ def costo_total_rate(db: Session, cuotas: int = 0, clasificada: bool = True) -> 
     return (comision + iag + iva + iibb + cuota_rate) / 100.0
 
 
+def _margen_fijo(db: Session) -> float:
+    try:
+        return float(_get(db, "negocio_margen_fijo_ml") or 0)
+    except Exception:
+        return 0.0
+
+
 def precio_sugerido_ml(db: Session, precio_contado: float, cuotas: int = 0, clasificada: bool = True) -> dict:
     """
-    Precio al que hay que publicar en ML para que, después de todos los costos,
-    el neto disponible sea igual al precio de contado (no perder margen).
+    Precio al que hay que publicar en ML (estimado, con las tasas configuradas
+    a mano) para que, después de todos los costos, el neto disponible sea el
+    precio de contado MÁS el margen fijo configurado (negocio_margen_fijo_ml).
+    Fallback cuando no se puede consultar la tasa real de ML (sin token, sin
+    categoría, etc.) — preferir siempre precio_sugerido_ml_real si hay token.
     """
     rate = costo_total_rate(db, cuotas, clasificada)
     if rate >= 1:
         rate = 0.99
-    sugerido = precio_contado / (1 - rate) if precio_contado else 0
+    margen = _margen_fijo(db)
+    objetivo = precio_contado + margen
+    sugerido = objetivo / (1 - rate) if objetivo else 0
     return {
         "precio_contado": precio_contado,
+        "margen_fijo": margen,
+        "neto_objetivo": objetivo,
         "tasa_total_pct": round(rate * 100, 2),
         "precio_sugerido": round(sugerido, 2),
-        "costo_total": round(sugerido - precio_contado, 2),
+        "costo_total": round(sugerido - objetivo, 2),
         "cuotas": cuotas,
         "clasificada": clasificada,
+        "fuente": "estimado",
+    }
+
+
+async def precio_sugerido_ml_real(db: Session, precio_contado: float, cuotas: int = 0,
+                                   categoria: Optional[str] = None, listing_type: str = "gold_special") -> dict:
+    """
+    Igual que precio_sugerido_ml pero consultando la tasa REAL vigente de ML
+    (GET /sites/MLA/listing_prices) en vez de los porcentajes cargados a mano
+    en Configuración — esos pueden quedar desactualizados si ML cambia sus
+    costos. Se necesita un token de ML válido; si falla, HTTPException para
+    que el caller haga fallback al estimado.
+    """
+    from routers.mercadolibre import ML_BASE, _ml_valid_token, _ml_headers
+
+    margen = _margen_fijo(db)
+    objetivo = precio_contado + margen
+    if not objetivo:
+        raise HTTPException(400, "precio_contado inválido")
+
+    token = await _ml_valid_token(db)
+
+    async def _fee_en(precio: float) -> float:
+        params = {"price": precio, "listing_type_id": listing_type}
+        if categoria:
+            params["category_id"] = categoria
+        async with httpx.AsyncClient(timeout=12) as c:
+            r = await c.get(f"{ML_BASE}/sites/MLA/listing_prices", params=params, headers=_ml_headers(token))
+        if r.status_code != 200:
+            raise HTTPException(r.status_code, f"ML no devolvió el costo: {r.text[:200]}")
+        data = r.json()
+        entry = data[0] if isinstance(data, list) else data
+        fee = entry.get("sale_fee_amount")
+        if fee is None:
+            raise HTTPException(502, "ML no devolvió sale_fee_amount")
+        return float(fee)
+
+    # 1er paso: estimar con una tasa aproximada, calcular la tasa real a ese precio
+    guess = objetivo / (1 - costo_total_rate(db, 0, True))
+    fee_guess = await _fee_en(guess)
+    rate_real = fee_guess / guess if guess else 0
+
+    cuota_rate = 0.0
+    if cuotas == 3:
+        cuota_rate = float(_get(db, "negocio_cuotas_3") or 0) / 100.0
+    elif cuotas == 6:
+        cuota_rate = float(_get(db, "negocio_cuotas_6") or 0) / 100.0
+    rate_total = min(rate_real + cuota_rate, 0.95)
+
+    sugerido = objetivo / (1 - rate_total)
+
+    # 2do paso: verificar contra el precio final (la tasa puede variar levemente entre tramos de precio)
+    fee_final = await _fee_en(sugerido)
+    neto_final = sugerido - fee_final - (sugerido * cuota_rate)
+    diferencia = objetivo - neto_final
+    if abs(diferencia) > 500:
+        sugerido += diferencia  # ajuste fino
+
+    return {
+        "precio_contado": precio_contado,
+        "margen_fijo": margen,
+        "neto_objetivo": objetivo,
+        "tasa_total_pct": round(rate_total * 100, 2),
+        "precio_sugerido": round(sugerido, 2),
+        "costo_total": round(sugerido - objetivo, 2),
+        "cuotas": cuotas,
+        "categoria": categoria,
+        "listing_type": listing_type,
+        "fuente": "real_ml",
     }
 
 
@@ -131,11 +216,20 @@ async def get_config(db: Session = Depends(get_db), x_api_key: Optional[str] = H
 
 @router.get("/api/negocio/precio-sugerido-ml")
 async def api_precio_sugerido(precio_contado: float, cuotas: int = 0, clasificada: bool = True,
+                              categoria: Optional[str] = None, listing_type: str = "gold_special",
                               db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
                               current_user: Optional[Usuario] = Depends(get_current_user)):
-    """Precio de publicación sugerido en ML para no perder margen frente al precio de contado."""
+    """
+    Precio de publicación sugerido en ML para que quede neto el precio de
+    contado + el margen fijo configurado. Intenta con la tasa REAL vigente de
+    ML (necesita cuenta conectada); si no se puede, usa el estimado con las
+    tasas cargadas a mano en Configuración del negocio.
+    """
     _auth(x_api_key, current_user)
-    return precio_sugerido_ml(db, precio_contado, cuotas, clasificada)
+    try:
+        return await precio_sugerido_ml_real(db, precio_contado, cuotas, categoria, listing_type)
+    except Exception:
+        return precio_sugerido_ml(db, precio_contado, cuotas, clasificada)
 
 
 @router.post("/api/negocio/config")

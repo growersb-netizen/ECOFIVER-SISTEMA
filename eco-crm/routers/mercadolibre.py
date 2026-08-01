@@ -32,6 +32,23 @@ ML_AUTH = "https://auth.mercadolibre.com.ar"
 ML_DEFAULT_REDIRECT = "https://eco-crm-production.up.railway.app/mercadolibre/callback"
 
 
+def _agregar_condiciones(db: Session, descripcion: str) -> str:
+    """
+    Suma automáticamente el texto de "Condiciones" configurado en Configuración
+    del negocio al final de la descripción de la publicación (garantía, quiénes
+    somos, envíos, etc.) — evita duplicarlo si ya está incluido (ej. al reeditar).
+    """
+    try:
+        from routers.negocio import _get as _get_negocio
+        condiciones = (_get_negocio(db, "negocio_condiciones") or "").strip()
+    except Exception:
+        condiciones = ""
+    descripcion = descripcion or ""
+    if not condiciones or condiciones in descripcion:
+        return descripcion
+    return f"{descripcion}\n\n{condiciones}" if descripcion else condiciones
+
+
 def _ml_save(db: Session, clave: str, valor: str, secreto: bool = False):
     """Upsert de un valor de config (encripta si es secreto)."""
     stored = encrypt_value(valor) if (secreto and valor) else valor
@@ -324,6 +341,7 @@ async def ml_page(
                 "fotos": cat["piscinas"].get("fotos", {}),
                 "precios_lista": cat["piscinas"].get("precios_lista", {}),
                 "cuotas_max": cat["piscinas"].get("cuotas_max", 36),
+                "medidas": cat["piscinas"].get("medidas", {}),
             },
             "modulos": {
                 "modelos": get_all_modelos_modulo(),
@@ -396,6 +414,49 @@ async def _ml_visitas_items(token: str, item_ids: list) -> dict:
         except Exception:
             continue
     return resultado
+
+
+_TIPO_CATALOGO_A_PRODUCTO = {
+    "piscinas": ["PISCINA", "COMBO"],
+    "modulos": ["MODULO"],
+    "modulos_deposito": ["MODULO_DEPOSITO"],
+}
+
+
+async def _sincronizar_fotos_publicaciones(db: Session, tipo: str, clave: str, fotos: list) -> int:
+    """
+    Al cambiar las fotos de un modelo en el catálogo, actualiza automáticamente
+    las fotos de todas las publicaciones ACTIVAS de MercadoLibre vinculadas a
+    ese modelo (PublicacionML.modelo_especifico == clave) — para renovar fotos
+    sin tener que entrar publicación por publicación. Best-effort por publicación:
+    si una falla (ej. borrada en ML), sigue con las demás.
+    """
+    productos = _TIPO_CATALOGO_A_PRODUCTO.get(tipo)
+    if not productos or not fotos:
+        return 0
+    token = get_config_value("ml_access_token", db)
+    if not token:
+        return 0
+
+    publicaciones = db.query(PublicacionML).filter(
+        PublicacionML.producto.in_(productos),
+        PublicacionML.modelo_especifico == clave,
+        PublicacionML.estado_ml == "active",
+    ).all()
+    if not publicaciones:
+        return 0
+
+    actualizadas = 0
+    payload = {"pictures": [{"source": u} for u in fotos if u]}
+    for pub in publicaciones:
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.put(f"{ML_BASE}/items/{pub.item_id}", headers=_ml_headers(token), json=payload)
+            if r.status_code in (200, 204):
+                actualizadas += 1
+        except Exception:
+            continue
+    return actualizadas
 
 
 async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, limit: int = 1000) -> list:
@@ -561,11 +622,12 @@ async def editar_publicacion(
             raise HTTPException(r.status_code, f"Error ML al editar: {r.text[:300]}")
 
     if "descripcion" in data and data["descripcion"] is not None:
+        descripcion_final = _agregar_condiciones(db, data["descripcion"])
         async with httpx.AsyncClient(timeout=15) as c:
             rd = await c.post(
                 f"{ML_BASE}/items/{item_id}/description",
                 headers=_ml_headers(token),
-                json={"plain_text": data["descripcion"]},
+                json={"plain_text": descripcion_final},
             )
         if rd.status_code not in (200, 201):
             raise HTTPException(rd.status_code, f"Se guardaron los otros campos pero la descripción falló: {rd.text[:300]}")
@@ -809,6 +871,28 @@ async def _resolver_categoria_publicacion(db: Session, token: str, tipo: str, ti
     return {"category_id": fallback, "category_name": None, "fuente": "fallback_fijo"}
 
 
+async def _atributos_auto_litros(token: str, categoria_id: str, litros: float) -> list:
+    """
+    Busca entre los atributos de la categoría uno que sea de capacidad/volumen
+    (ej. piscinas piden "Capacidad" o "Volumen" en litros) y lo autocompleta
+    con el valor calculado a partir de las medidas del modelo, para no
+    depender de que el usuario lo busque y lo cargue a mano cada vez.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{ML_BASE}/categories/{categoria_id}/attributes", headers=_ml_headers(token))
+        if r.status_code != 200:
+            return []
+        import re as _re
+        for a in r.json():
+            nombre = (a.get("name") or "").lower()
+            if _re.search(r"litro|capacidad|volumen", nombre):
+                return [{"id": a.get("id"), "value_name": str(int(litros))}]
+    except Exception:
+        pass
+    return []
+
+
 # ─── API — CREAR PUBLICACIÓN ──────────────────────────────────────────────────
 
 @router.post("/api/ml/publicaciones")
@@ -827,6 +911,11 @@ async def crear_publicacion(
     else:
         categoria_resuelta = await _resolver_categoria_publicacion(db, token, tipo, data.get("titulo", ""))
 
+    atributos = [{"id": "BRAND", "value_name": "EcoFiver"}]
+    litros = data.get("litros_estimados")
+    if litros:
+        atributos += await _atributos_auto_litros(token, categoria_resuelta["category_id"], litros)
+
     payload = {
         "title": data.get("titulo", ""),
         "category_id": categoria_resuelta["category_id"],
@@ -837,16 +926,14 @@ async def crear_publicacion(
         "item_condition": "new",
         "listing_type_id": "gold_special",
         "description": {
-            "plain_text": data.get("descripcion", ""),
+            "plain_text": _agregar_condiciones(db, data.get("descripcion", "")),
         },
         "pictures": [
             {"source": url}
             for url in data.get("fotos_urls", [])
             if url
         ],
-        "attributes": [
-            {"id": "BRAND", "value_name": "EcoFiver"},
-        ],
+        "attributes": atributos,
     }
 
     async with httpx.AsyncClient(timeout=20) as c:

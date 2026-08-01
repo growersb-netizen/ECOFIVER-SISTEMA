@@ -151,7 +151,7 @@ async def _openrouter(audio_bytes: bytes, mime: str, model: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type":  "application/json",
-        "HTTP-Referer":  "https://eco-multiagente-polished-sunset-4227.fly.dev",
+        "HTTP-Referer":  "https://eco-multiagente-production.up.railway.app",
         "X-Title":       "EcoFiver IA",
     }
 

@@ -169,7 +169,7 @@ def _procesar_mensaje_wa(db: Session, telefono: str, nombre: str, texto: str):
                     f"{accion_txt} — {nombre}\n"
                     f"📱 Tel: {telefono}\n"
                     f'💬 Mensaje: "{texto[:150]}"\n'
-                    f"🔗 Ver CRM: https://eco-crm-dawn-fog-5476.fly.dev/leads"
+                    f"🔗 Ver CRM: https://eco-crm-production.up.railway.app/leads"
                 )
                 send_whatsapp_text(db, tel_cfg.valor, msg)
 

@@ -10,7 +10,7 @@
 
   // Endpoint público (sin API key) del CRM real para guardar leads del formulario.
   // Si el CRM no responde, el formulario igual abre WhatsApp — no depende de esto.
-  const CRM_LEAD_ENDPOINT = "https://eco-crm-dawn-fog-5476.fly.dev/api/public/landing-lead";
+  const CRM_LEAD_ENDPOINT = "https://eco-crm-production.up.railway.app/api/public/landing-lead";
 
   // ────────────────────────────────────────────────────────────
   // Reglas de precios (memoria comercial vigente al 2026-06-15,

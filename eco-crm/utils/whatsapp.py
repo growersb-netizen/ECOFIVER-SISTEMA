@@ -3,6 +3,7 @@ Utilidad para enviar mensajes via WhatsApp Cloud API.
 Usa wa_token y wa_phone_id de ConfiguracionSistema.
 """
 import logging
+import os
 import httpx
 from sqlalchemy.orm import Session
 
@@ -68,7 +69,7 @@ def send_whatsapp_text(db: Session, to: str, mensaje: str) -> bool:
 def notificar_asesor_nuevo_lead(db: Session, asesor_telefono: str, lead_nombre: str,
                                  producto: str, localidad: str, forma_pago: str, lead_id: int):
     """Notifica al asesor que le llegó un nuevo lead."""
-    APP_URL = "https://eco-crm-dawn-fog-5476.fly.dev"
+    APP_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
     msg = (
         f"📋 *Nuevo lead asignado*\n"
         f"👤 Cliente: {lead_nombre}\n"

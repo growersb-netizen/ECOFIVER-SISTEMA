@@ -205,7 +205,7 @@ async def _resumen_diario_rodrigo():
             f"🚗 *Flota:* {flota_hoy} salidas programadas hoy",
             f"👥 *Leads:* {leads_nuevos} sin contactar",
             "",
-            f"🔗 https://eco-crm-dawn-fog-5476.fly.dev",
+            f"🔗 https://eco-crm-production.up.railway.app",
         ]
         mensaje = "\n".join(lineas)
         from database.database import SessionLocal as _SL

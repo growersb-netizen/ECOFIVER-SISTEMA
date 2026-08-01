@@ -333,7 +333,7 @@ def _enviar_wa_testimonio(telefono: str, nombre: str, token: str):
     """Envía mensaje WA invitando al cliente a dejar su opinión."""
     try:
         import os, requests
-        base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-dawn-fog-5476.fly.dev")
+        base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
         link = f"{base_url}/seguimiento/{token}"
         mensaje = (
             f"¡Hola {nombre}! 🎉\n\n"

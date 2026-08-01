@@ -118,8 +118,8 @@ CONFIG_DEFS: dict = {
         "categoria": "api_keys",
         "es_secreto": False,
         "test_id": "orquestador",
-        "placeholder": "https://eco-multiagente-polished-sunset-4227.fly.dev",
-        "default": "https://eco-multiagente-polished-sunset-4227.fly.dev",
+        "placeholder": "https://eco-multiagente-production.up.railway.app",
+        "default": "https://eco-multiagente-production.up.railway.app",
     },
     # ── Precios ──
     "flete_precio_km": {
@@ -305,7 +305,7 @@ def auto_init_config(db: Session):
         ("wa_webhook_verify_token", ["WA_VERIFY_TOKEN"],      True),
     ]
     DEFAULT_INIT = [
-        ("orquestador_url", "https://eco-multiagente-polished-sunset-4227.fly.dev", False),
+        ("orquestador_url", "https://eco-multiagente-production.up.railway.app", False),
     ]
 
     changed = False

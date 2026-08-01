@@ -1286,10 +1286,10 @@ async def get_dashboard_ml(
         total_pubs = r_items.json().get("paging", {}).get("total", 0) if r_items.status_code == 200 else 0
         total_q    = r_q.json().get("total", 0) if r_q.status_code == 200 else 0
 
-        hoy = datetime.utcnow()
-        inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00Z")
-        ahora = hoy.strftime("%Y-%m-%dT%H:%M:%SZ")
-        visitas_hoy = await _ml_visitas_usuario_rango(token, user_id, inicio_hoy, ahora)
+        # /users/{id}/items_visits solo acepta fecha simple YYYY-MM-DD (sin
+        # hora) — confirmado con la API real, cualquier otro formato ISO da 400.
+        hoy_str = datetime.utcnow().strftime("%Y-%m-%d")
+        visitas_hoy = await _ml_visitas_usuario_rango(token, user_id, hoy_str, hoy_str)
 
         publicaciones = await _fetch_publicaciones_activas(db, token, user_id, limit=50)
 
@@ -1333,51 +1333,6 @@ async def ml_listing_types(
     if r.status_code != 200:
         return {"status": r.status_code, "error": r.text[:300]}
     return {"status": 200, "listing_types": [{"id": x.get("id"), "name": x.get("name")} for x in r.json()]}
-
-
-@router.get("/api/ml/debug-visitas")
-async def debug_visitas(
-    db: Session = Depends(get_db),
-    x_api_key: Optional[str] = Header(None),
-    current_user: Optional[Usuario] = Depends(get_current_user),
-):
-    """Diagnóstico temporal: respuesta cruda de ML para /visits/items y /users/{id}/items_visits."""
-    ok = (x_api_key and x_api_key == API_KEY) or (
-        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
-    if not ok:
-        raise HTTPException(403, "Sin permisos")
-    tok = await _ml_valid_token(db)
-    user_id = await _get_user_id(tok, db)
-
-    async with httpx.AsyncClient(timeout=15) as c:
-        r_search = await c.get(f"{ML_BASE}/users/{user_id}/items/search", headers=_ml_headers(tok), params={"limit": 3})
-    item_ids = r_search.json().get("results", []) if r_search.status_code == 200 else []
-
-    resultado = {"user_id": user_id, "item_ids_probados": item_ids}
-
-    if item_ids:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r1 = await c.get(f"{ML_BASE}/visits/items", headers=_ml_headers(tok), params={"ids": item_ids[0]})
-        resultado["visits_items"] = {"status": r1.status_code, "body": r1.text[:1000]}
-
-    hoy = datetime.utcnow()
-    variantes_fecha = {
-        "z_sin_ms":       (hoy.strftime("%Y-%m-%dT00:00:00Z"), hoy.strftime("%Y-%m-%dT%H:%M:%SZ")),
-        "offset_-03:00":  (hoy.strftime("%Y-%m-%dT00:00:00-03:00"), hoy.strftime("%Y-%m-%dT%H:%M:%S-03:00")),
-        "offset_-00:00_ms": (hoy.strftime("%Y-%m-%dT00:00:00.000-00:00"), hoy.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")),
-        "solo_fecha":     (hoy.strftime("%Y-%m-%d"), hoy.strftime("%Y-%m-%d")),
-    }
-    resultado["items_visits_hoy_variantes"] = {}
-    for nombre, (df, dt) in variantes_fecha.items():
-        try:
-            async with httpx.AsyncClient(timeout=15) as c:
-                r2 = await c.get(f"{ML_BASE}/users/{user_id}/items_visits", headers=_ml_headers(tok),
-                                 params={"date_from": df, "date_to": dt})
-            resultado["items_visits_hoy_variantes"][nombre] = {"status": r2.status_code, "body": r2.text[:300]}
-        except Exception as e:
-            resultado["items_visits_hoy_variantes"][nombre] = {"error": str(e)[:200]}
-
-    return resultado
 
 
 @router.get("/api/ml/precio-mercado")

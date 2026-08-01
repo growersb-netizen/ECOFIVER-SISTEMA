@@ -523,15 +523,15 @@ async def tarea_franco_onboarding_postulantes():
         postulantes = []
         try:
             import httpx
-            from tools.crm_client import CRM_BASE_URL, HEADERS, TIMEOUT
+            from tools.crm_client import CRM_BASE_URL, HEADERS_XKEY, TIMEOUT
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 r = await client.get(
                     f"{CRM_BASE_URL}/api/aliados",
-                    headers=HEADERS,
+                    headers=HEADERS_XKEY,
                     params={"estado": "postulante"},
                 )
                 r.raise_for_status()
-                postulantes = r.json()
+                postulantes = r.json().get("aliados", [])
         except Exception as e:
             logger.warning(f"[CRON] Franco — no se pudieron obtener postulantes: {e}")
             return
@@ -572,7 +572,7 @@ async def tarea_franco_timeout_postulantes():
             return
 
         import httpx
-        from tools.crm_client import CRM_BASE_URL, HEADERS, TIMEOUT
+        from tools.crm_client import CRM_BASE_URL, HEADERS_XKEY, TIMEOUT
 
         for telefono in con_timeout:
             est = estado_quiz(telefono)
@@ -584,7 +584,7 @@ async def tarea_franco_timeout_postulantes():
                 async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                     await client.put(
                         f"{CRM_BASE_URL}/api/aliados/{codigo}",
-                        headers=HEADERS,
+                        headers=HEADERS_XKEY,
                         json={"estado": "inactivo"},
                     )
             except Exception as ce:

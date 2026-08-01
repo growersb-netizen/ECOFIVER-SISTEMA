@@ -1330,6 +1330,48 @@ async def ml_listing_types(
     return {"status": 200, "listing_types": [{"id": x.get("id"), "name": x.get("name")} for x in r.json()]}
 
 
+@router.get("/api/ml/debug-visitas")
+async def debug_visitas(
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Diagnóstico temporal: respuesta cruda de ML para /visits/items y /users/{id}/items_visits."""
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
+    tok = await _ml_valid_token(db)
+    user_id = await _get_user_id(tok, db)
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        r_search = await c.get(f"{ML_BASE}/users/{user_id}/items/search", headers=_ml_headers(tok), params={"limit": 3})
+    item_ids = r_search.json().get("results", []) if r_search.status_code == 200 else []
+
+    resultado = {"user_id": user_id, "item_ids_probados": item_ids}
+
+    if item_ids:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r1 = await c.get(f"{ML_BASE}/visits/items", headers=_ml_headers(tok), params={"ids": ",".join(item_ids)})
+        resultado["visits_items"] = {"status": r1.status_code, "body": r1.text[:1000]}
+
+    hoy = datetime.utcnow()
+    inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00.000-00:00")
+    ahora = hoy.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+    async with httpx.AsyncClient(timeout=15) as c:
+        r2 = await c.get(f"{ML_BASE}/users/{user_id}/items_visits", headers=_ml_headers(tok),
+                         params={"date_from": inicio_hoy, "date_to": ahora})
+    resultado["items_visits_hoy"] = {"status": r2.status_code, "body": r2.text[:1000]}
+
+    if item_ids:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r3 = await c.get(f"{ML_BASE}/items/{item_ids[0]}/visits",
+                             headers=_ml_headers(tok), params={"date_from": inicio_hoy, "date_to": ahora})
+        resultado["items_id_visits_alt"] = {"status": r3.status_code, "body": r3.text[:500]}
+
+    return resultado
+
+
 @router.get("/api/ml/precio-mercado")
 async def ml_precio_mercado(
     q: str,

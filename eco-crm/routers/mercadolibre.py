@@ -407,10 +407,11 @@ async def _ml_visitas_items(token: str, item_ids: list) -> dict:
             if r.status_code != 200:
                 continue
             data = r.json()
-            for entry in (data if isinstance(data, list) else []):
-                iid = entry.get("item_id")
-                if iid:
-                    resultado[iid] = entry.get("total_visits", entry.get("visits", 0)) or 0
+            # La respuesta real es un dict plano {item_id: visitas}, NO una lista
+            # de objetos — antes se asumía lista y siempre daba 0.
+            if isinstance(data, dict):
+                for iid, visitas in data.items():
+                    resultado[iid] = visitas or 0
         except Exception:
             continue
     return resultado

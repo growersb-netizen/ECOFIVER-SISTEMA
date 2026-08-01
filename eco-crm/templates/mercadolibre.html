@@ -12,10 +12,20 @@
 {% block content %}
 
 <div class="tabs">
+  <button class="tab" onclick="showTab('dashboard', this)">📊 Dashboard</button>
   <button class="tab active" onclick="showTab('publicaciones', this)">📋 Publicaciones</button>
   <button class="tab" onclick="showTab('preguntas', this)">❓ Preguntas <span id="badge-preguntas" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
   <button class="tab" onclick="showTab('crear', this)">➕ Crear Publicación</button>
   <button class="tab" onclick="showTab('config-ml', this)">⚙️ Configuración</button>
+</div>
+
+<!-- ── DASHBOARD ── -->
+<div id="tab-dashboard" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <span style="color:var(--text-secondary);font-size:13px">Datos en vivo desde MercadoLibre</span>
+    <button class="btn btn-secondary btn-sm" onclick="loadDashboardML()">↺ Actualizar</button>
+  </div>
+  <div id="dashboard-ml-content"><div class="loading">Cargando dashboard...</div></div>
 </div>
 
 <!-- ── PUBLICACIONES ── -->
@@ -63,11 +73,15 @@
     </div>
 
     <div class="form-row">
-      <div class="form-group">
+      <div class="form-group" id="modelo-catalogo-group">
         <label class="form-label">Modelo</label>
         <select class="input" id="crear-modelo">
           <option value="">— Seleccioná —</option>
         </select>
+      </div>
+      <div class="form-group" id="modelo-libre-group" style="display:none">
+        <label class="form-label">Nombre del producto</label>
+        <input type="text" class="input" id="crear-nombre-libre" placeholder="ej. Garita de seguridad 1.5x1.5m chapa galvanizada">
       </div>
       <div class="form-group" id="color-group">
         <label class="form-label">Color</label>
@@ -191,7 +205,7 @@
 
 {% block extra_js %}
 <script>
-const TABS_ML = ['publicaciones','preguntas','crear','config-ml'];
+const TABS_ML = ['dashboard','publicaciones','preguntas','crear','config-ml'];
 let currentItemId = null;
 
 // Catálogo del servidor
@@ -205,6 +219,7 @@ function showTab(name, el) {
   if (el) el.classList.add('active');
   if (name === 'config-ml') loadMLConfig();
   if (name === 'preguntas') loadPreguntas();
+  if (name === 'dashboard') loadDashboardML();
 }
 
 /* ─── STATUS ─────────────────────────────────────────────────────────── */
@@ -231,6 +246,54 @@ async function checkMLStatus(showDetail = false) {
   }
 }
 
+/* ─── DASHBOARD ──────────────────────────────────────────────────────── */
+async function loadDashboardML() {
+  const cont = document.getElementById('dashboard-ml-content');
+  cont.innerHTML = '<div class="loading">Cargando dashboard...</div>';
+  try {
+    const d = await API.get('/api/ml/dashboard');
+    if (!d.conectado) {
+      cont.innerHTML = `<div class="alert alert-warning">MercadoLibre no está conectado${d.error ? ': ' + escHtml(d.error) : ''}. Andá a Configuración para vincular la cuenta.</div>`;
+      return;
+    }
+    const rankingRow = (p, metricaLabel, metricaValor) => `
+      <tr>
+        <td><a href="${p.permalink}" target="_blank" style="color:var(--primary)">${escHtml(p.titulo || p.item_id)}</a></td>
+        <td style="text-align:right;font-weight:600">${metricaValor}</td>
+        <td style="text-align:right;color:var(--text-secondary)">${p.visitas} visitas · ${p.ventas} ventas</td>
+        <td style="text-align:right;color:var(--text-secondary)">${p.conversion_pct}%</td>
+      </tr>`;
+
+    cont.innerHTML = `
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-value">${d.publicaciones_activas}</div><div class="stat-label">Publicaciones activas</div></div>
+        <div class="stat-card"><div class="stat-value">${d.visitas_hoy_total}</div><div class="stat-label">Visitas hoy (todas las publicaciones)</div></div>
+        <div class="stat-card"><div class="stat-value">${d.preguntas_sin_responder}</div><div class="stat-label">Preguntas sin responder</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="dashboard-ml-grid">
+        <div class="card" style="padding:16px">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🔥 Top 5 por visitas</h3>
+          ${d.top_por_visitas.length ? `
+          <table class="table"><thead><tr><th>Publicación</th><th style="text-align:right">Visitas</th><th style="text-align:right">Detalle</th><th style="text-align:right">Conversión</th></tr></thead>
+          <tbody>${d.top_por_visitas.map(p => rankingRow(p, 'Visitas', p.visitas)).join('')}</tbody></table>
+          ` : '<p style="color:var(--text-secondary);font-size:13px">Sin datos todavía.</p>'}
+        </div>
+        <div class="card" style="padding:16px">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">💰 Top 5 por ventas</h3>
+          ${d.top_por_ventas.length ? `
+          <table class="table"><thead><tr><th>Publicación</th><th style="text-align:right">Ventas</th><th style="text-align:right">Detalle</th><th style="text-align:right">Conversión</th></tr></thead>
+          <tbody>${d.top_por_ventas.map(p => rankingRow(p, 'Ventas', p.ventas)).join('')}</tbody></table>
+          ` : '<p style="color:var(--text-secondary);font-size:13px">Sin datos todavía.</p>'}
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text-secondary);margin-top:12px">El ranking cubre hasta 50 publicaciones activas. Conversión = ventas / visitas.</p>
+    `;
+  } catch(e) {
+    cont.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
 /* ─── PUBLICACIONES ──────────────────────────────────────────────────── */
 async function loadPublicaciones() {
   const cont = document.getElementById('publicaciones-content');
@@ -246,7 +309,7 @@ async function loadPublicaciones() {
     <div class="table-container">
     <table class="table">
       <thead><tr>
-        <th>Imagen</th><th>Título</th><th>Precio</th><th>Estado</th><th>Visitas</th><th>Stock</th><th>Acciones</th>
+        <th>Imagen</th><th>Título</th><th>Precio</th><th>Estado</th><th>Visitas</th><th>Ventas</th><th>Stock</th><th>Acciones</th>
       </tr></thead>
       <tbody>
         ${items.map(renderPubRow).join('')}
@@ -274,6 +337,7 @@ function renderPubRow(item) {
     <td style="font-weight:600">$${fmtNum(item.precio)}</td>
     <td><span class="badge ${estadoClass}">${estadoLabel}</span></td>
     <td>${item.visitas || 0}</td>
+    <td>${item.ventas || 0}</td>
     <td>${item.stock ?? '-'}</td>
     <td>
       <button class="btn btn-ghost btn-sm" onclick="abrirAccionPub('${item.item_id}','${escHtml(item.titulo||'')}','${item.estado_ml}')">
@@ -322,13 +386,19 @@ async function syncPrecios() {
 }
 
 /* ─── CREAR PUBLICACIÓN ──────────────────────────────────────────────── */
+const LINEAS_CON_CATALOGO = ['PISCINA', 'MODULO', 'COMBO'];
+
 function onTipoChange() {
   const tipo = document.getElementById('crear-tipo').value;
   const modeloSel = document.getElementById('crear-modelo');
   const colorSel  = document.getElementById('crear-color');
   const colorGroup = document.getElementById('color-group');
+  const tieneCatalogo = LINEAS_CON_CATALOGO.includes(tipo);
 
-  // Poblar modelos
+  document.getElementById('modelo-catalogo-group').style.display = tieneCatalogo ? '' : 'none';
+  document.getElementById('modelo-libre-group').style.display = tieneCatalogo ? 'none' : '';
+
+  // Poblar modelos (solo líneas con catálogo cargado)
   let modelos = [];
   if (tipo === 'PISCINA' || tipo === 'COMBO') {
     modelos = (CATALOGO.piscinas?.modelos || []).map(m => m.nombre || m);
@@ -338,9 +408,9 @@ function onTipoChange() {
   modeloSel.innerHTML = '<option value="">— Seleccioná —</option>' +
     modelos.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
 
-  // Colores solo para piscinas
+  // Colores solo para piscinas/combo
   const colores = CATALOGO.piscinas?.colores || [];
-  if (tipo !== 'MODULO') {
+  if (tipo === 'PISCINA' || tipo === 'COMBO') {
     colorGroup.style.display = '';
     colorSel.innerHTML = '<option value="">— Seleccioná —</option>' +
       colores.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
@@ -354,18 +424,25 @@ function updateTitleCount(el) {
   document.getElementById('titulo-count').textContent = el.value.length + ' / 60';
 }
 
+function getNombreProductoActual() {
+  const tipo = document.getElementById('crear-tipo').value;
+  return LINEAS_CON_CATALOGO.includes(tipo)
+    ? document.getElementById('crear-modelo').value
+    : document.getElementById('crear-nombre-libre').value.trim();
+}
+
 async function generarConIA() {
   const tipo    = document.getElementById('crear-tipo').value;
-  const modelo  = document.getElementById('crear-modelo').value;
+  const modelo  = getNombreProductoActual();
   const color   = document.getElementById('crear-color').value;
   const btn     = document.getElementById('btn-generar-ia');
   const status  = document.getElementById('ia-status');
 
-  if (!modelo) { showToast('Seleccioná un modelo primero', 'warning'); return; }
+  if (!modelo) { showToast('Completá el modelo o el nombre del producto primero', 'warning'); return; }
 
   btn.disabled = true;
   btn.textContent = '⏳ Generando...';
-  status.textContent = 'Claude está escribiendo el anuncio optimizado...';
+  status.textContent = 'Escribiendo el anuncio optimizado...';
   status.style.color = 'var(--primary)';
 
   try {
@@ -376,9 +453,11 @@ async function generarConIA() {
       document.getElementById('crear-titulo').value = res.titulo || '';
       document.getElementById('crear-descripcion').value = res.descripcion || '';
       updateTitleCount(document.getElementById('crear-titulo'));
-      status.textContent = '✓ Descripción generada por Claude. Podés editarla antes de publicar.';
+      status.textContent = '✓ Anuncio generado. Detectando categoría...';
       status.style.color = '#22c55e';
-      showToast('✓ Descripción generada', 'success');
+      await detectarCategoria();
+      status.textContent = '✓ Listo. Revisá título, descripción y categoría antes de publicar.';
+      showToast('✓ Anuncio generado', 'success');
     }
   } catch(e) {
     status.textContent = 'Error: ' + e.message;
@@ -392,12 +471,11 @@ async function generarConIA() {
 
 async function detectarCategoria() {
   const titulo = document.getElementById('crear-titulo').value.trim();
-  const tipo    = document.getElementById('crear-tipo').value;
   const box     = document.getElementById('categoria-detectada');
   const btn     = document.getElementById('btn-detectar-cat');
-  const tituloParaDetectar = titulo || tipo;
+  const tituloParaDetectar = titulo || getNombreProductoActual();
 
-  if (!tituloParaDetectar) { showToast('Ingresá un título o elegí el tipo de producto primero', 'warning'); return; }
+  if (!tituloParaDetectar) { showToast('Ingresá un título o el nombre del producto primero', 'warning'); return; }
 
   btn.disabled = true;
   box.style.color = 'var(--text-secondary)';
@@ -427,7 +505,7 @@ async function publicarEnML() {
   const precio      = parseFloat(document.getElementById('crear-precio').value);
   const stock       = parseInt(document.getElementById('crear-stock').value) || 1;
   const tipo        = document.getElementById('crear-tipo').value;
-  const modelo      = document.getElementById('crear-modelo').value;
+  const modelo      = getNombreProductoActual();
   const color       = document.getElementById('crear-color').value;
   const categoria   = document.getElementById('crear-categoria').value.trim();
   const fotosRaw    = document.getElementById('crear-fotos').value.trim();
@@ -467,12 +545,13 @@ async function publicarEnML() {
 }
 
 function limpiarFormCrear() {
-  ['crear-titulo','crear-descripcion','crear-fotos','crear-categoria','crear-precio'].forEach(id => {
+  ['crear-titulo','crear-descripcion','crear-fotos','crear-categoria','crear-precio','crear-nombre-libre'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('crear-stock').value = '1';
   document.getElementById('titulo-count').textContent = '0 / 60';
-  document.getElementById('ia-status').textContent = 'Seleccioná el producto y hacé clic en "Generar" para que Claude cree el anuncio optimizado para SEO.';
+  document.getElementById('categoria-detectada').textContent = '';
+  document.getElementById('ia-status').textContent = 'Completá el producto y hacé clic en "Generar" para crear el anuncio optimizado para SEO.';
   document.getElementById('ia-status').style.color = 'var(--text-secondary)';
 }
 

@@ -352,19 +352,39 @@ async def ml_status(
 
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
-@router.get("/api/ml/publicaciones")
-async def get_publicaciones(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(_require_config_access),
-):
-    token = await _get_token(db)
-    user_id = await _get_user_id(token, db)
+async def _ml_visitas_items(token: str, item_ids: list) -> dict:
+    """
+    Visitas reales por publicación (últimos 2 años), vía /visits/items.
+    OJO: esto NO es lo mismo que sold_quantity (que son ventas) — antes se
+    mostraba sold_quantity como si fueran visitas, dato incorrecto.
+    """
+    resultado: dict = {}
+    if not item_ids:
+        return resultado
+    for i in range(0, len(item_ids), 20):
+        batch = ",".join(item_ids[i:i + 20])
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.get(f"{ML_BASE}/visits/items", headers=_ml_headers(token), params={"ids": batch})
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            for entry in (data if isinstance(data, list) else []):
+                iid = entry.get("item_id")
+                if iid:
+                    resultado[iid] = entry.get("total_visits", entry.get("visits", 0)) or 0
+        except Exception:
+            continue
+    return resultado
 
+
+async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, limit: int = 50) -> list:
+    """Trae publicaciones activas con detalle + ventas + visitas reales. Compartido por el listado y el dashboard."""
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.get(
             f"{ML_BASE}/users/{user_id}/items/search",
             headers=_ml_headers(token),
-            params={"limit": 50, "offset": 0},
+            params={"limit": limit, "offset": 0},
         )
     if r.status_code != 200:
         raise HTTPException(r.status_code, f"Error ML: {r.text[:200]}")
@@ -373,33 +393,42 @@ async def get_publicaciones(
     if not item_ids:
         return []
 
-    # Obtener detalles de cada item en paralelo (máx 20 por llamada)
-    batch = ",".join(item_ids[:20])
-    async with httpx.AsyncClient(timeout=15) as c:
-        r2 = await c.get(
-            f"{ML_BASE}/items",
-            headers=_ml_headers(token),
-            params={"ids": batch},
-        )
-    if r2.status_code != 200:
-        raise HTTPException(r2.status_code, "Error al obtener detalles de publicaciones")
-
     items = []
-    for entry in r2.json():
-        body = entry.get("body", {})
-        if not body:
+    for i in range(0, len(item_ids), 20):
+        batch = ",".join(item_ids[i:i + 20])
+        async with httpx.AsyncClient(timeout=15) as c:
+            r2 = await c.get(f"{ML_BASE}/items", headers=_ml_headers(token), params={"ids": batch})
+        if r2.status_code != 200:
             continue
-        items.append({
-            "item_id":      body.get("id"),
-            "titulo":       body.get("title"),
-            "precio":       body.get("price"),
-            "estado_ml":    body.get("status"),
-            "visitas":      body.get("sold_quantity", 0),
-            "stock":        body.get("available_quantity", 0),
-            "permalink":    body.get("permalink"),
-            "thumbnail":    body.get("thumbnail"),
-            "fecha_vencimiento": body.get("stop_time"),
-        })
+        for entry in r2.json():
+            body = entry.get("body", {})
+            if body:
+                items.append(body)
+
+    visitas_map = await _ml_visitas_items(token, [b.get("id") for b in items if b.get("id")])
+
+    return [{
+        "item_id":      body.get("id"),
+        "titulo":       body.get("title"),
+        "precio":       body.get("price"),
+        "estado_ml":    body.get("status"),
+        "ventas":       body.get("sold_quantity", 0),
+        "visitas":      visitas_map.get(body.get("id"), 0),
+        "stock":        body.get("available_quantity", 0),
+        "permalink":    body.get("permalink"),
+        "thumbnail":    body.get("thumbnail"),
+        "fecha_vencimiento": body.get("stop_time"),
+    } for body in items]
+
+
+@router.get("/api/ml/publicaciones")
+async def get_publicaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    token = await _get_token(db)
+    user_id = await _get_user_id(token, db)
+    items = await _fetch_publicaciones_activas(db, token, user_id)
 
     # Sincronizar cache local
     for item in items:
@@ -495,21 +524,33 @@ async def generar_descripcion(
     if not palabras:
         raise HTTPException(400, "Ingresá algunas palabras clave del producto")
 
-    prompt = f"""Generá un anuncio de MercadoLibre Argentina optimizado para SEO a partir de estas palabras clave del producto:
+    prompt = f"""Sos un especialista en publicaciones de MercadoLibre Argentina (posicionamiento y conversión).
+Generá el título y la descripción de una publicación a partir de estos datos del producto:
 
 {palabras}
 
-Necesito:
-1. TÍTULO (máximo 60 caracteres, con palabras clave de búsqueda relevantes)
-2. DESCRIPCIÓN COMERCIAL COMPLETA (mínimo 300 palabras) con: presentación del producto,
-   características y beneficios principales, por qué comprarlo, y un cierre que invite a consultar.
-   Integrá palabras clave SEO de forma natural.
+REGLAS DE TÍTULO (las aplica el algoritmo de búsqueda de ML, no son de estilo):
+- Máximo 60 caracteres, sin cortar palabras.
+- SOLO espacios entre palabras. Prohibido: comas, guiones, pipes "|", dos puntos, signos de exclamación/interrogación, emojis, MAYÚSCULAS SOSTENIDAS.
+- Prohibidas palabras promocionales que ML penaliza: "oferta", "gratis", "el mejor", "envío gratis", "liquidación", "%".
+- Orden: [Tipo de producto] [atributo diferenciador o modelo] [atributo secundario] [uso o material].
+  El comprador escribe frases largas (keywords "longtail" de 4+ palabras) — pensá cómo buscaría alguien
+  esto en el buscador, no cómo lo describirías en un cartel.
+- No repitas la marca si no aporta búsqueda (nadie busca "EcoFiver piscina"; sí busca "piscina fibra de vidrio 6x3").
+
+REGLAS DE DESCRIPCIÓN (mínimo 300 palabras):
+- Primer párrafo: qué es, para qué sirve, y el beneficio principal — esto es lo que se ve sin hacer scroll.
+- Después: características técnicas concretas (medidas, materiales, capacidad, instalación).
+- Integrar naturalmente 2-3 variantes de búsqueda relacionadas (sinónimos que la gente también usaría).
+- Cierre con llamado a la acción y mención de instalación incluida / fabricación propia en Zárate /
+  financiación propia disponible (solo si aplica al producto — un accesorio chico no necesita financiación).
+- Sin markdown, sin emojis, texto plano en párrafos.
 
 Respondé EXCLUSIVAMENTE con este JSON, sin markdown ni texto extra:
 {{"titulo": "...", "descripcion": "..."}}"""
 
     try:
-        texto = await ai_complete(db, prompt, max_tokens=1400, temperature=0.8)
+        texto = await ai_complete(db, prompt, max_tokens=1400, temperature=0.6)
     except Exception as e:
         raise HTTPException(400, f"IA no disponible: {e}")
 
@@ -524,9 +565,25 @@ Respondé EXCLUSIVAMENTE con este JSON, sin markdown ni texto extra:
 
     return {
         "ok": True,
-        "titulo": (result.get("titulo") or "")[:60],
+        "titulo": _sanear_titulo_ml(result.get("titulo") or ""),
         "descripcion": result.get("descripcion", ""),
     }
+
+
+def _sanear_titulo_ml(titulo: str) -> str:
+    """
+    Red de seguridad por si la IA no respeta las reglas al pie de la letra:
+    saca signos que ML no indexa bien, corta en 60 caracteres sin partir palabras.
+    """
+    import re as _re
+    limpio = _re.sub(r'[,|:;!?"–—_%]', ' ', titulo)
+    limpio = _re.sub(r'\s+', ' ', limpio).strip()
+    if len(limpio) <= 60:
+        return limpio
+    corte = limpio[:60]
+    if ' ' in corte:
+        corte = corte[:corte.rfind(' ')]
+    return corte.strip()
 
 
 # ─── API — CATEGORÍAS ML ───────────────────────────────────────────────────────
@@ -991,12 +1048,38 @@ async def get_stats_publicacion(
 
 # ─── API — DASHBOARD RESUMEN ML ───────────────────────────────────────────────
 
+async def _ml_visitas_usuario_rango(token: str, user_id: str, date_from: str, date_to: str) -> int:
+    """Visitas totales de todas las publicaciones del vendedor en un rango de fechas."""
+    try:
+        async with httpx.AsyncClient(timeout=12) as c:
+            r = await c.get(
+                f"{ML_BASE}/users/{user_id}/items_visits",
+                headers=_ml_headers(token),
+                params={"date_from": date_from, "date_to": date_to},
+            )
+        if r.status_code != 200:
+            return 0
+        data = r.json()
+        if isinstance(data, dict):
+            return data.get("total_visits", 0) or 0
+        if isinstance(data, list):
+            return sum(d.get("total_visits", 0) or 0 for d in data)
+    except Exception:
+        pass
+    return 0
+
+
 @router.get("/api/ml/dashboard")
 async def get_dashboard_ml(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_config_access),
 ):
-    """Resumen rápido: publicaciones activas, preguntas sin responder, ventas."""
+    """
+    Dashboard real: publicaciones activas, preguntas sin responder, visitas de
+    hoy, y ranking de publicaciones por visitas y por ventas (con % de
+    conversión). El ranking cubre hasta 50 publicaciones activas — si hay más,
+    es un recorte representativo, no el total exacto.
+    """
     token = get_config_value("ml_access_token", db)
     if not token:
         return {"conectado": False}
@@ -1019,10 +1102,31 @@ async def get_dashboard_ml(
         total_pubs = r_items.json().get("paging", {}).get("total", 0) if r_items.status_code == 200 else 0
         total_q    = r_q.json().get("total", 0) if r_q.status_code == 200 else 0
 
+        hoy = datetime.utcnow()
+        inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00.000-00:00")
+        ahora = hoy.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+        visitas_hoy = await _ml_visitas_usuario_rango(token, user_id, inicio_hoy, ahora)
+
+        publicaciones = await _fetch_publicaciones_activas(db, token, user_id, limit=50)
+
+        def _resumen(p: dict) -> dict:
+            conv = round(p["ventas"] / p["visitas"] * 100, 1) if p["visitas"] else 0.0
+            return {
+                "item_id": p["item_id"], "titulo": p["titulo"],
+                "visitas": p["visitas"], "ventas": p["ventas"],
+                "conversion_pct": conv, "permalink": p["permalink"],
+            }
+
+        top_visitas = sorted(publicaciones, key=lambda p: p["visitas"], reverse=True)[:5]
+        top_ventas = sorted(publicaciones, key=lambda p: p["ventas"], reverse=True)[:5]
+
         return {
             "conectado": True,
             "publicaciones_activas": total_pubs,
             "preguntas_sin_responder": total_q,
+            "visitas_hoy_total": visitas_hoy,
+            "top_por_visitas": [_resumen(p) for p in top_visitas],
+            "top_por_ventas": [_resumen(p) for p in top_ventas],
         }
     except Exception as e:
         return {"conectado": False, "error": str(e)[:80]}

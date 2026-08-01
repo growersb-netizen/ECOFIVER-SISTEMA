@@ -497,8 +497,7 @@ function onModeloChange() {
   if (tipo === 'PISCINA' || tipo === 'COMBO') {
     fotos = (CATALOGO.piscinas?.fotos || {})[modelo] || [];
   } else if (tipo === 'MODULO') {
-    const m2 = (modelo.match(/(\d+)\s*m/i) || [])[1];
-    fotos = m2 ? ((CATALOGO.modulos?.fotos || {})[m2] || []) : [];
+    fotos = (CATALOGO.modulos?.fotos || {})[modelo] || [];
   }
 
   if (fotos.length) {
@@ -535,8 +534,7 @@ function recalcularPrecioCuota() {
     precioLista = (CATALOGO.piscinas?.precios_lista || {})[modelo];
     cuotasMax = CATALOGO.piscinas?.cuotas_max || 36;
   } else if (tipo === 'MODULO') {
-    const m2 = (modelo.match(/(\d+)\s*m/i) || [])[1];
-    precioLista = m2 ? (CATALOGO.modulos?.precios_lista || {})[m2] : null;
+    precioLista = (CATALOGO.modulos?.precios_lista || {})[modelo];
     cuotasMax = CATALOGO.modulos?.cuotas_max || 60;
   }
 

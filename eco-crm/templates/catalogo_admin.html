@@ -63,9 +63,11 @@
     <div class="card-header"><strong>💰 Precios por modelo (ARS)</strong></div>
     <div class="card-body">
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
-        Los precios se usan como referencia en ventas. Dejar vacío = sin precio base.
+        Válido para <strong>contado y financiación</strong>. "Contado" es el precio que se cotiza directo;
+        "Lista" es la base para calcular cuotas (financiación propia, y el precio publicado en MercadoLibre
+        cuando se publica al valor de la cuota).
       </p>
-      <div id="precios-piscinas-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+      <div id="precios-piscinas-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px">
         <!-- Se renderiza con JS -->
       </div>
       <button class="btn btn-primary mt-3" onclick="savePrecios('piscinas')">💾 Guardar precios</button>
@@ -75,6 +77,10 @@
 
 <!-- ═══ TAB MÓDULOS ═══ -->
 <div id="tab-modulos" style="display:none">
+  <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+    Viviendas modulares: se venden <strong>solo financiadas</strong>, por m². Para la línea de módulos de
+    contado (depósito), ver la pestaña "Módulos de depósito".
+  </p>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="cat-grid">
 
     <!-- Superficies estándar -->
@@ -129,7 +135,10 @@
   <div class="card mt-3">
     <div class="card-header"><strong>💰 Precios por superficie (ARS)</strong></div>
     <div class="card-body">
-      <div id="precios-modulos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+        "Lista" es la base para calcular la cuota mensual (financiación propia y publicación en MercadoLibre al valor de la cuota).
+      </p>
+      <div id="precios-modulos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px">
       </div>
       <button class="btn btn-primary mt-3" onclick="savePrecios('modulos')">💾 Guardar precios</button>
     </div>
@@ -304,29 +313,38 @@ function renderPrecios() {
   const pGrid = document.getElementById('precios-piscinas-grid');
   const modelos = CATALOGO.piscinas?.modelos || [];
   const preciosPis = CATALOGO.piscinas?.precios || {};
+  const preciosListaPis = CATALOGO.piscinas?.precios_lista || {};
   pGrid.innerHTML = modelos.map(m => `
     <div class="precio-item">
       <label>${escHtml(m)}</label>
       <div style="display:flex;gap:6px">
         <input type="number" class="input precio-piscina" data-modelo="${escHtml(m)}"
-               value="${preciosPis[m] || ''}" placeholder="0" min="0" style="flex:1">
+               value="${preciosPis[m] || ''}" placeholder="Contado" min="0" style="flex:1" title="Precio contado">
+        <input type="number" class="input precio-lista-piscina" data-modelo="${escHtml(m)}"
+               value="${preciosListaPis[m] || ''}" placeholder="Lista" min="0" style="flex:1" title="Precio de lista (financiación)">
         <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('piscinas', '${escHtml(m).replace(/'/g, "\\'")}', '${escHtml(m).replace(/'/g, "\\'")}')" title="Fotos">📷</button>
       </div>
     </div>`).join('');
 
-  // Módulos
+  // Viviendas modulares (financiado) -- clave = nombre completo "Módulo Xm²", igual que precios_lista real
   const mGrid = document.getElementById('precios-modulos-grid');
   const sups = CATALOGO.modulos?.superficies_m2 || [];
   const preciosMod = CATALOGO.modulos?.precios || {};
-  mGrid.innerHTML = sups.map(s => `
+  const preciosListaMod = CATALOGO.modulos?.precios_lista || {};
+  mGrid.innerHTML = sups.map(s => {
+    const clave = `Módulo ${s}m²`;
+    return `
     <div class="precio-item">
       <label>${s}m²</label>
       <div style="display:flex;gap:6px">
-        <input type="number" class="input precio-modulo" data-sup="${s}"
-               value="${preciosMod[s] || ''}" placeholder="0" min="0" style="flex:1">
-        <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('modulos', '${s}', 'Módulo ${s}m²')" title="Fotos">📷</button>
+        <input type="number" class="input precio-modulo" data-sup="${escHtml(clave)}"
+               value="${preciosMod[clave] || ''}" placeholder="Contado" min="0" style="flex:1" title="Precio contado">
+        <input type="number" class="input precio-lista-modulo" data-sup="${escHtml(clave)}"
+               value="${preciosListaMod[clave] || ''}" placeholder="Lista" min="0" style="flex:1" title="Precio de lista (financiación)">
+        <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('modulos', '${escHtml(clave).replace(/'/g, "\\'")}', '${escHtml(clave).replace(/'/g, "\\'")}')" title="Fotos">📷</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ─── Módulos de depósito (contado) ────────────────────────────────────────────
@@ -448,17 +466,27 @@ async function guardarFotos(fotos) {
 }
 
 async function savePrecios(tipo) {
-  let precios = {};
+  let precios = {}, preciosLista = {};
   if (tipo === 'piscinas') {
     document.querySelectorAll('.precio-piscina').forEach(el => {
       if (el.value) precios[el.dataset.modelo] = parseFloat(el.value);
     });
-    await API.put('/api/catalogo/piscinas/precios', { precios });
+    document.querySelectorAll('.precio-lista-piscina').forEach(el => {
+      if (el.value) preciosLista[el.dataset.modelo] = parseFloat(el.value);
+    });
   } else {
     document.querySelectorAll('.precio-modulo').forEach(el => {
       if (el.value) precios[el.dataset.sup] = parseFloat(el.value);
     });
-    await API.put('/api/catalogo/modulos/precios', { precios });
+    document.querySelectorAll('.precio-lista-modulo').forEach(el => {
+      if (el.value) preciosLista[el.dataset.sup] = parseFloat(el.value);
+    });
+  }
+  if (Object.keys(precios).length) {
+    await API.put('/api/catalogo/precios', { tipo, campo: 'precios', precios });
+  }
+  if (Object.keys(preciosLista).length) {
+    await API.put('/api/catalogo/precios', { tipo, campo: 'precios_lista', precios: preciosLista });
   }
   showToast('Precios guardados ✅', 'success');
   reloadPage();

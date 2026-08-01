@@ -393,27 +393,32 @@ async def ml_status(
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:
     """
     Visitas reales por publicación (últimos 2 años), vía /visits/items.
-    OJO: esto NO es lo mismo que sold_quantity (que son ventas) — antes se
-    mostraba sold_quantity como si fueran visitas, dato incorrecto.
+    OJO 1: esto NO es lo mismo que sold_quantity (que son ventas).
+    OJO 2: ML solo permite UN item por consulta acá ("maximum amount of items
+    to query is 1", confirmado con la API real) — antes se mandaban lotes de
+    20 y ML devolvía 400 en silencio, por eso siempre daba 0. Se consulta de
+    a una pero en paralelo (con límite de concurrencia) para que no sea lento.
     """
     resultado: dict = {}
     if not item_ids:
         return resultado
-    for i in range(0, len(item_ids), 20):
-        batch = ",".join(item_ids[i:i + 20])
-        try:
-            async with httpx.AsyncClient(timeout=15) as c:
-                r = await c.get(f"{ML_BASE}/visits/items", headers=_ml_headers(token), params={"ids": batch})
-            if r.status_code != 200:
-                continue
-            data = r.json()
-            # La respuesta real es un dict plano {item_id: visitas}, NO una lista
-            # de objetos — antes se asumía lista y siempre daba 0.
-            if isinstance(data, dict):
-                for iid, visitas in data.items():
-                    resultado[iid] = visitas or 0
-        except Exception:
-            continue
+
+    sem = asyncio.Semaphore(10)
+
+    async def _uno(iid: str):
+        async with sem:
+            try:
+                async with httpx.AsyncClient(timeout=15) as c:
+                    r = await c.get(f"{ML_BASE}/visits/items", headers=_ml_headers(token), params={"ids": iid})
+                if r.status_code != 200:
+                    return
+                data = r.json()
+                if isinstance(data, dict) and iid in data:
+                    resultado[iid] = data[iid] or 0
+            except Exception:
+                pass
+
+    await asyncio.gather(*[_uno(iid) for iid in item_ids])
     return resultado
 
 
@@ -1282,8 +1287,8 @@ async def get_dashboard_ml(
         total_q    = r_q.json().get("total", 0) if r_q.status_code == 200 else 0
 
         hoy = datetime.utcnow()
-        inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00.000-00:00")
-        ahora = hoy.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+        inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00Z")
+        ahora = hoy.strftime("%Y-%m-%dT%H:%M:%SZ")
         visitas_hoy = await _ml_visitas_usuario_rango(token, user_id, inicio_hoy, ahora)
 
         publicaciones = await _fetch_publicaciones_activas(db, token, user_id, limit=50)
@@ -1352,12 +1357,12 @@ async def debug_visitas(
 
     if item_ids:
         async with httpx.AsyncClient(timeout=15) as c:
-            r1 = await c.get(f"{ML_BASE}/visits/items", headers=_ml_headers(tok), params={"ids": ",".join(item_ids)})
+            r1 = await c.get(f"{ML_BASE}/visits/items", headers=_ml_headers(tok), params={"ids": item_ids[0]})
         resultado["visits_items"] = {"status": r1.status_code, "body": r1.text[:1000]}
 
     hoy = datetime.utcnow()
-    inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00.000-00:00")
-    ahora = hoy.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+    inicio_hoy = hoy.strftime("%Y-%m-%dT00:00:00Z")
+    ahora = hoy.strftime("%Y-%m-%dT%H:%M:%SZ")
     async with httpx.AsyncClient(timeout=15) as c:
         r2 = await c.get(f"{ML_BASE}/users/{user_id}/items_visits", headers=_ml_headers(tok),
                          params={"date_from": inicio_hoy, "date_to": ahora})

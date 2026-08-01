@@ -5,7 +5,8 @@
 {% block content %}
 <div class="tabs" id="tabs-cat">
   <button class="tab active" onclick="showTab('piscinas', this)">🏊 Piscinas</button>
-  <button class="tab" onclick="showTab('modulos', this)">🏠 Módulos</button>
+  <button class="tab" onclick="showTab('modulos', this)">🏠 Viviendas modulares (financiado)</button>
+  <button class="tab" onclick="showTab('modulos-deposito', this)">📦 Módulos de depósito (contado)</button>
 </div>
 
 <!-- ═══ TAB PISCINAS ═══ -->
@@ -135,6 +136,42 @@
   </div>
 </div>
 
+<!-- ═══ TAB MÓDULOS DE DEPÓSITO (contado) ═══ -->
+<div id="tab-modulos-deposito" style="display:none">
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-body" style="font-size:13px;color:var(--text-muted)">
+      Línea de calidad inferior a las viviendas modulares, pensada para depósito. Se vende <strong>de contado</strong>, no financiada.
+      <br><strong>Base:</strong> {{ catalogo.modulos_deposito.descripcion_base }}
+      <br><strong>Premium:</strong> {{ catalogo.modulos_deposito.descripcion_premium }}
+    </div>
+  </div>
+  <div id="grid-modulos-deposito" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px"></div>
+</div>
+
+<!-- Modal fotos (compartido) -->
+<div class="modal-overlay" id="modal-fotos-catalogo" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title" id="fotos-modal-titulo">📷 Fotos</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-fotos-catalogo')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+        Estas fotos se cargan automáticamente al publicar este producto en MercadoLibre.
+      </p>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <input type="file" id="fotos-input-archivo" accept="image/*" multiple style="flex:1">
+        <button class="btn btn-primary btn-sm" onclick="subirFotosSeleccionadas()">⬆ Subir</button>
+      </div>
+      <div id="fotos-upload-status" style="font-size:12px;color:var(--primary);margin-bottom:10px"></div>
+      <div id="fotos-lista-actual" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-fotos-catalogo')" class="btn btn-secondary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <style>
 .item-row {
   display:flex; justify-content:space-between; align-items:center;
@@ -164,7 +201,7 @@
 let CATALOGO = {{ catalogo | tojson }};
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-const TABS_CAT = ['piscinas', 'modulos'];
+const TABS_CAT = ['piscinas', 'modulos', 'modulos-deposito'];
 function showTab(name, el) {
   TABS_CAT.forEach(t => {
     document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
@@ -270,8 +307,11 @@ function renderPrecios() {
   pGrid.innerHTML = modelos.map(m => `
     <div class="precio-item">
       <label>${escHtml(m)}</label>
-      <input type="number" class="input precio-piscina" data-modelo="${escHtml(m)}"
-             value="${preciosPis[m] || ''}" placeholder="0" min="0">
+      <div style="display:flex;gap:6px">
+        <input type="number" class="input precio-piscina" data-modelo="${escHtml(m)}"
+               value="${preciosPis[m] || ''}" placeholder="0" min="0" style="flex:1">
+        <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('piscinas', '${escHtml(m).replace(/'/g, "\\'")}', '${escHtml(m).replace(/'/g, "\\'")}')" title="Fotos">📷</button>
+      </div>
     </div>`).join('');
 
   // Módulos
@@ -281,9 +321,130 @@ function renderPrecios() {
   mGrid.innerHTML = sups.map(s => `
     <div class="precio-item">
       <label>${s}m²</label>
-      <input type="number" class="input precio-modulo" data-sup="${s}"
-             value="${preciosMod[s] || ''}" placeholder="0" min="0">
+      <div style="display:flex;gap:6px">
+        <input type="number" class="input precio-modulo" data-sup="${s}"
+               value="${preciosMod[s] || ''}" placeholder="0" min="0" style="flex:1">
+        <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('modulos', '${s}', 'Módulo ${s}m²')" title="Fotos">📷</button>
+      </div>
     </div>`).join('');
+}
+
+// ─── Módulos de depósito (contado) ────────────────────────────────────────────
+function renderModulosDeposito() {
+  const grid = document.getElementById('grid-modulos-deposito');
+  const tamanos = CATALOGO.modulos_deposito?.tamanos || {};
+  const ordenados = Object.keys(tamanos).sort((a, b) => parseInt(a) - parseInt(b));
+  grid.innerHTML = ordenados.map(tamano => {
+    const base = tamanos[tamano].BASE || {};
+    const premium = tamanos[tamano].PREMIUM || {};
+    return `
+    <div class="card">
+      <div class="card-header"><strong>${tamano}m²</strong></div>
+      <div class="card-body">
+        <div class="precio-item" style="margin-bottom:12px">
+          <label>Línea Base</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" class="input" id="precio-dep-${tamano}-BASE" value="${base.precio_contado ?? ''}" placeholder="Sin precio cargado" min="0" style="flex:1">
+            <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('modulos_deposito', '${tamano}_BASE', '${tamano}m² Línea Base')" title="Fotos">📷</button>
+          </div>
+        </div>
+        <div class="precio-item">
+          <label>Línea Premium</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" class="input" id="precio-dep-${tamano}-PREMIUM" value="${premium.precio_contado ?? ''}" placeholder="Sin precio cargado" min="0" style="flex:1">
+            <button class="btn btn-ghost btn-sm" onclick="abrirModalFotos('modulos_deposito', '${tamano}_PREMIUM', '${tamano}m² Línea Premium')" title="Fotos">📷</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm mt-3" onclick="guardarPrecioModuloDeposito('${tamano}')">💾 Guardar precios ${tamano}m²</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function guardarPrecioModuloDeposito(tamano) {
+  const base = parseFloat(document.getElementById(`precio-dep-${tamano}-BASE`).value || '0');
+  const premium = parseFloat(document.getElementById(`precio-dep-${tamano}-PREMIUM`).value || '0');
+  try {
+    if (base) await API.put('/api/catalogo/modulos-deposito/precio', { tamano, linea: 'BASE', precio_contado: base });
+    if (premium) await API.put('/api/catalogo/modulos-deposito/precio', { tamano, linea: 'PREMIUM', precio_contado: premium });
+    showToast(`Precios de ${tamano}m² guardados ✓`, 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ─── Fotos (subida + asociación a un modelo/tamaño del catálogo) ─────────────
+let fotosModalContexto = null; // { tipo, clave }
+
+function getFotosActuales() {
+  const { tipo, clave } = fotosModalContexto;
+  if (tipo === 'modulos_deposito') {
+    const [tamano, linea] = clave.split('_');
+    return CATALOGO.modulos_deposito?.tamanos?.[tamano]?.[linea]?.fotos || [];
+  }
+  return (CATALOGO[tipo]?.fotos || {})[clave] || [];
+}
+
+function abrirModalFotos(tipo, clave, tituloVisible) {
+  fotosModalContexto = { tipo, clave };
+  document.getElementById('fotos-modal-titulo').textContent = `📷 Fotos — ${tituloVisible}`;
+  document.getElementById('fotos-input-archivo').value = '';
+  document.getElementById('fotos-upload-status').textContent = '';
+  renderFotosActuales();
+  document.getElementById('modal-fotos-catalogo').style.display = 'flex';
+}
+
+function renderFotosActuales() {
+  const fotos = getFotosActuales();
+  const cont = document.getElementById('fotos-lista-actual');
+  cont.innerHTML = fotos.length ? fotos.map((url, i) => `
+    <div style="position:relative">
+      <img src="${url}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border-color)">
+      <button onclick="eliminarFoto(${i})" title="Quitar"
+        style="position:absolute;top:-6px;right:-6px;background:#c0392b;color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:11px;line-height:1">✕</button>
+    </div>
+  `).join('') : '<p style="color:var(--text-muted);font-size:13px">Sin fotos todavía.</p>';
+}
+
+async function subirFotosSeleccionadas() {
+  const input = document.getElementById('fotos-input-archivo');
+  const files = Array.from(input.files || []);
+  if (!files.length) return showToast('Elegí al menos una imagen', 'error');
+  const status = document.getElementById('fotos-upload-status');
+  const urlsNuevas = [];
+  for (const file of files) {
+    status.textContent = `Subiendo ${file.name}...`;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const r = await fetch('/api/catalogo/fotos/upload', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || 'Error al subir');
+      urlsNuevas.push(data.url);
+    } catch(e) {
+      showToast(`Error subiendo ${file.name}: ${e.message}`, 'error');
+    }
+  }
+  if (!urlsNuevas.length) { status.textContent = ''; return; }
+  await guardarFotos([...getFotosActuales(), ...urlsNuevas]);
+  status.textContent = '✓ Fotos subidas';
+  input.value = '';
+}
+
+async function eliminarFoto(index) {
+  await guardarFotos(getFotosActuales().filter((_, i) => i !== index));
+}
+
+async function guardarFotos(fotos) {
+  const { tipo, clave } = fotosModalContexto;
+  await API.put('/api/catalogo/fotos', { tipo, clave, fotos });
+  if (tipo === 'modulos_deposito') {
+    const [tamano, linea] = clave.split('_');
+    CATALOGO.modulos_deposito.tamanos[tamano][linea].fotos = fotos;
+  } else {
+    CATALOGO[tipo].fotos = CATALOGO[tipo].fotos || {};
+    CATALOGO[tipo].fotos[clave] = fotos;
+  }
+  renderFotosActuales();
+  showToast('Fotos actualizadas ✓', 'success');
 }
 
 async function savePrecios(tipo) {
@@ -310,6 +471,7 @@ function reloadPage() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   renderPrecios();
+  renderModulosDeposito();
 });
 
 // ─── API + Toast helpers ──────────────────────────────────────────────────────

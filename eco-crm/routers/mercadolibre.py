@@ -118,6 +118,7 @@ LINEAS_PRODUCTO = {
     "CUCHA_PERRO":       "Cucha para Perro de Madera",
     "ACCESORIO_PISCINA": "Luz Led Sumergible para Pileta",
     "ACCESORIO_MODULO":  "Placa de PVC para Pared",
+    "MODULO_DEPOSITO":   "Modulo de Chapa para Deposito",
     "CAMPING_PESCA":     None,
     "IMPORTADO_VARIOS":  None,
 }
@@ -310,17 +311,35 @@ async def ml_page(
     current_user: Usuario = Depends(_require_config_access),
 ):
     roles = get_user_roles(current_user)
-    catalogo_data = None
+    catalogo_data = {"piscinas": {"modelos": [], "colores": [], "fotos": {}},
+                      "modulos": {"modelos": [], "fotos": {}},
+                      "modulos_deposito": {"tamanos": {}}}
     try:
-        from routers.catalogo import get_catalogo_data
-        catalogo_data = get_catalogo_data(db)
+        from routers.catalogo import load_catalogo, get_all_modelos_piscina, get_all_modelos_modulo
+        cat = load_catalogo()
+        catalogo_data = {
+            "piscinas": {
+                "modelos": get_all_modelos_piscina(),
+                "colores": cat["piscinas"].get("colores", []),
+                "fotos": cat["piscinas"].get("fotos", {}),
+                "precios_lista": cat["piscinas"].get("precios_lista", {}),
+                "cuotas_max": cat["piscinas"].get("cuotas_max", 36),
+            },
+            "modulos": {
+                "modelos": get_all_modelos_modulo(),
+                "fotos": cat["modulos"].get("fotos", {}),
+                "precios_lista": cat["modulos"].get("precios_lista", {}),
+                "cuotas_max": cat["modulos"].get("cuotas_max", 60),
+            },
+            "modulos_deposito": cat.get("modulos_deposito", {"tamanos": {}}),
+        }
     except Exception:
         pass
     return templates.TemplateResponse("mercadolibre.html", {
         "request": request,
         "user": current_user,
         "roles": roles,
-        "catalogo": catalogo_data or {"piscinas": {"modelos": [], "colores": []}, "modulos": {"modelos": []}},
+        "catalogo": catalogo_data,
     })
 
 

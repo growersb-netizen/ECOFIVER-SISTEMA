@@ -59,7 +59,8 @@
       <label class="form-label">Tipo de producto</label>
       <select class="input" id="crear-tipo" onchange="onTipoChange()">
         <option value="PISCINA">🏊 Piscina</option>
-        <option value="MODULO">🏠 Módulo</option>
+        <option value="MODULO">🏠 Vivienda modular (financiado, por m²)</option>
+        <option value="MODULO_DEPOSITO">📦 Módulo de depósito (contado)</option>
         <option value="COMBO">🎁 Combo Módulo + Piscina</option>
         <option value="DEPOSITO_JARDIN">🏚️ Depósito para jardín</option>
         <option value="GARITA_SEGURIDAD">💂 Garita de seguridad</option>
@@ -75,7 +76,7 @@
     <div class="form-row">
       <div class="form-group" id="modelo-catalogo-group">
         <label class="form-label">Modelo</label>
-        <select class="input" id="crear-modelo">
+        <select class="input" id="crear-modelo" onchange="onModeloChange()">
           <option value="">— Seleccioná —</option>
         </select>
       </div>
@@ -83,12 +84,32 @@
         <label class="form-label">Nombre del producto</label>
         <input type="text" class="input" id="crear-nombre-libre" placeholder="ej. Garita de seguridad 1.5x1.5m chapa galvanizada">
       </div>
+      <div class="form-group" id="modelo-deposito-group" style="display:none">
+        <label class="form-label">Tamaño y línea</label>
+        <div style="display:flex;gap:8px">
+          <select class="input" id="crear-deposito-tamano" onchange="onDepositoChange()">
+            <option value="">— Tamaño —</option>
+          </select>
+          <select class="input" id="crear-deposito-linea" onchange="onDepositoChange()">
+            <option value="BASE">Línea Base</option>
+            <option value="PREMIUM">Línea Premium</option>
+          </select>
+        </div>
+      </div>
       <div class="form-group" id="color-group">
         <label class="form-label">Color</label>
         <select class="input" id="crear-color">
           <option value="">— Seleccioná —</option>
         </select>
       </div>
+    </div>
+
+    <div class="form-group" id="modo-cuota-group" style="display:none">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="crear-modo-cuota" onchange="onModoCuotaChange()">
+        💳 Publicar al valor de la cuota mensual del plan más largo (precio más atractivo)
+      </label>
+      <div id="modo-cuota-hint" style="font-size:12px;color:var(--text-secondary);margin-top:4px"></div>
     </div>
 
     <div class="form-row">
@@ -128,8 +149,9 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">URLs de fotos <span style="color:var(--text-secondary);font-size:11px">(una por línea, https://...)</span></label>
+      <label class="form-label">URLs de fotos <span style="color:var(--text-secondary);font-size:11px">(se completan solas si el modelo tiene fotos cargadas en el Catálogo — podés editarlas)</span></label>
       <textarea class="input" id="crear-fotos" rows="3" placeholder="https://i.imgur.com/foto1.jpg&#10;https://i.imgur.com/foto2.jpg"></textarea>
+      <div id="fotos-catalogo-hint" style="font-size:12px;color:var(--text-secondary);margin-top:4px"></div>
     </div>
 
     <div class="form-group">
@@ -394,9 +416,19 @@ function onTipoChange() {
   const colorSel  = document.getElementById('crear-color');
   const colorGroup = document.getElementById('color-group');
   const tieneCatalogo = LINEAS_CON_CATALOGO.includes(tipo);
+  const esDeposito = tipo === 'MODULO_DEPOSITO';
 
   document.getElementById('modelo-catalogo-group').style.display = tieneCatalogo ? '' : 'none';
-  document.getElementById('modelo-libre-group').style.display = tieneCatalogo ? 'none' : '';
+  document.getElementById('modelo-libre-group').style.display = (tieneCatalogo || esDeposito) ? 'none' : '';
+  document.getElementById('modelo-deposito-group').style.display = esDeposito ? '' : 'none';
+
+  const puedeModoCuota = tipo === 'PISCINA' || tipo === 'MODULO';
+  document.getElementById('modo-cuota-group').style.display = puedeModoCuota ? '' : 'none';
+  if (!puedeModoCuota) {
+    document.getElementById('crear-modo-cuota').checked = false;
+    document.getElementById('crear-precio').readOnly = false;
+    document.getElementById('modo-cuota-hint').textContent = '';
+  }
 
   // Poblar modelos (solo líneas con catálogo cargado)
   let modelos = [];
@@ -408,6 +440,14 @@ function onTipoChange() {
   modeloSel.innerHTML = '<option value="">— Seleccioná —</option>' +
     modelos.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
 
+  // Tamaños de módulo de depósito
+  if (esDeposito) {
+    const tamanoSel = document.getElementById('crear-deposito-tamano');
+    const tamanos = Object.keys(CATALOGO.modulos_deposito?.tamanos || {}).sort((a, b) => parseInt(a) - parseInt(b));
+    tamanoSel.innerHTML = '<option value="">— Tamaño —</option>' +
+      tamanos.map(t => `<option value="${t}">${t}m²</option>`).join('');
+  }
+
   // Colores solo para piscinas/combo
   const colores = CATALOGO.piscinas?.colores || [];
   if (tipo === 'PISCINA' || tipo === 'COMBO') {
@@ -418,6 +458,98 @@ function onTipoChange() {
     colorGroup.style.display = 'none';
     colorSel.value = '';
   }
+  document.getElementById('fotos-catalogo-hint').textContent = '';
+}
+
+function onDepositoChange() {
+  const tamano = document.getElementById('crear-deposito-tamano').value;
+  const linea = document.getElementById('crear-deposito-linea').value;
+  const fotosTextarea = document.getElementById('crear-fotos');
+  const hint = document.getElementById('fotos-catalogo-hint');
+  if (!tamano) return;
+
+  const item = CATALOGO.modulos_deposito?.tamanos?.[tamano]?.[linea];
+  if (!item) return;
+
+  if (item.precio_contado) {
+    document.getElementById('crear-precio').value = item.precio_contado;
+  }
+  const fotos = item.fotos || [];
+  if (fotos.length) {
+    fotosTextarea.value = fotos.join('\n');
+    hint.textContent = `✓ ${fotos.length} foto(s) cargada(s) automáticamente desde el catálogo.`;
+    hint.style.color = '#22c55e';
+  } else {
+    fotosTextarea.value = '';
+    hint.textContent = '⚠ Este tamaño/línea no tiene fotos cargadas en el Catálogo.';
+    hint.style.color = 'var(--warning, #f59e0b)';
+  }
+}
+
+function onModeloChange() {
+  const tipo = document.getElementById('crear-tipo').value;
+  const modelo = document.getElementById('crear-modelo').value;
+  const fotosTextarea = document.getElementById('crear-fotos');
+  const hint = document.getElementById('fotos-catalogo-hint');
+  if (!modelo) { hint.textContent = ''; return; }
+
+  let fotos = [];
+  if (tipo === 'PISCINA' || tipo === 'COMBO') {
+    fotos = (CATALOGO.piscinas?.fotos || {})[modelo] || [];
+  } else if (tipo === 'MODULO') {
+    const m2 = (modelo.match(/(\d+)\s*m/i) || [])[1];
+    fotos = m2 ? ((CATALOGO.modulos?.fotos || {})[m2] || []) : [];
+  }
+
+  if (fotos.length) {
+    fotosTextarea.value = fotos.join('\n');
+    hint.textContent = `✓ ${fotos.length} foto(s) cargada(s) automáticamente desde el catálogo.`;
+    hint.style.color = '#22c55e';
+  } else {
+    fotosTextarea.value = '';
+    hint.textContent = '⚠ Este modelo no tiene fotos cargadas en el Catálogo — subilas ahí para que se autocompleten la próxima vez.';
+    hint.style.color = 'var(--warning, #f59e0b)';
+  }
+
+  if (document.getElementById('crear-modo-cuota').checked) recalcularPrecioCuota();
+}
+
+function onModoCuotaChange() {
+  const activo = document.getElementById('crear-modo-cuota').checked;
+  document.getElementById('crear-precio').readOnly = activo;
+  if (activo) {
+    recalcularPrecioCuota();
+  } else {
+    document.getElementById('modo-cuota-hint').textContent = '';
+  }
+}
+
+function recalcularPrecioCuota() {
+  const tipo = document.getElementById('crear-tipo').value;
+  const modelo = document.getElementById('crear-modelo').value;
+  const hint = document.getElementById('modo-cuota-hint');
+  if (!modelo) { hint.textContent = 'Elegí un modelo primero.'; hint.style.color = 'var(--warning, #f59e0b)'; return; }
+
+  let precioLista = null, cuotasMax = 0;
+  if (tipo === 'PISCINA') {
+    precioLista = (CATALOGO.piscinas?.precios_lista || {})[modelo];
+    cuotasMax = CATALOGO.piscinas?.cuotas_max || 36;
+  } else if (tipo === 'MODULO') {
+    const m2 = (modelo.match(/(\d+)\s*m/i) || [])[1];
+    precioLista = m2 ? (CATALOGO.modulos?.precios_lista || {})[m2] : null;
+    cuotasMax = CATALOGO.modulos?.cuotas_max || 60;
+  }
+
+  if (!precioLista) {
+    hint.textContent = '⚠ Este modelo no tiene precio de lista cargado — no se puede calcular la cuota.';
+    hint.style.color = 'var(--warning, #f59e0b)';
+    return;
+  }
+
+  const cuota = Math.round(precioLista / (cuotasMax + 2));
+  document.getElementById('crear-precio').value = cuota;
+  hint.textContent = `✓ Cuota calculada: plan a ${cuotasMax} cuotas sobre precio de lista $${precioLista.toLocaleString('es-AR')}. Se va a publicar a $${cuota.toLocaleString('es-AR')}/mes.`;
+  hint.style.color = '#22c55e';
 }
 
 function updateTitleCount(el) {
@@ -426,6 +558,16 @@ function updateTitleCount(el) {
 
 function getNombreProductoActual() {
   const tipo = document.getElementById('crear-tipo').value;
+  if (tipo === 'MODULO_DEPOSITO') {
+    const tamano = document.getElementById('crear-deposito-tamano').value;
+    const linea = document.getElementById('crear-deposito-linea').value;
+    if (!tamano) return '';
+    const esPremium = linea === 'PREMIUM';
+    const detalle = esPremium
+      ? (CATALOGO.modulos_deposito?.descripcion_premium || '')
+      : (CATALOGO.modulos_deposito?.descripcion_base || '');
+    return `Modulo de deposito de chapa ${tamano}m2 linea ${esPremium ? 'premium' : 'base'}, ${detalle}`;
+  }
   return LINEAS_CON_CATALOGO.includes(tipo)
     ? document.getElementById('crear-modelo').value
     : document.getElementById('crear-nombre-libre').value.trim();
@@ -445,10 +587,13 @@ async function generarConIA() {
   status.textContent = 'Escribiendo el anuncio optimizado...';
   status.style.color = 'var(--primary)';
 
+  const enModoCuota = document.getElementById('crear-modo-cuota') && document.getElementById('crear-modo-cuota').checked;
+  const body = enModoCuota
+    ? { palabras_clave: `${modelo}, ${color}, precio publicado es la CUOTA MENSUAL de un plan de financiación propia (no el precio de contado ni el total) — el título y la descripción deben dejar clarísimo que es un valor de cuota mensual financiado, mencionar "financiación propia" y "cuota mensual"` }
+    : { tipo, modelo, color };
+
   try {
-    const res = await API.post('/api/ml/generar-descripcion', {
-      tipo, modelo, color,
-    });
+    const res = await API.post('/api/ml/generar-descripcion', body);
     if (res.ok) {
       document.getElementById('crear-titulo').value = res.titulo || '';
       document.getElementById('crear-descripcion').value = res.descripcion || '';
@@ -549,8 +694,11 @@ function limpiarFormCrear() {
     document.getElementById(id).value = '';
   });
   document.getElementById('crear-stock').value = '1';
+  document.getElementById('crear-deposito-tamano').value = '';
+  document.getElementById('crear-deposito-linea').value = 'BASE';
   document.getElementById('titulo-count').textContent = '0 / 60';
   document.getElementById('categoria-detectada').textContent = '';
+  document.getElementById('fotos-catalogo-hint').textContent = '';
   document.getElementById('ia-status').textContent = 'Completá el producto y hacé clic en "Generar" para crear el anuncio optimizado para SEO.';
   document.getElementById('ia-status').style.color = 'var(--text-secondary)';
 }

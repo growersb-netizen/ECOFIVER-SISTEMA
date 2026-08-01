@@ -4,11 +4,12 @@ Modelos de piscinas y módulos habitacionales.
 """
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Header, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,11 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+
+FOTOS_DIR = Path("data/catalogo_fotos")  # dentro del volumen persistente (/app/data) — no ephemeral
+FOTOS_DIR.mkdir(parents=True, exist_ok=True)
+_EXTENSIONES_FOTO_VALIDAS = {".jpg", ".jpeg", ".png", ".webp"}
+_MEDIA_TYPE_FOTO = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
 
 
 def _write_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):
@@ -46,15 +52,39 @@ DEFAULT_CATALOGO = {
         "colores": ["Blanco", "Beige", "Verde agua", "Celeste", "Azul"],
         "precios": {},          # precio CONTADO (el que se cotiza al cliente)
         "precios_lista": {},    # precio LISTA (base para financiación/cuotas)
+        "fotos": {},            # modelo -> [urls] (para armar publicaciones de ML automáticamente)
+        "cuotas_max": 36,       # plazo más largo ofrecido — usado para publicar en ML al valor de la cuota
     },
     "modulos": {
+        # Viviendas modulares: se venden financiadas, por m². No confundir con
+        # "modulos_deposito" (calidad inferior, de contado, para depósito).
         "superficies_m2": [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72],
         "tecnologia": "NCE (Nautical Composite Engineering)",
         "modelos_custom": [],
         "precios": {},          # precio CONTADO
         "precios_lista": {},    # precio LISTA (base para financiación/cuotas)
+        "fotos": {},            # superficie (str) o modelo_custom -> [urls]
+        "cuotas_max": 60,       # plazo más largo ofrecido — usado para publicar en ML al valor de la cuota
     },
-    "combos": {}  # nombre -> {"precio_lista":..., "precio_contado":..., "descripcion":...}
+    "combos": {},  # nombre -> {"precio_lista":..., "precio_contado":..., "descripcion":..., "fotos": [...]}
+    "modulos_deposito": {
+        # Línea de módulos de calidad inferior a las viviendas modulares, para uso
+        # como depósito. Se venden DE CONTADO (no financiado). Tamaños fijos x línea.
+        "descripcion_base": (
+            "Sin acabado final ni terminación de piso (piso colocado sin revestimiento). "
+            "Incluye aberturas, pintura completa blanca e instalación eléctrica interna para luz."
+        ),
+        "descripcion_premium": (
+            "Doble aislante con malla, terminación en placas de PRFV, incluye piso. "
+            "Incluye aberturas, pintura completa blanca e instalación eléctrica interna para luz."
+        ),
+        "tamanos": {
+            "6":  {"BASE": {"precio_contado": 2990000, "fotos": []}, "PREMIUM": {"precio_contado": 3690000, "fotos": []}},
+            "12": {"BASE": {"precio_contado": 4990000, "fotos": []}, "PREMIUM": {"precio_contado": 5990000, "fotos": []}},
+            "18": {"BASE": {"precio_contado": 7490000, "fotos": []}, "PREMIUM": {"precio_contado": 8990000, "fotos": []}},
+            "24": {"BASE": {"precio_contado": None, "fotos": []}, "PREMIUM": {"precio_contado": None, "fotos": []}},
+        },
+    },
 }
 
 
@@ -72,6 +102,9 @@ def load_catalogo() -> dict:
                         cambiado = True
             if "combos" not in cat:
                 cat["combos"] = {}
+                cambiado = True
+            if "modulos_deposito" not in cat:
+                cat["modulos_deposito"] = json.loads(json.dumps(DEFAULT_CATALOGO["modulos_deposito"]))
                 cambiado = True
             if cambiado:
                 save_catalogo(cat)
@@ -131,6 +164,8 @@ async def get_catalogo(current_user: Usuario = Depends(require_auth)):
             "colores": cat["piscinas"]["colores"],
             "precios": cat["piscinas"].get("precios", {}),
             "precios_lista": cat["piscinas"].get("precios_lista", {}),
+            "fotos": cat["piscinas"].get("fotos", {}),
+            "cuotas_max": cat["piscinas"].get("cuotas_max", 36),
         },
         "modulos": {
             "superficies_m2": cat["modulos"]["superficies_m2"],
@@ -138,8 +173,11 @@ async def get_catalogo(current_user: Usuario = Depends(require_auth)):
             "modelos_custom": cat["modulos"].get("modelos_custom", []),
             "precios": cat["modulos"].get("precios", {}),
             "precios_lista": cat["modulos"].get("precios_lista", {}),
+            "fotos": cat["modulos"].get("fotos", {}),
+            "cuotas_max": cat["modulos"].get("cuotas_max", 60),
         },
         "combos": cat.get("combos", {}),
+        "modulos_deposito": cat.get("modulos_deposito", DEFAULT_CATALOGO["modulos_deposito"]),
     }
 
 
@@ -163,6 +201,132 @@ async def get_catalogo_publico():
         },
         "combos": cat.get("combos", {}),
     }
+
+
+# ─── FOTOS (para autocompletar publicaciones de MercadoLibre) ────────────────
+
+@router.post("/api/catalogo/fotos/upload")
+async def upload_foto_catalogo(
+    request: Request,
+    file: UploadFile = File(...),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Sube una imagen al volumen persistente y devuelve su URL pública (para MercadoLibre y el catálogo)."""
+    _write_auth(x_api_key, current_user)
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in _EXTENSIONES_FOTO_VALIDAS:
+        raise HTTPException(400, f"Formato no soportado. Usar: {', '.join(sorted(_EXTENSIONES_FOTO_VALIDAS))}")
+    contenido = await file.read()
+    if len(contenido) > 8 * 1024 * 1024:
+        raise HTTPException(400, "La imagen no puede superar 8MB")
+    nombre = f"{uuid.uuid4().hex}{ext}"
+    (FOTOS_DIR / nombre).write_bytes(contenido)
+
+    from routers.contratos import _abs_url
+    return {"ok": True, "filename": nombre, "url": _abs_url(request, f"/api/catalogo/fotos/{nombre}")}
+
+
+@router.get("/api/catalogo/fotos/{filename}")
+async def get_foto_catalogo(filename: str):
+    """
+    Público y SIN auth a propósito: MercadoLibre necesita poder buscar la
+    imagen directamente desde sus servidores al crear la publicación.
+    """
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(400, "Nombre de archivo inválido")
+    path = FOTOS_DIR / filename
+    if not path.exists():
+        raise HTTPException(404, "Imagen no encontrada")
+    media_type = _MEDIA_TYPE_FOTO.get(path.suffix.lower().lstrip("."), "application/octet-stream")
+    return FileResponse(str(path), media_type=media_type)
+
+
+@router.put("/api/catalogo/fotos")
+async def set_fotos_catalogo(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Asocia una lista de URLs de foto a una clave del catálogo.
+    Body: { "tipo": "piscinas"|"modulos"|"combos"|"modulos_deposito",
+            "clave": "<modelo o tamaño_LINEA>", "fotos": ["url1", "url2", ...] }
+    Reemplaza la lista completa (no agrega incremental).
+    """
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    tipo = data.get("tipo", "")
+    clave = data.get("clave", "")
+    fotos = data.get("fotos", [])
+    if tipo not in ("piscinas", "modulos", "combos", "modulos_deposito") or not clave:
+        raise HTTPException(400, "tipo/clave inválidos")
+    if not isinstance(fotos, list):
+        raise HTTPException(400, "fotos debe ser una lista de URLs")
+
+    cat = load_catalogo()
+    if tipo == "combos":
+        if clave not in cat.get("combos", {}):
+            raise HTTPException(404, "Combo no encontrado")
+        cat["combos"][clave]["fotos"] = fotos
+    elif tipo == "modulos_deposito":
+        try:
+            tamano, linea = clave.split("_", 1)
+        except ValueError:
+            raise HTTPException(400, "clave debe tener formato '<tamano>_<BASE|PREMIUM>'")
+        tamanos = cat.setdefault("modulos_deposito", {}).setdefault("tamanos", {})
+        if tamano not in tamanos or linea not in tamanos[tamano]:
+            raise HTTPException(404, "Tamaño/línea no encontrados")
+        tamanos[tamano][linea]["fotos"] = fotos
+    else:
+        cat[tipo].setdefault("fotos", {})
+        cat[tipo]["fotos"][clave] = fotos
+
+    save_catalogo(cat)
+    return {"ok": True, "tipo": tipo, "clave": clave, "fotos": fotos}
+
+
+# ─── MÓDULOS DE DEPÓSITO (línea de contado, calidad inferior) ────────────────
+
+@router.get("/api/catalogo/modulos-deposito")
+async def get_modulos_deposito(current_user: Usuario = Depends(require_auth)):
+    cat = load_catalogo()
+    return cat.get("modulos_deposito", DEFAULT_CATALOGO["modulos_deposito"])
+
+
+@router.put("/api/catalogo/modulos-deposito/precio")
+async def set_precio_modulo_deposito(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Body: { "tamano": "6"|"12"|"18"|"24", "linea": "BASE"|"PREMIUM", "precio_contado": 2990000 }"""
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    tamano = str(data.get("tamano", ""))
+    linea = data.get("linea", "")
+    precio = data.get("precio_contado")
+    if linea not in ("BASE", "PREMIUM") or precio is None:
+        raise HTTPException(400, "linea debe ser BASE o PREMIUM, precio_contado requerido")
+
+    cat = load_catalogo()
+    tamanos = cat.setdefault("modulos_deposito", {}).setdefault("tamanos", {})
+    if tamano not in tamanos:
+        tamanos[tamano] = {"BASE": {"precio_contado": None, "fotos": []}, "PREMIUM": {"precio_contado": None, "fotos": []}}
+    valor_anterior = tamanos[tamano][linea].get("precio_contado")
+    nuevo_valor = float(precio)
+    if valor_anterior != nuevo_valor and current_user:
+        db.add(PrecioHistorial(
+            clave=f"modulos_deposito.{tamano}.{linea}",
+            valor_anterior=float(valor_anterior) if valor_anterior is not None else None,
+            valor_nuevo=nuevo_valor,
+            cambiado_por_id=current_user.id,
+        ))
+        db.commit()
+    tamanos[tamano][linea]["precio_contado"] = nuevo_valor
+    save_catalogo(cat)
+    return {"ok": True, "tamanos": tamanos}
 
 
 @router.get("/api/catalogo/modelos")
@@ -439,11 +603,13 @@ async def upsert_combo(
     data = await request.json()
     cat = load_catalogo()
     cat.setdefault("combos", {})
+    fotos_existentes = cat["combos"].get(nombre, {}).get("fotos", [])
     cat["combos"][nombre] = {
         "precio_lista": float(data.get("precio_lista") or 0),
         "precio_contado": float(data["precio_contado"]) if data.get("precio_contado") else None,
         "descripcion": data.get("descripcion", ""),
         "plazos_max": int(data.get("plazos_max") or 60),
+        "fotos": fotos_existentes,  # se administran vía PUT /api/catalogo/fotos, no acá
     }
     save_catalogo(cat)
     return {"ok": True, "combos": cat["combos"]}

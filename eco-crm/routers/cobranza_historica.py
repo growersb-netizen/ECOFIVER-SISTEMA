@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import ClienteCobranzaHistorica, PagoCobranzaHistorica, Contrato, Usuario
+from database.models import ClienteCobranzaHistorica, PagoCobranzaHistorica, Contrato, Usuario, HistorialEdicionCobranza
 from routers.auth import require_auth_or_apikey, get_user_roles
 from utils.documentos import render_html, html_to_pdf, monto_en_letras
 
@@ -296,6 +296,14 @@ async def crear_cliente_historico(
     return _cliente_dict(cliente)
 
 
+_CAMPOS_EDITABLES_HISTORICO = (
+    "linea", "proyecto", "apellido_nombre", "telefono", "dni", "metros_o_modelo",
+    "cantidad_cuotas", "anticipo", "precio_total", "cuota_actual", "cac_pct",
+    "cac_excepcion_pct", "estado_plan", "notas",
+)
+_CAMPOS_ECONOMICOS_HISTORICO = {"anticipo", "precio_total", "cuota_actual", "cantidad_cuotas"}
+
+
 @router.put("/api/cobranza-historica/clientes/{cliente_id}")
 async def actualizar_cliente_historico(
     cliente_id: int,
@@ -309,17 +317,46 @@ async def actualizar_cliente_historico(
     if not cliente:
         raise HTTPException(404, "Cliente no encontrado")
     body = await request.json()
-    campos_editables = (
-        "linea", "proyecto", "apellido_nombre", "telefono", "dni", "metros_o_modelo",
-        "cantidad_cuotas", "anticipo", "precio_total", "cuota_actual", "cac_pct",
-        "cac_excepcion_pct", "estado_plan", "notas",
-    )
-    for campo in campos_editables:
+    motivo = body.get("motivo", "")
+
+    cambios = []
+    for campo in _CAMPOS_EDITABLES_HISTORICO:
         if campo in body:
-            setattr(cliente, campo, body[campo])
+            anterior = getattr(cliente, campo)
+            nuevo = body[campo]
+            if anterior != nuevo:
+                cambios.append((campo, str(anterior) if anterior is not None else None,
+                                 str(nuevo) if nuevo is not None else None, campo in _CAMPOS_ECONOMICOS_HISTORICO))
+            setattr(cliente, campo, nuevo)
+
+    for campo, valor_anterior, valor_nuevo, es_economico in cambios:
+        db.add(HistorialEdicionCobranza(
+            tabla_origen="clientes_cobranza_historica", registro_id=cliente_id, campo=campo,
+            valor_anterior=valor_anterior, valor_nuevo=valor_nuevo,
+            usuario_id=user.id, usuario_nombre=user.nombre,
+            motivo=motivo, es_economico=es_economico,
+        ))
+
     db.commit()
     db.refresh(cliente)
     return _cliente_dict(cliente)
+
+
+@router.get("/api/cobranza-historica/clientes/{cliente_id}/historial")
+async def get_historial_cliente_historico(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(_require_access),
+):
+    registros = db.query(HistorialEdicionCobranza).filter(
+        HistorialEdicionCobranza.tabla_origen == "clientes_cobranza_historica",
+        HistorialEdicionCobranza.registro_id == cliente_id,
+    ).order_by(HistorialEdicionCobranza.created_at.desc()).all()
+    return [{
+        "id": r.id, "campo": r.campo, "valor_anterior": r.valor_anterior, "valor_nuevo": r.valor_nuevo,
+        "usuario_nombre": r.usuario_nombre, "motivo": r.motivo, "es_economico": r.es_economico,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in registros]
 
 
 @router.post("/api/cobranza-historica/clientes/{cliente_id}/pago")

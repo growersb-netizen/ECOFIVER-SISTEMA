@@ -238,6 +238,18 @@ async def create_venta_financiada(
     return {"id": venta.id, "ok": True}
 
 
+_CAMPOS_EDITABLES_VENTA = [
+    "cliente_nombre", "cliente_telefono", "cliente_localidad", "producto",
+    "modelo_especifico", "color", "superficie_m2", "forma_pago", "precio_total",
+    "anticipo", "monto_inscripcion", "cantidad_cuotas", "valor_cuota", "cuotas_pagas",
+    "asesor_apertura_id", "supervisor_cierre_id", "estado_plan",
+    "estado_admision", "notas", "cliente_dni", "cliente_cuil",
+    "cliente_domicilio", "cliente_estado_civil", "cliente_ocupacion", "cliente_email",
+    "cac_excepcion_pct",
+]
+_CAMPOS_ECONOMICOS_VENTA = {"precio_total", "anticipo", "monto_inscripcion", "cantidad_cuotas", "valor_cuota"}
+
+
 @router.put("/api/ventas-financiadas/{venta_id}")
 async def update_venta_financiada(
     venta_id: int,
@@ -245,16 +257,25 @@ async def update_venta_financiada(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_auth_or_apikey)
 ):
+    from database.models import HistorialEdicionCobranza
+
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
     if not venta:
         raise HTTPException(404, "Venta no encontrada")
 
     data = await request.json()
+    motivo = data.get("motivo", "")
+
+    cambios: list = []  # [(campo, valor_anterior, valor_nuevo, es_economico)]
 
     for dt_field in ["fecha_inicio_plan", "fecha_primer_vencimiento"]:
         if dt_field in data and data[dt_field]:
             try:
-                setattr(venta, dt_field, datetime.fromisoformat(data[dt_field]))
+                nuevo = datetime.fromisoformat(data[dt_field])
+                anterior = getattr(venta, dt_field)
+                if anterior != nuevo:
+                    cambios.append((dt_field, anterior.isoformat() if anterior else None, nuevo.isoformat(), False))
+                setattr(venta, dt_field, nuevo)
             except Exception:
                 pass
 
@@ -262,26 +283,57 @@ async def update_venta_financiada(
     # con null si la fecha real es desconocida) para que no contamine los
     # contadores de "ventas de hoy/semana/mes" con la fecha de carga.
     if "created_at" in data:
+        anterior = venta.created_at
         if data["created_at"]:
             try:
-                venta.created_at = datetime.fromisoformat(data["created_at"])
+                nuevo = datetime.fromisoformat(data["created_at"])
+                if anterior != nuevo:
+                    cambios.append(("created_at", anterior.isoformat() if anterior else None, nuevo.isoformat(), False))
+                venta.created_at = nuevo
             except Exception:
                 pass
         else:
+            if anterior is not None:
+                cambios.append(("created_at", anterior.isoformat(), None, False))
             venta.created_at = None
 
-    for field in ["cliente_nombre", "cliente_telefono", "cliente_localidad", "producto",
-                  "modelo_especifico", "color", "superficie_m2", "forma_pago", "precio_total",
-                  "anticipo", "cantidad_cuotas", "valor_cuota", "cuotas_pagas",
-                  "asesor_apertura_id", "supervisor_cierre_id", "estado_plan",
-                  "estado_admision", "notas", "cliente_dni", "cliente_cuil",
-                  "cliente_domicilio", "cliente_estado_civil", "cliente_ocupacion", "cliente_email",
-                  "cac_excepcion_pct"]:
+    for field in _CAMPOS_EDITABLES_VENTA:
         if field in data:
-            setattr(venta, field, data[field])
+            anterior = getattr(venta, field)
+            nuevo = data[field]
+            if anterior != nuevo:
+                cambios.append((field, str(anterior) if anterior is not None else None,
+                                 str(nuevo) if nuevo is not None else None, field in _CAMPOS_ECONOMICOS_VENTA))
+            setattr(venta, field, nuevo)
+
+    for campo, valor_anterior, valor_nuevo, es_economico in cambios:
+        db.add(HistorialEdicionCobranza(
+            tabla_origen="ventas_financiadas", registro_id=venta_id, campo=campo,
+            valor_anterior=valor_anterior, valor_nuevo=valor_nuevo,
+            usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+            motivo=motivo, es_economico=es_economico,
+        ))
 
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "cambios_registrados": len(cambios)}
+
+
+@router.get("/api/ventas-financiadas/{venta_id}/historial")
+async def get_historial_venta_financiada(
+    venta_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth_or_apikey)
+):
+    from database.models import HistorialEdicionCobranza
+    registros = db.query(HistorialEdicionCobranza).filter(
+        HistorialEdicionCobranza.tabla_origen == "ventas_financiadas",
+        HistorialEdicionCobranza.registro_id == venta_id,
+    ).order_by(HistorialEdicionCobranza.created_at.desc()).all()
+    return [{
+        "id": r.id, "campo": r.campo, "valor_anterior": r.valor_anterior, "valor_nuevo": r.valor_nuevo,
+        "usuario_nombre": r.usuario_nombre, "motivo": r.motivo, "es_economico": r.es_economico,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in registros]
 
 
 @router.post("/api/ventas-financiadas/{venta_id}/pago")

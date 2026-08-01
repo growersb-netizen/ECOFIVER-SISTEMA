@@ -447,6 +447,233 @@
   </div>
 </div>
 
+<!-- Modal editar operación — EcoFiver -->
+<div class="modal-overlay" id="modal-editar-ecofiver" style="display:none">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title">✏️ Editar operación — EcoFiver</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-editar-ecofiver')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="verHistorialOperacion('ecofiver')">📜 Ver historial de cambios</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nombre y apellido</label>
+        <input type="text" id="edit-ef-nombre" class="form-control">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input type="text" id="edit-ef-telefono" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Localidad</label>
+          <input type="text" id="edit-ef-localidad" class="form-control">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">DNI</label>
+          <input type="text" id="edit-ef-dni" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CUIL</label>
+          <input type="text" id="edit-ef-cuil" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Domicilio</label>
+        <input type="text" id="edit-ef-domicilio" class="form-control">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Estado civil</label>
+          <input type="text" id="edit-ef-estado-civil" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ocupación</label>
+          <input type="text" id="edit-ef-ocupacion" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="text" id="edit-ef-email" class="form-control">
+      </div>
+      <div style="border-top:1px solid var(--border);margin:14px 0"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Producto</label>
+          <select id="edit-ef-producto" class="form-control">
+            <option value="PISCINA">Piscina</option>
+            <option value="MODULO">Módulo</option>
+            <option value="COMBO">Combo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Modelo</label>
+          <input type="text" id="edit-ef-modelo" class="form-control">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Precio total</label>
+          <input type="number" id="edit-ef-precio-total" class="form-control" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Anticipo pagado</label>
+          <input type="number" id="edit-ef-anticipo" class="form-control" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Monto de inscripción objetivo</label>
+          <input type="number" id="edit-ef-monto-inscripcion" class="form-control" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cantidad de cuotas</label>
+          <input type="number" id="edit-ef-cant-cuotas" class="form-control" min="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Valor de cuota</label>
+          <input type="number" id="edit-ef-valor-cuota" class="form-control" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cuotas pagas</label>
+          <input type="number" id="edit-ef-cuotas-pagas" class="form-control" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Estado del plan</label>
+        <select id="edit-ef-estado-plan" class="form-control">
+          <option value="ACTIVO">Activo</option>
+          <option value="ATRASADO">Atrasado</option>
+          <option value="FINALIZADO">Finalizado</option>
+          <option value="CANCELADO">Cancelado</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas</label>
+        <textarea id="edit-ef-notas" class="form-control" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Motivo del cambio <span style="color:var(--text-secondary);font-size:11px">(queda registrado en el historial)</span></label>
+        <textarea id="edit-ef-motivo" class="form-control" rows="2" placeholder="ej. Cliente reacomodó cuota, adelantó pago, corrección de dato..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-editar-ecofiver')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarEdicionEcoFiver()" class="btn btn-primary btn-lg" id="btn-guardar-editar-ef">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar operación — Construsol -->
+<div class="modal-overlay" id="modal-editar-construsol" style="display:none">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title">✏️ Editar operación — Construsol</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-editar-construsol')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="verHistorialOperacion('construsol')">📜 Ver historial de cambios</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Apellido y nombre</label>
+        <input type="text" id="edit-cs-nombre" class="form-control">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input type="text" id="edit-cs-telefono" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">DNI</label>
+          <input type="text" id="edit-cs-dni" class="form-control">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Línea</label>
+          <select id="edit-cs-linea" class="form-control">
+            <option value="viviendas">Viviendas</option>
+            <option value="piscinas">Piscinas</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Metros / modelo</label>
+          <input type="text" id="edit-cs-metros-modelo" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Proyecto</label>
+        <input type="text" id="edit-cs-proyecto" class="form-control">
+      </div>
+      <div style="border-top:1px solid var(--border);margin:14px 0"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Precio total</label>
+          <input type="number" id="edit-cs-precio-total" class="form-control" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Anticipo pagado</label>
+          <input type="number" id="edit-cs-anticipo" class="form-control" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cantidad de cuotas</label>
+          <input type="number" id="edit-cs-cant-cuotas" class="form-control" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cuota vigente</label>
+          <input type="number" id="edit-cs-cuota-actual" class="form-control" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Estado del plan</label>
+        <select id="edit-cs-estado-plan" class="form-control">
+          <option value="ACTIVO">Activo</option>
+          <option value="ATRASADO">Atrasado</option>
+          <option value="FINALIZADO">Finalizado</option>
+          <option value="CANCELADO">Cancelado</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas</label>
+        <textarea id="edit-cs-notas" class="form-control" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Motivo del cambio <span style="color:var(--text-secondary);font-size:11px">(queda registrado en el historial)</span></label>
+        <textarea id="edit-cs-motivo" class="form-control" rows="2" placeholder="ej. Cliente reacomodó cuota, adelantó pago, corrección de dato..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-editar-construsol')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarEdicionConstrusol()" class="btn btn-primary btn-lg" id="btn-guardar-editar-cs">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal historial de cambios -->
+<div class="modal-overlay" id="modal-historial-cambios" style="display:none">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title">📜 Historial de cambios</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-historial-cambios')">✕</button>
+    </div>
+    <div class="modal-body" id="historial-cambios-content">
+      <div class="loading"><div class="spinner"></div> Cargando historial...</div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-historial-cambios')" class="btn btn-secondary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -602,6 +829,7 @@
           <button onclick="toggleAtrasoConstrusol(${c.id}, '${c.estado_plan}')" class="btn btn-sm btn-ghost">
             ${c.estado_plan === 'ATRASADO' ? '✓ Marcar al día' : '⚠ Marcar atrasado'}
           </button>
+          <button onclick="abrirModalEditarConstrusol(${c.id})" class="btn btn-sm btn-ghost">✏️ Editar</button>
           ${c.linea === 'viviendas'
             ? `<button onclick="openCacExcepcion('construsol', ${c.id}, ${c.cac_excepcion_pct != null ? c.cac_excepcion_pct : 'null'}, '${(c.apellido_nombre || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-ghost">⚙️ CAC propio</button>`
             : ''}
@@ -772,6 +1000,215 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Incorporar a la cobranza';
+    }
+  }
+
+  // ═══════════════════ EDITAR OPERACIÓN (con auditoría) ═══════════════════
+
+  const CAMPOS_ECONOMICOS_EF = ['precio_total', 'anticipo', 'monto_inscripcion', 'cantidad_cuotas', 'valor_cuota'];
+  const CAMPOS_ECONOMICOS_CS = ['precio_total', 'anticipo', 'cuota_actual', 'cantidad_cuotas'];
+
+  let edicionEcoFiverActual = null;    // { id, original: {...} }
+  let edicionConstrusolActual = null;  // { id, original: {...} }
+  let historialOperacionActual = null; // { empresa, id }
+
+  function abrirModalEditarEcoFiver(ventaId) {
+    const v = carteraData.find(x => x.id === ventaId);
+    if (!v) return showToast('No se encontró la operación', 'error');
+
+    document.getElementById('edit-ef-nombre').value = v.cliente_nombre || '';
+    document.getElementById('edit-ef-telefono').value = v.cliente_telefono || '';
+    document.getElementById('edit-ef-localidad').value = v.cliente_localidad || '';
+    document.getElementById('edit-ef-dni').value = v.cliente_dni || '';
+    document.getElementById('edit-ef-cuil').value = v.cliente_cuil || '';
+    document.getElementById('edit-ef-domicilio').value = v.cliente_domicilio || '';
+    document.getElementById('edit-ef-estado-civil').value = v.cliente_estado_civil || '';
+    document.getElementById('edit-ef-ocupacion').value = v.cliente_ocupacion || '';
+    document.getElementById('edit-ef-email').value = v.cliente_email || '';
+    document.getElementById('edit-ef-producto').value = v.producto || 'PISCINA';
+    document.getElementById('edit-ef-modelo').value = v.modelo_especifico || '';
+    document.getElementById('edit-ef-precio-total').value = v.precio_total ?? '';
+    document.getElementById('edit-ef-anticipo').value = v.anticipo ?? '';
+    document.getElementById('edit-ef-monto-inscripcion').value = v.monto_inscripcion ?? '';
+    document.getElementById('edit-ef-cant-cuotas').value = v.cantidad_cuotas ?? '';
+    document.getElementById('edit-ef-valor-cuota').value = v.valor_cuota ?? '';
+    document.getElementById('edit-ef-cuotas-pagas').value = v.cuotas_pagas ?? '';
+    document.getElementById('edit-ef-estado-plan').value = v.estado_plan || 'ACTIVO';
+    document.getElementById('edit-ef-notas').value = v.notas || '';
+    document.getElementById('edit-ef-motivo').value = '';
+
+    edicionEcoFiverActual = { id: ventaId, original: { ...v } };
+    document.getElementById('modal-editar-ecofiver').style.display = 'flex';
+  }
+
+  async function guardarEdicionEcoFiver() {
+    if (!edicionEcoFiverActual) return;
+    const orig = edicionEcoFiverActual.original;
+
+    const actual = {
+      cliente_nombre: document.getElementById('edit-ef-nombre').value.trim(),
+      cliente_telefono: document.getElementById('edit-ef-telefono').value.trim(),
+      cliente_localidad: document.getElementById('edit-ef-localidad').value.trim(),
+      cliente_dni: document.getElementById('edit-ef-dni').value.trim(),
+      cliente_cuil: document.getElementById('edit-ef-cuil').value.trim(),
+      cliente_domicilio: document.getElementById('edit-ef-domicilio').value.trim(),
+      cliente_estado_civil: document.getElementById('edit-ef-estado-civil').value.trim(),
+      cliente_ocupacion: document.getElementById('edit-ef-ocupacion').value.trim(),
+      cliente_email: document.getElementById('edit-ef-email').value.trim(),
+      producto: document.getElementById('edit-ef-producto').value,
+      modelo_especifico: document.getElementById('edit-ef-modelo').value.trim(),
+      precio_total: parseFloat(document.getElementById('edit-ef-precio-total').value || '0'),
+      anticipo: parseFloat(document.getElementById('edit-ef-anticipo').value || '0'),
+      monto_inscripcion: document.getElementById('edit-ef-monto-inscripcion').value === '' ? null : parseFloat(document.getElementById('edit-ef-monto-inscripcion').value),
+      cantidad_cuotas: parseInt(document.getElementById('edit-ef-cant-cuotas').value || '0'),
+      valor_cuota: parseFloat(document.getElementById('edit-ef-valor-cuota').value || '0'),
+      cuotas_pagas: parseInt(document.getElementById('edit-ef-cuotas-pagas').value || '0'),
+      estado_plan: document.getElementById('edit-ef-estado-plan').value,
+      notas: document.getElementById('edit-ef-notas').value,
+    };
+
+    const payload = {};
+    let afectaEconomico = false;
+    for (const campo in actual) {
+      const antes = orig[campo] ?? (typeof actual[campo] === 'number' ? 0 : '');
+      if (String(antes) !== String(actual[campo])) {
+        payload[campo] = actual[campo];
+        if (CAMPOS_ECONOMICOS_EF.includes(campo)) afectaEconomico = true;
+      }
+    }
+
+    if (!Object.keys(payload).length) { showToast('No hay cambios para guardar', 'info'); return; }
+
+    if (afectaEconomico) {
+      const ok = await showConfirm(
+        'Este cambio afecta el monto/plan económico de la operación (precio, anticipo, cuotas o valor de cuota). ¿Confirmás el cambio?',
+        'Cambio económico'
+      );
+      if (!ok) return;
+    }
+
+    payload.motivo = document.getElementById('edit-ef-motivo').value.trim();
+
+    const btn = document.getElementById('btn-guardar-editar-ef');
+    btn.disabled = true;
+    try {
+      await API.put(`/api/ventas-financiadas/${edicionEcoFiverActual.id}`, payload);
+      showToast('✓ Operación actualizada', 'success');
+      closeModal('modal-editar-ecofiver');
+      await window.loadCartera();
+      _aplicarTodosLosFiltrosCartera();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function abrirModalEditarConstrusol(clienteId) {
+    const c = construsolData.find(x => x.id === clienteId);
+    if (!c) return showToast('No se encontró la operación', 'error');
+
+    document.getElementById('edit-cs-nombre').value = c.apellido_nombre || '';
+    document.getElementById('edit-cs-telefono').value = c.telefono || '';
+    document.getElementById('edit-cs-dni').value = c.dni || '';
+    document.getElementById('edit-cs-linea').value = c.linea || 'viviendas';
+    document.getElementById('edit-cs-metros-modelo').value = c.metros_o_modelo || '';
+    document.getElementById('edit-cs-proyecto').value = c.proyecto || '';
+    document.getElementById('edit-cs-precio-total').value = c.precio_total ?? '';
+    document.getElementById('edit-cs-anticipo').value = c.anticipo ?? '';
+    document.getElementById('edit-cs-cant-cuotas').value = c.cantidad_cuotas ?? '';
+    document.getElementById('edit-cs-cuota-actual').value = c.cuota_actual ?? '';
+    document.getElementById('edit-cs-estado-plan').value = c.estado_plan || 'ACTIVO';
+    document.getElementById('edit-cs-notas').value = c.notas || '';
+    document.getElementById('edit-cs-motivo').value = '';
+
+    edicionConstrusolActual = { id: clienteId, original: { ...c } };
+    document.getElementById('modal-editar-construsol').style.display = 'flex';
+  }
+
+  async function guardarEdicionConstrusol() {
+    if (!edicionConstrusolActual) return;
+    const orig = edicionConstrusolActual.original;
+
+    const actual = {
+      apellido_nombre: document.getElementById('edit-cs-nombre').value.trim(),
+      telefono: document.getElementById('edit-cs-telefono').value.trim(),
+      dni: document.getElementById('edit-cs-dni').value.trim(),
+      linea: document.getElementById('edit-cs-linea').value,
+      metros_o_modelo: document.getElementById('edit-cs-metros-modelo').value.trim(),
+      proyecto: document.getElementById('edit-cs-proyecto').value.trim(),
+      precio_total: parseFloat(document.getElementById('edit-cs-precio-total').value || '0'),
+      anticipo: parseFloat(document.getElementById('edit-cs-anticipo').value || '0'),
+      cantidad_cuotas: parseInt(document.getElementById('edit-cs-cant-cuotas').value || '0'),
+      cuota_actual: parseFloat(document.getElementById('edit-cs-cuota-actual').value || '0'),
+      estado_plan: document.getElementById('edit-cs-estado-plan').value,
+      notas: document.getElementById('edit-cs-notas').value,
+    };
+
+    const payload = {};
+    let afectaEconomico = false;
+    for (const campo in actual) {
+      const antes = orig[campo] ?? (typeof actual[campo] === 'number' ? 0 : '');
+      if (String(antes) !== String(actual[campo])) {
+        payload[campo] = actual[campo];
+        if (CAMPOS_ECONOMICOS_CS.includes(campo)) afectaEconomico = true;
+      }
+    }
+
+    if (!Object.keys(payload).length) { showToast('No hay cambios para guardar', 'info'); return; }
+
+    if (afectaEconomico) {
+      const ok = await showConfirm(
+        'Este cambio afecta el monto/plan económico de la operación (precio, anticipo, cuotas o cuota vigente). ¿Confirmás el cambio?',
+        'Cambio económico'
+      );
+      if (!ok) return;
+    }
+
+    payload.motivo = document.getElementById('edit-cs-motivo').value.trim();
+
+    const btn = document.getElementById('btn-guardar-editar-cs');
+    btn.disabled = true;
+    try {
+      await API.put(`/api/cobranza-historica/clientes/${edicionConstrusolActual.id}`, payload);
+      showToast('✓ Operación actualizada', 'success');
+      closeModal('modal-editar-construsol');
+      _recargarVistaConstrusolActual();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function verHistorialOperacion(empresa) {
+    const id = empresa === 'ecofiver' ? edicionEcoFiverActual?.id : edicionConstrusolActual?.id;
+    if (!id) return;
+    historialOperacionActual = { empresa, id };
+    const cont = document.getElementById('historial-cambios-content');
+    cont.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando historial...</div>';
+    document.getElementById('modal-historial-cambios').style.display = 'flex';
+
+    const url = empresa === 'ecofiver'
+      ? `/api/ventas-financiadas/${id}/historial`
+      : `/api/cobranza-historica/clientes/${id}/historial`;
+    try {
+      const registros = await API.get(url);
+      if (!registros.length) {
+        cont.innerHTML = '<p style="color:var(--text-secondary);font-size:13px">Todavía no hay cambios registrados para esta operación.</p>';
+        return;
+      }
+      cont.innerHTML = `<table class="table"><thead><tr><th>Campo</th><th>Antes</th><th>Después</th><th>Quién / cuándo</th></tr></thead><tbody>` +
+        registros.map(r => `
+          <tr>
+            <td>${escHtml(r.campo)}${r.es_economico ? ' <span class="badge badge-warning" style="font-size:10px">$</span>' : ''}</td>
+            <td style="color:var(--text-secondary)">${escHtml(r.valor_anterior ?? '—')}</td>
+            <td style="font-weight:600">${escHtml(r.valor_nuevo ?? '—')}</td>
+            <td style="font-size:12px;color:var(--text-secondary)">${escHtml(r.usuario_nombre || '—')}<br>${formatDate(r.created_at)}${r.motivo ? `<br><em>${escHtml(r.motivo)}</em>` : ''}</td>
+          </tr>
+        `).join('') + `</tbody></table>`;
+    } catch (e) {
+      cont.innerHTML = `<div class="alert alert-error">Error al cargar historial: ${e.message}</div>`;
     }
   }
 
@@ -1122,6 +1559,9 @@
             </button>
             <button onclick="openGestion(${v.id})" class="btn btn-sm btn-secondary">
               + Registrar gestión
+            </button>
+            <button onclick="abrirModalEditarEcoFiver(${v.id})" class="btn btn-sm btn-ghost">
+              ✏️ Editar
             </button>
             ${v.producto === 'MODULO'
               ? `<button onclick="openCacExcepcion('ecofiver', ${v.id}, ${v.cac_excepcion_pct != null ? v.cac_excepcion_pct : 'null'}, '${(v.cliente_nombre || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-ghost">⚙️ CAC propio</button>`

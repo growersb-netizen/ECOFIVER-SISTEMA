@@ -7,8 +7,8 @@
 {% if not encryption_ok %}
 <div class="alert alert-warning" style="margin-bottom:16px">
   ⚠️ <strong>Advertencia:</strong> La variable de entorno <code>ENCRYPTION_KEY</code> no está configurada.
-  Los secretos se guardarán en texto plano. Para activar el cifrado, ejecutá en Fly.io:<br>
-  <code style="font-size:12px">fly secrets set ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") --app eco-crm-dawn-fog-5476</code>
+  Los secretos se guardarán en texto plano. Para activar el cifrado, ejecutá:<br>
+  <code style="font-size:12px">railway variables --service eco-crm --set "ENCRYPTION_KEY=$(python -c "import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())")"</code>
 </div>
 {% endif %}
 

@@ -11,9 +11,24 @@
 
 {% block content %}
 
+<style>
+  .pm-card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start}
+  .pm-thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--bg-tertiary,#0d0f13);flex-shrink:0}
+  .pm-body{flex:1;min-width:0}
+  .pm-title{font-weight:700;font-size:15px}
+  .pm-meta{font-size:12px;color:var(--text-secondary);margin-top:2px}
+  .pm-precio{font-size:17px;font-weight:800;margin-top:4px}
+  .sem{font-size:12px;padding:2px 9px;border-radius:9px;font-weight:700;white-space:nowrap}
+  .sem-rompes{background:#173a24;color:#4ade80}.sem-en_linea{background:#3a3320;color:#fbbf24}.sem-caro{background:#3a1a1a;color:#f87171}.sem-none{background:#22262e;color:#9aa2ad}
+  .est{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:700}
+  .est-borrador{background:#22262e;color:#9aa2ad}.est-publicada{background:#173a24;color:#4ade80}.est-error{background:#3a1a1a;color:#f87171}.est-publicando{background:#3a3320;color:#fbbf24}
+  .pm-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+</style>
+
 <div class="tabs">
   <button class="tab" onclick="showTab('dashboard', this)">📊 Dashboard</button>
   <button class="tab active" onclick="showTab('publicaciones', this)">📋 Publicaciones</button>
+  <button class="tab" onclick="showTab('borradores', this)">🗂️ Borradores y costos ML</button>
   <button class="tab" onclick="showTab('preguntas', this)">❓ Preguntas <span id="badge-preguntas" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
   <button class="tab" onclick="showTab('crear', this)">➕ Crear Publicación</button>
   <button class="tab" onclick="showTab('config-ml', this)">⚙️ Configuración</button>
@@ -38,6 +53,120 @@
     </div>
   </div>
   <div id="publicaciones-content"><div class="loading">Cargando publicaciones...</div></div>
+</div>
+
+<!-- ── BORRADORES Y COSTOS ML ── -->
+<div id="tab-borradores" style="display:none">
+  <div class="pm-filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+    <button class="btn btn-primary btn-sm" onclick="borNuevaPub()">+ Nueva publicación</button>
+    <label class="btn btn-secondary btn-sm" style="cursor:pointer">📥 Importar CSV/Excel
+      <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="borImportarArchivo(this)"></label>
+    <button class="btn btn-secondary btn-sm" onclick="borImportarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
+    <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
+    <select class="input" id="bor-f-estado" onchange="borCargar()" style="max-width:180px">
+      <option value="">Todos</option>
+      <option value="borrador">Borradores</option>
+      <option value="publicada">Publicadas</option>
+      <option value="error">Con error</option>
+    </select>
+    <label style="font-size:13px;color:var(--text-secondary)"><input type="checkbox" id="bor-sel-all" onchange="borToggleTodos(this)"> Seleccionar todo</label>
+    <span id="bor-count" style="font-size:13px;color:var(--text-secondary)"></span>
+  </div>
+  <div id="bor-lista"><div class="empty" style="text-align:center;color:var(--text-secondary);padding:30px">Cargando...</div></div>
+</div>
+
+<!-- Modal borrador -->
+<div class="modal-overlay" id="modal-bor" style="display:none">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header"><span class="modal-title" id="mp-tit">Nueva publicación</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-bor')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mp-id">
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px">
+        <label class="form-label" style="margin-top:0">📦 Producto del catálogo <small style="color:var(--text-secondary)">(opcional — trae el precio de referencia real)</small></label>
+        <select class="input" id="mp-catalogo-sel" onchange="borOnCatalogoSel()" style="width:100%">
+          <option value="">— Elegir del catálogo —</option>
+        </select>
+        <div id="mp-precio-ref-box" style="display:none;margin-top:8px;font-size:13px;line-height:1.7">
+          <div>💵 Precio contado (referencia): <b id="mp-pc-contado"></b> <span style="color:var(--text-secondary)">— no publiques por menos de esto</span></div>
+          <div>🎯 Precio sugerido según costos de MercadoLibre: <b id="mp-pc-sugerido" style="color:#22c55e"></b>
+            <button type="button" class="btn btn-sm" onclick="borUsarPrecioSugerido()">Usar este precio</button></div>
+          <div id="mp-pc-warn" style="display:none;color:#ef4444;font-weight:700;margin-top:2px">⚠️ El precio que pusiste está por debajo del contado — vas a perder plata</div>
+        </div>
+      </div>
+      <label class="form-label">Título * <small style="color:var(--text-secondary)">(máx 60)</small></label>
+      <input class="input" id="mp-titulo" maxlength="60" style="width:100%" oninput="document.getElementById('mp-tlen').textContent=this.value.length">
+      <div style="font-size:11px;color:var(--text-secondary);text-align:right"><span id="mp-tlen">0</span>/60</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Precio (ARS) *</label><input class="input" type="number" id="mp-precio" oninput="borCalcGanancia();borChequearPrecioBajoContado()"></div>
+        <div class="form-group"><label class="form-label">Costo del producto</label><input class="input" type="number" id="mp-costo" placeholder="para calcular ganancia" oninput="borCalcGanancia()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Precio referencia (competencia)</label><input class="input" type="number" id="mp-ref" placeholder="el más barato que viste"></div>
+        <div class="form-group"><label class="form-label">🧬 Variantes a generar al guardar</label>
+          <select class="input" id="mp-variantes">
+            <option value="0">Sin variantes (1 publicación)</option>
+            <option value="3">3 variantes</option>
+            <option value="5">5 variantes</option>
+            <option value="10">10 variantes</option>
+          </select></div>
+      </div>
+      <div id="mp-ganancia" style="font-size:13px;margin:2px 0 8px;color:var(--text-secondary)"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Producto</label>
+          <select class="input" id="mp-producto">
+            <option value="MODULO">Vivienda modular (financiado)</option>
+            <option value="MODULO_DEPOSITO">Módulo de depósito (contado)</option>
+            <option value="PISCINA">Piscina</option>
+            <option value="COMBO">Combo</option>
+          </select></div>
+        <div class="form-group"><label class="form-label">Cantidad</label><input class="input" type="number" id="mp-cant" value="1" min="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Tipo de publicación</label>
+          <select class="input" id="mp-listing" onchange="borCalcGanancia();borActualizarPrecioSugerido()">
+            <option value="gold_special">Clásica (1 pago, comisión estándar)</option>
+            <option value="gold_pro">Premium (habilita cuotas sin interés)</option>
+          </select></div>
+        <div class="form-group"><label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(opcional)</small></label><input class="input" id="mp-cat" placeholder="se infiere del producto"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">💳 Cuotas sin interés <small style="color:var(--text-secondary)">(solo Premium)</small></label>
+          <select class="input" id="mp-cuotas" onchange="borCalcGanancia();borActualizarPrecioSugerido()">
+            <option value="0">1 pago (sin cuotas)</option>
+            <option value="3">3 cuotas sin interés</option>
+            <option value="6">6 cuotas sin interés</option>
+          </select></div>
+        <div id="mp-cuota-val" style="align-self:flex-end;font-size:13px;color:var(--text-secondary)"></div>
+      </div>
+      <label class="form-label">Fotos</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <label class="btn btn-sm btn-secondary" style="cursor:pointer">📸 Subir foto a ML
+          <input type="file" accept="image/*" style="display:none" onchange="borSubirFoto(this)"></label>
+        <span id="mp-foto-msg" style="font-size:12px;color:var(--text-secondary)"></span>
+      </div>
+      <textarea class="input" id="mp-fotos" rows="2" style="width:100%" placeholder="URLs (una por línea). O usá 'Subir foto a ML' y se agrega sola."></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+        <label class="form-label" style="margin:0">Atributos obligatorios de ML</label>
+        <button class="btn btn-sm" type="button" onclick="borCargarAtributos()">Cargar requeridos</button>
+      </div>
+      <div id="mp-atributos" style="font-size:13px;color:var(--text-secondary)">Tocá "Cargar requeridos" para ver qué pide la categoría.</div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:10px">
+        <label class="form-label" style="margin-top:0">✨ Generar título y descripción con IA</label>
+        <div style="display:flex;gap:8px">
+          <input class="input" id="mp-ia-keywords" style="flex:1" placeholder="Palabras clave: ej. piscina fibra 6x3, gris, 4 años garantía">
+          <button class="btn btn-secondary" type="button" onclick="borGenerarConIA()" style="white-space:nowrap">✨ Generar</button>
+        </div>
+        <div id="mp-ia-msg" style="font-size:12px;color:var(--text-secondary);margin-top:4px"></div>
+      </div>
+      <label class="form-label">Descripción</label>
+      <textarea class="input" id="mp-desc" rows="4" style="width:100%"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-bor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="borGuardar()">Guardar borrador</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── PREGUNTAS ── -->
@@ -227,7 +356,7 @@
 
 {% block extra_js %}
 <script>
-const TABS_ML = ['dashboard','publicaciones','preguntas','crear','config-ml'];
+const TABS_ML = ['dashboard','publicaciones','borradores','preguntas','crear','config-ml'];
 let currentItemId = null;
 
 // Catálogo del servidor
@@ -242,6 +371,7 @@ function showTab(name, el) {
   if (name === 'config-ml') loadMLConfig();
   if (name === 'preguntas') loadPreguntas();
   if (name === 'dashboard') loadDashboardML();
+  if (name === 'borradores') { borCargarTasas(); borCargar(); }
 }
 
 /* ─── STATUS ─────────────────────────────────────────────────────────── */
@@ -850,6 +980,384 @@ async function enviarRespuesta(qId) {
     showToast('Error al enviar: ' + e.message, 'error');
     textarea.disabled = false;
   }
+}
+
+/* ─── BORRADORES Y COSTOS ML (portado de "Publicaciones ML") ───────────── */
+const BOR_SEL = new Set();
+function borFmt(n) { return '$' + (Number(n) || 0).toLocaleString('es-AR'); }
+const BOR_SEM = {
+  rompes: ['sem-rompes', '🟢 Rompés mercado'],
+  en_linea: ['sem-en_linea', '🟡 En línea'],
+  caro: ['sem-caro', '🔴 Estás caro'],
+};
+
+async function borCargar() {
+  const e = document.getElementById('bor-f-estado').value;
+  const d = await API.get('/api/ml/borradores' + (e ? '?estado=' + e : ''));
+  const cont = document.getElementById('bor-lista');
+  document.getElementById('bor-count').textContent = (d.total || 0) + ' publicaciones';
+  if (!d.borradores || !d.borradores.length) {
+    cont.innerHTML = '<div class="empty" style="text-align:center;color:var(--text-secondary);padding:30px">Todavía no cargaste publicaciones acá. Tocá <b>+ Nueva publicación</b>.</div>';
+    return;
+  }
+  cont.innerHTML = d.borradores.map(b => {
+    const s = BOR_SEM[b.semaforo] || ['sem-none', '⚪ sin referencia'];
+    const foto = (b.fotos && b.fotos[0]) ? `<img src="${b.fotos[0]}" class="pm-thumb" onerror="this.style.visibility='hidden'">` : `<div class="pm-thumb"></div>`;
+    const refTxt = b.referencia_usada ? `ref: ${borFmt(b.referencia_usada)}${b.precio_competencia ? ' (auto)' : ' (manual)'}` : 'sin referencia';
+    const chk = b.estado !== 'publicada' ? `<input type="checkbox" onchange="borSel(${b.id},this.checked)" ${BOR_SEL.has(b.id) ? 'checked' : ''}>` : '';
+    const verML = b.permalink ? `<a href="${b.permalink}" target="_blank" class="btn btn-sm">Ver en ML ↗</a>` : '';
+    const errTxt = b.estado === 'error' ? `<div class="pm-meta" style="color:#f87171">⚠ ${(b.error_msg || '').substring(0, 120)}</div>` : '';
+    return `<div class="pm-card">
+      <div style="padding-top:22px">${chk}</div>
+      ${foto}
+      <div class="pm-body">
+        <div class="pm-title">${escHtml(b.titulo)}</div>
+        <div class="pm-meta">${b.producto || ''} · <span class="est est-${b.estado}">${b.estado}</span> · ${refTxt}</div>
+        <div class="pm-precio">${borFmt(b.precio)} <span class="sem ${s[0]}">${s[1]}</span></div>
+        ${errTxt}
+      </div>
+      <div class="pm-actions">
+        ${b.estado !== 'publicada' ? `<button class="btn btn-sm btn-primary" onclick="borPublicar(${b.id})">Publicar</button>` : ''}
+        ${b.estado !== 'publicada' ? `<button class="btn btn-sm btn-secondary" onclick='borEditar(${JSON.stringify(b)})'>Editar</button>` : ''}
+        <button class="btn btn-sm" onclick="borVerCostos(${b.id},${b.precio || 0},'${b.listing_type}','${b.categoria || ''}',${b.costo || 0})" title="Comisión ML y ganancia">💰 Costos</button>
+        <button class="btn btn-sm" onclick="borCompetencia(${b.id})" title="Buscar precio competencia (auto)">🔍 Competencia</button>
+        ${b.estado !== 'publicada' ? `<button class="btn btn-sm" onclick="borVariantes(${b.id})" title="Generar variantes con IA">🤖 Variantes</button>` : ''}
+        <button class="btn btn-sm" onclick="borDuplicar(${b.id})" title="Duplicar publicación">📋 Duplicar</button>
+        ${verML}
+        ${b.estado !== 'publicada' ? `<button class="btn btn-sm" style="color:#f87171" onclick="borBorrar(${b.id})">Borrar</button>` : ''}
+      </div></div>`;
+  }).join('');
+  borActLote();
+}
+function borSel(id, on) { on ? BOR_SEL.add(id) : BOR_SEL.delete(id); borActLote(); }
+function borToggleTodos(c) {
+  BOR_SEL.clear();
+  document.querySelectorAll('#bor-lista input[type=checkbox]').forEach(x => {
+    x.checked = c.checked;
+    if (c.checked) { const m = x.getAttribute('onchange').match(/borSel\((\d+)/); if (m) BOR_SEL.add(parseInt(m[1])); }
+  });
+  borActLote();
+}
+function borActLote() {
+  document.getElementById('bor-sel-n').textContent = BOR_SEL.size;
+  document.getElementById('bor-btn-lote').style.display = BOR_SEL.size ? 'inline-flex' : 'none';
+}
+
+function borNuevaPub() {
+  document.getElementById('mp-id').value = '';
+  document.getElementById('mp-tit').textContent = 'Nueva publicación';
+  ['mp-titulo', 'mp-precio', 'mp-costo', 'mp-ref', 'mp-cat', 'mp-fotos', 'mp-desc', 'mp-ia-keywords'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('mp-cant').value = 1;
+  document.getElementById('mp-tlen').textContent = '0';
+  document.getElementById('mp-variantes').value = '0';
+  document.getElementById('mp-ganancia').textContent = '';
+  document.getElementById('mp-cuotas').value = '0';
+  document.getElementById('mp-cuota-val').textContent = '';
+  document.getElementById('mp-atributos').textContent = 'Tocá "Cargar requeridos" para ver qué pide la categoría.';
+  document.getElementById('mp-ia-msg').textContent = '';
+  document.getElementById('mp-catalogo-sel').value = '';
+  document.getElementById('mp-precio-ref-box').style.display = 'none';
+  document.getElementById('mp-pc-warn').style.display = 'none';
+  _borPrecioContadoRef = null;
+  borCargarCatalogoSelect();
+  document.getElementById('mp-foto-msg').textContent = '';
+  openModal('modal-bor');
+}
+function borEditar(b) {
+  document.getElementById('mp-id').value = b.id;
+  document.getElementById('mp-tit').textContent = 'Editar publicación';
+  document.getElementById('mp-titulo').value = b.titulo;
+  document.getElementById('mp-precio').value = b.precio;
+  document.getElementById('mp-costo').value = b.costo || '';
+  document.getElementById('mp-variantes').value = '0';
+  document.getElementById('mp-ganancia').textContent = '';
+  document.getElementById('mp-ref').value = b.precio_referencia || '';
+  document.getElementById('mp-producto').value = b.producto || 'MODULO';
+  document.getElementById('mp-cant').value = b.cantidad;
+  document.getElementById('mp-listing').value = b.listing_type;
+  document.getElementById('mp-cat').value = b.categoria || '';
+  document.getElementById('mp-fotos').value = (b.fotos || []).join('\n');
+  document.getElementById('mp-cuotas').value = b.cuotas_sin_interes || 0;
+  document.getElementById('mp-desc').value = b.descripcion || '';
+  document.getElementById('mp-tlen').textContent = (b.titulo || '').length;
+  document.getElementById('mp-catalogo-sel').value = '';
+  document.getElementById('mp-precio-ref-box').style.display = 'none';
+  document.getElementById('mp-pc-warn').style.display = 'none';
+  _borPrecioContadoRef = null;
+  borCargarCatalogoSelect();
+  openModal('modal-bor');
+  setTimeout(borCalcGanancia, 50);
+}
+async function borGuardar() {
+  const id = document.getElementById('mp-id').value;
+  const fotos = document.getElementById('mp-fotos').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const body = {
+    titulo: document.getElementById('mp-titulo').value.trim(),
+    precio: parseFloat(document.getElementById('mp-precio').value) || 0,
+    costo: parseFloat(document.getElementById('mp-costo').value) || null,
+    precio_referencia: parseFloat(document.getElementById('mp-ref').value) || null,
+    producto: document.getElementById('mp-producto').value,
+    cantidad: parseInt(document.getElementById('mp-cant').value) || 1,
+    listing_type: document.getElementById('mp-listing').value,
+    categoria: document.getElementById('mp-cat').value.trim(),
+    cuotas_sin_interes: parseInt(document.getElementById('mp-cuotas').value) || 0,
+    fotos, descripcion: document.getElementById('mp-desc').value,
+    atributos: borCollectAtributos(),
+  };
+  if (!body.titulo) { showToast('El título es obligatorio', 'error'); return; }
+  try {
+    const j = id ? await API.put('/api/ml/borradores/' + id, body) : await API.post('/api/ml/borradores', body);
+    const nv = parseInt(document.getElementById('mp-variantes').value) || 0;
+    if (!id && nv > 0 && j.id) {
+      showToast('Generando ' + nv + ' variantes con IA…', 'info');
+      await API.post('/api/ml/borradores/' + j.id + '/variantes', { cantidad: nv });
+    }
+    closeModal('modal-bor');
+    borCargar();
+    showToast(nv && !id ? ('Guardado + ' + nv + ' variantes ✓') : 'Guardado ✓', 'success');
+  } catch (e) {
+    showToast(e.message || 'Error', 'error');
+  }
+}
+async function borGenerarConIA() {
+  const kw = document.getElementById('mp-ia-keywords').value.trim();
+  const msg = document.getElementById('mp-ia-msg');
+  if (!kw) { msg.textContent = 'Escribí algunas palabras clave del producto primero.'; msg.style.color = '#f87171'; return; }
+  msg.textContent = '✨ Generando con IA…'; msg.style.color = 'var(--text-secondary)';
+  try {
+    const j = await API.post('/api/ml/generar-descripcion', { palabras_clave: kw });
+    document.getElementById('mp-titulo').value = j.titulo || '';
+    document.getElementById('mp-tlen').textContent = (j.titulo || '').length;
+    document.getElementById('mp-desc').value = j.descripcion || '';
+    msg.textContent = '✓ Listo, revisá y ajustá si hace falta'; msg.style.color = '#4ade80';
+  } catch (e) {
+    msg.textContent = e.message || 'No se pudo generar'; msg.style.color = '#f87171';
+  }
+}
+const BOR_COSTO_CUOTAS = { 0: 0, 3: 0.09, 6: 0.16, 9: 0.22, 12: 0.27 };
+async function borCalcGanancia() {
+  const precio = parseFloat(document.getElementById('mp-precio').value) || 0;
+  const costo = parseFloat(document.getElementById('mp-costo').value) || 0;
+  const lt = document.getElementById('mp-listing').value, cat = document.getElementById('mp-cat').value.trim();
+  const cuotas = parseInt(document.getElementById('mp-cuotas').value) || 0;
+  const g = document.getElementById('mp-ganancia'), cv = document.getElementById('mp-cuota-val');
+  if (cuotas > 0 && precio) { cv.innerHTML = (lt !== 'gold_pro' ? '⚠️ Las cuotas requieren Premium. ' : '') + 'Se publica en <b>' + cuotas + ' cuotas de ' + borFmt(precio / cuotas) + '</b> sin interés'; }
+  else cv.textContent = '';
+  if (!precio) { g.textContent = ''; return; }
+  let u = '/api/ml/fees?precio=' + precio + '&listing_type=' + lt + (cat ? '&categoria=' + encodeURIComponent(cat) : '') + (costo ? '&costo=' + costo : '');
+  try {
+    const d = await API.get(u);
+    if (!(d.ok && d.comision != null)) { g.textContent = ''; return; }
+    const costoFin = (cuotas > 0 && lt === 'gold_pro') ? precio * (BOR_COSTO_CUOTAS[cuotas] || 0) : 0;
+    const gan = (d.neto != null ? d.neto : precio) - (costo || 0) - costoFin;
+    let txt = '💸 Comisión ML: <b>' + borFmt(d.comision) + '</b>';
+    if (costoFin) txt += ' · 💳 Costo cuotas s/interés (aprox): <b>' + borFmt(costoFin) + '</b>';
+    txt += ' · ' + (costo || costoFin ? 'Ganancia neta: ' : 'Te queda: ') + '<b style="color:#22c55e">' + borFmt(gan) + '</b>' + (!costo ? ' <small>(sin costo)</small>' : '');
+    g.innerHTML = txt;
+  } catch (e) { g.textContent = ''; }
+}
+async function borBorrar(id) {
+  const ok = await showConfirm('¿Borrar esta publicación?', 'Borrar borrador');
+  if (!ok) return;
+  await API.del('/api/ml/borradores/' + id);
+  BOR_SEL.delete(id);
+  borCargar();
+}
+async function borCompetencia(id) {
+  showToast('Buscando en ML…', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/' + id + '/competencia', {});
+    borCargar();
+    showToast(j.precio_competencia ? ('Competencia: ' + borFmt(j.precio_competencia)) : 'ML no devolvió precio para este producto', 'success');
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+async function borPublicar(id) {
+  const ok = await showConfirm('¿Publicar en MercadoLibre ahora?', 'Publicar');
+  if (!ok) return;
+  showToast('Publicando…', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/' + id + '/publicar', {});
+    borCargar();
+    showToast(j.ok ? 'Publicada ✓' : ('No se pudo publicar: ' + (j.error_msg || 'error')), j.ok ? 'success' : 'error');
+  } catch (e) { borCargar(); showToast('Error: ' + e.message, 'error'); }
+}
+async function borPublicarLote() {
+  if (!BOR_SEL.size) return;
+  const ok = await showConfirm(`¿Publicar ${BOR_SEL.size} publicaciones en MercadoLibre?`, 'Publicar en lote');
+  if (!ok) return;
+  showToast('Publicando lote…', 'info');
+  const j = await API.post('/api/ml/borradores/publicar-lote', { ids: [...BOR_SEL] });
+  BOR_SEL.clear();
+  borCargar();
+  showToast(`Publicadas: ${j.publicadas} · Errores: ${j.errores}`, j.errores ? 'warning' : 'success');
+}
+async function borImportarArchivo(input) {
+  if (!input.files || !input.files[0]) return;
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  showToast('Importando…', 'info');
+  try {
+    const r = await fetch('/api/ml/borradores/importar', { method: 'POST', credentials: 'same-origin', body: fd });
+    const j = await r.json();
+    input.value = '';
+    if (r.ok) { borCargar(); showToast('Importados: ' + (j.creados || 0) + ' borradores', 'success'); }
+    else showToast(j.detail || 'Error al importar', 'error');
+  } catch (e) { showToast('Error al importar: ' + e.message, 'error'); }
+}
+async function borImportarCatalogo() {
+  const ok = await showConfirm('¿Traer los productos del catálogo del CRM como borradores?', 'Importar del catálogo');
+  if (!ok) return;
+  showToast('Importando catálogo…', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/desde-catalogo', {});
+    borCargar();
+    showToast('Importados del catálogo: ' + (j.creados || 0), 'success');
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+async function borVariantes(id) {
+  const n = prompt('¿Cuántas variantes generar con IA? (1 a 8)', '3');
+  if (!n) return;
+  showToast('Generando variantes con IA…', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/' + id + '/variantes', { cantidad: parseInt(n) || 3 });
+    borCargar();
+    showToast('Variantes creadas: ' + (j.creados || 0), 'success');
+  } catch (e) { showToast('Error IA: ' + e.message, 'error'); }
+}
+async function borDuplicar(id) {
+  try { await API.post('/api/ml/borradores/' + id + '/duplicar', {}); borCargar(); showToast('Duplicada ✓', 'success'); }
+  catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+async function borVerCostos(id, precio, lt, cat, costo) {
+  showToast('Consultando comisión ML…', 'info');
+  let u = '/api/ml/fees?precio=' + precio + '&listing_type=' + lt + (cat ? '&categoria=' + encodeURIComponent(cat) : '') + (costo ? '&costo=' + costo : '');
+  const d = await API.get(u);
+  if (d.ok && d.comision != null) {
+    alert('💰 Costos de la publicación\n\nPrecio de venta: ' + borFmt(precio) +
+      '\nComisión MercadoLibre: ' + borFmt(d.comision) +
+      (costo ? ('\nCosto del producto: ' + borFmt(costo) + '\n\nGANANCIA NETA: ' + borFmt(d.ganancia)) : ('\n\nTe queda (sin descontar costo): ' + borFmt(d.neto) + '\n(Cargá el costo en Editar para ver la ganancia real)')));
+  } else alert('ML no devolvió la comisión (revisá precio/categoría).');
+}
+async function borSubirFoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const msg = document.getElementById('mp-foto-msg');
+  msg.textContent = 'Subiendo…';
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  try {
+    const r = await fetch('/api/ml/fotos', { method: 'POST', credentials: 'same-origin', body: fd });
+    const j = await r.json();
+    input.value = '';
+    if (j.ok && j.url) { const ta = document.getElementById('mp-fotos'); ta.value = (ta.value ? ta.value + '\n' : '') + j.url; msg.textContent = '✓ Foto agregada'; }
+    else msg.textContent = 'Error: ' + (j.error || 'no se pudo subir');
+  } catch (e) { msg.textContent = 'Error de red'; }
+}
+async function borCargarAtributos() {
+  const cat = document.getElementById('mp-cat').value.trim();
+  const tit = document.getElementById('mp-titulo').value.trim();
+  const cont = document.getElementById('mp-atributos');
+  if (!cat && !tit) { cont.textContent = 'Escribí primero el título (o la categoría) para detectar los atributos.'; return; }
+  cont.textContent = 'Consultando ML…';
+  let u = '/api/ml/categoria-atributos?' + (cat ? 'categoria=' + encodeURIComponent(cat) : 'titulo=' + encodeURIComponent(tit));
+  const d = await API.get(u);
+  if (d.categoria && !cat) { document.getElementById('mp-cat').value = d.categoria; }
+  if (!d.atributos || !d.atributos.length) { cont.innerHTML = '<span style="color:#4ade80">✓ Esta categoría no exige atributos obligatorios.</span>'; return; }
+  cont.innerHTML = d.atributos.map(a => {
+    const inp = a.valores && a.valores.length
+      ? `<select class="input attr-inp" data-id="${a.id}"><option value="">—</option>` + a.valores.map(v => `<option>${v}</option>`).join('') + `</select>`
+      : `<input class="input attr-inp" data-id="${a.id}" placeholder="${a.name}">`;
+    return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name} *</label>${inp}</div>`;
+  }).join('');
+}
+function borCollectAtributos() {
+  const out = [];
+  document.querySelectorAll('#mp-atributos .attr-inp').forEach(el => {
+    const v = (el.value || '').trim();
+    if (v) out.push({ id: el.dataset.id, value_name: v });
+  });
+  return out;
+}
+async function borCargarTasas() {
+  try {
+    const d = await API.get('/api/negocio/config');
+    if (d && d.cuotas_rates) { for (const k in d.cuotas_rates) { BOR_COSTO_CUOTAS[k] = (d.cuotas_rates[k] || 0) / 100; } }
+  } catch (e) {}
+}
+
+let BOR_CATALOGO_ITEMS = {};
+let _borPrecioContadoRef = null;
+async function borCargarCatalogoSelect() {
+  const sel = document.getElementById('mp-catalogo-sel');
+  try {
+    const d = await API.get('/api/catalogo');
+    let html = '<option value="">— Elegir del catálogo —</option>';
+    BOR_CATALOGO_ITEMS = {};
+    const addGroup = (label, tipo, precios) => {
+      const nombres = Object.keys(precios || {});
+      if (!nombres.length) return;
+      html += `<optgroup label="${label}">`;
+      nombres.forEach(n => {
+        const key = tipo + '::' + n;
+        BOR_CATALOGO_ITEMS[key] = { tipo, precioContado: precios[n], nombre: n };
+        html += `<option value="${key}">${n} — ${borFmt(precios[n])}</option>`;
+      });
+      html += '</optgroup>';
+    };
+    addGroup('🏊 Piscinas', 'PISCINA', d.piscinas && d.piscinas.precios);
+    addGroup('🏠 Viviendas modulares', 'MODULO', d.modulos && d.modulos.precios);
+    if (d.combos) {
+      const combosPrecios = {};
+      for (const nombre in d.combos) combosPrecios[nombre] = d.combos[nombre].precio_contado || d.combos[nombre].precio_lista;
+      addGroup('🎁 Combos', 'COMBO', combosPrecios);
+    }
+    if (d.modulos_deposito && d.modulos_deposito.tamanos) {
+      const depPrecios = {};
+      for (const tamano in d.modulos_deposito.tamanos) {
+        for (const linea of ['BASE', 'PREMIUM']) {
+          const item = d.modulos_deposito.tamanos[tamano][linea];
+          if (item && item.precio_contado) depPrecios[`${tamano}m² Línea ${linea === 'PREMIUM' ? 'Premium' : 'Base'}`] = item.precio_contado;
+        }
+      }
+      addGroup('📦 Módulos de depósito', 'MODULO_DEPOSITO', depPrecios);
+    }
+    sel.innerHTML = html;
+  } catch (e) {}
+}
+function borOnCatalogoSel() {
+  const sel = document.getElementById('mp-catalogo-sel');
+  const item = BOR_CATALOGO_ITEMS[sel.value];
+  const box = document.getElementById('mp-precio-ref-box');
+  if (!item) { box.style.display = 'none'; _borPrecioContadoRef = null; return; }
+  document.getElementById('mp-producto').value = item.tipo;
+  if (!document.getElementById('mp-titulo').value.trim()) {
+    document.getElementById('mp-titulo').value = item.nombre.substring(0, 60);
+    document.getElementById('mp-tlen').textContent = document.getElementById('mp-titulo').value.length;
+  }
+  _borPrecioContadoRef = item.precioContado || null;
+  box.style.display = _borPrecioContadoRef ? '' : 'none';
+  document.getElementById('mp-pc-contado').textContent = borFmt(_borPrecioContadoRef);
+  borActualizarPrecioSugerido();
+  borChequearPrecioBajoContado();
+}
+async function borActualizarPrecioSugerido() {
+  if (!_borPrecioContadoRef) return;
+  const lt = document.getElementById('mp-listing').value;
+  const cuotas = lt === 'gold_pro' ? (parseInt(document.getElementById('mp-cuotas').value) || 0) : 0;
+  try {
+    const d = await API.get('/api/negocio/precio-sugerido-ml?precio_contado=' + _borPrecioContadoRef + '&cuotas=' + cuotas + '&clasificada=true');
+    document.getElementById('mp-pc-sugerido').textContent = borFmt(d.precio_sugerido) + ' (' + d.tasa_total_pct + '% costos ML)';
+  } catch (e) {}
+}
+function borUsarPrecioSugerido() {
+  const txt = document.getElementById('mp-pc-sugerido').textContent;
+  const num = parseFloat(txt.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.'));
+  if (num) { document.getElementById('mp-precio').value = Math.round(num); borCalcGanancia(); borChequearPrecioBajoContado(); }
+}
+function borChequearPrecioBajoContado() {
+  const warn = document.getElementById('mp-pc-warn');
+  if (!warn) return;
+  const precio = parseFloat(document.getElementById('mp-precio').value) || 0;
+  warn.style.display = (_borPrecioContadoRef && precio > 0 && precio < _borPrecioContadoRef) ? '' : 'none';
 }
 
 /* ─── INIT ───────────────────────────────────────────────────────────── */

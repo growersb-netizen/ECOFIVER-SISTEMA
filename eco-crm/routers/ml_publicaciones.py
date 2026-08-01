@@ -11,7 +11,6 @@ import io
 import re
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, UploadFile, File
-from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -28,11 +27,15 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-@router.get("/mercadolibre/publicaciones", response_class=HTMLResponse)
-async def pagina_publicaciones(request: Request, current_user: Usuario = Depends(_require_config_access)):
-    return templates.TemplateResponse("ml_publicaciones.html", {
-        "request": request, "user": current_user, "roles": get_user_roles(current_user),
-    })
+@router.get("/mercadolibre/publicaciones")
+async def pagina_publicaciones(current_user: Usuario = Depends(_require_config_access)):
+    """
+    La cola de borradores se fusionó dentro de /mercadolibre (pestaña
+    "Borradores y costos ML") para no tener dos paneles de MercadoLibre
+    haciendo lo mismo. Se deja este redirect por si hay algún bookmark viejo.
+    """
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/mercadolibre", status_code=302)
 
 
 def _auth(x_api_key, current_user):

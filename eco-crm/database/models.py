@@ -504,6 +504,24 @@ class PublicacionML(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
+class MLCategoriaLinea(Base):
+    """
+    Cache de la categoría de MercadoLibre resuelta (vía category_predictor) para
+    cada línea de producto propia (piscinas, módulos, depósitos, garitas, etc.).
+    Evita repetir la predicción en cada publicación y sirve de base para
+    autocompletar los atributos requeridos por esa categoría.
+    """
+    __tablename__ = "ml_categoria_linea"
+
+    id = Column(Integer, primary_key=True, index=True)
+    linea = Column(String(40), unique=True, nullable=False, index=True)
+    categoria_id = Column(String(20), nullable=False)
+    categoria_nombre = Column(String(150), default="")
+    atributos_json = Column(Text, default="[]")        # atributos requeridos de la categoría [{id,name,...}]
+    titulo_referencia = Column(String(200), default="")
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
 class Reclamo(Base):
     __tablename__ = "reclamos"
 
@@ -1327,3 +1345,24 @@ class PagoCobranzaHistorica(Base):
 
     cliente = relationship("ClienteCobranzaHistorica", back_populates="pagos")
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class HistorialEdicionCobranza(Base):
+    """
+    Registro de auditoría campo por campo para ediciones manuales de
+    operaciones de cobranza (EcoFiver y Construsol) — quién cambió qué,
+    cuándo, y de qué valor a qué valor. Nunca se edita/borra este registro.
+    """
+    __tablename__ = "historial_edicion_cobranza"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tabla_origen = Column(String(40), nullable=False, index=True)  # "ventas_financiadas" | "clientes_cobranza_historica"
+    registro_id = Column(Integer, nullable=False, index=True)
+    campo = Column(String(60), nullable=False)
+    valor_anterior = Column(Text, nullable=True)
+    valor_nuevo = Column(Text, nullable=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    usuario_nombre = Column(String(100), nullable=True)  # snapshot del nombre al momento del cambio
+    motivo = Column(Text, default="")
+    es_economico = Column(Boolean, default=False)  # afecta monto/plan — requirió confirmación explícita
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

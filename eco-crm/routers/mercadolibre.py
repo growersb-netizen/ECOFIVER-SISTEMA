@@ -17,7 +17,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import PublicacionML, Usuario, ConfiguracionSistema, BorradorML
+from database.models import PublicacionML, Usuario, ConfiguracionSistema, BorradorML, MLCategoriaLinea
 from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.configuracion import get_config_value, _require_config_access
 from database.encryption import encrypt_value
@@ -96,12 +96,68 @@ def _guardar_tokens(db: Session, j: dict):
     exp = datetime.utcnow() + timedelta(seconds=int(j.get("expires_in", 21600)))
     _ml_save(db, "ml_token_expira", exp.isoformat(), secreto=False)
 
-# Categorías ML para cada tipo de producto
+# Categorías ML de emergencia (si falla el predictor Y no hay cache en BD)
 ML_CATEGORIAS = {
     "PISCINA": "MLA9226",    # Piletas y Jacuzzis
     "MODULO":  "MLA1647",    # Casas Prefabricadas
     "COMBO":   "MLA9226",
 }
+
+# Líneas de producto propias con un título de referencia para resolver su
+# categoría ML una sola vez (vía category_predictor) y cachearla en BD.
+# Las líneas con título_referencia=None son demasiado heterogéneas para una
+# categoría fija (ej. "importados varios" puede ser cualquier cosa): para
+# esas SIEMPRE se predice en vivo con el título real del producto.
+LINEAS_PRODUCTO = {
+    "PISCINA":           "Pileta de Fibra de Vidrio",
+    "MODULO":            "Casa Modulo Habitacional Industrializado",
+    "COMBO":             "Pileta de Fibra de Vidrio",
+    "DEPOSITO_JARDIN":   "Deposito para Jardin de Chapa",
+    "GARITA_SEGURIDAD":  "Garita de Seguridad Prefabricada",
+    "BANIO_QUIMICO":     "Bano Quimico Portatil",
+    "CUCHA_PERRO":       "Cucha para Perro de Madera",
+    "ACCESORIO_PISCINA": "Luz Led Sumergible para Pileta",
+    "ACCESORIO_MODULO":  "Placa de PVC para Pared",
+    "CAMPING_PESCA":     None,
+    "IMPORTADO_VARIOS":  None,
+}
+
+
+async def _ml_predecir_categoria(titulo: str, token: Optional[str] = None, limit: int = 1) -> list:
+    """
+    Llama al category_predictor real de ML: dado un título, devuelve la(s)
+    categoría(s) más probable(s) con sus atributos requeridos. Endpoint público
+    de /sites, no requiere token, pero lo mandamos si lo tenemos disponible.
+    """
+    headers = _ml_headers(token) if token else {}
+    async with httpx.AsyncClient(timeout=12) as c:
+        r = await c.get(
+            f"{ML_BASE}/sites/MLA/category_predictor/predict",
+            params={"q": titulo, "limit": max(1, min(limit, 8))},
+            headers=headers,
+        )
+    if r.status_code != 200:
+        raise HTTPException(r.status_code, f"Error prediciendo categoría en ML: {r.text[:200]}")
+    predicciones = r.json()
+    if isinstance(predicciones, dict):
+        predicciones = [predicciones]
+    return [
+        {
+            "category_id": p.get("category_id"),
+            "category_name": p.get("category_name"),
+            "attributes": [
+                {
+                    "id": a.get("id"),
+                    "name": a.get("name"),
+                    "value_type": a.get("value_type"),
+                    "tags": a.get("tags", {}),
+                    "values": a.get("values", []),
+                }
+                for a in (p.get("attributes") or [])
+            ],
+        }
+        for p in predicciones
+    ]
 
 
 def _ml_headers(token: str) -> dict:
@@ -473,6 +529,138 @@ Respondé EXCLUSIVAMENTE con este JSON, sin markdown ni texto extra:
     }
 
 
+# ─── API — CATEGORÍAS ML ───────────────────────────────────────────────────────
+
+@router.get("/api/ml/categoria-predictor")
+async def categoria_predictor(
+    titulo: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Predicción en vivo de categoría ML a partir de un título (sin cachear).
+    Usar para líneas heterogéneas (CAMPING_PESCA, IMPORTADO_VARIOS) o para
+    previsualizar antes de publicar un producto puntual.
+    """
+    if not titulo or not titulo.strip():
+        raise HTTPException(400, "Falta el título")
+    token = get_config_value("ml_access_token", db)
+    predicciones = await _ml_predecir_categoria(titulo.strip(), token=token, limit=3)
+    if not predicciones:
+        raise HTTPException(404, "ML no pudo predecir una categoría para ese título")
+    return {"ok": True, "predicciones": predicciones}
+
+
+@router.get("/api/ml/lineas-categoria")
+async def listar_lineas_categoria(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Estado actual del cache de categorías por línea de producto."""
+    cacheadas = {c.linea: c for c in db.query(MLCategoriaLinea).all()}
+    salida = []
+    for linea, titulo_ref in LINEAS_PRODUCTO.items():
+        c = cacheadas.get(linea)
+        salida.append({
+            "linea": linea,
+            "titulo_referencia": titulo_ref,
+            "fija": titulo_ref is not None,
+            "categoria_id": c.categoria_id if c else None,
+            "categoria_nombre": c.categoria_nombre if c else None,
+            "atributos_requeridos": len(json.loads(c.atributos_json)) if c else None,
+            "actualizado": c.updated_at.isoformat() if c and c.updated_at else None,
+        })
+    return {"lineas": salida}
+
+
+@router.post("/api/ml/resolver-categorias-lineas")
+async def resolver_categorias_lineas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Corre el category_predictor de ML para cada línea de producto propia con
+    título de referencia fijo, y cachea el resultado en BD. Ejecutar una vez
+    al agregar una línea nueva, o cuando ML cambie su árbol de categorías.
+    Las líneas sin título de referencia (heterogéneas) se saltean: esas se
+    resuelven en vivo por producto en /api/ml/categoria-predictor.
+    """
+    token = get_config_value("ml_access_token", db)
+    resultados = {"ok": [], "error": []}
+    for linea, titulo_ref in LINEAS_PRODUCTO.items():
+        if not titulo_ref:
+            continue
+        try:
+            predicciones = await _ml_predecir_categoria(titulo_ref, token=token, limit=1)
+            if not predicciones:
+                resultados["error"].append({"linea": linea, "motivo": "sin predicción"})
+                continue
+            top = predicciones[0]
+            existente = db.query(MLCategoriaLinea).filter(MLCategoriaLinea.linea == linea).first()
+            if existente:
+                existente.categoria_id = top["category_id"]
+                existente.categoria_nombre = top["category_name"] or ""
+                existente.atributos_json = json.dumps(top["attributes"], ensure_ascii=False)
+                existente.titulo_referencia = titulo_ref
+            else:
+                db.add(MLCategoriaLinea(
+                    linea=linea,
+                    categoria_id=top["category_id"],
+                    categoria_nombre=top["category_name"] or "",
+                    atributos_json=json.dumps(top["attributes"], ensure_ascii=False),
+                    titulo_referencia=titulo_ref,
+                ))
+            db.commit()
+            resultados["ok"].append({
+                "linea": linea,
+                "categoria_id": top["category_id"],
+                "categoria_nombre": top["category_name"],
+            })
+        except Exception as e:
+            db.rollback()
+            resultados["error"].append({"linea": linea, "motivo": str(e)[:150]})
+        await asyncio.sleep(0.2)  # respetar rate limit de ML
+    return resultados
+
+
+async def _resolver_categoria_publicacion(db: Session, token: str, tipo: str, titulo: str) -> dict:
+    """
+    Resuelve category_id para publicar, en orden de prioridad:
+    1. Cache en BD para la línea (MLCategoriaLinea) — el caso normal.
+    2. Línea fija sin cachear todavía → predice con el título de referencia y cachea.
+    3. Línea heterogénea (CAMPING_PESCA, IMPORTADO_VARIOS) o línea desconocida →
+       predice en vivo con el título real del producto (no se cachea, cada
+       producto de esa línea puede caer en una categoría distinta).
+    4. Si todo lo anterior falla: dict fijo ML_CATEGORIAS como último recurso.
+    """
+    cache = db.query(MLCategoriaLinea).filter(MLCategoriaLinea.linea == tipo).first()
+    if cache:
+        return {"category_id": cache.categoria_id, "category_name": cache.categoria_nombre, "fuente": "cache"}
+
+    titulo_ref = LINEAS_PRODUCTO.get(tipo)
+    titulo_para_predecir = titulo_ref or titulo
+    if titulo_para_predecir:
+        try:
+            predicciones = await _ml_predecir_categoria(titulo_para_predecir, token=token, limit=1)
+            if predicciones:
+                top = predicciones[0]
+                if titulo_ref:  # línea fija: cachear para la próxima
+                    db.add(MLCategoriaLinea(
+                        linea=tipo,
+                        categoria_id=top["category_id"],
+                        categoria_nombre=top["category_name"] or "",
+                        atributos_json=json.dumps(top["attributes"], ensure_ascii=False),
+                        titulo_referencia=titulo_ref,
+                    ))
+                    db.commit()
+                return {"category_id": top["category_id"], "category_name": top["category_name"], "fuente": "predictor"}
+        except Exception:
+            pass
+
+    fallback = ML_CATEGORIAS.get(tipo, ML_CATEGORIAS["PISCINA"])
+    return {"category_id": fallback, "category_name": None, "fuente": "fallback_fijo"}
+
+
 # ─── API — CREAR PUBLICACIÓN ──────────────────────────────────────────────────
 
 @router.post("/api/ml/publicaciones")
@@ -485,11 +673,15 @@ async def crear_publicacion(
     data = await request.json()
 
     tipo = data.get("tipo", "PISCINA")
-    categoria_id = ML_CATEGORIAS.get(tipo, ML_CATEGORIAS["PISCINA"])
+    categoria_ml_id_explicito = data.get("categoria_ml_id")
+    if categoria_ml_id_explicito:
+        categoria_resuelta = {"category_id": categoria_ml_id_explicito, "category_name": None, "fuente": "manual"}
+    else:
+        categoria_resuelta = await _resolver_categoria_publicacion(db, token, tipo, data.get("titulo", ""))
 
     payload = {
         "title": data.get("titulo", ""),
-        "category_id": data.get("categoria_ml_id") or categoria_id,
+        "category_id": categoria_resuelta["category_id"],
         "price": float(data.get("precio", 0)),
         "currency_id": "ARS",
         "available_quantity": int(data.get("stock", 1)),
@@ -538,6 +730,9 @@ async def crear_publicacion(
         "ok": True,
         "item_id": item_id,
         "permalink": item.get("permalink"),
+        "categoria_id": categoria_resuelta["category_id"],
+        "categoria_nombre": categoria_resuelta["category_name"],
+        "categoria_fuente": categoria_resuelta["fuente"],
         "msg": f"Publicación creada: {item_id}",
     }
 

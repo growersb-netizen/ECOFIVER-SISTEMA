@@ -51,6 +51,14 @@
         <option value="PISCINA">🏊 Piscina</option>
         <option value="MODULO">🏠 Módulo</option>
         <option value="COMBO">🎁 Combo Módulo + Piscina</option>
+        <option value="DEPOSITO_JARDIN">🏚️ Depósito para jardín</option>
+        <option value="GARITA_SEGURIDAD">💂 Garita de seguridad</option>
+        <option value="BANIO_QUIMICO">🚻 Baño químico</option>
+        <option value="CUCHA_PERRO">🐕 Cucha para perro</option>
+        <option value="ACCESORIO_PISCINA">✨ Accesorio de piscina (luces, etc.)</option>
+        <option value="ACCESORIO_MODULO">✨ Accesorio de módulo (placas PVC, etc.)</option>
+        <option value="CAMPING_PESCA">🎣 Camping y pesca</option>
+        <option value="IMPORTADO_VARIOS">📦 Importado / vario</option>
       </select>
     </div>
 
@@ -111,8 +119,12 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">ID de categoría ML <span style="color:var(--text-secondary);font-size:11px">(opcional, deja vacío para usar el predeterminado)</span></label>
-      <input type="text" class="input" id="crear-categoria" placeholder="MLA9226">
+      <label class="form-label">ID de categoría ML <span style="color:var(--text-secondary);font-size:11px">(opcional — si lo dejás vacío, el sistema la detecta sola con el título)</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" class="input" id="crear-categoria" placeholder="Se detecta automáticamente" style="flex:1">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="detectarCategoria()" id="btn-detectar-cat">🔍 Detectar</button>
+      </div>
+      <div id="categoria-detectada" style="font-size:12px;color:var(--text-secondary);margin-top:6px"></div>
     </div>
 
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
@@ -378,6 +390,37 @@ async function generarConIA() {
   }
 }
 
+async function detectarCategoria() {
+  const titulo = document.getElementById('crear-titulo').value.trim();
+  const tipo    = document.getElementById('crear-tipo').value;
+  const box     = document.getElementById('categoria-detectada');
+  const btn     = document.getElementById('btn-detectar-cat');
+  const tituloParaDetectar = titulo || tipo;
+
+  if (!tituloParaDetectar) { showToast('Ingresá un título o elegí el tipo de producto primero', 'warning'); return; }
+
+  btn.disabled = true;
+  box.style.color = 'var(--text-secondary)';
+  box.textContent = 'Consultando categoría en MercadoLibre...';
+
+  try {
+    const res = await API.get('/api/ml/categoria-predictor?titulo=' + encodeURIComponent(tituloParaDetectar));
+    const top = (res.predicciones || [])[0];
+    if (top) {
+      box.style.color = '#22c55e';
+      box.textContent = `✓ Categoría detectada: ${top.category_name} (${top.category_id})`;
+    } else {
+      box.style.color = '#ef4444';
+      box.textContent = 'No se pudo detectar una categoría para ese título.';
+    }
+  } catch(e) {
+    box.style.color = '#ef4444';
+    box.textContent = 'Error al detectar: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function publicarEnML() {
   const titulo      = document.getElementById('crear-titulo').value.trim();
   const descripcion = document.getElementById('crear-descripcion').value.trim();
@@ -408,7 +451,8 @@ async function publicarEnML() {
       categoria_ml_id: categoria || null,
     });
     if (res.ok) {
-      showToast(`✓ Publicado: ${res.item_id}`, 'success');
+      const catInfo = res.categoria_nombre ? ` — categoría: ${res.categoria_nombre}` : '';
+      showToast(`✓ Publicado: ${res.item_id}${catInfo}`, 'success');
       limpiarFormCrear();
       // Volver a publicaciones
       showTab('publicaciones', document.querySelectorAll('.tabs .tab')[0]);

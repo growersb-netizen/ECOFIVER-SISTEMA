@@ -142,18 +142,22 @@ def _build_dashboard(db: Session) -> dict:
     pubs_total    = db.query(PublicacionML).count()
 
     # ── Tendencia de leads (últimos 30 días, por día) ─────────────────────────
-    from sqlalchemy import cast, Date as SADate
+    # sqlfunc.date() (función DATE() nativa de SQLite) en vez de cast(..., Date):
+    # el cast le pedía a SQLAlchemy reconstruir un objeto date de Python con
+    # fromisoformat() y rompía con "argument must be str" apenas había algún
+    # created_at NULL o en un formato no perfectamente ISO -- date() de SQLite
+    # ya devuelve texto plano, sin esa conversión.
     tendencia_raw = (
         db.query(
-            cast(Lead.created_at, SADate).label("dia"),
+            sqlfunc.date(Lead.created_at).label("dia"),
             sqlfunc.count(Lead.id).label("qty"),
         )
-        .filter(Lead.created_at >= s30)
+        .filter(Lead.created_at >= s30, Lead.created_at.isnot(None))
         .group_by("dia")
         .order_by("dia")
         .all()
     )
-    tendencia = [{"dia": str(d), "qty": q} for d, q in tendencia_raw]
+    tendencia = [{"dia": str(d), "qty": q} for d, q in tendencia_raw if d]
 
     return {
         "ecopost": {

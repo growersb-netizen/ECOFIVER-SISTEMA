@@ -67,7 +67,8 @@ async def _crm_push_mensaje(phone: str, direccion: str, contenido: str,
         logger.warning(f"[WA] No se pudo notificar al CRM inbox: {e}")
 
 def _get_wa_token() -> str:
-    return os.getenv("WA_TOKEN", "")
+    # META_PAGE_ACCESS_TOKEN = System User (never-expiry, todas las WABAs del portfolio)
+    return os.getenv("META_PAGE_ACCESS_TOKEN") or os.getenv("WA_TOKEN", "")
 
 def _get_wa_phone_id() -> str:
     return os.getenv("WA_PHONE_ID", "")

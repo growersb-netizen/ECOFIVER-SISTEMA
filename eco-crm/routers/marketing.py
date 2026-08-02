@@ -54,7 +54,28 @@ async def get_dashboard(
     current_user: Usuario = Depends(require_auth),
 ):
     _check(current_user)
+    return _build_dashboard(db)
 
+
+@router.get("/api/marketing/debug-dashboard")
+async def debug_dashboard(
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = None,
+):
+    """Diagnóstico temporal (sin sesión): mismo query que el dashboard real, para ver el error crudo si lo hay."""
+    import os
+    from fastapi import HTTPException
+    API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+    if x_api_key != API_KEY:
+        raise HTTPException(403, "Sin permisos")
+    import traceback
+    try:
+        return _build_dashboard(db)
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()[-3000:]}
+
+
+def _build_dashboard(db: Session) -> dict:
     hoy   = datetime.now()
     ayer  = hoy - timedelta(days=1)
     s7    = hoy - timedelta(days=7)

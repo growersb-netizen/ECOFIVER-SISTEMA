@@ -60,6 +60,18 @@ const API = {
     if (!res.ok) throw new Error(json.detail || 'Error');
     return json;
   },
+  async patch(url, data) {
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data)
+    });
+    if (res.status === 401) { window.location.href = '/login'; return null; }
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.detail || 'Error');
+    return json;
+  },
   async delete(url) {
     const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
     if (!res.ok) throw new Error('Error al eliminar');

@@ -228,6 +228,7 @@ async function cargarTabla() {
     let url = '/api/integraciones/melanie/solicitudes';
     if (_filtroEstado) url += `?estado=${_filtroEstado}`;
     _datos = await API.get(url);
+    if (_datos === null) return;
     renderTabla();
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="7" style="color:#f44;padding:20px">${escHtml(e.message)}</td></tr>`;
@@ -291,6 +292,7 @@ async function abrirDetalle(id) {
 
   try {
     const s = await API.get(`/api/integraciones/melanie/solicitudes/${id}`);
+    if (s === null) { cerrarModal(); return; }
     const est = s.tarea_estado || 'SIN_TAREA';
     const nombre = escHtml(s.nombre);
     const tel    = escHtml(s.telefono);
@@ -373,11 +375,11 @@ async function abrirDetalle(id) {
 async function actualizarEstado(tareaId, nuevoEstado) {
   try {
     await API.patch(`/api/integraciones/melanie/tareas/${tareaId}`, { estado: nuevoEstado });
-    showToast(`Estado actualizado: ${estadoLabel(nuevoEstado)}`, 'success');
+    toast(`Estado actualizado: ${estadoLabel(nuevoEstado)}`, 'success');
     cerrarModal();
     cargarDatos();
   } catch(e) {
-    showToast('Error: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
   }
 }
 
@@ -385,9 +387,9 @@ async function guardarNotas(tareaId) {
   const notas = document.getElementById('notas-asesor').value;
   try {
     await API.patch(`/api/integraciones/melanie/tareas/${tareaId}`, { notas_asesor: notas });
-    showToast('Notas guardadas', 'success');
+    toast('Notas guardadas', 'success');
   } catch(e) {
-    showToast('Error: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
   }
 }
 
@@ -400,36 +402,5 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-const API = {
-  async _req(method, url, body) {
-    const opts = { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    const r = await fetch(url, opts);
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
-    return data;
-  },
-  get:   url       => API._req('GET',   url),
-  post:  (url, b)  => API._req('POST',  url, b),
-  patch: (url, b)  => API._req('PATCH', url, b),
-};
-
-function showToast(msg, type='info') {
-  let t = document.getElementById('toast-container');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toast-container';
-    t.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px';
-    document.body.appendChild(t);
-  }
-  const toast = document.createElement('div');
-  toast.style.cssText = `padding:12px 18px;border-radius:8px;font-size:14px;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.4);
-    background:${type==='success'?'#1b3a1b':type==='error'?'#3a1b1b':'#1b2a3a'};
-    color:${type==='success'?'#4caf50':type==='error'?'#f44336':'#42a5f5'};
-    border:1px solid ${type==='success'?'#2d5a2d':type==='error'?'#5a2d2d':'#2d4a5a'}`;
-  toast.textContent = msg;
-  t.appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
-}
 </script>
 {% endblock %}

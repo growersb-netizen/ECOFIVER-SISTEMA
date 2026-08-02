@@ -181,6 +181,11 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
             n = len(batch)
             logger.info(f"[WA] ADMIN ({phone_number}) → Máximo ({n} mensaje{'s' if n > 1 else ''})")
 
+        # Melanie: la IA de Meta atiende ese número; solo registramos el contacto en CRM
+        if canal_base == "whatsapp_melanie":
+            logger.info(f"[WA/Melanie] {phone_number} registrado en CRM — sin respuesta del bot")
+            return
+
         result = await route_message(canal, phone_number, texto, tipo_final)
         await enviar_mensaje_wa(phone_number, result["reply"], phone_id=send_phone_id)
         await _crm_push_mensaje(

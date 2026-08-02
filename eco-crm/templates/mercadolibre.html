@@ -523,7 +523,7 @@ async function loadPublicaciones() {
     <div class="table-container">
     <table class="table">
       <thead><tr>
-        <th></th><th>Imagen</th><th>Título</th><th>Precio</th><th>Estado</th><th>Visitas</th><th>Ventas</th><th>Stock</th><th>Acciones</th>
+        <th></th><th>Imagen</th><th>Título</th><th>Categoría</th><th>Precio</th><th>Estado</th><th>Visitas</th><th>Ventas</th><th>Stock</th><th>Acciones</th>
       </tr></thead>
       <tbody>
         ${items.map(renderPubRow).join('')}
@@ -635,6 +635,7 @@ function renderPubRow(item) {
       <div style="font-size:11px;color:var(--text-secondary)">${item.item_id}</div>
       ${item.permalink ? `<a href="${item.permalink}" target="_blank" style="font-size:11px;color:var(--primary)">Ver en ML ↗</a>` : ''}
     </td>
+    <td style="font-size:12px;max-width:160px">${escHtml(item.categoria_nombre || item.categoria_id || '—')}</td>
     <td style="font-weight:600">$${fmtNum(item.precio)}</td>
     <td><span class="badge ${estadoClass}">${estadoLabel}</span></td>
     <td>${item.visitas || 0}</td>

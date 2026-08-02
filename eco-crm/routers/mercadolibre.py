@@ -509,6 +509,19 @@ async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, li
 
     visitas_map = await _ml_visitas_items(token, [b.get("id") for b in items if b.get("id")])
 
+    # Nombre de categoría por id, con cache — normalmente son pocas categorías
+    # distintas por vendedor, no vale la pena una llamada por publicación.
+    categoria_ids = {b.get("category_id") for b in items if b.get("category_id")}
+    categoria_nombres: dict = {}
+    for cid in categoria_ids:
+        try:
+            async with httpx.AsyncClient(timeout=8) as c:
+                rc = await c.get(f"{ML_BASE}/categories/{cid}")
+            if rc.status_code == 200:
+                categoria_nombres[cid] = rc.json().get("name", cid)
+        except Exception:
+            pass
+
     return [{
         "item_id":      body.get("id"),
         "titulo":       body.get("title"),
@@ -520,6 +533,8 @@ async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, li
         "permalink":    body.get("permalink"),
         "thumbnail":    body.get("thumbnail"),
         "fecha_vencimiento": body.get("stop_time"),
+        "categoria_id": body.get("category_id"),
+        "categoria_nombre": categoria_nombres.get(body.get("category_id"), body.get("category_id")),
     } for body in items]
 
 

@@ -12,11 +12,10 @@ Configuración necesaria en ConfiguracionSistema:
 import asyncio
 import httpx
 import logging
-import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -28,8 +27,6 @@ from routers.auth import require_auth, get_user_roles
 log = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
 
 
 # ─── CATÁLOGO DE AGENTES ──────────────────────────────────────────────────────
@@ -379,31 +376,6 @@ Prioridad: MÁXIMA. Respuesta al cliente en menos de 2 horas.""",
 def _get_config(db: Session, clave: str, default: str = "") -> str:
     cfg = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
     return cfg.valor if cfg and cfg.valor else default
-
-
-@router.get("/api/control-agentes/debug-orquestador-url")
-async def debug_orquestador_url(
-    db: Session = Depends(get_db),
-    x_api_key: Optional[str] = Header(None),
-    corregir: bool = False,
-):
-    """Diagnóstico temporal (sin sesión): ver/corregir orquestador_url si quedó apuntando a Fly.io."""
-    if not (x_api_key and x_api_key == API_KEY):
-        raise HTTPException(403, "Sin permisos")
-    cfg = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "orquestador_url").first()
-    valor_actual = cfg.valor if cfg else None
-    correcto = "https://eco-multiagente-production.up.railway.app"
-    resultado = {"valor_en_bd": valor_actual, "valor_correcto": correcto, "coincide": valor_actual == correcto}
-    if corregir and valor_actual != correcto:
-        if cfg:
-            cfg.valor = correcto
-            cfg.estado = "activa"
-        else:
-            cfg = ConfiguracionSistema(clave="orquestador_url", valor=correcto, es_secreto=False, estado="activa")
-            db.add(cfg)
-        db.commit()
-        resultado["corregido"] = True
-    return resultado
 
 
 def _comando_dict(c: ComandoAgente) -> dict:

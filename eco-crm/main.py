@@ -27,6 +27,7 @@ from routers import (
     control_agentes, instalacion, panolero, asistencia_rapida, entrega_rapida,
     marketing, simulador, seguimiento, testimonial, inbox, public_landing,
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
+    integraciones,
 )
 
 log = logging.getLogger(__name__)
@@ -116,6 +117,7 @@ app.include_router(cobranza_historica.router)  # Cobranza histórica Construsol 
 app.include_router(ml_publicaciones.router) # MercadoLibre — cola de publicaciones
 app.include_router(negocio.router)          # Configuración del negocio
 app.include_router(whatsapp_business.router) # Perfil de WhatsApp Business
+app.include_router(integraciones.router)     # Integración WhatsApp IA (Melanie + futuros)
 
 
 # ─── MANUAL DE USO ────────────────────────────────────────────────────────────
@@ -284,6 +286,7 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/api/produccion/ordenes/", # operario registra etapas sin login
         "/api/health",              # Railway / Docker healthcheck
         "/mercadolibre/notifications",  # webhook de MercadoLibre (sin sesión) — si falla, ML revoca la app
+        "/api/integraciones/melanie/confirmacion",  # Melanie envía Bearer propio, sin cookie de sesión
     ]
     path = request.url.path
 

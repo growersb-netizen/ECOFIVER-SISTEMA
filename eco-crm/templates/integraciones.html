@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% block title %}Integraciones IA — EcoFiver CRM{% endblock %}
+{% block page_title %}🤖 Integración WhatsApp IA{% endblock %}
+
+{% block top_actions %}
+<button class="btn btn-ghost btn-sm" onclick="cargarDatos()">↺ Actualizar</button>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ═══ INTEGRACIONES IA ═══ */
+.int-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.int-kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px 12px 10px;
+  border-top: 3px solid transparent;
+}
+.int-kpi-val { font-size: 26px; font-weight: 800; line-height: 1; }
+.int-kpi-lbl { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-top: 4px; }
+.int-kpi.total     { border-top-color: #6366f1; }
+.int-kpi.pendiente { border-top-color: #f59e0b; }
+.int-kpi.en-curso  { border-top-color: #3b82f6; }
+.int-kpi.completada{ border-top-color: #16a34a; }
+.int-kpi.cancelada { border-top-color: #ef4444; }
+
+.int-filters {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 16px; align-items: center;
+}
+.int-filter-btn {
+  padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  border: 1.5px solid var(--border-color); background: transparent;
+  color: var(--text-secondary); cursor: pointer; transition: all .15s;
+}
+.int-filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+.int-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.int-table-wrap { overflow-x: auto; }
+table.int-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.int-table th {
+  text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .4px; color: var(--text-secondary);
+  border-bottom: 2px solid var(--border-color); white-space: nowrap;
+}
+.int-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+.int-table tr:hover td { background: var(--bg-secondary); }
+.int-table tr:last-child td { border-bottom: none; }
+
+.codigo-badge {
+  font-family: monospace; font-size: 16px; font-weight: 800; letter-spacing: 3px;
+  color: var(--teal); background: rgba(0,200,180,.08);
+  padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(0,200,180,.2);
+  display: inline-block;
+}
+.estado-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; display: inline-block;
+}
+.st-PENDIENTE  { background: rgba(245,158,11,.15); color: #f59e0b; }
+.st-EN_CURSO   { background: rgba(59,130,246,.15);  color: #3b82f6; }
+.st-COMPLETADA { background: rgba(22,163,74,.15);   color: #16a34a; }
+.st-CANCELADA  { background: rgba(239,68,68,.15);   color: #ef4444; }
+.st-SIN_TAREA  { background: rgba(107,114,128,.1);  color: #6b7280; }
+
+.pr-ALTA   { color: #f59e0b; font-weight: 700; }
+.pr-URGENTE{ color: #ef4444; font-weight: 700; }
+
+/* Modal */
+.int-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 16px; overflow-y: auto;
+}
+.int-modal {
+  background: var(--bg-card); border: 1px solid var(--border-color);
+  border-radius: 14px; width: 100%; max-width: 680px; padding: 28px;
+  position: relative;
+}
+.int-modal-close {
+  position: absolute; top: 16px; right: 16px;
+  background: none; border: none; cursor: pointer; font-size: 20px;
+  color: var(--text-secondary);
+}
+.int-section { margin-bottom: 20px; }
+.int-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 4px; font-weight: 700; }
+.int-value { font-size: 14px; color: var(--text-primary); }
+.int-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.int-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.int-resumen {
+  background: var(--bg-secondary); border-radius: 8px; padding: 12px;
+  font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+  white-space: pre-wrap; max-height: 160px; overflow-y: auto;
+}
+.int-chat {
+  background: var(--bg-secondary); border-radius: 8px; padding: 12px;
+  max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+}
+.int-chat-msg {
+  font-size: 12px; padding: 8px 12px; border-radius: 8px; max-width: 90%; line-height: 1.5;
+}
+.int-chat-msg.user    { background: rgba(99,102,241,.12); color: var(--text-primary); align-self: flex-end; }
+.int-chat-msg.melanie { background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-secondary); align-self: flex-start; }
+.int-chat-msg.system  { background: rgba(107,114,128,.1); color: var(--text-muted); align-self: center; font-style: italic; font-size: 11px; }
+.int-chat-rol { font-size: 10px; font-weight: 700; margin-bottom: 3px; color: var(--text-muted); }
+
+.api-info {
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 10px; padding: 16px; margin-bottom: 20px;
+}
+.api-code {
+  font-family: monospace; font-size: 12px; background: #111;
+  padding: 10px 14px; border-radius: 6px; color: #a3e635;
+  overflow-x: auto; white-space: pre; margin-top: 8px;
+}
+
+@media (max-width: 700px) {
+  .int-grid2, .int-grid3 { grid-template-columns: 1fr; }
+  .int-table th:nth-child(n+5), .int-table td:nth-child(n+5) { display: none; }
+}
+</style>
+
+<!-- KPIs -->
+<div class="int-kpis" id="int-kpis">
+  <div class="int-kpi total">    <div class="int-kpi-val" id="kpi-total">…</div>    <div class="int-kpi-lbl">Total solicitudes</div></div>
+  <div class="int-kpi pendiente"><div class="int-kpi-val" id="kpi-pend">…</div>    <div class="int-kpi-lbl">Pendientes</div></div>
+  <div class="int-kpi en-curso"> <div class="int-kpi-val" id="kpi-enc">…</div>     <div class="int-kpi-lbl">En curso</div></div>
+  <div class="int-kpi completada"><div class="int-kpi-val" id="kpi-comp">…</div>   <div class="int-kpi-lbl">Completadas</div></div>
+  <div class="int-kpi cancelada"><div class="int-kpi-val" id="kpi-canc">…</div>    <div class="int-kpi-lbl">Canceladas</div></div>
+</div>
+
+<!-- Filtros -->
+<div class="int-filters">
+  <button class="int-filter-btn active" onclick="filtrar('', this)">Todas</button>
+  <button class="int-filter-btn" onclick="filtrar('PENDIENTE', this)">⏳ Pendientes</button>
+  <button class="int-filter-btn" onclick="filtrar('EN_CURSO', this)">📞 En curso</button>
+  <button class="int-filter-btn" onclick="filtrar('COMPLETADA', this)">✅ Completadas</button>
+  <button class="int-filter-btn" onclick="filtrar('CANCELADA', this)">✕ Canceladas</button>
+</div>
+
+<!-- Tabla -->
+<div class="card">
+  <div class="int-table-wrap">
+    <table class="int-table">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Producto / Modelo</th>
+          <th>Fecha solicitada</th>
+          <th>Código</th>
+          <th>Estado</th>
+          <th>Recibido</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="int-tbody">
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary)">Cargando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Info API (visible solo para ADMIN) -->
+{% if 'ADMIN' in roles %}
+<div class="api-info" style="margin-top:24px">
+  <strong>🔗 Endpoint para Melanie</strong>
+  <div class="api-code">POST /api/integraciones/melanie/confirmacion
+Authorization: Bearer {MELANIE_API_KEY}
+Content-Type: application/json
+
+{
+  "nombre": "...", "apellido": "...", "telefono": "+54...",
+  "provincia": "...", "localidad": "...",
+  "producto": "Piscina|Módulo|Combo",
+  "modelo": "...", "plan": "...", "estado_terreno": "...",
+  "fecha_preferida": "YYYY-MM-DD", "horario_preferido": "HH:MM",
+  "resumen": "Texto del resumen generado por Melanie",
+  "historial_chat": [{"rol": "user|melanie", "mensaje": "..."}],
+  "datos_extra": {}
+}</div>
+  <div style="font-size:12px;color:var(--text-secondary);margin-top:10px">
+    Clave configurable en <a href="/configuracion" style="color:var(--primary)">Configuración → API Keys</a> como <code>melanie_api_key</code>.
+    Respuesta: <code>{"ok": true, "codigo_validacion": "A7K3", "tarea_id": 1, "lead_id": 42}</code>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal detalle -->
+<div class="int-modal-overlay" id="int-modal" style="display:none" onclick="if(event.target===this)cerrarModal()">
+  <div class="int-modal">
+    <button class="int-modal-close" onclick="cerrarModal()">✕</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+let _datos = [];
+let _filtroEstado = '';
+
+document.addEventListener('DOMContentLoaded', cargarDatos);
+
+async function cargarDatos() {
+  await Promise.all([cargarStats(), cargarTabla()]);
+}
+
+async function cargarStats() {
+  try {
+    const s = await API.get('/api/integraciones/melanie/stats');
+    document.getElementById('kpi-total').textContent = s.total_solicitudes;
+    document.getElementById('kpi-pend').textContent  = s.pendientes;
+    document.getElementById('kpi-enc').textContent   = s.en_curso;
+    document.getElementById('kpi-comp').textContent  = s.completadas;
+    document.getElementById('kpi-canc').textContent  = s.canceladas;
+  } catch(e) { console.warn('stats err', e); }
+}
+
+async function cargarTabla() {
+  const tbody = document.getElementById('int-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary)">Cargando…</td></tr>';
+  try {
+    let url = '/api/integraciones/melanie/solicitudes';
+    if (_filtroEstado) url += `?estado=${_filtroEstado}`;
+    _datos = await API.get(url);
+    renderTabla();
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#f44;padding:20px">${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+function filtrar(estado, btn) {
+  _filtroEstado = estado;
+  document.querySelectorAll('.int-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  cargarTabla();
+}
+
+function renderTabla() {
+  const tbody = document.getElementById('int-tbody');
+  if (!_datos.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary)">Sin solicitudes para mostrar</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _datos.map(s => {
+    const fecha = s.fecha_preferida ? `${s.fecha_preferida}${s.horario_preferido ? ' ' + s.horario_preferido : ''}` : '—';
+    const prod  = [s.producto, s.modelo].filter(Boolean).join(' · ') || '—';
+    const est   = s.tarea_estado || 'SIN_TAREA';
+    const rec   = s.created_at ? new Date(s.created_at).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${escHtml(s.nombre)}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">${escHtml(s.telefono)}</div>
+      </td>
+      <td>${escHtml(prod)}</td>
+      <td>${escHtml(fecha)}</td>
+      <td>${s.codigo_validacion ? `<span class="codigo-badge">${escHtml(s.codigo_validacion)}</span>` : '—'}</td>
+      <td><span class="estado-badge st-${est}">${estadoLabel(est)}</span></td>
+      <td style="font-size:11px;color:var(--text-secondary)">${rec}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="abrirDetalle(${s.id})">Ver</button>
+          ${s.lead_id ? `<a href="/leads" onclick="event.preventDefault();irALead(${s.lead_id})" class="btn btn-ghost btn-sm">👤 Lead</a>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function estadoLabel(est) {
+  return {PENDIENTE:'⏳ Pendiente', EN_CURSO:'📞 En curso', COMPLETADA:'✅ Completada', CANCELADA:'✕ Cancelada', SIN_TAREA:'—'}[est] || est;
+}
+
+function irALead(id) {
+  window.location.href = `/leads`;
+  // Guardamos el ID en sessionStorage para que la página de leads lo abra
+  sessionStorage.setItem('openLeadId', id);
+}
+
+// ─── Modal detalle ────────────────────────────────────────────────────────────
+async function abrirDetalle(id) {
+  const modal = document.getElementById('int-modal');
+  const body  = document.getElementById('modal-body');
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-secondary)">Cargando…</div>';
+  modal.style.display = 'flex';
+
+  try {
+    const s = await API.get(`/api/integraciones/melanie/solicitudes/${id}`);
+    const est = s.tarea_estado || 'SIN_TAREA';
+    const nombre = escHtml(s.nombre);
+    const tel    = escHtml(s.telefono);
+
+    body.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:20px;font-weight:800">${nombre}</div>
+          <div style="font-size:13px;color:var(--text-secondary)">${tel} · ${escHtml(s.localidad || '')}${s.provincia ? ', ' + escHtml(s.provincia) : ''}</div>
+        </div>
+        ${s.codigo_validacion ? `<span class="codigo-badge" style="font-size:22px;letter-spacing:5px">${escHtml(s.codigo_validacion)}</span>` : ''}
+      </div>
+
+      <div class="int-grid3" style="margin-bottom:16px">
+        <div class="int-section"><div class="int-label">Producto</div><div class="int-value">${escHtml(s.producto || '—')}</div></div>
+        <div class="int-section"><div class="int-label">Modelo</div><div class="int-value">${escHtml(s.modelo || '—')}</div></div>
+        <div class="int-section"><div class="int-label">Plan</div><div class="int-value">${escHtml(s.plan || '—')}</div></div>
+      </div>
+      <div class="int-grid3" style="margin-bottom:16px">
+        <div class="int-section"><div class="int-label">Fecha preferida</div><div class="int-value">${escHtml(s.fecha_preferida || '—')}</div></div>
+        <div class="int-section"><div class="int-label">Horario</div><div class="int-value">${escHtml(s.horario_preferido || '—')}</div></div>
+        <div class="int-section"><div class="int-label">Estado terreno</div><div class="int-value">${escHtml(s.estado_terreno || '—')}</div></div>
+      </div>
+
+      ${s.resumen ? `
+      <div class="int-section">
+        <div class="int-label">Resumen generado por Melanie</div>
+        <div class="int-resumen">${escHtml(s.resumen)}</div>
+      </div>` : ''}
+
+      ${s.historial_chat && s.historial_chat.length ? `
+      <div class="int-section">
+        <div class="int-label">Historial de conversación (${s.historial_chat.length} mensajes)</div>
+        <div class="int-chat" id="chat-container">
+          ${s.historial_chat.map(m => {
+            const rol = (m.rol || m.role || '').toLowerCase();
+            const msg = m.mensaje || m.content || m.message || '';
+            const clsMap = { user: 'user', melanie: 'melanie', assistant: 'melanie', system: 'system', bot: 'melanie' };
+            const cls = clsMap[rol] || 'melanie';
+            const rolLabel = { user: '👤 Cliente', melanie: '🤖 Melanie', assistant: '🤖 Melanie', system: '⚙️ Sistema', bot: '🤖 Melanie' }[rol] || rol;
+            return \`<div class="int-chat-msg \${cls}"><div class="int-chat-rol">\${escHtml(rolLabel)}</div>\${escHtml(String(msg))}</div>\`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+
+      ${s.tarea_id ? `
+      <div style="border-top:1px solid var(--border-color);padding-top:16px;margin-top:4px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">📋 Tarea de Llamada de Confirmación #${s.tarea_id}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <span class="estado-badge st-${est}">${estadoLabel(est)}</span>
+          <select id="sel-estado" class="input" style="width:170px;font-size:12px" onchange="">
+            <option value="PENDIENTE" ${est==='PENDIENTE'?'selected':''}>⏳ Pendiente</option>
+            <option value="EN_CURSO"  ${est==='EN_CURSO'?'selected':''}>📞 En curso</option>
+            <option value="COMPLETADA"${est==='COMPLETADA'?'selected':''}>✅ Completada</option>
+            <option value="CANCELADA" ${est==='CANCELADA'?'selected':''}>✕ Cancelada</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="actualizarEstado(${s.tarea_id}, document.getElementById('sel-estado').value)">Guardar estado</button>
+        </div>
+        <div>
+          <label class="label" style="font-size:11px">Notas del asesor</label>
+          <textarea id="notas-asesor" class="input" rows="2" style="font-size:12px">${escHtml(s.tarea_notas || '')}</textarea>
+          <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="guardarNotas(${s.tarea_id})">Guardar notas</button>
+        </div>
+      </div>` : ''}
+
+      <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
+        ${s.lead_id ? `<a href="/leads" onclick="event.preventDefault();cerrarModal();irALead(${s.lead_id})" class="btn btn-secondary">👤 Abrir Lead en CRM</a>` : ''}
+        <button class="btn btn-ghost" onclick="cerrarModal()">Cerrar</button>
+      </div>`;
+
+    // scroll chat al final
+    const chat = document.getElementById('chat-container');
+    if (chat) chat.scrollTop = chat.scrollHeight;
+
+  } catch(e) {
+    body.innerHTML = `<div style="color:#f44;padding:20px">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function actualizarEstado(tareaId, nuevoEstado) {
+  try {
+    await API.patch(`/api/integraciones/melanie/tareas/${tareaId}`, { estado: nuevoEstado });
+    showToast(`Estado actualizado: ${estadoLabel(nuevoEstado)}`, 'success');
+    cerrarModal();
+    cargarDatos();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function guardarNotas(tareaId) {
+  const notas = document.getElementById('notas-asesor').value;
+  try {
+    await API.patch(`/api/integraciones/melanie/tareas/${tareaId}`, { notas_asesor: notas });
+    showToast('Notas guardadas', 'success');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+function cerrarModal() {
+  document.getElementById('int-modal').style.display = 'none';
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const API = {
+  async _req(method, url, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
+    return data;
+  },
+  get:   url       => API._req('GET',   url),
+  post:  (url, b)  => API._req('POST',  url, b),
+  patch: (url, b)  => API._req('PATCH', url, b),
+};
+
+function showToast(msg, type='info') {
+  let t = document.getElementById('toast-container');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-container';
+    t.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px';
+    document.body.appendChild(t);
+  }
+  const toast = document.createElement('div');
+  toast.style.cssText = `padding:12px 18px;border-radius:8px;font-size:14px;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.4);
+    background:${type==='success'?'#1b3a1b':type==='error'?'#3a1b1b':'#1b2a3a'};
+    color:${type==='success'?'#4caf50':type==='error'?'#f44336':'#42a5f5'};
+    border:1px solid ${type==='success'?'#2d5a2d':type==='error'?'#5a2d2d':'#2d4a5a'}`;
+  toast.textContent = msg;
+  t.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
+</script>
+{% endblock %}

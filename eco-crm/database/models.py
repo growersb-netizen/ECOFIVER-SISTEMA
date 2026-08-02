@@ -692,6 +692,61 @@ class ContenidoEcopost(Base):
     aprobado_por = relationship("Usuario", foreign_keys=[aprobado_por_id])
 
 
+class SolicitudMelanie(Base):
+    """Solicitud de Llamada de Confirmación enviada por el agente Melanie vía Webhook."""
+    __tablename__ = "solicitudes_melanie"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    # Datos del cliente recibidos de Melanie
+    nombre           = Column(String(100), default="")
+    apellido         = Column(String(100), default="")
+    telefono         = Column(String(30), nullable=False, index=True)
+    provincia        = Column(String(100), default="")
+    localidad        = Column(String(100), default="")
+    producto         = Column(String(80), default="")
+    modelo           = Column(String(150), default="")
+    plan             = Column(String(100), default="")
+    estado_terreno   = Column(String(100), default="")
+    fecha_preferida  = Column(String(100), default="")
+    horario_preferido= Column(String(100), default="")
+    resumen_melanie  = Column(Text, default="")
+    historial_chat   = Column(JSON, default=list)       # lista de mensajes
+    agente_origen    = Column(String(50), default="melanie")
+    datos_extra      = Column(JSON, default=dict)       # extensible sin migración
+    # Vínculos internos
+    lead_id          = Column(Integer, ForeignKey("leads.id"), nullable=True, index=True)
+    # Auditoría
+    ip_origen        = Column(String(50), default="")
+    estado_procesamiento = Column(String(20), default="recibido")  # recibido | procesado | error
+    error_mensaje    = Column(Text, nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+    lead  = relationship("Lead", foreign_keys=[lead_id])
+    tarea = relationship("TareaLlamadaConfirmacion", back_populates="solicitud", uselist=False)
+
+
+class TareaLlamadaConfirmacion(Base):
+    """Tarea de Llamada de Confirmación generada automáticamente al recibir solicitud de Melanie."""
+    __tablename__ = "tareas_llamada_confirmacion"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    lead_id            = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    solicitud_id       = Column(Integer, ForeignKey("solicitudes_melanie.id"), nullable=True)
+    codigo_validacion  = Column(String(4), unique=True, index=True, nullable=False)
+    estado             = Column(String(20), default="PENDIENTE")    # PENDIENTE | EN_CURSO | COMPLETADA | CANCELADA
+    prioridad          = Column(String(10), default="NORMAL")        # NORMAL | ALTA | URGENTE
+    fecha_preferida    = Column(String(100), default="")
+    horario_preferido  = Column(String(100), default="")
+    notas_asesor       = Column(Text, default="")
+    asesor_id          = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at         = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at         = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    lead      = relationship("Lead", foreign_keys=[lead_id])
+    solicitud = relationship("SolicitudMelanie", back_populates="tarea")
+    asesor    = relationship("Usuario", foreign_keys=[asesor_id])
+
+
 class EcopostReferencia(Base):
     """Imágenes de referencia de estilo para guiar la generación de imágenes IA en Ecopost."""
     __tablename__ = "ecopost_referencias"

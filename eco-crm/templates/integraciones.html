@@ -402,7 +402,7 @@ function escHtml(s) {
 
 const API = {
   async _req(method, url, body) {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    const opts = { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } };
     if (body !== undefined) opts.body = JSON.stringify(body);
     const r = await fetch(url, opts);
     const data = await r.json().catch(() => ({}));

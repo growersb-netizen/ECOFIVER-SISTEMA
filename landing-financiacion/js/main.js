@@ -122,7 +122,7 @@
     const promoCta = document.querySelector('[data-wa-cta="promo-mundial"]');
     if (promoCta) {
       const msg = "Hola! Vi la promo Antes del Verano de la piscina " + modelo.nombre + " (" + modelo.medidas +
-        ") a $" + formatearPesos(cuota) + "/mes en " + PROMO_CUOTAS + " cuotas, con precio de la temporada pasada (verano 2025) y entrega programada para este verano. Quiero reservar mi lugar y la pérgola de regalo de las primeras 100 suscripciones.";
+        ") a $" + formatearPesos(cuota) + "/mes en " + PROMO_CUOTAS + " cuotas, con precio de la temporada pasada (verano 2025) y entrega programada para este verano. Quiero reservar mi lugar y la pérgola de regalo.";
       promoCta.setAttribute("href", waLink(msg));
     }
   }

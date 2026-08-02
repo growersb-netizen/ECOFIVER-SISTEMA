@@ -45,6 +45,32 @@ async def _crm_get_modo(phone: str) -> str:
     return "bot"
 
 
+async def _melanie_registrar_lead(phone: str, primer_mensaje: str = "") -> None:
+    """Registra contacto de Melanie en el módulo de integraciones del CRM (idempotente)."""
+    payload = {
+        "nombre": "Contacto Melanie",
+        "telefono": phone,
+        "resumen": (primer_mensaje or "")[:300],
+    }
+    try:
+        melanie_key = os.getenv("MELANIE_API_KEY", "melanie-webhook-key-2024")
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.post(
+                f"{CRM_BASE_URL}/api/integraciones/melanie/confirmacion",
+                json=payload,
+                headers={"Authorization": f"Bearer {melanie_key}", "Content-Type": "application/json"},
+            )
+            d = r.json()
+            if d.get("ok"):
+                tag = "ya existía" if d.get("idempotente") else "nuevo"
+                logger.info(
+                    f"[WA/Melanie] lead {tag} — tarea #{d.get('tarea_id')} "
+                    f"código {d.get('codigo_validacion')} lead_id={d.get('lead_id')}"
+                )
+    except Exception as exc:
+        logger.warning(f"[WA/Melanie] No se pudo registrar lead en integraciones: {exc}")
+
+
 async def _crm_push_mensaje(phone: str, direccion: str, contenido: str,
                              remitente: str = "", nombre: str = "",
                              lead_id: int | None = None,
@@ -181,9 +207,9 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
             n = len(batch)
             logger.info(f"[WA] ADMIN ({phone_number}) → Máximo ({n} mensaje{'s' if n > 1 else ''})")
 
-        # Melanie: la IA de Meta atiende ese número; solo registramos el contacto en CRM
+        # Melanie: la IA de Meta atiende ese número; registramos en inbox + integraciones
         if canal_base == "whatsapp_melanie":
-            logger.info(f"[WA/Melanie] {phone_number} registrado en CRM — sin respuesta del bot")
+            await _melanie_registrar_lead(phone_number, texto)
             return
 
         result = await route_message(canal, phone_number, texto, tipo_final)

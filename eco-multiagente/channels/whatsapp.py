@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN", "eco_modules_verify_2026")
 
+# IDs de los números de negocio registrados en la WABA
+WA_PHONE_ID_AGENTES = os.getenv("WA_PHONE_ID_AGENTES", "")   # 1168733406
+WA_PHONE_ID_MELANIE = os.getenv("WA_PHONE_ID_MELANIE", "")   # 1126036495
+
 # ── Número admin de Rodrigo — canal privado con Máximo ───────────────────────
 ADMIN_WA_PHONES: set[str] = {"5491135164644"}
 
@@ -82,9 +86,9 @@ _pending_msgs: dict[str, list[dict]] = defaultdict(list)
 _pending_tasks: dict[str, asyncio.Task] = {}
 
 
-async def _enqueue_message(phone_number: str, msg_type: str, message: dict) -> None:
+async def _enqueue_message(phone_number: str, msg_type: str, message: dict, phone_number_id: str = "") -> None:
     """Agrega el mensaje a la cola y reinicia el timer de debounce."""
-    _pending_msgs[phone_number].append({"msg_type": msg_type, "message": message})
+    _pending_msgs[phone_number].append({"msg_type": msg_type, "message": message, "phone_number_id": phone_number_id})
 
     old = _pending_tasks.get(phone_number)
     if old and not old.done():
@@ -133,7 +137,6 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
             )):
                 textos.append(t)
                 tiene_audio = True
-            # Si falla la transcripción de un audio dentro del lote, lo omitimos silenciosamente
 
         elif msg_type == "image":
             cap = message["image"].get("caption", "")
@@ -142,12 +145,20 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
     if not textos:
         return
 
-    # Unir todos los textos del lote
-    texto     = "\n".join(textos)
+    texto      = "\n".join(textos)
     tipo_final = "audio_transcripto" if tiene_audio else "text"
 
+    # Determinar qué número de negocio recibió el mensaje (para responder desde el mismo)
+    incoming_phone_id = batch[0].get("phone_number_id", "") if batch else ""
+    if WA_PHONE_ID_MELANIE and incoming_phone_id == WA_PHONE_ID_MELANIE:
+        send_phone_id = WA_PHONE_ID_MELANIE
+        canal_base    = "whatsapp_melanie"
+    else:
+        send_phone_id = incoming_phone_id or WA_PHONE_ID_AGENTES or _get_wa_phone_id()
+        canal_base    = "whatsapp"
+
     is_admin = phone_number in ADMIN_WA_PHONES
-    canal    = "whatsapp_admin" if is_admin else "whatsapp"
+    canal    = "whatsapp_admin" if is_admin else canal_base
 
     try:
         if not is_admin:
@@ -170,7 +181,7 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
             logger.info(f"[WA] ADMIN ({phone_number}) → Máximo ({n} mensaje{'s' if n > 1 else ''})")
 
         result = await route_message(canal, phone_number, texto, tipo_final)
-        await send_whatsapp_message(phone_number, result["reply"])
+        await enviar_mensaje_wa(phone_number, result["reply"], phone_id=send_phone_id)
         await _crm_push_mensaje(
             phone=phone_number,
             direccion="OUT",
@@ -181,9 +192,10 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
     except Exception as e:
         logger.error(f"[WA] Error procesando batch de {phone_number}: {e}")
         try:
-            await send_whatsapp_message(
+            await enviar_mensaje_wa(
                 phone_number,
                 "Disculpá, tuve un problema técnico. En un momento te respondo. 🙏",
+                phone_id=send_phone_id,
             )
         except Exception:
             pass
@@ -239,12 +251,13 @@ async def receive_message(request: Request, background: BackgroundTasks):
             logger.info(f"[WA] WEBHOOK recibido (formato desconocido): {str(body)[:200]}")
         return {"status": "ignored"}
 
-    phone_number = message["from"]
-    msg_type     = message.get("type", "text")
+    phone_number    = message["from"]
+    msg_type        = message.get("type", "text")
+    phone_number_id = change.get("metadata", {}).get("phone_number_id", "")
 
     # Encolar con debounce — si llegan más mensajes en los próximos 3.5 seg
     # se procesan todos juntos como una sola interacción
-    background.add_task(_enqueue_message, phone_number, msg_type, message)
+    background.add_task(_enqueue_message, phone_number, msg_type, message, phone_number_id)
     return {"status": "accepted"}
 
 

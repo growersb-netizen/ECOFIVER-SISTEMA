@@ -419,6 +419,13 @@ async def route_message(
     if canal == "aliados_wa":
         return await _route_aliados(session_id, mensaje, msg_type)
 
+    # ── Canal Melanie: número 1126036495 → mismo sistema de agentes ─────────
+    # El número de Melanie comparte el pipeline; se trata como "whatsapp" normal
+    # para que Valentina/CRM funcionen igual. La diferencia está en qué phone_id
+    # se usa para enviar la respuesta (resuelto en whatsapp.py).
+    if canal == "whatsapp_melanie":
+        canal = "whatsapp"
+
     # ── Detección de Aliados sobre el WhatsApp compartido con clientes ─────
     # No hay línea de WhatsApp dedicada a Aliados — sin esto, un postulante
     # o Aliado activo que escribe por el mismo número termina asignado a

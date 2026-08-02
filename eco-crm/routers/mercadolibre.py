@@ -143,14 +143,19 @@ LINEAS_PRODUCTO = {
 
 async def _ml_predecir_categoria(titulo: str, token: Optional[str] = None, limit: int = 1) -> list:
     """
-    Llama al category_predictor real de ML: dado un título, devuelve la(s)
-    categoría(s) más probable(s) con sus atributos requeridos. Endpoint público
-    de /sites, no requiere token, pero lo mandamos si lo tenemos disponible.
+    Predice la categoría real de ML a partir de un título, vía
+    /sites/MLA/domain_discovery/search — /sites/MLA/category_predictor/predict
+    (usado antes) empezó a devolver 404 "resource not found" para esta cuenta,
+    confirmado en vivo; domain_discovery es el endpoint que sí funciona y de
+    hecho da categorías más específicas (ej. "Piletas de Fibra" en vez del
+    genérico "Piletas y Jacuzzis"). Ese endpoint no devuelve atributos, así
+    que se piden aparte por categoría (solo para el resultado top, para no
+    multiplicar llamadas).
     """
     headers = _ml_headers(token) if token else {}
     async with httpx.AsyncClient(timeout=12) as c:
         r = await c.get(
-            f"{ML_BASE}/sites/MLA/category_predictor/predict",
+            f"{ML_BASE}/sites/MLA/domain_discovery/search",
             params={"q": titulo, "limit": max(1, min(limit, 8))},
             headers=headers,
         )
@@ -159,23 +164,33 @@ async def _ml_predecir_categoria(titulo: str, token: Optional[str] = None, limit
     predicciones = r.json()
     if isinstance(predicciones, dict):
         predicciones = [predicciones]
-    return [
-        {
-            "category_id": p.get("category_id"),
+
+    resultado = []
+    for i, p in enumerate(predicciones):
+        cat_id = p.get("category_id")
+        atributos = []
+        if cat_id and i == 0:  # atributos solo para el top resultado
+            try:
+                async with httpx.AsyncClient(timeout=10) as c:
+                    ra = await c.get(f"{ML_BASE}/categories/{cat_id}/attributes", headers=headers)
+                if ra.status_code == 200:
+                    for a in ra.json():
+                        tags = a.get("tags") or {}
+                        if tags.get("hidden") or tags.get("read_only"):
+                            continue
+                        atributos.append({
+                            "id": a.get("id"), "name": a.get("name"),
+                            "value_type": a.get("value_type"), "tags": tags,
+                            "values": [v.get("name") for v in (a.get("values") or [])][:40],
+                        })
+            except Exception:
+                pass
+        resultado.append({
+            "category_id": cat_id,
             "category_name": p.get("category_name"),
-            "attributes": [
-                {
-                    "id": a.get("id"),
-                    "name": a.get("name"),
-                    "value_type": a.get("value_type"),
-                    "tags": a.get("tags", {}),
-                    "values": a.get("values", []),
-                }
-                for a in (p.get("attributes") or [])
-            ],
-        }
-        for p in predicciones
-    ]
+            "attributes": atributos,
+        })
+    return resultado
 
 
 def _ml_headers(token: str) -> dict:
@@ -1247,46 +1262,6 @@ async def get_stats_publicacion(
 
 # ─── API — DASHBOARD RESUMEN ML ───────────────────────────────────────────────
 
-@router.get("/api/ml/debug-visitas-hoy")
-async def debug_visitas_hoy(
-    db: Session = Depends(get_db),
-    x_api_key: Optional[str] = Header(None),
-    current_user: Optional[Usuario] = Depends(get_current_user),
-):
-    """Diagnóstico temporal: visitas de hoy en fecha UTC vs fecha Argentina (UTC-3), para ver si el desfase horario es la causa del 0."""
-    ok = (x_api_key and x_api_key == API_KEY) or (
-        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
-    if not ok:
-        raise HTTPException(403, "Sin permisos")
-    tok = await _ml_valid_token(db)
-    user_id = await _get_user_id(tok, db)
-
-    ahora_utc = datetime.utcnow()
-    ahora_arg = ahora_utc - timedelta(hours=3)
-    hoy_utc = ahora_utc.strftime("%Y-%m-%d")
-    hoy_arg = ahora_arg.strftime("%Y-%m-%d")
-
-    resultado = {"ahora_utc": ahora_utc.isoformat(), "ahora_argentina": ahora_arg.isoformat(),
-                 "hoy_utc": hoy_utc, "hoy_argentina": hoy_arg}
-    for nombre, fecha in [("con_fecha_utc", hoy_utc), ("con_fecha_argentina", hoy_arg)]:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(f"{ML_BASE}/users/{user_id}/items_visits", headers=_ml_headers(tok),
-                             params={"date_from": fecha, "date_to": fecha})
-        resultado[nombre] = {"status": r.status_code, "body": r.text[:400]}
-
-    # Diagnóstico del error "resource not found" en category_predictor -- probar alternativa domain_discovery
-    titulo_prueba = "Pileta de Fibra de Vidrio"
-    try:
-        async with httpx.AsyncClient(timeout=12) as c:
-            rd = await c.get(f"{ML_BASE}/sites/MLA/domain_discovery/search",
-                             params={"q": titulo_prueba, "limit": 3}, headers=_ml_headers(tok))
-        resultado["domain_discovery"] = {"status": rd.status_code, "body": rd.text[:600]}
-    except Exception as e:
-        resultado["domain_discovery"] = {"error": str(e)[:200]}
-
-    return resultado
-
-
 async def _ml_visitas_usuario_rango(token: str, user_id: str, date_from: str, date_to: str) -> int:
     """Visitas totales de todas las publicaciones del vendedor en un rango de fechas."""
     try:
@@ -1359,8 +1334,12 @@ async def get_dashboard_ml(
             }
 
         # /users/{id}/items_visits solo acepta fecha simple YYYY-MM-DD (sin
-        # hora) — confirmado con la API real, cualquier otro formato ISO da 400.
-        hoy_str = datetime.utcnow().strftime("%Y-%m-%d")
+        # hora) — confirmado con la API real, cualquier otro formato ISO da
+        # 400. ML interpreta la fecha en horario de Argentina (UTC-3), no UTC
+        # — usar datetime.utcnow() da el día equivocado durante varias horas
+        # cada día (confirmado en vivo: con fecha UTC daba 0 visitas, con
+        # fecha Argentina daba las visitas reales).
+        hoy_str = (datetime.utcnow() - timedelta(hours=3)).strftime("%Y-%m-%d")
         visitas_hoy = await _ml_visitas_usuario_rango(token, user_id, hoy_str, hoy_str)
 
         publicaciones = await _fetch_publicaciones_activas(db, token, user_id, limit=50)

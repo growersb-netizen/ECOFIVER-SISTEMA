@@ -210,14 +210,30 @@ async function cargarDatos() {
   await Promise.all([cargarStats(), cargarTabla()]);
 }
 
+async function _intGet(url) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch(url, { credentials: 'include', signal: ctrl.signal });
+    clearTimeout(tid);
+    if (res.status === 401) { window.location.href = '/login'; return null; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  } catch(e) {
+    clearTimeout(tid);
+    throw e.name === 'AbortError' ? new Error('Tiempo de espera agotado (12s)') : e;
+  }
+}
+
 async function cargarStats() {
   try {
-    const s = await API.get('/api/integraciones/melanie/stats');
-    document.getElementById('kpi-total').textContent = s.total_solicitudes;
-    document.getElementById('kpi-pend').textContent  = s.pendientes;
-    document.getElementById('kpi-enc').textContent   = s.en_curso;
-    document.getElementById('kpi-comp').textContent  = s.completadas;
-    document.getElementById('kpi-canc').textContent  = s.canceladas;
+    const s = await _intGet('/api/integraciones/melanie/stats');
+    if (!s) return;
+    document.getElementById('kpi-total').textContent = s.total_solicitudes ?? '?';
+    document.getElementById('kpi-pend').textContent  = s.pendientes ?? '?';
+    document.getElementById('kpi-enc').textContent   = s.en_curso ?? '?';
+    document.getElementById('kpi-comp').textContent  = s.completadas ?? '?';
+    document.getElementById('kpi-canc').textContent  = s.canceladas ?? '?';
   } catch(e) { console.warn('stats err', e); }
 }
 
@@ -227,8 +243,11 @@ async function cargarTabla() {
   try {
     let url = '/api/integraciones/melanie/solicitudes';
     if (_filtroEstado) url += `?estado=${_filtroEstado}`;
-    _datos = await API.get(url);
-    if (_datos === null) return;
+    _datos = await _intGet(url);
+    if (_datos === null) {
+      tbody.innerHTML = '<tr><td colspan="7" style="color:#f59e0b;padding:20px;text-align:center">⚠ Sesión expirada — cerrá sesión y volvé a entrar</td></tr>';
+      return;
+    }
     renderTabla();
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="7" style="color:#f44;padding:20px">${escHtml(e.message)}</td></tr>`;

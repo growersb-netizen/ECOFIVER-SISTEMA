@@ -692,6 +692,21 @@ class ContenidoEcopost(Base):
     aprobado_por = relationship("Usuario", foreign_keys=[aprobado_por_id])
 
 
+class EcopostReferencia(Base):
+    """Imágenes de referencia de estilo para guiar la generación de imágenes IA en Ecopost."""
+    __tablename__ = "ecopost_referencias"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(200), default="")
+    descripcion = Column(Text, default="")
+    tipo = Column(String(30), default="estilo")      # estilo | producto | marca | color
+    imagen_base64 = Column(Text, nullable=True)
+    subido_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    subido_por = relationship("Usuario", foreign_keys=[subido_por_id])
+
+
 # ─── MATERIALES Y COMPRAS ──────────────────────────────────────────────────────
 
 class PedidoMaterialCompras(Base):

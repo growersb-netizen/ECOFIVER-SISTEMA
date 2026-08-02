@@ -10,14 +10,14 @@ from datetime import datetime
 from typing import Optional, List
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import ContenidoEcopost, Usuario
+from database.models import ContenidoEcopost, EcopostReferencia, Usuario
 from routers.auth import require_auth, get_user_roles
 from routers.configuracion import get_config_value
 from utils.ai_client import ai_complete, get_active_provider
@@ -544,3 +544,190 @@ async def api_eliminar(
     db.delete(c)
     db.commit()
     return {"ok": True}
+
+
+# ─── REFERENCIAS DE ESTILO ────────────────────────────────────────────────────
+
+@router.get("/api/ecopost/referencias")
+async def api_refs_list(
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    refs = db.query(EcopostReferencia).order_by(EcopostReferencia.created_at.desc()).all()
+    return [
+        {
+            "id": r.id,
+            "nombre": r.nombre,
+            "descripcion": r.descripcion,
+            "tipo": r.tipo,
+            "tiene_imagen": bool(r.imagen_base64),
+            "subido_por": r.subido_por.nombre if r.subido_por else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in refs
+    ]
+
+
+@router.post("/api/ecopost/referencias")
+async def api_refs_crear(
+    file: UploadFile = File(...),
+    nombre: str = Form(""),
+    descripcion: str = Form(""),
+    tipo: str = Form("estilo"),
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(400, "La imagen no puede superar 5 MB")
+
+    b64 = base64.b64encode(raw).decode()
+    ref = EcopostReferencia(
+        nombre=nombre or file.filename or "Referencia",
+        descripcion=descripcion,
+        tipo=tipo,
+        imagen_base64=b64,
+        subido_por_id=user.id,
+    )
+    db.add(ref)
+    db.commit()
+    db.refresh(ref)
+    return {"ok": True, "id": ref.id}
+
+
+@router.get("/api/ecopost/referencias/{ref_id}/imagen")
+async def api_refs_imagen(
+    ref_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    ref = db.query(EcopostReferencia).filter(EcopostReferencia.id == ref_id).first()
+    if not ref or not ref.imagen_base64:
+        raise HTTPException(404, "Sin imagen")
+    try:
+        img_bytes = base64.b64decode(ref.imagen_base64)
+        return Response(content=img_bytes, media_type="image/jpeg")
+    except Exception:
+        raise HTTPException(500, "Error decodificando imagen")
+
+
+@router.delete("/api/ecopost/referencias/{ref_id}")
+async def api_refs_eliminar(
+    ref_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    roles = get_user_roles(user)
+    if "ADMIN" not in roles:
+        raise HTTPException(403, "Solo ADMIN puede eliminar referencias")
+    ref = db.query(EcopostReferencia).filter(EcopostReferencia.id == ref_id).first()
+    if not ref:
+        raise HTTPException(404, "Referencia no encontrada")
+    db.delete(ref)
+    db.commit()
+    return {"ok": True}
+
+
+# ─── PLANIFICADOR DE CONTENIDO ────────────────────────────────────────────────
+
+class PlanificadorReq(BaseModel):
+    dias: int = 7          # 7 | 15 | 21 | 31
+    redes: List[str] = ["instagram", "facebook"]  # instagram | facebook | tiktok | youtube
+    productos: List[str] = ["PISCINA", "MODULO"]  # PISCINA | MODULO | COMBO
+    tono: Optional[str] = "profesional y cercano"
+
+
+@router.post("/api/ecopost/planificador/generar")
+async def api_planificador_generar(
+    body: PlanificadorReq,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Genera un plan de contenido para N días con IA. Devuelve lista de posts a revisar antes de guardar."""
+    if body.dias not in (7, 15, 21, 31):
+        raise HTTPException(400, "Días válidos: 7, 15, 21, 31")
+
+    redes_str = ", ".join(body.redes)
+    prods_str = ", ".join(body.productos)
+    tipos = ["flyer", "story", "carrusel", "reel"]
+
+    prompt = f"""Sos un experto en marketing digital para EcoFiver, empresa argentina de Zárate, Buenos Aires que vende piscinas de fibra de vidrio, módulos habitacionales y viviendas modulares wood frame.
+
+Generá un plan de contenido para redes sociales de exactamente {body.dias} posts, distribuidos para las redes: {redes_str}.
+Productos a promocionar: {prods_str}.
+Tono: {body.tono}.
+
+Para cada post incluí:
+- dia: número del día (1 a {body.dias})
+- red: la red social (una de: {redes_str})
+- tipo: flyer, story, carrusel o reel
+- producto: PISCINA, MODULO o COMBO
+- titulo: título del post (máx 80 caracteres, castellano argentino)
+- copy: texto del post con emojis (2-3 frases, castellano argentino)
+- hashtags: 5-8 hashtags separados por espacio
+- prompt_imagen: descripción para generar la imagen con IA (en inglés, detallado, fotorrealista)
+
+Reglas:
+- Variá los tipos de contenido y los productos
+- Incluí siempre contenido de verano (piscinas) y de vivienda
+- Día 1 empezá con algo de alto impacto visual
+- Repartí proporcionalmente entre las redes
+- Castellano rioplatense, nada de "usted" ni español neutro
+
+Respondé SOLO con un JSON válido, sin texto adicional:
+{{"plan": [
+  {{"dia": 1, "red": "instagram", "tipo": "flyer", "producto": "PISCINA", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "..."}}
+]}}"""
+
+    try:
+        respuesta = await ai_complete(db, prompt, max_tokens=4000, temperature=0.8)
+        # Extraer JSON
+        respuesta = respuesta.strip()
+        if "```json" in respuesta:
+            respuesta = respuesta.split("```json")[1].split("```")[0].strip()
+        elif "```" in respuesta:
+            respuesta = respuesta.split("```")[1].split("```")[0].strip()
+
+        data = json.loads(respuesta)
+        plan = data.get("plan", [])
+
+        # Asegurar que no supere los días pedidos
+        plan = plan[:body.dias]
+
+        return {"ok": True, "dias": body.dias, "total": len(plan), "plan": plan}
+    except json.JSONDecodeError as e:
+        raise HTTPException(502, f"IA devolvió formato inválido. Intentá de nuevo.")
+    except Exception as e:
+        raise HTTPException(502, f"Error generando plan: {str(e)[:120]}")
+
+
+@router.post("/api/ecopost/planificador/guardar")
+async def api_planificador_guardar(
+    body: dict,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Guarda los posts seleccionados del plan como borradores en Ecopost."""
+    posts = body.get("posts", [])
+    if not posts:
+        raise HTTPException(400, "No hay posts para guardar")
+
+    guardados = []
+    for p in posts:
+        c = ContenidoEcopost(
+            titulo=p.get("titulo", "")[:200],
+            tipo=p.get("tipo", "flyer"),
+            producto=p.get("producto"),
+            copy_texto=p.get("copy", ""),
+            copy_hashtags=p.get("hashtags", ""),
+            imagen_prompt=p.get("prompt_imagen", ""),
+            notas=f"Red: {p.get('red','')} · Día {p.get('dia','')} del plan",
+            estado="borrador",
+            creado_por_id=user.id,
+        )
+        db.add(c)
+        db.flush()
+        guardados.append(c.id)
+
+    db.commit()
+    return {"ok": True, "guardados": len(guardados), "ids": guardados}

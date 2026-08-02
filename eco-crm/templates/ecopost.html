@@ -11,6 +11,8 @@
   <button class="tab active" onclick="showMainTab('biblioteca', this)">📚 Biblioteca</button>
   <button class="tab" onclick="showMainTab('calendario', this)">📅 Calendario</button>
   <button class="tab" onclick="showMainTab('crear', this)">✨ Crear</button>
+  <button class="tab" onclick="showMainTab('planificador', this)">🗓 Planificador</button>
+  <button class="tab" onclick="showMainTab('referencias', this)">🖼 Referencias</button>
 </div>
 
 <!-- ═══════════════════ TAB: BIBLIOTECA ═══════════════════ -->
@@ -163,6 +165,130 @@
   </div>
 </div>
 
+<!-- ═══════════════════ TAB: PLANIFICADOR ═══════════════════ -->
+<div id="tab-planificador" style="display:none">
+
+  <!-- Config -->
+  <div class="card mb-3">
+    <div class="card-header"><strong>🗓 Generar plan de contenido con IA</strong></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:16px">
+
+        <div>
+          <label class="label">Días a planificar</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap" id="plan-dias-btns">
+            <button class="btn btn-ghost plan-dias-btn active-plan" data-dias="7" onclick="selPlanDias(7,this)">7 días</button>
+            <button class="btn btn-ghost plan-dias-btn" data-dias="15" onclick="selPlanDias(15,this)">15 días</button>
+            <button class="btn btn-ghost plan-dias-btn" data-dias="21" onclick="selPlanDias(21,this)">21 días</button>
+            <button class="btn btn-ghost plan-dias-btn" data-dias="31" onclick="selPlanDias(31,this)">31 días</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Redes sociales</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="plan-redes-btns">
+            <button class="btn btn-ghost plan-toggle active-plan" data-val="instagram" onclick="togglePlanRed(this)">📸 Instagram</button>
+            <button class="btn btn-ghost plan-toggle active-plan" data-val="facebook" onclick="togglePlanRed(this)">📘 Facebook</button>
+            <button class="btn btn-ghost plan-toggle" data-val="tiktok" onclick="togglePlanRed(this)">🎵 TikTok</button>
+            <button class="btn btn-ghost plan-toggle" data-val="youtube" onclick="togglePlanRed(this)">▶️ YouTube</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Productos</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-ghost plan-toggle active-plan" data-val="PISCINA" onclick="togglePlanProd(this)">🏊 Piscinas</button>
+            <button class="btn btn-ghost plan-toggle active-plan" data-val="MODULO" onclick="togglePlanProd(this)">🏠 Módulos</button>
+            <button class="btn btn-ghost plan-toggle" data-val="COMBO" onclick="togglePlanProd(this)">✨ Combos</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Tono</label>
+          <select id="plan-tono" class="input">
+            <option value="profesional y cercano">Profesional y cercano</option>
+            <option value="aspiracional y emocional">Aspiracional y emocional</option>
+            <option value="informativo y directo">Informativo y directo</option>
+            <option value="divertido y dinámico">Divertido y dinámico</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-generar-plan" onclick="generarPlan()">
+        ✨ Generar plan con IA
+      </button>
+    </div>
+  </div>
+
+  <!-- Resultado -->
+  <div id="plan-resultado" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-weight:700;font-size:15px" id="plan-titulo-resultado"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="seleccionarTodoPlan(true)">Seleccionar todo</button>
+        <button class="btn btn-ghost btn-sm" onclick="seleccionarTodoPlan(false)">Deseleccionar</button>
+        <button class="btn btn-primary btn-sm" id="btn-guardar-plan" onclick="guardarPlanSeleccionado()">💾 Guardar seleccionados como borradores</button>
+      </div>
+    </div>
+    <div id="plan-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
+  </div>
+
+  <div id="plan-loading" style="display:none;text-align:center;padding:40px;color:var(--text-secondary)">
+    <div style="font-size:32px;margin-bottom:12px">⏳</div>
+    <div style="font-size:14px" id="plan-loading-txt">Generando plan con IA… puede tardar hasta 30 segundos</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: REFERENCIAS ═══════════════════ -->
+<div id="tab-referencias" style="display:none">
+
+  <div class="card mb-3">
+    <div class="card-header"><strong>📎 Subir imagen de referencia</strong></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="ref-form-grid">
+        <div>
+          <label class="label">Nombre</label>
+          <input id="ref-nombre" type="text" class="input mb-2" placeholder="Ej: Estilo verano 2025">
+
+          <label class="label">Tipo</label>
+          <select id="ref-tipo" class="input mb-2">
+            <option value="estilo">Estilo visual / paleta de colores</option>
+            <option value="producto">Foto de producto</option>
+            <option value="marca">Imagen de marca / logo</option>
+            <option value="color">Paleta de color</option>
+          </select>
+
+          <label class="label">Descripción (opcional)</label>
+          <textarea id="ref-desc" class="input mb-2" rows="2" placeholder="Qué representa esta referencia, cómo debe usarla la IA…"></textarea>
+        </div>
+        <div>
+          <label class="label">Imagen</label>
+          <label id="ref-dropzone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+              border:2px dashed var(--border-color);border-radius:10px;padding:20px;cursor:pointer;
+              background:var(--bg-secondary);min-height:140px;gap:8px;text-align:center" for="ref-file-input">
+            <span style="font-size:32px">📷</span>
+            <span style="font-size:13px;color:var(--text-secondary)">Tocá para elegir foto</span>
+            <span style="font-size:11px;color:var(--text-muted)">JPG, PNG, WEBP · máx 5 MB</span>
+            <input id="ref-file-input" type="file" accept="image/*" style="display:none" onchange="refPreviewFile(this)">
+          </label>
+          <div id="ref-preview" style="margin-top:8px;text-align:center"></div>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" id="btn-subir-ref" onclick="subirReferencia()">⬆ Subir referencia</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Galería de referencias -->
+  <div style="font-weight:700;font-size:14px;margin-bottom:12px">
+    Imágenes de referencia guardadas <span id="ref-count" style="color:var(--text-secondary);font-weight:400"></span>
+  </div>
+  <div id="refs-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+    <div class="loading">Cargando referencias…</div>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL: DETALLE ═══════════════════ -->
 <div id="modal-detalle" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeDetalle()">
   <div class="modal" style="max-width:720px;width:95vw">
@@ -282,10 +408,58 @@
 @media (max-width: 768px) {
   .crear-grid { grid-template-columns: 1fr !important; }
   .ecopost-grid { grid-template-columns: 1fr 1fr; }
+  .ref-form-grid { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 480px) {
   .ecopost-grid { grid-template-columns: 1fr; }
 }
+
+/* Planificador */
+.active-plan { background: var(--primary) !important; color: #fff !important; border-color: var(--primary) !important; }
+.plan-card {
+  background: var(--card-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  position: relative;
+}
+.plan-card.selected { border-color: var(--teal); background: rgba(0,200,190,.06); }
+.plan-card-check {
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  transition: background .15s, border-color .15s;
+}
+.plan-card.selected .plan-card-check { background: var(--teal); border-color: var(--teal); color: #fff; }
+.plan-card-dia { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.plan-card-titulo { font-weight: 700; font-size: 13px; margin-bottom: 6px; padding-right: 28px; }
+.plan-card-copy { font-size: 12px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; }
+.plan-card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.plan-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--bg-secondary); color: var(--text-secondary); font-weight: 600; }
+.plan-chip.instagram { background: rgba(193,53,132,.15); color: #c13584; }
+.plan-chip.facebook  { background: rgba(24,119,242,.15); color: #1877f2; }
+.plan-chip.tiktok    { background: rgba(0,0,0,.2);        color: #eee; }
+.plan-chip.youtube   { background: rgba(255,0,0,.1);      color: #f00; }
+
+/* Referencias */
+.ref-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ref-card img { width: 100%; aspect-ratio: 1; object-fit: cover; background: #111; display: block; }
+.ref-card-body { padding: 10px 12px; }
+.ref-card-name { font-weight: 600; font-size: 13px; }
+.ref-card-tipo { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.ref-card-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ref-card-footer { padding: 8px 12px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; }
 </style>
 
 <script>
@@ -294,7 +468,7 @@ let generatedB64 = null;   // imagen generada en crear
 let editingId = null;      // ID del contenido en edición
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-const TABS_EP = ['biblioteca', 'calendario', 'crear'];
+const TABS_EP = ['biblioteca', 'calendario', 'crear', 'planificador', 'referencias'];
 function showMainTab(name, el) {
   TABS_EP.forEach(t => {
     document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
@@ -303,6 +477,7 @@ function showMainTab(name, el) {
   if (el) el.classList.add('active');
   if (name === 'biblioteca') loadBiblioteca();
   if (name === 'calendario') calRender();
+  if (name === 'referencias') loadReferencias();
 }
 
 // ─── Catálogo de productos ───────────────────────────────────────────────────
@@ -501,7 +676,7 @@ async function subirR2(id, btn) {
 function openCrear() {
   resetCrear();
   editingId = null;
-  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[1]);
+  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[2]);
 }
 
 // ─── Biblioteca ──────────────────────────────────────────────────────────────
@@ -658,7 +833,7 @@ function descargarImagen(id) {
 // ─── Crear / editar ───────────────────────────────────────────────────────────
 async function editarContenido(id) {
   editingId = id;
-  switchTab('crear');
+  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[2]);
   try {
     const item = await API.get(`/api/ecopost/${id}`);
     document.getElementById('c-tipo').value = item.tipo || 'flyer';
@@ -798,7 +973,7 @@ async function guardarContenido() {
       showToast('Contenido guardado como borrador ✅', 'success');
     }
     resetCrear();
-    switchTab('biblioteca');
+    showMainTab('biblioteca', document.querySelectorAll('#tabs-main .tab')[0]);
   } catch(e) {
     showToast(`Error guardando: ${e.message}`, 'error');
   } finally {
@@ -828,6 +1003,266 @@ function resetCrear() {
 document.addEventListener('DOMContentLoaded', () => {
   loadBiblioteca();
 });
+
+// ─── Planificador ─────────────────────────────────────────────────────────────
+let _planDias = 7;
+let _planRedes = new Set(['instagram', 'facebook']);
+let _planProds = new Set(['PISCINA', 'MODULO']);
+let _planData = [];
+let _planSeleccionados = new Set();
+
+function selPlanDias(dias, btn) {
+  _planDias = dias;
+  document.querySelectorAll('.plan-dias-btn').forEach(b => b.classList.remove('active-plan'));
+  btn.classList.add('active-plan');
+}
+
+function togglePlanRed(btn) {
+  const val = btn.dataset.val;
+  if (_planRedes.has(val)) {
+    if (_planRedes.size <= 1) return; // mínimo 1
+    _planRedes.delete(val);
+    btn.classList.remove('active-plan');
+  } else {
+    _planRedes.add(val);
+    btn.classList.add('active-plan');
+  }
+}
+
+function togglePlanProd(btn) {
+  const val = btn.dataset.val;
+  if (_planProds.has(val)) {
+    if (_planProds.size <= 1) return;
+    _planProds.delete(val);
+    btn.classList.remove('active-plan');
+  } else {
+    _planProds.add(val);
+    btn.classList.add('active-plan');
+  }
+}
+
+async function generarPlan() {
+  const btn = document.getElementById('btn-generar-plan');
+  const loading = document.getElementById('plan-loading');
+  const resultado = document.getElementById('plan-resultado');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando…';
+  loading.style.display = 'block';
+  resultado.style.display = 'none';
+
+  // Animación de carga
+  const msgs = [
+    'Generando plan con IA… puede tardar hasta 30 segundos',
+    'Planificando tipos de contenido…',
+    'Redactando copys para cada red…',
+    'Definiendo prompts de imágenes…',
+    'Casi listo…'
+  ];
+  let mi = 0;
+  const loadingTxt = document.getElementById('plan-loading-txt');
+  const msgInt = setInterval(() => {
+    mi = (mi + 1) % msgs.length;
+    loadingTxt.textContent = msgs[mi];
+  }, 5000);
+
+  try {
+    const res = await API.post('/api/ecopost/planificador/generar', {
+      dias: _planDias,
+      redes: [..._planRedes],
+      productos: [..._planProds],
+      tono: document.getElementById('plan-tono').value,
+    });
+
+    _planData = res.plan || [];
+    _planSeleccionados = new Set(_planData.map((_, i) => i)); // todos seleccionados por defecto
+
+    document.getElementById('plan-titulo-resultado').textContent =
+      `Plan de ${res.total} posts para ${_planDias} días`;
+    renderPlanGrid();
+    resultado.style.display = 'block';
+    showToast(`Plan generado: ${res.total} posts ✨`, 'success');
+  } catch(e) {
+    showToast('Error generando plan: ' + e.message, 'error');
+  } finally {
+    clearInterval(msgInt);
+    loading.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '✨ Generar plan con IA';
+  }
+}
+
+function renderPlanGrid() {
+  const grid = document.getElementById('plan-grid');
+  if (!_planData.length) {
+    grid.innerHTML = '<div style="color:var(--text-secondary);grid-column:1/-1">Sin posts generados</div>';
+    return;
+  }
+  grid.innerHTML = _planData.map((p, i) => {
+    const sel = _planSeleccionados.has(i);
+    const redCls = (p.red || '').toLowerCase();
+    const redIcon = { instagram: '📸', facebook: '📘', tiktok: '🎵', youtube: '▶️' }[redCls] || '📱';
+    const tipoIcon = { flyer:'🖼', story:'📱', carrusel:'🗂', reel:'🎬' }[p.tipo] || '📄';
+    const prodLbl = { PISCINA:'🏊 Piscina', MODULO:'🏠 Módulo', COMBO:'✨ Combo' }[p.producto] || p.producto;
+    return `
+    <div class="plan-card ${sel ? 'selected' : ''}" onclick="togglePlanCard(${i})" id="plan-card-${i}">
+      <div class="plan-card-check">${sel ? '✓' : ''}</div>
+      <div class="plan-card-dia">Día ${p.dia}</div>
+      <div class="plan-card-titulo">${escHtml(p.titulo || '')}</div>
+      <div class="plan-card-copy">${escHtml(p.copy || '')}</div>
+      <div class="plan-card-meta">
+        <span class="plan-chip ${redCls}">${redIcon} ${p.red || ''}</span>
+        <span class="plan-chip">${tipoIcon} ${p.tipo || ''}</span>
+        <span class="plan-chip">${prodLbl}</span>
+      </div>
+      ${p.hashtags ? `<div style="font-size:10px;color:#42a5f5;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.hashtags)}</div>` : ''}
+    </div>`;
+  }).join('');
+  actualizarContadorPlan();
+}
+
+function togglePlanCard(i) {
+  if (_planSeleccionados.has(i)) {
+    _planSeleccionados.delete(i);
+  } else {
+    _planSeleccionados.add(i);
+  }
+  const card = document.getElementById(`plan-card-${i}`);
+  card.classList.toggle('selected', _planSeleccionados.has(i));
+  card.querySelector('.plan-card-check').textContent = _planSeleccionados.has(i) ? '✓' : '';
+  actualizarContadorPlan();
+}
+
+function seleccionarTodoPlan(sel) {
+  if (sel) {
+    _planSeleccionados = new Set(_planData.map((_, i) => i));
+  } else {
+    _planSeleccionados = new Set();
+  }
+  renderPlanGrid();
+}
+
+function actualizarContadorPlan() {
+  const btn = document.getElementById('btn-guardar-plan');
+  btn.textContent = `💾 Guardar ${_planSeleccionados.size} post${_planSeleccionados.size !== 1 ? 's' : ''} como borradores`;
+}
+
+async function guardarPlanSeleccionado() {
+  if (!_planSeleccionados.size) { showToast('Seleccioná al menos un post', 'error'); return; }
+  const btn = document.getElementById('btn-guardar-plan');
+  btn.disabled = true;
+  const posts = [..._planSeleccionados].map(i => _planData[i]);
+  try {
+    const res = await API.post('/api/ecopost/planificador/guardar', { posts });
+    showToast(`✅ ${res.guardados} posts guardados como borradores`, 'success');
+    // Ir a la biblioteca
+    showMainTab('biblioteca', document.querySelector('#tabs-main .tab'));
+  } catch(e) {
+    showToast('Error guardando: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    actualizarContadorPlan();
+  }
+}
+
+// ─── Referencias ──────────────────────────────────────────────────────────────
+let _refFileB64 = null;
+let _refFileMime = null;
+
+function refPreviewFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    _refFileMime = file.type || 'image/jpeg';
+    _refFileB64 = dataUrl.split(',')[1];
+    document.getElementById('ref-preview').innerHTML =
+      `<img src="${dataUrl}" style="max-height:120px;border-radius:8px;max-width:100%">`;
+    document.getElementById('ref-dropzone').querySelector('span').textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function subirReferencia() {
+  const input = document.getElementById('ref-file-input');
+  if (!input.files[0]) { showToast('Seleccioná una imagen', 'error'); return; }
+
+  const nombre = document.getElementById('ref-nombre').value.trim() || input.files[0].name;
+  const tipo   = document.getElementById('ref-tipo').value;
+  const desc   = document.getElementById('ref-desc').value.trim();
+
+  const btn = document.getElementById('btn-subir-ref');
+  btn.disabled = true; btn.textContent = '⏳ Subiendo…';
+
+  const form = new FormData();
+  form.append('file', input.files[0]);
+  form.append('nombre', nombre);
+  form.append('tipo', tipo);
+  form.append('descripcion', desc);
+
+  try {
+    const r = await fetch('/api/ecopost/referencias', { method: 'POST', body: form });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    showToast('✅ Referencia subida', 'success');
+    // Reset
+    input.value = '';
+    _refFileB64 = null;
+    document.getElementById('ref-nombre').value = '';
+    document.getElementById('ref-desc').value = '';
+    document.getElementById('ref-preview').innerHTML = '';
+    document.getElementById('ref-dropzone').querySelector('span').textContent = 'Tocá para elegir foto';
+    loadReferencias();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '⬆ Subir referencia';
+  }
+}
+
+async function loadReferencias() {
+  const grid = document.getElementById('refs-grid');
+  grid.innerHTML = '<div class="loading">Cargando…</div>';
+  try {
+    const refs = await API.get('/api/ecopost/referencias');
+    document.getElementById('ref-count').textContent = `(${refs.length})`;
+    if (!refs.length) {
+      grid.innerHTML = '<div style="color:var(--text-secondary);font-size:13px">Sin imágenes de referencia aún. Subí una foto de estilo para que la IA la tome como base.</div>';
+      return;
+    }
+    grid.innerHTML = refs.map(r => `
+      <div class="ref-card">
+        <img src="/api/ecopost/referencias/${r.id}/imagen" alt="${escHtml(r.nombre)}"
+             onerror="this.style.display='none'">
+        <div class="ref-card-body">
+          <div class="ref-card-name">${escHtml(r.nombre)}</div>
+          <div class="ref-card-tipo">${tipoRefLabel(r.tipo)}</div>
+          ${r.descripcion ? `<div class="ref-card-desc">${escHtml(r.descripcion)}</div>` : ''}
+        </div>
+        <div class="ref-card-footer">
+          <button class="btn btn-ghost btn-sm" style="color:#f44;font-size:11px" onclick="eliminarRef(${r.id})">🗑 Eliminar</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="color:#f44;font-size:13px">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function tipoRefLabel(t) {
+  return { estilo:'🎨 Estilo visual', producto:'📦 Producto', marca:'🏷 Marca', color:'🎨 Paleta de color' }[t] || t;
+}
+
+async function eliminarRef(id) {
+  if (!confirm('¿Eliminar esta referencia?')) return;
+  try {
+    await API.del(`/api/ecopost/referencias/${id}`);
+    showToast('Referencia eliminada', 'success');
+    loadReferencias();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function escHtml(s) {

@@ -129,7 +129,20 @@
             <option value="gold_special">Clásica (1 pago, comisión estándar)</option>
             <option value="gold_pro">Premium (habilita cuotas sin interés)</option>
           </select></div>
-        <div class="form-group"><label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(opcional)</small></label><input class="input" id="mp-cat" placeholder="se infiere del producto" onchange="borActualizarPrecioSugerido()"></div>
+        <div class="form-group">
+          <label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(opcional)</small></label>
+          <input class="input" id="mp-cat" placeholder="se infiere del producto" onchange="borActualizarPrecioSugerido();document.getElementById('mp-cat-nombre').textContent=''">
+          <div id="mp-cat-nombre" style="font-size:12px;color:#22c55e;margin-top:3px"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">SKU / Código vendedor</label>
+          <div style="display:flex;gap:6px">
+            <input class="input" id="mp-sku" placeholder="Ej: ECO-PISC-001" style="flex:1">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="borGenerarSKU()" title="Auto-generar SKU desde el nombre">⚡ Auto</button>
+          </div>
+        </div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">💳 Cuotas sin interés <small style="color:var(--text-secondary)">(solo Premium)</small></label>
@@ -1321,7 +1334,7 @@ async function borCargar() {
       ${foto}
       <div class="pm-body">
         <div class="pm-title">${escHtml(b.titulo)}</div>
-        <div class="pm-meta">${b.producto || ''} · <span class="est est-${b.estado}">${b.estado}</span> · ${refTxt}</div>
+        <div class="pm-meta">${b.producto || ''} · <span class="est est-${b.estado}">${b.estado}</span> · ${refTxt}${b.seller_sku ? ` · <span style="font-family:monospace;font-size:11px">${escHtml(b.seller_sku)}</span>` : ''}${b.categoria_nombre ? ` · <span style="color:var(--text-secondary);font-size:11px">${escHtml(b.categoria_nombre)}</span>` : ''}</div>
         <div class="pm-precio">${borFmt(b.precio)} <span class="sem ${s[0]}">${s[1]}</span></div>
         ${errTxt}
       </div>
@@ -1368,7 +1381,8 @@ async function borBorrarLote() {
 function borNuevaPub() {
   document.getElementById('mp-id').value = '';
   document.getElementById('mp-tit').textContent = 'Nueva publicación';
-  ['mp-titulo', 'mp-precio', 'mp-costo', 'mp-ref', 'mp-cat', 'mp-fotos', 'mp-desc', 'mp-ia-keywords'].forEach(i => document.getElementById(i).value = '');
+  ['mp-titulo', 'mp-precio', 'mp-costo', 'mp-ref', 'mp-cat', 'mp-sku', 'mp-fotos', 'mp-desc', 'mp-ia-keywords'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('mp-cat-nombre').textContent = '';
   document.getElementById('mp-cant').value = 1;
   document.getElementById('mp-tlen').textContent = '0';
   document.getElementById('mp-variantes').value = '0';
@@ -1399,6 +1413,8 @@ function borEditar(b) {
   document.getElementById('mp-cant').value = b.cantidad;
   document.getElementById('mp-listing').value = b.listing_type;
   document.getElementById('mp-cat').value = b.categoria || '';
+  document.getElementById('mp-cat-nombre').textContent = b.categoria_nombre ? `✓ ${b.categoria_nombre}` : '';
+  document.getElementById('mp-sku').value = b.seller_sku || '';
   document.getElementById('mp-fotos').value = (b.fotos || []).join('\n');
   document.getElementById('mp-cuotas').value = b.cuotas_sin_interes || 0;
   document.getElementById('mp-desc').value = b.descripcion || '';
@@ -1424,6 +1440,8 @@ async function borGuardar() {
     cantidad: parseInt(document.getElementById('mp-cant').value) || 1,
     listing_type: document.getElementById('mp-listing').value,
     categoria: document.getElementById('mp-cat').value.trim(),
+    categoria_nombre: document.getElementById('mp-cat-nombre').textContent.replace(/^✓\s*/, ''),
+    seller_sku: document.getElementById('mp-sku').value.trim(),
     cuotas_sin_interes: parseInt(document.getElementById('mp-cuotas').value) || 0,
     fotos, descripcion: document.getElementById('mp-desc').value,
     atributos: borCollectAtributos(),
@@ -1689,16 +1707,45 @@ async function borCargarCatalogoSelect() {
   } catch (e) {}
 }
 let _borLitrosActual = '';
-function borOnCatalogoSel() {
+function borGenerarSKU() {
+  const titulo = document.getElementById('mp-titulo').value.trim();
+  const tipo = document.getElementById('mp-producto').value || 'ECO';
+  const base = titulo
+    ? titulo.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/).slice(0, 3).map(w => w.substring(0, 4).toUpperCase()).join('-')
+    : tipo.substring(0, 4);
+  const ts = String(Date.now()).slice(-4);
+  document.getElementById('mp-sku').value = `ECO-${base}-${ts}`;
+}
+async function borOnCatalogoSel() {
   const sel = document.getElementById('mp-catalogo-sel');
   const item = BOR_CATALOGO_ITEMS[sel.value];
   const box = document.getElementById('mp-precio-ref-box');
   _borLitrosActual = '';
   if (!item) { box.style.display = 'none'; _borPrecioContadoRef = null; return; }
   document.getElementById('mp-producto').value = item.tipo;
+  // Auto-llenar título si está vacío
   if (!document.getElementById('mp-titulo').value.trim()) {
     document.getElementById('mp-titulo').value = item.nombre.substring(0, 60);
     document.getElementById('mp-tlen').textContent = document.getElementById('mp-titulo').value.length;
+    checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
+  }
+  // Auto-generar SKU si está vacío
+  if (!document.getElementById('mp-sku').value.trim()) {
+    const base = item.nombre.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/).slice(0, 3).map(w => w.substring(0, 4).toUpperCase()).join('-');
+    const ts = String(Date.now()).slice(-4);
+    document.getElementById('mp-sku').value = `ECO-${base}-${ts}`;
+  }
+  // Auto-detectar categoría ML si está vacía
+  if (!document.getElementById('mp-cat').value.trim()) {
+    try {
+      const r = await API.get('/api/ml/categoria-predictor?titulo=' + encodeURIComponent(item.nombre));
+      const top = (r.predicciones || r.sugerencias || [])[0] || r;
+      if (top && top.category_id) {
+        document.getElementById('mp-cat').value = top.category_id;
+        document.getElementById('mp-cat-nombre').textContent = `✓ ${top.category_name || top.category_id}`;
+        borActualizarPrecioSugerido();
+      }
+    } catch(e) {}
   }
   if (item.tipo === 'PISCINA' || item.tipo === 'COMBO') {
     const m = (CATALOGO.piscinas?.medidas || {})[item.nombre];

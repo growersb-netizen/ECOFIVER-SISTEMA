@@ -101,6 +101,8 @@ def run_migrations():
             "ALTER TABLE aliados ADD COLUMN pin TEXT",
             "ALTER TABLE borradores_ml ADD COLUMN costo REAL",
             "ALTER TABLE borradores_ml ADD COLUMN cuotas_sin_interes INTEGER DEFAULT 0",
+            "ALTER TABLE borradores_ml ADD COLUMN categoria_nombre TEXT DEFAULT ''",
+            "ALTER TABLE borradores_ml ADD COLUMN seller_sku TEXT DEFAULT ''",
             # ── Bandeja de entrada — modo de atención ─────────────────────────
             "ALTER TABLE leads ADD COLUMN modo_atencion TEXT DEFAULT 'bot'",
             # ── VentaContado: particularidades módulo ──────────────────────────

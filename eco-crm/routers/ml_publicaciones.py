@@ -61,7 +61,9 @@ def _dict(b: BorradorML) -> dict:
             semaforo = "caro"
     return {
         "id": b.id, "origen": b.origen, "titulo": b.titulo, "descripcion": b.descripcion or "",
-        "categoria": b.categoria or "", "producto": b.producto or "", "precio": b.precio or 0,
+        "categoria": b.categoria or "", "categoria_nombre": b.categoria_nombre or "",
+        "seller_sku": b.seller_sku or "",
+        "producto": b.producto or "", "precio": b.precio or 0,
         "cantidad": b.cantidad or 1, "condicion": b.condicion or "new", "costo": b.costo,
         "listing_type": b.listing_type or "gold_special", "cuotas_sin_interes": b.cuotas_sin_interes or 0,
         "fotos": fotos,
@@ -97,6 +99,8 @@ async def crear(request: Request, db: Session = Depends(get_db),
         titulo=(d.get("titulo") or "").strip()[:60],
         descripcion=d.get("descripcion", ""),
         categoria=(d.get("categoria") or "").strip(),
+        categoria_nombre=(d.get("categoria_nombre") or "").strip(),
+        seller_sku=(d.get("seller_sku") or "").strip(),
         producto=(d.get("producto") or "").strip().upper() or None,
         precio=float(d.get("precio") or 0),
         costo=(float(d["costo"]) if d.get("costo") else None),
@@ -124,7 +128,7 @@ async def editar(bid: int, request: Request, db: Session = Depends(get_db),
     d = await request.json()
     if "titulo" in d:
         b.titulo = (d["titulo"] or "").strip()[:60]
-    for f in ("descripcion", "categoria", "condicion", "listing_type"):
+    for f in ("descripcion", "categoria", "categoria_nombre", "seller_sku", "condicion", "listing_type"):
         if f in d:
             setattr(b, f, d[f])
     if "cuotas_sin_interes" in d:

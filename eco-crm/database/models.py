@@ -1348,6 +1348,8 @@ class BorradorML(Base):
     titulo = Column(String(200), default="")               # máx 60 en ML
     descripcion = Column(Text, default="")
     categoria = Column(String(20), default="")             # MLA... (si vacío, se infiere del producto)
+    categoria_nombre = Column(String(150), default="")    # nombre legible de la categoría ML
+    seller_sku = Column(String(80), default="")           # código del vendedor (auto-generado o manual)
     producto = Column(String(20), nullable=True)           # PISCINA | MODULO | COMBO
     precio = Column(Float, default=0)
     costo = Column(Float, nullable=True)                    # costo del producto (para calcular ganancia)

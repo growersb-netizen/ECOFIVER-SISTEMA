@@ -289,6 +289,26 @@
   </div>
 </div>
 
+<!-- ═══════════════════ MODAL: PUBLICAR EN REDES ═══════════════════ -->
+<div id="modal-publicar" class="modal-overlay" style="display:none" onclick="if(event.target===this)cerrarModalPublicar()">
+  <div class="modal" style="max-width:480px;width:95vw">
+    <div class="modal-header">
+      <h3>📢 Publicar en redes</h3>
+      <button class="btn btn-icon" onclick="cerrarModalPublicar()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+        Seleccioná en qué páginas y redes publicar. Podés desmarcar las que no querés.
+      </p>
+      <div id="pub-paginas-lista"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px">
+      <button class="btn btn-ghost" onclick="cerrarModalPublicar()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirmar-publicar" onclick="confirmarPublicarRedes()">📢 Publicar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL: DETALLE ═══════════════════ -->
 <div id="modal-detalle" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeDetalle()">
   <div class="modal" style="max-width:720px;width:95vw">
@@ -798,8 +818,7 @@ async function openDetalle(id) {
         <div style="display:flex;gap:6px;flex-wrap:wrap">${btnsCambioEstado}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           ${puedePublicar ? `
-            <button class="btn btn-sm" style="background:#1877f2;border:none;color:#fff;font-size:12px" onclick="publicarEnFacebook(${id})">📘 Facebook</button>
-            <button class="btn btn-sm" style="background:linear-gradient(45deg,#833ab4,#fd1d1d,#fcb045);border:none;color:#fff;font-size:12px" onclick="publicarEnInstagram(${id})">📸 Instagram</button>
+            <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:12px" onclick="abrirModalPublicar(${id})">📢 Publicar en redes</button>
           ` : ''}
           <button class="btn btn-ghost" onclick="editarContenido(${id});closeDetalle()">✏️ Editar</button>
           ${item.imagen_base64 ? `<button class="btn btn-ghost" onclick="descargarImagen('${id}')">⬇️ Descargar</button>` : ''}
@@ -825,35 +844,86 @@ async function cambiarEstado(id, estado) {
   }
 }
 
-async function publicarEnFacebook(id) {
-  if (!await modalConfirm('¿Publicar en Facebook ahora?', 'Esta acción publicará el contenido en la página de Facebook de EcoFiver.')) return;
+let _publicarItemId = null;
+
+async function abrirModalPublicar(id) {
+  _publicarItemId = id;
+  const modal = document.getElementById('modal-publicar');
+  const lista = document.getElementById('pub-paginas-lista');
+  lista.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Cargando páginas...</div>';
+  modal.style.display = 'flex';
+
   try {
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = '⏳...';
-    await API.post(`/api/ecopost/${id}/publicar-facebook`, {});
-    showToast('✅ Publicado en Facebook', 'success');
-    closeDetalle();
-    loadBiblioteca();
+    const pages = await API.get('/api/meta/paginas');
+    const activas = pages.filter(p => p.activa);
+    if (!activas.length) {
+      lista.innerHTML = `<div class="alert alert-error">Sin páginas configuradas. <a href="/configuracion" style="color:inherit;text-decoration:underline">Ir a Configuración → sincronizar páginas.</a></div>`;
+      return;
+    }
+    lista.innerHTML = activas.map(p => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;font-size:14px;font-weight:500">${escHtml(p.nombre)}</div>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+          <input type="checkbox" class="pub-chk-fb" data-pid="${p.page_id}" checked style="cursor:pointer">
+          📘 Facebook
+        </label>
+        ${p.ig_user_id ? `
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+          <input type="checkbox" class="pub-chk-ig" data-pid="${p.page_id}" checked style="cursor:pointer">
+          📸 Instagram
+        </label>` : `<span style="font-size:11px;color:var(--text-muted)">Sin IG</span>`}
+      </div>`).join('');
   } catch(e) {
-    showToast('Error Facebook: ' + e.message, 'error');
-    if (event.target) { event.target.disabled = false; event.target.textContent = '📘 Facebook'; }
+    lista.innerHTML = `<div class="alert alert-error">Error cargando páginas: ${escHtml(e.message)}</div>`;
   }
 }
 
-async function publicarEnInstagram(id) {
-  if (!await modalConfirm('¿Publicar en Instagram ahora?', 'Esta acción publicará el contenido en la cuenta de Instagram Business de EcoFiver.')) return;
+function cerrarModalPublicar() {
+  document.getElementById('modal-publicar').style.display = 'none';
+  _publicarItemId = null;
+}
+
+async function confirmarPublicarRedes() {
+  const id = _publicarItemId;
+  if (!id) return;
+
+  const fbChecks = document.querySelectorAll('.pub-chk-fb');
+  const igChecks = document.querySelectorAll('.pub-chk-ig');
+
+  const pagesMap = {};
+  fbChecks.forEach(chk => {
+    if (!pagesMap[chk.dataset.pid]) pagesMap[chk.dataset.pid] = { page_id: chk.dataset.pid, facebook: false, instagram: false };
+    pagesMap[chk.dataset.pid].facebook = chk.checked;
+  });
+  igChecks.forEach(chk => {
+    if (!pagesMap[chk.dataset.pid]) pagesMap[chk.dataset.pid] = { page_id: chk.dataset.pid, facebook: false, instagram: false };
+    pagesMap[chk.dataset.pid].instagram = chk.checked;
+  });
+
+  const pages = Object.values(pagesMap).filter(p => p.facebook || p.instagram);
+  if (!pages.length) { showToast('Seleccioná al menos una opción', 'error'); return; }
+
+  const btn = document.getElementById('btn-confirmar-publicar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Publicando...';
+
   try {
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = '⏳...';
-    await API.post(`/api/ecopost/${id}/publicar-instagram`, {});
-    showToast('✅ Publicado en Instagram', 'success');
+    const res = await API.post(`/api/ecopost/${id}/publicar-redes`, { pages });
+    cerrarModalPublicar();
     closeDetalle();
+
+    const oks  = res.resultados.filter(r => r.ok);
+    const errs = res.resultados.filter(r => !r.ok);
+
+    if (oks.length) showToast(`✅ Publicado en ${oks.length} destino${oks.length > 1 ? 's' : ''}`, 'success');
+    if (errs.length) {
+      errs.forEach(e => showToast(`❌ ${e.page_id} / ${e.red}: ${e.error}`, 'error'));
+    }
     loadBiblioteca();
   } catch(e) {
-    showToast('Error Instagram: ' + e.message, 'error');
-    if (event.target) { event.target.disabled = false; event.target.textContent = '📸 Instagram'; }
+    showToast('Error publicando: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '📢 Publicar';
   }
 }
 

@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import ContenidoEcopost, EcopostReferencia, Usuario
+from database.models import ContenidoEcopost, EcopostReferencia, Usuario, MetaPagina
 from routers.auth import require_auth, get_user_roles
 from routers.configuracion import get_config_value
 from utils.ai_client import ai_complete, get_active_provider
@@ -687,6 +687,204 @@ async def api_publicar_instagram(
         raise
     except Exception as e:
         raise HTTPException(502, f"Error publicando en Instagram: {str(e)[:150]}")
+
+
+# ─── GESTIÓN DE PÁGINAS META (MULTI-PÁGINA) ───────────────────────────────────
+
+@router.get("/api/meta/paginas")
+async def api_meta_paginas_list(
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    pages = db.query(MetaPagina).order_by(MetaPagina.nombre).all()
+    return [
+        {"page_id": p.page_id, "nombre": p.nombre, "ig_user_id": p.ig_user_id, "activa": p.activa}
+        for p in pages
+    ]
+
+
+@router.post("/api/meta/paginas/sync")
+async def api_meta_paginas_sync(
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Sincroniza páginas desde el Business Manager usando el System User token."""
+    token = get_config_value("meta_page_access_token", db)
+    if not token:
+        raise HTTPException(400, "Configurar meta_page_access_token en Configuración → Meta")
+
+    async with httpx.AsyncClient(timeout=20) as hc:
+        r = await hc.get(
+            f"{META_GRAPH_URL}/me/accounts",
+            params={
+                "fields": "id,name,instagram_business_account{id,name}",
+                "limit": "50",
+                "access_token": token,
+            },
+        )
+    if r.status_code != 200:
+        err = r.json()
+        raise HTTPException(400, f"Error Graph API: {err.get('error', {}).get('message', r.text[:200])}")
+
+    pages_data = r.json().get("data", [])
+    synced = []
+    for p in pages_data:
+        ig_id = None
+        iba = p.get("instagram_business_account")
+        if isinstance(iba, dict):
+            ig_id = iba.get("id")
+
+        existing = db.query(MetaPagina).filter(MetaPagina.page_id == p["id"]).first()
+        if existing:
+            existing.nombre = p["name"]
+            if ig_id and not existing.ig_user_id:
+                existing.ig_user_id = ig_id
+        else:
+            db.add(MetaPagina(page_id=p["id"], nombre=p["name"], ig_user_id=ig_id, activa=True))
+        synced.append({"page_id": p["id"], "nombre": p["name"], "ig_user_id": ig_id})
+
+    db.commit()
+    return {"ok": True, "synced": len(synced), "pages": synced}
+
+
+@router.put("/api/meta/paginas/{page_id}")
+async def api_meta_paginas_update(
+    page_id: str,
+    request: Request,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    p = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if not p:
+        raise HTTPException(404, "Página no encontrada")
+    data = await request.json()
+    if "activa" in data:
+        p.activa = bool(data["activa"])
+    if "ig_user_id" in data:
+        p.ig_user_id = data["ig_user_id"] or None
+    db.commit()
+    return {"ok": True}
+
+
+class PublicarRedesReq(BaseModel):
+    pages: List[dict]  # [{page_id, facebook, instagram}]
+
+
+@router.post("/api/ecopost/{item_id}/publicar-redes")
+async def api_publicar_redes(
+    item_id: int,
+    req: PublicarRedesReq,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Publica en múltiples páginas de Facebook e Instagram simultáneamente."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    token = get_config_value("meta_page_access_token", db)
+    if not token:
+        raise HTTPException(400, "Configurar meta_page_access_token en Configuración → Meta")
+
+    message = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
+
+    # Auto-subir imagen base64 → URL pública (necesario para Instagram)
+    img_url = c.imagen_url
+    if not img_url and c.imagen_base64:
+        try:
+            img_bytes = base64.b64decode(c.imagen_base64)
+            filename = f"ecopost_{c.id}_{c.tipo}.png"
+            async with httpx.AsyncClient(timeout=30) as hc:
+                r = await hc.post(
+                    "https://www.ecomodulosypiscinas.com.ar/api/admin/upload",
+                    headers={"x-api-key": "eco-crm-api-key-2024"},
+                    files={"file": (filename, img_bytes, "image/png")},
+                )
+            if r.status_code in (200, 201):
+                url = r.json().get("url") or r.json().get("imagen_url") or r.json().get("path")
+                if url:
+                    img_url = url
+                    c.imagen_url = url
+                    c.imagen_base64 = None
+                    db.flush()
+        except Exception as e:
+            logger.warning(f"[ecopost] Auto-subida R2 falló: {e}")
+
+    resultados = []
+
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for page_req in req.pages:
+            pid = page_req.get("page_id")
+            do_fb = page_req.get("facebook", False)
+            do_ig = page_req.get("instagram", False)
+
+            page_obj = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first()
+            ig_uid = page_obj.ig_user_id if page_obj else None
+
+            if do_fb:
+                try:
+                    if c.imagen_url:
+                        r = await hc.post(
+                            f"{META_GRAPH_URL}/{pid}/photos",
+                            data={"url": c.imagen_url, "caption": message, "access_token": token},
+                        )
+                    elif c.imagen_base64:
+                        img_bytes2 = base64.b64decode(c.imagen_base64)
+                        r = await hc.post(
+                            f"{META_GRAPH_URL}/{pid}/photos",
+                            data={"caption": message, "access_token": token},
+                            files={"source": ("imagen.png", img_bytes2, "image/png")},
+                        )
+                    else:
+                        r = await hc.post(
+                            f"{META_GRAPH_URL}/{pid}/feed",
+                            data={"message": message, "access_token": token},
+                        )
+                    if r.status_code == 200:
+                        post_id = r.json().get("id") or r.json().get("post_id")
+                        resultados.append({"page_id": pid, "red": "facebook", "ok": True, "post_id": post_id})
+                    else:
+                        err_msg = r.json().get("error", {}).get("message", r.text[:150])
+                        resultados.append({"page_id": pid, "red": "facebook", "ok": False, "error": err_msg})
+                except Exception as e:
+                    resultados.append({"page_id": pid, "red": "facebook", "ok": False, "error": str(e)[:150]})
+
+            if do_ig:
+                if not ig_uid:
+                    resultados.append({"page_id": pid, "red": "instagram", "ok": False, "error": "Sin Instagram Business Account configurado"})
+                elif not img_url:
+                    resultados.append({"page_id": pid, "red": "instagram", "ok": False, "error": "Instagram requiere imagen con URL pública"})
+                else:
+                    try:
+                        r1 = await hc.post(
+                            f"{META_GRAPH_URL}/{ig_uid}/media",
+                            data={"image_url": img_url, "caption": message, "access_token": token},
+                        )
+                        if r1.status_code != 200:
+                            err_msg = r1.json().get("error", {}).get("message", r1.text[:150])
+                            resultados.append({"page_id": pid, "red": "instagram", "ok": False, "error": err_msg})
+                        else:
+                            creation_id = r1.json().get("id")
+                            r2 = await hc.post(
+                                f"{META_GRAPH_URL}/{ig_uid}/media_publish",
+                                data={"creation_id": creation_id, "access_token": token},
+                            )
+                            if r2.status_code == 200:
+                                resultados.append({"page_id": pid, "red": "instagram", "ok": True, "ig_media_id": r2.json().get("id")})
+                            else:
+                                err_msg = r2.json().get("error", {}).get("message", r2.text[:150])
+                                resultados.append({"page_id": pid, "red": "instagram", "ok": False, "error": err_msg})
+                    except Exception as e:
+                        resultados.append({"page_id": pid, "red": "instagram", "ok": False, "error": str(e)[:150]})
+
+    any_ok = any(r["ok"] for r in resultados)
+    if any_ok:
+        c.estado = "publicado"
+        if not c.aprobado_por_id:
+            c.aprobado_por_id = user.id
+        db.commit()
+
+    return {"ok": any_ok, "resultados": resultados}
 
 
 # ─── REFERENCIAS DE ESTILO ────────────────────────────────────────────────────

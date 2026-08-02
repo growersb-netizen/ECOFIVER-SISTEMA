@@ -1436,3 +1436,16 @@ class HistorialEdicionCobranza(Base):
     motivo = Column(Text, default="")
     es_economico = Column(Boolean, default=False)  # afecta monto/plan — requirió confirmación explícita
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MetaPagina(Base):
+    """Páginas de Facebook/Instagram conectadas para publicación multi-página desde Ecopost."""
+    __tablename__ = "meta_paginas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    page_id = Column(String(50), unique=True, nullable=False, index=True)
+    nombre = Column(String(200), nullable=False)
+    ig_user_id = Column(String(50), nullable=True)   # Instagram Business Account ID vinculado
+    activa = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

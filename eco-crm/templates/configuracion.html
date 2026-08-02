@@ -40,6 +40,19 @@
     <a href="https://developers.facebook.com/apps/" target="_blank" style="color:var(--primary)">developers.facebook.com/apps</a>.
   </p>
   <div id="meta-list"><div class="loading">Cargando...</div></div>
+
+  <!-- Páginas vinculadas -->
+  <div class="card" style="padding:20px;margin-top:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="card-title">📄 Páginas vinculadas para Ecopost</div>
+      <button class="btn btn-primary btn-sm" onclick="syncPaginas(this)">🔄 Sincronizar desde Meta</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+      Páginas a las que se puede publicar desde Ecopost. Usá "Sincronizar" para traer las páginas del Business Manager.
+      Podés asignar el Instagram Business Account ID y activar/desactivar cada página.
+    </p>
+    <div id="meta-paginas-lista"><div class="loading">Cargando...</div></div>
+  </div>
 </div>
 
 <!-- ── PRECIOS ── -->
@@ -142,9 +155,82 @@ async function loadConfig() {
   try {
     allConfig = await API.get('/api/config');
     renderAll();
-    loadRRPool();  // cargar pool de asesores RR
+    loadRRPool();
+    loadMetaPaginas();
   } catch(e) {
     toast('Error al cargar configuración: ' + e.message, 'error');
+  }
+}
+
+/* ─── PÁGINAS META ───────────────────────────────────────────────────────── */
+
+async function loadMetaPaginas() {
+  const el = document.getElementById('meta-paginas-lista');
+  if (!el) return;
+  try {
+    const pages = await API.get('/api/meta/paginas');
+    renderMetaPaginas(pages);
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderMetaPaginas(pages) {
+  const el = document.getElementById('meta-paginas-lista');
+  if (!pages.length) {
+    el.innerHTML = `<p style="color:var(--text-muted);font-size:13px">Sin páginas. Hacé clic en "Sincronizar desde Meta" para importarlas.</p>`;
+    return;
+  }
+  el.innerHTML = pages.map(p => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div style="flex:1;min-width:160px">
+        <div style="font-weight:600;font-size:14px">${escHtml(p.nombre)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${p.page_id}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <span style="font-size:12px;color:var(--text-secondary)">IG ID:</span>
+        <input type="text" value="${p.ig_user_id || ''}" placeholder="17841..." style="width:160px;font-size:12px;padding:4px 8px"
+          id="ig-id-${p.page_id}" class="form-control">
+        <button class="btn btn-ghost btn-sm" onclick="saveIgId('${p.page_id}')">💾</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;flex-shrink:0">
+        <input type="checkbox" ${p.activa ? 'checked' : ''} onchange="togglePaginaActiva('${p.page_id}', this.checked)">
+        Activa
+      </label>
+    </div>`).join('');
+}
+
+async function syncPaginas(btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳ Sincronizando...';
+  try {
+    const res = await API.post('/api/meta/paginas/sync', {});
+    toast(`✅ ${res.synced} página${res.synced !== 1 ? 's' : ''} sincronizada${res.synced !== 1 ? 's' : ''}`, 'success');
+    loadMetaPaginas();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Sincronizar desde Meta';
+  }
+}
+
+async function saveIgId(pageId) {
+  const val = document.getElementById(`ig-id-${pageId}`)?.value.trim();
+  try {
+    await API.put(`/api/meta/paginas/${pageId}`, { ig_user_id: val || null });
+    toast('IG ID guardado', 'success');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function togglePaginaActiva(pageId, activa) {
+  try {
+    await API.put(`/api/meta/paginas/${pageId}`, { activa });
+    toast(activa ? 'Página activada' : 'Página desactivada', 'success');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
   }
 }
 

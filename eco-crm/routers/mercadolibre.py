@@ -1247,6 +1247,47 @@ async def get_stats_publicacion(
 
 # ─── API — DASHBOARD RESUMEN ML ───────────────────────────────────────────────
 
+@router.get("/api/ml/debug-visitas-hoy")
+async def debug_visitas_hoy(
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Diagnóstico temporal: visitas de hoy en fecha UTC vs fecha Argentina (UTC-3), para ver si el desfase horario es la causa del 0."""
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
+    tok = await _ml_valid_token(db)
+    user_id = await _get_user_id(tok, db)
+
+    ahora_utc = datetime.utcnow()
+    ahora_arg = ahora_utc - timedelta(hours=3)
+    hoy_utc = ahora_utc.strftime("%Y-%m-%d")
+    hoy_arg = ahora_arg.strftime("%Y-%m-%d")
+
+    resultado = {"ahora_utc": ahora_utc.isoformat(), "ahora_argentina": ahora_arg.isoformat(),
+                 "hoy_utc": hoy_utc, "hoy_argentina": hoy_arg}
+    for nombre, fecha in [("con_fecha_utc", hoy_utc), ("con_fecha_argentina", hoy_arg)]:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{ML_BASE}/users/{user_id}/items_visits", headers=_ml_headers(tok),
+                             params={"date_from": fecha, "date_to": fecha})
+        resultado[nombre] = {"status": r.status_code, "body": r.text[:400]}
+
+    # Diagnóstico del error "resource not found" en category_predictor
+    titulo_prueba = "Pileta de Fibra de Vidrio"
+    for nombre, headers in [("con_token", _ml_headers(tok)), ("sin_token", {})]:
+        try:
+            async with httpx.AsyncClient(timeout=12) as c:
+                rc = await c.get(f"{ML_BASE}/sites/MLA/category_predictor/predict",
+                                 params={"q": titulo_prueba, "limit": 1}, headers=headers)
+            resultado[f"category_predictor_{nombre}"] = {"status": rc.status_code, "body": rc.text[:400]}
+        except Exception as e:
+            resultado[f"category_predictor_{nombre}"] = {"error": str(e)[:200]}
+
+    return resultado
+
+
 async def _ml_visitas_usuario_rango(token: str, user_id: str, date_from: str, date_to: str) -> int:
     """Visitas totales de todas las publicaciones del vendedor en un rango de fechas."""
     try:

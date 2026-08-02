@@ -1274,16 +1274,15 @@ async def debug_visitas_hoy(
                              params={"date_from": fecha, "date_to": fecha})
         resultado[nombre] = {"status": r.status_code, "body": r.text[:400]}
 
-    # Diagnóstico del error "resource not found" en category_predictor
+    # Diagnóstico del error "resource not found" en category_predictor -- probar alternativa domain_discovery
     titulo_prueba = "Pileta de Fibra de Vidrio"
-    for nombre, headers in [("con_token", _ml_headers(tok)), ("sin_token", {})]:
-        try:
-            async with httpx.AsyncClient(timeout=12) as c:
-                rc = await c.get(f"{ML_BASE}/sites/MLA/category_predictor/predict",
-                                 params={"q": titulo_prueba, "limit": 1}, headers=headers)
-            resultado[f"category_predictor_{nombre}"] = {"status": rc.status_code, "body": rc.text[:400]}
-        except Exception as e:
-            resultado[f"category_predictor_{nombre}"] = {"error": str(e)[:200]}
+    try:
+        async with httpx.AsyncClient(timeout=12) as c:
+            rd = await c.get(f"{ML_BASE}/sites/MLA/domain_discovery/search",
+                             params={"q": titulo_prueba, "limit": 3}, headers=_ml_headers(tok))
+        resultado["domain_discovery"] = {"status": rd.status_code, "body": rd.text[:600]}
+    except Exception as e:
+        resultado["domain_discovery"] = {"error": str(e)[:200]}
 
     return resultado
 

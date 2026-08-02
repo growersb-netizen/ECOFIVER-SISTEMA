@@ -441,28 +441,38 @@ async def categoria_atributos(categoria: Optional[str] = None, producto: Optiona
                               titulo: Optional[str] = None,
                               db: Session = Depends(get_db), x_api_key=Header(None),
                               current_user: Optional[Usuario] = Depends(get_current_user)):
-    """Atributos OBLIGATORIOS de una categoría de ML (para que la publicación no falle)."""
+    """
+    Atributos de una categoría de ML, separados en obligatorios (para que la
+    publicación no falle al crearla) y opcionales relevantes (no bloquean la
+    publicación, pero completarlos mejora la ficha técnica -- confirmado que
+    eso da más exposición en los filtros de búsqueda de ML).
+    """
     _auth(x_api_key, current_user)
     cat = categoria
     if not cat and titulo:
         cat = await _ml_categoria_sugerida(db, titulo)
     if not cat:
-        return {"categoria": None, "atributos": [], "error": "Indicá categoría o título para detectarla."}
+        return {"categoria": None, "atributos": [], "opcionales": [], "error": "Indicá categoría o título para detectarla."}
     tok = await _ml_valid_token(db)
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.get(f"{ML_BASE}/categories/{cat}/attributes", headers=_ml_headers(tok))
     if r.status_code != 200:
-        return {"categoria": cat, "atributos": [], "error": r.text[:200]}
-    reqd = []
+        return {"categoria": cat, "atributos": [], "opcionales": [], "error": r.text[:200]}
+    reqd, opcionales = [], []
     for a in r.json():
         tags = a.get("tags") or {}
+        if tags.get("hidden") or tags.get("read_only"):
+            continue
+        item = {
+            "id": a.get("id"), "name": a.get("name"),
+            "tipo": a.get("value_type"),
+            "valores": [v.get("name") for v in (a.get("values") or [])][:40],
+        }
         if tags.get("required") or tags.get("catalog_required"):
-            reqd.append({
-                "id": a.get("id"), "name": a.get("name"),
-                "tipo": a.get("value_type"),
-                "valores": [v.get("name") for v in (a.get("values") or [])][:40],
-            })
-    return {"categoria": cat, "atributos": reqd}
+            reqd.append(item)
+        else:
+            opcionales.append(item)
+    return {"categoria": cat, "atributos": reqd, "opcionales": opcionales}
 
 
 @router.post("/api/ml/fotos")

@@ -96,7 +96,7 @@
         </div>
       </div>
       <label class="form-label">Título * <small style="color:var(--text-secondary)">(máx 60)</small></label>
-      <input class="input" id="mp-titulo" maxlength="60" style="width:100%" oninput="document.getElementById('mp-tlen').textContent=this.value.length">
+      <input class="input" id="mp-titulo" maxlength="60" style="width:100%" oninput="document.getElementById('mp-tlen').textContent=this.value.length;checklistCalidad('mp-titulo','mp-desc','mp-fotos','mp-checklist-calidad')">
       <div style="font-size:11px;color:var(--text-secondary);text-align:right"><span id="mp-tlen">0</span>/60</div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Precio (ARS) *</label><input class="input" type="number" id="mp-precio" oninput="borCalcGanancia();borChequearPrecioBajoContado()"></div>
@@ -146,7 +146,7 @@
           <input type="file" accept="image/*" style="display:none" onchange="borSubirFoto(this)"></label>
         <span id="mp-foto-msg" style="font-size:12px;color:var(--text-secondary)"></span>
       </div>
-      <textarea class="input" id="mp-fotos" rows="2" style="width:100%" placeholder="URLs (una por línea). O usá 'Subir foto a ML' y se agrega sola."></textarea>
+      <textarea class="input" id="mp-fotos" rows="2" style="width:100%" placeholder="URLs (una por línea). O usá 'Subir foto a ML' y se agrega sola." oninput="checklistCalidad('mp-titulo','mp-desc','mp-fotos','mp-checklist-calidad')"></textarea>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <label class="form-label" style="margin:0">Atributos obligatorios de ML</label>
         <button class="btn btn-sm" type="button" onclick="borCargarAtributos()">Cargar requeridos</button>
@@ -161,8 +161,9 @@
         <div id="mp-ia-msg" style="font-size:12px;color:var(--text-secondary);margin-top:4px"></div>
       </div>
       <label class="form-label">Descripción</label>
-      <textarea class="input" id="mp-desc" rows="4" style="width:100%"></textarea>
+      <textarea class="input" id="mp-desc" rows="4" style="width:100%" oninput="checklistCalidad('mp-titulo','mp-desc','mp-fotos','mp-checklist-calidad')"></textarea>
       <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">El texto de "Condiciones" (Configuración del negocio) se agrega solo al publicar.</div>
+      <div id="mp-checklist-calidad"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-bor')">Cancelar</button>
@@ -287,14 +288,19 @@
 
     <div class="form-group">
       <label class="form-label">Descripción</label>
-      <textarea class="input" id="crear-descripcion" rows="8" placeholder="Descripción del producto..."></textarea>
+      <textarea class="input" id="crear-descripcion" rows="8" placeholder="Descripción del producto..." oninput="checklistCalidad('crear-titulo','crear-descripcion','crear-fotos','crear-checklist-calidad')"></textarea>
       <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">El texto de "Condiciones" (Configuración del negocio) se agrega solo al publicar.</div>
     </div>
 
     <div class="form-group">
       <label class="form-label">URLs de fotos <span style="color:var(--text-secondary);font-size:11px">(se completan solas si el modelo tiene fotos cargadas en el Catálogo — podés editarlas)</span></label>
-      <textarea class="input" id="crear-fotos" rows="3" placeholder="https://i.imgur.com/foto1.jpg&#10;https://i.imgur.com/foto2.jpg"></textarea>
+      <textarea class="input" id="crear-fotos" rows="3" placeholder="https://i.imgur.com/foto1.jpg&#10;https://i.imgur.com/foto2.jpg" oninput="checklistCalidad('crear-titulo','crear-descripcion','crear-fotos','crear-checklist-calidad')"></textarea>
       <div id="fotos-catalogo-hint" style="font-size:12px;color:var(--text-secondary);margin-top:4px"></div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" style="margin-bottom:2px">📈 Calidad de la publicación</label>
+      <div id="crear-checklist-calidad"></div>
     </div>
 
     <div class="form-group">
@@ -448,6 +454,35 @@ async function checkMLStatus(showDetail = false) {
 }
 
 /* ─── DASHBOARD ──────────────────────────────────────────────────────── */
+const NIVELES_REPUTACION = {
+  '5_green':       { color: '#22c55e', label: 'Verde — excelente' },
+  '4_light_green': { color: '#84cc16', label: 'Verde claro — muy bueno' },
+  '3_yellow':      { color: '#eab308', label: 'Amarillo — regular' },
+  '2_orange':      { color: '#f97316', label: 'Naranja — bajo' },
+  '1_red':         { color: '#ef4444', label: 'Rojo — crítico' },
+};
+const NIVELES_MERCADOLIDER = { silver: 'MercadoLíder', gold: 'MercadoLíder Gold', platinum: 'MercadoLíder Platinum' };
+
+function renderReputacionBox(rep) {
+  if (!rep) return '';
+  const nivel = NIVELES_REPUTACION[rep.nivel] || { color: 'var(--text-secondary)', label: rep.nivel || 'Sin datos aún' };
+  const lider = rep.power_seller_status ? (NIVELES_MERCADOLIDER[rep.power_seller_status] || rep.power_seller_status) : null;
+  return `
+    <div class="card" style="padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="width:14px;height:14px;border-radius:50%;background:${nivel.color};flex-shrink:0"></div>
+      <div>
+        <div style="font-weight:700;font-size:14px">Reputación: ${nivel.label}${lider ? ` · 🏆 ${lider}` : ''}</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">
+          ${rep.transacciones_completadas ?? 0} de ${rep.transacciones_totales ?? 0} operaciones completadas ·
+          Reclamos: ${(rep.reclamos_pct || 0).toFixed(1)}% · Cancelaciones: ${(rep.cancelaciones_pct || 0).toFixed(1)}%
+        </div>
+      </div>
+      <div style="margin-left:auto;font-size:12px;color:var(--text-secondary);max-width:280px">
+        Es el factor #1 del algoritmo de posicionamiento de ML — más reputación = más exposición y más conversión con el mismo producto.
+      </div>
+    </div>`;
+}
+
 async function loadDashboardML() {
   const cont = document.getElementById('dashboard-ml-content');
   cont.innerHTML = '<div class="loading">Cargando dashboard...</div>';
@@ -466,6 +501,7 @@ async function loadDashboardML() {
       </tr>`;
 
     cont.innerHTML = `
+      ${renderReputacionBox(d.reputacion)}
       <div class="stats-grid" style="margin-bottom:20px">
         <div class="stat-card"><div class="stat-value">${d.publicaciones_activas}</div><div class="stat-label">Publicaciones activas</div></div>
         <div class="stat-card"><div class="stat-value">${d.visitas_hoy_total}</div><div class="stat-label">Visitas hoy (todas las publicaciones)</div></div>
@@ -792,6 +828,7 @@ function onModeloChange() {
 
   if (document.getElementById('crear-modo-cuota').checked) recalcularPrecioCuota();
   actualizarMedidasPiscina(tipo, modelo);
+  checklistCalidad('crear-titulo', 'crear-descripcion', 'crear-fotos', 'crear-checklist-calidad');
 }
 
 function actualizarMedidasPiscina(tipo, modelo) {
@@ -878,6 +915,30 @@ function recalcularPrecioCuota() {
 
 function updateTitleCount(el) {
   document.getElementById('titulo-count').textContent = el.value.length + ' / 60';
+  checklistCalidad('crear-titulo', 'crear-descripcion', 'crear-fotos', 'crear-checklist-calidad');
+}
+
+// Checklist de calidad basado en los factores REALES confirmados del
+// algoritmo de MercadoLibre: título sin símbolos prohibidos ni mayúsculas
+// sostenidas, descripción sustancial, y varias fotos (más CVR = más ranking).
+const _SIMBOLOS_PROHIBIDOS_TITULO = /[,|:;!?"–—_%]/;
+function checklistCalidad(tituloId, descId, fotosId, targetId) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const titulo = (document.getElementById(tituloId)?.value || '').trim();
+  const descripcion = (document.getElementById(descId)?.value || '').trim();
+  const fotos = (document.getElementById(fotosId)?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const palabras = descripcion ? descripcion.split(/\s+/).length : 0;
+
+  const items = [
+    { ok: titulo.length >= 40 && titulo.length <= 60, label: `Título entre 40-60 caracteres (${titulo.length})` },
+    { ok: titulo && !_SIMBOLOS_PROHIBIDOS_TITULO.test(titulo) && titulo === titulo.replace(/([A-ZÁÉÍÓÚÑ]{4,})/g, '') , label: 'Sin símbolos ni MAYÚSCULAS SOSTENIDAS' },
+    { ok: palabras >= 200, label: `Descripción con 200+ palabras (${palabras})` },
+    { ok: fotos.length >= 3, label: `3 o más fotos cargadas (${fotos.length})` },
+  ];
+  target.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">` +
+    items.map(i => `<div style="color:${i.ok ? '#22c55e' : 'var(--text-secondary)'}">${i.ok ? '✓' : '○'} ${i.label}</div>`).join('') +
+    `</div>`;
 }
 
 function getClaveModeloCatalogo() {
@@ -1322,6 +1383,7 @@ function borNuevaPub() {
   _borPrecioContadoRef = null;
   borCargarCatalogoSelect();
   document.getElementById('mp-foto-msg').textContent = '';
+  document.getElementById('mp-checklist-calidad').innerHTML = '';
   openModal('modal-bor');
 }
 function borEditar(b) {
@@ -1348,6 +1410,7 @@ function borEditar(b) {
   borCargarCatalogoSelect();
   openModal('modal-bor');
   setTimeout(borCalcGanancia, 50);
+  checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
 }
 async function borGuardar() {
   const id = document.getElementById('mp-id').value;
@@ -1390,6 +1453,7 @@ async function borGenerarConIA() {
     document.getElementById('mp-titulo').value = j.titulo || '';
     document.getElementById('mp-tlen').textContent = (j.titulo || '').length;
     document.getElementById('mp-desc').value = j.descripcion || '';
+    checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
     msg.textContent = '✓ Listo, revisá y ajustá si hace falta'; msg.style.color = '#4ade80';
   } catch (e) {
     msg.textContent = e.message || 'No se pudo generar'; msg.style.color = '#f87171';
@@ -1520,6 +1584,16 @@ async function borSubirFoto(input) {
     else msg.textContent = 'Error: ' + (j.error || 'no se pudo subir');
   } catch (e) { msg.textContent = 'Error de red'; }
 }
+function _borAtributoInputHtml(a, esObligatorio) {
+  const esLitros = /litro|capacidad|volumen/i.test(a.name || '') && _borLitrosActual;
+  const valorAuto = esLitros ? _borLitrosActual : '';
+  const inp = a.valores && a.valores.length
+    ? `<select class="input attr-inp" data-id="${a.id}" onchange="_borActualizarScoreFicha()"><option value="">—</option>` + a.valores.map(v => `<option>${v}</option>`).join('') + `</select>`
+    : `<input class="input attr-inp" data-id="${a.id}" placeholder="${a.name}" value="${valorAuto}" oninput="_borActualizarScoreFicha()">`;
+  const nota = esLitros ? ' <small style="color:#22c55e">(calculado desde las medidas del catálogo)</small>' : '';
+  return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name}${esObligatorio ? ' *' : ''}${nota}</label>${inp}</div>`;
+}
+
 async function borCargarAtributos() {
   const cat = document.getElementById('mp-cat').value.trim();
   const tit = document.getElementById('mp-titulo').value.trim();
@@ -1529,16 +1603,36 @@ async function borCargarAtributos() {
   let u = '/api/ml/categoria-atributos?' + (cat ? 'categoria=' + encodeURIComponent(cat) : 'titulo=' + encodeURIComponent(tit));
   const d = await API.get(u);
   if (d.categoria && !cat) { document.getElementById('mp-cat').value = d.categoria; }
-  if (!d.atributos || !d.atributos.length) { cont.innerHTML = '<span style="color:#4ade80">✓ Esta categoría no exige atributos obligatorios.</span>'; return; }
-  cont.innerHTML = d.atributos.map(a => {
-    const esLitros = /litro|capacidad|volumen/i.test(a.name || '') && _borLitrosActual;
-    const valorAuto = esLitros ? _borLitrosActual : '';
-    const inp = a.valores && a.valores.length
-      ? `<select class="input attr-inp" data-id="${a.id}"><option value="">—</option>` + a.valores.map(v => `<option>${v}</option>`).join('') + `</select>`
-      : `<input class="input attr-inp" data-id="${a.id}" placeholder="${a.name}" value="${valorAuto}">`;
-    const nota = esLitros ? ' <small style="color:#22c55e">(calculado desde las medidas del catálogo)</small>' : '';
-    return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name} *${nota}</label>${inp}</div>`;
-  }).join('');
+
+  const obligatorios = d.atributos || [];
+  const opcionales = d.opcionales || [];
+  if (!obligatorios.length && !opcionales.length) {
+    cont.innerHTML = '<span style="color:#4ade80">✓ Esta categoría no tiene atributos para cargar.</span>';
+    return;
+  }
+  let html = '';
+  if (obligatorios.length) {
+    html += `<div style="font-size:12px;font-weight:700;margin-bottom:4px">Obligatorios (la publicación no sale sin esto)</div>`;
+    html += obligatorios.map(a => _borAtributoInputHtml(a, true)).join('');
+  }
+  if (opcionales.length) {
+    html += `<div style="font-size:12px;font-weight:700;margin-top:10px;margin-bottom:4px">
+      Ficha técnica completa <span id="bor-score-ficha" style="color:var(--text-secondary);font-weight:400"></span>
+      <div style="font-size:11px;color:var(--text-secondary);font-weight:400">Opcionales — no bloquean la publicación, pero ML confirma que a más ficha completa, más exposición en los filtros de búsqueda.</div>
+    </div>`;
+    html += opcionales.map(a => _borAtributoInputHtml(a, false)).join('');
+  }
+  cont.innerHTML = html;
+  _borActualizarScoreFicha();
+}
+
+function _borActualizarScoreFicha() {
+  const scoreEl = document.getElementById('bor-score-ficha');
+  if (!scoreEl) return;
+  const inputs = document.querySelectorAll('#mp-atributos .attr-inp');
+  const completos = [...inputs].filter(el => (el.value || '').trim()).length;
+  scoreEl.textContent = `— ${completos}/${inputs.length} completados`;
+  scoreEl.style.color = completos === inputs.length ? '#22c55e' : 'var(--text-secondary)';
 }
 function borCollectAtributos() {
   const out = [];

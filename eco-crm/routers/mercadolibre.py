@@ -1297,9 +1297,26 @@ async def get_dashboard_ml(
                 headers=_ml_headers(token),
                 params={"seller_id": user_id, "status": "UNANSWERED", "limit": 1},
             )
+            r_user = await c.get(f"{ML_BASE}/users/{user_id}", headers=_ml_headers(token))
 
         total_pubs = r_items.json().get("paging", {}).get("total", 0) if r_items.status_code == 200 else 0
         total_q    = r_q.json().get("total", 0) if r_q.status_code == 200 else 0
+
+        # Reputación del vendedor — factor #1 confirmado del algoritmo de
+        # ranking de ML (a más nivel, más exposición y más conversión).
+        reputacion = None
+        if r_user.status_code == 200:
+            rep = (r_user.json().get("seller_reputation") or {})
+            metrics = rep.get("metrics") or {}
+            transactions = rep.get("transactions") or {}
+            reputacion = {
+                "nivel": rep.get("level_id"),  # ej "5_green", "4_light_green", "3_yellow", "2_orange", "1_red", None
+                "power_seller_status": rep.get("power_seller_status"),  # None | silver | gold | platinum
+                "transacciones_completadas": transactions.get("completed"),
+                "transacciones_totales": transactions.get("total"),
+                "reclamos_pct": ((metrics.get("claims") or {}).get("rate") or 0) * 100,
+                "cancelaciones_pct": ((metrics.get("cancellations") or {}).get("rate") or 0) * 100,
+            }
 
         # /users/{id}/items_visits solo acepta fecha simple YYYY-MM-DD (sin
         # hora) — confirmado con la API real, cualquier otro formato ISO da 400.
@@ -1324,6 +1341,7 @@ async def get_dashboard_ml(
             "publicaciones_activas": total_pubs,
             "preguntas_sin_responder": total_q,
             "visitas_hoy_total": visitas_hoy,
+            "reputacion": reputacion,
             "top_por_visitas": [_resumen(p) for p in top_visitas],
             "top_por_ventas": [_resumen(p) for p in top_ventas],
         }

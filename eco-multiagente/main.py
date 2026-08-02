@@ -15,16 +15,14 @@ from dotenv import load_dotenv
 _env_base = Path(os.getenv("DATA_DIR", "")) if os.getenv("DATA_DIR") else Path(__file__).parent
 _ENV_PATH = _env_base / ".env"
 if _ENV_PATH.exists():
-    # IMPORTANTE: un valor VACÍO en .env NO debe pisar un secret real ya presente
-    # en el entorno (ej: fly secrets). Solo overrideamos con valores no vacíos.
+    # Railway/Fly secrets tienen prioridad. El .env del volumen solo completa
+    # variables que NO vienen ya seteadas desde el entorno (secrets).
     from dotenv import dotenv_values as _dotenv_values
     for _k, _v in _dotenv_values(str(_ENV_PATH)).items():
-        if _v is not None and _v.strip() != "":
-            os.environ[_k] = _v
-        elif _k not in os.environ:
+        if _k not in os.environ:
             os.environ[_k] = _v or ""
 else:
-    load_dotenv(override=False)  # carga variables de entorno del sistema si existen
+    load_dotenv(override=False)
 # ─────────────────────────────────────────────────────────────────────────────
 
 from fastapi import FastAPI, HTTPException

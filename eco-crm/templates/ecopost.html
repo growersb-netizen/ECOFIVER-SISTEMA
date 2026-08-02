@@ -792,10 +792,15 @@ async function openDetalle(id) {
       .map(e => `<button class="btn ${e.cls}" onclick="cambiarEstado(${id},'${e.key}')">${e.label}</button>`)
       .join('');
 
+    const puedePublicar = item.estado === 'aprobado' || item.estado === 'publicado';
     footer.innerHTML = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;width:100%">
         <div style="display:flex;gap:6px;flex-wrap:wrap">${btnsCambioEstado}</div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${puedePublicar ? `
+            <button class="btn btn-sm" style="background:#1877f2;border:none;color:#fff;font-size:12px" onclick="publicarEnFacebook(${id})">📘 Facebook</button>
+            <button class="btn btn-sm" style="background:linear-gradient(45deg,#833ab4,#fd1d1d,#fcb045);border:none;color:#fff;font-size:12px" onclick="publicarEnInstagram(${id})">📸 Instagram</button>
+          ` : ''}
           <button class="btn btn-ghost" onclick="editarContenido(${id});closeDetalle()">✏️ Editar</button>
           ${item.imagen_base64 ? `<button class="btn btn-ghost" onclick="descargarImagen('${id}')">⬇️ Descargar</button>` : ''}
         </div>
@@ -817,6 +822,38 @@ async function cambiarEstado(id, estado) {
     loadBiblioteca();
   } catch(e) {
     showToast(`Error: ${e.message}`, 'error');
+  }
+}
+
+async function publicarEnFacebook(id) {
+  if (!await modalConfirm('¿Publicar en Facebook ahora?', 'Esta acción publicará el contenido en la página de Facebook de EcoFiver.')) return;
+  try {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳...';
+    await API.post(`/api/ecopost/${id}/publicar-facebook`, {});
+    showToast('✅ Publicado en Facebook', 'success');
+    closeDetalle();
+    loadBiblioteca();
+  } catch(e) {
+    showToast('Error Facebook: ' + e.message, 'error');
+    if (event.target) { event.target.disabled = false; event.target.textContent = '📘 Facebook'; }
+  }
+}
+
+async function publicarEnInstagram(id) {
+  if (!await modalConfirm('¿Publicar en Instagram ahora?', 'Esta acción publicará el contenido en la cuenta de Instagram Business de EcoFiver.')) return;
+  try {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳...';
+    await API.post(`/api/ecopost/${id}/publicar-instagram`, {});
+    showToast('✅ Publicado en Instagram', 'success');
+    closeDetalle();
+    loadBiblioteca();
+  } catch(e) {
+    showToast('Error Instagram: ' + e.message, 'error');
+    if (event.target) { event.target.disabled = false; event.target.textContent = '📸 Instagram'; }
   }
 }
 

@@ -1,5 +1,5 @@
 """
-Cliente async para el CRM EcoFiver (FastAPI en Fly.io).
+Cliente async para el CRM EcoFiver (FastAPI en Railway).
 Si el CRM no está disponible, retorna datos vacíos para no romper el flujo.
 """
 
@@ -13,7 +13,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-dawn-fog-5476.fly.dev")
+CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
 CRM_API_KEY = os.getenv("CRM_API_KEY", "")
 
 HEADERS = {

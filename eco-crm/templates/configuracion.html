@@ -14,6 +14,7 @@
 
 <div class="tabs">
   <button class="tab active" onclick="showTab('api-keys', this)">🔑 API Keys</button>
+  <button class="tab" onclick="showTab('meta', this)">📘 Meta / WhatsApp</button>
   <button class="tab" onclick="showTab('precios', this)">💲 Precios</button>
   <button class="tab" onclick="showTab('empresa', this)">🏢 Empresa</button>
   <button class="tab" onclick="showTab('leads', this)">👥 Distribución Leads</button>
@@ -30,6 +31,15 @@
     Para la <strong>IA</strong>, el sistema usa Grok → Gemini → Claude en ese orden de prioridad.
   </p>
   <div id="api-keys-list"><div class="loading">Cargando...</div></div>
+</div>
+
+<!-- ── META / FACEBOOK / INSTAGRAM / WHATSAPP ── -->
+<div id="tab-meta" style="display:none">
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">
+    Credenciales de Meta (Facebook, Instagram, WhatsApp). Obtené estas claves en
+    <a href="https://developers.facebook.com/apps/" target="_blank" style="color:var(--primary)">developers.facebook.com/apps</a>.
+  </p>
+  <div id="meta-list"><div class="loading">Cargando...</div></div>
 </div>
 
 <!-- ── PRECIOS ── -->
@@ -115,7 +125,7 @@
 
 {% block extra_js %}
 <script>
-const TABS = ['api-keys','precios','empresa','leads','notificaciones'];
+const TABS = ['api-keys','meta','precios','empresa','leads','notificaciones'];
 
 function showTab(name, el) {
   TABS.forEach(t => {
@@ -139,10 +149,11 @@ async function loadConfig() {
 }
 
 function renderAll() {
-  const cats = { 'api_keys': [], 'precios': [], 'empresa': [], 'notificaciones': [], 'leads': [] };
+  const cats = { 'api_keys': [], 'meta': [], 'precios': [], 'empresa': [], 'notificaciones': [], 'leads': [] };
   allConfig.forEach(c => { if (cats[c.categoria]) cats[c.categoria].push(c); });
 
   document.getElementById('api-keys-list').innerHTML      = renderApiKeys(cats.api_keys);
+  document.getElementById('meta-list').innerHTML           = renderApiKeys(cats.meta);
   document.getElementById('precios-list').innerHTML        = renderSimpleFields(cats.precios);
   document.getElementById('empresa-list').innerHTML        = renderSimpleFields(cats.empresa);
   document.getElementById('notificaciones-list').innerHTML = renderSimpleFields(cats.notificaciones);

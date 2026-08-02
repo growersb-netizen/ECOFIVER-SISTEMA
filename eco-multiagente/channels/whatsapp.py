@@ -24,7 +24,7 @@ WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN", "eco_modules_verify_2026")
 ADMIN_WA_PHONES: set[str] = {"5491135164644"}
 
 # ── CRM Inbox integration ─────────────────────────────────────────────────────
-CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-dawn-fog-5476.fly.dev")
+CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
 CRM_API_KEY  = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
 _CRM_HEADERS = {"X-API-Key": CRM_API_KEY, "Content-Type": "application/json"}
 

@@ -546,6 +546,149 @@ async def api_eliminar(
     return {"ok": True}
 
 
+# ─── PUBLICACIÓN EN REDES SOCIALES ───────────────────────────────────────────
+
+META_GRAPH_URL = "https://graph.facebook.com/v19.0"
+
+
+@router.post("/api/ecopost/{item_id}/publicar-facebook")
+async def api_publicar_facebook(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Publica el contenido en la página de Facebook."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    page_token = get_config_value("meta_page_access_token", db)
+    page_id    = get_config_value("meta_page_id", db)
+
+    if not page_token or not page_id:
+        raise HTTPException(400, "Configurar Meta Page Access Token y Page ID en Configuración → Meta")
+
+    message = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as hc:
+            if c.imagen_url:
+                r = await hc.post(
+                    f"{META_GRAPH_URL}/{page_id}/photos",
+                    data={"url": c.imagen_url, "caption": message, "access_token": page_token},
+                )
+            elif c.imagen_base64:
+                img_bytes = base64.b64decode(c.imagen_base64)
+                r = await hc.post(
+                    f"{META_GRAPH_URL}/{page_id}/photos",
+                    data={"caption": message, "access_token": page_token},
+                    files={"source": ("imagen.png", img_bytes, "image/png")},
+                )
+            else:
+                r = await hc.post(
+                    f"{META_GRAPH_URL}/{page_id}/feed",
+                    data={"message": message, "access_token": page_token},
+                )
+
+        if r.status_code != 200:
+            err = r.json()
+            raise HTTPException(400, f"Error Meta API: {err.get('error', {}).get('message', r.text[:200])}")
+
+        post_id = r.json().get("id") or r.json().get("post_id")
+        c.estado = "publicado"
+        if not c.aprobado_por_id:
+            c.aprobado_por_id = user.id
+        db.commit()
+        return {"ok": True, "red": "facebook", "post_id": post_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Error publicando en Facebook: {str(e)[:150]}")
+
+
+@router.post("/api/ecopost/{item_id}/publicar-instagram")
+async def api_publicar_instagram(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """
+    Publica en Instagram Business.
+    Si solo hay base64, intenta subir a R2 automáticamente antes de publicar.
+    """
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    page_token = get_config_value("meta_page_access_token", db)
+    ig_user_id = get_config_value("meta_ig_user_id", db)
+
+    if not page_token or not ig_user_id:
+        raise HTTPException(400, "Configurar Meta Page Access Token e IG User ID en Configuración → Meta")
+
+    img_url = c.imagen_url
+    if not img_url and c.imagen_base64:
+        # Auto-subir a R2 para obtener URL pública
+        try:
+            img_bytes = base64.b64decode(c.imagen_base64)
+            filename  = f"ecopost_{c.id}_{c.tipo}.png"
+            async with httpx.AsyncClient(timeout=30) as hc:
+                r = await hc.post(
+                    "https://www.ecomodulosypiscinas.com.ar/api/admin/upload",
+                    headers={"x-api-key": "eco-crm-api-key-2024"},
+                    files={"file": (filename, img_bytes, "image/png")},
+                )
+            if r.status_code in (200, 201):
+                url = r.json().get("url") or r.json().get("imagen_url") or r.json().get("path")
+                if url:
+                    img_url = url
+                    c.imagen_url    = url
+                    c.imagen_base64 = None
+                    db.flush()
+        except Exception as e:
+            logger.warning(f"[ecopost] Auto-subida R2 para IG falló: {e}")
+
+    if not img_url:
+        raise HTTPException(400, "Instagram requiere imagen con URL pública. Usá 'Subir imagen' primero.")
+
+    caption = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as hc:
+            r1 = await hc.post(
+                f"{META_GRAPH_URL}/{ig_user_id}/media",
+                data={"image_url": img_url, "caption": caption, "access_token": page_token},
+            )
+            if r1.status_code != 200:
+                err = r1.json()
+                raise HTTPException(400, f"Error container IG: {err.get('error', {}).get('message', r1.text[:200])}")
+
+            creation_id = r1.json().get("id")
+            if not creation_id:
+                raise HTTPException(502, "Meta no devolvió creation_id")
+
+            r2 = await hc.post(
+                f"{META_GRAPH_URL}/{ig_user_id}/media_publish",
+                data={"creation_id": creation_id, "access_token": page_token},
+            )
+            if r2.status_code != 200:
+                err = r2.json()
+                raise HTTPException(400, f"Error publicando IG: {err.get('error', {}).get('message', r2.text[:200])}")
+
+        ig_media_id = r2.json().get("id")
+        c.estado = "publicado"
+        if not c.aprobado_por_id:
+            c.aprobado_por_id = user.id
+        db.commit()
+        return {"ok": True, "red": "instagram", "ig_media_id": ig_media_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Error publicando en Instagram: {str(e)[:150]}")
+
+
 # ─── REFERENCIAS DE ESTILO ────────────────────────────────────────────────────
 
 @router.get("/api/ecopost/referencias")

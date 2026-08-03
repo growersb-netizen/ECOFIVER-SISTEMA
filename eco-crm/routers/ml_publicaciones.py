@@ -289,8 +289,9 @@ def _sanitizar_valor_numerico(val: str) -> str:
 async def _ml_classified_location(db: Session) -> dict:
     """
     Retorna el objeto `location` requerido por ML para publicaciones classified.
-    Fetchea los IDs de provincia Buenos Aires y ciudad Zárate de la API pública de ML
-    y los cachea en ConfiguracionSistema para no volver a pedirlos.
+    Busca Buenos Aires Provincia y la ciudad más cercana a Zárate.
+    Cachea los IDs en ConfiguracionSistema; si el city_id en caché es inválido
+    (ML devuelve 'city name error') se puede limpiar con clave ml_loc_city_id=vacío.
     """
     from database.models import ConfiguracionSistema
 
@@ -312,9 +313,10 @@ async def _ml_classified_location(db: Session) -> dict:
     state_id = _get("ml_loc_state_id")
     city_id  = _get("ml_loc_city_id")
 
-    if not state_id:
-        try:
-            async with httpx.AsyncClient(timeout=10) as hc:
+    async with httpx.AsyncClient(timeout=15) as hc:
+        # 1. Obtener state_id si no está cacheado
+        if not state_id:
+            try:
                 r = await hc.get("https://api.mercadolibre.com/classified_locations/countries/AR")
                 if r.status_code == 200:
                     for st in (r.json().get("states") or []):
@@ -323,24 +325,51 @@ async def _ml_classified_location(db: Session) -> dict:
                             state_id = str(st["id"])
                             _set("ml_loc_state_id", state_id)
                             break
-        except Exception:
-            pass
+            except Exception:
+                pass
 
-    if state_id and not city_id:
-        try:
-            async with httpx.AsyncClient(timeout=10) as hc:
+        # 2. Obtener city_id — intentar con varios endpoints y estrategias de búsqueda
+        if state_id and not city_id:
+            cities_candidates: list = []
+            try:
+                # Intento A: endpoint /classified_locations/states/{state_id} (retorna ciudades)
                 r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{state_id}")
                 if r.status_code == 200:
                     data = r.json()
-                    cities = data.get("cities") or (data if isinstance(data, list) else [])
-                    for city in cities:
-                        cname = (city.get("name") or "").lower()
-                        if "zárate" in cname or "zarate" in cname:
-                            city_id = str(city["id"])
-                            _set("ml_loc_city_id", city_id)
-                            break
-        except Exception:
-            pass
+                    cities_candidates = data.get("cities") or (data if isinstance(data, list) else [])
+            except Exception:
+                pass
+
+            if not cities_candidates:
+                try:
+                    # Intento B: endpoint alternativo con /cities?state_id=...
+                    r = await hc.get(
+                        "https://api.mercadolibre.com/classified_locations/cities",
+                        params={"state_id": state_id, "limit": 200}
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        cities_candidates = data if isinstance(data, list) else (data.get("cities") or data.get("results") or [])
+                except Exception:
+                    pass
+
+            if cities_candidates:
+                # Buscar Zárate primero; si no está, usar la primera ciudad disponible como fallback
+                fallback_id = None
+                for city in cities_candidates:
+                    cid = city.get("id")
+                    if not cid:
+                        continue
+                    if not fallback_id:
+                        fallback_id = str(cid)
+                    cname = (city.get("name") or "").lower()
+                    if "rate" in cname:  # zárate / zarate
+                        city_id = str(cid)
+                        break
+                if not city_id and fallback_id:
+                    city_id = fallback_id  # usar primera ciudad disponible
+                if city_id:
+                    _set("ml_loc_city_id", city_id)
 
     loc: dict = {"country": {"id": "AR"}}
     if state_id:
@@ -831,6 +860,36 @@ async def calcular_fees(precio: float, listing_type: str = "gold_special",
     ganancia = (neto - costo) if (neto is not None and costo) else neto
     return {"ok": True, "precio": precio, "comision": fee, "neto": neto,
             "costo": costo, "ganancia": ganancia}
+
+
+@router.get("/api/ml/location-config")
+async def location_config(db: Session = Depends(get_db), x_api_key=Header(None),
+                          current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Devuelve los IDs de location cacheados y el objeto que se envía a ML."""
+    _auth(x_api_key, current_user)
+    loc = await _ml_classified_location(db)
+    from database.models import ConfiguracionSistema
+    state_row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "ml_loc_state_id").first()
+    city_row  = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "ml_loc_city_id").first()
+    return {
+        "location": loc,
+        "cached_state_id": state_row.valor if state_row else None,
+        "cached_city_id":  city_row.valor  if city_row  else None,
+    }
+
+
+@router.delete("/api/ml/location-config")
+async def location_config_reset(db: Session = Depends(get_db), x_api_key=Header(None),
+                                current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Borra el caché de location para que se re-busque en el próximo publish."""
+    _auth(x_api_key, current_user)
+    from database.models import ConfiguracionSistema
+    for clave in ("ml_loc_state_id", "ml_loc_city_id"):
+        row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
+        if row:
+            db.delete(row)
+    db.commit()
+    return {"ok": True, "msg": "Caché de location borrado — se re-buscará en el próximo publish"}
 
 
 @router.post("/api/ml/borradores/{bid}/duplicar")

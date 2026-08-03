@@ -520,7 +520,7 @@ async def desde_catalogo(db: Session = Depends(get_db), x_api_key=Header(None),
 @router.post("/api/ml/borradores/{bid}/variantes")
 async def generar_variantes(bid: int, request: Request, db: Session = Depends(get_db),
                             x_api_key=Header(None), current_user: Optional[Usuario] = Depends(get_current_user)):
-    """Genera N variantes (título + descripción) con IA a partir de un borrador base."""
+    """Genera N variantes de título con IA. Todos los demás campos se copian del borrador base."""
     _auth(x_api_key, current_user)
     import json as _json
     base = db.query(BorradorML).filter(BorradorML.id == bid).first()
@@ -529,47 +529,81 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
     d = await request.json()
     n = max(1, min(int(d.get("cantidad") or 3), 8))
 
+    TIPO_LABEL = {
+        "PISCINA": "Pileta / Piscina de fibra de vidrio",
+        "MINIPISCINA": "Minipiscina de fibra de vidrio",
+        "MODULO": "Vivienda modular Wood Frame",
+        "MODULO_DEPOSITO": "Módulo depósito / Galpón prefabricado",
+        "COMBO": "Combo piscina + módulo habitacional",
+        "QUINCHO": "Quincho prefabricado",
+        "PERGOLA": "Pérgola / Gazebo prefabricado",
+        "HIDROMASAJE": "Hidromasaje / Jacuzzi / Spa",
+        "REPOSERA_FIBRA": "Reposera de fibra de vidrio",
+        "CUCHA": "Cucha / Casilla para perro de fibra",
+        "ILUMINACION_PISCINA": "Iluminación LED para piscinas",
+    }
+    tipo_label = TIPO_LABEL.get(base.producto or "", base.producto or "producto")
+    modelo_ctx = f" Modelo específico: {base.modelo_nombre}." if base.modelo_nombre else ""
+    desc_ctx = (base.descripcion or "")[:500]
+
     prompt = (
-        f"Sos especialista en publicaciones de MercadoLibre Argentina. Generá {n} variantes DISTINTAS "
-        f"para vender este producto, para publicar {n} anuncios separados sin que ML los detecte como "
-        f"duplicados. Producto: '{base.titulo}'."
-        + (f" Descripción de referencia (mantené la misma información real, no inventes datos nuevos): "
-           f"'{(base.descripcion or '')[:600]}'." if base.descripcion else
-           " No hay descripción de referencia — escribí una descripción comercial completa y realista "
-           "para este producto vos mismo, basándote en el título.")
-        + "\n\nCada variante necesita:\n"
-        "1. TÍTULO (máx 60 caracteres): sin comas/guiones/pipes/signos/mayúsculas sostenidas, "
-        "keywords longtail al frente, DISTINTO de las otras variantes en orden y palabras usadas.\n"
-        "2. DESCRIPCIÓN COMPLETA (mínimo 200 palabras, NUNCA vacía): presentación, características, "
-        "beneficios, cierre con llamado a la acción. Cada variante debe decir lo MISMO en cuanto a "
-        "información real (mismo producto, mismas características), pero con palabras y estructura "
-        "de oraciones distintas entre sí — para cubrir más términos de búsqueda sin ser copias.\n\n"
-        "Devolvé EXCLUSIVAMENTE un JSON array válido, sin texto extra, con este formato: "
-        '[{"titulo":"...","descripcion":"..."}]'
+        f"Sos especialista en publicaciones de MercadoLibre Argentina para la empresa EcoFiver "
+        f"(fabricante de piscinas de fibra de vidrio, módulos habitacionales y accesorios, "
+        f"fabricados en Zárate, Buenos Aires).\n\n"
+        f"Producto: {tipo_label}.{modelo_ctx}\n"
+        f"Título actual: {base.titulo}\n"
+        + (f"Descripción de referencia: {desc_ctx}\n\n" if desc_ctx else "\n")
+        + f"Generá {n} títulos alternativos DISTINTOS entre sí y distintos del título actual, "
+        f"optimizados para el buscador de MercadoLibre:\n"
+        f"- Máximo 60 caracteres cada uno\n"
+        f"- Sin comas, guiones, pipes, signos ni mayúsculas sostenidas\n"
+        f"- Variá el orden de las palabras clave y usá sinónimos válidos "
+        f"(pileta/piscina, fibra/fibra de vidrio, modular/prefabricado, etc.)\n"
+        f"- TODOS deben referirse exactamente a este producto — no inventes características ni modelos distintos\n"
+        f"- Usá keywords longtail al comienzo para SEO\n\n"
+        f"Devolvé EXCLUSIVAMENTE un JSON array con {n} strings, sin texto extra:\n"
+        f'["título 1","título 2",...]'
     )
     try:
-        txt = await ai_complete(db, prompt, max_tokens=min(600 * n + 400, 6000), temperature=0.9)
+        txt = await ai_complete(db, prompt, max_tokens=n * 80 + 100, temperature=0.65)
     except Exception as e:
         raise HTTPException(400, f"IA no disponible: {e}")
 
-    m = re.search(r"\[.*\]", txt, re.S)
+    m = re.search(r"\[.*?\]", txt, re.S)
     try:
-        variantes = _json.loads(m.group(0) if m else txt)
+        titulos = _json.loads(m.group(0) if m else txt)
+        if not isinstance(titulos, list):
+            raise ValueError()
     except Exception:
         raise HTTPException(400, "La IA no devolvió un formato válido, probá de nuevo.")
 
     creados = 0
-    for v in variantes[:n]:
-        tit = (v.get("titulo") or "").strip()[:60]
+    for tit in titulos[:n]:
+        tit = str(tit).strip()[:60]
         if not tit:
             continue
         b = BorradorML(
-            origen=base.origen, titulo=tit, descripcion=(v.get("descripcion") or "").strip(),
-            categoria=base.categoria, producto=base.producto, precio=base.precio,
-            cantidad=base.cantidad, condicion=base.condicion, listing_type=base.listing_type,
-            fotos_json=base.fotos_json, atributos_json=base.atributos_json,
-            precio_referencia=base.precio_referencia, precio_competencia=base.precio_competencia,
-            variante_de=base.id, created_by_id=current_user.id if current_user else None,
+            origen=base.origen,
+            titulo=tit,
+            descripcion=base.descripcion,           # igual al original — listo para publicar
+            categoria=base.categoria,
+            categoria_nombre=base.categoria_nombre,
+            seller_sku=base.seller_sku,
+            producto=base.producto,
+            precio=base.precio,
+            costo=base.costo,
+            cantidad=base.cantidad,
+            condicion=base.condicion,
+            listing_type=base.listing_type,
+            cuotas_sin_interes=base.cuotas_sin_interes,
+            fotos_json=base.fotos_json,
+            atributos_json=base.atributos_json,
+            precio_referencia=base.precio_referencia,
+            precio_competencia=base.precio_competencia,
+            tipo_precio=base.tipo_precio,
+            modelo_nombre=base.modelo_nombre,
+            variante_de=base.id,
+            created_by_id=current_user.id if current_user else None,
         )
         db.add(b)
         creados += 1

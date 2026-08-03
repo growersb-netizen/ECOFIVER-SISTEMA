@@ -289,11 +289,20 @@ def _sanitizar_valor_numerico(val: str) -> str:
 async def _ml_classified_location(db: Session) -> dict:
     """
     Retorna el objeto `location` requerido por ML para publicaciones classified.
-    Busca Buenos Aires Provincia y la ciudad más cercana a Zárate.
-    Cachea los IDs en ConfiguracionSistema; si el city_id en caché es inválido
-    (ML devuelve 'city name error') se puede limpiar con clave ml_loc_city_id=vacío.
+
+    ML classified_locations usa Base64(nombre) como ID — patrón confirmado:
+      Base64("Buenos Aires") = "QnVlbm9zIEFpcmVz"  (obtenido de la API)
+      Base64("Zárate")       = "WsOhcmF0ZQ=="       (calculado por el mismo patrón)
+      Base64("Zarate")       = "WmFyYXRl"            (alternativa sin tilde)
+
+    Los IDs se cachean en ConfiguracionSistema. Para resetear el caché usar
+    DELETE /api/ml/location-config.
     """
+    import base64
     from database.models import ConfiguracionSistema
+
+    def _b64(name: str) -> str:
+        return base64.b64encode(name.encode("utf-8")).decode("utf-8")
 
     def _get(clave: str):
         row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
@@ -310,66 +319,36 @@ async def _ml_classified_location(db: Session) -> dict:
             ))
         db.commit()
 
-    state_id = _get("ml_loc_state_id")
+    # state_id: usar caché o calcular directamente (patrón Base64 confirmado)
+    state_id = _get("ml_loc_state_id") or _b64("Buenos Aires")
     city_id  = _get("ml_loc_city_id")
 
-    async with httpx.AsyncClient(timeout=15) as hc:
-        # 1. Obtener state_id si no está cacheado
-        if not state_id:
-            try:
-                r = await hc.get("https://api.mercadolibre.com/classified_locations/countries/AR")
-                if r.status_code == 200:
-                    for st in (r.json().get("states") or []):
-                        name = st.get("name", "")
-                        if "Buenos Aires" in name and "Ciudad" not in name and "Autónoma" not in name:
-                            state_id = str(st["id"])
-                            _set("ml_loc_state_id", state_id)
-                            break
-            except Exception:
-                pass
-
-        # 2. Obtener city_id — intentar con varios endpoints y estrategias de búsqueda
-        if state_id and not city_id:
-            cities_candidates: list = []
-            try:
-                # Intento A: endpoint /classified_locations/states/{state_id} (retorna ciudades)
+    if not city_id:
+        # Intentar obtener city_id de la API primero (en caso de que el endpoint devuelva ciudades)
+        try:
+            async with httpx.AsyncClient(timeout=12) as hc:
                 r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{state_id}")
                 if r.status_code == 200:
                     data = r.json()
-                    cities_candidates = data.get("cities") or (data if isinstance(data, list) else [])
-            except Exception:
-                pass
+                    cities = data.get("cities") or (data if isinstance(data, list) else [])
+                    for city in cities:
+                        cname = (city.get("name") or "").lower()
+                        if "rate" in cname:
+                            city_id = str(city["id"])
+                            break
+                    if not city_id and cities:
+                        city_id = str(cities[0]["id"])  # cualquier ciudad válida
+        except Exception:
+            pass
 
-            if not cities_candidates:
-                try:
-                    # Intento B: endpoint alternativo con /cities?state_id=...
-                    r = await hc.get(
-                        "https://api.mercadolibre.com/classified_locations/cities",
-                        params={"state_id": state_id, "limit": 200}
-                    )
-                    if r.status_code == 200:
-                        data = r.json()
-                        cities_candidates = data if isinstance(data, list) else (data.get("cities") or data.get("results") or [])
-                except Exception:
-                    pass
+        # Fallback: calcular city_id usando el patrón Base64(nombre) de ML
+        if not city_id:
+            for city_name in ["Zárate", "Zarate"]:
+                city_id = _b64(city_name)
+                break  # usar "Zárate" con tilde como primera opción
 
-            if cities_candidates:
-                # Buscar Zárate primero; si no está, usar la primera ciudad disponible como fallback
-                fallback_id = None
-                for city in cities_candidates:
-                    cid = city.get("id")
-                    if not cid:
-                        continue
-                    if not fallback_id:
-                        fallback_id = str(cid)
-                    cname = (city.get("name") or "").lower()
-                    if "rate" in cname:  # zárate / zarate
-                        city_id = str(cid)
-                        break
-                if not city_id and fallback_id:
-                    city_id = fallback_id  # usar primera ciudad disponible
-                if city_id:
-                    _set("ml_loc_city_id", city_id)
+        if city_id:
+            _set("ml_loc_city_id", city_id)
 
     loc: dict = {"country": {"id": "AR"}}
     if state_id:

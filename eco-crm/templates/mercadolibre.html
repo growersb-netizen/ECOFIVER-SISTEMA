@@ -30,7 +30,6 @@
   <button class="tab active" onclick="showTab('publicaciones', this)">📋 Publicaciones</button>
   <button class="tab" onclick="showTab('borradores', this)">🗂️ Borradores y costos ML</button>
   <button class="tab" onclick="showTab('preguntas', this)">❓ Preguntas <span id="badge-preguntas" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
-  <button class="tab" onclick="showTab('crear', this)">➕ Crear Publicación</button>
   <button class="tab" onclick="showTab('config-ml', this)">⚙️ Configuración</button>
 </div>
 
@@ -115,7 +114,7 @@
       <div id="mp-ganancia" style="font-size:13px;margin:2px 0 8px;color:var(--text-secondary)"></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Producto</label>
-          <select class="input" id="mp-producto">
+          <select class="input" id="mp-producto" onchange="borActualizarMedidasPiscina()">
             <option value="MODULO">Vivienda modular (financiado)</option>
             <option value="MODULO_DEPOSITO">Módulo de depósito (contado)</option>
             <option value="PISCINA">Piscina</option>
@@ -133,6 +132,20 @@
           <label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(opcional)</small></label>
           <input class="input" id="mp-cat" placeholder="se infiere del producto" onchange="borActualizarPrecioSugerido();document.getElementById('mp-cat-nombre').textContent=''">
           <div id="mp-cat-nombre" style="font-size:12px;color:#22c55e;margin-top:3px"></div>
+        </div>
+      </div>
+      <!-- Medidas piscina — visible solo cuando Producto = PISCINA o COMBO -->
+      <div id="mp-medidas-piscina-group" style="display:none;margin-bottom:10px">
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px">
+          <label class="form-label" style="margin:0 0 4px">📐 Medidas de la piscina <small style="color:var(--text-secondary)">(ML pide los litros como atributo obligatorio)</small></label>
+          <div id="mp-medidas-hint" style="font-size:12px;color:var(--text-secondary);margin-bottom:6px"></div>
+          <div id="mp-medidas-editor" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div><label class="form-label" style="font-size:11px">Largo (m)</label><input type="number" step="0.01" class="input" id="mp-med-largo" style="width:80px"></div>
+            <div><label class="form-label" style="font-size:11px">Ancho (m)</label><input type="number" step="0.01" class="input" id="mp-med-ancho" style="width:80px"></div>
+            <div><label class="form-label" style="font-size:11px">Prof. mín (m)</label><input type="number" step="0.01" class="input" id="mp-med-prof-min" style="width:80px"></div>
+            <div><label class="form-label" style="font-size:11px">Prof. máx (m)</label><input type="number" step="0.01" class="input" id="mp-med-prof-max" style="width:80px"></div>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="borGuardarMedidasPiscina()">💾 Guardar medidas</button>
+          </div>
         </div>
       </div>
       <div class="form-row">
@@ -424,7 +437,7 @@
 
 {% block extra_js %}
 <script>
-const TABS_ML = ['dashboard','publicaciones','borradores','preguntas','crear','config-ml'];
+const TABS_ML = ['dashboard','publicaciones','borradores','preguntas','config-ml'];
 let currentItemId = null;
 
 // toast() está definido en main.js; este alias cubre las llamadas a showToast()
@@ -1237,7 +1250,7 @@ function renderPregunta(q) {
           placeholder="Escribí la respuesta... o usá ✨ IA para sugerir una automáticamente"
           style="font-size:13px;width:100%;margin-bottom:8px"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" onclick="sugerirRespuesta(${q.id}, ${JSON.stringify(escHtml(q.item_titulo||q.item_id))})">
+          <button class="btn btn-secondary btn-sm" onclick="sugerirRespuesta(${q.id}, ${JSON.stringify(q.texto||'')}, ${JSON.stringify(q.item_titulo||q.item_id||'')})">
             ✨ Sugerir con IA
           </button>
           <button class="btn btn-primary btn-sm" onclick="enviarRespuesta(${q.id})">
@@ -1249,10 +1262,10 @@ function renderPregunta(q) {
   </div>`;
 }
 
-async function sugerirRespuesta(qId, itemTitulo) {
+async function sugerirRespuesta(qId, preguntaTexto, itemTitulo) {
   const textarea = document.getElementById('resp-' + qId);
-  const pregunta = _preguntasData.find(p => p.id === qId);
-  if (!pregunta) return;
+  if (!textarea) return;
+  if (!preguntaTexto) { showToast('No se encontró el texto de la pregunta', 'error'); return; }
 
   const oldVal = textarea.value;
   textarea.value = '⏳ Generando respuesta con IA...';
@@ -1261,8 +1274,8 @@ async function sugerirRespuesta(qId, itemTitulo) {
   try {
     const res = await API.post(`/api/ml/preguntas/${qId}/responder`, {
       sugerir_solo: true,
-      pregunta_texto: pregunta.texto,
-      item_titulo: pregunta.item_titulo || itemTitulo,
+      pregunta_texto: preguntaTexto,
+      item_titulo: itemTitulo || '',
     });
     textarea.value = res.respuesta_sugerida || res.texto || oldVal;
   } catch(e) {
@@ -1392,12 +1405,15 @@ function borNuevaPub() {
   document.getElementById('mp-ganancia').textContent = '';
   document.getElementById('mp-cuotas').value = '0';
   document.getElementById('mp-cuota-val').textContent = '';
+  document.getElementById('mp-producto').value = 'MODULO';
   document.getElementById('mp-atributos').textContent = 'Tocá "Cargar requeridos" para ver qué pide la categoría.';
   document.getElementById('mp-ia-msg').textContent = '';
   document.getElementById('mp-catalogo-sel').value = '';
   document.getElementById('mp-precio-ref-box').style.display = 'none';
   document.getElementById('mp-pc-warn').style.display = 'none';
+  document.getElementById('mp-medidas-piscina-group').style.display = 'none';
   _borPrecioContadoRef = null;
+  _borLitrosActual = '';
   borCargarCatalogoSelect();
   document.getElementById('mp-foto-msg').textContent = '';
   document.getElementById('mp-checklist-calidad').innerHTML = '';
@@ -1429,6 +1445,7 @@ function borEditar(b) {
   borCargarCatalogoSelect();
   openModal('modal-bor');
   setTimeout(borCalcGanancia, 50);
+  setTimeout(borActualizarMedidasPiscina, 50);
   checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
 }
 async function borGuardar() {
@@ -1759,6 +1776,7 @@ async function borOnCatalogoSel() {
   document.getElementById('mp-pc-contado').textContent = borFmt(_borPrecioContadoRef);
   borActualizarPrecioSugerido();
   borChequearPrecioBajoContado();
+  borActualizarMedidasPiscina();
 }
 async function borActualizarPrecioSugerido() {
   if (!_borPrecioContadoRef) return;
@@ -1783,6 +1801,65 @@ function borChequearPrecioBajoContado() {
   if (!warn) return;
   const precio = parseFloat(document.getElementById('mp-precio').value) || 0;
   warn.style.display = (_borPrecioContadoRef && precio > 0 && precio < _borPrecioContadoRef) ? '' : 'none';
+}
+
+function borActualizarMedidasPiscina() {
+  const tipo = document.getElementById('mp-producto').value;
+  const group = document.getElementById('mp-medidas-piscina-group');
+  if (tipo !== 'PISCINA' && tipo !== 'COMBO') { group.style.display = 'none'; return; }
+  group.style.display = '';
+
+  const sel = document.getElementById('mp-catalogo-sel');
+  const item = BOR_CATALOGO_ITEMS[sel.value];
+  const modeloNombre = item ? item.nombre : '';
+  const hint = document.getElementById('mp-medidas-hint');
+  const editor = document.getElementById('mp-medidas-editor');
+
+  if (!modeloNombre) {
+    hint.textContent = 'Elegí el modelo del catálogo para cargar o editar sus medidas.';
+    hint.style.color = 'var(--text-secondary)';
+    editor.style.display = 'none';
+    return;
+  }
+
+  const m = (CATALOGO.piscinas?.medidas || {})[modeloNombre];
+  if (m && m.litros) {
+    hint.innerHTML = `📐 ${m.largo_m}m × ${m.ancho_m}m · Prof. ${m.profundidad_min_m}–${m.profundidad_max_m}m · <b>≈ ${m.litros.toLocaleString('es-AR')} litros</b> <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('mp-medidas-editor').style.display='flex'">✏️ Editar</button>`;
+    hint.style.color = 'var(--text-secondary)';
+    editor.style.display = 'none';
+    _borLitrosActual = String(m.litros);
+    document.getElementById('mp-med-largo').value = m.largo_m || '';
+    document.getElementById('mp-med-ancho').value = m.ancho_m || '';
+    document.getElementById('mp-med-prof-min').value = m.profundidad_min_m || '';
+    document.getElementById('mp-med-prof-max').value = m.profundidad_max_m || '';
+  } else {
+    hint.innerHTML = '⚠ Sin medidas para este modelo — ML las exige como atributo en piscinas. Cargalas una vez y quedan guardadas para siempre.';
+    hint.style.color = 'var(--warning,#f59e0b)';
+    editor.style.display = 'flex';
+    _borLitrosActual = '';
+  }
+}
+
+async function borGuardarMedidasPiscina() {
+  const sel = document.getElementById('mp-catalogo-sel');
+  const item = BOR_CATALOGO_ITEMS[sel.value];
+  if (!item) { showToast('Elegí el modelo del catálogo primero', 'warning'); return; }
+  const largo = parseFloat(document.getElementById('mp-med-largo').value) || 0;
+  const ancho = parseFloat(document.getElementById('mp-med-ancho').value) || 0;
+  const pmin  = parseFloat(document.getElementById('mp-med-prof-min').value) || 0;
+  const pmax  = parseFloat(document.getElementById('mp-med-prof-max').value) || 0;
+  if (!largo || !ancho) { showToast('Completá largo y ancho mínimo', 'warning'); return; }
+  try {
+    const res = await API.put('/api/catalogo/piscinas/medidas', {
+      modelo: item.nombre, largo_m: largo, ancho_m: ancho,
+      profundidad_min_m: pmin, profundidad_max_m: pmax,
+    });
+    CATALOGO.piscinas = CATALOGO.piscinas || {};
+    CATALOGO.piscinas.medidas = CATALOGO.piscinas.medidas || {};
+    CATALOGO.piscinas.medidas[item.nombre] = res.medidas;
+    showToast('✓ Medidas guardadas', 'success');
+    borActualizarMedidasPiscina();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 /* ─── INIT ───────────────────────────────────────────────────────────── */

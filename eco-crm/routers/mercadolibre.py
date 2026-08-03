@@ -1116,44 +1116,50 @@ async def responder_pregunta(
 ):
     """
     Responde una pregunta de ML.
-    - sugerir_solo=true → genera texto con IA y lo devuelve sin publicar
+    - sugerir_solo=true → genera texto con IA y lo devuelve sin publicar (no necesita token ML)
     - respuesta_manual  → publica ese texto directamente sin llamar IA
     - (vacío)           → genera con IA y publica
     """
-    token = await _get_token(db)
     data  = await request.json()
 
-    sugerir_solo   = data.get("sugerir_solo", False)
-    pregunta_texto = data.get("pregunta_texto", data.get("texto_pregunta", ""))
-    item_titulo    = data.get("item_titulo", "")
+    sugerir_solo     = data.get("sugerir_solo", False)
+    pregunta_texto   = data.get("pregunta_texto", data.get("texto_pregunta", "")).strip()
+    item_titulo      = data.get("item_titulo", "").strip()
     respuesta_manual = data.get("respuesta_manual", data.get("respuesta", ""))
 
-    # ── Necesitamos texto de respuesta ──────────────────────────────────────
+    # ── Generar respuesta con IA si no se proveyó una manual ────────────────
     if not respuesta_manual:
+        if not pregunta_texto:
+            raise HTTPException(400, "No se recibió el texto de la pregunta del comprador.")
 
         prompt = (
-            f"Sos asesor de ventas de EcoFiver Argentina.\n"
-            f"Escribís siempre en castellano de Argentina — no en español neutro. "
-            f"Usás 'vos', 'acá', 'podés', 'tenés'. Tu tono es cálido, cercano y profesional: "
-            f"como alguien que conoce el producto y le habla de igual a igual al comprador, sin ser informal.\n"
-            f"Producto: {item_titulo}\n"
+            f"Sos asesor comercial de Eco Módulos y Piscinas, empresa argentina con fabricación "
+            f"propia en Zárate, Buenos Aires. Respondés preguntas de compradores en MercadoLibre.\n\n"
+            f"Producto consultado: {item_titulo or 'módulo habitable / piscina'}\n"
             f"Pregunta del comprador: {pregunta_texto}\n\n"
-            f"Respondé de forma CORTA (máximo 3 oraciones), con el tono indicado.\n"
-            f"Incluí siempre: instalación incluida, fabricamos en Zárate, ofrecemos financiación propia.\n"
-            f"Si preguntan por precio: 'Consultá por WhatsApp para una cotización personalizada según tu localidad.'\n"
-            f"NO uses markdown. Solo texto plano."
+            f"INSTRUCCIONES:\n"
+            f"- Respondé DIRECTAMENTE la pregunta en 2 a 3 oraciones, no más.\n"
+            f"- Usá castellano argentino: vos, podés, tenés, acá.\n"
+            f"- Mencioná instalación incluida, fabricación en Zárate y financiación propia SOLO si "
+            f"es relevante para la pregunta.\n"
+            f"- Si preguntan por precio, decí que varía según medidas y localidad; invitalos a "
+            f"avanzar con la compra para coordinar los detalles.\n"
+            f"- NO incluyas teléfonos, WhatsApp, correos ni ningún dato de contacto.\n"
+            f"- NO inventes medidas, pesos ni especificaciones técnicas que no conozcas.\n"
+            f"- Solo texto plano, sin markdown, sin asteriscos, sin guiones."
         )
         try:
-            respuesta_manual = await ai_complete(db, prompt, max_tokens=400, temperature=0.7)
+            respuesta_manual = await ai_complete(db, prompt, max_tokens=400, temperature=0.6)
             respuesta_manual = " ".join(respuesta_manual.split())
         except Exception as e:
-            raise HTTPException(502, f"Error generando respuesta con IA: {e}. Configurar Grok, Gemini o Claude en Configuración → API Keys.")
+            raise HTTPException(502, f"Error generando respuesta con IA: {e}. Configurá un proveedor en Configuración → API Keys.")
 
     # ── Solo sugerir: devolver sin publicar ─────────────────────────────────
     if sugerir_solo:
         return {"ok": True, "respuesta_sugerida": respuesta_manual}
 
-    # ── Publicar en ML ──────────────────────────────────────────────────────
+    # ── Publicar en ML (solo aquí necesitamos el token) ─────────────────────
+    token = await _get_token(db)
     body = {"question_id": qid, "text": respuesta_manual[:2000]}
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.post(f"{ML_BASE}/answers", headers=_ml_headers(token), json=body)

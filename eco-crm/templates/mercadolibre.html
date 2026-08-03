@@ -99,7 +99,7 @@
       <div style="font-size:11px;color:var(--text-secondary);text-align:right"><span id="mp-tlen">0</span>/60</div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Precio (ARS) *</label><input class="input" type="number" id="mp-precio" oninput="borCalcGanancia();borChequearPrecioBajoContado()"></div>
-        <div class="form-group"><label class="form-label">Costo del producto</label><input class="input" type="number" id="mp-costo" placeholder="para calcular ganancia" oninput="borCalcGanancia()"></div>
+        <div class="form-group"><label class="form-label">Costo del producto</label><input class="input" type="number" id="mp-costo" placeholder="para calcular ganancia" oninput="borCalcGanancia();borActualizarPrecioSugerido()"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Precio referencia (competencia)</label><input class="input" type="number" id="mp-ref" placeholder="el más barato que viste"></div>
@@ -2079,7 +2079,12 @@ async function borOnCatalogoSel() {
   const item = BOR_CATALOGO_ITEMS[sel.value];
   const box = document.getElementById('mp-precio-ref-box');
   _borLitrosActual = '';
-  if (!item) { box.style.display = 'none'; _borPrecioContadoRef = null; return; }
+  if (!item) {
+    _borPrecioContadoRef = null;
+    const costoManual = parseFloat(document.getElementById('mp-costo').value) || 0;
+    if (costoManual) { borActualizarPrecioSugerido(); } else { box.style.display = 'none'; }
+    return;
+  }
   document.getElementById('mp-producto').value = item.tipo;
   // Auto-llenar título si está vacío
   if (!document.getElementById('mp-titulo').value.trim()) {
@@ -2117,12 +2122,20 @@ async function borOnCatalogoSel() {
   borActualizarMedidasPiscina();
 }
 async function borActualizarPrecioSugerido() {
-  if (!_borPrecioContadoRef) return;
+  const costoManual = parseFloat(document.getElementById('mp-costo').value) || 0;
+  const costoRef = _borPrecioContadoRef || costoManual;
+  if (!costoRef) return;
+  // Si no hay catálogo pero sí hay costo manual, mostrar la caja con el costo como base
+  const box = document.getElementById('mp-precio-ref-box');
+  if (!_borPrecioContadoRef && costoManual) {
+    box.style.display = '';
+    document.getElementById('mp-pc-contado').textContent = borFmt(costoManual) + ' (tu costo)';
+  }
   const lt = document.getElementById('mp-listing').value;
   const cuotas = lt === 'gold_pro' ? (parseInt(document.getElementById('mp-cuotas').value) || 0) : 0;
   const cat = document.getElementById('mp-cat').value.trim();
   try {
-    let u = '/api/negocio/precio-sugerido-ml?precio_contado=' + _borPrecioContadoRef + '&cuotas=' + cuotas + '&clasificada=true&listing_type=' + lt;
+    let u = '/api/negocio/precio-sugerido-ml?precio_contado=' + costoRef + '&cuotas=' + cuotas + '&clasificada=true&listing_type=' + lt;
     if (cat) u += '&categoria=' + encodeURIComponent(cat);
     const d = await API.get(u);
     const fuenteTxt = d.fuente === 'real_ml' ? ' — tasa real de ML' : ' — estimado';
@@ -2138,7 +2151,9 @@ function borChequearPrecioBajoContado() {
   const warn = document.getElementById('mp-pc-warn');
   if (!warn) return;
   const precio = parseFloat(document.getElementById('mp-precio').value) || 0;
-  warn.style.display = (_borPrecioContadoRef && precio > 0 && precio < _borPrecioContadoRef) ? '' : 'none';
+  const costoManual = parseFloat(document.getElementById('mp-costo').value) || 0;
+  const ref = _borPrecioContadoRef || costoManual;
+  warn.style.display = (ref && precio > 0 && precio < ref) ? '' : 'none';
 }
 
 // Categorías fijas por tipo de producto — espejo del dict CATEGORIAS_FIJAS en ml_publicaciones.py

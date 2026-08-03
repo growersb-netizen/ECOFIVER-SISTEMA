@@ -568,6 +568,11 @@ async def api_publicar_facebook(
     if not page_token or not page_id:
         raise HTTPException(400, "Configurar Meta Page Access Token y Page ID en Configuración → Meta")
 
+    # Prefer per-page Page Access Token (pages_manage_posts) over global user token
+    page_obj = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if page_obj and page_obj.page_token:
+        page_token = page_obj.page_token
+
     message = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
 
     try:
@@ -825,25 +830,27 @@ async def api_publicar_redes(
 
             page_obj = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first()
             ig_uid = page_obj.ig_user_id if page_obj else None
+            # Prefer per-page Page Access Token (pages_manage_posts) over global user token
+            page_token_to_use = (page_obj.page_token if page_obj and page_obj.page_token else None) or token
 
             if do_fb:
                 try:
                     if c.imagen_url:
                         r = await hc.post(
                             f"{META_GRAPH_URL}/{pid}/photos",
-                            data={"url": c.imagen_url, "caption": message, "access_token": token},
+                            data={"url": c.imagen_url, "caption": message, "access_token": page_token_to_use},
                         )
                     elif c.imagen_base64:
                         img_bytes2 = base64.b64decode(c.imagen_base64)
                         r = await hc.post(
                             f"{META_GRAPH_URL}/{pid}/photos",
-                            data={"caption": message, "access_token": token},
+                            data={"caption": message, "access_token": page_token_to_use},
                             files={"source": ("imagen.png", img_bytes2, "image/png")},
                         )
                     else:
                         r = await hc.post(
                             f"{META_GRAPH_URL}/{pid}/feed",
-                            data={"message": message, "access_token": token},
+                            data={"message": message, "access_token": page_token_to_use},
                         )
                     if r.status_code == 200:
                         post_id = r.json().get("id") or r.json().get("post_id")
@@ -863,7 +870,7 @@ async def api_publicar_redes(
                     try:
                         r1 = await hc.post(
                             f"{META_GRAPH_URL}/{ig_uid}/media",
-                            data={"image_url": img_url, "caption": message, "access_token": token},
+                            data={"image_url": img_url, "caption": message, "access_token": page_token_to_use},
                         )
                         if r1.status_code != 200:
                             err_msg = r1.json().get("error", {}).get("message", r1.text[:150])
@@ -872,7 +879,7 @@ async def api_publicar_redes(
                             creation_id = r1.json().get("id")
                             r2 = await hc.post(
                                 f"{META_GRAPH_URL}/{ig_uid}/media_publish",
-                                data={"creation_id": creation_id, "access_token": token},
+                                data={"creation_id": creation_id, "access_token": page_token_to_use},
                             )
                             if r2.status_code == 200:
                                 resultados.append({"page_id": pid, "red": "instagram", "ok": True, "ig_media_id": r2.json().get("id")})

@@ -321,6 +321,48 @@ _CONFIG_DEFAULTS = {
     "empresa_dir_planta":        ("Zárate, Buenos Aires",        "empresa"),
     "empresa_dir_showroom":      ("Av. Paseo Colón 1013, CABA", "empresa"),
     "ml_renovacion_automatica":  ("false",                       "ml_config"),
+
+    # ── Plantilla de descripción ML ──────────────────────────────────────────
+    "ml_desc_encabezado": (
+        "EcoFiver — Fábrica de piscinas de fibra de vidrio y módulos habitacionales Wood Frame en Zárate, Buenos Aires.\n\n"
+        "Fabricamos, transportamos e instalamos en todo el territorio argentino. "
+        "El precio publicado incluye fabricación completa + flete hasta tu domicilio + instalación + puesta en marcha del sistema de filtrado. "
+        "No hay costos adicionales ni sorpresas al momento de la entrega.\n\n"
+        "Más de 15 años fabricando productos de primera calidad para familias argentinas.",
+        "ml_config"
+    ),
+    "ml_desc_pie": (
+        "Garantía en estructura: 5 años. "
+        "Financiación propia en cuotas (consultanos las condiciones vigentes). "
+        "Zona de instalación: Buenos Aires, GBA y provincias del interior (consultar cobertura y logística). "
+        "Respondemos todas las preguntas en menos de 24 hs hábiles. "
+        "EcoFiver — Zárate, Buenos Aires.",
+        "ml_config"
+    ),
+    "ml_desc_encabezado_referencia": (
+        "PRECIO DE REFERENCIA — SOLICITA TU COTIZACION PERSONALIZADA SIN COSTO\n\n"
+        "El precio publicado es orientativo y sirve para iniciar el contacto. "
+        "El valor final de tu piscina o módulo incluye fabricación, transporte e instalación y varía según el modelo elegido, "
+        "la zona de entrega y las opciones adicionales. "
+        "Para recibir tu cotización exacta y personalizada, envianos una pregunta o escribinos por WhatsApp — "
+        "respondemos en menos de 24 hs hábiles.\n\n"
+        "EcoFiver — Fábrica propia en Zárate, Buenos Aires. Instalamos en todo el país.",
+        "ml_config"
+    ),
+    "ml_desc_pie_referencia": (
+        "Como solicitar tu cotizacion: envianos una pregunta con el modelo que te interesa y tu zona de instalacion. "
+        "Te respondemos con el precio completo (fabricación + flete + instalación) en menos de 24 hs hábiles. "
+        "Sin compromiso. Sin costo. "
+        "EcoFiver — Zárate, Buenos Aires.",
+        "ml_config"
+    ),
+    "ml_desc_keywords": (
+        "Buscas pileta, piscina, natatorio o spa de fibra de vidrio? "
+        "Fabricamos piletas prefabricadas, piscinas de fibra de vidrio, natatorios familiares y piletas autoportantes. "
+        "También producimos módulos habitacionales Wood Frame, casas prefabricadas, ampliaciones y viviendas modulares llave en mano. "
+        "Instalamos en Buenos Aires, GBA, Rosario, Córdoba, Santa Fe, Mendoza y todo el interior del país.",
+        "ml_config"
+    ),
     # Distribución de leads
     "leads_modo_distribucion":   ("ROUND_ROBIN",                 "leads"),
     "leads_rotacion_horas":      ("24",                          "leads"),
@@ -332,9 +374,12 @@ _CONFIG_DEFAULTS = {
 
 def seed_config_defaults():
     """
-    Inserta valores por defecto para claves de configuración que aún no existen.
-    Se ejecuta en cada inicio (idempotente: no sobreescribe valores existentes).
+    Inserta valores por defecto para claves de configuración que aún no existen
+    o cuyo valor está vacío. Se ejecuta en cada inicio (idempotente).
+    Los valores ML de descripción se completan aunque la clave exista vacía.
     """
+    ML_KEYS = {"ml_desc_encabezado", "ml_desc_pie", "ml_desc_encabezado_referencia",
+               "ml_desc_pie_referencia", "ml_desc_keywords"}
     db = SessionLocal()
     try:
         for clave, (valor, categoria) in _CONFIG_DEFAULTS.items():
@@ -349,6 +394,10 @@ def seed_config_defaults():
                     categoria=categoria,
                     estado="activa",
                 ))
+            elif clave in ML_KEYS and not (existing.valor or "").strip():
+                # Completar campos ML vacíos sin sobreescribir valores personalizados
+                existing.valor = valor
+                existing.estado = "activa"
         db.commit()
     except Exception:
         db.rollback()

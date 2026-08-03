@@ -9,8 +9,8 @@ import random
 import logging
 from typing import Optional, List, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Header, Query
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -427,3 +427,157 @@ async def webhook_melanie(
         db.rollback()
         logger.error(f"[MELANIE] Error crítico: {exc}", exc_info=True)
         raise HTTPException(500, f"Error procesando solicitud: {str(exc)[:120]}")
+
+
+# ─── WEBHOOK META DIRECTO (WABA de Melanie) ──────────────────────────────────
+
+def _get_melanie_verify_token(db: Session) -> str:
+    try:
+        from routers.configuracion import get_config_value
+        t = get_config_value("melanie_wa_verify_token", db)
+        if t:
+            return t
+    except Exception:
+        pass
+    return os.getenv("MELANIE_WA_VERIFY_TOKEN", "melanie_verify_2026")
+
+
+@router.get("/webhook/melanie")
+async def melanie_meta_webhook_verify(
+    hub_mode: str = Query(None, alias="hub.mode"),
+    hub_verify_token: str = Query(None, alias="hub.verify_token"),
+    hub_challenge: str = Query(None, alias="hub.challenge"),
+    db: Session = Depends(get_db),
+):
+    """Verificación del webhook de Meta para la WABA de Melanie."""
+    expected = _get_melanie_verify_token(db)
+    if hub_mode == "subscribe" and hub_verify_token == expected:
+        logger.info("[WA/Melanie] Webhook verificado correctamente por Meta")
+        return PlainTextResponse(hub_challenge)
+    logger.warning("[WA/Melanie] Verificación fallida — token incorrecto")
+    raise HTTPException(403, "Token de verificación inválido")
+
+
+@router.post("/webhook/melanie")
+async def melanie_meta_webhook_receive(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Recibe eventos de WhatsApp de la WABA de Melanie directamente desde Meta.
+    Por cada mensaje nuevo registra (o reutiliza) un Lead + SolicitudMelanie
+    en el módulo de integraciones. Idempotente por teléfono.
+    Meta AI responde al usuario — este endpoint solo captura el contacto.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "ignored"}
+
+    if body.get("object") != "whatsapp_business_account":
+        return {"status": "ignored"}
+
+    try:
+        entry   = body["entry"][0]
+        change  = entry["changes"][0]["value"]
+        if "messages" not in change:
+            return {"status": "no_messages"}
+
+        message  = change["messages"][0]
+        phone    = message["from"]
+        msg_type = message.get("type", "")
+
+        if msg_type == "text":
+            texto = message["text"]["body"]
+        elif msg_type == "audio":
+            texto = "[Mensaje de voz]"
+        elif msg_type == "image":
+            caption = (message.get("image") or {}).get("caption", "")
+            texto = f"[Imagen] {caption}".strip() if caption else "[Imagen recibida]"
+        else:
+            texto = f"[Mensaje tipo {msg_type}]"
+
+    except (KeyError, IndexError):
+        return {"status": "ignored"}
+
+    logger.info(f"[WA/Melanie] Webhook — tel={phone} tipo={msg_type}")
+
+    try:
+        # Buscar lead por teléfono
+        lead = db.query(Lead).filter(Lead.telefono == phone).first()
+        lead_es_nuevo = lead is None
+
+        if lead_es_nuevo:
+            lead = Lead(
+                nombre="Contacto Melanie",
+                telefono=phone,
+                origen="WHATSAPP",
+                agente_asignado="melanie",
+                estado="NUEVO",
+                notas=f"Primer mensaje: {texto[:300]}",
+                modo_atencion="humano",
+            )
+            db.add(lead)
+            db.flush()
+
+        # Idempotencia — no crear nueva tarea si ya hay una PENDIENTE
+        tarea_existente = (
+            db.query(TareaLlamadaConfirmacion)
+            .filter(
+                TareaLlamadaConfirmacion.lead_id == lead.id,
+                TareaLlamadaConfirmacion.estado == "PENDIENTE",
+            )
+            .first()
+        )
+        if tarea_existente:
+            db.commit()
+            logger.info(f"[WA/Melanie] Idempotente — lead={lead.id} tarea={tarea_existente.id}")
+            return {"status": "ok"}
+
+        solicitud = SolicitudMelanie(
+            nombre="Contacto Melanie",
+            apellido="",
+            telefono=phone,
+            resumen_melanie=texto[:300],
+            agente_origen="melanie",
+            lead_id=lead.id,
+            estado_procesamiento="procesado",
+        )
+        db.add(solicitud)
+        db.flush()
+
+        codigo = _generar_codigo(db)
+        tarea = TareaLlamadaConfirmacion(
+            lead_id=lead.id,
+            solicitud_id=solicitud.id,
+            codigo_validacion=codigo,
+            estado="PENDIENTE",
+            prioridad="NORMAL",
+        )
+        db.add(tarea)
+        db.commit()
+
+        logger.info(
+            f"[WA/Melanie] ✅ lead={lead.id} ({'nuevo' if lead_es_nuevo else 'existente'}) "
+            f"solicitud={solicitud.id} código={codigo}"
+        )
+
+        try:
+            from routers.notificaciones import notificar_todos
+            notificar_todos(
+                db=db,
+                titulo="📞 Nuevo contacto vía Melanie",
+                mensaje=f"Tel: {phone} · Código: {codigo}",
+                tipo="LEAD",
+                referencia_id=lead.id,
+                referencia_tipo="lead",
+                url=f"/integraciones?solicitud={solicitud.id}",
+            )
+        except Exception as exc:
+            logger.warning(f"[WA/Melanie] Notificación falló (no crítico): {exc}")
+
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"[WA/Melanie] Error en webhook: {exc}", exc_info=True)
+
+    return {"status": "ok"}

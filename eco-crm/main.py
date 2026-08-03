@@ -288,6 +288,7 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/api/health",              # Railway / Docker healthcheck
         "/mercadolibre/notifications",  # webhook de MercadoLibre (sin sesión) — si falla, ML revoca la app
         "/api/integraciones/melanie/confirmacion",  # Melanie envía Bearer propio, sin cookie de sesión
+        "/webhook/melanie",  # Webhook de Meta para la WABA de Melanie (verificación + mensajes)
     ]
     path = request.url.path
 

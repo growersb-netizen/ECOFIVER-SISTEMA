@@ -1118,6 +1118,22 @@ async def put_config_descripcion(
     return {"ok": True}
 
 
+@router.get("/api/ml/fichas")
+async def listar_fichas_ml(
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Lista todos los modelos disponibles con ficha pre-escrita."""
+    try:
+        from utils.ml_fichas_content import FICHAS_PISCINAS, FICHAS_MODULOS
+    except ImportError:
+        return {"piscinas": [], "modulos": []}
+
+    return {
+        "piscinas": list(FICHAS_PISCINAS.keys()),
+        "modulos": [f"{k}m2" for k in FICHAS_MODULOS.keys()],
+    }
+
+
 @router.get("/api/ml/ficha/{modelo:path}")
 async def get_ficha_ml(
     modelo: str,
@@ -1151,22 +1167,6 @@ async def get_ficha_ml(
         "modelo": modelo,
         "titulo_ml": ficha.get("titulo_ml", ""),
         "descripcion_ml": ficha.get("descripcion_ml", ""),
-    }
-
-
-@router.get("/api/ml/fichas")
-async def listar_fichas_ml(
-    current_user: Optional[Usuario] = Depends(get_current_user),
-):
-    """Lista todos los modelos disponibles con ficha pre-escrita."""
-    try:
-        from utils.ml_fichas_content import FICHAS_PISCINAS, FICHAS_MODULOS
-    except ImportError:
-        return {"piscinas": [], "modulos": []}
-
-    return {
-        "piscinas": list(FICHAS_PISCINAS.keys()),
-        "modulos": [f"{k}m2" for k in FICHAS_MODULOS.keys()],
     }
 
 

@@ -63,6 +63,7 @@
     <button class="btn btn-secondary btn-sm" onclick="borImportarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
+    <button class="btn btn-sm" id="bor-btn-reintentar-errores" onclick="borReintentarErrores()" style="display:none;color:#fbbf24" title="Selecciona y reintenta publicar todos los borradores con error">🔧 Reintentar errores (<span id="bor-n-errores">0</span>)</button>
     <select class="input" id="bor-f-estado" onchange="borCargar()" style="max-width:140px">
       <option value="">Todos</option>
       <option value="borrador">Borradores</option>
@@ -1536,13 +1537,20 @@ async function borCargar() {
     cont.innerHTML = '<div class="empty" style="text-align:center;color:var(--text-secondary);padding:30px">Todavía no cargaste publicaciones acá. Tocá <b>+ Nueva publicación</b>.</div>';
     return;
   }
+  const nErrores = (d.borradores || []).filter(b => b.estado === 'error').length;
+  const btnErr = document.getElementById('bor-btn-reintentar-errores');
+  if (btnErr) { btnErr.style.display = nErrores ? 'inline-flex' : 'none'; document.getElementById('bor-n-errores').textContent = nErrores; }
   cont.innerHTML = d.borradores.map(b => {
     const s = BOR_SEM[b.semaforo] || ['sem-none', '⚪ sin referencia'];
     const foto = (b.fotos && b.fotos[0]) ? `<img src="${b.fotos[0]}" class="pm-thumb" onerror="this.style.visibility='hidden'">` : `<div class="pm-thumb"></div>`;
     const refTxt = b.referencia_usada ? `ref: ${borFmt(b.referencia_usada)}${b.precio_competencia ? ' (auto)' : ' (manual)'}` : 'sin referencia';
     const chk = b.estado !== 'publicada' ? `<input type="checkbox" onchange="borSel(${b.id},this.checked)" ${BOR_SEL.has(b.id) ? 'checked' : ''}>` : '';
     const verML = b.permalink ? `<a href="${b.permalink}" target="_blank" class="btn btn-sm">Ver en ML ↗</a>` : '';
-    const errTxt = b.estado === 'error' ? `<div class="pm-meta" style="color:#f87171">⚠ ${(b.error_msg || '').substring(0, 120)}</div>` : '';
+    const esError = b.estado === 'error';
+    const errTxt = esError ? `<div class="pm-meta" style="color:#f87171;margin-top:4px">⚠ ${escHtml((b.error_msg || 'Error desconocido').substring(0, 200))}</div>` : '';
+    const btnPublicar = b.estado === 'publicada' ? '' : esError
+      ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="borPublicar(${b.id})">🔧 Reintentar</button>`
+      : `<button class="btn btn-sm btn-primary" onclick="borPublicar(${b.id})">Publicar</button>`;
     return `<div class="pm-card">
       <div style="padding-top:22px">${chk}</div>
       ${foto}
@@ -1553,7 +1561,7 @@ async function borCargar() {
         ${errTxt}
       </div>
       <div class="pm-actions">
-        ${b.estado !== 'publicada' ? `<button class="btn btn-sm btn-primary" onclick="borPublicar(${b.id})">Publicar</button>` : ''}
+        ${btnPublicar}
         ${b.estado !== 'publicada' ? `<button class="btn btn-sm btn-secondary" onclick='borEditar(${JSON.stringify(b)})'>Editar</button>` : ''}
         <button class="btn btn-sm" onclick="borVerCostos(${b.id},${b.precio || 0},'${b.listing_type}','${b.categoria || ''}',${b.costo || 0})" title="Comisión ML y ganancia">💰 Costos</button>
         <button class="btn btn-sm" onclick="borCompetencia(${b.id})" title="Buscar precio competencia (auto)">🔍 Competencia</button>
@@ -1579,6 +1587,20 @@ function borActLote() {
   document.getElementById('bor-sel-n2').textContent = BOR_SEL.size;
   document.getElementById('bor-btn-lote').style.display = BOR_SEL.size ? 'inline-flex' : 'none';
   document.getElementById('bor-btn-borrar-lote').style.display = BOR_SEL.size ? 'inline-flex' : 'none';
+}
+async function borReintentarErrores() {
+  // Seleccionar todos los que tienen error y disparar publicar lote
+  const errIds = Object.values(BOR_DATA_CACHE).filter(b => b.estado === 'error').map(b => b.id);
+  if (!errIds.length) { showToast('No hay publicaciones con error', 'info'); return; }
+  BOR_SEL.clear();
+  errIds.forEach(id => BOR_SEL.add(id));
+  // Marcar los checkboxes visibles
+  document.querySelectorAll('#bor-lista input[type=checkbox]').forEach(x => {
+    const m = x.getAttribute('onchange').match(/borSel\((\d+)/);
+    if (m && BOR_SEL.has(parseInt(m[1]))) x.checked = true;
+  });
+  borActLote();
+  borPublicarLote();
 }
 async function borBorrarLote() {
   if (!BOR_SEL.size) return;

@@ -337,29 +337,19 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         if attr_id not in existing_ids:
             clean_attrs.append({"id": attr_id, "value_name": attr_val})
 
-    es_clasificada = categoria in CATEGORIAS_CLASIFICADAS
-    if es_clasificada:
-        payload = {
-            "title": (b.titulo or "")[:60],
-            "category_id": categoria,
-            "price": b.precio or 0,
-            "currency_id": "ARS",
-            "buying_mode": "classified",
-            "listing_type_id": "gold_special",   # classified solo acepta gold_special
-            "pictures": [{"source": u} for u in fotos if u],
-        }
-    else:
-        payload = {
-            "title": (b.titulo or "")[:60],
-            "category_id": categoria,
-            "price": b.precio or 0,
-            "currency_id": "ARS",
-            "available_quantity": b.cantidad or 1,
-            "buying_mode": "buy_it_now",
-            "listing_type_id": b.listing_type or "gold_special",
-            "condition": b.condicion or "new",
-            "pictures": [{"source": u} for u in fotos if u],
-        }
+    # Payload estándar (marketplace buy_it_now)
+    # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente
+    payload = {
+        "title": (b.titulo or "")[:60],
+        "category_id": categoria,
+        "price": b.precio or 0,
+        "currency_id": "ARS",
+        "available_quantity": b.cantidad or 1,
+        "buying_mode": "buy_it_now",
+        "listing_type_id": b.listing_type or "gold_special",
+        "condition": b.condicion or "new",
+        "pictures": [{"source": u} for u in fotos if u],
+    }
     if clean_attrs:
         payload["attributes"] = clean_attrs
 
@@ -367,11 +357,19 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         r = await hc.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
         if r.status_code not in (200, 201):
             # Auto-retry en modo classified si la categoría lo exige
+            # (MLA413502 y otras categorías de vivienda/construcción solo aceptan classified)
             if "CLASSIFIED" in r.text.upper():
-                payload_cl = {k: v for k, v in payload.items()
-                              if k not in ("available_quantity", "condition")}
-                payload_cl["buying_mode"] = "classified"
-                payload_cl["listing_type_id"] = "gold_special"
+                payload_cl = {
+                    "title": payload["title"],
+                    "category_id": payload["category_id"],
+                    "price": payload["price"],
+                    "currency_id": "ARS",
+                    "buying_mode": "classified",
+                    "listing_type_id": "free",   # único listing type válido para classified
+                    "pictures": payload.get("pictures", []),
+                }
+                if clean_attrs:
+                    payload_cl["attributes"] = clean_attrs
                 r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
             if r.status_code not in (200, 201):
                 return {"ok": False, "error": _error_ml(r)}

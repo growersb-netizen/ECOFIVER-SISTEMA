@@ -1250,7 +1250,11 @@ function renderPregunta(q) {
           placeholder="Escribí la respuesta... o usá ✨ IA para sugerir una automáticamente"
           style="font-size:13px;width:100%;margin-bottom:8px"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" onclick="sugerirRespuesta(${q.id}, ${escHtml(JSON.stringify(q.texto||''))}, ${escHtml(JSON.stringify(q.item_titulo||q.item_id||''))})">
+          <button class="btn btn-secondary btn-sm"
+            data-qid="${q.id}"
+            data-texto="${escHtml(q.texto||'')}"
+            data-titulo="${escHtml(q.item_titulo||q.item_id||'')}"
+            onclick="sugerirRespuesta(this)">
             ✨ Sugerir con IA
           </button>
           <button class="btn btn-primary btn-sm" onclick="enviarRespuesta(${q.id})">
@@ -1262,12 +1266,22 @@ function renderPregunta(q) {
   </div>`;
 }
 
-async function sugerirRespuesta(qId, preguntaTexto, itemTitulo) {
+async function sugerirRespuesta(btn) {
+  const qId           = btn.dataset.qid;
+  const preguntaTexto = btn.dataset.texto;
+  const itemTitulo    = btn.dataset.titulo || '';
+
   const textarea = document.getElementById('resp-' + qId);
-  if (!textarea) return;
-  if (!preguntaTexto) { showToast('No se encontró el texto de la pregunta', 'error'); return; }
+  if (!textarea) { showToast('Error interno: textarea no encontrado', 'error'); return; }
+
+  if (!preguntaTexto) {
+    textarea.value = '⚠ No se encontró el texto de la pregunta';
+    return;
+  }
 
   const oldVal = textarea.value;
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando...';
   textarea.value = '⏳ Generando respuesta con IA...';
   textarea.disabled = true;
 
@@ -1275,13 +1289,21 @@ async function sugerirRespuesta(qId, preguntaTexto, itemTitulo) {
     const res = await API.post(`/api/ml/preguntas/${qId}/responder`, {
       sugerir_solo: true,
       pregunta_texto: preguntaTexto,
-      item_titulo: itemTitulo || '',
+      item_titulo: itemTitulo,
     });
-    textarea.value = res.respuesta_sugerida || res.texto || oldVal;
+    const sugerida = res.respuesta_sugerida || res.texto || '';
+    if (sugerida) {
+      textarea.value = sugerida;
+    } else {
+      textarea.value = oldVal;
+      showToast('La IA no devolvió respuesta', 'warning');
+    }
   } catch(e) {
-    showToast('Error IA: ' + e.message, 'error');
-    textarea.value = oldVal;
+    textarea.value = '⚠ Error IA: ' + (e.message || 'sin detalle');
+    showToast('Error IA: ' + (e.message || 'sin detalle'), 'error');
   } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Sugerir con IA';
     textarea.disabled = false;
     textarea.focus();
   }

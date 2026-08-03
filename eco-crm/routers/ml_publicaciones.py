@@ -201,6 +201,23 @@ async def competencia(bid: int, db: Session = Depends(get_db),
 
 _PRODUCT_ID_ATTRS = {"PRODUCT_ID", "GTIN", "EAN", "UPC", "ISBN", "PRODUCT_IDENTIFIER"}
 
+# Atributos que ML valida como numéricos; valores con texto causan number_invalid_format
+_NUMERIC_ATTRS = {"CAPACITY", "VOLUME_CAPACITY", "LENGTH", "WIDTH", "HEIGHT",
+                  "DEPTH", "WEIGHT", "NET_WEIGHT", "GROSS_WEIGHT", "VOLUME"}
+
+# Unidades por defecto para atributos numéricos (ML las requiere explícitamente)
+_ATTR_UNITS = {
+    "CAPACITY": "L",
+    "VOLUME_CAPACITY": "L",
+    "LENGTH": "m",
+    "WIDTH": "m",
+    "HEIGHT": "m",
+    "DEPTH": "m",
+    "WEIGHT": "kg",
+    "NET_WEIGHT": "kg",
+    "GROSS_WEIGHT": "kg",
+}
+
 
 def _error_ml(r) -> str:
     """Parsea la respuesta de error de ML y devuelve un mensaje legible."""
@@ -222,6 +239,19 @@ def _error_ml(r) -> str:
     return r.text[:300]
 
 
+def _sanitizar_valor_numerico(val: str) -> str:
+    """Extrae el primer número válido de un string (ej: '6.40 m' → '6.4', '1.400' → '1.4')."""
+    import re
+    # Reemplazar coma decimal por punto
+    val = val.replace(",", ".")
+    # Extraer primer número flotante o entero
+    m = re.search(r"\d+(?:\.\d+)?", val)
+    if not m:
+        return ""
+    num = m.group(0).rstrip("0").rstrip(".") if "." in m.group(0) else m.group(0)
+    return num or m.group(0)
+
+
 async def _publicar(db: Session, b: BorradorML) -> dict:
     """Crea el ítem en ML a partir del borrador."""
     tok = await _ml_valid_token(db)
@@ -237,26 +267,38 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     except Exception:
         atributos = []
 
-    # Separar atributos de identificador de producto de los demás.
-    # GTINs con formato inválido causan error 7711; omitirlos y reemplazarlos
-    # con "Does not apply" es lo que ML requiere para productos sin código de barras.
     clean_attrs = []
-    has_valid_gtin = False
     for attr in atributos:
         aid = (attr.get("id") or "").upper()
         val = str(attr.get("value_name") or "").strip()
+
         if any(k in aid for k in _PRODUCT_ID_ATTRS):
+            # Solo incluir GTINs con formato válido (8/12/13/14 dígitos numéricos)
             if val.isdigit() and len(val) in (8, 12, 13, 14):
                 clean_attrs.append(attr)
-                has_valid_gtin = True
-            # GTIN con formato inválido → se omite y se agrega "Does not apply" abajo
+            # GTINs inválidos → omitir completamente
+
+        elif any(k == aid for k in _NUMERIC_ATTRS):
+            # Sanitizar atributos numéricos: extraer el número limpio y agregar unidad si falta
+            num = _sanitizar_valor_numerico(val)
+            if num:
+                a = dict(attr)
+                a["value_name"] = num
+                if not a.get("unit") and not a.get("unit_id"):
+                    default_unit = _ATTR_UNITS.get(aid)
+                    if default_unit:
+                        a["unit"] = default_unit
+                clean_attrs.append(a)
+            # Si no hay número extraíble, omitir el atributo
+
         else:
             clean_attrs.append(attr)
 
-    # Sin GTIN válido, declarar explícitamente que el producto no tiene código de barras.
-    # Si no se declara, ML exige catalog matching y bloquea con error 3704.
-    if not has_valid_gtin:
-        clean_attrs.append({"id": "GTIN", "value_name": "Does not apply"})
+    # Auto-inyectar BRAND, MODEL y LINE — ML los exige y siempre son iguales para EcoFiver
+    existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
+    for attr_id, attr_val in [("BRAND", "EcoFiver"), ("MODEL", "EcoFiver"), ("LINE", "Premium")]:
+        if attr_id not in existing_ids:
+            clean_attrs.append({"id": attr_id, "value_name": attr_val})
 
     payload = {
         "title": (b.titulo or "")[:60],

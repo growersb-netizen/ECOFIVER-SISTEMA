@@ -427,6 +427,9 @@
 const TABS_ML = ['dashboard','publicaciones','borradores','preguntas','crear','config-ml'];
 let currentItemId = null;
 
+// toast() está definido en main.js; este alias cubre las llamadas a showToast()
+function showToast(msg, type = 'success') { toast(msg, type); }
+
 // Catálogo del servidor
 const CATALOGO = {{ catalogo | tojson }};
 

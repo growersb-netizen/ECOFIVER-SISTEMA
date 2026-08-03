@@ -142,6 +142,8 @@ const MLAPI={get:u=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
   send:(u,m,b)=>fetch(u,{method:m,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined})};
 const SEL=new Set();
 const fmt=n=>'$'+(Number(n)||0).toLocaleString('es-AR');
+// toast() está en main.js; este alias evita el error si alguien llama showToast
+function showToast(msg,type='success'){toast(msg,type);}
 
 async function conexion(){
   try{const d=await MLAPI.get('/api/ml/conexion');
@@ -204,10 +206,13 @@ function nuevaPub(){document.getElementById('mp-id').value='';document.getElemen
   document.getElementById('mp-atributos').textContent='Tocá "Cargar requeridos" para ver qué pide la categoría.';
   document.getElementById('mp-ia-msg').textContent='';
   document.getElementById('mp-catalogo-sel').value='';document.getElementById('mp-precio-ref-box').style.display='none';
-  document.getElementById('mp-pc-warn').style.display='none';_precioContadoRef=null;
+  document.getElementById('mp-pc-warn').style.display='none';
+  _precioContadoRef=null;_medidasRef=null;_atributosGuardados=[];
   cargarCatalogoSelect();
   document.getElementById('mp-foto-msg').textContent='';openModal('modal-pub');}
-function editar(b){document.getElementById('mp-id').value=b.id;document.getElementById('mp-tit').textContent='Editar publicación';
+
+function editar(b){
+  document.getElementById('mp-id').value=b.id;document.getElementById('mp-tit').textContent='Editar publicación';
   document.getElementById('mp-titulo').value=b.titulo;document.getElementById('mp-precio').value=b.precio;
   document.getElementById('mp-costo').value=b.costo||'';document.getElementById('mp-variantes').value='0';document.getElementById('mp-ganancia').textContent='';
   document.getElementById('mp-ref').value=b.precio_referencia||'';document.getElementById('mp-producto').value=b.producto||'MODULO';
@@ -216,9 +221,20 @@ function editar(b){document.getElementById('mp-id').value=b.id;document.getEleme
   document.getElementById('mp-cuotas').value=b.cuotas_sin_interes||0;
   document.getElementById('mp-desc').value=b.descripcion||'';document.getElementById('mp-tlen').textContent=(b.titulo||'').length;
   document.getElementById('mp-catalogo-sel').value='';document.getElementById('mp-precio-ref-box').style.display='none';
-  document.getElementById('mp-pc-warn').style.display='none';_precioContadoRef=null;
+  document.getElementById('mp-pc-warn').style.display='none';
+  _precioContadoRef=null;_medidasRef=null;
+  // Guardar atributos del borrador para pre-llenar cuando se carguen los requeridos
+  _atributosGuardados = b.atributos || [];
+  const aDiv = document.getElementById('mp-atributos');
+  if (_atributosGuardados.length) {
+    aDiv.innerHTML = _atributosGuardados.map(a=>`<div style="font-size:12px;color:var(--text-muted)">• <b>${a.id}</b>: ${a.value_name||a.value_id||'?'}</div>`).join('')
+      + `<div style="margin-top:6px"><button class="btn btn-sm" type="button" onclick="cargarAtributos()">↻ Recargar desde ML y pre-llenar</button></div>`;
+  } else {
+    aDiv.textContent='Tocá "Cargar requeridos" para ver qué pide la categoría.';
+  }
   cargarCatalogoSelect();
-  openModal('modal-pub');setTimeout(calcGanancia,50);}
+  openModal('modal-pub');setTimeout(calcGanancia,50);
+}
 async function guardar(){
   const id=document.getElementById('mp-id').value;
   const fotos=document.getElementById('mp-fotos').value.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -344,17 +360,51 @@ async function cargarAtributos(){
   const d=await MLAPI.get(u);
   if(d.categoria&&!cat){document.getElementById('mp-cat').value=d.categoria;}
   if(!d.atributos||!d.atributos.length){cont.innerHTML='<span style="color:var(--green)">✓ Esta categoría no exige atributos obligatorios.</span>';return;}
+
+  // Mapa de valores guardados en el borrador (por id)
+  const guardados = Object.fromEntries((_atributosGuardados||[]).map(a=>[a.id, a.value_name||a.value_id||'']));
+
+  // Defaults desde medidas del catálogo (piscina seleccionada)
+  const medDefaults = {};
+  if (_medidasRef) {
+    if (_medidasRef.litros)             medDefaults['CAPACITY']   = String(_medidasRef.litros);
+    if (_medidasRef.largo_m)            medDefaults['LENGTH']     = String(_medidasRef.largo_m);
+    if (_medidasRef.ancho_m)            medDefaults['WIDTH']      = String(_medidasRef.ancho_m);
+    const prof = _medidasRef.profundidad_max_m || _medidasRef.profundidad_min_m;
+    if (prof)                           medDefaults['DEPTH']      = String(prof);
+  }
+
+  // Defaults estáticos para atributos que siempre son iguales en productos Eco
+  const staticDefaults = {
+    'IVA':             '21',
+    'ALPHANUMERIC_MODEL': '',  // no rellenar
+  };
+
   cont.innerHTML=d.atributos.map(a=>{
-    const inp=a.valores&&a.valores.length
-      ? `<select class="form-control attr-inp" data-id="${a.id}"><option value="">—</option>`+a.valores.map(v=>`<option>${v}</option>`).join('')+`</select>`
-      : `<input class="form-control attr-inp" data-id="${a.id}" placeholder="${a.name}">`;
-    return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name} *</label>${inp}</div>`;
+    // Resolver valor pre-llenado: borrador guardado > medidas catálogo > static
+    const preVal = guardados[a.id] ?? medDefaults[a.id] ?? staticDefaults[a.id] ?? '';
+    const autoTag = (guardados[a.id] ? '🗂️' : medDefaults[a.id] ? '📐' : '');
+    const badge = autoTag ? `<span style="font-size:10px;color:var(--green);margin-left:4px" title="${autoTag==='📐'?'Auto-completado desde catálogo':'Guardado en borrador'}">${autoTag} auto</span>` : '';
+
+    let inp;
+    if(a.valores&&a.valores.length){
+      const opts = a.valores.map(v=>`<option value="${v}" ${v===preVal?'selected':''}>${v}</option>`).join('');
+      inp = `<select class="form-control attr-inp" data-id="${a.id}"><option value="">—</option>${opts}</select>`;
+    } else {
+      inp = `<input class="form-control attr-inp" data-id="${a.id}" placeholder="${a.name}" value="${preVal.replace(/"/g,'&quot;')}">`;
+    }
+    return `<div style="margin:6px 0"><label class="form-label" style="margin:0">${a.name} *${badge}</label>${inp}</div>`;
   }).join('');
 }
+
 function collectAtributos(){
-  const out=[];document.querySelectorAll('#mp-atributos .attr-inp').forEach(el=>{
-    const v=(el.value||'').trim();if(v)out.push({id:el.dataset.id,value_name:v});});
-  return out;
+  const inputs = document.querySelectorAll('#mp-atributos .attr-inp');
+  if(inputs.length){
+    const out=[];inputs.forEach(el=>{const v=(el.value||'').trim();if(v)out.push({id:el.dataset.id,value_name:v});});
+    return out;
+  }
+  // Si no se cargaron los campos ML, conservar los atributos guardados del borrador
+  return _atributosGuardados||[];
 }
 
 async function cargarTasas(){
@@ -366,8 +416,10 @@ async function cargarTasas(){
 /* ══════════════════════════════════════════════════════════════════════════
    PRODUCTO DEL CATÁLOGO -> precio contado de referencia + precio sugerido ML
 ══════════════════════════════════════════════════════════════════════════ */
-let CATALOGO_ITEMS = {};   // valor del <option> -> {tipo, precioContado}
+let CATALOGO_ITEMS = {};   // valor del <option> -> {tipo, precioContado, medidas}
 let _precioContadoRef = null;
+let _medidasRef = null;        // medidas del modelo de piscina seleccionado
+let _atributosGuardados = [];  // atributos del borrador que se está editando
 
 async function cargarCatalogoSelect(){
   const sel = document.getElementById('mp-catalogo-sel');
@@ -376,13 +428,15 @@ async function cargarCatalogoSelect(){
     const d = await MLAPI.get('/api/catalogo');
     let html = '<option value="">— Elegir del catálogo —</option>';
     CATALOGO_ITEMS = {};
+    const medidas = (d.piscinas && d.piscinas.medidas) || {};
     const addGroup = (label, tipo, precios) => {
       const nombres = Object.keys(precios || {});
       if (!nombres.length) return;
       html += `<optgroup label="${label}">`;
       nombres.forEach(n => {
         const key = tipo + '::' + n;
-        CATALOGO_ITEMS[key] = { tipo, precioContado: precios[n], nombre: n };
+        CATALOGO_ITEMS[key] = { tipo, precioContado: precios[n], nombre: n,
+          medidas: tipo === 'PISCINA' ? (medidas[n] || null) : null };
         html += `<option value="${key}">${n} — ${fmt(precios[n])}</option>`;
       });
       html += '</optgroup>';
@@ -403,15 +457,24 @@ function onCatalogoSel(){
   const sel = document.getElementById('mp-catalogo-sel');
   const item = CATALOGO_ITEMS[sel.value];
   const box = document.getElementById('mp-precio-ref-box');
-  if (!item){ box.style.display='none'; _precioContadoRef=null; return; }
+  if (!item){ box.style.display='none'; _precioContadoRef=null; _medidasRef=null; return; }
   document.getElementById('mp-producto').value = item.tipo;
   if (!document.getElementById('mp-titulo').value.trim()) {
     document.getElementById('mp-titulo').value = item.nombre.substring(0,60);
     document.getElementById('mp-tlen').textContent = document.getElementById('mp-titulo').value.length;
   }
   _precioContadoRef = item.precioContado || null;
+  _medidasRef = item.medidas || null;
   box.style.display = _precioContadoRef ? '' : 'none';
   document.getElementById('mp-pc-contado').textContent = fmt(_precioContadoRef);
+  // Si hay medidas, mostrar hint de auto-fill
+  if (_medidasRef) {
+    const hint = _medidasRef.litros
+      ? `📐 ${_medidasRef.largo_m}×${_medidasRef.ancho_m}m · Prof. ${_medidasRef.profundidad_min_m}–${_medidasRef.profundidad_max_m}m · ${_medidasRef.litros.toLocaleString('es-AR')} L`
+      : '';
+    if (hint) document.getElementById('mp-atributos').textContent =
+      `Tocá "Cargar requeridos" para ver qué pide la categoría. ${hint} se completará automáticamente.`;
+  }
   actualizarPrecioSugerido();
   chequearPrecioBajoContado();
 }

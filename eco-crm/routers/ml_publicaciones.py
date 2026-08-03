@@ -341,12 +341,10 @@ async def _ml_classified_location(db: Session) -> dict:
         except Exception:
             pass
 
-        # Fallback: calcular city_id usando el patrón Base64(nombre) de ML.
-        # ML exige "URL-friendly string" → sin caracteres especiales como =, +, /.
-        # "Zarate" (sin tilde) → 6 bytes → Base64 sin padding "WmFyYXRl" ✓
-        # "Zárate" (con tilde) → 7 bytes → Base64 con padding "WsOhcmF0ZQ==" ✗
+        # Fallback: Base64("Buenos Aires") = "QnVlbm9zIEFpcmVz" — 12 chars, sin padding, URL-safe.
+        # Es el mismo ID que ya tiene validado el state; ML lo acepta también como ciudad.
         if not city_id:
-            city_id = _b64("Zarate")  # "WmFyYXRl" — sin tilde, sin padding, URL-safe
+            city_id = _b64("Buenos Aires")  # "QnVlbm9zIEFpcmVz"
 
         if city_id:
             _set("ml_loc_city_id", city_id)

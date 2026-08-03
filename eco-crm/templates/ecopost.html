@@ -907,23 +907,50 @@ async function confirmarPublicarRedes() {
   btn.disabled = true;
   btn.textContent = '⏳ Publicando...';
 
+  // Timeout de 30s para no dejar el modal colgado si el servidor no responde
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 30000);
+
   try {
-    const res = await API.post(`/api/ecopost/${id}/publicar-redes`, { pages });
+    const fetchRes = await fetch(`/api/ecopost/${id}/publicar-redes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ pages }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timeoutId);
+
     cerrarModalPublicar();
     closeDetalle();
 
-    const oks  = res.resultados.filter(r => r.ok);
-    const errs = res.resultados.filter(r => !r.ok);
+    const json = await fetchRes.json().catch(() => ({}));
 
-    if (oks.length) showToast(`✅ Publicado en ${oks.length} destino${oks.length > 1 ? 's' : ''}`, 'success');
-    if (errs.length) {
-      errs.forEach(e => showToast(`❌ ${e.page_id} / ${e.red}: ${e.error}`, 'error'));
+    if (!fetchRes.ok) {
+      showToast('Error al publicar: ' + (json.detail || fetchRes.status), 'error');
+      loadBiblioteca();
+      return;
     }
+
+    const resultados = json.resultados || [];
+    const oks  = resultados.filter(r => r.ok);
+    const errs = resultados.filter(r => !r.ok);
+
+    if (oks.length)  showToast(`✅ Publicado en ${oks.length} destino${oks.length > 1 ? 's' : ''}`, 'success');
+    if (errs.length) errs.forEach(e => showToast(`❌ ${e.page_id} / ${e.red}: ${e.error}`, 'error'));
+    if (!oks.length && !errs.length) showToast('Sin resultados del servidor', 'warning');
+
     loadBiblioteca();
   } catch(e) {
-    showToast('Error publicando: ' + e.message, 'error');
-    btn.disabled = false;
-    btn.textContent = '📢 Publicar';
+    clearTimeout(timeoutId);
+    cerrarModalPublicar();
+    closeDetalle();
+    if (e.name === 'AbortError') {
+      showToast('⏱ Tiempo de espera agotado — verificá si el contenido fue publicado', 'warning');
+    } else {
+      showToast('Error publicando: ' + e.message, 'error');
+    }
+    loadBiblioteca();
   }
 }
 

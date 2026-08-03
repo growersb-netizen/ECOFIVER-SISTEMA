@@ -804,7 +804,7 @@ async def api_publicar_redes(
         try:
             img_bytes = base64.b64decode(c.imagen_base64)
             filename = f"ecopost_{c.id}_{c.tipo}.png"
-            async with httpx.AsyncClient(timeout=30) as hc:
+            async with httpx.AsyncClient(timeout=10) as hc:
                 r = await hc.post(
                     "https://www.ecomodulosypiscinas.com.ar/api/admin/upload",
                     headers={"x-api-key": "eco-crm-api-key-2024"},
@@ -822,7 +822,7 @@ async def api_publicar_redes(
 
     resultados = []
 
-    async with httpx.AsyncClient(timeout=30) as hc:
+    async with httpx.AsyncClient(timeout=8) as hc:
         for page_req in req.pages:
             pid = page_req.get("page_id")
             do_fb = page_req.get("facebook", False)

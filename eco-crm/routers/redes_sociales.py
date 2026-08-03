@@ -144,9 +144,12 @@ async def api_redes_feed(
     user: Usuario = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Posts del feed de Facebook de una página."""
+    """Posts del feed de Facebook de una página. Usa page_token si está disponible."""
     _check_access(user, db)
-    token = get_config_value("meta_page_access_token", db)
+
+    # Preferir page token específico (largo plazo), fallback al system user token
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
     if not token:
         return {"posts": [], "has_next": False, "error": "Sin token de Meta configurado. Ir a Configuración → Meta."}
 
@@ -200,7 +203,7 @@ async def api_redes_ig(
     if not p or not p.ig_user_id:
         return {"posts": [], "has_next": False, "error": "Sin Instagram Business Account vinculado a esta página"}
 
-    token = get_config_value("meta_page_access_token", db)
+    token = (p.page_token if p.page_token else None) or get_config_value("meta_page_access_token", db)
     if not token:
         raise HTTPException(400, "Sin token de Meta configurado")
 
@@ -237,7 +240,8 @@ async def api_redes_stats(
 ):
     """Métricas de la página desde Meta Insights (requiere permiso read_insights)."""
     _check_access(user, db)
-    token = get_config_value("meta_page_access_token", db)
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
     if not token:
         raise HTTPException(400, "Sin token de Meta configurado")
 

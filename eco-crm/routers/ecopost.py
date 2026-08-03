@@ -717,7 +717,7 @@ async def api_meta_paginas_sync(
         r = await hc.get(
             f"{META_GRAPH_URL}/me/accounts",
             params={
-                "fields": "id,name,instagram_business_account{id,name}",
+                "fields": "id,name,access_token,instagram_business_account{id,name}",
                 "limit": "50",
                 "access_token": token,
             },
@@ -734,13 +734,18 @@ async def api_meta_paginas_sync(
         if isinstance(iba, dict):
             ig_id = iba.get("id")
 
+        page_tok = p.get("access_token") or None
+
         existing = db.query(MetaPagina).filter(MetaPagina.page_id == p["id"]).first()
         if existing:
             existing.nombre = p["name"]
+            if page_tok:
+                existing.page_token = page_tok
             if ig_id and not existing.ig_user_id:
                 existing.ig_user_id = ig_id
         else:
-            db.add(MetaPagina(page_id=p["id"], nombre=p["name"], ig_user_id=ig_id, activa=True))
+            db.add(MetaPagina(page_id=p["id"], nombre=p["name"], ig_user_id=ig_id,
+                              page_token=page_tok, activa=True))
         synced.append({"page_id": p["id"], "nombre": p["name"], "ig_user_id": ig_id})
 
     db.commit()

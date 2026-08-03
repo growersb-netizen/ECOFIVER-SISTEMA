@@ -132,6 +132,8 @@ def run_migrations():
             # ── Excepción de CAC por cliente (reemplaza al % general al indexar) ──
             "ALTER TABLE ventas_financiadas ADD COLUMN cac_excepcion_pct REAL",
             "ALTER TABLE clientes_cobranza_historica ADD COLUMN cac_excepcion_pct REAL",
+            # ── Meta: page_token para leer feed/insights de cada página ──────────
+            "ALTER TABLE meta_paginas ADD COLUMN page_token TEXT",
         ]
         for stmt in migrations:
             try:

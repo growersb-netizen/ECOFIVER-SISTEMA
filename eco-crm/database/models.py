@@ -1448,6 +1448,7 @@ class MetaPagina(Base):
     page_id = Column(String(50), unique=True, nullable=False, index=True)
     nombre = Column(String(200), nullable=False)
     ig_user_id = Column(String(50), nullable=True)   # Instagram Business Account ID vinculado
+    page_token = Column(Text, nullable=True)          # Page Access Token (del sync vía /me/accounts)
     activa = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

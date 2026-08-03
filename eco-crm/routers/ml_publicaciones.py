@@ -207,8 +207,13 @@ def _error_ml(r) -> str:
     try:
         body = r.json()
         causes = body.get("cause") or body.get("error_cause") or []
+        if isinstance(causes, dict):
+            causes = [causes]  # ML a veces devuelve un solo dict en vez de lista
         if causes:
-            parts = [f"{ca.get('code','?')} ({ca.get('type','?')})" for ca in causes[:4]]
+            parts = []
+            for ca in causes[:4]:
+                msg = ca.get("message") or ca.get("code") or "?"
+                parts.append(f"{msg} ({ca.get('type', '?')})")
             return " | ".join(parts)
         if body.get("message"):
             return body["message"][:300]
@@ -232,24 +237,26 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     except Exception:
         atributos = []
 
-    # Filtrar atributos de identificador de producto con formato inválido.
-    # Un GTIN/EAN/UPC válido tiene 8, 12, 13 o 14 dígitos numéricos.
-    # Si el valor no cumple el formato, ML devuelve product_identifier.invalid_format.
+    # Separar atributos de identificador de producto de los demás.
+    # GTINs con formato inválido causan error 7711; omitirlos y reemplazarlos
+    # con "Does not apply" es lo que ML requiere para productos sin código de barras.
     clean_attrs = []
+    has_valid_gtin = False
     for attr in atributos:
         aid = (attr.get("id") or "").upper()
         val = str(attr.get("value_name") or "").strip()
         if any(k in aid for k in _PRODUCT_ID_ATTRS):
             if val.isdigit() and len(val) in (8, 12, 13, 14):
                 clean_attrs.append(attr)
-            # Si el GTIN es inválido, omitir — no enviarlo evita el error de formato
+                has_valid_gtin = True
+            # GTIN con formato inválido → se omite y se agrega "Does not apply" abajo
         else:
             clean_attrs.append(attr)
 
-    # Agregar BRAND si no está; muchas categorías lo marcan como catalog_required
-    existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
-    if "BRAND" not in existing_ids:
-        clean_attrs.append({"id": "BRAND", "value_name": "Eco Módulos"})
+    # Sin GTIN válido, declarar explícitamente que el producto no tiene código de barras.
+    # Si no se declara, ML exige catalog matching y bloquea con error 3704.
+    if not has_valid_gtin:
+        clean_attrs.append({"id": "GTIN", "value_name": "Does not apply"})
 
     payload = {
         "title": (b.titulo or "")[:60],
@@ -260,7 +267,6 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "buying_mode": "buy_it_now",
         "listing_type_id": b.listing_type or "gold_special",
         "condition": b.condicion or "new",
-        "catalog_listing": False,  # evita que ML exija atributos de su catálogo interno
         "pictures": [{"source": u} for u in fotos if u],
     }
     if clean_attrs:

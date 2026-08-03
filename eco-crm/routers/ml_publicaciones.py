@@ -356,21 +356,46 @@ async def desde_catalogo(db: Session = Depends(get_db), x_api_key=Header(None),
 
     creados = 0
 
-    def _agregar(nombre, precio, producto):
+    # Medidas de piscinas — lookup normalizado para tolerar diferencias de nombre
+    import unicodedata, re as _re
+    def _norm(s):
+        s = unicodedata.normalize("NFD", str(s)).encode("ascii", "ignore").decode()
+        return _re.sub(r"\s+", " ", s.lower().strip())
+
+    pis = (cat.get("piscinas") or {})
+    medidas_raw = pis.get("medidas") or {}
+    medidas_norm = {_norm(k): v for k, v in medidas_raw.items()}
+
+    def _atributos_piscina(modelo):
+        m = medidas_raw.get(modelo) or medidas_norm.get(_norm(modelo)) or {}
+        attrs = []
+        if m.get("litros"):
+            attrs.append({"id": "CAPACITY", "value_name": str(m["litros"])})
+        if m.get("largo_m"):
+            attrs.append({"id": "LENGTH", "value_name": str(m["largo_m"])})
+        if m.get("ancho_m"):
+            attrs.append({"id": "WIDTH", "value_name": str(m["ancho_m"])})
+        prof = m.get("profundidad_max_m") or m.get("profundidad_min_m")
+        if prof:
+            attrs.append({"id": "DEPTH", "value_name": str(prof)})
+        return attrs
+
+    def _agregar(nombre, precio, producto, atributos=None):
         nonlocal creados
         if not nombre:
             return
         b = BorradorML(origen="catalogo", titulo=str(nombre)[:60],
                        producto=producto, precio=float(precio or 0),
                        cantidad=1, fotos_json="[]",
+                       atributos_json=json.dumps(atributos or []),
                        created_by_id=current_user.id if current_user else None)
         db.add(b)
         creados += 1
 
-    pis = (cat.get("piscinas") or {})
     precios_p = pis.get("precios") or {}
     for modelo in pis.get("modelos") or []:
-        _agregar(f"Piscina {modelo}", precios_p.get(modelo, 0), "PISCINA")
+        _agregar(f"Piscina {modelo}", precios_p.get(modelo, 0), "PISCINA",
+                 _atributos_piscina(modelo))
     mod = (cat.get("modulos") or {})
     precios_m = mod.get("precios") or {}
     modelos_mod = (mod.get("modelos") or []) + (mod.get("modelos_custom") or [])

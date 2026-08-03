@@ -39,6 +39,36 @@ def _write_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):
 CATALOGO_FILE = Path("data/catalogo.json")
 CATALOGO_FILE.parent.mkdir(parents=True, exist_ok=True)
 
+# Medidas extraídas de la lista de precios oficial (Eco_Piscinas_Lista_Horizontal-3.pdf)
+# litros = largo × ancho × prof_promedio × 1000
+_MEDIDAS_PDF = {
+    "Minideck":                          {"largo_m": 3.00, "ancho_m": 2.00, "profundidad_min_m": 0.70, "profundidad_max_m": 0.70, "litros": 4200},
+    "Minideck Chico":                    {"largo_m": 3.00, "ancho_m": 2.00, "profundidad_min_m": 0.70, "profundidad_max_m": 0.70, "litros": 4200},
+    "Minideck Grande":                   {"largo_m": 3.00, "ancho_m": 2.00, "profundidad_min_m": 0.70, "profundidad_max_m": 0.70, "litros": 4200},
+    "Miniportante":                      {"largo_m": 2.50, "ancho_m": 2.10, "profundidad_min_m": 0.70, "profundidad_max_m": 0.70, "litros": 3675},
+    "Autoportante":                      {"largo_m": 4.10, "ancho_m": 2.10, "profundidad_min_m": 0.70, "profundidad_max_m": 0.70, "litros": 6027},
+    "Arco Romano Chico Recto":           {"largo_m": 4.60, "ancho_m": 2.47, "profundidad_min_m": 1.20, "profundidad_max_m": 1.20, "litros": 13625},
+    "Arco Romano Chico C/Desnivel":      {"largo_m": 4.60, "ancho_m": 2.35, "profundidad_min_m": 1.10, "profundidad_max_m": 1.30, "litros": 12972},
+    "Arco Romano Chico Curvo":           {"largo_m": 4.60, "ancho_m": 2.35, "profundidad_min_m": 1.10, "profundidad_max_m": 1.30, "litros": 12972},
+    "Arco Romano Mediano Recto":         {"largo_m": 6.40, "ancho_m": 2.94, "profundidad_min_m": 1.40, "profundidad_max_m": 1.40, "litros": 26342},
+    "Arco Romano Mediano C/Desnivel":    {"largo_m": 7.00, "ancho_m": 3.35, "profundidad_min_m": 1.25, "profundidad_max_m": 1.70, "litros": 34617},
+    "Arco Romano Mediano Curvo":         {"largo_m": 7.00, "ancho_m": 3.35, "profundidad_min_m": 1.25, "profundidad_max_m": 1.70, "litros": 34617},
+    "Arco Romano Grande":                {"largo_m": 8.10, "ancho_m": 3.35, "profundidad_min_m": 1.25, "profundidad_max_m": 1.80, "litros": 41373},
+    "Arco Romano Grande Recto":          {"largo_m": 8.10, "ancho_m": 3.35, "profundidad_min_m": 1.25, "profundidad_max_m": 1.80, "litros": 41373},
+    "Arco Romano Grande Curvo":          {"largo_m": 8.10, "ancho_m": 3.35, "profundidad_min_m": 1.25, "profundidad_max_m": 1.80, "litros": 41373},
+    "Playa Humeda":                      {"largo_m": 5.20, "ancho_m": 2.45, "profundidad_min_m": 1.10, "profundidad_max_m": 1.30, "litros": 15288},
+    "Playa y Abanico":                   {"largo_m": 9.20, "ancho_m": 3.80, "profundidad_min_m": 1.25, "profundidad_max_m": 1.80, "litros": 53254},
+    "Playa y Abanico Chica":             {"largo_m": 9.20, "ancho_m": 3.80, "profundidad_min_m": 1.25, "profundidad_max_m": 1.80, "litros": 53254},
+    "Playa y Abanico Mediana":           {"largo_m": 9.20, "ancho_m": 3.80, "profundidad_min_m": 1.25, "profundidad_max_m": 1.80, "litros": 53254},
+    "Playa y Abanico Grande":            {"largo_m": 9.20, "ancho_m": 3.80, "profundidad_min_m": 1.25, "profundidad_max_m": 1.80, "litros": 53254},
+    "Minimalista Chica":                 {"largo_m": 3.97, "ancho_m": 2.46, "profundidad_min_m": 1.20, "profundidad_max_m": 1.20, "litros": 11712},
+    "Minimalista Mediana":               {"largo_m": 5.50, "ancho_m": 2.90, "profundidad_min_m": 1.50, "profundidad_max_m": 1.50, "litros": 23925},
+    "Minimalista Grande":                {"largo_m": 6.40, "ancho_m": 3.00, "profundidad_min_m": 1.40, "profundidad_max_m": 1.40, "litros": 26880},
+    "Recta C/Mini Escalera":             {"largo_m": 4.63, "ancho_m": 2.48, "profundidad_min_m": 1.25, "profundidad_max_m": 1.25, "litros": 14353},
+    "Playa Humeda Chica C/Escalera":     {"largo_m": 4.10, "ancho_m": 2.40, "profundidad_min_m": 1.20, "profundidad_max_m": 1.20, "litros": 11808},
+    "Semi Playa Humeda C/Escalera":      {"largo_m": 6.70, "ancho_m": 2.95, "profundidad_min_m": 1.50, "profundidad_max_m": 1.50, "litros": 29663},
+}
+
 DEFAULT_CATALOGO = {
     "piscinas": {
         "modelos": [
@@ -111,13 +141,25 @@ def load_catalogo() -> dict:
             if "modulos_deposito" not in cat:
                 cat["modulos_deposito"] = json.loads(json.dumps(DEFAULT_CATALOGO["modulos_deposito"]))
                 cambiado = True
+            # Seed medidas desde lista de precios oficial si el dict está vacío
+            if not cat["piscinas"].get("medidas"):
+                cat["piscinas"]["medidas"] = dict(_MEDIDAS_PDF)
+                cambiado = True
+            else:
+                # Agregar modelos nuevos que falten (sin pisar los ya configurados)
+                for k, v in _MEDIDAS_PDF.items():
+                    if k not in cat["piscinas"]["medidas"]:
+                        cat["piscinas"]["medidas"][k] = v
+                        cambiado = True
             if cambiado:
                 save_catalogo(cat)
             return cat
         except Exception:
             pass
-    save_catalogo(DEFAULT_CATALOGO)
-    return DEFAULT_CATALOGO
+    cat = json.loads(json.dumps(DEFAULT_CATALOGO))
+    cat["piscinas"]["medidas"] = dict(_MEDIDAS_PDF)
+    save_catalogo(cat)
+    return cat
 
 
 def save_catalogo(data: dict):
@@ -340,6 +382,46 @@ async def set_medidas_piscina(
     }
     save_catalogo(cat)
     return {"ok": True, "modelo": modelo, "medidas": cat["piscinas"]["medidas"][modelo]}
+
+
+@router.put("/api/catalogo/piscinas/medidas/bulk")
+async def set_medidas_bulk(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Body: { "modelos": [ {"modelo": "...", "largo_m": 6, ...}, ... ] }
+    Carga masiva de medidas. Calcula litros para cada modelo y guarda todo en una sola escritura.
+    """
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    items = data.get("modelos") or []
+    if not items:
+        raise HTTPException(400, "modelos requerido (lista)")
+
+    cat = load_catalogo()
+    cat["piscinas"].setdefault("medidas", {})
+    guardados = {}
+    for item in items:
+        modelo = (item.get("modelo") or "").strip()
+        if not modelo:
+            continue
+        largo = float(item.get("largo_m") or 0)
+        ancho = float(item.get("ancho_m") or 0)
+        prof_min = float(item.get("profundidad_min_m") or 0)
+        prof_max = float(item.get("profundidad_max_m") or 0)
+        prof_prom = (prof_min + prof_max) / 2 if (prof_min or prof_max) else 0
+        litros = round(largo * ancho * prof_prom * 1000) if (largo and ancho and prof_prom) else None
+        cat["piscinas"]["medidas"][modelo] = {
+            "largo_m": largo, "ancho_m": ancho,
+            "profundidad_min_m": prof_min, "profundidad_max_m": prof_max,
+            "litros": litros,
+        }
+        guardados[modelo] = cat["piscinas"]["medidas"][modelo]
+
+    save_catalogo(cat)
+    return {"ok": True, "guardados": len(guardados), "medidas": guardados}
 
 
 # ─── MÓDULOS DE DEPÓSITO (línea de contado, calidad inferior) ────────────────

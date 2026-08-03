@@ -244,12 +244,14 @@ async def api_redes_stats(
     """Métricas de la página desde Meta Insights. Devuelve {"error": "..."} en lugar de 400."""
     _check_access(user, db)
 
-    # Para Insights se prefiere el system token; el page_token del sync puede no tener read_insights
-    token = get_config_value("meta_page_access_token", db)
-    if not token:
-        pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
-        token = (pg.page_token if pg and pg.page_token else None)
-    if not token:
+    # Insights requiere Page Access Token. Prioridad: page_token del sync → token global.
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    page_token = pg.page_token if pg and pg.page_token else None
+    global_token = get_config_value("meta_page_access_token", db)
+
+    # Intentar ambos tokens; el page_token va primero porque tiene read_insights garantizado
+    tokens_a_probar = [t for t in [page_token, global_token] if t]
+    if not tokens_a_probar:
         return {"error": "Sin token de Meta configurado. Ir a Configuración → Meta."}
 
     if periodo not in ("day", "week", "days_28"):
@@ -259,14 +261,7 @@ async def api_redes_stats(
     now_ts = int(time.time())
     since_ts = now_ts - days_back * 86400
 
-    base_params = {
-        "period": "day",
-        "since": since_ts,
-        "until": now_ts,
-        "access_token": token,
-    }
-
-    # Fallback chain: v22.0+ elimina page_views_total; intentar grupos más pequeños
+    # Fallback chain de métricas: v22.0+ elimina page_views_total
     metric_groups = [
         ["page_impressions", "page_reach", "page_total_actions"],
         ["page_impressions", "page_reach"],
@@ -275,16 +270,26 @@ async def api_redes_stats(
 
     last_error = None
     data = None
-    for group in metric_groups:
-        try:
-            data = await _meta_get(
-                f"{META_GRAPH_URL}/{page_id}/insights",
-                {"metric": ",".join(group), **base_params},
-            )
-            break
-        except (HTTPException, Exception) as e:
-            last_error = e.detail if isinstance(e, HTTPException) else str(e)[:300]
-            data = None
+
+    for token in tokens_a_probar:
+        base_params = {
+            "period": "day",
+            "since": since_ts,
+            "until": now_ts,
+            "access_token": token,
+        }
+        for group in metric_groups:
+            try:
+                data = await _meta_get(
+                    f"{META_GRAPH_URL}/{page_id}/insights",
+                    {"metric": ",".join(group), **base_params},
+                )
+                break
+            except (HTTPException, Exception) as e:
+                last_error = e.detail if isinstance(e, HTTPException) else str(e)[:300]
+                data = None
+        if data is not None:
+            break  # salir del loop de tokens si ya funcionó
 
     if data is None:
         return {"error": last_error or "No se pudo obtener estadísticas"}
@@ -303,7 +308,7 @@ async def api_redes_stats(
         }
 
     if not result:
-        return {"error": "El token no tiene permiso read_insights, o la página no tiene datos de insights disponibles."}
+        return {"error": "Sin datos de insights. Sincronizá las páginas y verificá que el token tenga permiso read_insights."}
 
     return result
 

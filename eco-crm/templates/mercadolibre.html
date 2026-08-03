@@ -1845,20 +1845,22 @@ async function borPublicar(id) {
     });
     clearTimeout(tid);
     const j = await res.json().catch(() => ({}));
-    borCargar();
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
     if (j.ok) {
       showToast(`✓ Publicada en ML — ID: ${j.item_id || ''}`, 'success');
     } else {
-      showToast('Error: ' + (j.error_msg || j.detail || 'Error desconocido'), 'error');
+      showToast('Error ML: ' + (j.error_msg || j.detail || 'Error desconocido'), 'error');
     }
+    borCargar();
   } catch (e) {
     clearTimeout(tid);
-    borCargar();
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
     if (e.name === 'AbortError') {
       showToast('⏱ Tardó más de 45s — verificá en la lista si se publicó correctamente', 'warning');
     } else {
       showToast('Error de red: ' + e.message, 'error');
     }
+    borCargar();
   }
 }
 async function borPublicarLote() {

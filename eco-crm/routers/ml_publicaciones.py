@@ -226,6 +226,16 @@ CATEGORIAS_FIJAS: dict = {
     # → sin categoría fija (el predictor maneja bien estas palabras específicas)
 }
 
+# Categorías de ML que solo admiten buying_mode="classified" (viviendas, inmuebles, construcción).
+# En modo classified: no va available_quantity ni condition.
+CATEGORIAS_CLASIFICADAS: set = {
+    "MLA413502",   # Cabañas y Casas Prefabricadas
+    "MLA1459",     # Casas (inmuebles)
+    "MLA1581",     # Departamentos (inmuebles)
+    "MLA9266",     # Terrenos y Lotes
+    "MLA413501",   # Construcción modular (variante)
+}
+
 # Unidades por defecto para atributos numéricos (ML las requiere explícitamente)
 _ATTR_UNITS = {
     "CAPACITY": "L",
@@ -324,17 +334,29 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         if attr_id not in existing_ids:
             clean_attrs.append({"id": attr_id, "value_name": attr_val})
 
-    payload = {
-        "title": (b.titulo or "")[:60],
-        "category_id": categoria,
-        "price": b.precio or 0,
-        "currency_id": "ARS",
-        "available_quantity": b.cantidad or 1,
-        "buying_mode": "buy_it_now",
-        "listing_type_id": b.listing_type or "gold_special",
-        "condition": b.condicion or "new",
-        "pictures": [{"source": u} for u in fotos if u],
-    }
+    es_clasificada = categoria in CATEGORIAS_CLASIFICADAS
+    if es_clasificada:
+        payload = {
+            "title": (b.titulo or "")[:60],
+            "category_id": categoria,
+            "price": b.precio or 0,
+            "currency_id": "ARS",
+            "buying_mode": "classified",
+            "listing_type_id": "gold_special",   # classified solo acepta gold_special
+            "pictures": [{"source": u} for u in fotos if u],
+        }
+    else:
+        payload = {
+            "title": (b.titulo or "")[:60],
+            "category_id": categoria,
+            "price": b.precio or 0,
+            "currency_id": "ARS",
+            "available_quantity": b.cantidad or 1,
+            "buying_mode": "buy_it_now",
+            "listing_type_id": b.listing_type or "gold_special",
+            "condition": b.condicion or "new",
+            "pictures": [{"source": u} for u in fotos if u],
+        }
     if clean_attrs:
         payload["attributes"] = clean_attrs
 

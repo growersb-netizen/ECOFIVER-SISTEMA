@@ -548,7 +548,7 @@ async def api_eliminar(
 
 # ─── PUBLICACIÓN EN REDES SOCIALES ───────────────────────────────────────────
 
-META_GRAPH_URL = "https://graph.facebook.com/v19.0"
+META_GRAPH_URL = "https://graph.facebook.com/v22.0"
 
 
 @router.post("/api/ecopost/{item_id}/publicar-facebook")

@@ -28,7 +28,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
-META_API_BASE = "https://graph.facebook.com/v19.0"
+META_API_BASE = "https://graph.facebook.com/v22.0"
 
 VERTICALS = [
     ("RETAIL", "Comercio minorista"),

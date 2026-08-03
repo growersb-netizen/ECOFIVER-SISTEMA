@@ -33,10 +33,12 @@ def _check_access(user: Usuario, db: Session):
 async def _meta_get(url: str, params: dict, timeout: int = 20) -> dict:
     async with httpx.AsyncClient(timeout=timeout) as hc:
         r = await hc.get(url, params=params)
-    if r.status_code != 200:
-        err = r.json().get("error", {})
+    body = r.json() if r.content else {}
+    # Meta sometimes returns HTTP 200 with {"error": {...}} body
+    if r.status_code != 200 or "error" in body:
+        err = body.get("error", {})
         raise HTTPException(400, err.get("message", r.text[:250]))
-    return r.json()
+    return body
 
 
 # ─── HTML PAGE ────────────────────────────────────────────────────────────────
@@ -264,9 +266,9 @@ async def api_redes_stats(
         "access_token": token,
     }
 
-    # Intentar primero con las 3 métricas básicas más seguras (v19.0+)
+    # Fallback chain: v22.0+ elimina page_views_total; intentar grupos más pequeños
     metric_groups = [
-        ["page_impressions", "page_reach", "page_views_total"],
+        ["page_impressions", "page_reach", "page_total_actions"],
         ["page_impressions", "page_reach"],
         ["page_impressions"],
     ]

@@ -182,6 +182,24 @@ async def _generate_image_openrouter(api_key: str, prompt: str, tipo: str) -> Op
         return None
 
 
+_ECOFIVER_IMG_CTX = (
+    "Imagen publicitaria profesional para EcoFiver, empresa argentina fabricante de piscinas de fibra "
+    "de vidrio y viviendas modulares wood frame, ubicada en Zárate, Buenos Aires. "
+    "Estilo fotográfico moderno y aspiracional, colores vibrantes, alta resolución, "
+    "ambiente familiar argentino, entorno al aire libre soleado. "
+)
+
+
+def _enriquecer_prompt_imagen(prompt: str, tipo: str) -> str:
+    """Agrega contexto de marca EcoFiver al prompt para evitar imágenes genéricas o incorrectas."""
+    formato = (
+        "Composición cuadrada 1:1, estilo publicación de Instagram."
+        if tipo != "story"
+        else "Composición vertical 9:16, estilo Instagram Story."
+    )
+    return f"{_ECOFIVER_IMG_CTX}{prompt}. {formato}"
+
+
 async def _generate_image(db: Session, prompt: str, tipo: str) -> Optional[str]:
     """Intenta OpenRouter primero (motor configurado por defecto), con fallbacks legacy."""
     import os
@@ -357,17 +375,25 @@ async def api_generar_copy(
     tipo_str = tipos_desc.get(body.tipo, body.tipo)
 
     prompt = f"""Sos copywriter experto en marketing de EcoFiver, empresa argentina de Zárate, Buenos Aires.
-Escribís siempre en castellano de Argentina — no en español neutro. Tu tono es cálido, cercano y profesional: como alguien que conoce el producto, habla de vos a vos con el cliente, y genera confianza sin ser informal ni usar lunfardo.
+
+CONTEXTO DE LA EMPRESA:
+- Fabrica piscinas de fibra de vidrio llave en mano (fabricación + transporte + instalación incluida)
+- Módulos habitacionales y viviendas modulares wood frame
+- Accesorios: reposeras de fibra, quinchos prefabricados, cuchas para perro, iluminación para piscinas
+- Hidromasajes y jacuzzis también disponibles
+- Diferencial: fábrica propia, instalación incluida, financiación propia en cuotas
+
+Escribís siempre en castellano de Argentina. Tono cálido, cercano y profesional: hablás de vos a vos, generás confianza sin ser informal ni usar lunfardo.
 Escribí copy para redes sociales (formato {tipo_str}):
 - Producto: {body.producto}
-- Modelo: {body.modelo or 'genérico'}
-- Información extra: {body.descripcion_extra or 'ninguna'}
-- Tono: {body.tono}
+- Modelo / variante: {body.modelo or 'genérico'}
+- Info adicional: {body.descripcion_extra or 'ninguna'}
+- Tono pedido: {body.tono}
 
 Respondé SOLO con este formato exacto, sin texto adicional:
 TITULO: [título llamativo, max 10 palabras, en castellano argentino]
-COPY: [2-3 oraciones para Instagram/Facebook con emojis, en castellano argentino]
-HASHTAGS: [5-8 hashtags relevantes separados por espacio]"""
+COPY: [2-3 oraciones para Instagram/Facebook con emojis, mencionar beneficio clave y CTA]
+HASHTAGS: [6-10 hashtags separados por espacio, mezclar genéricos y específicos]"""
 
     try:
         respuesta = await ai_complete(db, prompt, max_tokens=1024, temperature=0.85)
@@ -397,7 +423,8 @@ async def api_generar_imagen(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    b64 = await _generate_image(db, body.prompt, body.tipo)
+    prompt_final = _enriquecer_prompt_imagen(body.prompt, body.tipo)
+    b64 = await _generate_image(db, prompt_final, body.tipo)
     if not b64:
         raise HTTPException(502, "No se pudo generar la imagen. Verificá que haya una API key de OpenRouter configurada en Configuración → API Keys.")
 

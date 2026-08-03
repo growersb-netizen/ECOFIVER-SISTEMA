@@ -793,6 +793,70 @@ Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra ni markdown:
     }
 
 
+@router.post("/api/ml/generar-titulo")
+async def generar_titulo(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Genera solo el título ML a partir de la descripción ya escrita del producto.
+    Mucho más preciso que generarlo desde keywords, porque la IA tiene todo el contexto.
+    """
+    ok = (x_api_key and x_api_key == API_KEY) or (
+        current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
+    if not ok:
+        raise HTTPException(403, "Sin permisos")
+
+    data = await request.json()
+    descripcion = (data.get("descripcion") or "").strip()[:800]
+    tipo_producto = (data.get("tipo_producto") or "PISCINA").upper()
+
+    if not descripcion:
+        raise HTTPException(400, "Falta la descripción del producto")
+
+    tipo_label = {
+        "PISCINA": "piscina / pileta de fibra de vidrio",
+        "MINIPISCINA": "minipiscina / pileta pequeña de fibra de vidrio",
+        "HIDROMASAJE": "hidromasaje / jacuzzi / spa",
+        "MODULO": "vivienda modular wood frame / casa prefabricada",
+        "MODULO_DEPOSITO": "módulo depósito / galpón prefabricado",
+        "QUINCHO": "quincho prefabricado",
+        "PERGOLA": "pérgola / gazebo",
+        "REPOSERA_FIBRA": "reposera de fibra de vidrio",
+        "CUCHA": "cucha / casilla para perro",
+        "COMBO": "combo piscina y módulo habitacional",
+    }.get(tipo_producto, tipo_producto.lower())
+
+    prompt = f"""Sos especialista en SEO de MercadoLibre Argentina para EcoFiver, empresa fabricante de piscinas de fibra de vidrio y módulos habitacionales en Zárate, Buenos Aires.
+
+A partir de esta descripción de producto, generá UN título optimizado para MercadoLibre.
+
+Tipo de producto: {tipo_label}
+
+Descripción:
+{descripcion}
+
+REGLAS del título ML:
+- Máximo 60 caracteres (contá los caracteres)
+- Incluir: tipo de producto, material, medida principal si aplica
+- Palabras que la gente realmente busca en ML (sin "ideal para", "hermosa", "premium")
+- Sin signos: coma, punto, |, !, ?, comillas, guión largo
+- En castellano argentino
+- Sin nombre de marca EcoFiver (nadie lo busca)
+
+Respondé SOLO con el título, sin explicaciones ni comillas:"""
+
+    try:
+        texto = await ai_complete(db, prompt, max_tokens=80, temperature=0.5)
+    except Exception as e:
+        raise HTTPException(400, f"IA no disponible: {e}")
+
+    titulo = _sanear_titulo_ml(texto.strip().strip('"').strip("'"))
+    return {"ok": True, "titulo": titulo}
+
+
 def _sanear_titulo_ml(titulo: str) -> str:
     """
     Red de seguridad por si la IA no respeta las reglas al pie de la letra:

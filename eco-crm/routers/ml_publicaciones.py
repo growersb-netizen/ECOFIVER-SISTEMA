@@ -279,17 +279,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
             # GTINs inválidos → omitir completamente
 
         elif any(k == aid for k in _NUMERIC_ATTRS):
-            # Sanitizar atributos numéricos: extraer el número limpio y agregar unidad si falta
-            num = _sanitizar_valor_numerico(val)
-            if num:
-                a = dict(attr)
-                a["value_name"] = num
-                if not a.get("unit") and not a.get("unit_id"):
-                    default_unit = _ATTR_UNITS.get(aid)
-                    if default_unit:
-                        a["unit"] = default_unit
-                clean_attrs.append(a)
-            # Si no hay número extraíble, omitir el atributo
+            # Atributos numéricos de medidas: en piletas ML usa listas predefinidas con value_id.
+            # Si no hay value_id (fue auto-generado, no seleccionado de ML), omitirlo —
+            # enviar un número libre causa "El valor es incorrecto".
+            # Si tiene value_id (cargado con "Cargar requeridos"), enviarlo tal cual.
+            if attr.get("value_id"):
+                clean_attrs.append(attr)
 
         else:
             clean_attrs.append(attr)

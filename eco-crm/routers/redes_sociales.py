@@ -148,7 +148,7 @@ async def api_redes_feed(
     _check_access(user, db)
     token = get_config_value("meta_page_access_token", db)
     if not token:
-        raise HTTPException(400, "Sin token de Meta. Configurar en Configuración → Meta.")
+        return {"posts": [], "has_next": False, "error": "Sin token de Meta configurado. Ir a Configuración → Meta."}
 
     params = {
         "fields": "id,message,story,created_time,full_picture,permalink_url,likes.summary(true),comments.summary(true),shares",
@@ -158,9 +158,14 @@ async def api_redes_feed(
     if after:
         params["after"] = after
 
-    data = await _meta_get(f"{META_GRAPH_URL}/{page_id}/feed", params)
-    paging = data.get("paging", {})
+    try:
+        data = await _meta_get(f"{META_GRAPH_URL}/{page_id}/feed", params)
+    except HTTPException as e:
+        return {"posts": [], "has_next": False, "error": e.detail}
+    except Exception as e:
+        return {"posts": [], "has_next": False, "error": str(e)[:300]}
 
+    paging = data.get("paging", {})
     return {
         "posts": [
             {
@@ -247,15 +252,19 @@ async def api_redes_stats(
         "page_fan_adds",
     ]
 
-    data = await _meta_get(
-        f"{META_GRAPH_URL}/{page_id}/insights",
-        {
-            "metric": ",".join(metrics),
-            "period": "day",
-            "date_preset": periodo,
-            "access_token": token,
-        },
-    )
+    try:
+        data = await _meta_get(
+            f"{META_GRAPH_URL}/{page_id}/insights",
+            {
+                "metric": ",".join(metrics),
+                "period": "day",
+                "date_preset": periodo,
+                "access_token": token,
+            },
+        )
+    except (HTTPException, Exception) as e:
+        msg = e.detail if isinstance(e, HTTPException) else str(e)[:300]
+        raise HTTPException(400, msg)
 
     result = {}
     for metric in data.get("data", []):

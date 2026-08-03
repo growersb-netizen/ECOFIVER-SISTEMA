@@ -326,6 +326,12 @@ async function cargarFeed(append = false) {
 
     hide('feed-loading');
 
+    if (data.error) {
+      const err = document.getElementById('feed-error');
+      err.style.display = 'block';
+      err.innerHTML = _metaTokenError(data.error);
+      return;
+    }
     if (!data.posts.length && !append) {
       document.getElementById('feed-list').innerHTML =
         '<div style="color:var(--text-muted);padding:40px;text-align:center">Sin publicaciones en el feed.</div>';
@@ -363,7 +369,7 @@ async function cargarFeed(append = false) {
     hide('feed-loading');
     const err = document.getElementById('feed-error');
     err.style.display = 'block';
-    err.innerHTML = `⚠ ${esc(e.message)}<br><small style="opacity:.7">Verificá que el token de Meta esté configurado y tenga permisos de lectura</small>`;
+    err.innerHTML = _metaTokenError(e.message);
   }
 }
 
@@ -425,7 +431,7 @@ async function cargarIG(append = false) {
     hide('ig-loading');
     const err = document.getElementById('ig-error');
     err.style.display = 'block';
-    err.innerHTML = `⚠ ${esc(e.message)}`;
+    err.innerHTML = _metaTokenError(e.message);
   }
 }
 
@@ -491,9 +497,7 @@ async function cargarStats() {
     hide('stats-loading');
     const err = document.getElementById('stats-error');
     err.style.display = 'block';
-    err.innerHTML = `<div style="font-size:32px;margin-bottom:10px">📊</div>
-      <div>⚠ ${esc(e.message)}</div>
-      <div style="font-size:12px;margin-top:6px;opacity:.7">Las estadísticas requieren permisos especiales de Meta (read_insights)</div>`;
+    err.innerHTML = _metaTokenError(e.message);
   }
 }
 
@@ -624,6 +628,22 @@ async function syncPaginas() {
     btn.disabled = false;
     btn.textContent = '🔄 Sincronizar';
   }
+}
+
+/* ─── helper: error de token Meta ───────────────────────────────────────── */
+function _metaTokenError(msg) {
+  const esToken = /auth|token|oauth|session|expired|invalid/i.test(String(msg));
+  const titulo  = esToken ? 'Token de Meta inválido o expirado' : 'Error de Meta API';
+  return `
+    <div style="padding:24px;text-align:center">
+      <div style="font-size:28px;margin-bottom:8px">🔑</div>
+      <div style="font-weight:600;margin-bottom:6px">${esc(titulo)}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">${esc(msg)}</div>
+      <a href="/configuracion" class="btn btn-primary btn-sm">⚙️ Ir a Configuración → Meta</a>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:10px">
+        Actualizá el campo <strong>meta_page_access_token</strong> con un token válido del System User
+      </div>
+    </div>`;
 }
 
 /* ─── init ───────────────────────────────────────────────────────────────── */

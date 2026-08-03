@@ -63,11 +63,25 @@
     <button class="btn btn-secondary btn-sm" onclick="borImportarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
-    <select class="input" id="bor-f-estado" onchange="borCargar()" style="max-width:180px">
+    <select class="input" id="bor-f-estado" onchange="borCargar()" style="max-width:140px">
       <option value="">Todos</option>
       <option value="borrador">Borradores</option>
       <option value="publicada">Publicadas</option>
       <option value="error">Con error</option>
+    </select>
+    <select class="input" id="bor-f-producto" onchange="borCargar()" style="max-width:180px">
+      <option value="">Todos los tipos</option>
+      <option value="PISCINA">Piscinas</option>
+      <option value="MINIPISCINA">Minipiscinas</option>
+      <option value="MODULO">Vivienda modular</option>
+      <option value="MODULO_DEPOSITO">Módulo depósito</option>
+      <option value="COMBO">Combo piscina+módulo</option>
+      <option value="QUINCHO">Quincho</option>
+      <option value="PERGOLA">Pérgola</option>
+      <option value="HIDROMASAJE">Hidromasaje</option>
+      <option value="REPOSERA_FIBRA">Reposera de fibra</option>
+      <option value="CUCHA">Cucha para perro</option>
+      <option value="ILUMINACION_PISCINA">Iluminación piscina</option>
     </select>
     <label style="font-size:13px;color:var(--text-secondary)"><input type="checkbox" id="bor-sel-all" onchange="borToggleTodos(this)"> Seleccionar todo</label>
     <span id="bor-count" style="font-size:13px;color:var(--text-secondary)"></span>
@@ -1511,7 +1525,9 @@ const BOR_SEM = {
 let BOR_DATA_CACHE = {};
 async function borCargar() {
   const e = document.getElementById('bor-f-estado').value;
-  const d = await API.get('/api/ml/borradores' + (e ? '?estado=' + e : ''));
+  const p = document.getElementById('bor-f-producto').value;
+  const params = [e ? 'estado=' + e : '', p ? 'producto=' + encodeURIComponent(p) : ''].filter(Boolean).join('&');
+  const d = await API.get('/api/ml/borradores' + (params ? '?' + params : ''));
   const cont = document.getElementById('bor-lista');
   document.getElementById('bor-count').textContent = (d.total || 0) + ' publicaciones';
   BOR_DATA_CACHE = {};
@@ -1925,14 +1941,29 @@ async function borImportarCatalogo() {
   } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 async function borVariantes(id) {
-  const n = prompt('¿Cuántas variantes generar con IA? (1 a 8)', '3');
-  if (!n) return;
-  showToast('Generando variantes con IA…', 'info');
+  const nStr = prompt('¿Cuántas variantes generar con IA? (1 a 50)\n\nTip: generá 20-50 y usá "Publicar seleccionados" para publicarlas todas de una.', '20');
+  if (!nStr) return;
+  const n = Math.max(1, Math.min(parseInt(nStr) || 20, 50));
+  const btn = document.querySelector(`button[onclick="borVariantes(${id})"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+  showToast(`Generando ${n} variantes con IA…`, 'info');
   try {
-    const j = await API.post('/api/ml/borradores/' + id + '/variantes', { cantidad: parseInt(n) || 3 });
-    borCargar();
-    showToast('Variantes creadas: ' + (j.creados || 0), 'success');
-  } catch (e) { showToast('Error IA: ' + e.message, 'error'); }
+    const j = await API.post('/api/ml/borradores/' + id + '/variantes', { cantidad: n });
+    await borCargar();
+    // Auto-seleccionar las variantes recién creadas para publicar de una
+    const nuevosIds = j.ids || [];
+    nuevosIds.forEach(nid => {
+      BOR_SEL.add(nid);
+      const cb = document.querySelector(`#bor-lista input[type=checkbox][onchange*="borSel(${nid},"]`);
+      if (cb) cb.checked = true;
+    });
+    borActLote();
+    showToast(`✓ ${j.creados || 0} variantes listas — ya seleccionadas para publicar en lote`, 'success');
+  } catch (e) {
+    showToast('Error IA: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Variantes'; }
+  }
 }
 async function borDuplicar(id) {
   try { await API.post('/api/ml/borradores/' + id + '/duplicar', {}); borCargar(); showToast('Duplicada ✓', 'success'); }

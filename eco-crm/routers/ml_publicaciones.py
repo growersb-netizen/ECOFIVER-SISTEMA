@@ -77,13 +77,16 @@ def _dict(b: BorradorML) -> dict:
 
 
 @router.get("/api/ml/borradores")
-async def listar(estado: Optional[str] = None, db: Session = Depends(get_db),
+async def listar(estado: Optional[str] = None, producto: Optional[str] = None,
+                 db: Session = Depends(get_db),
                  x_api_key: Optional[str] = Header(None),
                  current_user: Optional[Usuario] = Depends(get_current_user)):
     _auth(x_api_key, current_user)
     q = db.query(BorradorML)
     if estado:
         q = q.filter(BorradorML.estado == estado)
+    if producto:
+        q = q.filter(BorradorML.producto == producto.upper())
     items = q.order_by(BorradorML.id.desc()).all()
     return {"total": len(items), "borradores": [_dict(b) for b in items]}
 
@@ -363,7 +366,15 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     async with httpx.AsyncClient(timeout=12) as hc:
         r = await hc.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
         if r.status_code not in (200, 201):
-            return {"ok": False, "error": _error_ml(r)}
+            # Auto-retry en modo classified si la categoría lo exige
+            if "CLASSIFIED" in r.text.upper():
+                payload_cl = {k: v for k, v in payload.items()
+                              if k not in ("available_quantity", "condition")}
+                payload_cl["buying_mode"] = "classified"
+                payload_cl["listing_type_id"] = "gold_special"
+                r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
+            if r.status_code not in (200, 201):
+                return {"ok": False, "error": _error_ml(r)}
         item = r.json()
         try:
             from routers.mercadolibre import _armar_descripcion_ml
@@ -549,7 +560,7 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
     if not base:
         raise HTTPException(404, "Borrador no encontrado")
     d = await request.json()
-    n = max(1, min(int(d.get("cantidad") or 3), 8))
+    n = max(1, min(int(d.get("cantidad") or 10), 50))
 
     TIPO_LABEL = {
         "PISCINA": "Pileta / Piscina de fibra de vidrio",
@@ -599,7 +610,7 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
     except Exception:
         raise HTTPException(400, "La IA no devolvió un formato válido, probá de nuevo.")
 
-    creados = 0
+    nuevos = []
     for tit in titulos[:n]:
         tit = str(tit).strip()[:60]
         if not tit:
@@ -628,9 +639,9 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
             created_by_id=current_user.id if current_user else None,
         )
         db.add(b)
-        creados += 1
+        nuevos.append(b)
     db.commit()
-    return {"ok": True, "creados": creados}
+    return {"ok": True, "creados": len(nuevos), "ids": [b.id for b in nuevos]}
 
 
 @router.get("/api/ml/categoria-atributos")

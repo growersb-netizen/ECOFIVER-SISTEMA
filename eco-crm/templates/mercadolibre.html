@@ -1579,7 +1579,7 @@ async function borBorrarLote() {
 function borNuevaPub() {
   document.getElementById('mp-id').value = '';
   document.getElementById('mp-tit').textContent = 'Nueva publicación';
-  ['mp-titulo', 'mp-precio', 'mp-costo', 'mp-ref', 'mp-cat', 'mp-sku', 'mp-fotos', 'mp-desc', 'mp-ia-keywords'].forEach(i => document.getElementById(i).value = '');
+  ['mp-titulo', 'mp-precio', 'mp-costo', 'mp-ref', 'mp-cat', 'mp-sku', 'mp-fotos', 'mp-desc'].forEach(i => document.getElementById(i).value = '');
   document.getElementById('mp-cat-nombre').textContent = '';
   document.getElementById('mp-cant').value = 1;
   document.getElementById('mp-tlen').textContent = '0';
@@ -1678,12 +1678,15 @@ let _fichasCache = null;
 async function borCargarFichasDropdown(modeloActual) {
   const sel = document.getElementById('mp-ficha-modelo');
   if (!sel) return;
+  const tipo = document.getElementById('mp-producto').value;
+  const TIPOS_PISCINA = ['PISCINA', 'MINIPISCINA'];
+  const TIPOS_MODULO  = ['MODULO', 'MODULO_DEPOSITO', 'COMBO', 'QUINCHO', 'PERGOLA'];
   try {
     if (!_fichasCache) _fichasCache = await API.get('/api/ml/fichas');
     const piscinas = (_fichasCache.piscinas || []);
     const modulos  = (_fichasCache.modulos  || []);
     sel.innerHTML = '<option value="">— Elegir modelo para cargar ficha —</option>';
-    if (piscinas.length) {
+    if (TIPOS_PISCINA.includes(tipo) && piscinas.length) {
       const og1 = document.createElement('optgroup');
       og1.label = 'Piscinas';
       piscinas.forEach(m => {
@@ -1694,7 +1697,7 @@ async function borCargarFichasDropdown(modeloActual) {
       });
       sel.appendChild(og1);
     }
-    if (modulos.length) {
+    if (TIPOS_MODULO.includes(tipo) && modulos.length) {
       const og2 = document.createElement('optgroup');
       og2.label = 'Módulos';
       modulos.forEach(m => {
@@ -2161,6 +2164,8 @@ function borOnProductoChange() {
   }
   borActualizarMedidasPiscina();
   borActualizarPrecioSugerido();
+  const fichaActual = document.getElementById('mp-ficha-modelo').value;
+  borCargarFichasDropdown(fichaActual);
 }
 
 function borActualizarMedidasPiscina() {

@@ -72,7 +72,22 @@ async function cargarPerfil(){
   const box=document.getElementById('wb-numero-box');
   try{
     const d=await WB.get('/api/whatsapp/perfil');
-    if(!d.ok){box.textContent='No se pudo cargar: '+(d.detail||'error');return;}
+    if(!d.ok){
+      if(d.error_code===190){
+        box.innerHTML=`<div style="color:#dc3545;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:14px;line-height:1.6">
+          <strong>⚠️ Token de WhatsApp vencido o app eliminada</strong><br><br>
+          El token <code>WA_TOKEN</code> que está configurado en Railway ya no funciona (la App de Meta fue eliminada o el token expiró).<br><br>
+          <b>Para solucionar:</b><br>
+          1. Andá a <a href="https://business.facebook.com" target="_blank">business.facebook.com</a> → Configuración → WhatsApp Accounts → tu número → API Setup<br>
+          2. Generá un nuevo <b>Permanent Token</b><br>
+          3. En Railway, actualizá la variable <code>WA_TOKEN</code> con el nuevo valor<br>
+          4. Recargá esta página
+        </div>`;
+      } else {
+        box.textContent='No se pudo cargar: '+(d.detail||'error');
+      }
+      return;
+    }
     const n=d.numero, p=d.perfil;
     box.innerHTML = `<div><strong>${n.display_phone_number||'—'}</strong>
       <div class="wb-hint">Nombre verificado: <b>${n.verified_name||'—'}</b> · Calidad: ${n.quality_rating||'—'}</div></div>`;

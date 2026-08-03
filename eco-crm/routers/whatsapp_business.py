@@ -80,6 +80,22 @@ async def get_perfil(db: Session = Depends(get_db), x_api_key: Optional[str] = H
                          params={"fields": "display_phone_number,verified_name,quality_rating"},
                          headers=_headers(token))
     if rp.status_code != 200:
+        err_body = {}
+        try:
+            err_body = rp.json()
+        except Exception:
+            pass
+        code = (err_body.get("error") or {}).get("code", 0)
+        if code == 190:
+            return {
+                "ok": False,
+                "error_code": 190,
+                "detail": (
+                    "El token WA_TOKEN ya no es válido porque la App de Meta fue eliminada o el token expiró. "
+                    "Para solucionarlo: 1) Accedé a business.facebook.com → WhatsApp Accounts → tu número "
+                    "→ Configuración de API y generá un token nuevo. 2) Actualizá WA_TOKEN en Railway con el nuevo valor."
+                ),
+            }
         raise HTTPException(rp.status_code, f"Meta rechazó la consulta: {rp.text[:300]}")
     perfil = (rp.json().get("data") or [{}])[0]
     numero = rn.json() if rn.status_code == 200 else {}

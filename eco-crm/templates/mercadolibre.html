@@ -1222,7 +1222,7 @@ async function loadPreguntas() {
 }
 
 function renderPregunta(q) {
-  const fecha = q.date_created ? new Date(q.date_created).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+  const fecha = q.fecha ? new Date(q.fecha).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
   return `
   <div class="card" id="pregunta-${q.id}" style="margin-bottom:12px;padding:16px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -1232,7 +1232,7 @@ function renderPregunta(q) {
           · 👤 ${escHtml(q.from_nickname || 'Comprador')}
           · 🕐 ${fecha}
         </div>
-        <div style="font-size:14px;color:var(--text-primary);font-weight:500;margin-bottom:12px">"${escHtml(q.text)}"</div>
+        <div style="font-size:14px;color:var(--text-primary);font-weight:500;margin-bottom:12px">"${escHtml(q.texto)}"</div>
         <textarea id="resp-${q.id}" class="input" rows="2"
           placeholder="Escribí la respuesta... o usá ✨ IA para sugerir una automáticamente"
           style="font-size:13px;width:100%;margin-bottom:8px"></textarea>
@@ -1261,7 +1261,7 @@ async function sugerirRespuesta(qId, itemTitulo) {
   try {
     const res = await API.post(`/api/ml/preguntas/${qId}/responder`, {
       sugerir_solo: true,
-      pregunta_texto: pregunta.text,
+      pregunta_texto: pregunta.texto,
       item_titulo: pregunta.item_titulo || itemTitulo,
     });
     textarea.value = res.respuesta_sugerida || res.texto || oldVal;

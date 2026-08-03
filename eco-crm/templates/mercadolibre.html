@@ -349,34 +349,72 @@
 
 <!-- ── CONFIGURACIÓN ML ── -->
 <div id="tab-config-ml" style="display:none">
-  <div class="card" style="padding:20px;max-width:500px">
-    <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Configuración MercadoLibre</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px">
 
-    <!-- Estado conexión -->
-    <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
-      <div style="font-weight:600;font-size:13px;margin-bottom:8px">Estado de conexión</div>
-      <div id="ml-conn-detail" style="font-size:13px;color:var(--text-secondary)">Verificando...</div>
-      <button class="btn btn-secondary btn-sm" onclick="checkMLStatus(true)" style="margin-top:10px">
-        🔌 Verificar conexión
-      </button>
+    <!-- Col izquierda: conexión + renovación -->
+    <div>
+      <div class="card" style="padding:20px;margin-bottom:16px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Configuración MercadoLibre</h3>
+
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Estado de conexión</div>
+          <div id="ml-conn-detail" style="font-size:13px;color:var(--text-secondary)">Verificando...</div>
+          <button class="btn btn-secondary btn-sm" onclick="checkMLStatus(true)" style="margin-top:10px">
+            🔌 Verificar conexión
+          </button>
+        </div>
+
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:6px">Renovación automática</div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+            Cuando está activa, las publicaciones que estén por vencer se renuevan automáticamente.
+          </p>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="toggle-renovacion" onchange="toggleRenovacion(this)">
+            <span id="renovacion-label" style="font-size:14px">Desactivada</span>
+          </label>
+        </div>
+
+        <p style="font-size:12px;color:var(--text-secondary)">
+          Para tokens de acceso: <a href="/configuracion" style="color:var(--primary)">Configuración → API Keys</a>.
+        </p>
+      </div>
     </div>
 
-    <!-- Renovación automática -->
-    <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
-      <div style="font-weight:600;font-size:13px;margin-bottom:6px">Renovación automática</div>
-      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
-        Cuando está activa, las publicaciones que estén por vencer se renuevan automáticamente.
+    <!-- Col derecha: encabezado / pie / keywords -->
+    <div class="card" style="padding:20px">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">📄 Plantilla de descripción</h3>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">
+        Se inserta automáticamente en cada publicación nueva. También podés aplicarlo a las publicaciones existentes con el botón de abajo.
       </p>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-        <input type="checkbox" id="toggle-renovacion" onchange="toggleRenovacion(this)">
-        <span id="renovacion-label" style="font-size:14px">Desactivada</span>
-      </label>
+
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label" style="font-weight:600">Encabezado</label>
+        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Quiénes somos, qué fabricamos, zona de trabajo. Va ANTES de la descripción del producto.</p>
+        <textarea id="cfg-encabezado" class="input" rows="5" placeholder="Ej: EcoFiver es una empresa fabricante de piscinas y módulos habitacionales..."></textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label" style="font-weight:600">Palabras clave de búsqueda</label>
+        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Variantes y sinónimos del producto en lenguaje natural. No es keyword stuffing — es texto que ayuda a que ML te encuentre en más búsquedas.</p>
+        <textarea id="cfg-keywords" class="input" rows="4" placeholder="Ej: Fabricamos piletas, piscinas, natatorios y spas de fibra de vidrio para jardín, terraza y exterior..."></textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label" style="font-weight:600">Pie de página</label>
+        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Garantía, formas de pago, contacto. Va al final de todas las descripciones.</p>
+        <textarea id="cfg-pie" class="input" rows="4" placeholder="Ej: Garantía 5 años en estructura. Instalación incluida en todo el país..."></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="guardarConfigDesc()">💾 Guardar plantilla</button>
+        <button class="btn btn-secondary" id="btn-actualizar-desc" onclick="actualizarDescripcionesML()">
+          🔄 Aplicar a publicaciones existentes
+        </button>
+      </div>
+      <div id="cfg-desc-resultado" style="margin-top:10px;font-size:12px;color:var(--text-secondary)"></div>
     </div>
 
-    <p style="font-size:12px;color:var(--text-secondary)">
-      Para configurar tokens de acceso, ir a
-      <a href="/configuracion" style="color:var(--primary)">Configuración → API Keys</a>.
-    </p>
   </div>
 </div>
 
@@ -1178,6 +1216,46 @@ async function loadMLConfig() {
       document.getElementById('renovacion-label').textContent = chk.checked ? 'Activada' : 'Desactivada';
     }
   } catch(e) { /* silent */ }
+  // Cargar plantilla de descripción
+  try {
+    const cfg = await API.get('/api/ml/config/descripcion');
+    document.getElementById('cfg-encabezado').value = cfg.encabezado || '';
+    document.getElementById('cfg-keywords').value   = cfg.keywords   || '';
+    document.getElementById('cfg-pie').value        = cfg.pie        || '';
+  } catch(e) { /* silent */ }
+}
+
+async function guardarConfigDesc() {
+  try {
+    await API.put('/api/ml/config/descripcion', {
+      encabezado: document.getElementById('cfg-encabezado').value,
+      keywords:   document.getElementById('cfg-keywords').value,
+      pie:        document.getElementById('cfg-pie').value,
+    });
+    showToast('Plantilla guardada', 'success');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function actualizarDescripcionesML() {
+  const btn = document.getElementById('btn-actualizar-desc');
+  const res = document.getElementById('cfg-desc-resultado');
+  btn.disabled = true;
+  btn.textContent = '⏳ Actualizando...';
+  res.textContent = 'Enviando descripciones a MercadoLibre, esto puede tardar un minuto...';
+  try {
+    const data = await API.post('/api/ml/publicaciones/actualizar-descripcion-lote', {});
+    res.innerHTML = `✅ Listo: <strong>${data.ok}</strong> actualizadas, <strong>${data.error}</strong> errores de ${data.total} publicaciones.`;
+    if (data.ok > 0) showToast(`${data.ok} descripciones actualizadas en ML`, 'success');
+    if (data.error > 0) showToast(`${data.error} publicaciones con error`, 'error');
+  } catch(e) {
+    res.textContent = 'Error: ' + e.message;
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Aplicar a publicaciones existentes';
+  }
 }
 
 async function toggleRenovacion(chk) {

@@ -33,20 +33,43 @@ ML_DEFAULT_REDIRECT = "https://eco-crm-production.up.railway.app/mercadolibre/ca
 
 
 def _agregar_condiciones(db: Session, descripcion: str) -> str:
+    """Mantiene compatibilidad — usa _armar_descripcion_ml internamente."""
+    return _armar_descripcion_ml(db, descripcion)
+
+
+def _armar_descripcion_ml(db: Session, descripcion: str) -> str:
     """
-    Suma automáticamente el texto de "Condiciones" configurado en Configuración
-    del negocio al final de la descripción de la publicación (garantía, quiénes
-    somos, envíos, etc.) — evita duplicarlo si ya está incluido (ej. al reeditar).
+    Construye la descripción final para ML:
+    [Encabezado] + descripción del producto + [Palabras clave] + [Condiciones/Pie]
+
+    El encabezado y pie se configuran en ML → Configuración.
+    Las palabras clave se integran naturalmente al final para ayudar con la búsqueda.
+    No se duplican bloques si ya están presentes.
     """
+    encabezado = (get_config_value("ml_desc_encabezado", db) or "").strip()
+    pie        = (get_config_value("ml_desc_pie", db) or "").strip()
+    keywords   = (get_config_value("ml_desc_keywords", db) or "").strip()
+
     try:
         from routers.negocio import _get as _get_negocio
         condiciones = (_get_negocio(db, "negocio_condiciones") or "").strip()
     except Exception:
         condiciones = ""
-    descripcion = descripcion or ""
-    if not condiciones or condiciones in descripcion:
-        return descripcion
-    return f"{descripcion}\n\n{condiciones}" if descripcion else condiciones
+
+    descripcion = (descripcion or "").strip()
+    partes = []
+
+    if encabezado and encabezado not in descripcion:
+        partes.append(encabezado)
+    partes.append(descripcion)
+    if keywords and keywords not in descripcion:
+        partes.append(keywords)
+    if condiciones and condiciones not in descripcion:
+        partes.append(condiciones)
+    if pie and pie not in descripcion:
+        partes.append(pie)
+
+    return "\n\n".join(p for p in partes if p)
 
 
 def _ml_save(db: Session, clave: str, valor: str, secreto: bool = False):
@@ -713,29 +736,35 @@ async def generar_descripcion(
     if not palabras:
         raise HTTPException(400, "Ingresá algunas palabras clave del producto")
 
-    prompt = f"""Sos un especialista en publicaciones de MercadoLibre Argentina (posicionamiento y conversión).
-Generá el título y la descripción de una publicación a partir de estos datos del producto:
+    prompt = f"""Sos un especialista en SEO de MercadoLibre Argentina. Tu objetivo es maximizar el tráfico orgánico de búsqueda.
 
+Datos del producto:
 {palabras}
 
-REGLAS DE TÍTULO (las aplica el algoritmo de búsqueda de ML, no son de estilo):
-- Máximo 60 caracteres, sin cortar palabras.
-- SOLO espacios entre palabras. Prohibido: comas, guiones, pipes "|", dos puntos, signos de exclamación/interrogación, emojis, MAYÚSCULAS SOSTENIDAS.
-- Prohibidas palabras promocionales que ML penaliza: "oferta", "gratis", "el mejor", "envío gratis", "liquidación", "%".
-- Orden: [Tipo de producto] [atributo diferenciador o modelo] [atributo secundario] [uso o material].
-  El comprador escribe frases largas (keywords "longtail" de 4+ palabras) — pensá cómo buscaría alguien
-  esto en el buscador, no cómo lo describirías en un cartel.
-- No repitas la marca si no aporta búsqueda (nadie busca "EcoFiver piscina"; sí busca "piscina fibra de vidrio 6x3").
+═══ REGLAS DE TÍTULO ═══
+El título es el factor #1 del algoritmo de ML. Cada palabra DEBE ser algo que un comprador real escribe en el buscador.
 
-REGLAS DE DESCRIPCIÓN (mínimo 300 palabras):
-- Primer párrafo: qué es, para qué sirve, y el beneficio principal — esto es lo que se ve sin hacer scroll.
-- Después: características técnicas concretas (medidas, materiales, capacidad, instalación).
-- Integrar naturalmente 2-3 variantes de búsqueda relacionadas (sinónimos que la gente también usaría).
-- Cierre con llamado a la acción y mención de instalación incluida / fabricación propia en Zárate /
-  financiación propia disponible (solo si aplica al producto — un accesorio chico no necesita financiación).
-- Sin markdown, sin emojis, texto plano en párrafos.
+ESTRUCTURA: [Tipo de producto] [Material o tecnología clave] [Medida o tamaño] [Característica diferenciadora]
+Ejemplo correcto: "Piscina fibra de vidrio 6x3 metros con escalera"
+Ejemplo correcto: "Pileta armada rectangular 4x2 metros desmontable"
+Ejemplo INCORRECTO: "Piscina minimalista 6.40 IDEAL PARA TU JARDIN" ← "ideal para tu jardin" no genera tráfico
 
-Respondé EXCLUSIVAMENTE con este JSON, sin markdown ni texto extra:
+PROHIBIDO en el título:
+- Frases emocionales o de estilo: "ideal para", "perfecta para", "diseño moderno", "el mejor", etc.
+- MAYÚSCULAS sostenidas, signos de exclamación/interrogación, emojis, pipes "|", puntos, comas
+- Palabras que nadie busca: "hermosa", "premium", "exclusiva", "de calidad", "top"
+- Marcas propias si no generan búsqueda (nadie busca "ecofiver piscina" pero sí "piscina fibra de vidrio")
+
+Máximo 60 caracteres. Contá los caracteres antes de responder.
+
+═══ REGLAS DE DESCRIPCIÓN ═══
+- 300 palabras mínimo, texto plano, sin markdown ni emojis
+- Párrafo 1 (visible sin scroll): qué es exactamente, medidas clave, material, para quién
+- Párrafo 2-3: especificaciones técnicas, proceso de instalación, garantía
+- Párrafo 4: integrar naturalmente 2-3 variantes de búsqueda (ej: "pileta" y "piscina" y "natatorio" son sinónimos — usarlos todos en el texto)
+- Cierre: fabricación propia en Zárate Buenos Aires, instalación incluida, financiación propia disponible
+
+Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra ni markdown:
 {{"titulo": "...", "descripcion": "..."}}"""
 
     try:
@@ -1046,6 +1075,80 @@ async def sincronizar_precios(
             await asyncio.sleep(0.3)  # Respetar rate limit de ML
 
     return resultados
+
+
+# ─── API — CONFIG DESCRIPCIÓN (encabezado / pie / keywords) ──────────────────
+
+@router.get("/api/ml/config/descripcion")
+async def get_config_descripcion(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    return {
+        "encabezado": get_config_value("ml_desc_encabezado", db) or "",
+        "pie":        get_config_value("ml_desc_pie", db) or "",
+        "keywords":   get_config_value("ml_desc_keywords", db) or "",
+    }
+
+
+@router.put("/api/ml/config/descripcion")
+async def put_config_descripcion(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    data = await request.json()
+    for campo, clave in [("encabezado", "ml_desc_encabezado"),
+                         ("pie",        "ml_desc_pie"),
+                         ("keywords",   "ml_desc_keywords")]:
+        if campo in data:
+            _ml_save(db, clave, data[campo], secreto=False)
+    return {"ok": True}
+
+
+# ─── API — ACTUALIZAR DESCRIPCIONES EN LOTE ──────────────────────────────────
+
+@router.post("/api/ml/publicaciones/actualizar-descripcion-lote")
+async def actualizar_descripcion_lote(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Aplica el encabezado/pie/keywords configurados a todas las publicaciones
+    activas guardadas en el CRM. Actualiza la descripción directamente en ML.
+    """
+    token = await _get_token(db)
+    pubs = db.query(PublicacionML).filter(
+        PublicacionML.item_id.isnot(None),
+        PublicacionML.estado_ml.in_(["active", "paused"]),
+    ).all()
+
+    ok_count = err_count = 0
+    detalles = []
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        for pub in pubs:
+            try:
+                descripcion_nueva = _armar_descripcion_ml(db, pub.descripcion or "")
+                r = await c.post(
+                    f"{ML_BASE}/items/{pub.item_id}/description",
+                    headers=_ml_headers(token),
+                    json={"plain_text": descripcion_nueva},
+                )
+                if r.status_code in (200, 201):
+                    pub.descripcion = pub.descripcion or ""
+                    ok_count += 1
+                    detalles.append({"item_id": pub.item_id, "status": "ok"})
+                else:
+                    err_count += 1
+                    detalles.append({"item_id": pub.item_id, "status": f"error {r.status_code}: {r.text[:80]}"})
+            except Exception as e:
+                err_count += 1
+                detalles.append({"item_id": pub.item_id, "status": str(e)[:80]})
+            await asyncio.sleep(0.4)
+
+    db.commit()
+    return {"ok": ok_count, "error": err_count, "total": len(pubs), "detalles": detalles}
 
 
 # ─── API — PREGUNTAS ──────────────────────────────────────────────────────────

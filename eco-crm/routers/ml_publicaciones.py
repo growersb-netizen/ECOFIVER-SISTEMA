@@ -314,14 +314,14 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         if r.status_code not in (200, 201):
             return {"ok": False, "error": _error_ml(r)}
         item = r.json()
-        if b.descripcion:
-            try:
-                from routers.mercadolibre import _agregar_condiciones
-                descripcion_final = _agregar_condiciones(db, b.descripcion)
+        try:
+            from routers.mercadolibre import _armar_descripcion_ml
+            descripcion_final = _armar_descripcion_ml(db, b.descripcion or "")
+            if descripcion_final:
                 await hc.post(f"{ML_BASE}/items/{item['id']}/description",
                               json={"plain_text": descripcion_final}, headers=_ml_headers(tok))
-            except Exception:
-                pass
+        except Exception:
+            pass
     return {"ok": True, "item_id": item.get("id"), "permalink": item.get("permalink")}
 
 

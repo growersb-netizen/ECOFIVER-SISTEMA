@@ -213,6 +213,19 @@ _PRODUCT_ID_ATTRS = {"PRODUCT_ID", "GTIN", "EAN", "UPC", "ISBN", "PRODUCT_IDENTI
 _NUMERIC_ATTRS = {"CAPACITY", "VOLUME_CAPACITY", "LENGTH", "WIDTH", "HEIGHT",
                   "DEPTH", "WEIGHT", "NET_WEIGHT", "GROSS_WEIGHT", "VOLUME"}
 
+# Categorías fijas por tipo de producto EcoFiver.
+# El predictor automático usa el TÍTULO (ej. "autoportante" → automotores, "módulo" → software).
+# Estas categorías se usan siempre que el producto esté en este dict — sin consultar el predictor.
+CATEGORIAS_FIJAS: dict = {
+    "PISCINA":          ("MLA373513", "Piletas de Fibra"),
+    "MINIPISCINA":      ("MLA373513", "Piletas de Fibra"),
+    "COMBO":            ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "MODULO":           ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "MODULO_DEPOSITO":  ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    # HIDROMASAJE, QUINCHO, PERGOLA, REPOSERA_FIBRA, CUCHA, ILUMINACION_PISCINA
+    # → sin categoría fija (el predictor maneja bien estas palabras específicas)
+}
+
 # Unidades por defecto para atributos numéricos (ML las requiere explícitamente)
 _ATTR_UNITS = {
     "CAPACITY": "L",
@@ -263,9 +276,17 @@ def _sanitizar_valor_numerico(val: str) -> str:
 async def _publicar(db: Session, b: BorradorML) -> dict:
     """Crea el ítem en ML a partir del borrador."""
     tok = await _ml_valid_token(db)
-    categoria = b.categoria or await _ml_categoria_sugerida(db, b.titulo)
+    # Prioridad: 1) categoría manual del borrador → 2) fija por tipo de producto → 3) predictor por título
+    categoria = b.categoria or ""
+    cat_nombre = b.categoria_nombre or ""
+    if not categoria and b.producto:
+        fija = CATEGORIAS_FIJAS.get((b.producto or "").upper())
+        if fija:
+            categoria, cat_nombre = fija
     if not categoria:
-        return {"ok": False, "error": "No se pudo detectar la categoría. Cargá la categoría manualmente en el borrador."}
+        categoria = await _ml_categoria_sugerida(db, b.titulo)
+    if not categoria:
+        return {"ok": False, "error": "No se pudo detectar la categoría. Seleccioná el tipo de producto antes de publicar."}
     try:
         fotos = json.loads(b.fotos_json or "[]")
     except Exception:

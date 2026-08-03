@@ -13,6 +13,8 @@ FICHAS_PISCINAS: dict = {
     # ─── MINIDECK ──────────────────────────────────────────────────────────────
     "Minideck": {
         "titulo_ml": "Pileta fibra de vidrio 3x2 metros con deck plataforma",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "300", "WIDTH": "200", "DEPTH": "70", "CAPACITY": "4200"},
         "descripcion_ml": (
             "Pileta Minideck de fibra de vidrio de 3 metros de largo por 2 metros de ancho, "
             "con profundidad uniforme de 0,70 metros. Ideal para espacios reducidos, patios "
@@ -36,6 +38,8 @@ FICHAS_PISCINAS: dict = {
 
     "Minideck Chico": {
         "titulo_ml": "Pileta fibra de vidrio 3x2 metros con deck plataforma",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "300", "WIDTH": "200", "DEPTH": "70", "CAPACITY": "4200"},
         "descripcion_ml": (
             "Pileta Minideck Chico de fibra de vidrio, 3 metros de largo por 2 metros de ancho "
             "y profundidad uniforme de 0,70 metros. Capacidad aproximada de 4.200 litros. "
@@ -55,6 +59,8 @@ FICHAS_PISCINAS: dict = {
 
     "Minideck Grande": {
         "titulo_ml": "Pileta fibra de vidrio 3x2 metros deck plataforma grande",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "300", "WIDTH": "200", "DEPTH": "70", "CAPACITY": "4200"},
         "descripcion_ml": (
             "Pileta Minideck Grande de fibra de vidrio, 3 metros de largo por 2 metros de ancho "
             "y profundidad de 0,70 metros. Capacidad de 4.200 litros. Diseño compacto con "
@@ -74,6 +80,8 @@ FICHAS_PISCINAS: dict = {
     # ─── MINIPORTANTE / AUTOPORTANTE ───────────────────────────────────────────
     "Miniportante": {
         "titulo_ml": "Pileta autoportante fibra de vidrio 2.5x2 metros sin excavar",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "250", "WIDTH": "210", "DEPTH": "70", "CAPACITY": "3675"},
         "descripcion_ml": (
             "Pileta Miniportante de fibra de vidrio, 2,50 metros de largo por 2,10 metros de "
             "ancho y 0,70 metros de profundidad. Capacidad de 3.675 litros. Modelo autoportante "
@@ -92,6 +100,8 @@ FICHAS_PISCINAS: dict = {
 
     "Autoportante": {
         "titulo_ml": "Pileta autoportante fibra de vidrio 4x2 metros sin excavar",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "410", "WIDTH": "210", "DEPTH": "70", "CAPACITY": "6027"},
         "descripcion_ml": (
             "Piscina Autoportante de fibra de vidrio, 4,10 metros de largo por 2,10 metros de "
             "ancho y 0,70 metros de profundidad. Capacidad de 6.027 litros. Instalación sin "
@@ -113,6 +123,8 @@ FICHAS_PISCINAS: dict = {
     # ─── ARCO ROMANO CHICO ─────────────────────────────────────────────────────
     "Arco Romano Chico Recto": {
         "titulo_ml": "Piscina arco romano fibra de vidrio 4.6x2.47 metros 1.20m",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "460", "WIDTH": "247", "DEPTH": "120", "CAPACITY": "13625"},
         "descripcion_ml": (
             "Pileta Arco Romano Chico Recto de fibra de vidrio, 4,60 metros de largo por "
             "2,47 metros de ancho y 1,20 metros de profundidad uniforme. Capacidad de "
@@ -134,6 +146,8 @@ FICHAS_PISCINAS: dict = {
 
     "Arco Romano Chico C/Desnivel": {
         "titulo_ml": "Piscina arco romano fibra de vidrio 4.6x2.35 metros con desnivel",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "460", "WIDTH": "235", "DEPTH": "110", "CAPACITY": "12972"},
         "descripcion_ml": (
             "Pileta Arco Romano Chico con Desnivel de fibra de vidrio, 4,60 metros de largo "
             "por 2,35 metros de ancho. Profundidad variable: 1,10 metros en la zona de playa "
@@ -152,6 +166,8 @@ FICHAS_PISCINAS: dict = {
 
     "Arco Romano Chico Curvo": {
         "titulo_ml": "Piscina arco romano curvo fibra de vidrio 4.6x2.35 metros",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "460", "WIDTH": "235", "DEPTH": "110", "CAPACITY": "12972"},
         "descripcion_ml": (
             "Pileta Arco Romano Chico Curvo de fibra de vidrio, 4,60 metros de largo por "
             "2,35 metros de ancho. Profundidad de 1,10 a 1,30 metros. Capacidad de 12.972 litros. "
@@ -168,6 +184,8 @@ FICHAS_PISCINAS: dict = {
     # ─── ARCO ROMANO MEDIANO ───────────────────────────────────────────────────
     "Arco Romano Mediano Recto": {
         "titulo_ml": "Piscina arco romano 6.40x2.94 metros fibra de vidrio 1.40m",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "640", "WIDTH": "294", "DEPTH": "140", "CAPACITY": "26342"},
         "descripcion_ml": (
             "Pileta Arco Romano Mediano Recto de fibra de vidrio, 6,40 metros de largo por "
             "2,94 metros de ancho y 1,40 metros de profundidad uniforme. Capacidad de "
@@ -189,6 +207,8 @@ FICHAS_PISCINAS: dict = {
 
     "Arco Romano Mediano C/Desnivel": {
         "titulo_ml": "Piscina arco romano 7x3.35 metros fibra de vidrio con desnivel",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "700", "WIDTH": "335", "DEPTH": "125", "CAPACITY": "34617"},
         "descripcion_ml": (
             "Pileta Arco Romano Mediano con Desnivel de fibra de vidrio, 7,00 metros de largo "
             "por 3,35 metros de ancho. Profundidad variable: 1,25 metros en zona de playa y "
@@ -208,6 +228,8 @@ FICHAS_PISCINAS: dict = {
 
     "Arco Romano Mediano Curvo": {
         "titulo_ml": "Piscina arco romano curvo 7x3.35 metros fibra de vidrio",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "700", "WIDTH": "335", "DEPTH": "125", "CAPACITY": "34617"},
         "descripcion_ml": (
             "Pileta Arco Romano Mediano Curvo de fibra de vidrio, 7,00 metros de largo por "
             "3,35 metros de ancho. Profundidad variable de 1,25 a 1,70 metros. Capacidad de "
@@ -224,6 +246,8 @@ FICHAS_PISCINAS: dict = {
     # ─── ARCO ROMANO GRANDE ────────────────────────────────────────────────────
     "Arco Romano Grande": {
         "titulo_ml": "Piscina arco romano grande 8x3.35 metros fibra de vidrio",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "810", "WIDTH": "335", "DEPTH": "125", "CAPACITY": "41373"},
         "descripcion_ml": (
             "Piscina Arco Romano Grande de fibra de vidrio, 8,10 metros de largo por 3,35 "
             "metros de ancho. Profundidad variable de 1,25 a 1,80 metros. Capacidad de "
@@ -246,6 +270,8 @@ FICHAS_PISCINAS: dict = {
 
     "Arco Romano Grande Recto": {
         "titulo_ml": "Piscina arco romano grande 8x3.35 metros fibra de vidrio",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "810", "WIDTH": "335", "DEPTH": "125", "CAPACITY": "41373"},
         "descripcion_ml": (
             "Pileta Arco Romano Grande Recto de fibra de vidrio, 8,10 metros de largo por "
             "3,35 metros de ancho. Profundidad variable de 1,25 a 1,80 metros. Capacidad de "
@@ -262,6 +288,8 @@ FICHAS_PISCINAS: dict = {
 
     "Arco Romano Grande Curvo": {
         "titulo_ml": "Piscina arco romano curvo 8x3.35 metros fibra de vidrio",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "810", "WIDTH": "335", "DEPTH": "125", "CAPACITY": "41373"},
         "descripcion_ml": (
             "Pileta Arco Romano Grande Curvo de fibra de vidrio, 8,10 metros de largo por "
             "3,35 metros de ancho. Profundidad variable de 1,25 a 1,80 metros. Capacidad de "
@@ -279,6 +307,8 @@ FICHAS_PISCINAS: dict = {
     # ─── PLAYA HÚMEDA ──────────────────────────────────────────────────────────
     "Playa Humeda": {
         "titulo_ml": "Piscina playa humeda fibra de vidrio 5.2x2.45 metros escalera",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "520", "WIDTH": "245", "DEPTH": "110", "CAPACITY": "15288"},
         "descripcion_ml": (
             "Pileta Playa Húmeda de fibra de vidrio, 5,20 metros de largo por 2,45 metros de "
             "ancho. Profundidad variable de 1,10 a 1,30 metros. Capacidad de 15.288 litros. "
@@ -299,6 +329,8 @@ FICHAS_PISCINAS: dict = {
 
     "Playa Humeda Chica C/Escalera": {
         "titulo_ml": "Pileta playa humeda fibra de vidrio 4x2.4 metros con escalera",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "410", "WIDTH": "240", "DEPTH": "120", "CAPACITY": "11808"},
         "descripcion_ml": (
             "Piscina Playa Húmeda Chica con Escalera de fibra de vidrio, 4,10 metros de largo "
             "por 2,40 metros de ancho y 1,20 metros de profundidad uniforme. Capacidad de "
@@ -316,6 +348,8 @@ FICHAS_PISCINAS: dict = {
 
     "Semi Playa Humeda C/Escalera": {
         "titulo_ml": "Piscina semi playa humeda 6.7x2.95 metros fibra de vidrio",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "670", "WIDTH": "295", "DEPTH": "150", "CAPACITY": "29663"},
         "descripcion_ml": (
             "Pileta Semi Playa Húmeda con Escalera de fibra de vidrio, 6,70 metros de largo "
             "por 2,95 metros de ancho y 1,50 metros de profundidad. Capacidad de 29.663 litros. "
@@ -334,6 +368,8 @@ FICHAS_PISCINAS: dict = {
     # ─── PLAYA Y ABANICO ───────────────────────────────────────────────────────
     "Playa y Abanico": {
         "titulo_ml": "Piscina playa abanico fibra de vidrio 9.2x3.8 metros doble zona",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "920", "WIDTH": "380", "DEPTH": "125", "CAPACITY": "53254"},
         "descripcion_ml": (
             "Piscina Playa y Abanico de fibra de vidrio, 9,20 metros de largo por 3,80 metros "
             "de ancho. Profundidad variable de 1,25 a 1,80 metros. Capacidad de 53.254 litros. "
@@ -355,6 +391,8 @@ FICHAS_PISCINAS: dict = {
 
     "Playa y Abanico Chica": {
         "titulo_ml": "Piscina playa abanico fibra de vidrio 9.2x3.8 metros doble zona",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "920", "WIDTH": "380", "DEPTH": "125", "CAPACITY": "53254"},
         "descripcion_ml": (
             "Pileta Playa y Abanico Chica de fibra de vidrio, 9,20 metros de largo por 3,80 "
             "metros de ancho. Profundidad de 1,25 a 1,80 metros. Capacidad de 53.254 litros. "
@@ -369,6 +407,8 @@ FICHAS_PISCINAS: dict = {
 
     "Playa y Abanico Mediana": {
         "titulo_ml": "Piscina playa abanico fibra de vidrio 9.2x3.8 metros con playa",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "920", "WIDTH": "380", "DEPTH": "125", "CAPACITY": "53254"},
         "descripcion_ml": (
             "Piscina Playa y Abanico Mediana de fibra de vidrio, 9,20 metros de largo por "
             "3,80 metros de ancho. Profundidad 1,25 a 1,80 metros. Capacidad de 53.254 litros. "
@@ -382,6 +422,8 @@ FICHAS_PISCINAS: dict = {
 
     "Playa y Abanico Grande": {
         "titulo_ml": "Piscina playa y abanico grande fibra de vidrio 9.2x3.8 metros",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "920", "WIDTH": "380", "DEPTH": "125", "CAPACITY": "53254"},
         "descripcion_ml": (
             "Pileta Playa y Abanico Grande de fibra de vidrio, 9,20 metros de largo por 3,80 "
             "metros de ancho. Profundidad de 1,25 a 1,80 metros. Capacidad de 53.254 litros. "
@@ -398,6 +440,8 @@ FICHAS_PISCINAS: dict = {
     # ─── MINIMALISTA ───────────────────────────────────────────────────────────
     "Minimalista Chica": {
         "titulo_ml": "Pileta minimalista rectangular fibra de vidrio 4x2.5 metros",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "397", "WIDTH": "246", "DEPTH": "120", "CAPACITY": "11712"},
         "descripcion_ml": (
             "Piscina Minimalista Chica de fibra de vidrio, 3,97 metros de largo por 2,46 "
             "metros de ancho y 1,20 metros de profundidad uniforme. Capacidad de 11.712 litros. "
@@ -418,6 +462,8 @@ FICHAS_PISCINAS: dict = {
 
     "Minimalista Mediana": {
         "titulo_ml": "Piscina minimalista rectangular 5.5x2.9 metros fibra de vidrio",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "550", "WIDTH": "290", "DEPTH": "150", "CAPACITY": "23925"},
         "descripcion_ml": (
             "Pileta Minimalista Mediana de fibra de vidrio, 5,50 metros de largo por 2,90 "
             "metros de ancho y 1,50 metros de profundidad uniforme. Capacidad de 23.925 litros. "
@@ -438,6 +484,8 @@ FICHAS_PISCINAS: dict = {
 
     "Minimalista Grande": {
         "titulo_ml": "Piscina minimalista rectangular 6.4x3 metros fibra de vidrio",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "640", "WIDTH": "300", "DEPTH": "140", "CAPACITY": "26880"},
         "descripcion_ml": (
             "Pileta Minimalista Grande de fibra de vidrio, 6,40 metros de largo por 3,00 "
             "metros de ancho y 1,40 metros de profundidad uniforme. Capacidad de 26.880 litros. "
@@ -459,6 +507,8 @@ FICHAS_PISCINAS: dict = {
     # ─── RECTA CON ESCALERA ────────────────────────────────────────────────────
     "Recta C/Mini Escalera": {
         "titulo_ml": "Pileta rectangular fibra de vidrio 4.6x2.5 metros con escalera",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio",
+                         "LENGTH": "463", "WIDTH": "248", "DEPTH": "125", "CAPACITY": "14353"},
         "descripcion_ml": (
             "Piscina Recta con Mini Escalera de fibra de vidrio, 4,63 metros de largo por "
             "2,48 metros de ancho y 1,25 metros de profundidad uniforme. Capacidad de "

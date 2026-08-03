@@ -114,11 +114,24 @@
       <div id="mp-ganancia" style="font-size:13px;margin:2px 0 8px;color:var(--text-secondary)"></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Producto</label>
-          <select class="input" id="mp-producto" onchange="borActualizarMedidasPiscina()">
-            <option value="MODULO">Vivienda modular (financiado)</option>
-            <option value="MODULO_DEPOSITO">Módulo de depósito (contado)</option>
-            <option value="PISCINA">Piscina</option>
-            <option value="COMBO">Combo</option>
+          <select class="input" id="mp-producto" onchange="borOnProductoChange()">
+            <optgroup label="Piscinas y agua">
+              <option value="PISCINA">Piscina / Pileta de fibra de vidrio</option>
+              <option value="MINIPISCINA">Minipiscina / Pileta pequeña</option>
+              <option value="HIDROMASAJE">Hidromasaje / Jacuzzi / Spa</option>
+              <option value="ILUMINACION_PISCINA">Iluminación para piscinas</option>
+            </optgroup>
+            <optgroup label="Viviendas y estructuras">
+              <option value="MODULO">Vivienda modular Wood Frame</option>
+              <option value="MODULO_DEPOSITO">Módulo depósito / Galpón prefabricado</option>
+              <option value="QUINCHO">Quincho prefabricado</option>
+              <option value="PERGOLA">Pérgola / Gazebo</option>
+              <option value="COMBO">Combo piscina + módulo</option>
+            </optgroup>
+            <optgroup label="Accesorios y jardín">
+              <option value="REPOSERA_FIBRA">Reposera de fibra de vidrio</option>
+              <option value="CUCHA">Cucha / Casilla para perro</option>
+            </optgroup>
           </select></div>
         <div class="form-group"><label class="form-label">Cantidad</label><input class="input" type="number" id="mp-cant" value="1" min="1"></div>
       </div>
@@ -129,8 +142,8 @@
             <option value="gold_pro">Premium (habilita cuotas sin interés)</option>
           </select></div>
         <div class="form-group">
-          <label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(opcional)</small></label>
-          <input class="input" id="mp-cat" placeholder="se infiere del producto" onchange="borActualizarPrecioSugerido();document.getElementById('mp-cat-nombre').textContent=''">
+          <label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(se completa automáticamente según el tipo de producto)</small></label>
+          <input class="input" id="mp-cat" placeholder="auto" onchange="borActualizarPrecioSugerido();document.getElementById('mp-cat-nombre').textContent=''">
           <div id="mp-cat-nombre" style="font-size:12px;color:#22c55e;margin-top:3px"></div>
         </div>
       </div>
@@ -1585,11 +1598,11 @@ function borNuevaPub() {
   document.getElementById('mp-catalogo-sel').value = '';
   document.getElementById('mp-precio-ref-box').style.display = 'none';
   document.getElementById('mp-pc-warn').style.display = 'none';
-  document.getElementById('mp-medidas-piscina-group').style.display = 'none';
   _borPrecioContadoRef = null;
   _borLitrosActual = '';
   borCargarCatalogoSelect();
   borCargarFichasDropdown();
+  borOnProductoChange();
   document.getElementById('mp-foto-msg').textContent = '';
   document.getElementById('mp-checklist-calidad').innerHTML = '';
   openModal('modal-bor');
@@ -1624,7 +1637,7 @@ function borEditar(b) {
   borCargarFichasDropdown(b.modelo_nombre);
   openModal('modal-bor');
   setTimeout(borCalcGanancia, 50);
-  setTimeout(borActualizarMedidasPiscina, 50);
+  setTimeout(borOnProductoChange, 50);
   checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
 }
 async function borGuardar() {
@@ -1711,6 +1724,11 @@ async function borCargarFicha() {
     if (f.descripcion_ml) {
       document.getElementById('mp-desc').value = f.descripcion_ml;
     }
+    // Si la ficha tiene atributos (medidas, capacidad, marca), cargarlos automáticamente
+    if (f.atributos_ml && Object.keys(f.atributos_ml).length) {
+      await borCargarAtributos();          // carga y renderiza los campos ML
+      _borRellenarAtributos(f.atributos_ml); // rellena los campos con los valores de la ficha
+    }
     checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
     msg.textContent = `✓ Ficha cargada: ${modelo}`;
     msg.style.color = '#4ade80';
@@ -1718,6 +1736,25 @@ async function borCargarFicha() {
     msg.textContent = 'No se encontró ficha para ese modelo.';
     msg.style.color = '#f87171';
   }
+}
+
+function _borRellenarAtributos(atributos) {
+  const cont = document.getElementById('mp-atributos');
+  if (!cont) return;
+  for (const [attrId, valor] of Object.entries(atributos)) {
+    const inp = cont.querySelector(`[data-id="${attrId}"]`);
+    if (!inp) continue;
+    if (inp.tagName === 'SELECT') {
+      const opt = Array.from(inp.options).find(o =>
+        o.value.toLowerCase() === String(valor).toLowerCase() ||
+        o.textContent.trim().toLowerCase() === String(valor).toLowerCase()
+      );
+      if (opt) inp.value = opt.value;
+    } else {
+      inp.value = valor;
+    }
+  }
+  _borActualizarScoreFicha && _borActualizarScoreFicha();
 }
 
 async function borGenerarConIA() {
@@ -2040,6 +2077,31 @@ function borChequearPrecioBajoContado() {
   if (!warn) return;
   const precio = parseFloat(document.getElementById('mp-precio').value) || 0;
   warn.style.display = (_borPrecioContadoRef && precio > 0 && precio < _borPrecioContadoRef) ? '' : 'none';
+}
+
+// Categorías fijas por tipo de producto — espejo del dict CATEGORIAS_FIJAS en ml_publicaciones.py
+const CATEGORIAS_FIJAS_JS = {
+  PISCINA:         { id: 'MLA373513', nombre: 'Piletas de Fibra' },
+  MINIPISCINA:     { id: 'MLA373513', nombre: 'Piletas de Fibra' },
+  MODULO:          { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  MODULO_DEPOSITO: { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  COMBO:           { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  // HIDROMASAJE, QUINCHO, PERGOLA, REPOSERA_FIBRA, CUCHA, ILUMINACION_PISCINA
+  // no tienen categoría fija → el predictor ML las detecta bien por ser términos específicos
+};
+
+function borOnProductoChange() {
+  const tipo = document.getElementById('mp-producto').value;
+  const catInput = document.getElementById('mp-cat');
+  const catNombre = document.getElementById('mp-cat-nombre');
+  const fija = CATEGORIAS_FIJAS_JS[tipo];
+  if (fija) {
+    catInput.value = fija.id;
+    catNombre.textContent = '✓ ' + fija.nombre + ' (categoría automática)';
+    catNombre.style.color = '#22c55e';
+  }
+  borActualizarMedidasPiscina();
+  borActualizarPrecioSugerido();
 }
 
 function borActualizarMedidasPiscina() {

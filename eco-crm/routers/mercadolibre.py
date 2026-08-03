@@ -1167,6 +1167,7 @@ async def get_ficha_ml(
         "modelo": modelo,
         "titulo_ml": ficha.get("titulo_ml", ""),
         "descripcion_ml": ficha.get("descripcion_ml", ""),
+        "atributos_ml": ficha.get("atributos_ml", {}),
     }
 
 

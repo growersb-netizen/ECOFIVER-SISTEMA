@@ -447,11 +447,12 @@ async function cargarStats() {
   const labelPeriodo = periodo === 'days_28' ? 'últimos 28 días' : 'esta semana';
 
   const METRIC_META = {
-    page_impressions:       { label: 'Impresiones',      icon: '👁️',  color: '#1877f2' },
-    page_reach:             { label: 'Alcance único',    icon: '🎯',  color: '#16a34a' },
-    page_engaged_users:     { label: 'Usuarios activos', icon: '❤️',  color: '#e1306c' },
-    page_post_engagements:  { label: 'Interacciones',    icon: '✍️',  color: '#f59e0b' },
-    page_fan_adds:          { label: 'Nuevos fans',      icon: '👥',  color: '#8b5cf6' },
+    page_impressions:       { label: 'Impresiones',    icon: '👁️',  color: '#1877f2' },
+    page_reach:             { label: 'Alcance único',  icon: '🎯',  color: '#16a34a' },
+    page_views_total:       { label: 'Vistas perfil',  icon: '📄',  color: '#0891b2' },
+    page_engaged_users:     { label: 'Usuarios activos',icon: '❤️',  color: '#e1306c' },
+    page_post_engagements:  { label: 'Interacciones',  icon: '✍️',  color: '#f59e0b' },
+    page_fan_adds:          { label: 'Nuevos fans',    icon: '👥',  color: '#8b5cf6' },
   };
 
   try {
@@ -460,13 +461,21 @@ async function cargarStats() {
 
     hide('stats-loading');
 
+    // error gracioso — el backend devuelve {"error": "..."} en vez de HTTP 400
+    if (data.error) {
+      const err = document.getElementById('stats-error');
+      err.style.display = 'block';
+      err.innerHTML = _metaTokenError(data.error);
+      return;
+    }
+
     const keys = Object.keys(data);
     if (!keys.length) {
       const err = document.getElementById('stats-error');
       err.style.display = 'block';
       err.innerHTML = `<div style="font-size:32px;margin-bottom:10px">📊</div>
         <div>Sin datos de estadísticas para esta página.</div>
-        <div style="font-size:12px;margin-top:6px;opacity:.7">Las insights requieren permiso <code>read_insights</code> en el token de Meta.</div>`;
+        <div style="font-size:12px;margin-top:6px;opacity:.7">Asegurate de que el token tenga el permiso <code>read_insights</code>.</div>`;
       return;
     }
 

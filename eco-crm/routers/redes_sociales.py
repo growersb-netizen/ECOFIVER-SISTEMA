@@ -239,44 +239,53 @@ async def api_redes_stats(
     user: Usuario = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Métricas de la página desde Meta Insights (requiere permiso read_insights)."""
+    """Métricas de la página desde Meta Insights. Devuelve {"error": "..."} en lugar de 400."""
     _check_access(user, db)
-    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
-    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
+
+    # Para Insights se prefiere el system token; el page_token del sync puede no tener read_insights
+    token = get_config_value("meta_page_access_token", db)
     if not token:
-        raise HTTPException(400, "Sin token de Meta configurado")
+        pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+        token = (pg.page_token if pg and pg.page_token else None)
+    if not token:
+        return {"error": "Sin token de Meta configurado. Ir a Configuración → Meta."}
 
     if periodo not in ("day", "week", "days_28"):
         periodo = "days_28"
 
-    # page_engaged_users deprecado en v18.0+; date_preset no válido para /{page}/insights
-    # → usar since/until con timestamps Unix
     days_back = {"day": 1, "week": 7, "days_28": 28}.get(periodo, 28)
     now_ts = int(time.time())
     since_ts = now_ts - days_back * 86400
 
-    metrics = [
-        "page_impressions",
-        "page_reach",
-        "page_views_total",
-        "page_fan_adds",
-        "page_post_engagements",
+    base_params = {
+        "period": "day",
+        "since": since_ts,
+        "until": now_ts,
+        "access_token": token,
+    }
+
+    # Intentar primero con las 3 métricas básicas más seguras (v19.0+)
+    metric_groups = [
+        ["page_impressions", "page_reach", "page_views_total"],
+        ["page_impressions", "page_reach"],
+        ["page_impressions"],
     ]
 
-    try:
-        data = await _meta_get(
-            f"{META_GRAPH_URL}/{page_id}/insights",
-            {
-                "metric": ",".join(metrics),
-                "period": "day",
-                "since": since_ts,
-                "until": now_ts,
-                "access_token": token,
-            },
-        )
-    except (HTTPException, Exception) as e:
-        msg = e.detail if isinstance(e, HTTPException) else str(e)[:300]
-        raise HTTPException(400, msg)
+    last_error = None
+    data = None
+    for group in metric_groups:
+        try:
+            data = await _meta_get(
+                f"{META_GRAPH_URL}/{page_id}/insights",
+                {"metric": ",".join(group), **base_params},
+            )
+            break
+        except (HTTPException, Exception) as e:
+            last_error = e.detail if isinstance(e, HTTPException) else str(e)[:300]
+            data = None
+
+    if data is None:
+        return {"error": last_error or "No se pudo obtener estadísticas"}
 
     result = {}
     for metric in data.get("data", []):
@@ -290,6 +299,9 @@ async def api_redes_stats(
                 for v in values
             ],
         }
+
+    if not result:
+        return {"error": "El token no tiene permiso read_insights, o la página no tiene datos de insights disponibles."}
 
     return result
 

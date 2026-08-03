@@ -69,6 +69,8 @@ def _dict(b: BorradorML) -> dict:
         "fotos": fotos,
         "precio_referencia": b.precio_referencia, "precio_competencia": b.precio_competencia,
         "referencia_usada": ref, "semaforo": semaforo,
+        "tipo_precio": b.tipo_precio or "completo",
+        "modelo_nombre": b.modelo_nombre or "",
         "estado": b.estado, "item_id": b.item_id, "permalink": b.permalink,
         "error_msg": b.error_msg or "", "created_at": b.created_at.isoformat() if b.created_at else None,
     }
@@ -111,6 +113,8 @@ async def crear(request: Request, db: Session = Depends(get_db),
         fotos_json=json.dumps(d.get("fotos") or []),
         atributos_json=json.dumps(d.get("atributos") or []),
         precio_referencia=(float(d["precio_referencia"]) if d.get("precio_referencia") else None),
+        tipo_precio=d.get("tipo_precio", "completo"),
+        modelo_nombre=(d.get("modelo_nombre") or "").strip(),
         created_by_id=current_user.id if current_user else None,
     )
     db.add(b); db.commit(); db.refresh(b)
@@ -147,6 +151,10 @@ async def editar(bid: int, request: Request, db: Session = Depends(get_db),
         b.atributos_json = json.dumps(d["atributos"] or [])
     if "precio_referencia" in d:
         b.precio_referencia = float(d["precio_referencia"]) if d["precio_referencia"] else None
+    if "tipo_precio" in d:
+        b.tipo_precio = d["tipo_precio"] or "completo"
+    if "modelo_nombre" in d:
+        b.modelo_nombre = (d["modelo_nombre"] or "").strip()
     db.commit(); db.refresh(b)
     return {"ok": True, **_dict(b)}
 
@@ -316,7 +324,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         item = r.json()
         try:
             from routers.mercadolibre import _armar_descripcion_ml
-            descripcion_final = _armar_descripcion_ml(db, b.descripcion or "")
+            descripcion_final = _armar_descripcion_ml(db, b.descripcion or "", tipo=b.tipo_precio or "completo")
             if descripcion_final:
                 await hc.post(f"{ML_BASE}/items/{item['id']}/description",
                               json={"plain_text": descripcion_final}, headers=_ml_headers(tok))

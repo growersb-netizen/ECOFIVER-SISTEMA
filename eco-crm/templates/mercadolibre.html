@@ -134,6 +134,26 @@
           <div id="mp-cat-nombre" style="font-size:12px;color:#22c55e;margin-top:3px"></div>
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">💰 Tipo de precio</label>
+          <select class="input" id="mp-tipo-precio">
+            <option value="completo">Precio completo — incluye todo</option>
+            <option value="referencia">Precio de referencia — para captar consultas</option>
+          </select>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:3px">Determina el encabezado y pie de la descripción según la plantilla configurada.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">🗂 Ficha de modelo <small style="color:var(--text-secondary)">(auto-completa título y descripción)</small></label>
+          <div style="display:flex;gap:6px">
+            <select class="input" id="mp-ficha-modelo" style="flex:1">
+              <option value="">— Elegir modelo para cargar ficha —</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="borCargarFicha()" title="Carga el título y descripción pre-escrita para el modelo seleccionado">Cargar</button>
+          </div>
+          <div id="mp-ficha-msg" style="font-size:11px;color:var(--text-secondary);margin-top:3px"></div>
+        </div>
+      </div>
       <!-- Medidas piscina — visible solo cuando Producto = PISCINA o COMBO -->
       <div id="mp-medidas-piscina-group" style="display:none;margin-bottom:10px">
         <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px">
@@ -384,26 +404,63 @@
     <!-- Col derecha: encabezado / pie / keywords -->
     <div class="card" style="padding:20px">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">📄 Plantilla de descripción</h3>
-      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">
-        Se inserta automáticamente en cada publicación nueva. También podés aplicarlo a las publicaciones existentes con el botón de abajo.
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">
+        Se inserta automáticamente en cada publicación. Tenés dos variantes: <strong>Precio completo</strong> (incluye todo, precio real del producto) y <strong>Precio de referencia</strong> (publicación a valor simbólico para captar consultas, el precio real se coordina aparte).
+      </p>
+      <p style="font-size:11px;color:var(--text-secondary);margin-bottom:16px">
+        Las <strong>palabras clave</strong> aplican a ambas variantes.
       </p>
 
-      <div class="form-group" style="margin-bottom:12px">
-        <label class="form-label" style="font-weight:600">Encabezado</label>
-        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Quiénes somos, qué fabricamos, zona de trabajo. Va ANTES de la descripción del producto.</p>
-        <textarea id="cfg-encabezado" class="input" rows="5" placeholder="Ej: EcoFiver es una empresa fabricante de piscinas y módulos habitacionales..."></textarea>
+      <!-- Tabs de tipo precio -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px">
+        <button id="cfg-tab-completo" class="btn" onclick="cfgTabSwitch('completo')"
+          style="border-radius:6px 6px 0 0;border-bottom:3px solid var(--primary);margin-bottom:-2px;font-weight:700;font-size:13px;padding:6px 16px">
+          Precio completo
+        </button>
+        <button id="cfg-tab-referencia" class="btn btn-ghost" onclick="cfgTabSwitch('referencia')"
+          style="border-radius:6px 6px 0 0;margin-bottom:-2px;font-size:13px;padding:6px 16px">
+          Precio de referencia
+        </button>
       </div>
 
-      <div class="form-group" style="margin-bottom:12px">
-        <label class="form-label" style="font-weight:600">Palabras clave de búsqueda</label>
-        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Variantes y sinónimos del producto en lenguaje natural. No es keyword stuffing — es texto que ayuda a que ML te encuentre en más búsquedas.</p>
-        <textarea id="cfg-keywords" class="input" rows="4" placeholder="Ej: Fabricamos piletas, piscinas, natatorios y spas de fibra de vidrio para jardín, terraza y exterior..."></textarea>
+      <!-- Panel precio completo -->
+      <div id="cfg-panel-completo">
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label" style="font-weight:600">Encabezado — precio completo</label>
+          <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Va antes de la descripción del producto. Explicar qué incluye: fabricación, instalación, garantía.</p>
+          <textarea id="cfg-encabezado" class="input" rows="5"
+            placeholder="Ej: EcoFiver fabrica e instala piscinas de fibra de vidrio llave en mano. El precio publicado incluye fabricación + instalación + puesta en marcha del filtro. Sin costos adicionales ocultos..."></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label" style="font-weight:600">Pie — precio completo</label>
+          <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Garantía, formas de pago, zona de cobertura. Va al final.</p>
+          <textarea id="cfg-pie" class="input" rows="4"
+            placeholder="Ej: Garantía 5 años en estructura. Instalación incluida. Financiación propia en cuotas..."></textarea>
+        </div>
       </div>
 
+      <!-- Panel precio referencia -->
+      <div id="cfg-panel-referencia" style="display:none">
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label" style="font-weight:600">Encabezado — precio de referencia</label>
+          <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Aclarar que es precio referencial, solicitar cotización por preguntas o WhatsApp.</p>
+          <textarea id="cfg-encabezado-ref" class="input" rows="5"
+            placeholder="Ej: PRECIO DE REFERENCIA — SOLICITÁ TU COTIZACIÓN PERSONALIZADA. El precio publicado es orientativo. La cotización final incluye fabricación, instalación y flete según tu zona. Consultá por preguntas o escribinos al WhatsApp..."></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label" style="font-weight:600">Pie — precio de referencia</label>
+          <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Aclarar forma de contacto, zona, garantía.</p>
+          <textarea id="cfg-pie-ref" class="input" rows="4"
+            placeholder="Ej: Respondemos todas las preguntas con cotización en 24 hs. Instalamos en Buenos Aires, GBA e interior..."></textarea>
+        </div>
+      </div>
+
+      <!-- Keywords: aplican a ambas -->
       <div class="form-group" style="margin-bottom:16px">
-        <label class="form-label" style="font-weight:600">Pie de página</label>
-        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Garantía, formas de pago, contacto. Va al final de todas las descripciones.</p>
-        <textarea id="cfg-pie" class="input" rows="4" placeholder="Ej: Garantía 5 años en estructura. Instalación incluida en todo el país..."></textarea>
+        <label class="form-label" style="font-weight:600">Palabras clave de búsqueda <small style="font-weight:400;color:var(--text-secondary)">(se aplica a los dos tipos)</small></label>
+        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">Variantes y sinónimos en texto natural. Ayuda a aparecer en más búsquedas.</p>
+        <textarea id="cfg-keywords" class="input" rows="4"
+          placeholder="Ej: Fabricamos piletas, piscinas, natatorios y spas de fibra de vidrio para jardín, terraza y exterior..."></textarea>
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1205,6 +1262,16 @@ function limpiarFormCrear() {
 }
 
 /* ─── CONFIG ML ──────────────────────────────────────────────────────── */
+function cfgTabSwitch(tab) {
+  const isRef = tab === 'referencia';
+  document.getElementById('cfg-panel-completo').style.display   = isRef ? 'none' : '';
+  document.getElementById('cfg-panel-referencia').style.display = isRef ? '' : 'none';
+  document.getElementById('cfg-tab-completo').style.borderBottom   = isRef ? 'none' : '3px solid var(--primary)';
+  document.getElementById('cfg-tab-referencia').style.borderBottom = isRef ? '3px solid var(--primary)' : 'none';
+  document.getElementById('cfg-tab-completo').style.fontWeight   = isRef ? '400' : '700';
+  document.getElementById('cfg-tab-referencia').style.fontWeight = isRef ? '700' : '400';
+}
+
 async function loadMLConfig() {
   checkMLStatus(true);
   try {
@@ -1216,21 +1283,25 @@ async function loadMLConfig() {
       document.getElementById('renovacion-label').textContent = chk.checked ? 'Activada' : 'Desactivada';
     }
   } catch(e) { /* silent */ }
-  // Cargar plantilla de descripción
+  // Cargar plantilla de descripción (4 campos + keywords)
   try {
     const cfg = await API.get('/api/ml/config/descripcion');
-    document.getElementById('cfg-encabezado').value = cfg.encabezado || '';
-    document.getElementById('cfg-keywords').value   = cfg.keywords   || '';
-    document.getElementById('cfg-pie').value        = cfg.pie        || '';
+    document.getElementById('cfg-encabezado').value     = cfg.encabezado || '';
+    document.getElementById('cfg-pie').value            = cfg.pie        || '';
+    document.getElementById('cfg-encabezado-ref').value = cfg.encabezado_referencia || '';
+    document.getElementById('cfg-pie-ref').value        = cfg.pie_referencia        || '';
+    document.getElementById('cfg-keywords').value       = cfg.keywords   || '';
   } catch(e) { /* silent */ }
 }
 
 async function guardarConfigDesc() {
   try {
     await API.put('/api/ml/config/descripcion', {
-      encabezado: document.getElementById('cfg-encabezado').value,
-      keywords:   document.getElementById('cfg-keywords').value,
-      pie:        document.getElementById('cfg-pie').value,
+      encabezado:            document.getElementById('cfg-encabezado').value,
+      pie:                   document.getElementById('cfg-pie').value,
+      encabezado_referencia: document.getElementById('cfg-encabezado-ref').value,
+      pie_referencia:        document.getElementById('cfg-pie-ref').value,
+      keywords:              document.getElementById('cfg-keywords').value,
     });
     showToast('Plantilla guardada', 'success');
   } catch(e) {
@@ -1506,6 +1577,9 @@ function borNuevaPub() {
   document.getElementById('mp-cuotas').value = '0';
   document.getElementById('mp-cuota-val').textContent = '';
   document.getElementById('mp-producto').value = 'MODULO';
+  document.getElementById('mp-tipo-precio').value = 'completo';
+  document.getElementById('mp-ficha-modelo').value = '';
+  document.getElementById('mp-ficha-msg').textContent = '';
   document.getElementById('mp-atributos').textContent = 'Tocá "Cargar requeridos" para ver qué pide la categoría.';
   document.getElementById('mp-ia-msg').textContent = '';
   document.getElementById('mp-catalogo-sel').value = '';
@@ -1515,6 +1589,7 @@ function borNuevaPub() {
   _borPrecioContadoRef = null;
   _borLitrosActual = '';
   borCargarCatalogoSelect();
+  borCargarFichasDropdown();
   document.getElementById('mp-foto-msg').textContent = '';
   document.getElementById('mp-checklist-calidad').innerHTML = '';
   openModal('modal-bor');
@@ -1538,11 +1613,15 @@ function borEditar(b) {
   document.getElementById('mp-cuotas').value = b.cuotas_sin_interes || 0;
   document.getElementById('mp-desc').value = b.descripcion || '';
   document.getElementById('mp-tlen').textContent = (b.titulo || '').length;
+  document.getElementById('mp-tipo-precio').value = b.tipo_precio || 'completo';
+  document.getElementById('mp-ficha-modelo').value = '';
+  document.getElementById('mp-ficha-msg').textContent = b.modelo_nombre ? `Modelo guardado: ${b.modelo_nombre}` : '';
   document.getElementById('mp-catalogo-sel').value = '';
   document.getElementById('mp-precio-ref-box').style.display = 'none';
   document.getElementById('mp-pc-warn').style.display = 'none';
   _borPrecioContadoRef = null;
   borCargarCatalogoSelect();
+  borCargarFichasDropdown(b.modelo_nombre);
   openModal('modal-bor');
   setTimeout(borCalcGanancia, 50);
   setTimeout(borActualizarMedidasPiscina, 50);
@@ -1564,6 +1643,8 @@ async function borGuardar() {
     seller_sku: document.getElementById('mp-sku').value.trim(),
     cuotas_sin_interes: parseInt(document.getElementById('mp-cuotas').value) || 0,
     fotos, descripcion: document.getElementById('mp-desc').value,
+    tipo_precio: document.getElementById('mp-tipo-precio').value || 'completo',
+    modelo_nombre: document.getElementById('mp-ficha-modelo').value || '',
     atributos: borCollectAtributos(),
   };
   if (!body.titulo) { showToast('El título es obligatorio', 'error'); return; }
@@ -1581,6 +1662,64 @@ async function borGuardar() {
     showToast(e.message || 'Error', 'error');
   }
 }
+/* ─── FICHAS DE PRODUCTO ──────────────────────────────────────────────── */
+let _fichasCache = null;
+async function borCargarFichasDropdown(modeloActual) {
+  const sel = document.getElementById('mp-ficha-modelo');
+  if (!sel) return;
+  try {
+    if (!_fichasCache) _fichasCache = await API.get('/api/ml/fichas');
+    const piscinas = (_fichasCache.piscinas || []);
+    const modulos  = (_fichasCache.modulos  || []);
+    sel.innerHTML = '<option value="">— Elegir modelo para cargar ficha —</option>';
+    if (piscinas.length) {
+      const og1 = document.createElement('optgroup');
+      og1.label = 'Piscinas';
+      piscinas.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = m;
+        if (m === modeloActual) o.selected = true;
+        og1.appendChild(o);
+      });
+      sel.appendChild(og1);
+    }
+    if (modulos.length) {
+      const og2 = document.createElement('optgroup');
+      og2.label = 'Módulos';
+      modulos.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = m;
+        if (m === modeloActual) o.selected = true;
+        og2.appendChild(o);
+      });
+      sel.appendChild(og2);
+    }
+  } catch(e) { /* silent */ }
+}
+
+async function borCargarFicha() {
+  const modelo = document.getElementById('mp-ficha-modelo').value;
+  const msg = document.getElementById('mp-ficha-msg');
+  if (!modelo) { msg.textContent = 'Elegí un modelo primero.'; return; }
+  msg.textContent = 'Cargando ficha…';
+  try {
+    const f = await API.get('/api/ml/ficha/' + encodeURIComponent(modelo));
+    if (f.titulo_ml) {
+      document.getElementById('mp-titulo').value = f.titulo_ml;
+      document.getElementById('mp-tlen').textContent = f.titulo_ml.length;
+    }
+    if (f.descripcion_ml) {
+      document.getElementById('mp-desc').value = f.descripcion_ml;
+    }
+    checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
+    msg.textContent = `✓ Ficha cargada: ${modelo}`;
+    msg.style.color = '#4ade80';
+  } catch(e) {
+    msg.textContent = 'No se encontró ficha para ese modelo.';
+    msg.style.color = '#f87171';
+  }
+}
+
 async function borGenerarConIA() {
   const kw = document.getElementById('mp-ia-keywords').value.trim();
   const msg = document.getElementById('mp-ia-msg');

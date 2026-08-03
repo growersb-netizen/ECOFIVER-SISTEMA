@@ -37,18 +37,23 @@ def _agregar_condiciones(db: Session, descripcion: str) -> str:
     return _armar_descripcion_ml(db, descripcion)
 
 
-def _armar_descripcion_ml(db: Session, descripcion: str) -> str:
+def _armar_descripcion_ml(db: Session, descripcion: str, tipo: str = "completo") -> str:
     """
-    Construye la descripción final para ML:
-    [Encabezado] + descripción del producto + [Palabras clave] + [Condiciones/Pie]
+    Construye la descripción final para ML según el tipo de publicación:
+      - tipo="completo"   → encabezado y pie de precio completo
+      - tipo="referencia" → encabezado y pie de precio de referencia/cotización
 
-    El encabezado y pie se configuran en ML → Configuración.
-    Las palabras clave se integran naturalmente al final para ayudar con la búsqueda.
-    No se duplican bloques si ya están presentes.
+    Estructura: [Encabezado] + producto + [Palabras clave] + [Condiciones] + [Pie]
+    No duplica bloques si ya están presentes en la descripción.
     """
-    encabezado = (get_config_value("ml_desc_encabezado", db) or "").strip()
-    pie        = (get_config_value("ml_desc_pie", db) or "").strip()
-    keywords   = (get_config_value("ml_desc_keywords", db) or "").strip()
+    if tipo == "referencia":
+        encabezado = (get_config_value("ml_desc_encabezado_referencia", db) or "").strip()
+        pie        = (get_config_value("ml_desc_pie_referencia", db) or "").strip()
+    else:
+        encabezado = (get_config_value("ml_desc_encabezado", db) or "").strip()
+        pie        = (get_config_value("ml_desc_pie", db) or "").strip()
+
+    keywords = (get_config_value("ml_desc_keywords", db) or "").strip()
 
     try:
         from routers.negocio import _get as _get_negocio
@@ -1085,9 +1090,11 @@ async def get_config_descripcion(
     current_user: Usuario = Depends(_require_config_access),
 ):
     return {
-        "encabezado": get_config_value("ml_desc_encabezado", db) or "",
-        "pie":        get_config_value("ml_desc_pie", db) or "",
-        "keywords":   get_config_value("ml_desc_keywords", db) or "",
+        "encabezado":            get_config_value("ml_desc_encabezado", db) or "",
+        "pie":                   get_config_value("ml_desc_pie", db) or "",
+        "encabezado_referencia": get_config_value("ml_desc_encabezado_referencia", db) or "",
+        "pie_referencia":        get_config_value("ml_desc_pie_referencia", db) or "",
+        "keywords":              get_config_value("ml_desc_keywords", db) or "",
     }
 
 
@@ -1098,12 +1105,69 @@ async def put_config_descripcion(
     current_user: Usuario = Depends(_require_config_access),
 ):
     data = await request.json()
-    for campo, clave in [("encabezado", "ml_desc_encabezado"),
-                         ("pie",        "ml_desc_pie"),
-                         ("keywords",   "ml_desc_keywords")]:
+    campos = [
+        ("encabezado",            "ml_desc_encabezado"),
+        ("pie",                   "ml_desc_pie"),
+        ("encabezado_referencia", "ml_desc_encabezado_referencia"),
+        ("pie_referencia",        "ml_desc_pie_referencia"),
+        ("keywords",              "ml_desc_keywords"),
+    ]
+    for campo, clave in campos:
         if campo in data:
             _ml_save(db, clave, data[campo], secreto=False)
     return {"ok": True}
+
+
+@router.get("/api/ml/ficha/{modelo:path}")
+async def get_ficha_ml(
+    modelo: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Devuelve la ficha pre-escrita (título + descripción) para el modelo dado."""
+    try:
+        from utils.ml_fichas_content import FICHAS_PISCINAS, FICHAS_MODULOS
+    except ImportError:
+        raise HTTPException(500, "No se pudo cargar el archivo de fichas de producto")
+
+    # Buscar en piscinas (coincidencia exacta o insensible a acentos/case)
+    ficha = FICHAS_PISCINAS.get(modelo)
+    if not ficha:
+        modelo_norm = modelo.lower().strip()
+        for k, v in FICHAS_PISCINAS.items():
+            if k.lower().strip() == modelo_norm:
+                ficha = v
+                break
+
+    # Buscar en módulos (buscar por m2 numérico)
+    if not ficha:
+        m2_str = modelo.replace("m2", "").replace("m²", "").strip()
+        ficha = FICHAS_MODULOS.get(m2_str)
+
+    if not ficha:
+        raise HTTPException(404, f"No se encontró ficha para el modelo: {modelo}")
+
+    return {
+        "modelo": modelo,
+        "titulo_ml": ficha.get("titulo_ml", ""),
+        "descripcion_ml": ficha.get("descripcion_ml", ""),
+    }
+
+
+@router.get("/api/ml/fichas")
+async def listar_fichas_ml(
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Lista todos los modelos disponibles con ficha pre-escrita."""
+    try:
+        from utils.ml_fichas_content import FICHAS_PISCINAS, FICHAS_MODULOS
+    except ImportError:
+        return {"piscinas": [], "modulos": []}
+
+    return {
+        "piscinas": list(FICHAS_PISCINAS.keys()),
+        "modulos": [f"{k}m2" for k in FICHAS_MODULOS.keys()],
+    }
 
 
 # ─── API — ACTUALIZAR DESCRIPCIONES EN LOTE ──────────────────────────────────

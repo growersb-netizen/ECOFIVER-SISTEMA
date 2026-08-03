@@ -1368,6 +1368,8 @@ class BorradorML(Base):
     permalink = Column(String(300), nullable=True)
     error_msg = Column(Text, default="")
     variante_de = Column(Integer, nullable=True)           # id del borrador base si es variante
+    tipo_precio = Column(String(20), default="completo")    # completo | referencia
+    modelo_nombre = Column(String(150), default="")         # nombre del modelo EcoFiver (para ficha ML)
     created_by_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

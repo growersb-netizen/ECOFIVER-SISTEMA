@@ -134,6 +134,9 @@ def run_migrations():
             "ALTER TABLE clientes_cobranza_historica ADD COLUMN cac_excepcion_pct REAL",
             # ── Meta: page_token para leer feed/insights de cada página ──────────
             "ALTER TABLE meta_paginas ADD COLUMN page_token TEXT",
+            # ── BorradorML: tipo de precio y modelo para fichas ML ────────────────
+            "ALTER TABLE borradores_ml ADD COLUMN tipo_precio TEXT DEFAULT 'completo'",
+            "ALTER TABLE borradores_ml ADD COLUMN modelo_nombre TEXT DEFAULT ''",
         ]
         for stmt in migrations:
             try:

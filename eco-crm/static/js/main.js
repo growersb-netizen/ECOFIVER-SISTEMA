@@ -113,6 +113,11 @@ function showConfirm(mensaje, titulo = '¿Confirmar acción?', colorBtn = '#ef44
 // Alias para compatibilidad con código que llama confirmDialog()
 const confirmDialog = showConfirm;
 
+// ─── HTML ESCAPE (disponible globalmente para todos los templates) ─────────────
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function toast(msg, type = 'success') {
   const container = document.getElementById('toast-container') || (() => {
     const c = document.createElement('div');

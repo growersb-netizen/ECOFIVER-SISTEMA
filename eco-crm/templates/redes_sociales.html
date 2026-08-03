@@ -1,0 +1,633 @@
+{% extends "base.html" %}
+{% block title %}Redes Sociales — EcoFiver CRM{% endblock %}
+{% block page_title %}Redes Sociales{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px;align-items:center">
+  <button onclick="syncPaginas()" class="btn btn-ghost btn-sm" id="sync-btn">🔄 Sincronizar</button>
+  <a href="/ecopost" class="btn btn-primary btn-sm">✏️ Nuevo contenido</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tab-btn {
+  padding:8px 14px;border:none;background:transparent;border-radius:8px;
+  cursor:pointer;font-size:13px;color:var(--text-muted);transition:all .15s;white-space:nowrap;
+}
+.tab-btn:hover { background:var(--bg-hover);color:var(--text); }
+.tab-active { background:var(--accent)!important;color:#fff!important;font-weight:600; }
+
+.page-card {
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;
+  border:2px solid transparent;transition:all .15s;margin-bottom:6px;background:var(--bg-hover);
+}
+.page-card:hover { border-color:var(--accent); }
+.page-card.selected { border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent); }
+.page-avatar {
+  width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1877f2,#e1306c);
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden;
+}
+.page-avatar img { width:100%;height:100%;object-fit:cover;border-radius:50%; }
+
+.post-card {
+  display:flex;gap:12px;padding:14px;border-radius:10px;background:var(--bg-hover);margin-bottom:8px;
+  border:1px solid var(--border);transition:box-shadow .15s;
+}
+.post-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.1); }
+.post-thumb {
+  width:80px;height:80px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--border);
+}
+.post-meta { display:flex;gap:12px;margin-top:6px;font-size:12px;color:var(--text-muted); }
+
+.ig-grid {
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;
+}
+.ig-card {
+  position:relative;border-radius:10px;overflow:hidden;cursor:pointer;aspect-ratio:1;
+  background:var(--border);
+}
+.ig-card img { width:100%;height:100%;object-fit:cover;transition:transform .2s; }
+.ig-card:hover img { transform:scale(1.04); }
+.ig-overlay {
+  position:absolute;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;
+  justify-content:center;gap:14px;opacity:0;transition:.2s;
+}
+.ig-card:hover .ig-overlay { opacity:1; }
+.ig-stat { color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;gap:3px; }
+.ig-badge {
+  position:absolute;top:6px;right:6px;background:rgba(0,0,0,.65);color:#fff;
+  font-size:10px;padding:2px 5px;border-radius:4px;
+}
+
+.stat-kpi-card {
+  padding:18px;border-radius:10px;background:var(--bg-hover);border:1px solid var(--border);
+  text-align:center;
+}
+.stat-kpi-val { font-size:28px;font-weight:700; }
+.stat-kpi-lbl { font-size:12px;color:var(--text-muted);margin-top:3px; }
+
+.sparkbar-wrap { display:flex;align-items:flex-end;gap:2px;height:40px;margin-top:10px; }
+.sparkbar { background:var(--accent);border-radius:2px 2px 0 0;min-width:3px;opacity:.7;transition:.2s; }
+.sparkbar:hover { opacity:1; }
+
+.cfg-row { display:flex;flex-direction:column;gap:4px;margin-bottom:14px; }
+.cfg-label { font-size:12px;color:var(--text-muted);font-weight:500; }
+.cfg-val { font-size:13px;background:var(--bg-hover);padding:8px 12px;border-radius:8px; }
+
+@media(max-width:900px){
+  .redes-layout { grid-template-columns:1fr!important; }
+  .redes-sidebar { display:flex;gap:8px;overflow-x:auto;flex-wrap:nowrap; }
+  .redes-sidebar .page-card { min-width:200px; }
+  .ig-grid { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- KPIs globales -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px">
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700;color:var(--accent)" id="kpi-paginas">—</div>
+    <div style="font-size:11px;color:var(--text-muted)">Páginas conectadas</div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700;color:#1877f2" id="kpi-fans">—</div>
+    <div style="font-size:11px;color:var(--text-muted)">Fans Facebook total</div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700;color:#e1306c" id="kpi-ig">—</div>
+    <div style="font-size:11px;color:var(--text-muted)">Seguidores Instagram</div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700;color:#16a34a" id="kpi-activas">—</div>
+    <div style="font-size:11px;color:var(--text-muted)">Páginas activas</div>
+  </div>
+</div>
+
+<!-- Layout principal -->
+<div class="redes-layout" style="display:grid;grid-template-columns:270px 1fr;gap:14px;align-items:start">
+
+  <!-- Sidebar: lista de páginas -->
+  <div class="redes-sidebar">
+    <div class="card" style="padding:14px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text-muted);letter-spacing:.05em">PÁGINAS</div>
+      <div id="paginas-lista">
+        <div style="color:var(--text-muted);font-size:13px;padding:24px 0;text-align:center">Cargando…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel derecho -->
+  <div>
+    <!-- Tabs -->
+    <div style="display:flex;gap:3px;margin-bottom:14px;background:var(--bg-card);border-radius:10px;padding:4px;border:1px solid var(--border);width:fit-content;overflow-x:auto">
+      <button onclick="setTab('feed')" id="tab-feed" class="tab-btn tab-active">📰 Feed FB</button>
+      <button onclick="setTab('ig')" id="tab-ig" class="tab-btn">📸 Instagram</button>
+      <button onclick="setTab('stats')" id="tab-stats" class="tab-btn">📊 Estadísticas</button>
+      <button onclick="setTab('config')" id="tab-config" class="tab-btn">⚙️ Página</button>
+    </div>
+
+    <!-- Aviso sin página seleccionada -->
+    <div id="no-page-msg" class="card" style="padding:48px;text-align:center;color:var(--text-muted)">
+      <div style="font-size:32px;margin-bottom:10px">📄</div>
+      <div>Seleccioná una página para ver su contenido</div>
+      <div style="font-size:12px;margin-top:6px">Si no hay páginas, hacé clic en <strong>Sincronizar</strong></div>
+    </div>
+
+    <!-- ── FEED FACEBOOK ───────────────────────────────────── -->
+    <div id="panel-feed" style="display:none">
+      <div id="feed-loading" style="color:var(--text-muted);padding:32px;text-align:center">Cargando feed…</div>
+      <div id="feed-list"></div>
+      <div id="feed-error" style="display:none;padding:20px;color:#f59e0b"></div>
+      <div id="feed-more-wrap" style="display:none;text-align:center;margin-top:10px">
+        <button onclick="cargarMasFeed()" class="btn btn-ghost btn-sm">Cargar más publicaciones →</button>
+      </div>
+    </div>
+
+    <!-- ── INSTAGRAM ───────────────────────────────────────── -->
+    <div id="panel-ig" style="display:none">
+      <div id="ig-loading" style="color:var(--text-muted);padding:32px;text-align:center">Cargando Instagram…</div>
+      <div id="ig-grid" class="ig-grid"></div>
+      <div id="ig-error" style="display:none;padding:20px;color:var(--text-muted);text-align:center"></div>
+      <div id="ig-more-wrap" style="display:none;text-align:center;margin-top:10px">
+        <button onclick="cargarMasIG()" class="btn btn-ghost btn-sm">Cargar más →</button>
+      </div>
+    </div>
+
+    <!-- ── ESTADÍSTICAS ────────────────────────────────────── -->
+    <div id="panel-stats" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+        <span style="font-size:13px;color:var(--text-muted)">Período:</span>
+        <select id="stats-periodo" onchange="cargarStats()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px">
+          <option value="days_28">Últimos 28 días</option>
+          <option value="week">Esta semana</option>
+        </select>
+      </div>
+      <div id="stats-loading" style="color:var(--text-muted);padding:32px;text-align:center">Cargando estadísticas…</div>
+      <div id="stats-content"></div>
+      <div id="stats-error" style="display:none;padding:24px;color:var(--text-muted);text-align:center"></div>
+    </div>
+
+    <!-- ── CONFIG PÁGINA ───────────────────────────────────── -->
+    <div id="panel-config" style="display:none">
+      <div class="card" style="padding:20px">
+        <div id="config-content">
+          <div style="color:var(--text-muted);padding:20px;text-align:center">Seleccioná una página</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+'use strict';
+let _paginas = [];
+let _pageId   = null;
+let _feedCursor = null;
+let _igCursor   = null;
+let _curTab   = 'feed';
+
+/* ─── helpers ─────────────────────────────────────────────────────────────── */
+async function _get(url) {
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const r = await fetch(url, { credentials: 'include', signal: ctrl.signal });
+    clearTimeout(tid);
+    if (r.status === 401) { window.location.href = '/login'; return null; }
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.detail || 'HTTP ' + r.status);
+    }
+    return r.json();
+  } catch(e) {
+    clearTimeout(tid);
+    throw e.name === 'AbortError' ? new Error('Tiempo de espera agotado') : e;
+  }
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmt(n) {
+  if (n == null || n === '') return '—';
+  n = Number(n);
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
+  return n.toLocaleString('es-AR');
+}
+
+function fmtFecha(s) {
+  if (!s) return '';
+  return new Date(s).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function show(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
+function hide(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+function showBlock(id) { const el = document.getElementById(id); if (el) el.style.display = 'block'; }
+
+/* ─── tabs ───────────────────────────────────────────────────────────────── */
+function setTab(tab) {
+  _curTab = tab;
+  ['feed','ig','stats','config'].forEach(t => {
+    document.getElementById('tab-' + t)?.classList.toggle('tab-active', t === tab);
+    const p = document.getElementById('panel-' + t);
+    if (p) p.style.display = t === tab ? 'block' : 'none';
+  });
+  if (_pageId) _loadTab(tab);
+}
+
+function _loadTab(tab) {
+  if (tab === 'feed')   cargarFeed(false);
+  else if (tab === 'ig')    cargarIG(false);
+  else if (tab === 'stats') cargarStats();
+  else if (tab === 'config') renderConfig();
+}
+
+/* ─── páginas ────────────────────────────────────────────────────────────── */
+async function cargarPaginas() {
+  try {
+    _paginas = await _get('/api/redes/paginas');
+    if (!_paginas) return;
+
+    // KPIs
+    document.getElementById('kpi-paginas').textContent = _paginas.length;
+    document.getElementById('kpi-fans').textContent    = fmt(_paginas.reduce((s,p) => s + (p.fan_count   || 0), 0));
+    document.getElementById('kpi-ig').textContent      = fmt(_paginas.reduce((s,p) => s + (p.ig_followers|| 0), 0));
+    document.getElementById('kpi-activas').textContent = _paginas.filter(p => p.activa).length;
+
+    const lista = document.getElementById('paginas-lista');
+    if (!_paginas.length) {
+      lista.innerHTML = `<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px">
+        Sin páginas.<br><small>Hacé clic en <strong>Sincronizar</strong> para importar desde Meta.</small>
+      </div>`;
+      return;
+    }
+
+    lista.innerHTML = _paginas.map(p => `
+      <div class="page-card" id="pcard-${esc(p.page_id)}" onclick="selectPage('${esc(p.page_id)}')">
+        <div class="page-avatar">
+          ${p.picture
+            ? `<img src="${esc(p.picture)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📄'">`
+            : '📄'}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.nombre)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:1px">
+            <span style="color:#1877f2">&#9671;</span> ${fmt(p.fan_count)}
+            ${p.ig_user_id ? `&nbsp;<span style="color:#e1306c">&#9671;</span> ${fmt(p.ig_followers)}` : ''}
+          </div>
+          ${!p.activa ? '<span style="font-size:10px;color:#f59e0b">⏸ inactiva</span>' : ''}
+        </div>
+      </div>
+    `).join('');
+
+    // Auto-select primera activa
+    const primera = _paginas.find(p => p.activa) || _paginas[0];
+    if (primera) selectPage(primera.page_id);
+
+  } catch(e) {
+    document.getElementById('paginas-lista').innerHTML =
+      `<div style="color:#f59e0b;font-size:12px;padding:12px">${esc(e.message)}</div>`;
+  }
+}
+
+function selectPage(pageId) {
+  _pageId = pageId;
+  _feedCursor = null;
+  _igCursor   = null;
+
+  document.querySelectorAll('.page-card').forEach(el => el.classList.remove('selected'));
+  document.getElementById('pcard-' + pageId)?.classList.add('selected');
+
+  hide('no-page-msg');
+  _loadTab(_curTab);
+}
+
+/* ─── feed facebook ─────────────────────────────────────────────────────── */
+async function cargarFeed(append = false) {
+  if (!append) {
+    showBlock('feed-loading');
+    document.getElementById('feed-list').innerHTML = '';
+    hide('feed-error');
+    hide('feed-more-wrap');
+  }
+
+  try {
+    let url = `/api/redes/paginas/${_pageId}/feed`;
+    if (append && _feedCursor) url += `?after=${_feedCursor}`;
+
+    const data = await _get(url);
+    if (!data) return;
+
+    hide('feed-loading');
+
+    if (!data.posts.length && !append) {
+      document.getElementById('feed-list').innerHTML =
+        '<div style="color:var(--text-muted);padding:40px;text-align:center">Sin publicaciones en el feed.</div>';
+      return;
+    }
+
+    document.getElementById('feed-list').innerHTML += data.posts.map(post => `
+      <div class="post-card" id="post-${esc(post.id).replace(/[^a-z0-9]/gi,'_')}">
+        ${post.picture
+          ? `<img class="post-thumb" src="${esc(post.picture)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+          : '<div class="post-thumb" style="display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text-muted)">📝</div>'
+        }
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;line-height:1.55;margin-bottom:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical">
+            ${esc(post.message || '— (sin texto) —')}
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">${fmtFecha(post.created_time)}</div>
+          <div class="post-meta">
+            <span title="Me gusta">👍 ${post.likes}</span>
+            <span title="Comentarios">💬 ${post.comments}</span>
+            <span title="Compartidos">↗️ ${post.shares}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
+          ${post.permalink ? `<a href="${esc(post.permalink)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="font-size:11px">🔗 Ver</a>` : ''}
+          <button onclick="eliminarPost('${esc(post.id)}')" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Borrar</button>
+        </div>
+      </div>
+    `).join('');
+
+    _feedCursor = data.next_cursor;
+    document.getElementById('feed-more-wrap').style.display = data.has_next ? 'block' : 'none';
+
+  } catch(e) {
+    hide('feed-loading');
+    const err = document.getElementById('feed-error');
+    err.style.display = 'block';
+    err.innerHTML = `⚠ ${esc(e.message)}<br><small style="opacity:.7">Verificá que el token de Meta esté configurado y tenga permisos de lectura</small>`;
+  }
+}
+
+function cargarMasFeed() { cargarFeed(true); }
+
+/* ─── instagram ──────────────────────────────────────────────────────────── */
+async function cargarIG(append = false) {
+  if (!append) {
+    showBlock('ig-loading');
+    document.getElementById('ig-grid').innerHTML = '';
+    hide('ig-error');
+    hide('ig-more-wrap');
+  }
+
+  try {
+    let url = `/api/redes/paginas/${_pageId}/ig`;
+    if (append && _igCursor) url += `?after=${_igCursor}`;
+
+    const data = await _get(url);
+    if (!data) return;
+
+    hide('ig-loading');
+
+    if (data.error) {
+      const err = document.getElementById('ig-error');
+      err.style.display = 'block';
+      err.innerHTML = `<div style="font-size:32px;margin-bottom:10px">📸</div><div>${esc(data.error)}</div>
+        <div style="font-size:12px;margin-top:8px;opacity:.7">Configurá el Instagram Business Account ID en la pestaña ⚙️ Página</div>`;
+      return;
+    }
+
+    if (!data.posts.length && !append) {
+      document.getElementById('ig-grid').innerHTML =
+        '<div style="color:var(--text-muted);padding:40px;text-align:center;grid-column:1/-1">Sin publicaciones en Instagram.</div>';
+      return;
+    }
+
+    document.getElementById('ig-grid').innerHTML += data.posts.map(p => {
+      const isVideo    = p.media_type === 'VIDEO';
+      const isCarousel = p.media_type === 'CAROUSEL_ALBUM';
+      const thumb = isVideo ? (p.thumbnail_url || '') : (p.media_url || '');
+      return `
+        <div class="ig-card" onclick="window.open('${esc(p.permalink || '#')}','_blank')">
+          <img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">
+          <div class="ig-overlay">
+            <div class="ig-stat">❤️ ${p.like_count || 0}</div>
+            <div class="ig-stat">💬 ${p.comments_count || 0}</div>
+          </div>
+          ${isVideo    ? '<div class="ig-badge">🎥</div>' : ''}
+          ${isCarousel ? '<div class="ig-badge">⊞</div>'  : ''}
+        </div>
+      `;
+    }).join('');
+
+    _igCursor = data.next_cursor;
+    document.getElementById('ig-more-wrap').style.display = data.has_next ? 'block' : 'none';
+
+  } catch(e) {
+    hide('ig-loading');
+    const err = document.getElementById('ig-error');
+    err.style.display = 'block';
+    err.innerHTML = `⚠ ${esc(e.message)}`;
+  }
+}
+
+function cargarMasIG() { cargarIG(true); }
+
+/* ─── estadísticas ───────────────────────────────────────────────────────── */
+async function cargarStats() {
+  showBlock('stats-loading');
+  document.getElementById('stats-content').innerHTML = '';
+  hide('stats-error');
+
+  const periodo = document.getElementById('stats-periodo').value;
+  const labelPeriodo = periodo === 'days_28' ? 'últimos 28 días' : 'esta semana';
+
+  const METRIC_META = {
+    page_impressions:       { label: 'Impresiones',      icon: '👁️',  color: '#1877f2' },
+    page_reach:             { label: 'Alcance único',    icon: '🎯',  color: '#16a34a' },
+    page_engaged_users:     { label: 'Usuarios activos', icon: '❤️',  color: '#e1306c' },
+    page_post_engagements:  { label: 'Interacciones',    icon: '✍️',  color: '#f59e0b' },
+    page_fan_adds:          { label: 'Nuevos fans',      icon: '👥',  color: '#8b5cf6' },
+  };
+
+  try {
+    const data = await _get(`/api/redes/paginas/${_pageId}/stats?periodo=${periodo}`);
+    if (!data) return;
+
+    hide('stats-loading');
+
+    const keys = Object.keys(data);
+    if (!keys.length) {
+      const err = document.getElementById('stats-error');
+      err.style.display = 'block';
+      err.innerHTML = `<div style="font-size:32px;margin-bottom:10px">📊</div>
+        <div>Sin datos de estadísticas para esta página.</div>
+        <div style="font-size:12px;margin-top:6px;opacity:.7">Las insights requieren permiso <code>read_insights</code> en el token de Meta.</div>`;
+      return;
+    }
+
+    const cards = keys.map(key => {
+      const meta   = METRIC_META[key] || { label: key, icon: '📈', color: 'var(--accent)' };
+      const val    = data[key];
+      const values = val.values || [];
+      const maxV   = Math.max(1, ...values.map(v => v.value));
+      const bars   = values.map(v => {
+        const h = Math.max(3, Math.round((v.value / maxV) * 40));
+        return `<div class="sparkbar" style="height:${h}px;flex:1" title="${v.date}: ${v.value.toLocaleString('es-AR')}"></div>`;
+      }).join('');
+      return `
+        <div class="stat-kpi-card">
+          <div style="font-size:20px;margin-bottom:4px">${meta.icon}</div>
+          <div class="stat-kpi-val" style="color:${meta.color}">${fmt(val.total)}</div>
+          <div class="stat-kpi-lbl">${meta.label}</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${labelPeriodo}</div>
+          <div class="sparkbar-wrap">${bars}</div>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('stats-content').innerHTML =
+      `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">${cards}</div>`;
+
+  } catch(e) {
+    hide('stats-loading');
+    const err = document.getElementById('stats-error');
+    err.style.display = 'block';
+    err.innerHTML = `<div style="font-size:32px;margin-bottom:10px">📊</div>
+      <div>⚠ ${esc(e.message)}</div>
+      <div style="font-size:12px;margin-top:6px;opacity:.7">Las estadísticas requieren permisos especiales de Meta (read_insights)</div>`;
+  }
+}
+
+/* ─── config de página ───────────────────────────────────────────────────── */
+function renderConfig() {
+  const p = _paginas.find(x => x.page_id === _pageId);
+  if (!p) return;
+
+  document.getElementById('config-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <div class="page-avatar" style="width:56px;height:56px">
+        ${p.picture ? `<img src="${esc(p.picture)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📄'">` : '📄'}
+      </div>
+      <div>
+        <div style="font-size:17px;font-weight:700">${esc(p.nombre)}</div>
+        <div style="font-size:12px;color:var(--text-muted)">
+          ${p.activa ? '✅ Activa' : '⏸️ Inactiva'} &nbsp;·&nbsp;
+          👥 ${fmt(p.fan_count)} fans &nbsp;
+          ${p.ig_user_id ? `📸 ${fmt(p.ig_followers)} seguidores IG` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="cfg-row">
+      <div class="cfg-label">Page ID de Facebook</div>
+      <div class="cfg-val" style="font-family:monospace">${esc(p.page_id)}</div>
+    </div>
+
+    <div class="cfg-row">
+      <div class="cfg-label">Instagram Business Account ID</div>
+      <div style="display:flex;gap:8px">
+        <input id="cfg-ig-id" type="text" value="${esc(p.ig_user_id || '')}"
+          placeholder="Ej: 17841400456789012"
+          style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);font-size:13px;font-family:monospace;color:var(--text)">
+        <button onclick="guardarIgId('${esc(p.page_id)}')" class="btn btn-primary btn-sm">Guardar</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+        El ID lo encontrás en Meta Business Suite → Configuración → Instagram
+      </div>
+    </div>
+
+    <div class="cfg-row">
+      <div class="cfg-label">Estado de la página en el CRM</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="badge" style="background:${p.activa ? '#16a34a20' : '#f59e0b20'};color:${p.activa ? '#16a34a' : '#f59e0b'};padding:4px 10px;border-radius:6px;font-size:12px">
+          ${p.activa ? '✅ Activa' : '⏸️ Inactiva'}
+        </span>
+        <button onclick="toggleActiva('${esc(p.page_id)}', ${!p.activa})" class="btn btn-ghost btn-sm">
+          ${p.activa ? 'Desactivar' : 'Activar'}
+        </button>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:12px;color:var(--text-muted)">
+      💡 Para agregar nuevas páginas, vincinalas al System User en Meta Business Suite y luego hacé clic en <strong>Sincronizar</strong>.
+    </div>
+  `;
+}
+
+async function guardarIgId(pageId) {
+  const igId = document.getElementById('cfg-ig-id')?.value.trim();
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ ig_user_id: igId || null }),
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error'); }
+    const p = _paginas.find(x => x.page_id === pageId);
+    if (p) p.ig_user_id = igId || null;
+    toast('Instagram Account ID guardado');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function toggleActiva(pageId, activa) {
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ activa }),
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error'); }
+    const p = _paginas.find(x => x.page_id === pageId);
+    if (p) p.activa = activa;
+    renderConfig();
+    toast(`Página ${activa ? 'activada' : 'desactivada'}`);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ─── eliminar post ──────────────────────────────────────────────────────── */
+async function eliminarPost(postId) {
+  const ok = await showConfirm('Esta acción es permanente y no se puede deshacer.', '¿Eliminar publicación?');
+  if (!ok) return;
+
+  try {
+    const r = await fetch('/api/redes/posts/' + encodeURIComponent(postId), {
+      method: 'DELETE', credentials: 'include',
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error al eliminar'); }
+    const el = document.getElementById('post-' + postId.replace(/[^a-z0-9]/gi,'_'));
+    if (el) { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(), 300); }
+    toast('Publicación eliminada');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ─── sincronizar páginas ────────────────────────────────────────────────── */
+async function syncPaginas() {
+  const btn = document.getElementById('sync-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sincronizando…';
+  try {
+    const r = await fetch('/api/meta/paginas/sync', { method: 'POST', credentials: 'include' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.detail || 'Error al sincronizar');
+    toast(`✅ ${j.synced} página${j.synced !== 1 ? 's' : ''} sincronizada${j.synced !== 1 ? 's' : ''}`);
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Sincronizar';
+  }
+}
+
+/* ─── init ───────────────────────────────────────────────────────────────── */
+setTab('feed');
+cargarPaginas();
+</script>
+{% endblock %}

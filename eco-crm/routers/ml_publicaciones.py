@@ -260,6 +260,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "buying_mode": "buy_it_now",
         "listing_type_id": b.listing_type or "gold_special",
         "condition": b.condicion or "new",
+        "catalog_listing": False,  # evita que ML exija atributos de su catálogo interno
         "pictures": [{"source": u} for u in fotos if u],
     }
     if clean_attrs:

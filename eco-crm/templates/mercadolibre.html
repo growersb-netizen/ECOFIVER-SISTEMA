@@ -1250,7 +1250,7 @@ function renderPregunta(q) {
           placeholder="Escribí la respuesta... o usá ✨ IA para sugerir una automáticamente"
           style="font-size:13px;width:100%;margin-bottom:8px"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" onclick="sugerirRespuesta(${q.id}, ${JSON.stringify(q.texto||'')}, ${JSON.stringify(q.item_titulo||q.item_id||'')})">
+          <button class="btn btn-secondary btn-sm" onclick="sugerirRespuesta(${q.id}, ${escHtml(JSON.stringify(q.texto||''))}, ${escHtml(JSON.stringify(q.item_titulo||q.item_id||''))})">
             ✨ Sugerir con IA
           </button>
           <button class="btn btn-primary btn-sm" onclick="enviarRespuesta(${q.id})">

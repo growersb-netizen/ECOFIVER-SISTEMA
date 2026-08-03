@@ -199,12 +199,30 @@ async def competencia(bid: int, db: Session = Depends(get_db),
     return {"ok": True, "precio_competencia": precio, **_dict(b)}
 
 
+_PRODUCT_ID_ATTRS = {"PRODUCT_ID", "GTIN", "EAN", "UPC", "ISBN", "PRODUCT_IDENTIFIER"}
+
+
+def _error_ml(r) -> str:
+    """Parsea la respuesta de error de ML y devuelve un mensaje legible."""
+    try:
+        body = r.json()
+        causes = body.get("cause") or body.get("error_cause") or []
+        if causes:
+            parts = [f"{ca.get('code','?')} ({ca.get('type','?')})" for ca in causes[:4]]
+            return " | ".join(parts)
+        if body.get("message"):
+            return body["message"][:300]
+    except Exception:
+        pass
+    return r.text[:300]
+
+
 async def _publicar(db: Session, b: BorradorML) -> dict:
     """Crea el ítem en ML a partir del borrador."""
     tok = await _ml_valid_token(db)
     categoria = b.categoria or await _ml_categoria_sugerida(db, b.titulo)
     if not categoria:
-        return {"ok": False, "error": "No se pudo detectar la categoría de ML para este título. Cargá la categoría manualmente en el borrador."}
+        return {"ok": False, "error": "No se pudo detectar la categoría. Cargá la categoría manualmente en el borrador."}
     try:
         fotos = json.loads(b.fotos_json or "[]")
     except Exception:
@@ -213,6 +231,26 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         atributos = json.loads(b.atributos_json or "[]")
     except Exception:
         atributos = []
+
+    # Filtrar atributos de identificador de producto con formato inválido.
+    # Un GTIN/EAN/UPC válido tiene 8, 12, 13 o 14 dígitos numéricos.
+    # Si el valor no cumple el formato, ML devuelve product_identifier.invalid_format.
+    clean_attrs = []
+    for attr in atributos:
+        aid = (attr.get("id") or "").upper()
+        val = str(attr.get("value_name") or "").strip()
+        if any(k in aid for k in _PRODUCT_ID_ATTRS):
+            if val.isdigit() and len(val) in (8, 12, 13, 14):
+                clean_attrs.append(attr)
+            # Si el GTIN es inválido, omitir — no enviarlo evita el error de formato
+        else:
+            clean_attrs.append(attr)
+
+    # Agregar BRAND si no está; muchas categorías lo marcan como catalog_required
+    existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
+    if "BRAND" not in existing_ids:
+        clean_attrs.append({"id": "BRAND", "value_name": "Eco Módulos"})
+
     payload = {
         "title": (b.titulo or "")[:60],
         "category_id": categoria,
@@ -224,19 +262,20 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "condition": b.condicion or "new",
         "pictures": [{"source": u} for u in fotos if u],
     }
-    if atributos:
-        payload["attributes"] = atributos
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
+    if clean_attrs:
+        payload["attributes"] = clean_attrs
+
+    async with httpx.AsyncClient(timeout=12) as hc:
+        r = await hc.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
         if r.status_code not in (200, 201):
-            return {"ok": False, "error": r.text[:400]}
+            return {"ok": False, "error": _error_ml(r)}
         item = r.json()
         if b.descripcion:
             try:
                 from routers.mercadolibre import _agregar_condiciones
                 descripcion_final = _agregar_condiciones(db, b.descripcion)
-                await c.post(f"{ML_BASE}/items/{item['id']}/description",
-                             json={"plain_text": descripcion_final}, headers=_ml_headers(tok))
+                await hc.post(f"{ML_BASE}/items/{item['id']}/description",
+                              json={"plain_text": descripcion_final}, headers=_ml_headers(tok))
             except Exception:
                 pass
     return {"ok": True, "item_id": item.get("id"), "permalink": item.get("permalink")}

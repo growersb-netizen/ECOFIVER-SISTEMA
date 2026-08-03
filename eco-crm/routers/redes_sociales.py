@@ -3,6 +3,7 @@ Panel unificado de gestión de redes sociales.
 Endpoints: /redes (HTML) + /api/redes/...
 """
 import logging
+import time
 from typing import Optional
 
 import httpx
@@ -248,12 +249,18 @@ async def api_redes_stats(
     if periodo not in ("day", "week", "days_28"):
         periodo = "days_28"
 
+    # page_engaged_users deprecado en v18.0+; date_preset no válido para /{page}/insights
+    # → usar since/until con timestamps Unix
+    days_back = {"day": 1, "week": 7, "days_28": 28}.get(periodo, 28)
+    now_ts = int(time.time())
+    since_ts = now_ts - days_back * 86400
+
     metrics = [
         "page_impressions",
         "page_reach",
-        "page_engaged_users",
-        "page_post_engagements",
+        "page_views_total",
         "page_fan_adds",
+        "page_post_engagements",
     ]
 
     try:
@@ -262,7 +269,8 @@ async def api_redes_stats(
             {
                 "metric": ",".join(metrics),
                 "period": "day",
-                "date_preset": periodo,
+                "since": since_ts,
+                "until": now_ts,
                 "access_token": token,
             },
         )

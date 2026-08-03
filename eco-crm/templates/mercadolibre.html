@@ -1343,7 +1343,12 @@ async function actualizarDescripcionesML() {
   res.textContent = 'Enviando descripciones a MercadoLibre, esto puede tardar un minuto...';
   try {
     const data = await API.post('/api/ml/publicaciones/actualizar-descripcion-lote', {});
-    res.innerHTML = `✅ Listo: <strong>${data.ok}</strong> actualizadas, <strong>${data.error}</strong> errores de ${data.total} publicaciones.`;
+    let html = `✅ Listo: <strong>${data.ok}</strong> actualizadas, <strong>${data.error}</strong> errores de ${data.total} publicaciones.`;
+    if (data.error > 0 && data.detalles) {
+      const errores = data.detalles.filter(d => d.status !== 'ok').slice(0, 5);
+      html += `<br><small style="color:#c00">Primeros errores: ${errores.map(e => `${e.item_id}: ${e.status}`).join(' | ')}</small>`;
+    }
+    res.innerHTML = html;
     if (data.ok > 0) showToast(`${data.ok} descripciones actualizadas en ML`, 'success');
     if (data.error > 0) showToast(`${data.error} publicaciones con error`, 'error');
   } catch(e) {

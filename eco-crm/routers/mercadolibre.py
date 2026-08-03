@@ -1259,7 +1259,8 @@ async def actualizar_descripcion_lote(
         for pub in pubs:
             try:
                 descripcion_nueva = _armar_descripcion_ml(db, pub.descripcion or "")
-                r = await c.post(
+                # ML requiere PUT para actualizar descripción existente (POST solo para items nuevos)
+                r = await c.put(
                     f"{ML_BASE}/items/{pub.item_id}/description",
                     headers=_ml_headers(token),
                     json={"plain_text": descripcion_nueva},
@@ -1270,11 +1271,11 @@ async def actualizar_descripcion_lote(
                     detalles.append({"item_id": pub.item_id, "status": "ok"})
                 else:
                     err_count += 1
-                    detalles.append({"item_id": pub.item_id, "status": f"error {r.status_code}: {r.text[:80]}"})
+                    detalles.append({"item_id": pub.item_id, "status": f"HTTP {r.status_code}: {r.text[:120]}"})
             except Exception as e:
                 err_count += 1
-                detalles.append({"item_id": pub.item_id, "status": str(e)[:80]})
-            await asyncio.sleep(0.4)
+                detalles.append({"item_id": pub.item_id, "status": str(e)[:120]})
+            await asyncio.sleep(0.3)
 
     db.commit()
     return {"ok": ok_count, "error": err_count, "total": len(pubs), "detalles": detalles}

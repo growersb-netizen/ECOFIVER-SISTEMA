@@ -286,6 +286,70 @@ def _sanitizar_valor_numerico(val: str) -> str:
     return num or m.group(0)
 
 
+async def _ml_classified_location(db: Session) -> dict:
+    """
+    Retorna el objeto `location` requerido por ML para publicaciones classified.
+    Fetchea los IDs de provincia Buenos Aires y ciudad Zárate de la API pública de ML
+    y los cachea en ConfiguracionSistema para no volver a pedirlos.
+    """
+    from database.models import ConfiguracionSistema
+
+    def _get(clave: str):
+        row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
+        return row.valor if row else None
+
+    def _set(clave: str, valor: str):
+        row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
+        if row:
+            row.valor = valor
+        else:
+            db.add(ConfiguracionSistema(
+                clave=clave, valor=valor,
+                categoria="ml_location", es_secreto=False, estado="activa"
+            ))
+        db.commit()
+
+    state_id = _get("ml_loc_state_id")
+    city_id  = _get("ml_loc_city_id")
+
+    if not state_id:
+        try:
+            async with httpx.AsyncClient(timeout=10) as hc:
+                r = await hc.get("https://api.mercadolibre.com/classified_locations/countries/AR")
+                if r.status_code == 200:
+                    for st in (r.json().get("states") or []):
+                        name = st.get("name", "")
+                        if "Buenos Aires" in name and "Ciudad" not in name and "Autónoma" not in name:
+                            state_id = str(st["id"])
+                            _set("ml_loc_state_id", state_id)
+                            break
+        except Exception:
+            pass
+
+    if state_id and not city_id:
+        try:
+            async with httpx.AsyncClient(timeout=10) as hc:
+                r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{state_id}")
+                if r.status_code == 200:
+                    data = r.json()
+                    cities = data.get("cities") or (data if isinstance(data, list) else [])
+                    for city in cities:
+                        cname = (city.get("name") or "").lower()
+                        if "zárate" in cname or "zarate" in cname:
+                            city_id = str(city["id"])
+                            _set("ml_loc_city_id", city_id)
+                            break
+        except Exception:
+            pass
+
+    loc: dict = {"country": {"id": "AR"}}
+    if state_id:
+        loc["state"] = {"id": state_id}
+    if city_id:
+        loc["city"] = {"id": city_id}
+    return loc
+
+
 async def _publicar(db: Session, b: BorradorML) -> dict:
     """Crea el ítem en ML a partir del borrador."""
     tok = await _ml_valid_token(db)
@@ -359,6 +423,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
             # Auto-retry en modo classified si la categoría lo exige
             # (MLA413502 y otras categorías de vivienda/construcción solo aceptan classified)
             if "CLASSIFIED" in r.text.upper():
+                location = await _ml_classified_location(db)
                 payload_cl = {
                     "title": payload["title"],
                     "category_id": payload["category_id"],
@@ -366,6 +431,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "currency_id": "ARS",
                     "buying_mode": "classified",
                     "listing_type_id": "free",   # único listing type válido para classified
+                    "location": location,
                     "pictures": payload.get("pictures", []),
                 }
                 if clean_attrs:

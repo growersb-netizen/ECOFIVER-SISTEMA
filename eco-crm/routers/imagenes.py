@@ -327,19 +327,46 @@ async def _generar_imagen(key: str, descripcion: str, prompt_rol: str, formato_e
         except Exception:
             pass   # Cae al fallback de Pollinations
 
-    # ── Opción B (default): Pollinations.AI — FLUX, gratis, sin key ──
+    # ── Opción B: Hugging Face Inference API (gratis con token HF) ──
+    hf_token = os.getenv("HUGGINGFACE_TOKEN", "")
+    if hf_token:
+        try:
+            hf_model = os.getenv("HF_IMAGE_MODEL", "black-forest-labs/FLUX.1-schnell")
+            hf_url   = f"https://api-inference.huggingface.co/models/{hf_model}"
+            payload  = {
+                "inputs": prompt_final,
+                "parameters": {"width": width, "height": height, "num_inference_steps": 4},
+            }
+            async with httpx.AsyncClient(timeout=120) as c:
+                r = await c.post(hf_url,
+                                 headers={"Authorization": f"Bearer {hf_token}",
+                                          "x-wait-for-model": "true"},
+                                 json=payload)
+                if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
+                    return _b64lib.b64encode(r.content).decode(), ""
+                # HF devuelve JSON en error
+                return "", f"HF {r.status_code}: {r.text[:300]}"
+        except Exception as e:
+            return "", f"HF excepción: {e}"
+
+    # ── Opción C (fallback sin keys): Pollinations modelo por defecto ──
     try:
         encoded = urllib.parse.quote(prompt_final, safe="")
         url = (
             f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?width={width}&height={height}&model=flux&nologo=true&enhance=false&seed=-1"
+            f"?width={width}&height={height}&nologo=true&seed=-1"
         )
         async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
             r = await c.get(url)
-            if r.status_code != 200:
-                return "", f"Generación {r.status_code}: {r.text[:200]}"
-            b64 = _b64lib.b64encode(r.content).decode()
-            return b64, ""
+            if r.status_code == 200:
+                ct = r.headers.get("content-type", "")
+                if ct.startswith("image/"):
+                    return _b64lib.b64encode(r.content).decode(), ""
+            return "", (
+                f"Generación {r.status_code}. "
+                "Para generar imágenes configurá HUGGINGFACE_TOKEN en Railway "
+                "(gratis en huggingface.co/settings/tokens)."
+            )
     except Exception as e:
         return "", f"Generación excepción: {e}"
 

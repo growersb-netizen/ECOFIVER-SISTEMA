@@ -15,61 +15,64 @@
 
     <!-- Izquierda: configuración -->
     <div>
-      <!-- Upload zona -->
       <div class="card mb-3">
         <div class="card-header"><strong>📷 Foto original</strong></div>
         <div class="card-body">
           <div id="redes-drop" onclick="document.getElementById('redes-file').click()"
-               style="border:2px dashed #444;border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:.2s;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"
+               style="border:2px dashed #444;border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:.2s;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"
                ondragover="ev.preventDefault();this.style.borderColor='#4CAF50'"
                ondragleave="this.style.borderColor='#444'"
                ondrop="redesOnDrop(event)">
             <div style="font-size:2.5rem">📷</div>
             <div style="color:#aaa">Arrastrá o hacé clic para subir una foto</div>
-            <div style="color:#666;font-size:12px">JPG, PNG, WEBP — máx. 10 MB</div>
+            <div style="color:#666;font-size:11px">JPG · PNG · WEBP — se redimensiona automáticamente</div>
           </div>
           <input type="file" id="redes-file" accept="image/*" style="display:none" onchange="redesCargarFoto(event)">
-          <div id="redes-preview" style="margin-top:12px;display:none;text-align:center">
-            <img id="redes-img" style="max-width:100%;max-height:260px;border-radius:8px;object-fit:contain">
-            <div style="margin-top:6px">
-              <button class="btn btn-ghost btn-sm" onclick="redesLimpiarFoto()">✕ Quitar foto</button>
-            </div>
+          <div id="redes-preview" style="margin-top:10px;display:none;text-align:center">
+            <img id="redes-img" style="max-width:100%;max-height:220px;border-radius:8px;object-fit:contain">
+            <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="redesLimpiarFoto()">✕ Quitar foto</button>
           </div>
         </div>
       </div>
 
-      <!-- Opciones de flyer -->
       <div class="card mb-3">
         <div class="card-header"><strong>⚙️ Tipo de flyer</strong></div>
         <div class="card-body">
+          <!-- Tipo selector -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
-            <div class="tipo-btn active" data-tipo="promo" onclick="selectTipo(this,'promo')" style="border:2px solid #4CAF50;border-radius:8px;padding:12px 8px;text-align:center;cursor:pointer">
-              <div style="font-size:1.4rem">🏷️</div>
-              <div style="font-weight:600;font-size:13px">Promo / Descuento</div>
-              <div style="color:#aaa;font-size:11px">Precio, oferta, descuento</div>
+            <div class="tipo-btn active" data-tipo="promo" onclick="selectTipo(this,'promo')">
+              <div style="font-size:1.3rem">🏷️</div>
+              <div style="font-weight:600;font-size:12px">Promo / Descuento</div>
             </div>
-            <div class="tipo-btn" data-tipo="novedad" onclick="selectTipo(this,'novedad')" style="border:2px solid #333;border-radius:8px;padding:12px 8px;text-align:center;cursor:pointer">
-              <div style="font-size:1.4rem">✨</div>
-              <div style="font-weight:600;font-size:13px">Nuevo Producto</div>
-              <div style="color:#aaa;font-size:11px">Lanzamiento, llegó</div>
+            <div class="tipo-btn" data-tipo="novedad" onclick="selectTipo(this,'novedad')">
+              <div style="font-size:1.3rem">✨</div>
+              <div style="font-weight:600;font-size:12px">Nuevo Producto</div>
             </div>
-            <div class="tipo-btn" data-tipo="entrega" onclick="selectTipo(this,'entrega')" style="border:2px solid #333;border-radius:8px;padding:12px 8px;text-align:center;cursor:pointer">
-              <div style="font-size:1.4rem">🚛</div>
-              <div style="font-weight:600;font-size:13px">Entrega / Instalación</div>
-              <div style="color:#aaa;font-size:11px">Foto de obra real</div>
+            <div class="tipo-btn" data-tipo="entrega" onclick="selectTipo(this,'entrega')">
+              <div style="font-size:1.3rem">🚛</div>
+              <div style="font-weight:600;font-size:12px">Entrega / Instalación</div>
             </div>
-            <div class="tipo-btn" data-tipo="catalogo" onclick="selectTipo(this,'catalogo')" style="border:2px solid #333;border-radius:8px;padding:12px 8px;text-align:center;cursor:pointer">
-              <div style="font-size:1.4rem">📋</div>
-              <div style="font-weight:600;font-size:13px">Catálogo</div>
-              <div style="color:#aaa;font-size:11px">Imagen limpia, sin precio</div>
+            <div class="tipo-btn" data-tipo="catalogo" onclick="selectTipo(this,'catalogo')">
+              <div style="font-size:1.3rem">📋</div>
+              <div style="font-weight:600;font-size:12px">Catálogo</div>
             </div>
           </div>
 
-          <label class="label">Producto / Descripción</label>
-          <input id="redes-producto" class="input mb-2" placeholder="Ej: Piscina Fiji 7x3m, Módulo Studio 30m²…">
-          <div id="redes-precio-wrap">
-            <label class="label">Precio (para promos)</label>
-            <input id="redes-precio" class="input mb-2" placeholder="Ej: $12.500.000 o 15% OFF">
+          <!-- Selector de catálogo -->
+          <label class="label">Producto del catálogo <span style="color:#888;font-size:11px">(opcional)</span></label>
+          <select id="redes-cat-select" class="input mb-2" onchange="redesSeleccionarProducto(this.value)">
+            <option value="">— Seleccionar del catálogo —</option>
+          </select>
+
+          <!-- Datos del producto (leídos del catálogo o ingresados manual) -->
+          <div id="redes-datos-prod" style="background:#1a1a2e;border-radius:8px;padding:10px 12px;font-size:12px;color:#bbb;margin-bottom:10px;display:none">
+            <div id="redes-datos-texto"></div>
+          </div>
+
+          <label class="label">Texto para incluir <span style="color:#888;font-size:11px">(lo que pondrá la IA en la imagen)</span></label>
+          <input id="redes-texto" class="input mb-3" placeholder="Ej: Piscina Fiji 7×3m — EcoFiver">
+          <div style="background:#1a2a1a;border-radius:6px;padding:8px 12px;font-size:11px;color:#7ecb7e;margin-bottom:14px">
+            💡 La IA analizará tu foto y generará una versión mejorada estéticamente. El texto que indiques se incorporará de forma discreta y real.
           </div>
 
           <button class="btn btn-primary w-100" onclick="redesGenerar()" id="redes-btn-gen">
@@ -81,17 +84,17 @@
 
     <!-- Derecha: resultado -->
     <div>
-      <div class="card" style="min-height:400px">
+      <div class="card" style="min-height:420px">
         <div class="card-header"><strong>🎨 Resultado</strong></div>
-        <div class="card-body" id="redes-resultado" style="display:flex;align-items:center;justify-content:center;min-height:360px;flex-direction:column;gap:12px">
+        <div class="card-body" id="redes-resultado" style="display:flex;align-items:center;justify-content:center;min-height:380px;flex-direction:column;gap:12px">
           <div style="color:#666;text-align:center">
             <div style="font-size:3rem">🎨</div>
             <div>Tu flyer aparecerá aquí</div>
+            <div style="font-size:11px;margin-top:6px;color:#555">La IA analiza la foto y genera una versión profesional</div>
           </div>
         </div>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -99,48 +102,52 @@
 <div id="tab-ml" style="display:none">
   <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:24px" class="img-grid">
 
-    <!-- Izquierda: configuración -->
+    <!-- Izquierda -->
     <div>
-      <!-- Upload zona -->
       <div class="card mb-3">
         <div class="card-header"><strong>📷 Foto original del producto</strong></div>
         <div class="card-body">
           <div id="ml-drop" onclick="document.getElementById('ml-file').click()"
-               style="border:2px dashed #444;border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:.2s;min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"
+               style="border:2px dashed #444;border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:.2s;min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"
                ondragover="ev.preventDefault();this.style.borderColor='#4CAF50'"
                ondragleave="this.style.borderColor='#444'"
                ondrop="mlOnDrop(event)">
             <div style="font-size:2rem">📦</div>
-            <div style="color:#aaa;font-size:13px">Arrastrá o hacé clic para subir foto del producto</div>
+            <div style="color:#aaa;font-size:13px">Arrastrá o hacé clic para subir foto</div>
           </div>
           <input type="file" id="ml-file" accept="image/*" style="display:none" onchange="mlCargarFoto(event)">
           <div id="ml-preview" style="margin-top:10px;display:none;text-align:center">
-            <img id="ml-img" style="max-width:100%;max-height:200px;border-radius:8px;object-fit:contain">
+            <img id="ml-img" style="max-width:100%;max-height:180px;border-radius:8px;object-fit:contain">
             <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="mlLimpiarFoto()">✕ Quitar</button>
           </div>
         </div>
       </div>
 
-      <!-- Opciones ML -->
       <div class="card mb-3">
         <div class="card-header"><strong>⚙️ Configuración</strong></div>
         <div class="card-body">
-          <label class="label">Producto</label>
-          <input id="ml-producto" class="input mb-2" placeholder="Ej: Piscina Fiji 7x3m Fibra de Vidrio…">
+          <label class="label">Producto del catálogo</label>
+          <select id="ml-cat-select" class="input mb-2" onchange="mlSeleccionarProducto(this.value)">
+            <option value="">— Seleccionar del catálogo —</option>
+          </select>
+          <div id="ml-datos-prod" style="background:#1a1a2e;border-radius:8px;padding:10px 12px;font-size:12px;color:#bbb;margin-bottom:10px;display:none">
+            <div id="ml-datos-texto"></div>
+          </div>
 
-          <label class="label">Cantidad de variantes a generar</label>
-          <div style="display:flex;gap:8px;margin-bottom:16px">
+          <label class="label">Texto del producto <span style="color:#888;font-size:11px">(se carga del catálogo)</span></label>
+          <input id="ml-texto" class="input mb-2" placeholder="Ej: Piscina Fiji 7×3m Fibra de Vidrio">
+
+          <label class="label" style="margin-top:8px">Cantidad de variantes</label>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
             <button class="btn btn-ghost n-btn active" data-n="1" onclick="selectN(this,1)">1</button>
             <button class="btn btn-ghost n-btn" data-n="2" onclick="selectN(this,2)">2</button>
             <button class="btn btn-ghost n-btn" data-n="3" onclick="selectN(this,3)">3</button>
             <button class="btn btn-ghost n-btn" data-n="4" onclick="selectN(this,4)">4</button>
           </div>
 
-          <div class="card mb-2" style="background:#1a2a1a;border-color:#2a4a2a;padding:10px 14px;font-size:12px;color:#7ecb7e">
-            <strong>✓ Optimizado para ML:</strong> fondo blanco, iluminación de estudio, sin texto, sin marcas.
-            Cumple los estándares de MercadoLibre para fotos de producto.
+          <div style="background:#1a2a1a;border-radius:6px;padding:8px 12px;font-size:11px;color:#7ecb7e;margin-bottom:14px">
+            ✓ Optimizado para ML: fondo blanco, iluminación de estudio, sin texto, sin marcas. Compatible con los estándares de MercadoLibre.
           </div>
-
           <button class="btn btn-primary w-100" onclick="mlGenerar()" id="ml-btn-gen">
             🛒 Generar fotos para ML
           </button>
@@ -150,14 +157,12 @@
 
     <!-- Derecha: resultados ML -->
     <div>
-      <div class="card" style="min-height:400px">
+      <div class="card" style="min-height:420px">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
           <strong>📸 Fotos generadas</strong>
-          <span id="ml-acciones" style="display:none">
-            <button class="btn btn-secondary btn-sm" onclick="mlDescargarTodas()">⬇ Descargar todas</button>
-          </span>
+          <button id="ml-btn-descargar-todas" class="btn btn-secondary btn-sm" style="display:none" onclick="mlDescargarTodas()">⬇ Descargar todas</button>
         </div>
-        <div class="card-body" id="ml-resultado" style="display:flex;align-items:center;justify-content:center;min-height:360px;flex-direction:column;gap:12px">
+        <div class="card-body" id="ml-resultado" style="display:flex;align-items:center;justify-content:center;min-height:380px;flex-direction:column;gap:12px">
           <div style="color:#666;text-align:center">
             <div style="font-size:3rem">📦</div>
             <div>Las fotos generadas aparecerán aquí</div>
@@ -165,7 +170,6 @@
         </div>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -173,185 +177,287 @@
 
 {% block extra_js %}
 <script>
-/* ── Estado ─────────────────────────────────────────────────────────────── */
-let _redesFotoB64 = null, _redesFotoMime = 'image/jpeg';
-let _mlFotoB64 = null,    _mlFotoMime = 'image/jpeg';
+/* ── Estado ─────────────────────────────────────────────────────────────────── */
+let _redesB64 = null, _redesMime = 'image/jpeg';
+let _mlB64    = null, _mlMime    = 'image/jpeg';
 let _tipoFlyer = 'promo', _mlN = 1;
+let _catalogoData = null;
 
-/* ── Tabs ────────────────────────────────────────────────────────────────── */
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
 function showTab(id, btn) {
-  document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
-  document.getElementById('tab-' + id).style.display = '';
+  ['redes','ml'].forEach(t => document.getElementById('tab-'+t).style.display = t===id ? '' : 'none');
   document.querySelectorAll('#tabs-img .tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
 
-/* ── Tipo flyer ──────────────────────────────────────────────────────────── */
+/* ── Catálogo ─────────────────────────────────────────────────────────────── */
+async function cargarCatalogo() {
+  try {
+    const r = await fetch('/api/catalogo', { credentials: 'include' });
+    if (!r.ok) return;
+    _catalogoData = await r.json();
+    poblarSelectores();
+  } catch(e) {}
+}
+
+function poblarSelectores() {
+  if (!_catalogoData) return;
+  const opciones = construirOpciones(_catalogoData);
+  ['redes-cat-select','ml-cat-select'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    opciones.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify(o);
+      opt.textContent = o.label;
+      if (o.grupo) opt.style.fontWeight = '600';
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function construirOpciones(cat) {
+  const ops = [];
+  // Piscinas
+  if (cat.piscinas?.modelos?.length) {
+    ops.push({ label: '── Piscinas ──', value: '', grupo: true });
+    cat.piscinas.modelos.forEach(m => {
+      const precio = cat.piscinas.precios?.[m] ? `  $${Number(cat.piscinas.precios[m]).toLocaleString('es-AR')}` : '';
+      const medidas = cat.piscinas.medidas?.[m] ? ` · ${Object.entries(cat.piscinas.medidas[m]).map(([k,v])=>`${k}: ${v}`).join(', ')}` : '';
+      ops.push({
+        label: `Piscina ${m}${precio}`,
+        nombre: `Piscina ${m}`,
+        precio: cat.piscinas.precios?.[m] || '',
+        medidas: medidas.trim(),
+        tipo: 'piscina',
+      });
+    });
+  }
+  // Módulos
+  if (cat.modulos?.superficies_m2?.length) {
+    ops.push({ label: '── Módulos ──', valor: '', grupo: true });
+    cat.modulos.superficies_m2.forEach(sup => {
+      const precio = cat.modulos.precios?.[sup] ? `  $${Number(cat.modulos.precios[sup]).toLocaleString('es-AR')}` : '';
+      ops.push({
+        label: `Módulo ${sup} m²${precio}`,
+        nombre: `Módulo ${sup} m²`,
+        precio: cat.modulos.precios?.[sup] || '',
+        medidas: `${sup} m²`,
+        tipo: 'modulo',
+      });
+    });
+  }
+  // Combos
+  if (cat.combos && Object.keys(cat.combos).length) {
+    ops.push({ label: '── Combos ──', valor: '', grupo: true });
+    Object.entries(cat.combos).forEach(([k, v]) => {
+      const precio = v?.precio ? `  $${Number(v.precio).toLocaleString('es-AR')}` : '';
+      ops.push({
+        label: `Combo ${k}${precio}`,
+        nombre: `Combo ${k}`,
+        precio: v?.precio || '',
+        medidas: v?.descripcion || '',
+        tipo: 'combo',
+      });
+    });
+  }
+  return ops;
+}
+
+function _mostrarDatosProd(prefijo, dato) {
+  if (!dato || dato.grupo) return;
+  const el = document.getElementById(`${prefijo}-datos-prod`);
+  const txt = document.getElementById(`${prefijo}-datos-texto`);
+  if (!el || !txt) return;
+  let html = `<strong>${escHtml(dato.nombre)}</strong>`;
+  if (dato.precio) html += ` · $${Number(dato.precio).toLocaleString('es-AR')}`;
+  if (dato.medidas) html += `<br>${escHtml(dato.medidas)}`;
+  txt.innerHTML = html;
+  el.style.display = '';
+  // Setear texto para la generación
+  document.getElementById(`${prefijo}-texto`).value = dato.nombre + (dato.medidas ? ` · ${dato.medidas}` : '');
+}
+
+function redesSeleccionarProducto(val) {
+  try { _mostrarDatosProd('redes', JSON.parse(val)); } catch(e) {}
+}
+function mlSeleccionarProducto(val) {
+  try { _mostrarDatosProd('ml', JSON.parse(val)); } catch(e) {}
+}
+
+/* ── Tipo flyer ───────────────────────────────────────────────────────────── */
 function selectTipo(el, tipo) {
   document.querySelectorAll('.tipo-btn').forEach(b => { b.style.borderColor='#333'; b.style.background=''; });
   el.style.borderColor = '#4CAF50'; el.style.background = '#1a2e1a';
   _tipoFlyer = tipo;
-  document.getElementById('redes-precio-wrap').style.display = tipo === 'promo' ? '' : 'none';
 }
 
-/* ── N imágenes ML ───────────────────────────────────────────────────────── */
+/* ── N variantes ─────────────────────────────────────────────────────────── */
 function selectN(el, n) {
   document.querySelectorAll('.n-btn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  _mlN = n;
+  el.classList.add('active'); _mlN = n;
 }
 
-/* ── Upload foto redes ───────────────────────────────────────────────────── */
+/* ── Resize con canvas (evita enviar imágenes de 10+ MB) ─────────────────── */
+async function _resizeB64(file, maxPx = 1024, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        let { width: w, height: h } = img;
+        if (w > maxPx || h > maxPx) {
+          if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+          else       { w = Math.round(w * maxPx / h); h = maxPx; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve({ b64: dataUrl.split(',')[1], mime: 'image/jpeg' });
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function _cargarFoto(file, prefijo) {
+  if (!file || !file.type.startsWith('image/')) { showToast('Seleccioná una imagen', 'warning'); return; }
+  try {
+    const { b64, mime } = await _resizeB64(file, 1024, 0.82);
+    const src = `data:${mime};base64,${b64}`;
+    if (prefijo === 'redes') {
+      _redesB64 = b64; _redesMime = mime;
+      document.getElementById('redes-img').src = src;
+      document.getElementById('redes-preview').style.display = '';
+    } else {
+      _mlB64 = b64; _mlMime = mime;
+      document.getElementById('ml-img').src = src;
+      document.getElementById('ml-preview').style.display = '';
+    }
+  } catch(e) { showToast('Error cargando imagen: ' + e.message, 'error'); }
+}
+
 function redesOnDrop(ev) {
   ev.preventDefault();
   document.getElementById('redes-drop').style.borderColor = '#444';
-  const file = ev.dataTransfer.files[0];
-  if (file) _cargarFotoDesdeFile(file, 'redes');
+  _cargarFoto(ev.dataTransfer.files[0], 'redes');
 }
-function redesCargarFoto(ev) { _cargarFotoDesdeFile(ev.target.files[0], 'redes'); }
+function redesCargarFoto(ev) { _cargarFoto(ev.target.files[0], 'redes'); }
 function redesLimpiarFoto() {
-  _redesFotoB64 = null;
+  _redesB64 = null;
   document.getElementById('redes-preview').style.display = 'none';
   document.getElementById('redes-file').value = '';
 }
-
-/* ── Upload foto ML ──────────────────────────────────────────────────────── */
 function mlOnDrop(ev) {
   ev.preventDefault();
   document.getElementById('ml-drop').style.borderColor = '#444';
-  const file = ev.dataTransfer.files[0];
-  if (file) _cargarFotoDesdeFile(file, 'ml');
+  _cargarFoto(ev.dataTransfer.files[0], 'ml');
 }
-function mlCargarFoto(ev) { _cargarFotoDesdeFile(ev.target.files[0], 'ml'); }
+function mlCargarFoto(ev) { _cargarFoto(ev.target.files[0], 'ml'); }
 function mlLimpiarFoto() {
-  _mlFotoB64 = null;
+  _mlB64 = null;
   document.getElementById('ml-preview').style.display = 'none';
   document.getElementById('ml-file').value = '';
 }
 
-function _cargarFotoDesdeFile(file, prefijo) {
-  if (!file || !file.type.startsWith('image/')) { showToast('Seleccioná una imagen', 'warning'); return; }
-  if (file.size > 10 * 1024 * 1024) { showToast('La imagen supera 10 MB', 'warning'); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const dataUrl = ev.target.result;
-    const [header, b64] = dataUrl.split(',');
-    const mime = header.match(/:(.*?);/)[1];
-    if (prefijo === 'redes') {
-      _redesFotoB64 = b64; _redesFotoMime = mime;
-      document.getElementById('redes-img').src = dataUrl;
-      document.getElementById('redes-preview').style.display = '';
-    } else {
-      _mlFotoB64 = b64; _mlFotoMime = mime;
-      document.getElementById('ml-img').src = dataUrl;
-      document.getElementById('ml-preview').style.display = '';
-    }
-  };
-  reader.readAsDataURL(file);
+/* ── Spinner helper ─────────────────────────────────────────────────────── */
+function _spinnerHtml(msg, sub) {
+  return `<div style="text-align:center;color:#aaa;padding:20px">
+    <div style="width:48px;height:48px;border:4px solid #333;border-top-color:#4CAF50;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 14px"></div>
+    <div>${msg}</div>
+    ${sub ? `<div style="font-size:11px;color:#666;margin-top:6px">${sub}</div>` : ''}
+  </div>`;
 }
 
-/* ── Generar flyer ───────────────────────────────────────────────────────── */
+/* ── Generar flyer ─────────────────────────────────────────────────────────── */
 async function redesGenerar() {
-  if (!_redesFotoB64) { showToast('Primero subí una foto', 'warning'); return; }
-  const producto = document.getElementById('redes-producto').value.trim();
-  const precio   = document.getElementById('redes-precio').value.trim();
-  const btn = document.getElementById('redes-btn-gen');
-  const res = document.getElementById('redes-resultado');
+  if (!_redesB64) { showToast('Primero subí una foto', 'warning'); return; }
+  const texto = document.getElementById('redes-texto').value.trim();
+  const btn   = document.getElementById('redes-btn-gen');
+  const res   = document.getElementById('redes-resultado');
 
-  btn.disabled = true; btn.textContent = '⏳ Generando…';
-  res.innerHTML = `<div style="text-align:center;color:#aaa">
-    <div class="spinner" style="width:48px;height:48px;border:4px solid #333;border-top-color:#4CAF50;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px"></div>
-    <div>La IA está procesando tu foto…</div>
-    <div style="font-size:12px;color:#666;margin-top:6px">Esto puede tardar 20-40 segundos</div>
-  </div>`;
+  btn.disabled = true; btn.textContent = '⏳ Analizando foto…';
+  res.innerHTML = _spinnerHtml('La IA está analizando y mejorando tu foto…', 'Paso 1: analizando · Paso 2: generando — puede tardar 30-60s');
 
   try {
     const r = await fetch('/api/imagenes/generar', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        foto_b64: _redesFotoB64, mime: _redesFotoMime,
-        modo: 'flyer', tipo_flyer: _tipoFlyer,
-        producto, precio, n: 1,
-      }),
+      body: JSON.stringify({ foto_b64: _redesB64, mime: _redesMime, modo: 'flyer', tipo_flyer: _tipoFlyer, producto_texto: texto, n: 1 }),
     });
     const j = await r.json();
-    if (!r.ok || !j.ok) throw new Error(j.detail || j.error || 'Error generando');
+    if (!r.ok || !j.ok) throw new Error(j.detail || j.error || JSON.stringify(j));
 
-    const b64 = j.imagenes[0];
-    const src = `data:image/png;base64,${b64}`;
+    const src = `data:image/png;base64,${j.imagenes[0]}`;
     res.innerHTML = `
       <div style="text-align:center;width:100%">
         <img src="${src}" style="max-width:100%;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.4)">
+        ${j.descripcion_ia ? `<div style="font-size:11px;color:#666;margin-top:6px;text-align:left">🔍 La IA vio: ${escHtml(j.descripcion_ia)}…</div>` : ''}
         <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="descargar('${src}','flyer_${_tipoFlyer}.png')">⬇ Descargar PNG</button>
           <button class="btn btn-ghost" onclick="redesGenerar()">🔄 Regenerar</button>
-          <button class="btn btn-ghost" onclick="copiarAlPortapapeles('${b64}')">📋 Copiar</button>
         </div>
       </div>`;
     showToast('¡Flyer generado!', 'success');
   } catch(e) {
-    res.innerHTML = `<div style="color:#f66;text-align:center"><div style="font-size:2rem">❌</div><div>${escHtml(e.message)}</div></div>`;
+    res.innerHTML = `<div style="color:#f66;text-align:center;padding:20px"><div style="font-size:2rem">❌</div><div>${escHtml(e.message)}</div></div>`;
     showToast('Error: ' + e.message, 'error');
   }
   btn.disabled = false; btn.textContent = '✨ Generar flyer con IA';
 }
 
-/* ── Generar fotos ML ────────────────────────────────────────────────────── */
+/* ── Generar fotos ML ─────────────────────────────────────────────────────── */
 async function mlGenerar() {
-  if (!_mlFotoB64) { showToast('Primero subí una foto del producto', 'warning'); return; }
-  const producto = document.getElementById('ml-producto').value.trim();
-  const btn = document.getElementById('ml-btn-gen');
-  const res = document.getElementById('ml-resultado');
-  const acc = document.getElementById('ml-acciones');
+  if (!_mlB64) { showToast('Primero subí una foto del producto', 'warning'); return; }
+  const texto = document.getElementById('ml-texto').value.trim();
+  const btn   = document.getElementById('ml-btn-gen');
+  const res   = document.getElementById('ml-resultado');
+  const btnAll = document.getElementById('ml-btn-descargar-todas');
 
-  btn.disabled = true; btn.textContent = `⏳ Generando ${_mlN} foto${_mlN > 1 ? 's' : ''}…`;
-  acc.style.display = 'none';
-  res.innerHTML = `<div style="text-align:center;color:#aaa">
-    <div class="spinner" style="width:48px;height:48px;border:4px solid #333;border-top-color:#4CAF50;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px"></div>
-    <div>Generando ${_mlN} variante${_mlN > 1 ? 's' : ''} para ML…</div>
-    <div style="font-size:12px;color:#666;margin-top:6px">Puede tardar ${10 * _mlN}-${40 * _mlN} segundos</div>
-  </div>`;
+  btn.disabled = true; btn.textContent = `⏳ Generando ${_mlN} foto${_mlN>1?'s':''}…`;
+  btnAll.style.display = 'none';
+  res.innerHTML = _spinnerHtml(
+    `Generando ${_mlN} variante${_mlN>1?'s':''} para ML…`,
+    `Paso 1: analizando la foto · Paso 2: generando ${_mlN} imagen${_mlN>1?'es':''} — puede tardar ${20*_mlN}-${50*_mlN}s`
+  );
 
   try {
     const r = await fetch('/api/imagenes/generar', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        foto_b64: _mlFotoB64, mime: _mlFotoMime,
-        modo: 'ml', producto, n: _mlN,
-      }),
+      body: JSON.stringify({ foto_b64: _mlB64, mime: _mlMime, modo: 'ml', producto_texto: texto, n: _mlN }),
     });
     const j = await r.json();
-    if (!r.ok || !j.ok) throw new Error(j.detail || j.error || 'Error generando');
+    if (!r.ok || !j.ok) throw new Error(j.detail || j.error || JSON.stringify(j));
 
-    const imgs = j.imagenes;
-    res.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;width:100%">
-      ${imgs.map((b64, i) => `
+    window._mlImagenesActuales = j.imagenes;
+    res.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px;width:100%">
+      ${j.imagenes.map((b64,i) => `
         <div style="text-align:center">
-          <img src="data:image/png;base64,${b64}" style="width:100%;border-radius:8px;aspect-ratio:1;object-fit:cover;border:2px solid #333">
-          <div style="display:flex;gap:4px;margin-top:8px;justify-content:center;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="mlUsarEnPublicacion('${b64}')">+ Usar en ML</button>
+          <img src="data:image/png;base64,${b64}"
+               style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:2px solid #333">
+          <div style="display:flex;gap:4px;margin-top:8px;justify-content:center">
+            <button class="btn btn-primary btn-sm" onclick="mlUsarEnML('${b64}')">+ Usar en ML</button>
             <button class="btn btn-ghost btn-sm" onclick="descargar('data:image/png;base64,${b64}','foto_ml_${i+1}.png')">⬇</button>
           </div>
         </div>`).join('')}
     </div>`;
-    acc.style.display = '';
-    // Guardar para descarga masiva
-    window._mlImagenesActuales = imgs;
-    showToast(`${imgs.length} foto${imgs.length > 1 ? 's' : ''} generada${imgs.length > 1 ? 's' : ''}`, 'success');
-    if (j.errores && j.errores.length > 0) {
-      showToast('⚠ ' + j.errores[0], 'warning');
-    }
+    btnAll.style.display = '';
+    showToast(`${j.imagenes.length} foto${j.imagenes.length>1?'s':''} generada${j.imagenes.length>1?'s':''}`, 'success');
+    if (j.errores?.length) showToast('⚠ ' + j.errores[0], 'warning');
   } catch(e) {
-    res.innerHTML = `<div style="color:#f66;text-align:center"><div style="font-size:2rem">❌</div><div>${escHtml(e.message)}</div></div>`;
+    res.innerHTML = `<div style="color:#f66;text-align:center;padding:20px"><div style="font-size:2rem">❌</div><div>${escHtml(e.message)}</div></div>`;
     showToast('Error: ' + e.message, 'error');
   }
   btn.disabled = false; btn.textContent = `🛒 Generar fotos para ML`;
 }
 
-/* ── Usar imagen en borrador ML ──────────────────────────────────────────── */
-async function mlUsarEnPublicacion(b64) {
+/* ── Subir a ML ─────────────────────────────────────────────────────────── */
+async function mlUsarEnML(b64) {
   showToast('Subiendo imagen a MercadoLibre…', 'info');
   try {
     const r = await fetch('/api/imagenes/subir-a-ml', {
@@ -361,53 +467,42 @@ async function mlUsarEnPublicacion(b64) {
     });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'Error subiendo');
-    // Copiar la URL al portapapeles para usarla manualmente en un borrador
     if (j.url) {
       await navigator.clipboard.writeText(j.url).catch(() => {});
-      showToast(`✓ Imagen subida a ML. URL copiada al portapapeles. Pegala en el campo de fotos de tu borrador.`, 'success');
+      showToast('✓ Subida a ML. URL copiada al portapapeles — pegala en el campo de fotos del borrador.', 'success');
     } else {
       showToast(`✓ Subida a ML (ID: ${j.id})`, 'success');
     }
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
-/* ── Descargar todas las fotos ML ────────────────────────────────────────── */
 function mlDescargarTodas() {
-  (window._mlImagenesActuales || []).forEach((b64, i) => {
-    descargar(`data:image/png;base64,${b64}`, `foto_ml_${i + 1}.png`);
-  });
+  (window._mlImagenesActuales || []).forEach((b64, i) =>
+    descargar(`data:image/png;base64,${b64}`, `foto_ml_${i+1}.png`)
+  );
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 function descargar(dataUrl, nombre) {
-  const a = document.createElement('a');
-  a.href = dataUrl; a.download = nombre; a.click();
+  const a = document.createElement('a'); a.href = dataUrl; a.download = nombre; a.click();
 }
+function showToast(msg, type='success') { toast(msg, type); }
 
-async function copiarAlPortapapeles(b64) {
-  try {
-    const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob();
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    showToast('✓ Imagen copiada al portapapeles', 'success');
-  } catch(e) {
-    showToast('No se pudo copiar (usá Descargar)', 'warning');
-  }
-}
-
-function showToast(msg, type = 'success') { toast(msg, type); }
+/* ── Init ─────────────────────────────────────────────────────────────────── */
+cargarCatalogo();
 </script>
 
 <style>
 .w-100 { width: 100%; }
 .img-grid { }
-@media (max-width: 768px) {
-  .img-grid { grid-template-columns: 1fr !important; }
+@media (max-width: 768px) { .img-grid { grid-template-columns: 1fr !important; } }
+.tipo-btn {
+  border: 2px solid #333; border-radius: 8px; padding: 10px 8px;
+  text-align: center; cursor: pointer; transition: .15s;
 }
-.tipo-btn { transition: .15s; }
-.tipo-btn:hover { border-color: #555 !important; background: #1a1a1a; }
-.n-btn.active { background: #4CAF50; color: #fff; border-color: #4CAF50; }
+.tipo-btn:hover { border-color: #555; background: #1a1a1a; }
+.tipo-btn.active, .tipo-btn[style*="#4CAF50"] { border-color: #4CAF50 !important; background: #1a2e1a; }
+.n-btn.active { background: #4CAF50 !important; color: #fff; border-color: #4CAF50 !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 {% endblock %}

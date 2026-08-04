@@ -1908,41 +1908,50 @@ async function borPublicar(id) {
 }
 async function borPublicarLote() {
   if (!BOR_SEL.size) return;
-  const sinCategoria = [...BOR_SEL].filter(id => !BOR_DATA_CACHE[id]?.categoria).length;
-  const avisoCat = sinCategoria ? `\n\n⚠ ${sinCategoria} sin categoría — ML elegirá automáticamente, no se puede cambiar después.` : '';
-  const ok = await showConfirm(`¿Publicar ${BOR_SEL.size} publicaciones en MercadoLibre?${avisoCat}`, 'Publicar en lote');
+  const TIPOS_CLASSIFIED = ['MODULO', 'MODULO_DEPOSITO', 'COMBO'];
+  const ids = [...BOR_SEL];
+  const sinCategoria = ids.filter(id => !BOR_DATA_CACHE[id]?.categoria).length;
+  const avisoCat = sinCategoria ? `\n\n⚠ ${sinCategoria} sin categoría — ML elegirá automáticamente.` : '';
+  const ok = await showConfirm(`¿Publicar ${ids.length} publicaciones en MercadoLibre?${avisoCat}\n\nML limita las publicaciones classified — el proceso puede tardar varios minutos.`, 'Publicar en lote');
   if (!ok) return;
 
   const btnLote = document.getElementById('bor-btn-lote');
-  if (btnLote) { btnLote.disabled = true; btnLote.textContent = `⏳ Publicando ${BOR_SEL.size}…`; }
-  showToast('Publicando lote — esto puede tardar varios segundos…', 'info');
+  if (btnLote) { btnLote.disabled = true; }
+  let pub = 0, err = 0;
 
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 180000); // 3 min para lote grande
-  try {
-    const res = await fetch('/api/ml/borradores/publicar-lote', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ ids: [...BOR_SEL] }),
-      signal: ctrl.signal,
-    });
-    clearTimeout(tid);
-    const j = await res.json().catch(() => ({}));
-    BOR_SEL.clear();
-    borCargar();
-    showToast(`Publicadas: ${j.publicadas ?? 0} · Errores: ${j.errores ?? 0}`, (j.errores ?? 0) > 0 ? 'warning' : 'success');
-  } catch (e) {
-    clearTimeout(tid);
-    borCargar();
-    if (e.name === 'AbortError') {
-      showToast('⏱ El lote tardó más de 3 min — verificá en la lista cuáles se publicaron', 'warning');
-    } else {
-      showToast('Error: ' + e.message, 'error');
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    if (btnLote) btnLote.textContent = `⏳ ${i + 1}/${ids.length} — ${pub} ok · ${err} err`;
+
+    try {
+      const res = await fetch(`/api/ml/borradores/${id}/publicar`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        credentials: 'include', body: '{}',
+      });
+      const j = await res.json().catch(() => ({}));
+      if (j.ok) { pub++; }
+      else {
+        err++;
+        const esClassified = TIPOS_CLASSIFIED.includes(BOR_DATA_CACHE[id]?.producto || '');
+        // Si ML dice "temporarily unavailable" en classified, esperar 30s antes del siguiente
+        if (esClassified && (j.error_msg || '').toLowerCase().includes('temporarily')) {
+          showToast(`⏱ Rate limit ML — esperando 30s antes del siguiente…`, 'info');
+          await new Promise(r => setTimeout(r, 30000));
+        }
+      }
+    } catch (e) { err++; }
+
+    // Pausa entre items: 15s para classified, 2s para marketplace
+    if (i < ids.length - 1) {
+      const esClassified = TIPOS_CLASSIFIED.includes(BOR_DATA_CACHE[id]?.producto || '');
+      await new Promise(r => setTimeout(r, esClassified ? 15000 : 2000));
     }
-  } finally {
-    if (btnLote) { btnLote.disabled = false; borActLote(); }
   }
+
+  BOR_SEL.clear();
+  borCargar();
+  if (btnLote) { btnLote.disabled = false; borActLote(); }
+  showToast(`Lote finalizado — Publicadas: ${pub} · Errores: ${err}`, err > 0 ? 'warning' : 'success');
 }
 async function borImportarArchivo(input) {
   if (!input.files || !input.files[0]) return;

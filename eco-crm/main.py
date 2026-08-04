@@ -27,7 +27,7 @@ from routers import (
     control_agentes, instalacion, panolero, asistencia_rapida, entrega_rapida,
     marketing, simulador, seguimiento, testimonial, inbox, public_landing,
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
-    integraciones, redes_sociales,
+    integraciones, redes_sociales, imagenes,
 )
 
 log = logging.getLogger(__name__)
@@ -119,6 +119,7 @@ app.include_router(negocio.router)          # Configuración del negocio
 app.include_router(whatsapp_business.router) # Perfil de WhatsApp Business
 app.include_router(integraciones.router)     # Integración WhatsApp IA (Melanie + futuros)
 app.include_router(redes_sociales.router)   # Panel unificado de redes sociales
+app.include_router(imagenes.router)         # Generador de imágenes con IA
 
 
 # ─── MANUAL DE USO ────────────────────────────────────────────────────────────

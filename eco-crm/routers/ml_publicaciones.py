@@ -5,12 +5,15 @@ Incluye semáforo de competitividad (precio de referencia manual + auto buy-box 
 Reutiliza el OAuth/token del módulo mercadolibre.
 """
 import json
-from typing import Optional
+import asyncio
+import time
+import uuid
+from typing import Optional, Dict, Any
 
 import io
 import re
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Header, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -25,6 +28,91 @@ from utils.ai_client import ai_complete
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+# ── Cola de publicación en segundo plano ──────────────────────────────────────
+_LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
+_TIPOS_CLASSIFIED = {"MODULO", "MODULO_DEPOSITO", "COMBO"}
+
+
+async def _run_lote_bg(job_id: str, bids: list):
+    """Publica borradores secuencialmente desde el servidor; el frontend solo hace polling."""
+    from database.database import SessionLocal
+
+    job = _LOTES[job_id]
+    job["estado"] = "en_curso"
+    delay_cl = 120  # segundos entre classified; se ajusta adaptativamente
+
+    for i, bid in enumerate(bids):
+        if job.get("cancelado"):
+            break
+
+        job["idx_actual"] = i
+
+        db = SessionLocal()
+        try:
+            b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+            if not b or b.estado == "publicada":
+                job["procesados"] = i + 1
+                continue
+
+            es_classified = (b.producto or "").upper() in _TIPOS_CLASSIFIED
+
+            # Para classified: hasta 3 intentos con espera progresiva entre ellos
+            res = None
+            if es_classified:
+                for espera in [0, delay_cl, int(delay_cl * 1.5)]:
+                    if espera > 0:
+                        job["estado"] = "esperando"
+                        job["esperando_hasta"] = time.time() + espera
+                        await asyncio.sleep(espera)
+                        job["estado"] = "en_curso"
+                    if job.get("cancelado"):
+                        break
+                    res = await _publicar(db, b)
+                    if res["ok"]:
+                        delay_cl = max(int(delay_cl * 0.85), 90)
+                        break
+                    if "temporarily" in (res.get("error") or "").lower():
+                        delay_cl = min(int(delay_cl * 1.5), 600)
+                    else:
+                        break
+            else:
+                res = await _publicar(db, b)
+
+            if res and res["ok"]:
+                b.estado = "publicada"; b.item_id = res["item_id"]
+                b.permalink = res.get("permalink"); b.error_msg = ""
+                job["ok"] += 1
+            else:
+                error_msg = (res or {}).get("error", "Error desconocido")
+                b.estado = "error"; b.error_msg = error_msg
+                job["err"] += 1
+                job["ultimos_errores"].append({"id": bid, "titulo": (b.titulo or "")[:40], "msg": error_msg[:100]})
+
+            db.commit()
+            job["procesados"] = i + 1
+            job["ultimo_item"] = {"id": bid, "ok": bool(res and res["ok"]), "titulo": (b.titulo or "")[:40]}
+
+        except Exception as ex:
+            job["err"] += 1
+            job["ultimos_errores"].append({"id": bid, "titulo": "", "msg": str(ex)[:100]})
+            job["procesados"] = i + 1
+        finally:
+            db.close()
+
+        # Pausa entre ítems (no en el último)
+        if i < len(bids) - 1 and not job.get("cancelado"):
+            if es_classified:
+                job["estado"] = "esperando"
+                job["esperando_hasta"] = time.time() + delay_cl
+                await asyncio.sleep(delay_cl)
+                job["estado"] = "en_curso"
+            else:
+                await asyncio.sleep(2)
+
+    job["estado"] = "cancelado" if job.get("cancelado") else "completado"
+    job["fin"] = time.time()
+    job["esperando_hasta"] = None
 
 
 @router.get("/mercadolibre/publicaciones")
@@ -507,6 +595,56 @@ async def publicar_lote(request: Request, db: Session = Depends(get_db),
         detalle.append({"id": bid, "ok": res["ok"], "item_id": b.item_id, "error": b.error_msg})
         await asyncio.sleep(2)
     return {"ok": True, "publicadas": pub, "errores": err, "detalle": detalle}
+
+
+@router.post("/api/ml/lote-publicar")
+async def lote_publicar_iniciar(
+    request: Request, background_tasks: BackgroundTasks,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Inicia la publicación en segundo plano; retorna job_id para hacer polling."""
+    _auth(x_api_key, current_user)
+    d = await request.json()
+    bids = [int(x) for x in (d.get("ids") or []) if x]
+    if not bids:
+        raise HTTPException(400, "Sin IDs")
+    job_id = uuid.uuid4().hex[:8]
+    _LOTES[job_id] = {
+        "job_id": job_id, "estado": "iniciando",
+        "total": len(bids), "procesados": 0, "ok": 0, "err": 0,
+        "idx_actual": -1, "ultimo_item": None, "ultimos_errores": [],
+        "esperando_hasta": None, "inicio": time.time(), "fin": None, "cancelado": False,
+    }
+    background_tasks.add_task(_run_lote_bg, job_id, bids)
+    return {"job_id": job_id, "total": len(bids)}
+
+
+@router.get("/api/ml/lote-status/{job_id}")
+async def lote_status(
+    job_id: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    _auth(x_api_key, current_user)
+    if job_id not in _LOTES:
+        raise HTTPException(404, "Job no encontrado")
+    job = dict(_LOTES[job_id])
+    if job.get("esperando_hasta"):
+        job["seg_restantes"] = max(0, int(job["esperando_hasta"] - time.time()))
+    return job
+
+
+@router.post("/api/ml/lote-cancelar/{job_id}")
+async def lote_cancelar(
+    job_id: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    _auth(x_api_key, current_user)
+    if job_id in _LOTES:
+        _LOTES[job_id]["cancelado"] = True
+    return {"ok": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

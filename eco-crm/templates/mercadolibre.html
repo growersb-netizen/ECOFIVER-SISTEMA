@@ -554,6 +554,27 @@
   </div>
 </div>
 
+<!-- Panel flotante de cola de publicación ML -->
+<div id="lote-panel" style="display:none;position:fixed;bottom:20px;right:20px;width:320px;background:#1a1a2e;border:1px solid #2d2d4e;border-radius:12px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9999;font-size:13px;color:#e0e0e0;font-family:inherit">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <span style="font-weight:600;font-size:14px">📤 Publicación ML</span>
+    <div>
+      <button onclick="lotePanelMinimizar()" title="Minimizar" style="background:none;border:none;color:#888;cursor:pointer;padding:2px 7px;font-size:16px;line-height:1">─</button>
+      <button onclick="lotePanelCerrar()" title="Cerrar" style="background:none;border:none;color:#888;cursor:pointer;padding:2px 7px;font-size:16px;line-height:1">✕</button>
+    </div>
+  </div>
+  <div id="lote-panel-body">
+    <div style="background:#2a2a4a;border-radius:4px;height:6px;margin-bottom:10px;overflow:hidden">
+      <div id="lote-progress-bar" style="height:100%;background:#4CAF50;transition:width 0.4s;width:0%"></div>
+    </div>
+    <div id="lote-panel-estado" style="font-weight:500;margin-bottom:4px">Iniciando...</div>
+    <div id="lote-panel-ultimo" style="color:#aaa;font-size:12px;margin-bottom:2px"></div>
+    <div id="lote-panel-espera" style="color:#f0a500;font-size:12px;margin-bottom:2px"></div>
+    <div id="lote-panel-errores" style="color:#ff6b6b;font-size:11px;margin-top:6px;max-height:72px;overflow-y:auto;line-height:1.4"></div>
+    <button id="lote-panel-cancelar" onclick="loteCancelar()" style="margin-top:10px;background:#c0392b;color:white;border:none;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">Cancelar</button>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -1906,53 +1927,141 @@ async function borPublicar(id) {
     borCargar();
   }
 }
+/* ── Panel flotante de cola de publicación ─────────────────────────────── */
+let _loteJobId = null;
+let _lotePoller = null;
+
+function _lotePanel() { return document.getElementById('lote-panel'); }
+
+function lotePanelMinimizar() {
+  const body = document.getElementById('lote-panel-body');
+  if (body) body.style.display = body.style.display === 'none' ? '' : 'none';
+}
+
+function lotePanelCerrar() {
+  if (_lotePoller) { clearInterval(_lotePoller); _lotePoller = null; }
+  const p = _lotePanel(); if (p) p.style.display = 'none';
+}
+
+async function loteCancelar() {
+  if (!_loteJobId) return;
+  await fetch(`/api/ml/lote-cancelar/${_loteJobId}`, { method: 'POST', credentials: 'include' }).catch(() => {});
+}
+
+function _loteActualizarPanel(job) {
+  const p = _lotePanel(); if (!p) return;
+  p.style.display = 'block';
+  const pct = job.total > 0 ? Math.round(job.procesados / job.total * 100) : 0;
+  const bar = document.getElementById('lote-progress-bar');
+  if (bar) bar.style.width = pct + '%';
+
+  const EMOJIS = { iniciando:'🔄', en_curso:'⬆️', esperando:'⏳', completado:'✅', cancelado:'🛑' };
+  const emoji = EMOJIS[job.estado] || '📤';
+
+  let estadoText = '';
+  if (job.estado === 'iniciando')   estadoText = 'Iniciando publicación...';
+  else if (job.estado === 'en_curso')  estadoText = `${emoji} Publicando ${job.procesados + 1}/${job.total} — ✅ ${job.ok}  ❌ ${job.err}`;
+  else if (job.estado === 'esperando') estadoText = `${emoji} Esperando (${job.procesados}/${job.total}) — ✅ ${job.ok}  ❌ ${job.err}`;
+  else if (job.estado === 'completado') estadoText = `✅ Completado — ${job.ok} publicadas  ❌ ${job.err} errores`;
+  else if (job.estado === 'cancelado')  estadoText = `🛑 Cancelado — ${job.ok} publicadas  ❌ ${job.err} errores`;
+  const elEstado = document.getElementById('lote-panel-estado');
+  if (elEstado) elEstado.textContent = estadoText;
+
+  const elUltimo = document.getElementById('lote-panel-ultimo');
+  if (elUltimo && job.ultimo_item) {
+    const u = job.ultimo_item;
+    elUltimo.textContent = `Último: ${u.titulo || '#' + u.id} ${u.ok ? '✅' : '❌'}`;
+  }
+
+  const elEspera = document.getElementById('lote-panel-espera');
+  if (elEspera) {
+    if (job.seg_restantes > 0) {
+      const mm = Math.floor(job.seg_restantes / 60), ss = job.seg_restantes % 60;
+      elEspera.textContent = `Próximo en: ${mm > 0 ? mm + 'm ' : ''}${ss}s`;
+    } else { elEspera.textContent = ''; }
+  }
+
+  const elErr = document.getElementById('lote-panel-errores');
+  if (elErr && job.ultimos_errores && job.ultimos_errores.length > 0) {
+    elErr.innerHTML = job.ultimos_errores.slice(-3).map(e => `⚠ ${escHtml(e.titulo || '#' + e.id)}: ${escHtml(e.msg)}`).join('<br>');
+  }
+
+  if (job.estado === 'completado' || job.estado === 'cancelado') {
+    if (_lotePoller) { clearInterval(_lotePoller); _lotePoller = null; }
+    localStorage.removeItem('ml_lote_job_id');
+    const btnCancel = document.getElementById('lote-panel-cancelar');
+    if (btnCancel) btnCancel.style.display = 'none';
+    borCargar();
+    showToast(`Lote ${job.estado === 'completado' ? 'finalizado' : 'cancelado'} — ${job.ok} publicadas · ${job.err} errores`, job.err > 0 ? 'warning' : 'success');
+  }
+}
+
+async function _lotePoll(jobId) {
+  try {
+    const r = await fetch(`/api/ml/lote-status/${jobId}`, { credentials: 'include' });
+    if (!r.ok) return;
+    _loteActualizarPanel(await r.json());
+  } catch(e) {}
+}
+
+function loteIniciarPolling(jobId) {
+  _loteJobId = jobId;
+  localStorage.setItem('ml_lote_job_id', jobId);
+  const p = _lotePanel(); if (p) { p.style.display = 'block'; }
+  const btnCancel = document.getElementById('lote-panel-cancelar');
+  if (btnCancel) btnCancel.style.display = '';
+  if (_lotePoller) clearInterval(_lotePoller);
+  _lotePoll(jobId);
+  _lotePoller = setInterval(() => _lotePoll(jobId), 5000);
+}
+
 async function borPublicarLote() {
   if (!BOR_SEL.size) return;
   const TIPOS_CLASSIFIED = ['MODULO', 'MODULO_DEPOSITO', 'COMBO'];
   const ids = [...BOR_SEL];
+  const tieneClassified = ids.some(id => TIPOS_CLASSIFIED.includes(BOR_DATA_CACHE[id]?.producto || ''));
   const sinCategoria = ids.filter(id => !BOR_DATA_CACHE[id]?.categoria).length;
-  const avisoCat = sinCategoria ? `\n\n⚠ ${sinCategoria} sin categoría — ML elegirá automáticamente.` : '';
-  const ok = await showConfirm(`¿Publicar ${ids.length} publicaciones en MercadoLibre?${avisoCat}\n\nML limita las publicaciones classified — el proceso puede tardar varios minutos.`, 'Publicar en lote');
+  const avisoCat = sinCategoria ? `\n⚠ ${sinCategoria} sin categoría — ML elegirá automáticamente.` : '';
+  const avisoFondo = tieneClassified
+    ? '\n\nLos módulos/combos tienen rate limit en ML. La publicación correrá en segundo plano — podés apagar la pantalla o hacer otras cosas mientras tanto.'
+    : '';
+  const ok = await showConfirm(`¿Publicar ${ids.length} publicaciones en MercadoLibre?${avisoCat}${avisoFondo}`, 'Publicar en lote');
   if (!ok) return;
 
-  const btnLote = document.getElementById('bor-btn-lote');
-  if (btnLote) { btnLote.disabled = true; }
-  let pub = 0, err = 0;
-
-  for (let i = 0; i < ids.length; i++) {
-    const id = ids[i];
-    if (btnLote) btnLote.textContent = `⏳ ${i + 1}/${ids.length} — ${pub} ok · ${err} err`;
-
-    try {
-      const res = await fetch(`/api/ml/borradores/${id}/publicar`, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        credentials: 'include', body: '{}',
-      });
-      const j = await res.json().catch(() => ({}));
-      if (j.ok) { pub++; }
-      else {
-        err++;
-        const esClassified = TIPOS_CLASSIFIED.includes(BOR_DATA_CACHE[id]?.producto || '');
-        // Si ML dice "temporarily unavailable" en classified, esperar 30s antes del siguiente
-        if (esClassified && (j.error_msg || '').toLowerCase().includes('temporarily')) {
-          showToast(`⏱ Rate limit ML — esperando 30s antes del siguiente…`, 'info');
-          await new Promise(r => setTimeout(r, 30000));
-        }
-      }
-    } catch (e) { err++; }
-
-    // Pausa entre items: 15s para classified, 2s para marketplace
-    if (i < ids.length - 1) {
-      const esClassified = TIPOS_CLASSIFIED.includes(BOR_DATA_CACHE[id]?.producto || '');
-      await new Promise(r => setTimeout(r, esClassified ? 15000 : 2000));
+  try {
+    const res = await fetch('/api/ml/lote-publicar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ ids }),
+    });
+    const j = await res.json();
+    if (j.job_id) {
+      loteIniciarPolling(j.job_id);
+      BOR_SEL.clear();
+      borActLote();
+      showToast(`Cola iniciada — ${j.total} publicaciones en segundo plano`, 'info');
+    } else {
+      showToast('Error al iniciar el lote: ' + (j.detail || 'sin detalle'), 'error');
     }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
   }
-
-  BOR_SEL.clear();
-  borCargar();
-  if (btnLote) { btnLote.disabled = false; borActLote(); }
-  showToast(`Lote finalizado — Publicadas: ${pub} · Errores: ${err}`, err > 0 ? 'warning' : 'success');
 }
+
+// Al cargar la página: reanudar polling si había un lote activo (sobrevive recarga/apagado de pantalla)
+(async () => {
+  const savedJob = localStorage.getItem('ml_lote_job_id');
+  if (!savedJob) return;
+  try {
+    const r = await fetch(`/api/ml/lote-status/${savedJob}`, { credentials: 'include' });
+    if (!r.ok) { localStorage.removeItem('ml_lote_job_id'); return; }
+    const job = await r.json();
+    if (job.estado !== 'completado' && job.estado !== 'cancelado') {
+      loteIniciarPolling(savedJob);
+    } else {
+      localStorage.removeItem('ml_lote_job_id');
+    }
+  } catch(e) { localStorage.removeItem('ml_lote_job_id'); }
+})();
 async function borImportarArchivo(input) {
   if (!input.files || !input.files[0]) return;
   const fd = new FormData();

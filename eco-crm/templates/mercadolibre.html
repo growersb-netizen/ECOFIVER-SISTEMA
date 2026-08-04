@@ -1892,7 +1892,7 @@ async function borPublicar(id) {
     if (j.ok) {
       showToast(`✓ Publicada en ML — ID: ${j.item_id || ''}`, 'success');
     } else {
-      showToast('Error ML: ' + (j.error_msg || j.detail || 'Error desconocido'), 'error');
+      showToast('Error ML: ' + (j.error_msg || j.error || j.detail || 'Error desconocido'), 'error');
     }
     borCargar();
   } catch (e) {

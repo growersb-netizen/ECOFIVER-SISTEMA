@@ -254,23 +254,27 @@ _ATTR_UNITS = {
 
 
 def _error_ml(r) -> str:
-    """Parsea la respuesta de error de ML y devuelve un mensaje legible."""
+    """Parsea la respuesta de error de ML y devuelve un mensaje legible con status code."""
+    prefix = f"HTTP {r.status_code}: "
     try:
         body = r.json()
         causes = body.get("cause") or body.get("error_cause") or []
         if isinstance(causes, dict):
-            causes = [causes]  # ML a veces devuelve un solo dict en vez de lista
+            causes = [causes]
         if causes:
             parts = []
             for ca in causes[:4]:
                 msg = ca.get("message") or ca.get("code") or "?"
                 parts.append(f"{msg} ({ca.get('type', '?')})")
-            return " | ".join(parts)
+            return prefix + " | ".join(parts)
         if body.get("message"):
-            return body["message"][:300]
+            return (prefix + body["message"])[:300]
+        if body.get("error"):
+            return (prefix + str(body["error"]))[:300]
     except Exception:
         pass
-    return r.text[:300]
+    texto = r.text[:250].strip()
+    return prefix + (texto if texto else "respuesta vacía de ML")
 
 
 def _sanitizar_valor_numerico(val: str) -> str:

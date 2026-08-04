@@ -305,7 +305,7 @@ async def _generar_imagen(key: str, descripcion: str, prompt_rol: str, formato_e
                     "n": 1,
                     "size": size,
                     "response_format": "b64_json",
-                    "quality": "standard",
+                    "quality": "high",
                 },
             )
             if r.status_code != 200:

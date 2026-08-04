@@ -28,7 +28,7 @@ API_KEY   = os.getenv("API_KEY", "eco-crm-api-key-2024")
 _OR_BASE  = "https://openrouter.ai/api/v1"
 _OR_HDR   = {"HTTP-Referer": "https://eco-crm-production.up.railway.app", "X-Title": "EcoFiver CRM Imagenes"}
 _VIS_MDL  = "openai/gpt-4o-mini"
-_GEN_MDL  = lambda: os.getenv("OPENROUTER_IMAGE_MODEL", "openai/dall-e-3")
+_GEN_MDL  = lambda: os.getenv("OPENROUTER_IMAGE_MODEL", "black-forest-labs/flux-schnell")
 
 
 def _auth(x_api_key, current_user):
@@ -305,7 +305,6 @@ async def _generar_imagen(key: str, descripcion: str, prompt_rol: str, formato_e
                     "n": 1,
                     "size": size,
                     "response_format": "b64_json",
-                    "quality": "high",
                 },
             )
             if r.status_code != 200:

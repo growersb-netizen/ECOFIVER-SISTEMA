@@ -440,7 +440,15 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                 }
                 if clean_attrs:
                     payload_cl["attributes"] = clean_attrs
-                r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
+                # Retry hasta 3 veces si ML dice "temporarily unavailable"
+                for intento in range(3):
+                    r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
+                    if r.status_code in (200, 201):
+                        break
+                    if "TEMPORARILY" in r.text.upper() or "TRY AGAIN" in r.text.upper():
+                        await asyncio.sleep(3 * (intento + 1))  # 3s, 6s, 9s
+                    else:
+                        break
             if r.status_code not in (200, 201):
                 return {"ok": False, "error": _error_ml(r)}
         item = r.json()
@@ -493,6 +501,7 @@ async def publicar_lote(request: Request, db: Session = Depends(get_db),
             b.estado = "error"; b.error_msg = res["error"]; err += 1
         db.commit()
         detalle.append({"id": bid, "ok": res["ok"], "item_id": b.item_id, "error": b.error_msg})
+        await asyncio.sleep(1.5)  # pausa entre items para no saturar ML
     return {"ok": True, "publicadas": pub, "errores": err, "detalle": detalle}
 
 

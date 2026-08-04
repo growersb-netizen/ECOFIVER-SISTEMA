@@ -853,22 +853,25 @@ async def location_config(db: Session = Depends(get_db), x_api_key=Header(None),
 
     # Llamar directo a la API de ML para ver las ciudades reales del estado
     ciudades_raw = []
-    estado_raw   = {}
+    estado_debug = {}
     if state_id:
         try:
             async with httpx.AsyncClient(timeout=10) as hc:
                 r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{state_id}")
+                estado_debug["status"] = r.status_code
+                estado_debug["body"]   = r.text[:500]
                 if r.status_code == 200:
-                    estado_raw = r.json()
-                    ciudades_raw = (estado_raw.get("cities") or [])[:20]
+                    data = r.json()
+                    estado_debug["keys"] = list(data.keys()) if isinstance(data, dict) else "list"
+                    ciudades_raw = (data.get("cities") or [])[:20]
         except Exception as ex:
-            estado_raw = {"error": str(ex)}
+            estado_debug = {"error": str(ex)}
 
     return {
         "location": loc,
         "cached_state_id": state_id,
         "cached_city_id":  city_row.valor if city_row else None,
-        "ml_estado_raw": estado_raw,
+        "ml_estado_debug": estado_debug,
         "ml_ciudades_muestra": ciudades_raw,
     }
 

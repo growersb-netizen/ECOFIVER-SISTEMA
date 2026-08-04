@@ -1996,7 +1996,9 @@ function _loteActualizarPanel(job) {
 
   const elEspera = document.getElementById('lote-panel-espera');
   if (elEspera) {
-    if (job.seg_restantes > 0) {
+    if (job.cuota_classified_agotada) {
+      elEspera.innerHTML = '⚠️ <b>Cuota gratuita ML agotada</b> para módulos/combos.<br><small style="color:#aaa">Las piscinas siguen publicando normal. Intentá los módulos mañana.</small>';
+    } else if (job.seg_restantes > 0) {
       const mm = Math.floor(job.seg_restantes / 60), ss = job.seg_restantes % 60;
       elEspera.textContent = `Próximo en: ${mm > 0 ? mm + 'm ' : ''}${ss}s`;
     } else { elEspera.textContent = ''; }

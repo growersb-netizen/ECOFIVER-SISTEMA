@@ -60,22 +60,35 @@ async def _run_lote_bg(job_id: str, bids: list):
             # Para classified: hasta 3 intentos con espera progresiva entre ellos
             res = None
             if es_classified:
-                for espera in [0, delay_cl, int(delay_cl * 1.5)]:
-                    if espera > 0:
-                        job["estado"] = "esperando"
-                        job["esperando_hasta"] = time.time() + espera
-                        await asyncio.sleep(espera)
-                        job["estado"] = "en_curso"
-                    if job.get("cancelado"):
-                        break
-                    res = await _publicar(db, b)
-                    if res["ok"]:
-                        delay_cl = max(int(delay_cl * 0.85), 90)
-                        break
-                    if "temporarily" in (res.get("error") or "").lower():
-                        delay_cl = min(int(delay_cl * 1.5), 600)
-                    else:
-                        break
+                if job.get("cuota_classified_agotada"):
+                    # ML ya rechazó con "not available for category" → no hay cuota libre disponible.
+                    # Todos los siguientes classified fallarán igual; saltear sin reintentar.
+                    res = {
+                        "ok": False,
+                        "error": "Cuota gratuita ML agotada para esta categoría. Intentá mañana o usá un listing type pago.",
+                        "error_tipo": "cuota_classified",
+                    }
+                else:
+                    for espera in [0, delay_cl, int(delay_cl * 1.5)]:
+                        if espera > 0:
+                            job["estado"] = "esperando"
+                            job["esperando_hasta"] = time.time() + espera
+                            await asyncio.sleep(espera)
+                            job["estado"] = "en_curso"
+                        if job.get("cancelado"):
+                            break
+                        res = await _publicar(db, b)
+                        if res["ok"]:
+                            delay_cl = max(int(delay_cl * 0.85), 90)
+                            break
+                        if res.get("error_tipo") == "cuota_classified":
+                            # Cuota agotada: marcar y no reintentar ningún classified más
+                            job["cuota_classified_agotada"] = True
+                            break
+                        if "temporarily" in (res.get("error") or "").lower():
+                            delay_cl = min(int(delay_cl * 1.5), 600)
+                        else:
+                            break
             else:
                 res = await _publicar(db, b)
 
@@ -537,7 +550,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
                     if r.status_code in (200, 201):
                         break
-                    if "TEMPORARILY" in r.text.upper() or "TRY AGAIN" in r.text.upper():
+                    rt = r.text.upper()
+                    # Cuota agotada o listing type no disponible para la categoría → error permanente,
+                    # no tiene sentido reintentar. Marcamos con error_tipo para que el lote lo detecte.
+                    if "NOT AVAILABLE FOR CATEGORY" in rt or ("NOT AVAILABLE" in rt and "LISTING" in rt):
+                        return {"ok": False, "error": _error_ml(r), "error_tipo": "cuota_classified"}
+                    if "TEMPORARILY" in rt or "TRY AGAIN" in rt:
                         await asyncio.sleep(10)
                     else:
                         break

@@ -846,33 +846,34 @@ async def location_config(db: Session = Depends(get_db), x_api_key=Header(None),
     city_row  = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "ml_loc_city_id").first()
     state_id  = state_row.valor if state_row else None
 
-    # Llamar directo a la API de ML para ver las ciudades reales del estado
-    # Usar state_id del objeto loc (puede ser computado aunque no esté en DB)
-    sid = (loc.get("state") or {}).get("id")
-    ciudades_raw = []
-    estado_debug = {}
-    if sid:
-        async with httpx.AsyncClient(timeout=12) as hc:
-            for url_try in [
-                f"https://api.mercadolibre.com/classified_locations/states/{sid}",
-                f"https://api.mercadolibre.com/classified_locations/states/{sid}/cities",
-            ]:
-                try:
-                    r = await hc.get(url_try)
-                    estado_debug[url_try] = {"status": r.status_code, "body": r.text[:400]}
-                    if r.status_code == 200:
-                        data = r.json()
-                        cities = data.get("cities") or (data if isinstance(data, list) else [])
-                        if cities:
-                            ciudades_raw = cities[:20]
-                            break
-                except Exception as ex:
-                    estado_debug[url_try] = {"error": str(ex)}
+    # Debug: listar TODOS los estados de Argentina para encontrar Buenos Aires Provincia
+    todos_estados = []
+    ciudades_raw  = []
+    estado_debug  = {}
+    async with httpx.AsyncClient(timeout=15) as hc:
+        try:
+            r = await hc.get("https://api.mercadolibre.com/classified_locations/countries/AR")
+            if r.status_code == 200:
+                todos_estados = [
+                    {"id": s.get("id"), "name": s.get("name")}
+                    for s in (r.json().get("states") or [])
+                ]
+        except Exception as ex:
+            estado_debug["countries_error"] = str(ex)
+        # También verificar el state actual
+        sid = (loc.get("state") or {}).get("id")
+        if sid:
+            try:
+                r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{sid}")
+                estado_debug["estado_actual"] = {"status": r.status_code, "body": r.text[:300]}
+            except Exception as ex:
+                estado_debug["estado_actual"] = {"error": str(ex)}
 
     return {
         "location": loc,
         "cached_state_id": state_id,
         "cached_city_id":  city_row.valor if city_row else None,
+        "ml_todos_estados": todos_estados,
         "ml_estado_debug": estado_debug,
         "ml_ciudades_muestra": ciudades_raw,
     }

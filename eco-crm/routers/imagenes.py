@@ -28,7 +28,8 @@ API_KEY   = os.getenv("API_KEY", "eco-crm-api-key-2024")
 _OR_BASE  = "https://openrouter.ai/api/v1"
 _OR_HDR   = {"HTTP-Referer": "https://eco-crm-production.up.railway.app", "X-Title": "EcoFiver CRM Imagenes"}
 _VIS_MDL  = "openai/gpt-4o-mini"
-_GEN_MDL  = lambda: os.getenv("OPENROUTER_IMAGE_MODEL", "black-forest-labs/flux-schnell")
+# Modelo de imagen vía OpenRouter (opcional — si no está configurado usa Pollinations.AI)
+_GEN_MDL  = lambda: os.getenv("OPENROUTER_IMAGE_MODEL", "")
 
 
 def _auth(x_api_key, current_user):
@@ -277,52 +278,67 @@ async def _describir_foto(key: str, foto_b64: str, mime: str, contexto: str) -> 
 
 
 async def _generar_imagen(key: str, descripcion: str, prompt_rol: str, formato_extra: str = "") -> tuple[str, str]:
+    """
+    Genera imagen via Pollinations.AI (FLUX, gratis, sin API key adicional).
+    Fallback: si hay key de OpenRouter configurada y el env var apunta a otro modelo,
+    intenta OpenRouter /images/generations primero.
+    """
     import base64 as _b64lib
+    import urllib.parse
 
-    # Tamaño según formato: DALL-E 3 soporta 1024x1024, 1024x1792, 1792x1024
+    # Dimensiones según formato de destino
     if "9:16" in formato_extra:
-        size = "1024x1792"
+        width, height = 768, 1344
     elif "1.91:1" in formato_extra:
-        size = "1792x1024"
+        width, height = 1344, 768
     else:
-        size = "1024x1024"
+        width, height = 1024, 1024
 
     prompt_final = (
-        f"Referencia visual: {descripcion[:400]}\n\n"
+        f"Referencia visual: {descripcion[:350]}\n\n"
         f"{prompt_rol}\n\n"
         f"{formato_extra}"
-    ).strip()[:4000]   # DALL-E 3 acepta hasta 4000 chars
+    ).strip()[:1800]   # Pollinations tiene límite de URL
 
+    # ── Opción A: modelo personalizado vía OpenRouter (si el admin configuró uno) ──
+    modelo_custom = os.getenv("OPENROUTER_IMAGE_MODEL", "")
+    if modelo_custom and key:
+        try:
+            size = f"{width}x{height}"
+            async with httpx.AsyncClient(timeout=90) as c:
+                r = await c.post(
+                    f"{_OR_BASE}/images/generations",
+                    headers=_hdr(key),
+                    json={"model": modelo_custom, "prompt": prompt_final[:4000],
+                          "n": 1, "size": size, "response_format": "b64_json"},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    imgs = data.get("data") or []
+                    b64 = (imgs[0].get("b64_json") or "") if imgs else ""
+                    if not b64:
+                        url = (imgs[0].get("url", "")) if imgs else ""
+                        if url:
+                            dl = await c.get(url, timeout=30)
+                            if dl.status_code == 200:
+                                b64 = _b64lib.b64encode(dl.content).decode()
+                    if b64:
+                        return b64, ""
+        except Exception:
+            pass   # Cae al fallback de Pollinations
+
+    # ── Opción B (default): Pollinations.AI — FLUX, gratis, sin key ──
     try:
-        async with httpx.AsyncClient(timeout=90) as c:
-            # OpenRouter: generación de imágenes usa /images/generations, no /chat/completions
-            r = await c.post(
-                f"{_OR_BASE}/images/generations",
-                headers=_hdr(key),
-                json={
-                    "model": _GEN_MDL(),
-                    "prompt": prompt_final,
-                    "n": 1,
-                    "size": size,
-                    "response_format": "b64_json",
-                },
-            )
+        encoded = urllib.parse.quote(prompt_final, safe="")
+        url = (
+            f"https://image.pollinations.ai/prompt/{encoded}"
+            f"?width={width}&height={height}&model=flux&nologo=true&enhance=false&seed=-1"
+        )
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
+            r = await c.get(url)
             if r.status_code != 200:
-                return "", f"Generación {r.status_code}: {r.text[:300]}"
-            data = r.json()
-            imgs = data.get("data") or []
-            if not imgs:
-                return "", "El modelo no devolvió imágenes"
-            b64 = imgs[0].get("b64_json") or ""
-            if not b64:
-                # Fallback: algunos modelos devuelven URL en vez de b64
-                url = imgs[0].get("url", "")
-                if url:
-                    dl = await c.get(url, timeout=30)
-                    if dl.status_code == 200:
-                        b64 = _b64lib.b64encode(dl.content).decode()
-            if not b64:
-                return "", "El modelo no devolvió imagen en formato válido"
+                return "", f"Generación {r.status_code}: {r.text[:200]}"
+            b64 = _b64lib.b64encode(r.content).decode()
             return b64, ""
     except Exception as e:
         return "", f"Generación excepción: {e}"

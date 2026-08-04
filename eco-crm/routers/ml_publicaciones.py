@@ -319,25 +319,27 @@ async def _ml_classified_location(db: Session) -> dict:
             ))
         db.commit()
 
-    # state_id: usar caché o calcular directamente (patrón Base64 confirmado)
-    state_id = _get("ml_loc_state_id") or _b64("Buenos Aires")
+    # state_id confirmado: "Buenos Aires Interior" es la zona de la Provincia (no CABA).
+    # CABA en ML se llama "Buenos Aires" y tiene cities=[]. La Provincia interior tiene ciudades.
+    # IDs verificados llamando GET /classified_locations/countries/AR el 2026-08-03.
+    _STATE_BA_INTERIOR = "TUxBUFpPTmFpbnRl"  # "Buenos Aires Interior"
+    state_id = _get("ml_loc_state_id") or _STATE_BA_INTERIOR
     city_id  = _get("ml_loc_city_id")
 
     if not city_id:
-        # Intentar obtener city_id de la API primero (en caso de que el endpoint devuelva ciudades)
         try:
             async with httpx.AsyncClient(timeout=12) as hc:
                 r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{state_id}")
                 if r.status_code == 200:
-                    data = r.json()
-                    cities = data.get("cities") or (data if isinstance(data, list) else [])
+                    cities = r.json().get("cities") or []
+                    # Buscar Zárate; si no está, usar la primera ciudad disponible
                     for city in cities:
                         cname = (city.get("name") or "").lower()
                         if "rate" in cname:
                             city_id = str(city["id"])
                             break
                     if not city_id and cities:
-                        city_id = str(cities[0]["id"])  # cualquier ciudad válida
+                        city_id = str(cities[0]["id"])
         except Exception:
             pass
 
@@ -860,12 +862,19 @@ async def location_config(db: Session = Depends(get_db), x_api_key=Header(None),
                 ]
         except Exception as ex:
             estado_debug["countries_error"] = str(ex)
-        # También verificar el state actual
+        # Verificar el state actual y sus ciudades
         sid = (loc.get("state") or {}).get("id")
         if sid:
             try:
                 r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{sid}")
-                estado_debug["estado_actual"] = {"status": r.status_code, "body": r.text[:300]}
+                data = r.json() if r.status_code == 200 else {}
+                estado_debug["estado_actual"] = {
+                    "status": r.status_code,
+                    "name": data.get("name"),
+                    "n_ciudades": len(data.get("cities") or []),
+                    "ciudades_muestra": (data.get("cities") or [])[:10],
+                }
+                ciudades_raw = (data.get("cities") or [])[:20]
             except Exception as ex:
                 estado_debug["estado_actual"] = {"error": str(ex)}
 

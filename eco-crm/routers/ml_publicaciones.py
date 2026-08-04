@@ -341,11 +341,6 @@ async def _ml_classified_location(db: Session) -> dict:
         except Exception:
             pass
 
-        # Fallback: Base64("Buenos Aires") = "QnVlbm9zIEFpcmVz" — 12 chars, sin padding, URL-safe.
-        # Es el mismo ID que ya tiene validado el state; ML lo acepta también como ciudad.
-        if not city_id:
-            city_id = _b64("Buenos Aires")  # "QnVlbm9zIEFpcmVz"
-
         if city_id:
             _set("ml_loc_city_id", city_id)
 
@@ -852,20 +847,27 @@ async def location_config(db: Session = Depends(get_db), x_api_key=Header(None),
     state_id  = state_row.valor if state_row else None
 
     # Llamar directo a la API de ML para ver las ciudades reales del estado
+    # Usar state_id del objeto loc (puede ser computado aunque no esté en DB)
+    sid = (loc.get("state") or {}).get("id")
     ciudades_raw = []
     estado_debug = {}
-    if state_id:
-        try:
-            async with httpx.AsyncClient(timeout=10) as hc:
-                r = await hc.get(f"https://api.mercadolibre.com/classified_locations/states/{state_id}")
-                estado_debug["status"] = r.status_code
-                estado_debug["body"]   = r.text[:500]
-                if r.status_code == 200:
-                    data = r.json()
-                    estado_debug["keys"] = list(data.keys()) if isinstance(data, dict) else "list"
-                    ciudades_raw = (data.get("cities") or [])[:20]
-        except Exception as ex:
-            estado_debug = {"error": str(ex)}
+    if sid:
+        async with httpx.AsyncClient(timeout=12) as hc:
+            for url_try in [
+                f"https://api.mercadolibre.com/classified_locations/states/{sid}",
+                f"https://api.mercadolibre.com/classified_locations/states/{sid}/cities",
+            ]:
+                try:
+                    r = await hc.get(url_try)
+                    estado_debug[url_try] = {"status": r.status_code, "body": r.text[:400]}
+                    if r.status_code == 200:
+                        data = r.json()
+                        cities = data.get("cities") or (data if isinstance(data, list) else [])
+                        if cities:
+                            ciudades_raw = cities[:20]
+                            break
+                except Exception as ex:
+                    estado_debug[url_try] = {"error": str(ex)}
 
     return {
         "location": loc,

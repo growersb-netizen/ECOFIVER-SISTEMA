@@ -28,8 +28,8 @@ API_KEY   = os.getenv("API_KEY", "eco-crm-api-key-2024")
 _OR_BASE  = "https://openrouter.ai/api/v1"
 _OR_HDR   = {"HTTP-Referer": "https://eco-crm-production.up.railway.app", "X-Title": "EcoFiver CRM Imagenes"}
 _VIS_MDL  = "openai/gpt-4o-mini"
-# Modelo de imagen vía OpenRouter (opcional — si no está configurado usa Pollinations.AI)
-_GEN_MDL  = lambda: os.getenv("OPENROUTER_IMAGE_MODEL", "")
+# Mismo modelo que usa Ecopost — confirmado funciona en OpenRouter vía chat/completions
+_GEN_MDL  = lambda: os.getenv("OPENROUTER_IMAGE_MODEL", "openai/gpt-5-image-mini")
 
 
 def _auth(x_api_key, current_user):
@@ -279,96 +279,68 @@ async def _describir_foto(key: str, foto_b64: str, mime: str, contexto: str) -> 
 
 async def _generar_imagen(key: str, descripcion: str, prompt_rol: str, formato_extra: str = "") -> tuple[str, str]:
     """
-    Genera imagen via Pollinations.AI (FLUX, gratis, sin API key adicional).
-    Fallback: si hay key de OpenRouter configurada y el env var apunta a otro modelo,
-    intenta OpenRouter /images/generations primero.
+    Mismo motor que Ecopost: OpenRouter /chat/completions con modalities=["image","text"].
+    Modelo por defecto: openai/gpt-5-image-mini (confirmado disponible en la cuenta).
+    Fallback: Hugging Face Inference API si hay HUGGINGFACE_TOKEN configurado.
     """
     import base64 as _b64lib
-    import urllib.parse
 
-    # Dimensiones según formato de destino
-    if "9:16" in formato_extra:
-        width, height = 768, 1344
-    elif "1.91:1" in formato_extra:
-        width, height = 1344, 768
-    else:
-        width, height = 1024, 1024
+    aspecto = (
+        "vertical 9:16" if "9:16" in formato_extra
+        else "horizontal 1.91:1" if "1.91:1" in formato_extra
+        else "cuadrada 1:1"
+    )
 
     prompt_final = (
         f"Referencia visual: {descripcion[:350]}\n\n"
         f"{prompt_rol}\n\n"
-        f"{formato_extra}"
-    ).strip()[:1800]   # Pollinations tiene límite de URL
+        f"{formato_extra}\n\n"
+        f"Composición {aspecto}, alta resolución, fotografía profesional."
+    ).strip()
 
-    # ── Opción A: modelo personalizado vía OpenRouter (si el admin configuró uno) ──
-    modelo_custom = os.getenv("OPENROUTER_IMAGE_MODEL", "")
-    if modelo_custom and key:
+    # ── Opción A: OpenRouter chat/completions (mismo método que Ecopost — funciona) ──
+    if key:
         try:
-            size = f"{width}x{height}"
             async with httpx.AsyncClient(timeout=90) as c:
                 r = await c.post(
-                    f"{_OR_BASE}/images/generations",
+                    f"{_OR_BASE}/chat/completions",
                     headers=_hdr(key),
-                    json={"model": modelo_custom, "prompt": prompt_final[:4000],
-                          "n": 1, "size": size, "response_format": "b64_json"},
+                    json={
+                        "model": _GEN_MDL(),
+                        "messages": [{"role": "user", "content": prompt_final}],
+                        "modalities": ["image", "text"],
+                    },
                 )
                 if r.status_code == 200:
                     data = r.json()
-                    imgs = data.get("data") or []
-                    b64 = (imgs[0].get("b64_json") or "") if imgs else ""
-                    if not b64:
-                        url = (imgs[0].get("url", "")) if imgs else ""
-                        if url:
-                            dl = await c.get(url, timeout=30)
-                            if dl.status_code == 200:
-                                b64 = _b64lib.b64encode(dl.content).decode()
-                    if b64:
-                        return b64, ""
-        except Exception:
-            pass   # Cae al fallback de Pollinations
+                    imgs = (data.get("choices") or [{}])[0].get("message", {}).get("images") or []
+                    if imgs:
+                        data_url = imgs[0].get("image_url", {}).get("url", "")
+                        b64 = data_url.split(",", 1)[1] if "," in data_url else data_url
+                        if b64:
+                            return b64, ""
+                return "", f"OpenRouter {r.status_code}: {r.text[:300]}"
+        except Exception as e:
+            return "", f"OpenRouter excepción: {e}"
 
-    # ── Opción B: Hugging Face Inference API (gratis con token HF) ──
+    # ── Opción B: Hugging Face Inference API (si hay HUGGINGFACE_TOKEN) ──
     hf_token = os.getenv("HUGGINGFACE_TOKEN", "")
     if hf_token:
         try:
             hf_model = os.getenv("HF_IMAGE_MODEL", "black-forest-labs/FLUX.1-schnell")
-            hf_url   = f"https://api-inference.huggingface.co/models/{hf_model}"
-            payload  = {
-                "inputs": prompt_final,
-                "parameters": {"width": width, "height": height, "num_inference_steps": 4},
-            }
             async with httpx.AsyncClient(timeout=120) as c:
-                r = await c.post(hf_url,
-                                 headers={"Authorization": f"Bearer {hf_token}",
-                                          "x-wait-for-model": "true"},
-                                 json=payload)
+                r = await c.post(
+                    f"https://api-inference.huggingface.co/models/{hf_model}",
+                    headers={"Authorization": f"Bearer {hf_token}", "x-wait-for-model": "true"},
+                    json={"inputs": prompt_final},
+                )
                 if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
                     return _b64lib.b64encode(r.content).decode(), ""
-                # HF devuelve JSON en error
-                return "", f"HF {r.status_code}: {r.text[:300]}"
+                return "", f"HF {r.status_code}: {r.text[:200]}"
         except Exception as e:
             return "", f"HF excepción: {e}"
 
-    # ── Opción C (fallback sin keys): Pollinations modelo por defecto ──
-    try:
-        encoded = urllib.parse.quote(prompt_final, safe="")
-        url = (
-            f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?width={width}&height={height}&nologo=true&seed=-1"
-        )
-        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
-            r = await c.get(url)
-            if r.status_code == 200:
-                ct = r.headers.get("content-type", "")
-                if ct.startswith("image/"):
-                    return _b64lib.b64encode(r.content).decode(), ""
-            return "", (
-                f"Generación {r.status_code}. "
-                "Para generar imágenes configurá HUGGINGFACE_TOKEN en Railway "
-                "(gratis en huggingface.co/settings/tokens)."
-            )
-    except Exception as e:
-        return "", f"Generación excepción: {e}"
+    return "", "No hay clave de generación de imágenes configurada (OpenRouter o HUGGINGFACE_TOKEN)"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

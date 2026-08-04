@@ -64,6 +64,7 @@
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-reintentar-errores" onclick="borReintentarErrores()" style="display:none;color:#fbbf24" title="Selecciona y reintenta publicar todos los borradores con error">🔧 Reintentar errores (<span id="bor-n-errores">0</span>)</button>
+    <button class="btn btn-sm" id="bor-btn-pendientes" onclick="borPublicarPendientes()" style="display:none;background:#1a3a1a;color:#4CAF50;border-color:#2d5a2d" title="Publica todos los borradores que aún no están publicados (continúa donde se cortó)">▶ Publicar pendientes (<span id="bor-n-pendientes">0</span>)</button>
     <select class="input" id="bor-f-estado" onchange="borCargar()" style="max-width:140px">
       <option value="">Todos</option>
       <option value="borrador">Borradores</option>
@@ -1613,6 +1614,26 @@ function borActLote() {
   document.getElementById('bor-sel-n2').textContent = BOR_SEL.size;
   document.getElementById('bor-btn-lote').style.display = BOR_SEL.size ? 'inline-flex' : 'none';
   document.getElementById('bor-btn-borrar-lote').style.display = BOR_SEL.size ? 'inline-flex' : 'none';
+  // Botón pendientes: muestra cuántos borradores no publicados hay
+  const pendientes = Object.values(BOR_DATA_CACHE).filter(b => b.estado !== 'publicada').map(b => b.id);
+  const btnPend = document.getElementById('bor-btn-pendientes');
+  const nPend   = document.getElementById('bor-n-pendientes');
+  if (btnPend && nPend) {
+    nPend.textContent = pendientes.length;
+    btnPend.style.display = pendientes.length > 0 ? 'inline-flex' : 'none';
+  }
+}
+async function borPublicarPendientes() {
+  const pendientes = Object.values(BOR_DATA_CACHE).filter(b => b.estado !== 'publicada').map(b => b.id);
+  if (!pendientes.length) { showToast('No hay publicaciones pendientes', 'info'); return; }
+  BOR_SEL.clear();
+  pendientes.forEach(id => BOR_SEL.add(id));
+  document.querySelectorAll('#bor-lista input[type=checkbox]').forEach(x => {
+    const m = x.getAttribute('onchange')?.match(/borSel\((\d+)/);
+    if (m && BOR_SEL.has(parseInt(m[1]))) x.checked = true;
+  });
+  borActLote();
+  borPublicarLote();
 }
 async function borReintentarErrores() {
   // Seleccionar todos los que tienen error y disparar publicar lote
@@ -1999,6 +2020,25 @@ function _loteActualizarPanel(job) {
 async function _lotePoll(jobId) {
   try {
     const r = await fetch(`/api/ml/lote-status/${jobId}`, { credentials: 'include' });
+    if (r.status === 404) {
+      // El servidor se reinició y perdió el job en memoria
+      if (_lotePoller) { clearInterval(_lotePoller); _lotePoller = null; }
+      localStorage.removeItem('ml_lote_job_id');
+      // Mostrar aviso en el panel en lugar de cerrarlo silenciosamente
+      const elEstado = document.getElementById('lote-panel-estado');
+      const elEspera = document.getElementById('lote-panel-espera');
+      const bar = document.getElementById('lote-progress-bar');
+      if (elEstado) elEstado.innerHTML = '⚠️ El servidor se reinició y la cola se interrumpió.<br><small style="color:#aaa">Las publicaciones ya enviadas siguen publicadas en ML.</small>';
+      if (elEspera) elEspera.textContent = '';
+      if (bar) bar.style.background = '#f0a500';
+      const btnCancel = document.getElementById('lote-panel-cancelar');
+      if (btnCancel) btnCancel.style.display = 'none';
+      // Agregar botón de continuar
+      const elErr = document.getElementById('lote-panel-errores');
+      if (elErr) elErr.innerHTML = '<button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="borPublicarPendientes();lotePanelCerrar()">▶ Publicar pendientes</button>';
+      borCargar(); // refrescar la lista para que el botón pendientes se actualice
+      return;
+    }
     if (!r.ok) return;
     _loteActualizarPanel(await r.json());
   } catch(e) {}

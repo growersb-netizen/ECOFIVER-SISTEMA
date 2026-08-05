@@ -18,6 +18,7 @@
 
 <div class="tabs" id="tabs-cobranzas">
   <button class="tab active" onclick="showTabCob('cartera', this)">💳 Cartera</button>
+  <button class="tab" onclick="showTabCob('ingresos', this)">📥 Ingresos <span id="badge-ingresos" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
   <button class="tab" onclick="showTabCob('morosidad', this)">⚠️ Morosidad</button>
   <button class="tab" onclick="showTabCob('proyeccion', this)">📈 Proyección</button>
 </div>
@@ -52,6 +53,17 @@
 
   <div id="cartera-container">
     <div class="loading"><div class="spinner"></div> Cargando cartera...</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: INGRESOS ═══════════════════ -->
+<div id="tab-cob-ingresos" style="display:none">
+  <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text-secondary)">
+    📥 <strong>Panel de Ingresos</strong> — Operaciones cargadas manualmente que están pendientes de bienvenida.
+    Una vez que confirmás que diste la bienvenida al cliente, la operación pasa automáticamente a la Cartera para el cobro del mes siguiente.
+  </div>
+  <div id="ingresos-container">
+    <div class="loading"><div class="spinner"></div> Cargando...</div>
   </div>
 </div>
 
@@ -303,6 +315,31 @@
     <div class="modal-footer">
       <button onclick="closeModal('modal-gestion')" class="btn btn-secondary">Cancelar</button>
       <button onclick="saveGestion()" class="btn btn-primary btn-lg">Guardar gestión</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal confirmar bienvenida -->
+<div class="modal-overlay" id="modal-bienvenida" style="display:none">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <span class="modal-title">✅ Confirmar bienvenida</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-bienvenida')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:14px">
+        Confirmás que le diste la bienvenida a <strong id="bienvenida-cliente-nombre"></strong>
+        y que la operación está lista para entrar a la cobranza del mes siguiente.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Notas (opcional)</label>
+        <textarea id="bienvenida-notas" class="form-control" rows="2"
+                  placeholder="Ej: Llamado realizado, cliente confirmó datos, etc."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal('modal-bienvenida')" class="btn btn-secondary">Cancelar</button>
+      <button onclick="guardarBienvenida()" class="btn btn-primary" id="btn-guardar-bienvenida">✅ Confirmar bienvenida</button>
     </div>
   </div>
 </div>
@@ -688,9 +725,10 @@
   function showTabCob(nombre, btn) {
     document.querySelectorAll('#tabs-cobranzas .tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
-    ['cartera', 'morosidad', 'proyeccion'].forEach(n => {
+    ['cartera', 'ingresos', 'morosidad', 'proyeccion'].forEach(n => {
       document.getElementById('tab-cob-' + n).style.display = (n === nombre) ? '' : 'none';
     });
+    if (nombre === 'ingresos') loadIngresos();
     if (nombre === 'morosidad' && !morosidadCargada) loadMorosidad();
     if (nombre === 'proyeccion' && !proyeccionCargada) loadProyeccion();
   }
@@ -972,11 +1010,13 @@
           valor_cuota: valorCuota,
           fecha_inicio_plan: document.getElementById('cargarop-fecha-inicio').value || null,
           estado_plan: 'ACTIVO',
+          estado_admision: 'PENDIENTE_BIENVENIDA',
           notas: document.getElementById('cargarop-notas').value || '',
         });
-        showToast('Operación cargada ✓ ya está en la cobranza de EcoFiver', 'success');
-        await window.loadCartera();
-        _aplicarTodosLosFiltrosCartera();
+        showToast('✓ Operación cargada — aparece en el panel de Ingresos para confirmar bienvenida', 'success');
+        // Ir al tab Ingresos para que Jorge la vea inmediatamente
+        const btnIngresos = document.querySelector('#tabs-cobranzas .tab:nth-child(2)');
+        if (btnIngresos) showTabCob('ingresos', btnIngresos);
       } else {
         await API.post('/api/cobranza-historica/clientes', {
           linea: document.getElementById('cargarop-linea').value,
@@ -1000,6 +1040,94 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Incorporar a la cobranza';
+    }
+  }
+
+  // ═══════════════════ PANEL DE INGRESOS ═══════════════════
+
+  async function loadIngresos() {
+    const container = document.getElementById('ingresos-container');
+    if (!container) return;
+    container.innerHTML = '<div class="loading"><div class="spinner"></div> Cargando ingresos...</div>';
+    try {
+      const data = await API.get('/api/cobranzas/ingresos');
+      // Actualizar badge
+      const badge = document.getElementById('badge-ingresos');
+      if (badge) {
+        badge.textContent = data.length;
+        badge.style.display = data.length > 0 ? 'inline-block' : 'none';
+      }
+      if (!data.length) {
+        container.innerHTML = '<div class="empty-state"><span class="empty-icon">📥</span><p>Sin operaciones pendientes de bienvenida</p><div style="font-size:13px;color:var(--text-muted);margin-top:6px">Las operaciones que cargués aparecerán aquí hasta que confirmés la bienvenida.</div></div>';
+        return;
+      }
+      renderIngresos(data);
+    } catch(e) {
+      container.innerHTML = `<div class="alert alert-error">Error al cargar ingresos: ${e.message}</div>`;
+    }
+  }
+
+  function renderIngresos(data) {
+    const container = document.getElementById('ingresos-container');
+    container.innerHTML = data.map(v => `
+      <div class="card mb-3" style="border-left:4px solid #f0a500">
+        <div class="card-body" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">${escHtml(v.cliente_nombre)}</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px">
+              ${escHtml(v.producto || '')} ${escHtml(v.modelo_especifico || '')} · ${escHtml(v.cliente_localidad || '—')}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              📞 ${escHtml(v.cliente_telefono || 'Sin teléfono')}
+              ${v.cliente_dni ? ` · DNI ${escHtml(v.cliente_dni)}` : ''}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
+              💰 ${formatMoney(v.precio_total || 0)} total · ${v.cantidad_cuotas} cuotas de ${formatMoney(v.valor_cuota || 0)}
+              · Anticipo: ${formatMoney(v.anticipo || 0)}
+            </div>
+            ${v.notas ? `<div style="font-size:11px;color:#888;margin-top:4px;font-style:italic">${escHtml(v.notas)}</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;flex-shrink:0">
+            <span style="background:#f0a500;color:#000;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">⏳ Pendiente bienvenida</span>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalBienvenida(${v.id}, '${escHtml(v.cliente_nombre)}')">
+              ✅ Confirmar bienvenida
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="abrirModalEditarEcoFiver(${v.id})" style="font-size:11px">
+              ✏️ Editar
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Modal bienvenida
+  let _bienvenidaVentaId = null;
+
+  function abrirModalBienvenida(ventaId, nombre) {
+    _bienvenidaVentaId = ventaId;
+    document.getElementById('bienvenida-cliente-nombre').textContent = nombre;
+    document.getElementById('bienvenida-notas').value = '';
+    document.getElementById('modal-bienvenida').style.display = 'flex';
+  }
+
+  async function guardarBienvenida() {
+    if (!_bienvenidaVentaId) return;
+    const btn = document.getElementById('btn-guardar-bienvenida');
+    btn.disabled = true; btn.textContent = '⏳ Confirmando...';
+    try {
+      await API.post(`/api/cobranzas/${_bienvenidaVentaId}/confirmar-bienvenida`, {
+        notas: document.getElementById('bienvenida-notas').value || '',
+      });
+      closeModal('modal-bienvenida');
+      showToast('✅ Bienvenida confirmada — la operación pasó a la cartera', 'success');
+      await loadIngresos();
+      await window.loadCartera();
+      _aplicarTodosLosFiltrosCartera();
+    } catch(e) {
+      showToast('Error: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = '✅ Confirmar bienvenida';
     }
   }
 
@@ -1618,6 +1746,7 @@
   async function init() {
     await window.loadCartera();
     await loadStats();
+    loadIngresos(); // badge del panel Ingresos (no bloquea el resto del init)
     // Pre-filter desde URL param (ej: /cobranzas?filtro=vencidas)
     const p = new URLSearchParams(window.location.search);
     const filtro = p.get('filtro');

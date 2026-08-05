@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from database.database import get_db
@@ -54,8 +55,13 @@ async def get_cartera(
     if "COBRANZAS" not in roles and "ADMIN" not in roles:
         raise HTTPException(403, "Sin permisos")
 
+    # Excluye operaciones que están pendientes de bienvenida — esas van al panel Ingresos
     ventas = db.query(VentaFinanciada).filter(
-        VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"])
+        VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"]),
+        or_(
+            VentaFinanciada.estado_admision.is_(None),
+            VentaFinanciada.estado_admision != "PENDIENTE_BIENVENIDA",
+        )
     ).order_by(VentaFinanciada.fecha_primer_vencimiento.asc()).all()
 
     result = []
@@ -297,3 +303,60 @@ async def resumen_cobranzas(
         "gestiones_hoy": gestiones_hoy,
         "pagos_mes": pagos_mes,
     }
+
+
+@router.get("/api/cobranzas/ingresos")
+async def get_ingresos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """
+    Panel de Ingresos: operaciones cargadas manualmente pendientes de bienvenida.
+    Solo aparecen las que tienen estado_admision = 'PENDIENTE_BIENVENIDA'.
+    Una vez que Jorge confirma la bienvenida, pasan a la cartera normal.
+    """
+    roles = get_user_roles(current_user)
+    if "COBRANZAS" not in roles and "ADMIN" not in roles:
+        raise HTTPException(403, "Sin permisos")
+
+    ventas = (
+        db.query(VentaFinanciada)
+        .filter(
+            VentaFinanciada.estado_admision == "PENDIENTE_BIENVENIDA",
+            VentaFinanciada.estado_plan == "ACTIVO",
+        )
+        .order_by(VentaFinanciada.created_at.desc())
+        .all()
+    )
+    return [venta_to_dict(v) for v in ventas]
+
+
+@router.post("/api/cobranzas/{venta_id}/confirmar-bienvenida")
+async def confirmar_bienvenida(
+    venta_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """
+    Confirma que Jorge dio la bienvenida al cliente.
+    Cambia estado_admision a 'BIENVENIDA_OK' → la operación pasa a la cartera normal.
+    """
+    roles = get_user_roles(current_user)
+    if "COBRANZAS" not in roles and "ADMIN" not in roles:
+        raise HTTPException(403, "Sin permisos")
+
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Operación no encontrada")
+
+    data = await request.json()
+    notas_extra = (data.get("notas") or "").strip()
+
+    venta.estado_admision = "BIENVENIDA_OK"
+    if notas_extra:
+        fecha_str = datetime.now().strftime("%d/%m/%Y")
+        venta.notas = ((venta.notas or "") + f"\n[Bienvenida {fecha_str}] {notas_extra}").strip()
+
+    db.commit()
+    return {"ok": True, "venta_id": venta_id}

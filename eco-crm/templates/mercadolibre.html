@@ -30,6 +30,7 @@
   <button class="tab active" onclick="showTab('publicaciones', this)">📋 Publicaciones</button>
   <button class="tab" onclick="showTab('borradores', this)">🗂️ Borradores y costos ML</button>
   <button class="tab" onclick="showTab('preguntas', this)">❓ Preguntas <span id="badge-preguntas" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
+  <button class="tab" onclick="showTab('biblioteca', this)">📚 Biblioteca</button>
   <button class="tab" onclick="showTab('config-ml', this)">⚙️ Configuración</button>
 </div>
 
@@ -394,6 +395,262 @@
   </div>
 </div>
 
+<!-- ── BIBLIOTECA DE IMÁGENES ── -->
+<div id="tab-biblioteca" style="display:none">
+
+  <!-- Sub-tabs Fotos / Sets -->
+  <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px">
+    <button id="bib-tab-fotos" class="btn" onclick="bibSubTab('fotos')"
+      style="border-radius:6px 6px 0 0;border-bottom:3px solid var(--primary);margin-bottom:-2px;font-weight:700;font-size:13px;padding:6px 16px">
+      🖼️ Fotos
+    </button>
+    <button id="bib-tab-sets" class="btn btn-ghost" onclick="bibSubTab('sets')"
+      style="border-radius:6px 6px 0 0;margin-bottom:-2px;font-size:13px;padding:6px 16px">
+      📦 Sets
+    </button>
+  </div>
+
+  <!-- ── Fotos panel ── -->
+  <div id="bib-panel-fotos">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px">
+      <label class="btn btn-primary btn-sm" style="cursor:pointer">
+        ⬆️ Subir fotos
+        <input type="file" id="bib-input-file" accept="image/*" multiple style="display:none" onchange="bibHandleUpload(this.files)">
+      </label>
+      <select class="input" id="bib-f-tipo" onchange="bibCargarFotos()" style="max-width:160px">
+        <option value="">Todos los tipos</option>
+        <option value="PISCINA">Piscinas</option>
+        <option value="MINIPISCINA">Minipiscinas</option>
+        <option value="HIDROMASAJE">Hidromasajes / Jacuzzi</option>
+        <option value="MODULO">Vivienda modular</option>
+        <option value="MODULO_DEPOSITO">Módulo depósito</option>
+        <option value="COMBO">Combo</option>
+        <option value="QUINCHO">Quincho</option>
+        <option value="PERGOLA">Pérgola</option>
+      </select>
+      <input class="input" id="bib-f-modelo" placeholder="Filtrar modelo..." style="max-width:160px" oninput="bibCargarFotos()">
+      <input class="input" id="bib-f-tag" placeholder="Filtrar tag..." style="max-width:140px" oninput="bibCargarFotos()">
+      <button class="btn btn-secondary btn-sm" onclick="bibCargarFotos()">↺ Actualizar</button>
+      <span id="bib-fotos-count" style="font-size:13px;color:var(--text-secondary)"></span>
+    </div>
+    <div id="bib-fotos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
+      <div class="loading">Cargando...</div>
+    </div>
+  </div>
+
+  <!-- ── Sets panel ── -->
+  <div id="bib-panel-sets" style="display:none">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="bibOpenCrearSet()">+ Crear set</button>
+      <span style="font-size:13px;color:var(--text-secondary)">Agrupá fotos de la biblioteca en sets listos para aplicar masivamente</span>
+    </div>
+    <div id="bib-sets-lista"><div class="loading">Cargando...</div></div>
+  </div>
+
+</div>
+
+<!-- Modal: subir foto con metadatos -->
+<div class="modal-overlay" id="modal-bib-upload" style="display:none">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <span class="modal-title">📤 Subir foto a la biblioteca</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-bib-upload')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="bib-upload-preview" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px" id="bib-upload-pending-info"></div>
+      <div class="form-group">
+        <label class="form-label">Nombre / descripción</label>
+        <input class="input" id="bib-up-nombre" placeholder="Ej: Piscina Bali exterior iluminada">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tipo de producto</label>
+          <select class="input" id="bib-up-tipo">
+            <option value="">— Seleccioná —</option>
+            <option value="PISCINA">Piscina</option>
+            <option value="MINIPISCINA">Minipiscina</option>
+            <option value="HIDROMASAJE">Hidromasaje / Jacuzzi</option>
+            <option value="MODULO">Vivienda modular</option>
+            <option value="MODULO_DEPOSITO">Módulo depósito</option>
+            <option value="COMBO">Combo</option>
+            <option value="QUINCHO">Quincho</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Modelo</label>
+          <input class="input" id="bib-up-modelo" placeholder="Ej: Bali 6x3">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tags (separados por coma)</label>
+        <input class="input" id="bib-up-tag" placeholder="Ej: exterior, instalacion, noche">
+      </div>
+      <div id="bib-upload-progress" style="display:none">
+        <div style="background:var(--bg-secondary);border-radius:4px;height:8px;margin-top:8px;overflow:hidden">
+          <div id="bib-upload-bar" style="height:100%;background:var(--primary);transition:width 0.3s;width:0%"></div>
+        </div>
+        <div id="bib-upload-status" style="font-size:12px;color:var(--text-secondary);margin-top:4px"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-bib-upload')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-bib-subir" onclick="bibConfirmarUpload()">⬆️ Subir a biblioteca</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: editar foto de biblioteca -->
+<div class="modal-overlay" id="modal-bib-edit-foto" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">✏️ Editar foto</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-bib-edit-foto')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="bib-edit-foto-id">
+      <div style="text-align:center;margin-bottom:12px">
+        <img id="bib-edit-foto-thumb" src="" style="max-width:100%;max-height:160px;border-radius:8px;object-fit:contain">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input class="input" id="bib-edit-nombre">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tipo de producto</label>
+          <select class="input" id="bib-edit-tipo">
+            <option value="">— Sin tipo —</option>
+            <option value="PISCINA">Piscina</option>
+            <option value="MINIPISCINA">Minipiscina</option>
+            <option value="HIDROMASAJE">Hidromasaje / Jacuzzi</option>
+            <option value="MODULO">Vivienda modular</option>
+            <option value="MODULO_DEPOSITO">Módulo depósito</option>
+            <option value="COMBO">Combo</option>
+            <option value="QUINCHO">Quincho</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Modelo</label>
+          <input class="input" id="bib-edit-modelo">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tags</label>
+        <input class="input" id="bib-edit-tag" placeholder="exterior, instalacion, detalle">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" style="color:#ef4444;margin-right:auto" onclick="bibEliminarFoto()">🗑️ Eliminar</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-bib-edit-foto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="bibGuardarEditFoto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: crear / editar set -->
+<div class="modal-overlay" id="modal-bib-set" style="display:none">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <span class="modal-title" id="bib-set-modal-titulo">Crear set de fotos</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-bib-set')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="bib-set-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nombre del set *</label>
+          <input class="input" id="bib-set-nombre" placeholder="Ej: Piscinas Bali — fotos exteriores 2025">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de producto</label>
+          <select class="input" id="bib-set-tipo">
+            <option value="">— Todos —</option>
+            <option value="PISCINA">Piscina</option>
+            <option value="MINIPISCINA">Minipiscina</option>
+            <option value="HIDROMASAJE">Hidromasaje / Jacuzzi</option>
+            <option value="MODULO">Vivienda modular</option>
+            <option value="MODULO_DEPOSITO">Módulo depósito</option>
+            <option value="COMBO">Combo</option>
+            <option value="QUINCHO">Quincho</option>
+          </select>
+        </div>
+      </div>
+      <label class="form-label" style="margin-bottom:8px">Fotos incluidas en este set <small style="color:var(--text-secondary)">(arrastrá para reordenar)</small></label>
+      <!-- Fotos seleccionadas -->
+      <div id="bib-set-seleccionadas" style="display:flex;flex-wrap:wrap;gap:8px;min-height:80px;padding:10px;border:2px dashed var(--border);border-radius:8px;margin-bottom:10px">
+        <span id="bib-set-vacio" style="color:var(--text-secondary);font-size:13px;align-self:center">Ninguna foto seleccionada todavía</span>
+      </div>
+      <!-- Galería para seleccionar -->
+      <label class="form-label" style="margin-top:4px;margin-bottom:6px">Hacer clic en una foto para agregarla al set</label>
+      <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+        <select class="input btn-sm" id="bib-set-f-tipo" onchange="bibSetCargarGaleria()" style="max-width:150px">
+          <option value="">Todos los tipos</option>
+          <option value="PISCINA">Piscinas</option>
+          <option value="MINIPISCINA">Minipiscinas</option>
+          <option value="HIDROMASAJE">Hidromasaje</option>
+          <option value="MODULO">Modular</option>
+          <option value="MODULO_DEPOSITO">Depósito</option>
+        </select>
+        <input class="input btn-sm" id="bib-set-f-modelo" placeholder="Modelo..." style="max-width:130px" oninput="bibSetCargarGaleria()">
+      </div>
+      <div id="bib-set-galeria" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px;max-height:240px;overflow-y:auto;padding:4px">
+        <div style="color:var(--text-secondary);font-size:13px;padding:10px">Cargando...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-bib-set')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-bib-guardar-set" onclick="bibGuardarSet()">💾 Guardar set</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: aplicar set a publicaciones -->
+<div class="modal-overlay" id="modal-bib-aplicar" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title">🚀 Aplicar set a publicaciones</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-bib-aplicar')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="bib-aplicar-set-id">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px" id="bib-aplicar-info"></p>
+
+      <div class="form-group">
+        <label class="form-label">Modo de aplicación</label>
+        <select class="input" id="bib-aplicar-modo">
+          <option value="reemplazar">🔄 Reemplazar — sustituir TODAS las fotos actuales por las del set</option>
+          <option value="agregar_inicio">⬆️ Agregar al inicio — el set aparece primero, luego las existentes</option>
+          <option value="agregar_fin">⬇️ Agregar al final — el set se suma después de las existentes</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Filtrar por tipo de producto <small style="color:var(--text-secondary)">(vacío = todas las publicaciones activas)</small></label>
+        <select class="input" id="bib-aplicar-filtro">
+          <option value="">Todas las publicaciones activas</option>
+          <option value="PISCINA">Solo piscinas</option>
+          <option value="MINIPISCINA">Solo minipiscinas</option>
+          <option value="HIDROMASAJE">Solo hidromasajes</option>
+          <option value="MODULO">Solo viviendas modulares</option>
+          <option value="MODULO_DEPOSITO">Solo módulos depósito</option>
+          <option value="COMBO">Solo combos</option>
+        </select>
+      </div>
+      <div id="bib-aplicar-progreso" style="display:none">
+        <div style="background:var(--bg-secondary);border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden">
+          <div id="bib-aplicar-bar" style="height:100%;background:var(--primary);transition:width 0.5s;width:0%"></div>
+        </div>
+        <div id="bib-aplicar-status" style="font-size:13px;margin-bottom:4px"></div>
+        <div id="bib-aplicar-errores" style="font-size:12px;color:#ef4444;max-height:80px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btn-bib-aplicar-cancel" onclick="closeModal('modal-bib-aplicar')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-bib-aplicar-ok" onclick="bibConfirmarAplicar()">🚀 Aplicar ahora</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── CONFIGURACIÓN ML ── -->
 <div id="tab-config-ml" style="display:none">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px">
@@ -414,12 +671,30 @@
         <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
           <div style="font-weight:600;font-size:13px;margin-bottom:6px">Renovación automática</div>
           <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
-            Cuando está activa, las publicaciones que estén por vencer se renuevan automáticamente.
+            Cuando está activa, las publicaciones pausadas o vencidas con "renovación auto" se reactivan cada noche a las 02:15 ART.
           </p>
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
             <input type="checkbox" id="toggle-renovacion" onchange="toggleRenovacion(this)">
             <span id="renovacion-label" style="font-size:14px">Desactivada</span>
           </label>
+          <button class="btn btn-secondary btn-sm" onclick="triggerRenovarManual()" style="margin-top:10px">
+            🔄 Renovar ahora manualmente
+          </button>
+          <div id="renovar-resultado" style="font-size:12px;color:var(--text-secondary);margin-top:6px"></div>
+        </div>
+
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:6px">🤖 Auto-responder de preguntas</div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+            Cuando está activo, el sistema responde automáticamente preguntas sin responder cada 20 minutos usando IA. Requiere API key de OpenAI o compatible configurada.
+          </p>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="toggle-auto-responder" onchange="toggleAutoResponder(this)">
+            <span id="auto-responder-label" style="font-size:14px">Desactivado</span>
+          </label>
+          <div style="margin-top:8px;font-size:12px;color:var(--text-secondary)">
+            ℹ️ Las respuestas siguen el mismo estilo que el botón "Sugerir con IA" de la tab Preguntas.
+          </div>
         </div>
 
         <p style="font-size:12px;color:var(--text-secondary)">
@@ -580,7 +855,7 @@
 
 {% block extra_js %}
 <script>
-const TABS_ML = ['dashboard','publicaciones','borradores','preguntas','config-ml'];
+const TABS_ML = ['dashboard','publicaciones','borradores','preguntas','biblioteca','config-ml'];
 let currentItemId = null;
 
 // toast() está definido en main.js; este alias cubre las llamadas a showToast()
@@ -599,6 +874,7 @@ function showTab(name, el) {
   if (name === 'preguntas') loadPreguntas();
   if (name === 'dashboard') loadDashboardML();
   if (name === 'borradores') { borCargarTasas(); borCargar(); }
+  if (name === 'biblioteca') loadBiblioteca();
 }
 
 /* ─── STATUS ─────────────────────────────────────────────────────────── */
@@ -2462,9 +2738,432 @@ async function borGuardarMedidasPiscina() {
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
+/* ─── BIBLIOTECA ─────────────────────────────────────────────────────── */
+let _bibFotos = [];
+let _bibSets  = [];
+let _bibSetFotosIds = [];   // ids seleccionados en modal set
+let _bibUploadFiles = [];   // FileList pendiente de subir
+let _bibApplyJobId  = null;
+let _bibApplyInterval = null;
+let _bibCurrentFotoId = null;
+
+function bibSubTab(tab) {
+  ['fotos','sets'].forEach(t => {
+    document.getElementById('bib-panel-' + t).style.display = t === tab ? '' : 'none';
+    const btn = document.getElementById('bib-tab-' + t);
+    if (btn) {
+      btn.style.borderBottom = t === tab ? '3px solid var(--primary)' : 'none';
+      btn.classList.toggle('btn-ghost', t !== tab);
+      btn.classList.remove('btn-ghost');
+      if (t === tab) { btn.style.borderBottom = '3px solid var(--primary)'; btn.style.fontWeight = '700'; }
+      else           { btn.style.borderBottom = 'none'; btn.style.fontWeight = ''; }
+    }
+  });
+  if (tab === 'fotos') bibCargarFotos();
+  else                  bibCargarSets();
+}
+
+function loadBiblioteca() {
+  bibSubTab('fotos');
+}
+
+// ── Fotos ──────────────────────────────────────────────────────────────
+async function bibCargarFotos() {
+  const grid = document.getElementById('bib-fotos-grid');
+  grid.innerHTML = '<div class="loading">Cargando...</div>';
+  const tipo  = document.getElementById('bib-f-tipo')?.value  || '';
+  const modelo = document.getElementById('bib-f-modelo')?.value || '';
+  const tag   = document.getElementById('bib-f-tag')?.value   || '';
+  const params = new URLSearchParams();
+  if (tipo)   params.set('tipo_producto', tipo);
+  if (modelo) params.set('modelo', modelo);
+  if (tag)    params.set('tag', tag);
+  try {
+    _bibFotos = await API.get('/api/ml/fotos/biblioteca?' + params.toString());
+    document.getElementById('bib-fotos-count').textContent =
+      _bibFotos.length ? `${_bibFotos.length} foto${_bibFotos.length !== 1 ? 's' : ''}` : 'Sin fotos';
+    if (!_bibFotos.length) {
+      grid.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;padding:20px;text-align:center;grid-column:1/-1">Biblioteca vacía — subí la primera foto con el botón "Subir fotos"</div>';
+      return;
+    }
+    grid.innerHTML = _bibFotos.map(f => `
+      <div style="position:relative;cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid var(--border);aspect-ratio:1"
+           onclick="bibOpenEditFoto(${f.id})" title="${escHtml(f.nombre||'')}">
+        <img src="${escHtml(f.url)}" style="width:100%;height:100%;object-fit:cover" loading="lazy"
+             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect width=%2240%22 height=%2240%22 fill=%22%23333%22/><text x=%2250%%22 y=%2255%%22 text-anchor=%22middle%22 fill=%22%23888%22 font-size=%2212%22>?</text></svg>'">
+        ${f.tipo_producto ? `<span style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.7);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px">${escHtml(f.tipo_producto)}</span>` : ''}
+        <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);padding:4px 6px;font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(f.nombre||'Sin nombre')}</div>
+      </div>`).join('');
+  } catch(e) {
+    grid.innerHTML = `<div class="alert alert-error" style="grid-column:1/-1">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function bibHandleUpload(files) {
+  if (!files || !files.length) return;
+  _bibUploadFiles = Array.from(files);
+  // Preview
+  const prev = document.getElementById('bib-upload-preview');
+  prev.innerHTML = _bibUploadFiles.slice(0, 6).map(f =>
+    `<img src="${URL.createObjectURL(f)}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`
+  ).join('') + (_bibUploadFiles.length > 6 ? `<span style="align-self:center;font-size:13px;color:var(--text-secondary)">+${_bibUploadFiles.length - 6} más</span>` : '');
+  document.getElementById('bib-upload-pending-info').textContent = `${_bibUploadFiles.length} archivo${_bibUploadFiles.length !== 1 ? 's' : ''} listos para subir`;
+  document.getElementById('bib-upload-progress').style.display = 'none';
+  openModal('modal-bib-upload');
+}
+
+async function bibConfirmarUpload() {
+  if (!_bibUploadFiles.length) return;
+  const btn = document.getElementById('btn-bib-subir');
+  btn.disabled = true;
+  const prog  = document.getElementById('bib-upload-progress');
+  const bar   = document.getElementById('bib-upload-bar');
+  const stat  = document.getElementById('bib-upload-status');
+  prog.style.display = '';
+
+  const nombre = document.getElementById('bib-up-nombre').value.trim();
+  const tipo   = document.getElementById('bib-up-tipo').value;
+  const modelo = document.getElementById('bib-up-modelo').value.trim();
+  const tag    = document.getElementById('bib-up-tag').value.trim();
+
+  let ok = 0, err = 0;
+  for (let i = 0; i < _bibUploadFiles.length; i++) {
+    const f = _bibUploadFiles[i];
+    bar.style.width = Math.round(((i) / _bibUploadFiles.length) * 100) + '%';
+    stat.textContent = `Subiendo ${i + 1}/${_bibUploadFiles.length}: ${f.name}`;
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('nombre', nombre || f.name.replace(/\.[^.]+$/,''));
+      fd.append('tipo_producto', tipo);
+      fd.append('modelo', modelo);
+      fd.append('tag', tag);
+      const res = await fetch('/api/ml/fotos/biblioteca', {
+        method: 'POST', body: fd,
+        credentials: 'same-origin',
+      });
+      if (!res.ok) { err++; } else { ok++; }
+    } catch(e) { err++; }
+  }
+  bar.style.width = '100%';
+  stat.textContent = `✓ ${ok} subidas${err ? `, ${err} con error` : ''}`;
+  btn.disabled = false;
+  closeModal('modal-bib-upload');
+  showToast(ok ? `✓ ${ok} foto${ok !== 1 ? 's' : ''} agregada${ok !== 1 ? 's' : ''} a la biblioteca` : 'Error al subir', ok ? 'success' : 'error');
+  _bibUploadFiles = [];
+  bibCargarFotos();
+  // Reset form
+  document.getElementById('bib-input-file').value = '';
+  ['bib-up-nombre','bib-up-modelo','bib-up-tag'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('bib-up-tipo').value = '';
+}
+
+function bibOpenEditFoto(id) {
+  const foto = _bibFotos.find(f => f.id === id);
+  if (!foto) return;
+  _bibCurrentFotoId = id;
+  document.getElementById('bib-edit-foto-id').value = id;
+  document.getElementById('bib-edit-foto-thumb').src = foto.url;
+  document.getElementById('bib-edit-nombre').value = foto.nombre || '';
+  document.getElementById('bib-edit-tipo').value   = foto.tipo_producto || '';
+  document.getElementById('bib-edit-modelo').value = foto.modelo || '';
+  document.getElementById('bib-edit-tag').value    = foto.tag || '';
+  openModal('modal-bib-edit-foto');
+}
+
+async function bibGuardarEditFoto() {
+  const id = _bibCurrentFotoId;
+  if (!id) return;
+  try {
+    await API.patch(`/api/ml/fotos/biblioteca/${id}`, {
+      nombre:        document.getElementById('bib-edit-nombre').value,
+      tipo_producto: document.getElementById('bib-edit-tipo').value,
+      modelo:        document.getElementById('bib-edit-modelo').value,
+      tag:           document.getElementById('bib-edit-tag').value,
+    });
+    closeModal('modal-bib-edit-foto');
+    showToast('✓ Foto actualizada', 'success');
+    bibCargarFotos();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function bibEliminarFoto() {
+  const id = _bibCurrentFotoId;
+  if (!id) return;
+  const ok = await showConfirm('¿Eliminar esta foto de la biblioteca? Se quitará de todos los sets que la incluyan.', 'Eliminar foto');
+  if (!ok) return;
+  try {
+    await API.delete(`/api/ml/fotos/biblioteca/${id}`);
+    closeModal('modal-bib-edit-foto');
+    showToast('✓ Foto eliminada', 'success');
+    bibCargarFotos();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Sets ────────────────────────────────────────────────────────────────
+async function bibCargarSets() {
+  const lista = document.getElementById('bib-sets-lista');
+  lista.innerHTML = '<div class="loading">Cargando sets...</div>';
+  try {
+    _bibSets = await API.get('/api/ml/fotos/sets');
+    if (!_bibSets.length) {
+      lista.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;padding:20px;text-align:center">No hay sets creados todavía. Creá uno para agrupar fotos y aplicarlas masivamente.</div>';
+      return;
+    }
+    lista.innerHTML = _bibSets.map(s => `
+      <div class="pm-card" style="align-items:center;gap:14px">
+        ${s.preview_url
+          ? `<img src="${escHtml(s.preview_url)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0">`
+          : `<div style="width:72px;height:72px;background:var(--bg-tertiary,#111);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`}
+        <div style="flex:1;min-width:0">
+          <div class="pm-title">${escHtml(s.nombre)}</div>
+          <div class="pm-meta">${s.total_fotos} foto${s.total_fotos !== 1 ? 's' : ''}${s.tipo_producto ? ` · ${s.tipo_producto}` : ''}${s.modelo ? ` · ${escHtml(s.modelo)}` : ''}</div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            ${s.fotos.slice(0,5).map(f => `<img src="${escHtml(f.url)}" title="${escHtml(f.nombre||'')}" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border)">`).join('')}
+            ${s.fotos.length > 5 ? `<span style="font-size:12px;color:var(--text-secondary);align-self:center">+${s.fotos.length - 5}</span>` : ''}
+          </div>
+        </div>
+        <div class="pm-actions">
+          <button class="btn btn-primary btn-sm" onclick='bibOpenAplicarSet(${s.id})'>🚀 Aplicar</button>
+          <button class="btn btn-secondary btn-sm" onclick='bibEditarSet(${s.id})'>✏️ Editar</button>
+          <button class="btn btn-sm" style="color:#ef4444" onclick='bibEliminarSet(${s.id})'>🗑️</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    lista.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function bibOpenCrearSet() {
+  _bibSetFotosIds = [];
+  document.getElementById('bib-set-id').value = '';
+  document.getElementById('bib-set-modal-titulo').textContent = 'Crear set de fotos';
+  document.getElementById('bib-set-nombre').value = '';
+  document.getElementById('bib-set-tipo').value = '';
+  bibRenderSetSeleccionadas();
+  bibSetCargarGaleria();
+  openModal('modal-bib-set');
+}
+
+function bibEditarSet(id) {
+  const s = _bibSets.find(x => x.id === id);
+  if (!s) return;
+  _bibSetFotosIds = [...s.foto_ids];
+  document.getElementById('bib-set-id').value = id;
+  document.getElementById('bib-set-modal-titulo').textContent = 'Editar set';
+  document.getElementById('bib-set-nombre').value = s.nombre;
+  document.getElementById('bib-set-tipo').value = s.tipo_producto || '';
+  bibRenderSetSeleccionadas();
+  bibSetCargarGaleria();
+  openModal('modal-bib-set');
+}
+
+function bibToggleFotoEnSet(fotoId) {
+  const idx = _bibSetFotosIds.indexOf(fotoId);
+  if (idx === -1) _bibSetFotosIds.push(fotoId);
+  else _bibSetFotosIds.splice(idx, 1);
+  bibRenderSetSeleccionadas();
+  bibRenderSetGaleria();
+}
+
+function bibRenderSetSeleccionadas() {
+  const cont = document.getElementById('bib-set-seleccionadas');
+  const vacio = document.getElementById('bib-set-vacio');
+  if (!_bibSetFotosIds.length) {
+    cont.innerHTML = '';
+    cont.appendChild(document.getElementById('bib-set-vacio'));
+    vacio.style.display = '';
+    return;
+  }
+  vacio.style.display = 'none';
+  cont.innerHTML = _bibSetFotosIds.map((id, i) => {
+    const f = _bibFotos.find(x => x.id === id);
+    if (!f) return '';
+    return `<div style="position:relative;flex-shrink:0">
+      <img src="${escHtml(f.url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid var(--primary)" title="${escHtml(f.nombre||'')}">
+      <span style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700" onclick="bibToggleFotoEnSet(${id})" title="Quitar">✕</span>
+      <span style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px">${i+1}</span>
+    </div>`;
+  }).join('');
+}
+
+async function bibSetCargarGaleria() {
+  const tipo   = document.getElementById('bib-set-f-tipo')?.value || '';
+  const modelo = document.getElementById('bib-set-f-modelo')?.value || '';
+  const params = new URLSearchParams();
+  if (tipo)   params.set('tipo_producto', tipo);
+  if (modelo) params.set('modelo', modelo);
+  try {
+    const fotos = await API.get('/api/ml/fotos/biblioteca?' + params.toString());
+    // Merge with existing _bibFotos
+    fotos.forEach(f => { if (!_bibFotos.find(x => x.id === f.id)) _bibFotos.push(f); });
+    const galeria = document.getElementById('bib-set-galeria');
+    if (!fotos.length) {
+      galeria.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:10px;grid-column:1/-1">No hay fotos con ese filtro</div>';
+      return;
+    }
+    // Replace local var for this call
+    galeria._fotos = fotos;
+    bibRenderSetGaleriaWith(fotos);
+  } catch(e) {}
+}
+
+function bibRenderSetGaleria() {
+  const galeria = document.getElementById('bib-set-galeria');
+  if (galeria._fotos) bibRenderSetGaleriaWith(galeria._fotos);
+}
+
+function bibRenderSetGaleriaWith(fotos) {
+  const galeria = document.getElementById('bib-set-galeria');
+  galeria.innerHTML = fotos.map(f => {
+    const sel = _bibSetFotosIds.includes(f.id);
+    return `<div onclick="bibToggleFotoEnSet(${f.id})" style="position:relative;cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ${sel ? 'var(--primary)' : 'var(--border)'};aspect-ratio:1" title="${escHtml(f.nombre||'')}">
+      <img src="${escHtml(f.url)}" style="width:100%;height:100%;object-fit:cover">
+      ${sel ? `<div style="position:absolute;top:4px;right:4px;background:var(--primary);color:#fff;border-radius:50%;width:18px;height:18px;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:700">✓</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function bibGuardarSet() {
+  const nombre = document.getElementById('bib-set-nombre').value.trim();
+  if (!nombre) { showToast('Completá el nombre del set', 'warning'); return; }
+  const id     = document.getElementById('bib-set-id').value;
+  const tipo   = document.getElementById('bib-set-tipo').value;
+  const btn    = document.getElementById('btn-bib-guardar-set');
+  btn.disabled = true;
+  try {
+    const body = { nombre, tipo_producto: tipo, foto_ids: _bibSetFotosIds };
+    if (id) {
+      await API.put(`/api/ml/fotos/sets/${id}`, body);
+    } else {
+      await API.post('/api/ml/fotos/sets', body);
+    }
+    closeModal('modal-bib-set');
+    showToast('✓ Set guardado', 'success');
+    bibCargarSets();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function bibEliminarSet(id) {
+  const ok = await showConfirm('¿Eliminar este set? Las fotos de la biblioteca no se borran.', 'Eliminar set');
+  if (!ok) return;
+  try {
+    await API.delete(`/api/ml/fotos/sets/${id}`);
+    showToast('✓ Set eliminado', 'success');
+    bibCargarSets();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Aplicar set ─────────────────────────────────────────────────────────
+function bibOpenAplicarSet(id) {
+  const s = _bibSets.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('bib-aplicar-set-id').value = id;
+  document.getElementById('bib-aplicar-info').textContent =
+    `Set: "${s.nombre}" (${s.total_fotos} foto${s.total_fotos !== 1 ? 's' : ''})`;
+  document.getElementById('bib-aplicar-modo').value = 'reemplazar';
+  document.getElementById('bib-aplicar-filtro').value = s.tipo_producto || '';
+  document.getElementById('bib-aplicar-progreso').style.display = 'none';
+  document.getElementById('btn-bib-aplicar-ok').style.display = '';
+  document.getElementById('btn-bib-aplicar-cancel').textContent = 'Cancelar';
+  openModal('modal-bib-aplicar');
+}
+
+async function bibConfirmarAplicar() {
+  const id     = document.getElementById('bib-aplicar-set-id').value;
+  const modo   = document.getElementById('bib-aplicar-modo').value;
+  const filtro = document.getElementById('bib-aplicar-filtro').value;
+  const btn    = document.getElementById('btn-bib-aplicar-ok');
+  btn.disabled = true;
+  const prog   = document.getElementById('bib-aplicar-progreso');
+  prog.style.display = '';
+  document.getElementById('bib-aplicar-bar').style.width = '0%';
+  document.getElementById('bib-aplicar-status').textContent = 'Iniciando...';
+  document.getElementById('bib-aplicar-errores').textContent = '';
+  try {
+    const res = await API.post(`/api/ml/fotos/sets/${id}/aplicar`, {
+      modo, filtro_producto: filtro, item_ids: []
+    });
+    _bibApplyJobId = res.job_id;
+    document.getElementById('bib-aplicar-status').textContent = `Aplicando a ${res.total} publicaciones...`;
+    btn.style.display = 'none';
+    document.getElementById('btn-bib-aplicar-cancel').textContent = 'Cerrar';
+    _bibApplyInterval = setInterval(bibPollApplyJob, 1500);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+async function bibPollApplyJob() {
+  if (!_bibApplyJobId) return;
+  try {
+    const job = await API.get(`/api/ml/fotos/sets/jobs/${_bibApplyJobId}`);
+    const pct = job.total > 0 ? Math.round((job.procesados / job.total) * 100) : 0;
+    document.getElementById('bib-aplicar-bar').style.width = pct + '%';
+    document.getElementById('bib-aplicar-status').textContent =
+      job.status === 'done'
+        ? `✓ Completado: ${job.ok}/${job.total} publicaciones actualizadas`
+        : `Procesando ${job.procesados}/${job.total} — actual: ${job.actual}`;
+    if (job.errores && job.errores.length) {
+      document.getElementById('bib-aplicar-errores').innerHTML =
+        '<b>Errores:</b> ' + job.errores.map(escHtml).join('<br>');
+    }
+    if (job.status === 'done') {
+      clearInterval(_bibApplyInterval);
+      _bibApplyInterval = null;
+      _bibApplyJobId = null;
+      showToast(`✓ Set aplicado: ${job.ok}/${job.total} publicaciones actualizadas`, 'success');
+    }
+  } catch(e) {}
+}
+
+// ── Auto-responder ────────────────────────────────────────────────────────
+async function loadAutoResponderConfig() {
+  try {
+    const cfg = await API.get('/api/ml/auto-responder/config');
+    const chk = document.getElementById('toggle-auto-responder');
+    const lbl = document.getElementById('auto-responder-label');
+    if (chk) chk.checked = cfg.activo;
+    if (lbl) lbl.textContent = cfg.activo ? 'Activado ✓' : 'Desactivado';
+  } catch(e) { /* silent */ }
+}
+
+async function toggleAutoResponder(chk) {
+  const lbl = document.getElementById('auto-responder-label');
+  lbl.textContent = chk.checked ? 'Activado ✓' : 'Desactivado';
+  try {
+    await API.put('/api/ml/auto-responder/config', { activo: chk.checked });
+    showToast(chk.checked ? '✓ Auto-responder activado' : 'Auto-responder desactivado', 'success');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    chk.checked = !chk.checked;
+    lbl.textContent = chk.checked ? 'Activado ✓' : 'Desactivado';
+  }
+}
+
+// ── Renovación manual ───────────────────────────────────────────────────
+async function triggerRenovarManual() {
+  const res_el = document.getElementById('renovar-resultado');
+  res_el.textContent = 'Renovando...';
+  try {
+    const r = await API.post('/api/ml/renovar-vencimientos', {});
+    res_el.textContent = `✓ ${r.renovadas} renovadas, ${r.sin_cambios || 0} ya activas${r.errores?.length ? `, ${r.errores.length} errores` : ''}`;
+    showToast(`✓ Renovación completada: ${r.renovadas} publicaciones`, 'success');
+  } catch(e) {
+    res_el.textContent = 'Error: ' + e.message;
+    showToast('Error al renovar: ' + e.message, 'error');
+  }
+}
+
 /* ─── INIT ───────────────────────────────────────────────────────────── */
 checkMLStatus();
 loadPublicaciones();
 onTipoChange();
+loadAutoResponderConfig();
 </script>
 {% endblock %}

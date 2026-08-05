@@ -27,7 +27,7 @@ from routers import (
     control_agentes, instalacion, panolero, asistencia_rapida, entrega_rapida,
     marketing, simulador, seguimiento, testimonial, inbox, public_landing,
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
-    integraciones, redes_sociales, imagenes,
+    integraciones, redes_sociales, imagenes, ml_biblioteca,
 )
 
 log = logging.getLogger(__name__)
@@ -120,6 +120,7 @@ app.include_router(whatsapp_business.router) # Perfil de WhatsApp Business
 app.include_router(integraciones.router)     # Integración WhatsApp IA (Melanie + futuros)
 app.include_router(redes_sociales.router)   # Panel unificado de redes sociales
 app.include_router(imagenes.router)         # Generador de imágenes con IA
+app.include_router(ml_biblioteca.router)    # ML — Biblioteca fotos, sets, renovación, auto-responder
 
 
 # ─── MANUAL DE USO ────────────────────────────────────────────────────────────
@@ -260,8 +261,26 @@ async def startup_event():
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    # Renovación automática ML → 02:15 ART (antes del backup)
+    scheduler.add_job(
+        ml_biblioteca._renovar_vencimientos_core,
+        trigger=CronTrigger(hour=2, minute=15, timezone="America/Argentina/Buenos_Aires"),
+        id="ml_renovacion_automatica",
+        name="ML — Renovación automática de publicaciones",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    # Auto-responder preguntas ML → cada 20 minutos
+    scheduler.add_job(
+        ml_biblioteca._auto_responder_preguntas_job,
+        trigger=CronTrigger(minute="*/20", timezone="America/Argentina/Buenos_Aires"),
+        id="ml_auto_responder",
+        name="ML — Auto-responder preguntas con IA",
+        replace_existing=True,
+        misfire_grace_time=600,
+    )
     scheduler.start()
-    log.info("[SCHEDULER] Backup 03:00 ART + Rotación leads + Resumen 08:00 ART — activos")
+    log.info("[SCHEDULER] Backup 03:00 + Leads + Resumen 08:00 + ML Renovación 02:15 + Auto-responder /20min — activos")
 
 
 @app.on_event("shutdown")

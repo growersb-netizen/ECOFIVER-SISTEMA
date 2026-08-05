@@ -1454,3 +1454,30 @@ class MetaPagina(Base):
     activa = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class FotoML(Base):
+    """Biblioteca central de fotos profesionales para publicaciones en MercadoLibre."""
+    __tablename__ = "foto_ml"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    nombre        = Column(String(200), nullable=True)
+    url           = Column(Text, nullable=False)            # URL permanente en servidores ML
+    tipo_producto = Column(String(50), nullable=True)       # PISCINA | MODULO | COMBO | etc.
+    modelo        = Column(String(100), nullable=True)      # "Bali 6x3", "Wave 4x2", …
+    tag           = Column(String(200), nullable=True)      # tags separados por coma
+    orden         = Column(Integer, default=0)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SetFotosML(Base):
+    """Set de fotos listo para aplicar masivamente a publicaciones de ML."""
+    __tablename__ = "set_fotos_ml"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    nombre         = Column(String(200), nullable=False)
+    tipo_producto  = Column(String(50), nullable=True)      # filtro sugerido de producto
+    modelo         = Column(String(100), nullable=True)
+    foto_ids_json  = Column(Text, default="[]")             # JSON list de FotoML.id (orden importa)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at     = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

@@ -326,8 +326,13 @@ CATEGORIAS_FIJAS: dict = {
     "COMBO":            ("MLA413502", "Cabañas y Casas Prefabricadas"),
     "MODULO":           ("MLA413502", "Cabañas y Casas Prefabricadas"),
     "MODULO_DEPOSITO":  ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    # HIDROMASAJE, QUINCHO, PERGOLA, REPOSERA_FIBRA, CUCHA, ILUMINACION_PISCINA
-    # → sin categoría fija (el predictor maneja bien estas palabras específicas)
+    # Jacuzzis / hidromasajes (autoportante, miniportante, minideck, spa).
+    # ML Argentina los rechaza si van en MLA373513 (Piletas de Fibra).
+    # Verificar ID navegando en ML: Publicar → Hogar y Jardín → Piletas, Spas
+    # y Accesorios → Jacuzzis e Hidromasajes.
+    "HIDROMASAJE":      ("MLA88471", "Jacuzzis e Hidromasajes"),
+    # QUINCHO, PERGOLA, REPOSERA_FIBRA, CUCHA, ILUMINACION_PISCINA
+    # → sin categoría fija (el predictor ML maneja bien esas palabras)
 }
 
 # Categorías de ML que solo admiten buying_mode="classified" (viviendas, inmuebles, construcción).

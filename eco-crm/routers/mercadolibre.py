@@ -6,12 +6,13 @@ Acceso: ADMIN y COORDINADOR_OPERATIVO
 import os
 import json
 import asyncio
+import uuid
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -30,6 +31,9 @@ API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
 ML_BASE = "https://api.mercadolibre.com"
 ML_AUTH = "https://auth.mercadolibre.com.ar"
 ML_DEFAULT_REDIRECT = "https://eco-crm-production.up.railway.app/mercadolibre/callback"
+
+# Job tracker en memoria para tareas largas (actualización de descripciones, etc.)
+_DESC_JOBS: Dict[str, Dict[str, Any]] = {}
 
 
 def _agregar_condiciones(db: Session, descripcion: str) -> str:
@@ -1237,48 +1241,119 @@ async def get_ficha_ml(
 
 # ─── API — ACTUALIZAR DESCRIPCIONES EN LOTE ──────────────────────────────────
 
+async def _actualizar_desc_lote_bg(job_id: str, token: str, pub_data: list, desc_config: dict):
+    """
+    Worker de fondo: actualiza descripción en ML para cada publicación.
+    pub_data: lista de dicts {item_id, descripcion, tipo_precio}
+    desc_config: {encabezado, pie, encabezado_ref, pie_ref, keywords, condiciones}
+    """
+    from database.database import SessionLocal
+    job = _DESC_JOBS[job_id]
+    job["total"] = len(pub_data)
+    job["procesados"] = 0
+    job["ok"] = 0
+    job["error"] = 0
+    job["detalles"] = []
+
+    for pub in pub_data:
+        job["actual"] = pub["item_id"]
+        try:
+            # Construir descripción completa con encabezado/pie según tipo de precio
+            tipo = pub.get("tipo_precio", "completo")
+            enc = desc_config["encabezado_ref"] if tipo == "referencia" else desc_config["encabezado"]
+            pie = desc_config["pie_ref"] if tipo == "referencia" else desc_config["pie"]
+            kw  = desc_config.get("keywords", "")
+            cnd = desc_config.get("condiciones", "")
+
+            bloques = []
+            if enc: bloques.append(enc.strip())
+            body = (pub.get("descripcion") or "").strip()
+            if body: bloques.append(body)
+            if kw:  bloques.append(kw.strip())
+            if cnd: bloques.append(cnd.strip())
+            if pie: bloques.append(pie.strip())
+            texto = "\n\n".join(b for b in bloques if b)
+
+            async with httpx.AsyncClient(timeout=12) as c:
+                r = await c.put(
+                    f"{ML_BASE}/items/{pub['item_id']}/description",
+                    headers=_ml_headers(token),
+                    json={"plain_text": texto},
+                )
+            if r.status_code in (200, 201):
+                job["ok"] += 1
+                job["detalles"].append({"item_id": pub["item_id"], "status": "ok"})
+            else:
+                job["error"] += 1
+                job["detalles"].append({"item_id": pub["item_id"], "status": f"HTTP {r.status_code}: {r.text[:100]}"})
+        except Exception as e:
+            job["error"] += 1
+            job["detalles"].append({"item_id": pub["item_id"], "status": str(e)[:100]})
+
+        job["procesados"] += 1
+        await asyncio.sleep(0.4)
+
+    job["status"] = "done"
+
+
 @router.post("/api/ml/publicaciones/actualizar-descripcion-lote")
 async def actualizar_descripcion_lote(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_config_access),
 ):
     """
     Aplica el encabezado/pie/keywords configurados a todas las publicaciones
-    activas guardadas en el CRM. Actualiza la descripción directamente en ML.
+    activas. Devuelve job_id inmediatamente y procesa en segundo plano.
     """
+    from routers.configuracion import get_config_value
     token = await _get_token(db)
+
     pubs = db.query(PublicacionML).filter(
         PublicacionML.item_id.isnot(None),
         PublicacionML.estado_ml.in_(["active", "paused"]),
     ).all()
 
-    ok_count = err_count = 0
-    detalles = []
+    if not pubs:
+        return {"ok": 0, "error": 0, "total": 0, "detalles": [], "job_id": None, "status": "done"}
 
-    async with httpx.AsyncClient(timeout=15) as c:
-        for pub in pubs:
-            try:
-                descripcion_nueva = _armar_descripcion_ml(db, pub.descripcion or "")
-                # ML requiere PUT para actualizar descripción existente (POST solo para items nuevos)
-                r = await c.put(
-                    f"{ML_BASE}/items/{pub.item_id}/description",
-                    headers=_ml_headers(token),
-                    json={"plain_text": descripcion_nueva},
-                )
-                if r.status_code in (200, 201):
-                    pub.descripcion = pub.descripcion or ""
-                    ok_count += 1
-                    detalles.append({"item_id": pub.item_id, "status": "ok"})
-                else:
-                    err_count += 1
-                    detalles.append({"item_id": pub.item_id, "status": f"HTTP {r.status_code}: {r.text[:120]}"})
-            except Exception as e:
-                err_count += 1
-                detalles.append({"item_id": pub.item_id, "status": str(e)[:120]})
-            await asyncio.sleep(0.3)
+    # Snapshot de datos (la sesión DB no se puede usar fuera del request)
+    pub_data = [
+        {
+            "item_id": p.item_id,
+            "descripcion": p.descripcion or "",
+            "tipo_precio": p.tipo_precio if hasattr(p, "tipo_precio") else "completo",
+        }
+        for p in pubs
+    ]
 
-    db.commit()
-    return {"ok": ok_count, "error": err_count, "total": len(pubs), "detalles": detalles}
+    # Snapshot de la configuración actual de descripción
+    desc_config = {
+        "encabezado":     get_config_value("ml_encabezado", db) or "",
+        "pie":            get_config_value("ml_pie", db) or "",
+        "encabezado_ref": get_config_value("ml_encabezado_ref", db) or "",
+        "pie_ref":        get_config_value("ml_pie_ref", db) or "",
+        "keywords":       get_config_value("ml_keywords", db) or "",
+        "condiciones":    get_config_value("condiciones_generales", db) or "",
+    }
+
+    job_id = str(uuid.uuid4())
+    _DESC_JOBS[job_id] = {
+        "status": "running", "total": len(pub_data), "procesados": 0,
+        "ok": 0, "error": 0, "detalles": [], "actual": "",
+    }
+
+    background_tasks.add_task(_actualizar_desc_lote_bg, job_id, token, pub_data, desc_config)
+    return {"job_id": job_id, "total": len(pub_data), "status": "running"}
+
+
+@router.get("/api/ml/publicaciones/actualizar-descripcion-lote/estado/{job_id}")
+async def estado_actualizar_desc(job_id: str):
+    """Consulta el progreso de un job de actualización de descripciones."""
+    job = _DESC_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    return job
 
 
 # ─── API — PREGUNTAS ──────────────────────────────────────────────────────────

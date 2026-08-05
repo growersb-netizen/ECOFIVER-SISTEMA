@@ -1633,26 +1633,64 @@ async function guardarConfigDesc() {
   }
 }
 
+let _descJobId = null;
+let _descJobInterval = null;
+
 async function actualizarDescripcionesML() {
   const btn = document.getElementById('btn-actualizar-desc');
   const res = document.getElementById('cfg-desc-resultado');
   btn.disabled = true;
-  btn.textContent = '⏳ Actualizando...';
-  res.textContent = 'Enviando descripciones a MercadoLibre, esto puede tardar un minuto...';
+  btn.textContent = '⏳ Iniciando...';
+  res.textContent = 'Iniciando actualización en segundo plano...';
   try {
     const data = await API.post('/api/ml/publicaciones/actualizar-descripcion-lote', {});
-    let html = `✅ Listo: <strong>${data.ok}</strong> actualizadas, <strong>${data.error}</strong> errores de ${data.total} publicaciones.`;
-    if (data.error > 0 && data.detalles) {
-      const errores = data.detalles.filter(d => d.status !== 'ok').slice(0, 5);
-      html += `<br><small style="color:#c00">Primeros errores: ${errores.map(e => `${e.item_id}: ${e.status}`).join(' | ')}</small>`;
+
+    // Si ya terminó sincrónicamente (0 pubs)
+    if (data.status === 'done' || !data.job_id) {
+      res.innerHTML = `✅ Listo: <strong>${data.ok || 0}</strong> actualizadas de ${data.total || 0}.`;
+      showToast('Descripciones actualizadas', 'success');
+      btn.disabled = false;
+      btn.textContent = '🔄 Aplicar a publicaciones existentes';
+      return;
     }
-    res.innerHTML = html;
-    if (data.ok > 0) showToast(`${data.ok} descripciones actualizadas en ML`, 'success');
-    if (data.error > 0) showToast(`${data.error} publicaciones con error`, 'error');
+
+    _descJobId = data.job_id;
+    res.textContent = `Procesando 0/${data.total} publicaciones...`;
+    btn.textContent = '⏳ Actualizando...';
+
+    // Polling cada 2 seg
+    _descJobInterval = setInterval(async () => {
+      try {
+        const job = await API.get(`/api/ml/publicaciones/actualizar-descripcion-lote/estado/${_descJobId}`);
+        const pct = job.total > 0 ? Math.round((job.procesados / job.total) * 100) : 0;
+        res.textContent = `Procesando ${job.procesados}/${job.total} (${pct}%)...`;
+
+        if (job.status === 'done') {
+          clearInterval(_descJobInterval);
+          _descJobInterval = null;
+          _descJobId = null;
+          let html = `✅ Listo: <strong>${job.ok}</strong> actualizadas, <strong>${job.error}</strong> errores de ${job.total}.`;
+          if (job.error > 0 && job.detalles) {
+            const errs = job.detalles.filter(d => d.status !== 'ok').slice(0, 5);
+            html += `<br><small style="color:#c00">Errores: ${errs.map(e => escHtml(e.item_id + ': ' + e.status)).join(' | ')}</small>`;
+          }
+          res.innerHTML = html;
+          if (job.ok > 0)    showToast(`✓ ${job.ok} descripciones actualizadas en ML`, 'success');
+          if (job.error > 0) showToast(`${job.error} publicaciones con error`, 'error');
+          btn.disabled = false;
+          btn.textContent = '🔄 Aplicar a publicaciones existentes';
+        }
+      } catch(e) {
+        clearInterval(_descJobInterval);
+        res.textContent = 'Error al consultar estado: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = '🔄 Aplicar a publicaciones existentes';
+      }
+    }, 2000);
+
   } catch(e) {
     res.textContent = 'Error: ' + e.message;
     showToast('Error: ' + e.message, 'error');
-  } finally {
     btn.disabled = false;
     btn.textContent = '🔄 Aplicar a publicaciones existentes';
   }

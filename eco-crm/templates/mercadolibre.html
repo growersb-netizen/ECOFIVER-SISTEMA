@@ -780,37 +780,56 @@
           Agrega un bloque de texto al inicio o fin de la descripción en ML, solo para los tipos seleccionados.
           Útil para: zonas de instalación, opciones de envío, novedades de temporada.
         </p>
-        <div class="form-group" style="margin-bottom:8px">
+        <div class="form-group" style="margin-bottom:10px">
           <label class="form-label" style="font-size:12px">Texto a agregar</label>
-          <textarea id="cfg-texto-tipo" class="input" rows="3" style="resize:vertical;font-size:12px"
-            placeholder="Ej: Instalamos en toda la provincia de Buenos Aires. Para el resto del país, enviamos kit autoinstalable por Vía Cargo."></textarea>
-        </div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;font-size:13px">
-          <label style="font-weight:600;margin-bottom:4px;display:block;width:100%">Tipos de publicación: <span style="font-weight:400;color:var(--text-secondary)">(busca por campo tipo Y por palabras en el título)</span></label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-MODULO" value="MODULO"> Módulos habitacionales</label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-MINIPISCINA" value="MINIPISCINA"> Minipiscinas</label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-HIDROMASAJE" value="HIDROMASAJE"> Hidromasajes / Jacuzzis</label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-PISCINA" value="PISCINA"> Piscinas</label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-COMBO" value="COMBO"> Combos</label>
-        </div>
-        <div class="form-group" style="margin-bottom:8px">
-          <label class="form-label" style="font-size:12px">Palabras extra en el título (opcional, separadas por coma)</label>
-          <input id="cfg-titulo-contiene" class="input" style="font-size:12px"
-            placeholder="Ej: minideck, hidromasaje, autoportante — para publicaciones con tipo vacío">
+          <textarea id="cfg-texto-tipo" class="input" rows="3" style="resize:vertical;font-size:13px"
+            placeholder="Ej: Instalamos en toda la provincia de Buenos Aires. Para el interior del país enviamos kit autoinstalable por Vía Cargo."></textarea>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <select id="cfg-texto-posicion" class="input" style="max-width:180px;font-size:13px">
             <option value="fin">Agregar al final</option>
             <option value="inicio">Agregar al inicio</option>
           </select>
-          <button class="btn btn-secondary btn-sm" id="btn-aplicar-texto-tipo" onclick="aplicarTextoTipo()">
-            ➕ Aplicar texto a seleccionados
+          <button class="btn btn-primary btn-sm" onclick="abrirModalTextoPubs()">
+            📋 Seleccionar publicaciones
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btn-aplicar-texto-tipo" style="display:none" onclick="confirmarAplicarTexto()">
+            ➕ Aplicar a <span id="cfg-texto-count">0</span> seleccionadas
           </button>
         </div>
         <div id="cfg-texto-tipo-resultado" style="margin-top:8px;font-size:12px;color:var(--text-secondary)"></div>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Modal: seleccionar publicaciones para agregar texto -->
+<div class="modal-overlay" id="modal-texto-pubs" style="display:none">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-header">
+      <span class="modal-title">📋 Seleccioná las publicaciones</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-texto-pubs')">✕</button>
+    </div>
+    <div class="modal-body" style="padding-bottom:0">
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+        <input id="texto-pubs-buscar" class="input" placeholder="🔍 Buscar en título..." oninput="filtrarTextoPubs()" style="flex:1;font-size:13px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer">
+          <input type="checkbox" id="texto-pubs-todos" onchange="selTextoPubsTodos(this)">
+          Todas
+        </label>
+      </div>
+      <div id="texto-pubs-count" style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">Cargando...</div>
+      <div id="texto-pubs-lista" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+        <div class="loading" style="padding:20px">Cargando publicaciones...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-texto-pubs')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-texto-pubs-aplicar" onclick="aplicarTextoASeleccionadas()" disabled>
+        ➕ Aplicar a 0 publicaciones
+      </button>
+    </div>
   </div>
 </div>
 
@@ -1735,31 +1754,102 @@ async function actualizarDescripcionesML() {
   }
 }
 
-// ── Agregar texto por tipo de producto ──────────────────────────────────────
-let _textoTipoJobId = null;
+// ── Agregar texto a publicaciones seleccionadas ──────────────────────────────
+let _textoTipoJobId   = null;
 let _textoTipoInterval = null;
+let _textoPubsData    = [];   // [{item_id, titulo, producto, estado_ml}]
+let _textoPubsSel     = new Set();
 
-async function aplicarTextoTipo() {
+async function abrirModalTextoPubs() {
   const texto = (document.getElementById('cfg-texto-tipo').value || '').trim();
-  if (!texto) { showToast('Escribí el texto a agregar', 'warning'); return; }
+  if (!texto) { showToast('Escribí el texto antes de seleccionar publicaciones', 'warning'); return; }
 
-  const tipos = ['MODULO','MINIPISCINA','HIDROMASAJE','PISCINA','COMBO']
-    .filter(t => document.getElementById('cfg-tipo-' + t)?.checked);
-  const tituloKw = (document.getElementById('cfg-titulo-contiene')?.value || '').trim();
-  if (!tipos.length && !tituloKw) { showToast('Seleccioná al menos un tipo o ingresá palabras del título', 'warning'); return; }
-
-  const posicion = document.getElementById('cfg-texto-posicion').value;
-  const btn = document.getElementById('btn-aplicar-texto-tipo');
-  const res = document.getElementById('cfg-texto-tipo-resultado');
-  btn.disabled = true;
-  res.textContent = 'Iniciando...';
+  _textoPubsSel = new Set();
+  _textoPubsData = [];
+  document.getElementById('texto-pubs-buscar').value = '';
+  document.getElementById('texto-pubs-todos').checked = false;
+  document.getElementById('texto-pubs-lista').innerHTML = '<div class="loading" style="padding:20px">Cargando...</div>';
+  document.getElementById('texto-pubs-count').textContent = 'Cargando...';
+  _actualizarBtnTextoPubs();
+  openModal('modal-texto-pubs');
 
   try {
-    const data = await API.post('/api/ml/publicaciones/aplicar-texto-tipo', { tipos, texto, posicion, titulo_contiene: tituloKw });
+    _textoPubsData = await API.get('/api/ml/publicaciones/con-item-id');
+    filtrarTextoPubs();
+  } catch(e) {
+    document.getElementById('texto-pubs-lista').innerHTML = `<div style="padding:16px;color:#ef4444">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function filtrarTextoPubs() {
+  const q = (document.getElementById('texto-pubs-buscar').value || '').toLowerCase().trim();
+  const filtradas = q ? _textoPubsData.filter(p => (p.titulo || '').toLowerCase().includes(q)) : _textoPubsData;
+  const lista = document.getElementById('texto-pubs-lista');
+  document.getElementById('texto-pubs-count').textContent =
+    `${filtradas.length} publicación${filtradas.length !== 1 ? 'es' : ''}${q ? ' (filtradas)' : ''} — ${_textoPubsSel.size} seleccionadas`;
+
+  if (!filtradas.length) {
+    lista.innerHTML = '<div style="padding:16px;color:var(--text-secondary);font-size:13px">Sin resultados para ese término.</div>';
+    return;
+  }
+
+  const ESTADO_BADGE = { active:'🟢', paused:'🟡', closed:'🔴' };
+  lista.innerHTML = filtradas.map(p => {
+    const sel = _textoPubsSel.has(p.item_id);
+    const badge = ESTADO_BADGE[p.estado_ml] || '⚪';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);${sel ? 'background:var(--bg-secondary)' : ''}">
+      <input type="checkbox" ${sel ? 'checked' : ''} onchange="toggleTextoPub('${escHtml(p.item_id)}', this.checked)" style="flex-shrink:0">
+      <span style="flex:1;font-size:13px;line-height:1.3">${escHtml(p.titulo || p.item_id)}</span>
+      <span style="font-size:11px;white-space:nowrap">${badge} ${escHtml(p.estado_ml || '')}</span>
+    </label>`;
+  }).join('');
+  _actualizarBtnTextoPubs();
+}
+
+function toggleTextoPub(id, checked) {
+  if (checked) _textoPubsSel.add(id); else _textoPubsSel.delete(id);
+  // actualizar count sin re-renderizar la lista completa
+  const q = (document.getElementById('texto-pubs-buscar').value || '').toLowerCase().trim();
+  const filtradas = q ? _textoPubsData.filter(p => (p.titulo || '').toLowerCase().includes(q)) : _textoPubsData;
+  document.getElementById('texto-pubs-count').textContent =
+    `${filtradas.length} publicación${filtradas.length !== 1 ? 'es' : ''}${q ? ' (filtradas)' : ''} — ${_textoPubsSel.size} seleccionadas`;
+  _actualizarBtnTextoPubs();
+}
+
+function selTextoPubsTodos(chk) {
+  const q = (document.getElementById('texto-pubs-buscar').value || '').toLowerCase().trim();
+  const filtradas = q ? _textoPubsData.filter(p => (p.titulo || '').toLowerCase().includes(q)) : _textoPubsData;
+  filtradas.forEach(p => { if (chk.checked) _textoPubsSel.add(p.item_id); else _textoPubsSel.delete(p.item_id); });
+  filtrarTextoPubs();
+}
+
+function _actualizarBtnTextoPubs() {
+  const btn = document.getElementById('btn-texto-pubs-aplicar');
+  if (!btn) return;
+  const n = _textoPubsSel.size;
+  btn.disabled = n === 0;
+  btn.textContent = n === 0 ? '➕ Aplicar a 0 publicaciones' : `➕ Aplicar a ${n} publicación${n !== 1 ? 'es' : ''}`;
+}
+
+async function aplicarTextoASeleccionadas() {
+  if (!_textoPubsSel.size) return;
+  const texto    = (document.getElementById('cfg-texto-tipo').value || '').trim();
+  const posicion = document.getElementById('cfg-texto-posicion').value;
+  const res      = document.getElementById('cfg-texto-tipo-resultado');
+  const n        = _textoPubsSel.size;
+
+  closeModal('modal-texto-pubs');
+  res.textContent = `Iniciando actualización de ${n} publicaciones...`;
+
+  try {
+    const data = await API.post('/api/ml/publicaciones/aplicar-texto-tipo', {
+      item_ids: [..._textoPubsSel],
+      texto,
+      posicion,
+    });
 
     if (data.status === 'done' || !data.job_id) {
-      res.textContent = data.msg || `✅ Listo: ${data.ok ?? 0} actualizadas de ${data.total ?? 0}.`;
-      btn.disabled = false;
+      res.textContent = data.msg || `✅ Listo: ${data.ok ?? 0} actualizadas.`;
       return;
     }
 
@@ -1779,21 +1869,18 @@ async function aplicarTextoTipo() {
           res.innerHTML = `✅ Listo: <strong>${nOk}</strong> actualizadas, <strong>${nErr}</strong> errores de ${job.total ?? 0}.`;
           if (nErr > 0 && job.errores_detalle?.length)
             res.innerHTML += `<br><small style="color:#c00">${job.errores_detalle.slice(0,3).map(e => escHtml(e.item_id + ': ' + e.status)).join(' | ')}</small>`;
-          if (nOk > 0) showToast(`✓ ${nOk} descripciones actualizadas en ML`, 'success');
+          if (nOk  > 0) showToast(`✓ ${nOk} descripciones actualizadas en ML`, 'success');
           if (nErr > 0) showToast(`${nErr} errores`, 'error');
-          btn.disabled = false;
         }
       } catch(e) {
         clearInterval(_textoTipoInterval);
         res.textContent = 'Error al consultar estado: ' + e.message;
-        btn.disabled = false;
       }
     }, 2000);
 
   } catch(e) {
     res.textContent = 'Error: ' + e.message;
     showToast('Error: ' + e.message, 'error');
-    btn.disabled = false;
   }
 }
 

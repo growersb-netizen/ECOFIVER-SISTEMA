@@ -786,12 +786,17 @@
             placeholder="Ej: Instalamos en toda la provincia de Buenos Aires. Para el resto del país, enviamos kit autoinstalable por Vía Cargo."></textarea>
         </div>
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;font-size:13px">
-          <label style="font-weight:600;margin-bottom:4px;display:block;width:100%">Tipos de publicación:</label>
+          <label style="font-weight:600;margin-bottom:4px;display:block;width:100%">Tipos de publicación: <span style="font-weight:400;color:var(--text-secondary)">(busca por campo tipo Y por palabras en el título)</span></label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-MODULO" value="MODULO"> Módulos habitacionales</label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-MINIPISCINA" value="MINIPISCINA"> Minipiscinas</label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-HIDROMASAJE" value="HIDROMASAJE"> Hidromasajes / Jacuzzis</label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-PISCINA" value="PISCINA"> Piscinas</label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-COMBO" value="COMBO"> Combos</label>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label" style="font-size:12px">Palabras extra en el título (opcional, separadas por coma)</label>
+          <input id="cfg-titulo-contiene" class="input" style="font-size:12px"
+            placeholder="Ej: minideck, hidromasaje, autoportante — para publicaciones con tipo vacío">
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <select id="cfg-texto-posicion" class="input" style="max-width:180px;font-size:13px">
@@ -1740,7 +1745,8 @@ async function aplicarTextoTipo() {
 
   const tipos = ['MODULO','MINIPISCINA','HIDROMASAJE','PISCINA','COMBO']
     .filter(t => document.getElementById('cfg-tipo-' + t)?.checked);
-  if (!tipos.length) { showToast('Seleccioná al menos un tipo de producto', 'warning'); return; }
+  const tituloKw = (document.getElementById('cfg-titulo-contiene')?.value || '').trim();
+  if (!tipos.length && !tituloKw) { showToast('Seleccioná al menos un tipo o ingresá palabras del título', 'warning'); return; }
 
   const posicion = document.getElementById('cfg-texto-posicion').value;
   const btn = document.getElementById('btn-aplicar-texto-tipo');
@@ -1749,7 +1755,7 @@ async function aplicarTextoTipo() {
   res.textContent = 'Iniciando...';
 
   try {
-    const data = await API.post('/api/ml/publicaciones/aplicar-texto-tipo', { tipos, texto, posicion });
+    const data = await API.post('/api/ml/publicaciones/aplicar-texto-tipo', { tipos, texto, posicion, titulo_contiene: tituloKw });
 
     if (data.status === 'done' || !data.job_id) {
       res.textContent = data.msg || `✅ Listo: ${data.ok ?? 0} actualizadas de ${data.total ?? 0}.`;

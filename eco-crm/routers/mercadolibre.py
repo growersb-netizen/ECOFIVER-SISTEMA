@@ -1395,22 +1395,46 @@ async def aplicar_texto_tipo(
     tipos   = [t for t in (data.get("tipos") or []) if t]
     texto   = (data.get("texto") or "").strip()
     posicion = data.get("posicion", "fin")   # "inicio" | "fin"
+    # Palabras clave adicionales para buscar en el título (separadas por coma)
+    titulo_kw_raw = (data.get("titulo_contiene") or "").strip()
+    titulo_kws = [k.strip().lower() for k in titulo_kw_raw.split(",") if k.strip()]
 
     if not texto:
         raise HTTPException(400, "Falta el texto a agregar")
-    if not tipos:
-        raise HTTPException(400, "Seleccioná al menos un tipo de producto")
+    if not tipos and not titulo_kws:
+        raise HTTPException(400, "Seleccioná al menos un tipo o ingresá palabras en el título")
 
     token = await _get_token(db)
 
+    # Keywords automáticas por tipo (para pubs que tienen producto=NULL)
+    _TIPO_TITLE_KW: dict = {
+        "MINIPISCINA":  ["minideck", "miniportante", "minipiscin"],
+        "HIDROMASAJE":  ["hidromasaje", "jacuzzi", "autoportante", "spa"],
+        "MODULO":       ["módulo habitacional", "wood frame", "vivienda modular", "modulo"],
+        "COMBO":        ["combo", "piscina + módulo"],
+        "PISCINA":      ["piscina", "pileta"],
+    }
+    auto_kws = []
+    for t in tipos:
+        auto_kws.extend(_TIPO_TITLE_KW.get(t, []))
+    all_kws = list(dict.fromkeys(titulo_kws + auto_kws))  # sin duplicados, orden preservado
+
+    from sqlalchemy import or_ as _or_
+    filtros = []
+    if tipos:
+        filtros.append(PublicacionML.producto.in_(tipos))
+    for kw in all_kws:
+        filtros.append(PublicacionML.titulo.ilike(f"%{kw}%"))
+
     pubs = db.query(PublicacionML).filter(
         PublicacionML.item_id.isnot(None),
-        PublicacionML.producto.in_(tipos),
+        _or_(*filtros) if filtros else False,
     ).all()
 
     if not pubs:
+        hint = ", ".join(tipos) + (f" | título contiene: {', '.join(all_kws)}" if all_kws else "")
         return {"ok": 0, "total": 0, "job_id": None, "status": "done",
-                "msg": f"No hay publicaciones con item_id para los tipos: {', '.join(tipos)}"}
+                "msg": f"No se encontraron publicaciones con item_id que coincidan con: {hint}"}
 
     pub_data = [{"item_id": p.item_id, "descripcion": p.descripcion or ""} for p in pubs]
 

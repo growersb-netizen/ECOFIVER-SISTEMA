@@ -17,6 +17,7 @@ from database.models import FotoML, SetFotosML, PublicacionML, Usuario, Configur
 from routers.configuracion import _require_config_access
 from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE
 from utils.ai_client import ai_complete
+from utils.contexto_ecofiver import ctx_preguntas_ml
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -590,21 +591,9 @@ async def _auto_responder_preguntas_job():
             if not texto or not qid:
                 continue
 
-            prompt = (
-                "Sos asesor comercial de Eco Módulos y Piscinas, empresa argentina con fabricación "
-                "propia en Zárate, Buenos Aires. Respondés preguntas de compradores en MercadoLibre.\n\n"
-                f"Producto consultado: {item_titulo or 'módulo habitable / piscina'}\n"
-                f"Pregunta del comprador: {texto}\n\n"
-                "INSTRUCCIONES:\n"
-                "- Respondé DIRECTAMENTE la pregunta en 2 a 3 oraciones, no más.\n"
-                "- Usá castellano argentino: vos, podés, tenés, acá.\n"
-                "- Mencioná instalación incluida, fabricación en Zárate y financiación propia SOLO si "
-                "es relevante para la pregunta.\n"
-                "- Si preguntan por precio, decí que varía según medidas y localidad; invitalos a "
-                "avanzar con la compra para coordinar los detalles.\n"
-                "- NO incluyas teléfonos, WhatsApp, correos ni ningún dato de contacto.\n"
-                "- NO inventes medidas, pesos ni especificaciones técnicas que no conozcás.\n"
-                "- Solo texto plano, sin markdown, sin asteriscos, sin guiones."
+            prompt = ctx_preguntas_ml(
+                item_titulo=item_titulo or "producto EcoFiver",
+                pregunta=texto,
             )
 
             try:

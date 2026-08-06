@@ -23,6 +23,7 @@ from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.configuracion import get_config_value, _require_config_access
 from database.encryption import encrypt_value
 from utils.ai_client import ai_complete
+from utils.contexto_ecofiver import ctx_empresa, ctx_preguntas_ml, ctx_seo_ml
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -745,33 +746,14 @@ async def generar_descripcion(
     if not palabras:
         raise HTTPException(400, "Ingresá algunas palabras clave del producto")
 
-    prompt = f"""Sos un especialista en SEO de MercadoLibre Argentina. Tu objetivo es maximizar el tráfico orgánico de búsqueda.
+    prompt = f"""{ctx_seo_ml(descripcion_existente=palabras)}
 
-Datos del producto:
+════════════════════════════════════════════
+TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.
+════════════════════════════════════════════
+
+Datos del producto a publicar:
 {palabras}
-
-═══ REGLAS DE TÍTULO ═══
-El título es el factor #1 del algoritmo de ML. Cada palabra DEBE ser algo que un comprador real escribe en el buscador.
-
-ESTRUCTURA: [Tipo de producto] [Material o tecnología clave] [Medida o tamaño] [Característica diferenciadora]
-Ejemplo correcto: "Piscina fibra de vidrio 6x3 metros con escalera"
-Ejemplo correcto: "Pileta armada rectangular 4x2 metros desmontable"
-Ejemplo INCORRECTO: "Piscina minimalista 6.40 IDEAL PARA TU JARDIN" ← "ideal para tu jardin" no genera tráfico
-
-PROHIBIDO en el título:
-- Frases emocionales o de estilo: "ideal para", "perfecta para", "diseño moderno", "el mejor", etc.
-- MAYÚSCULAS sostenidas, signos de exclamación/interrogación, emojis, pipes "|", puntos, comas
-- Palabras que nadie busca: "hermosa", "premium", "exclusiva", "de calidad", "top"
-- Marcas propias si no generan búsqueda (nadie busca "ecofiver piscina" pero sí "piscina fibra de vidrio")
-
-Máximo 60 caracteres. Contá los caracteres antes de responder.
-
-═══ REGLAS DE DESCRIPCIÓN ═══
-- 300 palabras mínimo, texto plano, sin markdown ni emojis
-- Párrafo 1 (visible sin scroll): qué es exactamente, medidas clave, material, para quién
-- Párrafo 2-3: especificaciones técnicas, proceso de instalación, garantía
-- Párrafo 4: integrar naturalmente 2-3 variantes de búsqueda (ej: "pileta" y "piscina" y "natatorio" son sinónimos — usarlos todos en el texto)
-- Cierre: fabricación propia en Zárate Buenos Aires, instalación incluida, financiación propia disponible
 
 Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra ni markdown:
 {{"titulo": "...", "descripcion": "..."}}"""
@@ -833,24 +815,18 @@ async def generar_titulo(
         "COMBO": "combo piscina y módulo habitacional",
     }.get(tipo_producto, tipo_producto.lower())
 
-    prompt = f"""Sos especialista en SEO de MercadoLibre Argentina para EcoFiver, empresa fabricante de piscinas de fibra de vidrio y módulos habitacionales en Zárate, Buenos Aires.
+    prompt = f"""{ctx_seo_ml(tipo_producto=tipo_label, descripcion_existente=descripcion)}
 
-A partir de esta descripción de producto, generá UN título optimizado para MercadoLibre.
+════════════════════════════════════════════
+TAREA: Generá UN título optimizado para MercadoLibre Argentina.
+════════════════════════════════════════════
 
 Tipo de producto: {tipo_label}
 
-Descripción:
+Descripción de referencia:
 {descripcion}
 
-REGLAS del título ML:
-- Máximo 60 caracteres (contá los caracteres)
-- Incluir: tipo de producto, material, medida principal si aplica
-- Palabras que la gente realmente busca en ML (sin "ideal para", "hermosa", "premium")
-- Sin signos: coma, punto, |, !, ?, comillas, guión largo
-- En castellano argentino
-- Sin nombre de marca EcoFiver (nadie lo busca)
-
-Respondé SOLO con el título, sin explicaciones ni comillas:"""
+Respondé SOLO con el título, sin explicaciones ni comillas. Máximo 60 caracteres."""
 
     try:
         texto = await ai_complete(db, prompt, max_tokens=80, temperature=0.5)
@@ -1247,53 +1223,57 @@ async def _actualizar_desc_lote_bg(job_id: str, token: str, pub_data: list, desc
     pub_data: lista de dicts {item_id, descripcion, tipo_precio}
     desc_config: {encabezado, pie, encabezado_ref, pie_ref, keywords, condiciones}
     """
-    from database.database import SessionLocal
     job = _DESC_JOBS[job_id]
     job["total"] = len(pub_data)
     job["procesados"] = 0
     job["ok"] = 0
     job["error"] = 0
-    job["detalles"] = []
+    job["errores_detalle"] = []   # solo errores (no los OK) para mantener el tamaño pequeño
 
-    for pub in pub_data:
-        job["actual"] = pub["item_id"]
-        try:
-            # Construir descripción completa con encabezado/pie según tipo de precio
-            tipo = pub.get("tipo_precio", "completo")
-            enc = desc_config["encabezado_ref"] if tipo == "referencia" else desc_config["encabezado"]
-            pie = desc_config["pie_ref"] if tipo == "referencia" else desc_config["pie"]
-            kw  = desc_config.get("keywords", "")
-            cnd = desc_config.get("condiciones", "")
+    try:
+        for pub in pub_data:
+            job["actual"] = pub.get("item_id", "")
+            try:
+                # Construir descripción completa con encabezado/pie según tipo de precio
+                tipo = pub.get("tipo_precio", "completo")
+                enc = desc_config["encabezado_ref"] if tipo == "referencia" else desc_config["encabezado"]
+                pie = desc_config["pie_ref"] if tipo == "referencia" else desc_config["pie"]
+                kw  = desc_config.get("keywords", "")
+                cnd = desc_config.get("condiciones", "")
 
-            bloques = []
-            if enc: bloques.append(enc.strip())
-            body = (pub.get("descripcion") or "").strip()
-            if body: bloques.append(body)
-            if kw:  bloques.append(kw.strip())
-            if cnd: bloques.append(cnd.strip())
-            if pie: bloques.append(pie.strip())
-            texto = "\n\n".join(b for b in bloques if b)
+                bloques = []
+                if enc: bloques.append(enc.strip())
+                body = (pub.get("descripcion") or "").strip()
+                if body: bloques.append(body)
+                if kw:  bloques.append(kw.strip())
+                if cnd: bloques.append(cnd.strip())
+                if pie: bloques.append(pie.strip())
+                texto = "\n\n".join(b for b in bloques if b)
 
-            async with httpx.AsyncClient(timeout=12) as c:
-                r = await c.put(
-                    f"{ML_BASE}/items/{pub['item_id']}/description",
-                    headers=_ml_headers(token),
-                    json={"plain_text": texto},
-                )
-            if r.status_code in (200, 201):
-                job["ok"] += 1
-                job["detalles"].append({"item_id": pub["item_id"], "status": "ok"})
-            else:
+                async with httpx.AsyncClient(timeout=12) as c:
+                    r = await c.put(
+                        f"{ML_BASE}/items/{pub['item_id']}/description",
+                        headers=_ml_headers(token),
+                        json={"plain_text": texto},
+                    )
+                if r.status_code in (200, 201):
+                    job["ok"] += 1
+                else:
+                    job["error"] += 1
+                    if len(job["errores_detalle"]) < 20:
+                        job["errores_detalle"].append({"item_id": pub["item_id"], "status": f"HTTP {r.status_code}: {r.text[:80]}"})
+            except Exception as e:
                 job["error"] += 1
-                job["detalles"].append({"item_id": pub["item_id"], "status": f"HTTP {r.status_code}: {r.text[:100]}"})
-        except Exception as e:
-            job["error"] += 1
-            job["detalles"].append({"item_id": pub["item_id"], "status": str(e)[:100]})
+                if len(job["errores_detalle"]) < 20:
+                    job["errores_detalle"].append({"item_id": pub.get("item_id","?"), "status": str(e)[:80]})
 
-        job["procesados"] += 1
-        await asyncio.sleep(0.4)
-
-    job["status"] = "done"
+            job["procesados"] += 1
+            await asyncio.sleep(0.4)
+    except Exception as e_outer:
+        log.error(f"[DESC_BG] Job {job_id} error inesperado: {e_outer}")
+        job["errores_detalle"].append({"item_id": "global", "status": str(e_outer)[:120]})
+    finally:
+        job["status"] = "done"   # siempre marcar done, incluso si hubo excepción
 
 
 @router.post("/api/ml/publicaciones/actualizar-descripcion-lote")
@@ -1309,9 +1289,10 @@ async def actualizar_descripcion_lote(
     from routers.configuracion import get_config_value
     token = await _get_token(db)
 
+    # Actualizamos TODAS las publicaciones con item_id (activas, pausadas o cerradas).
+    # ML acepta PUT description en cualquier estado. Los errores se capturan por item.
     pubs = db.query(PublicacionML).filter(
         PublicacionML.item_id.isnot(None),
-        PublicacionML.estado_ml.in_(["active", "paused"]),
     ).all()
 
     if not pubs:
@@ -1353,7 +1334,93 @@ async def estado_actualizar_desc(job_id: str):
     job = _DESC_JOBS.get(job_id)
     if not job:
         raise HTTPException(404, "Job no encontrado")
-    return job
+    return {
+        "status":    job.get("status", "running"),
+        "total":     job.get("total", 0),
+        "procesados": job.get("procesados", 0),
+        "ok":        job.get("ok", 0),
+        "error":     job.get("error", 0),
+        "actual":    job.get("actual", ""),
+        "errores_detalle": job.get("errores_detalle", []),
+    }
+
+
+# ─── API — AGREGAR TEXTO POR TIPO ───────────────────────────────────────────
+
+async def _aplicar_texto_tipo_bg(job_id: str, token: str, pub_data: list, texto: str, posicion: str):
+    """Agrega texto al inicio o fin de la descripción ML para publicaciones de tipos seleccionados."""
+    job = _DESC_JOBS[job_id]
+    try:
+        for pub in pub_data:
+            job["actual"] = pub.get("item_id", "")
+            try:
+                desc = (pub.get("descripcion") or "").strip()
+                nueva = f"{texto}\n\n{desc}" if posicion == "inicio" else f"{desc}\n\n{texto}" if desc else texto
+                async with httpx.AsyncClient(timeout=12) as c:
+                    r = await c.put(
+                        f"{ML_BASE}/items/{pub['item_id']}/description",
+                        headers=_ml_headers(token),
+                        json={"plain_text": nueva},
+                    )
+                if r.status_code in (200, 201):
+                    job["ok"] += 1
+                else:
+                    job["error"] += 1
+                    if len(job["errores_detalle"]) < 20:
+                        job["errores_detalle"].append({"item_id": pub["item_id"], "status": f"HTTP {r.status_code}: {r.text[:80]}"})
+            except Exception as e:
+                job["error"] += 1
+                if len(job["errores_detalle"]) < 20:
+                    job["errores_detalle"].append({"item_id": pub.get("item_id", "?"), "status": str(e)[:80]})
+            job["procesados"] += 1
+            await asyncio.sleep(0.4)
+    except Exception as e_outer:
+        job["errores_detalle"].append({"item_id": "global", "status": str(e_outer)[:120]})
+    finally:
+        job["status"] = "done"
+
+
+@router.post("/api/ml/publicaciones/aplicar-texto-tipo")
+async def aplicar_texto_tipo(
+    background_tasks: BackgroundTasks,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Agrega un bloque de texto al inicio o fin de la descripción ML
+    de todas las publicaciones con item_id de los tipos seleccionados.
+    """
+    data    = await request.json()
+    tipos   = [t for t in (data.get("tipos") or []) if t]
+    texto   = (data.get("texto") or "").strip()
+    posicion = data.get("posicion", "fin")   # "inicio" | "fin"
+
+    if not texto:
+        raise HTTPException(400, "Falta el texto a agregar")
+    if not tipos:
+        raise HTTPException(400, "Seleccioná al menos un tipo de producto")
+
+    token = await _get_token(db)
+
+    pubs = db.query(PublicacionML).filter(
+        PublicacionML.item_id.isnot(None),
+        PublicacionML.producto.in_(tipos),
+    ).all()
+
+    if not pubs:
+        return {"ok": 0, "total": 0, "job_id": None, "status": "done",
+                "msg": f"No hay publicaciones con item_id para los tipos: {', '.join(tipos)}"}
+
+    pub_data = [{"item_id": p.item_id, "descripcion": p.descripcion or ""} for p in pubs]
+
+    job_id = str(uuid.uuid4())
+    _DESC_JOBS[job_id] = {
+        "status": "running", "total": len(pub_data), "procesados": 0,
+        "ok": 0, "error": 0, "errores_detalle": [], "actual": "",
+    }
+    background_tasks.add_task(_aplicar_texto_tipo_bg, job_id, token, pub_data, texto, posicion)
+    return {"job_id": job_id, "total": len(pub_data), "status": "running"}
 
 
 # ─── API — PREGUNTAS ──────────────────────────────────────────────────────────
@@ -1440,21 +1507,9 @@ async def responder_pregunta(
         if not pregunta_texto:
             raise HTTPException(400, "No se recibió el texto de la pregunta del comprador.")
 
-        prompt = (
-            f"Sos asesor comercial de Eco Módulos y Piscinas, empresa argentina con fabricación "
-            f"propia en Zárate, Buenos Aires. Respondés preguntas de compradores en MercadoLibre.\n\n"
-            f"Producto consultado: {item_titulo or 'módulo habitable / piscina'}\n"
-            f"Pregunta del comprador: {pregunta_texto}\n\n"
-            f"INSTRUCCIONES:\n"
-            f"- Respondé DIRECTAMENTE la pregunta en 2 a 3 oraciones, no más.\n"
-            f"- Usá castellano argentino: vos, podés, tenés, acá.\n"
-            f"- Mencioná instalación incluida, fabricación en Zárate y financiación propia SOLO si "
-            f"es relevante para la pregunta.\n"
-            f"- Si preguntan por precio, decí que varía según medidas y localidad; invitalos a "
-            f"avanzar con la compra para coordinar los detalles.\n"
-            f"- NO incluyas teléfonos, WhatsApp, correos ni ningún dato de contacto.\n"
-            f"- NO inventes medidas, pesos ni especificaciones técnicas que no conozcas.\n"
-            f"- Solo texto plano, sin markdown, sin asteriscos, sin guiones."
+        prompt = ctx_preguntas_ml(
+            item_titulo=item_titulo or "producto EcoFiver",
+            pregunta=pregunta_texto,
         )
         try:
             respuesta_manual = await ai_complete(db, prompt, max_tokens=400, temperature=0.6)

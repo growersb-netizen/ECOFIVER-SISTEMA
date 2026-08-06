@@ -15,6 +15,7 @@ from database.database import get_db
 from database.models import ContenidoEcopost, Lead, PublicacionML, Usuario
 from routers.auth import require_auth, get_user_roles
 from utils.ai_client import ai_complete
+from utils.contexto_ecofiver import ctx_marketing_blog
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -235,15 +236,13 @@ async def generar_articulo_blog(
     palabras_str = ", ".join(palabras_clave) if palabras_clave else "piscinas Argentina, módulos habitacionales, EcoFiver"
     palabras_count = {"corta": "500-700", "media": "900-1200", "larga": "1500-2000"}.get(longitud, "900-1200")
 
-    prompt = f"""Sos redactor SEO experto en construcción y diseño de hogares, especializado en EcoFiver.
-Empresa: EcoFiver — fabricamos e instalamos piscinas de fibra y módulos habitacionales.
-Ubicados en Zárate, Buenos Aires. Ofrecemos financiación propia, instalación incluida en todo el país.
+    prompt = f"""{ctx_marketing_blog(tipo=f"artículo de blog sobre {tema}", longitud=longitud)}
 
-IDIOMA Y TONO OBLIGATORIO: escribís siempre en castellano de Argentina — no en español neutro ni latinoamericano genérico.
-Usás "vos", "acá", "querés", "podés", "tenés" y demás formas rioplatenses de forma natural.
-El tono es cálido, cercano y profesional: como un experto que le habla de igual a igual al lector, genera confianza y lo invita a dar el paso, sin ser informal ni usar lunfardo.
+════════════════════════════════════════════
+TAREA: Artículo de blog SEO
+════════════════════════════════════════════
 
-Escribí un artículo de blog completo sobre: "{tema}"
+Tema: "{tema}"
 Producto relacionado: {producto}
 Palabras clave a incluir naturalmente: {palabras_str}
 Tono: {tono}
@@ -253,14 +252,16 @@ ESTRUCTURA DEL ARTÍCULO:
 1. Título SEO atractivo (con la palabra clave principal)
 2. Meta descripción (155 caracteres máximo)
 3. Cuerpo del artículo en Markdown con:
-   - Introducción enganchadora
-   - Al menos 3 subtítulos H2
-   - Lista de beneficios o puntos clave
-   - Datos o estadísticas si aplican
-   - Llamado a la acción al final (mencionar contacto WhatsApp)
+   - Introducción enganchadora (primer párrafo capta la atención)
+   - Al menos 3 subtítulos H2 con keywords naturales
+   - Lista de beneficios o puntos clave con datos reales del producto
+   - Comparación práctica donde aplique (fibra vs hormigón, autoportante vs enterrada, etc.)
+   - Llamado a la acción al final (invitar a consultar sin mencionar teléfonos directamente)
 4. Slug URL sugerido (formato: palabras-con-guiones)
 
-Responde en formato JSON:
+IMPORTANTE: Solo mencioná datos que se saben con certeza (no inventés precios, tiempos de obra ni estadísticas).
+
+Respondé en formato JSON:
 {{
   "titulo": "...",
   "slug": "...",

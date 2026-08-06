@@ -25,6 +25,7 @@ from routers.mercadolibre import (
     _ml_valid_token, _ml_headers, ML_BASE, ML_CATEGORIAS, API_KEY,
 )
 from utils.ai_client import ai_complete
+from utils.contexto_ecofiver import ctx_seo_ml
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -822,18 +823,16 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
     desc_ctx = (base.descripcion or "")[:500]
 
     prompt = (
-        f"Sos especialista en publicaciones de MercadoLibre Argentina para la empresa EcoFiver "
-        f"(fabricante de piscinas de fibra de vidrio, módulos habitacionales y accesorios, "
-        f"fabricados en Zárate, Buenos Aires).\n\n"
+        ctx_seo_ml(tipo_producto=tipo_label, modelo=base.modelo_nombre or "", descripcion_existente=desc_ctx)
+        + f"\n\n════════════════════════════════════════════\n"
+        f"TAREA: Generá {n} títulos alternativos para MercadoLibre.\n"
+        f"════════════════════════════════════════════\n\n"
         f"Producto: {tipo_label}.{modelo_ctx}\n"
-        f"Título actual: {base.titulo}\n"
+        f"Título actual (NO repetir): {base.titulo}\n"
         + (f"Descripción de referencia: {desc_ctx}\n\n" if desc_ctx else "\n")
-        + f"Generá {n} títulos alternativos DISTINTOS entre sí y distintos del título actual, "
-        f"optimizados para el buscador de MercadoLibre:\n"
-        f"- Máximo 60 caracteres cada uno\n"
-        f"- Sin comas, guiones, pipes, signos ni mayúsculas sostenidas\n"
-        f"- Variá el orden de las palabras clave y usá sinónimos válidos "
-        f"(pileta/piscina, fibra/fibra de vidrio, modular/prefabricado, etc.)\n"
+        + f"Reglas adicionales:\n"
+        f"- Los {n} títulos deben ser DISTINTOS entre sí y distintos del título actual\n"
+        f"- Variá el orden de palabras clave y usá sinónimos válidos (pileta/piscina, modular/prefabricado)\n"
         f"- TODOS deben referirse exactamente a este producto — no inventes características ni modelos distintos\n"
         f"- Usá keywords longtail al comienzo para SEO\n\n"
         f"Devolvé EXCLUSIVAMENTE un JSON array con {n} strings, sin texto extra:\n"

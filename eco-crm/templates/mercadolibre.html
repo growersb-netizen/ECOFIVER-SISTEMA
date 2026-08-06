@@ -772,6 +772,38 @@
         </button>
       </div>
       <div id="cfg-desc-resultado" style="margin-top:10px;font-size:12px;color:var(--text-secondary)"></div>
+
+      <!-- ── Agregar texto adicional por tipo ── -->
+      <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">📦 Agregar texto a publicaciones por tipo</div>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+          Agrega un bloque de texto al inicio o fin de la descripción en ML, solo para los tipos seleccionados.
+          Útil para: zonas de instalación, opciones de envío, novedades de temporada.
+        </p>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label" style="font-size:12px">Texto a agregar</label>
+          <textarea id="cfg-texto-tipo" class="input" rows="3" style="resize:vertical;font-size:12px"
+            placeholder="Ej: Instalamos en toda la provincia de Buenos Aires. Para el resto del país, enviamos kit autoinstalable por Vía Cargo."></textarea>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;font-size:13px">
+          <label style="font-weight:600;margin-bottom:4px;display:block;width:100%">Tipos de publicación:</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-MODULO" value="MODULO"> Módulos habitacionales</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-MINIPISCINA" value="MINIPISCINA"> Minipiscinas</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-HIDROMASAJE" value="HIDROMASAJE"> Hidromasajes / Jacuzzis</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-PISCINA" value="PISCINA"> Piscinas</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="cfg-tipo-COMBO" value="COMBO"> Combos</label>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="cfg-texto-posicion" class="input" style="max-width:180px;font-size:13px">
+            <option value="fin">Agregar al final</option>
+            <option value="inicio">Agregar al inicio</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" id="btn-aplicar-texto-tipo" onclick="aplicarTextoTipo()">
+            ➕ Aplicar texto a seleccionados
+          </button>
+        </div>
+        <div id="cfg-texto-tipo-resultado" style="margin-top:8px;font-size:12px;color:var(--text-secondary)"></div>
+      </div>
     </div>
 
   </div>
@@ -1669,14 +1701,16 @@ async function actualizarDescripcionesML() {
           clearInterval(_descJobInterval);
           _descJobInterval = null;
           _descJobId = null;
-          let html = `✅ Listo: <strong>${job.ok}</strong> actualizadas, <strong>${job.error}</strong> errores de ${job.total}.`;
-          if (job.error > 0 && job.detalles) {
-            const errs = job.detalles.filter(d => d.status !== 'ok').slice(0, 5);
-            html += `<br><small style="color:#c00">Errores: ${errs.map(e => escHtml(e.item_id + ': ' + e.status)).join(' | ')}</small>`;
+          const nOk  = job.ok  ?? 0;
+          const nErr = job.error ?? 0;
+          const nTot = job.total ?? 0;
+          let html = `✅ Listo: <strong>${nOk}</strong> actualizadas, <strong>${nErr}</strong> errores de ${nTot}.`;
+          if (nErr > 0 && job.errores_detalle && job.errores_detalle.length) {
+            html += `<br><small style="color:#c00">Errores: ${job.errores_detalle.slice(0, 5).map(e => escHtml(e.item_id + ': ' + e.status)).join(' | ')}</small>`;
           }
           res.innerHTML = html;
-          if (job.ok > 0)    showToast(`✓ ${job.ok} descripciones actualizadas en ML`, 'success');
-          if (job.error > 0) showToast(`${job.error} publicaciones con error`, 'error');
+          if (nOk  > 0) showToast(`✓ ${nOk} descripciones actualizadas en ML`, 'success');
+          if (nErr > 0) showToast(`${nErr} publicaciones con error`, 'error');
           btn.disabled = false;
           btn.textContent = '🔄 Aplicar a publicaciones existentes';
         }
@@ -1693,6 +1727,67 @@ async function actualizarDescripcionesML() {
     showToast('Error: ' + e.message, 'error');
     btn.disabled = false;
     btn.textContent = '🔄 Aplicar a publicaciones existentes';
+  }
+}
+
+// ── Agregar texto por tipo de producto ──────────────────────────────────────
+let _textoTipoJobId = null;
+let _textoTipoInterval = null;
+
+async function aplicarTextoTipo() {
+  const texto = (document.getElementById('cfg-texto-tipo').value || '').trim();
+  if (!texto) { showToast('Escribí el texto a agregar', 'warning'); return; }
+
+  const tipos = ['MODULO','MINIPISCINA','HIDROMASAJE','PISCINA','COMBO']
+    .filter(t => document.getElementById('cfg-tipo-' + t)?.checked);
+  if (!tipos.length) { showToast('Seleccioná al menos un tipo de producto', 'warning'); return; }
+
+  const posicion = document.getElementById('cfg-texto-posicion').value;
+  const btn = document.getElementById('btn-aplicar-texto-tipo');
+  const res = document.getElementById('cfg-texto-tipo-resultado');
+  btn.disabled = true;
+  res.textContent = 'Iniciando...';
+
+  try {
+    const data = await API.post('/api/ml/publicaciones/aplicar-texto-tipo', { tipos, texto, posicion });
+
+    if (data.status === 'done' || !data.job_id) {
+      res.textContent = data.msg || `✅ Listo: ${data.ok ?? 0} actualizadas de ${data.total ?? 0}.`;
+      btn.disabled = false;
+      return;
+    }
+
+    _textoTipoJobId = data.job_id;
+    res.textContent = `Procesando 0/${data.total}...`;
+
+    _textoTipoInterval = setInterval(async () => {
+      try {
+        const job = await API.get(`/api/ml/publicaciones/actualizar-descripcion-lote/estado/${_textoTipoJobId}`);
+        const pct = job.total > 0 ? Math.round((job.procesados / job.total) * 100) : 0;
+        res.textContent = `Procesando ${job.procesados}/${job.total} (${pct}%)...`;
+
+        if (job.status === 'done') {
+          clearInterval(_textoTipoInterval);
+          _textoTipoJobId = null;
+          const nOk = job.ok ?? 0, nErr = job.error ?? 0;
+          res.innerHTML = `✅ Listo: <strong>${nOk}</strong> actualizadas, <strong>${nErr}</strong> errores de ${job.total ?? 0}.`;
+          if (nErr > 0 && job.errores_detalle?.length)
+            res.innerHTML += `<br><small style="color:#c00">${job.errores_detalle.slice(0,3).map(e => escHtml(e.item_id + ': ' + e.status)).join(' | ')}</small>`;
+          if (nOk > 0) showToast(`✓ ${nOk} descripciones actualizadas en ML`, 'success');
+          if (nErr > 0) showToast(`${nErr} errores`, 'error');
+          btn.disabled = false;
+        }
+      } catch(e) {
+        clearInterval(_textoTipoInterval);
+        res.textContent = 'Error al consultar estado: ' + e.message;
+        btn.disabled = false;
+      }
+    }, 2000);
+
+  } catch(e) {
+    res.textContent = 'Error: ' + e.message;
+    showToast('Error: ' + e.message, 'error');
+    btn.disabled = false;
   }
 }
 
@@ -3006,14 +3101,11 @@ function bibToggleFotoEnSet(fotoId) {
 
 function bibRenderSetSeleccionadas() {
   const cont = document.getElementById('bib-set-seleccionadas');
-  const vacio = document.getElementById('bib-set-vacio');
   if (!_bibSetFotosIds.length) {
-    cont.innerHTML = '';
-    cont.appendChild(document.getElementById('bib-set-vacio'));
-    vacio.style.display = '';
+    // Usar innerHTML para evitar el bug de getElementById después de limpiar el DOM
+    cont.innerHTML = '<span id="bib-set-vacio" style="color:var(--text-secondary);font-size:13px;align-self:center">Ninguna foto seleccionada todavía</span>';
     return;
   }
-  vacio.style.display = 'none';
   cont.innerHTML = _bibSetFotosIds.map((id, i) => {
     const f = _bibFotos.find(x => x.id === id);
     if (!f) return '';

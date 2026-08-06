@@ -21,6 +21,7 @@ from database.models import ContenidoEcopost, EcopostReferencia, Usuario, MetaPa
 from routers.auth import require_auth, get_user_roles
 from routers.configuracion import get_config_value
 from utils.ai_client import ai_complete, get_active_provider
+from utils.contexto_ecofiver import ctx_redes_sociales, ctx_empresa
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -374,20 +375,15 @@ async def api_generar_copy(
     }
     tipo_str = tipos_desc.get(body.tipo, body.tipo)
 
-    prompt = f"""Sos copywriter experto en marketing de EcoFiver, empresa argentina de Zárate, Buenos Aires.
+    prompt = f"""{ctx_redes_sociales(tipo_contenido=tipo_str, producto=body.producto, modelo=body.modelo or "")}
 
-CONTEXTO DE LA EMPRESA:
-- Fabrica piscinas de fibra de vidrio llave en mano (fabricación + transporte + instalación incluida)
-- Módulos habitacionales y viviendas modulares wood frame
-- Accesorios: reposeras de fibra, quinchos prefabricados, cuchas para perro, iluminación para piscinas
-- Hidromasajes y jacuzzis también disponibles
-- Diferencial: fábrica propia, instalación incluida, financiación propia en cuotas
+════════════════════════════════════════════
+TAREA: Escribí copy para redes sociales — formato {tipo_str}
+════════════════════════════════════════════
 
-Escribís siempre en castellano de Argentina. Tono cálido, cercano y profesional: hablás de vos a vos, generás confianza sin ser informal ni usar lunfardo.
-Escribí copy para redes sociales (formato {tipo_str}):
 - Producto: {body.producto}
-- Modelo / variante: {body.modelo or 'genérico'}
-- Info adicional: {body.descripcion_extra or 'ninguna'}
+- Modelo / variante: {body.modelo or "genérico"}
+- Info adicional: {body.descripcion_extra or "ninguna"}
 - Tono pedido: {body.tono}
 
 Respondé SOLO con este formato exacto, sin texto adicional:
@@ -1031,28 +1027,33 @@ async def api_planificador_generar(
     prods_str = ", ".join(body.productos)
     tipos = ["flyer", "story", "carrusel", "reel"]
 
-    prompt = f"""Sos un experto en marketing digital para EcoFiver, empresa argentina de Zárate, Buenos Aires que vende piscinas de fibra de vidrio, módulos habitacionales y viviendas modulares wood frame.
+    prompt = f"""{ctx_redes_sociales(tipo_contenido="plan de contenido para redes sociales")}
 
-Generá un plan de contenido para redes sociales de exactamente {body.dias} posts, distribuidos para las redes: {redes_str}.
-Productos a promocionar: {prods_str}.
-Tono: {body.tono}.
+════════════════════════════════════════════
+TAREA: Plan de contenido — {body.dias} posts
+════════════════════════════════════════════
+
+Redes: {redes_str}
+Productos a promocionar: {prods_str}
+Tono: {body.tono}
 
 Para cada post incluí:
 - dia: número del día (1 a {body.dias})
 - red: la red social (una de: {redes_str})
 - tipo: flyer, story, carrusel o reel
-- producto: PISCINA, MODULO o COMBO
+- producto: PISCINA, MODULO, HIDROMASAJE o COMBO
 - titulo: título del post (máx 80 caracteres, castellano argentino)
-- copy: texto del post con emojis (2-3 frases, castellano argentino)
+- copy: texto del post con emojis (2-3 frases, castellano argentino rioplatense)
 - hashtags: 5-8 hashtags separados por espacio
-- prompt_imagen: descripción para generar la imagen con IA (en inglés, detallado, fotorrealista)
+- prompt_imagen: descripción para generar la imagen con IA (en inglés, detallado, fotorrealista, mostrando el producto real)
 
-Reglas:
-- Variá los tipos de contenido y los productos
-- Incluí siempre contenido de verano (piscinas) y de vivienda
-- Día 1 empezá con algo de alto impacto visual
+Reglas de distribución:
+- Día 1 empezá con alto impacto visual (piscina instalada, módulo terminado)
+- Variá los tipos de contenido y los productos a lo largo del plan
+- Incluí al menos 1 post educativo (comparar fibra vs hormigón, autoportante vs enterrada, etc.)
+- Incluí al menos 1 post de prueba social (cliente, resultado de instalación)
 - Repartí proporcionalmente entre las redes
-- Castellano rioplatense, nada de "usted" ni español neutro
+- Nunca prometás precios ni plazos exactos en el copy
 
 Respondé SOLO con un JSON válido, sin texto adicional:
 {{"plan": [

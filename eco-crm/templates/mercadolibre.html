@@ -607,46 +607,53 @@
 
 <!-- Modal: aplicar set a publicaciones -->
 <div class="modal-overlay" id="modal-bib-aplicar" style="display:none">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:580px">
     <div class="modal-header">
       <span class="modal-title">🚀 Aplicar set a publicaciones</span>
       <button class="btn btn-icon" onclick="closeModal('modal-bib-aplicar')">✕</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="padding-bottom:0">
       <input type="hidden" id="bib-aplicar-set-id">
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px" id="bib-aplicar-info"></p>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px" id="bib-aplicar-info"></p>
 
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom:10px">
         <label class="form-label">Modo de aplicación</label>
-        <select class="input" id="bib-aplicar-modo">
-          <option value="reemplazar">🔄 Reemplazar — sustituir TODAS las fotos actuales por las del set</option>
-          <option value="agregar_inicio">⬆️ Agregar al inicio — el set aparece primero, luego las existentes</option>
-          <option value="agregar_fin">⬇️ Agregar al final — el set se suma después de las existentes</option>
+        <select class="input" id="bib-aplicar-modo" style="font-size:13px">
+          <option value="reemplazar">🔄 Reemplazar — sustituir TODAS las fotos por las del set</option>
+          <option value="agregar_inicio">⬆️ Agregar al inicio — el set va primero</option>
+          <option value="agregar_fin">⬇️ Agregar al final — el set se suma al final</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Filtrar por tipo de producto <small style="color:var(--text-secondary)">(vacío = todas las publicaciones activas)</small></label>
-        <select class="input" id="bib-aplicar-filtro">
-          <option value="">Todas las publicaciones activas</option>
-          <option value="PISCINA">Solo piscinas</option>
-          <option value="MINIPISCINA">Solo minipiscinas</option>
-          <option value="HIDROMASAJE">Solo hidromasajes</option>
-          <option value="MODULO">Solo viviendas modulares</option>
-          <option value="MODULO_DEPOSITO">Solo módulos depósito</option>
-          <option value="COMBO">Solo combos</option>
-        </select>
+
+      <!-- Selector de publicaciones -->
+      <div id="bib-aplicar-selector">
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+          <input id="bib-aplicar-buscar" class="input" placeholder="🔍 Buscar en título..."
+            oninput="filtrarBibAplicar()" style="flex:1;font-size:13px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer">
+            <input type="checkbox" id="bib-aplicar-todos" onchange="selBibAplicarTodos(this)"> Todas
+          </label>
+        </div>
+        <div id="bib-aplicar-count" style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">Cargando...</div>
+        <div id="bib-aplicar-lista" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+          <div class="loading" style="padding:20px">Cargando publicaciones...</div>
+        </div>
       </div>
-      <div id="bib-aplicar-progreso" style="display:none">
+
+      <!-- Progreso (se muestra al aplicar) -->
+      <div id="bib-aplicar-progreso" style="display:none;margin-top:10px">
         <div style="background:var(--bg-secondary);border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden">
           <div id="bib-aplicar-bar" style="height:100%;background:var(--primary);transition:width 0.5s;width:0%"></div>
         </div>
         <div id="bib-aplicar-status" style="font-size:13px;margin-bottom:4px"></div>
-        <div id="bib-aplicar-errores" style="font-size:12px;color:#ef4444;max-height:80px;overflow-y:auto"></div>
+        <div id="bib-aplicar-errores" style="font-size:12px;color:#ef4444;max-height:60px;overflow-y:auto"></div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="btn-bib-aplicar-cancel" onclick="closeModal('modal-bib-aplicar')">Cancelar</button>
-      <button class="btn btn-primary" id="btn-bib-aplicar-ok" onclick="bibConfirmarAplicar()">🚀 Aplicar ahora</button>
+      <button class="btn btn-primary" id="btn-bib-aplicar-ok" onclick="bibConfirmarAplicar()" disabled>
+        🚀 Aplicar a 0 publicaciones
+      </button>
     </div>
   </div>
 </div>
@@ -3281,35 +3288,128 @@ async function bibEliminarSet(id) {
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
+// ── Aplicar set — estado del selector de publicaciones ──────────────────
+let _bibAplicarPubsData = [];   // [{item_id, titulo, estado_ml}, ...]
+let _bibAplicarPubsSel  = new Set(); // item_ids seleccionados
+
+function _renderBibAplicarLista(filtro) {
+  const lista = document.getElementById('bib-aplicar-lista');
+  const q = (filtro || '').toLowerCase();
+  const visibles = q
+    ? _bibAplicarPubsData.filter(p => p.titulo.toLowerCase().includes(q))
+    : _bibAplicarPubsData;
+
+  if (!visibles.length) {
+    lista.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size:13px">Sin resultados</div>';
+    document.getElementById('bib-aplicar-count').textContent = '0 publicaciones';
+    return;
+  }
+
+  lista.innerHTML = visibles.map(p => {
+    const checked = _bibAplicarPubsSel.has(p.item_id) ? 'checked' : '';
+    const badge = p.estado_ml === 'active'
+      ? '<span style="color:#22c55e;font-size:11px">● activa</span>'
+      : `<span style="color:#94a3b8;font-size:11px">● ${escHtml(p.estado_ml||'')}</span>`;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer">
+      <input type="checkbox" ${checked} onchange="toggleBibAplicarPub('${escHtml(p.item_id)}', this.checked)">
+      <span style="flex:1;font-size:13px">${escHtml(p.titulo)}</span>
+      ${badge}
+    </label>`;
+  }).join('');
+
+  const sel = visibles.filter(p => _bibAplicarPubsSel.has(p.item_id)).length;
+  document.getElementById('bib-aplicar-count').textContent =
+    `${visibles.length} publicaciones${sel ? ` · ${sel} seleccionadas` : ''}`;
+}
+
+function filtrarBibAplicar() {
+  const q = document.getElementById('bib-aplicar-buscar').value;
+  _renderBibAplicarLista(q);
+}
+
+function toggleBibAplicarPub(itemId, checked) {
+  if (checked) _bibAplicarPubsSel.add(itemId);
+  else         _bibAplicarPubsSel.delete(itemId);
+  _actualizarBtnBibAplicar();
+  // re-render count sin perder el scroll
+  const q = document.getElementById('bib-aplicar-buscar').value;
+  const visibles = q
+    ? _bibAplicarPubsData.filter(p => p.titulo.toLowerCase().includes(q.toLowerCase()))
+    : _bibAplicarPubsData;
+  const sel = visibles.filter(p => _bibAplicarPubsSel.has(p.item_id)).length;
+  document.getElementById('bib-aplicar-count').textContent =
+    `${visibles.length} publicaciones${_bibAplicarPubsSel.size ? ` · ${_bibAplicarPubsSel.size} seleccionadas` : ''}`;
+  // sync "Todas"
+  document.getElementById('bib-aplicar-todos').checked =
+    visibles.length > 0 && visibles.every(p => _bibAplicarPubsSel.has(p.item_id));
+}
+
+function selBibAplicarTodos(chk) {
+  const q = document.getElementById('bib-aplicar-buscar').value;
+  const visibles = q
+    ? _bibAplicarPubsData.filter(p => p.titulo.toLowerCase().includes(q.toLowerCase()))
+    : _bibAplicarPubsData;
+  visibles.forEach(p => {
+    if (chk.checked) _bibAplicarPubsSel.add(p.item_id);
+    else             _bibAplicarPubsSel.delete(p.item_id);
+  });
+  _renderBibAplicarLista(q);
+  _actualizarBtnBibAplicar();
+}
+
+function _actualizarBtnBibAplicar() {
+  const btn = document.getElementById('btn-bib-aplicar-ok');
+  const n = _bibAplicarPubsSel.size;
+  btn.textContent = `🚀 Aplicar a ${n} publicación${n !== 1 ? 'es' : ''}`;
+  btn.disabled = (n === 0);
+}
+
 // ── Aplicar set ─────────────────────────────────────────────────────────
-function bibOpenAplicarSet(id) {
+async function bibOpenAplicarSet(id) {
   const s = _bibSets.find(x => x.id === id);
   if (!s) return;
   document.getElementById('bib-aplicar-set-id').value = id;
   document.getElementById('bib-aplicar-info').textContent =
     `Set: "${s.nombre}" (${s.total_fotos} foto${s.total_fotos !== 1 ? 's' : ''})`;
   document.getElementById('bib-aplicar-modo').value = 'reemplazar';
-  document.getElementById('bib-aplicar-filtro').value = s.tipo_producto || '';
   document.getElementById('bib-aplicar-progreso').style.display = 'none';
   document.getElementById('btn-bib-aplicar-ok').style.display = '';
   document.getElementById('btn-bib-aplicar-cancel').textContent = 'Cancelar';
+  document.getElementById('bib-aplicar-buscar').value = '';
+  document.getElementById('bib-aplicar-todos').checked = false;
+  _bibAplicarPubsSel = new Set();
+  _actualizarBtnBibAplicar();
   openModal('modal-bib-aplicar');
+
+  // cargar publicaciones (reusar _textoPubsData si ya fue cargada)
+  const lista = document.getElementById('bib-aplicar-lista');
+  lista.innerHTML = '<div class="loading" style="padding:20px">Cargando publicaciones...</div>';
+  document.getElementById('bib-aplicar-count').textContent = 'Cargando...';
+  try {
+    const pubs = await API.get('/api/ml/publicaciones/con-item-id');
+    _bibAplicarPubsData = pubs;
+    _renderBibAplicarLista('');
+  } catch(e) {
+    lista.innerHTML = `<div style="padding:20px;color:#ef4444;font-size:13px">Error al cargar publicaciones: ${escHtml(e.message)}</div>`;
+  }
 }
 
 async function bibConfirmarAplicar() {
-  const id     = document.getElementById('bib-aplicar-set-id').value;
-  const modo   = document.getElementById('bib-aplicar-modo').value;
-  const filtro = document.getElementById('bib-aplicar-filtro').value;
-  const btn    = document.getElementById('btn-bib-aplicar-ok');
+  const id   = document.getElementById('bib-aplicar-set-id').value;
+  const modo = document.getElementById('bib-aplicar-modo').value;
+  const btn  = document.getElementById('btn-bib-aplicar-ok');
+  if (_bibAplicarPubsSel.size === 0) {
+    showToast('Seleccioná al menos una publicación', 'warning'); return;
+  }
   btn.disabled = true;
-  const prog   = document.getElementById('bib-aplicar-progreso');
+  const prog = document.getElementById('bib-aplicar-progreso');
   prog.style.display = '';
   document.getElementById('bib-aplicar-bar').style.width = '0%';
   document.getElementById('bib-aplicar-status').textContent = 'Iniciando...';
   document.getElementById('bib-aplicar-errores').textContent = '';
   try {
     const res = await API.post(`/api/ml/fotos/sets/${id}/aplicar`, {
-      modo, filtro_producto: filtro, item_ids: []
+      modo, item_ids: [..._bibAplicarPubsSel]
     });
     _bibApplyJobId = res.job_id;
     document.getElementById('bib-aplicar-status').textContent = `Aplicando a ${res.total} publicaciones...`;

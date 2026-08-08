@@ -702,28 +702,29 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
 
 
 def _sincronizar_pub_ml(db: Session, b: BorradorML) -> None:
-    """Crea o actualiza el registro PublicacionML cuando se publica un borrador."""
+    """Crea o actualiza el registro PublicacionML cuando se publica un borrador.
+    Nota: PublicacionML no tiene columna 'permalink' — se omite aquí.
+    """
     if not b.item_id:
         return
     try:
         pub = db.query(PublicacionML).filter(PublicacionML.item_id == b.item_id).first()
         if pub:
-            pub.titulo    = b.titulo    or pub.titulo
+            pub.titulo      = b.titulo      or pub.titulo
             pub.descripcion = b.descripcion or pub.descripcion or ""
-            pub.precio    = b.precio    or pub.precio
-            pub.permalink = b.permalink or pub.permalink or ""
-            pub.estado_ml = "active"
+            pub.precio      = b.precio      or pub.precio
+            pub.estado_ml   = "active"
         else:
             db.add(PublicacionML(
-                item_id    = b.item_id,
-                titulo     = b.titulo    or "",
-                descripcion= b.descripcion or "",
-                precio     = b.precio    or 0,
-                permalink  = b.permalink or "",
-                estado_ml  = "active",
+                item_id     = b.item_id,
+                titulo      = b.titulo      or "",
+                descripcion = b.descripcion or "",
+                precio      = b.precio      or 0,
+                estado_ml   = "active",
             ))
-    except Exception:
-        pass  # No queremos que un error de sync mate la publicación
+    except Exception as _e_sync:
+        import logging as _log
+        _log.getLogger(__name__).warning(f"[sync_pub_ml] {b.item_id}: {_e_sync}")
 
 
 @router.post("/api/ml/borradores/{bid}/publicar")

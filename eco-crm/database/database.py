@@ -171,3 +171,25 @@ def run_migrations():
                 conn.commit()
         except Exception:
             pass  # la tabla aún no existe (se crea con create_all) o ya está sembrada
+
+        # ── Backfill PublicacionML desde borradores publicados ─────────────────
+        # Copia todos los borradores con estado='publicada' e item_id que aún no
+        # tengan registro en publicaciones_ml. INSERT OR IGNORE es idempotente.
+        # Corre una sola vez al deploy; sin endpoint ni botón en la UI.
+        try:
+            conn.execute(text("""
+                INSERT OR IGNORE INTO publicaciones_ml
+                    (item_id, titulo, descripcion, precio, estado_ml)
+                SELECT
+                    b.item_id,
+                    COALESCE(b.titulo, ''),
+                    COALESCE(b.descripcion, ''),
+                    COALESCE(b.precio, 0),
+                    'active'
+                FROM borradores_ml b
+                WHERE b.item_id IS NOT NULL
+                  AND b.estado  = 'publicada'
+            """))
+            conn.commit()
+        except Exception:
+            pass  # tabla aún no creada en este arranque; create_all la crea después

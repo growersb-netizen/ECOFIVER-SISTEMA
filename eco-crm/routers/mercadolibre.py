@@ -3137,42 +3137,42 @@ async def _recalcular_precios_bg(
             })
 
         # 4. Actualizar cada borrador
-        for (lt, costo), items in grupos.items():
-            precio_correcto = precio_correcto_map.get((lt, costo), calcular_precio_ml(costo, ganancia_pct))
-            for b in items:
-                old_precio = float(b.precio or 0)
-                diff = abs(old_precio - precio_correcto)
+        # Un solo cliente HTTP reutilizado para todo el loop — evita 2000 handshakes TCP.
+        # Commits en lote cada 50 ítems — evita 2000 flushes individuales a SQLite.
+        async with httpx.AsyncClient(timeout=12) as ml_client:
+            for (lt, costo), items in grupos.items():
+                precio_correcto = precio_correcto_map.get((lt, costo), calcular_precio_ml(costo, ganancia_pct))
+                for b in items:
+                    old_precio = float(b.precio or 0)
+                    diff = abs(old_precio - precio_correcto)
 
-                if diff < 500:                         # ya está correcto (tolerancia $500)
-                    job["ya_ok"] += 1
-                    job["procesados"] += 1
-                    continue
+                    if diff < 500:                         # ya está correcto (tolerancia $500)
+                        job["ya_ok"] += 1
+                        job["procesados"] += 1
+                        continue
 
-                try:
-                    if b.item_id:                      # publicado → actualizar en ML también
-                        async with httpx.AsyncClient(timeout=10) as c2:
-                            r2 = await c2.put(
+                    try:
+                        if b.item_id:                      # publicado → actualizar en ML también
+                            r2 = await ml_client.put(
                                 f"{ML_BASE}/items/{b.item_id}",
                                 headers=_ml_headers(token),
                                 json={"price": precio_correcto},
                             )
-                        if r2.status_code in (200, 201, 204):
+                            if r2.status_code in (200, 201, 204):
+                                b.precio = precio_correcto
+                                job["ok"] += 1
+                            else:
+                                job["errores"].append(f"{b.item_id}: {r2.text[:80]}")
+                            await asyncio.sleep(0.5)       # rate-limit ML + respira el event loop
+                        else:                              # solo borrador → update DB
                             b.precio = precio_correcto
-                            db_bg.flush()
                             job["ok"] += 1
-                        else:
-                            job["errores"].append(f"{b.item_id}: {r2.text[:80]}")
-                        await asyncio.sleep(0.35)      # rate-limit ML
-                    else:                              # solo borrador → update DB
-                        b.precio = precio_correcto
-                        db_bg.flush()
-                        job["ok"] += 1
-                except Exception as e:
-                    job["errores"].append(f"bor{b.id}: {e}")
-                job["procesados"] += 1
+                    except Exception as e:
+                        job["errores"].append(f"bor{b.id}: {e}")
+                    job["procesados"] += 1
 
-                if job["procesados"] % 200 == 0:
-                    db_bg.commit()
+                    if job["procesados"] % 50 == 0:        # commit cada 50 — no por cada ítem
+                        db_bg.commit()
 
         db_bg.commit()
     except Exception as e:

@@ -322,18 +322,14 @@ _NUMERIC_ATTRS = {"CAPACITY", "VOLUME_CAPACITY", "LENGTH", "WIDTH", "HEIGHT",
 # El predictor automático usa el TÍTULO (ej. "autoportante" → automotores, "módulo" → software).
 # Estas categorías se usan siempre que el producto esté en este dict — sin consultar el predictor.
 CATEGORIAS_FIJAS: dict = {
-    "PISCINA":          ("MLA373513", "Piletas de Fibra"),
-    "MINIPISCINA":      ("MLA373513", "Piletas de Fibra"),
-    "COMBO":            ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "MODULO":           ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "MODULO_DEPOSITO":  ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    # Jacuzzis / hidromasajes (autoportante, miniportante, minideck, spa).
-    # ML Argentina los rechaza si van en MLA373513 (Piletas de Fibra).
-    # Verificar ID navegando en ML: Publicar → Hogar y Jardín → Piletas, Spas
-    # y Accesorios → Jacuzzis e Hidromasajes.
-    "HIDROMASAJE":      ("MLA88471", "Jacuzzis e Hidromasajes"),
-    # QUINCHO, PERGOLA, REPOSERA_FIBRA, CUCHA, ILUMINACION_PISCINA
-    # → sin categoría fija (el predictor ML maneja bien esas palabras)
+    # Solo categorías verificadas en producción con ML Argentina.
+    # Las de tipo "classified" se mantienen porque el flow de auto-retry depende de ellas.
+    "COMBO":           ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "MODULO":          ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "MODULO_DEPOSITO": ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    # HIDROMASAJE, PISCINA, MINIPISCINA: no tienen fija → se usa el predictor ML
+    # (domain_discovery/search devuelve IDs reales y actuales de MLA)
+    # Para asignar manualmente: usar 🔍 "Buscar categoría ML" en el editor de borrador.
 }
 
 # Categorías de ML que solo admiten buying_mode="classified" (viviendas, inmuebles, construcción).
@@ -1091,7 +1087,8 @@ async def reparar_categorias(
     Específicamente corrige MLA9226 que ML rechaza con HTTP 400.
     """
     _auth(x_api_key, current_user)
-    INVALIDAS = {"MLA9226"}  # IDs conocidos como inexistentes en ML Argentina
+    # IDs verificados como inexistentes o incorrectos en ML Argentina:
+    INVALIDAS = {"MLA9226", "MLA88471", "MLA1647"}
     borradores = (
         db.query(BorradorML)
         .filter(BorradorML.categoria.in_(INVALIDAS))
@@ -1106,11 +1103,156 @@ async def reparar_categorias(
     return {
         "ok": True,
         "actualizados": actualizados,
+        "invalidas_buscadas": list(INVALIDAS),
         "mensaje": (
-            f"{actualizados} borradores reparados (categoría MLA9226 → vacío). "
-            "Al publicar se usará automáticamente MLA88471 (Jacuzzis e Hidromasajes) "
-            "para producto HIDROMASAJE, o el predictor de ML para otros tipos."
+            f"{actualizados} borradores limpiados. "
+            "Al publicar, el predictor de ML (domain_discovery) asignará "
+            "la categoría correcta según el título. "
+            "También podés asignar manualmente con '🔍 Buscar categoría ML'."
         ),
+    }
+
+
+@router.get("/api/ml/categorias/buscar")
+async def buscar_categorias_ml(
+    q: str,
+    db: Session = Depends(get_db),
+    x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Busca categorías reales de ML Argentina usando domain_discovery.
+    Devuelve IDs y nombres verificados — nada se adivina.
+    q: texto de búsqueda (ej: "hidromasaje", "pileta fibra", "casa prefabricada")
+    """
+    _auth(x_api_key, current_user)
+    try:
+        tok = await _ml_valid_token(db)
+        async with httpx.AsyncClient(timeout=12) as hc:
+            r = await hc.get(
+                f"{ML_BASE}/sites/MLA/domain_discovery/search",
+                params={"q": q, "limit": 8},
+                headers=_ml_headers(tok),
+            )
+        if r.status_code != 200:
+            return {"ok": False, "error": f"ML respondió {r.status_code}: {r.text[:200]}", "resultados": []}
+        items = r.json() or []
+        resultados = []
+        for item in items:
+            cat_id   = item.get("category_id", "")
+            cat_name = item.get("category_name", "")
+            # Verificar que la categoría existe y obtener nombre oficial
+            if cat_id and not cat_name:
+                try:
+                    rr = await hc.get(f"{ML_BASE}/categories/{cat_id}", headers=_ml_headers(tok))
+                    if rr.status_code == 200:
+                        cat_name = rr.json().get("name", "")
+                except Exception:
+                    pass
+            if cat_id:
+                resultados.append({
+                    "id":     cat_id,
+                    "nombre": cat_name or item.get("domain_name", ""),
+                    "dominio": item.get("domain_id", ""),
+                })
+        return {"ok": True, "resultados": resultados}
+    except Exception as ex:
+        return {"ok": False, "error": str(ex), "resultados": []}
+
+
+@router.get("/api/ml/categorias/navegar")
+async def navegar_categorias_ml(
+    id: Optional[str] = None,
+    x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Navega el árbol de categorías de ML Argentina.
+    id=None → categorías de primer nivel (top-level).
+    id=MLA1234 → hijos de esa categoría.
+    Usa la API pública de ML (no requiere token, pero lo usa si está disponible).
+    """
+    _auth(x_api_key, current_user)
+    try:
+        # La API de categorías ML es pública — no requiere token
+        async with httpx.AsyncClient(timeout=12) as hc:
+            if id:
+                r = await hc.get(f"{ML_BASE}/categories/{id}")
+                if r.status_code != 200:
+                    return {"ok": False, "error": f"Categoría {id}: {r.status_code}", "categorias": []}
+                data  = r.json()
+                hijos = data.get("children_categories") or []
+                return {
+                    "ok":        True,
+                    "actual":    {"id": data.get("id"), "nombre": data.get("name")},
+                    "categorias": [{"id": c["id"], "nombre": c["name"]} for c in hijos],
+                    "es_hoja":   len(hijos) == 0,
+                }
+            else:
+                r = await hc.get(f"{ML_BASE}/sites/MLA/categories")
+                if r.status_code != 200:
+                    return {"ok": False, "error": f"ML {r.status_code}", "categorias": []}
+                cats = r.json() or []
+                return {
+                    "ok":        True,
+                    "actual":    None,
+                    "categorias": [{"id": c["id"], "nombre": c["name"]} for c in cats],
+                    "es_hoja":   False,
+                }
+    except Exception as ex:
+        return {"ok": False, "error": str(ex), "categorias": []}
+
+
+@router.post("/api/ml/borradores/asignar-categoria")
+async def asignar_categoria_bulk(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Asigna una categoría ML a todos los borradores que coincidan con el filtro.
+    Body:
+      categoria        ID de categoría ML (obligatorio)
+      categoria_nombre Nombre descriptivo para mostrar
+      ids              Lista de IDs de borradores (si se da, ignora filtro_producto)
+      filtro_producto  Tipo de producto (ej: "HIDROMASAJE") — aplica a todos los de ese tipo
+      filtro_estado    Solo borradores en este estado (default: todos excepto publicada)
+    """
+    _auth(x_api_key, current_user)
+    data      = await request.json()
+    categoria       = (data.get("categoria") or "").strip()
+    categoria_nombre = (data.get("categoria_nombre") or "").strip()
+    ids_lista       = data.get("ids")       # lista de int
+    filtro_producto  = (data.get("filtro_producto") or "").strip().upper()
+    filtro_estado    = (data.get("filtro_estado") or "").strip()
+
+    if not categoria:
+        raise HTTPException(400, "Debés indicar una categoría ML (campo 'categoria').")
+
+    q = db.query(BorradorML).filter(BorradorML.estado != "publicada")
+    if ids_lista:
+        q = db.query(BorradorML).filter(BorradorML.id.in_(ids_lista))
+    elif filtro_producto:
+        q = q.filter(BorradorML.producto == filtro_producto)
+    if filtro_estado:
+        q = q.filter(BorradorML.estado == filtro_estado)
+
+    borradores  = q.all()
+    actualizados = len(borradores)
+    for b in borradores:
+        b.categoria       = categoria
+        b.categoria_nombre = categoria_nombre
+    if actualizados:
+        db.commit()
+
+    return {
+        "ok":          True,
+        "actualizados": actualizados,
+        "categoria":    categoria,
+        "categoria_nombre": categoria_nombre,
+        "mensaje": f"{actualizados} borradores actualizados con categoría {categoria} ({categoria_nombre}).",
     }
 
 

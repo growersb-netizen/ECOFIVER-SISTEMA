@@ -184,8 +184,12 @@
             <option value="gold_pro">Premium (habilita cuotas sin interés)</option>
           </select></div>
         <div class="form-group">
-          <label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(se completa automáticamente según el tipo de producto)</small></label>
-          <input class="input" id="mp-cat" placeholder="auto" onchange="borActualizarPrecioSugerido();document.getElementById('mp-cat-nombre').textContent=''">
+          <label class="form-label">Categoría ML <small style="color:var(--text-secondary)">(vacío = predictor automático al publicar)</small></label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="input" id="mp-cat" placeholder="vacío = auto" style="flex:1;font-family:monospace;font-size:13px" onchange="borActualizarPrecioSugerido();document.getElementById('mp-cat-nombre').textContent=''">
+            <button type="button" class="btn btn-sm" onclick="abrirBuscadorCategoria()" title="Busca categorías reales de MercadoLibre Argentina" style="white-space:nowrap;background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a">🔍 Buscar en ML</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="detectarCategoriaEditando()" title="Usa el predictor de ML para detectar la categoría según el título actual">⚡ Detectar</button>
+          </div>
           <div id="mp-cat-nombre" style="font-size:12px;color:#22c55e;margin-top:3px"></div>
         </div>
       </div>
@@ -483,6 +487,84 @@
     <div id="bib-sets-lista"><div class="loading">Cargando...</div></div>
   </div>
 
+</div>
+
+<!-- Modal: Buscador de categorías ML -->
+<div class="modal-overlay" id="modal-cat-ml" style="display:none">
+  <div class="modal" style="max-width:640px;width:96vw">
+    <div class="modal-header">
+      <h3>🔍 Buscar categoría en MercadoLibre Argentina</h3>
+      <button class="btn btn-icon" onclick="closeModal('modal-cat-ml')">✕</button>
+    </div>
+    <div style="padding:16px">
+      <!-- Búsqueda por predictor ML -->
+      <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:600;margin-bottom:8px">⚡ Predictor de ML — detecta por palabras clave</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+          ML Argentina detecta la categoría más adecuada según el término que escribas.
+          Estos IDs son reales y verificados por la API oficial de MercadoLibre.
+        </div>
+        <div style="display:flex;gap:8px">
+          <input class="input" id="cat-buscar-q" placeholder='ej: "hidromasaje", "pileta fibra", "casa prefabricada"' style="flex:1" onkeydown="if(event.key==='Enter')buscarCategoriasML()">
+          <button class="btn btn-sm" onclick="buscarCategoriasML()" style="white-space:nowrap">🔍 Buscar</button>
+        </div>
+        <div id="cat-buscar-resultado" style="margin-top:10px;min-height:30px"></div>
+      </div>
+
+      <!-- Navegador del árbol -->
+      <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:14px">
+        <div style="font-weight:600;margin-bottom:8px">🗂️ Navegar árbol de categorías de MercadoLibre</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+          Explorá el árbol oficial de categorías de ML Argentina para encontrar la exacta.
+        </div>
+        <div id="cat-nav-breadcrumb" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;min-height:16px"></div>
+        <div id="cat-nav-lista" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+          <div style="color:var(--text-secondary);font-size:13px">
+            <button class="btn btn-sm btn-secondary" onclick="navCategorias(null)">Cargar categorías de ML</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acción bulk -->
+      <div id="cat-seleccionada-box" style="display:none;margin-top:14px;background:#1a2a1a;border:1px solid #2d5a2d;border-radius:8px;padding:14px">
+        <div style="font-weight:600;color:#4CAF50;margin-bottom:6px">✅ Categoría seleccionada</div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div>
+            <div style="font-family:monospace;font-size:14px" id="cat-sel-id">—</div>
+            <div style="font-size:13px;color:var(--text-secondary)" id="cat-sel-nombre">—</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
+            <button class="btn btn-sm btn-secondary" onclick="aplicarCatAlEditing()" title="Aplica solo al borrador que tenés abierto en el editor">📝 Al borrador actual</button>
+            <button class="btn btn-sm btn-secondary" onclick="abrirAplicarBulk()" title="Aplica a todos los borradores de un tipo de producto">📦 Aplicar a todos…</button>
+          </div>
+        </div>
+        <!-- Bulk apply -->
+        <div id="cat-bulk-box" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #2d5a2d">
+          <div style="font-size:13px;margin-bottom:8px">Aplicar a todos los borradores de tipo:</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select class="input" id="cat-bulk-tipo" style="flex:1;max-width:220px">
+              <option value="">— Elegir tipo —</option>
+              <option value="HIDROMASAJE">HIDROMASAJE (jacuzzis y spas)</option>
+              <option value="PISCINA">PISCINA</option>
+              <option value="MINIPISCINA">MINIPISCINA</option>
+              <option value="MODULO">MODULO (casas prefabricadas)</option>
+              <option value="MODULO_DEPOSITO">MODULO_DEPOSITO</option>
+              <option value="COMBO">COMBO</option>
+              <option value="REPOSERA_FIBRA">REPOSERA_FIBRA</option>
+              <option value="BANERA">BANERA</option>
+              <option value="RECEPTACULO">RECEPTACULO</option>
+            </select>
+            <select class="input" id="cat-bulk-estado" style="flex:1;max-width:180px">
+              <option value="">Todos los estados</option>
+              <option value="borrador">Solo borradores</option>
+              <option value="error">Solo con error</option>
+            </select>
+            <button class="btn btn-sm" onclick="aplicarCatBulk()" style="background:#1a3a1a;color:#4CAF50;border-color:#2d5a2d">⚡ Aplicar a todos</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Modal: subir foto con metadatos -->
@@ -2824,6 +2906,171 @@ async function borRepararCategorias() {
     }
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
+  }
+}
+
+/* ─── BUSCADOR DE CATEGORÍAS ML ──────────────────────────────────────────── */
+// Estado del buscador
+let _catSelId = '';
+let _catSelNombre = '';
+let _catNavStack = [];  // historial de navegación: [{id, nombre}]
+
+function abrirBuscadorCategoria() {
+  _catSelId = '';
+  _catSelNombre = '';
+  document.getElementById('cat-buscar-q').value = '';
+  document.getElementById('cat-buscar-resultado').innerHTML = '';
+  document.getElementById('cat-seleccionada-box').style.display = 'none';
+  document.getElementById('cat-bulk-box').style.display = 'none';
+  _catNavStack = [];
+  document.getElementById('cat-nav-breadcrumb').textContent = '';
+  document.getElementById('cat-nav-lista').innerHTML =
+    '<button class="btn btn-sm btn-secondary" onclick="navCategorias(null)">Cargar categorías de ML</button>';
+  openModal('modal-cat-ml');
+}
+
+async function buscarCategoriasML() {
+  const q = document.getElementById('cat-buscar-q').value.trim();
+  if (!q) return;
+  const box = document.getElementById('cat-buscar-resultado');
+  box.innerHTML = '<span style="color:var(--text-secondary)">Consultando ML…</span>';
+  try {
+    const j = await API.get('/api/ml/categorias/buscar?q=' + encodeURIComponent(q));
+    if (!j.ok || !j.resultados?.length) {
+      box.innerHTML = '<span style="color:#ef4444">Sin resultados. Probá con otras palabras clave.</span>';
+      return;
+    }
+    box.innerHTML = j.resultados.map(r =>
+      `<button class="btn btn-sm btn-secondary" style="text-align:left;width:100%;justify-content:flex-start;margin-bottom:4px" onclick="seleccionarCategoria('${r.id}',${JSON.stringify(r.nombre)})">
+        <span style="font-family:monospace;color:#60a5fa;margin-right:8px">${r.id}</span>
+        <span>${r.nombre}</span>
+      </button>`
+    ).join('');
+  } catch(e) {
+    box.innerHTML = `<span style="color:#ef4444">Error: ${e.message}</span>`;
+  }
+}
+
+async function navCategorias(id) {
+  const lista = document.getElementById('cat-nav-lista');
+  const breadcrumb = document.getElementById('cat-nav-breadcrumb');
+  lista.innerHTML = '<span style="color:var(--text-secondary)">Cargando…</span>';
+  try {
+    const j = await API.get('/api/ml/categorias/navegar' + (id ? `?id=${id}` : ''));
+    if (!j.ok) {
+      lista.innerHTML = `<span style="color:#ef4444">${j.error || 'Error ML'}</span>`;
+      return;
+    }
+    // Actualizar breadcrumb
+    if (id && j.actual) {
+      const ya = _catNavStack.find(x => x.id === id);
+      if (!ya) _catNavStack.push({id: j.actual.id, nombre: j.actual.nombre});
+    } else if (!id) {
+      _catNavStack = [];
+    }
+    if (_catNavStack.length) {
+      breadcrumb.innerHTML = '🏠 <a href="#" onclick="navCategorias(null);return false" style="color:var(--accent)">Inicio</a> ' +
+        _catNavStack.map((x, i) =>
+          i < _catNavStack.length - 1
+            ? `› <a href="#" onclick="navCategorias('${x.id}');_catNavStack=_catNavStack.slice(0,${i+1});return false" style="color:var(--accent)">${x.nombre}</a>`
+            : `› <strong>${x.nombre}</strong>`
+        ).join(' ');
+    } else {
+      breadcrumb.textContent = '🏠 Categorías principales';
+    }
+
+    if (j.es_hoja) {
+      // Es una categoría hoja — seleccionarla directamente
+      seleccionarCategoria(j.actual.id, j.actual.nombre);
+      lista.innerHTML = `<div style="color:#4CAF50">✅ Categoría hoja seleccionada: <strong>${j.actual.nombre}</strong></div>`;
+      return;
+    }
+    if (!j.categorias?.length) {
+      lista.innerHTML = '<span style="color:var(--text-secondary)">Sin subcategorías. Podés seleccionar esta categoría:</span><br>' +
+        (j.actual ? `<button class="btn btn-sm" onclick="seleccionarCategoria('${j.actual.id}',${JSON.stringify(j.actual.nombre)})" style="margin-top:6px">✅ Usar ${j.actual.id} — ${j.actual.nombre}</button>` : '');
+      return;
+    }
+    lista.innerHTML = j.categorias.map(c =>
+      `<button class="btn btn-sm btn-secondary" style="text-align:left;width:100%;justify-content:flex-start;margin-bottom:3px" onclick="navCategorias('${c.id}')">
+        <span style="font-family:monospace;color:#60a5fa;min-width:90px;display:inline-block">${c.id}</span>
+        <span>${c.nombre}</span>
+        <span style="margin-left:auto;color:var(--text-secondary);font-size:11px">▶</span>
+      </button>`
+    ).join('');
+  } catch(e) {
+    lista.innerHTML = `<span style="color:#ef4444">Error: ${e.message}</span>`;
+  }
+}
+
+function seleccionarCategoria(id, nombre) {
+  _catSelId = id;
+  _catSelNombre = nombre;
+  document.getElementById('cat-sel-id').textContent = id;
+  document.getElementById('cat-sel-nombre').textContent = nombre;
+  document.getElementById('cat-seleccionada-box').style.display = '';
+  document.getElementById('cat-bulk-box').style.display = 'none';
+}
+
+function aplicarCatAlEditing() {
+  if (!_catSelId) return;
+  document.getElementById('mp-cat').value = _catSelId;
+  document.getElementById('mp-cat-nombre').textContent = '✓ ' + _catSelNombre;
+  closeModal('modal-cat-ml');
+  showToast(`Categoría ${_catSelId} aplicada al borrador`, 'success');
+}
+
+function abrirAplicarBulk() {
+  document.getElementById('cat-bulk-box').style.display = '';
+}
+
+async function aplicarCatBulk() {
+  if (!_catSelId) return;
+  const tipo  = document.getElementById('cat-bulk-tipo').value;
+  const estado = document.getElementById('cat-bulk-estado').value;
+  if (!tipo) { showToast('Elegí un tipo de producto primero', 'error'); return; }
+
+  const msg = `¿Aplicar categoría ${_catSelId} (${_catSelNombre}) a TODOS los borradores de tipo "${tipo}"${estado ? ` en estado "${estado}"` : ''}?\n\nEsta acción no se puede deshacer.`;
+  const ok = await showConfirm(msg, '📦 Aplicar categoría en bulk');
+  if (!ok) return;
+
+  showToast('Aplicando categoría…', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/asignar-categoria', {
+      categoria:       _catSelId,
+      categoria_nombre: _catSelNombre,
+      filtro_producto:  tipo,
+      ...(estado ? {filtro_estado: estado} : {}),
+    });
+    closeModal('modal-cat-ml');
+    borCargar();
+    showToast(`✅ ${j.actualizados} borradores actualizados con ${_catSelId}`, 'success');
+    alert(`✅ ${j.mensaje}`);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function detectarCategoriaEditando() {
+  const titulo = (document.getElementById('mp-titulo')?.value || '').trim();
+  if (!titulo) { showToast('Escribí un título primero', 'error'); return; }
+  const catInput = document.getElementById('mp-cat');
+  const catNombre = document.getElementById('mp-cat-nombre');
+  catNombre.textContent = '⏳ Detectando…';
+  catNombre.style.color = '#fbbf24';
+  try {
+    const j = await API.get('/api/ml/categoria-sugerida?titulo=' + encodeURIComponent(titulo));
+    if (j.categoria) {
+      catInput.value = j.categoria;
+      catNombre.textContent = '✓ ' + (j.nombre || j.categoria);
+      catNombre.style.color = '#22c55e';
+      showToast(`Categoría detectada: ${j.categoria}`, 'success');
+    } else {
+      catNombre.textContent = '⚠ No se detectó categoría — probá con otras palabras en el título';
+      catNombre.style.color = '#ef4444';
+    }
+  } catch(e) {
+    catNombre.textContent = 'Error: ' + e.message;
+    catNombre.style.color = '#ef4444';
   }
 }
 

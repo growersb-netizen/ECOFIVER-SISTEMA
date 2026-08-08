@@ -1499,7 +1499,7 @@ async def seed_borradores_hidromasajes(
     # ── Datos de hidromasajes ─────────────────────────────────────────────────
     modelos_data = [
         {
-            "sku": "ECOF-HIDRO-QUADRA", "modelo": "Spa Quadra", "precio": 1220000,
+            "sku": "ECOF-HIDRO-QUADRA", "modelo": "Spa Quadra", "precio": calcular_precio_ml(1_220_000),
             "titulo": "Hidromasaje Esquinero Spa Quadra 110x110 Acrílico EcoFiver",
             "descripcion": (
                 "Hidromasaje esquinero modelo Spa Quadra de EcoFiver. "
@@ -1512,7 +1512,7 @@ async def seed_borradores_hidromasajes(
             ),
         },
         {
-            "sku": "ECOF-HIDRO-RECTA", "modelo": "Spa Recta", "precio": 1520000,
+            "sku": "ECOF-HIDRO-RECTA", "modelo": "Spa Recta", "precio": calcular_precio_ml(1_520_000),
             "titulo": "Hidromasaje Rectangular Spa Recta 165x140 Acrílico EcoFiver",
             "descripcion": (
                 "Hidromasaje rectangular modelo Spa Recta de EcoFiver. "
@@ -1525,7 +1525,7 @@ async def seed_borradores_hidromasajes(
             ),
         },
         {
-            "sku": "ECOF-HIDRO-ORBIS", "modelo": "Spa Orbis", "precio": 1620000,
+            "sku": "ECOF-HIDRO-ORBIS", "modelo": "Spa Orbis", "precio": calcular_precio_ml(1_620_000),
             "titulo": "Hidromasaje Circular Spa Orbis 176x176 Acrílico EcoFiver",
             "descripcion": (
                 "Hidromasaje circular panorámico modelo Spa Orbis de EcoFiver. "
@@ -1538,7 +1538,7 @@ async def seed_borradores_hidromasajes(
             ),
         },
         {
-            "sku": "ECOF-HIDRO-DELTA", "modelo": "Spa Delta", "precio": 1890000,
+            "sku": "ECOF-HIDRO-DELTA", "modelo": "Spa Delta", "precio": calcular_precio_ml(1_890_000),
             "titulo": "Mini Spa Hidromasaje Spa Delta 197x142 Acrílico EcoFiver",
             "descripcion": (
                 "Mini spa modelo Spa Delta de EcoFiver. El hidromasaje de mayor capacidad de la línea. "
@@ -2239,3 +2239,278 @@ async def ml_precio_mercado(
     precios = [x["precio"] for x in salida if x.get("precio")]
     return {"fuente": "catalogo", "status": 200, "total": dc.get("paging", {}).get("total"),
             "mas_barato": min(precios) if precios else None, "resultados": salida}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Publicación masiva: 500 variantes de título por modelo
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import math as _math
+import itertools as _itertools
+
+# Comisión gold_special aproximada en MLA (Argentina).
+# Fuente: ML listing_prices — varía levemente por categoría y precio.
+# Se usa como constante para el cálculo offline de precio de publicación.
+ML_COMISION_GOLD_SPECIAL = 0.11
+
+
+def calcular_precio_ml(precio_contado: float, ganancia_pct: float = 0.05) -> float:
+    """
+    Precio a publicar en ML para que, descontada la comisión de ML (gold_special ~11%),
+    el vendedor nete precio_contado × (1 + ganancia_pct).
+
+    Fórmula: precio_ml = precio_contado × (1 + ganancia_pct) / (1 − comision)
+    Se redondea al múltiplo de $1.000 hacia arriba.
+    """
+    bruto = precio_contado * (1 + ganancia_pct) / (1 - ML_COMISION_GOLD_SPECIAL)
+    return _math.ceil(bruto / 1_000) * 1_000
+
+
+# ── Pools de palabras clave por modelo ────────────────────────────────────────
+_POOLS_HIDRO = {
+    "Spa Quadra": {
+        "tipos":    ["Hidromasaje", "Jacuzzi", "Spa", "Bañera Hidromasaje", "Tina Spa", "Bañera Spa"],
+        "formatos": ["Esquinero", "Cuadrado", "Compacto", "Angular"],
+        "dims":     ["110x110", "1.10x1.10m", "110 cm"],
+        "mats":     ["Acrílico", "Acrílico Sanitario", "PRFV"],
+        "marcas":   ["EcoFiver", "Eco Fiver"],
+        "extra":    ["4 Jets", "Motor 1/2 HP", "Sin Obra", ""],
+        "sku_base": "ECOF-HIDRO-QUADRA",
+        "precio_contado": 1_220_000,
+        "categoria_ml":   "MLA9226",  # Hidromasajes y Jacuzzis
+        "descripcion_base": (
+            "Hidromasaje esquinero Spa Quadra de EcoFiver. Acrílico sanitario reforzado PRFV. "
+            "Diseño esquinero compacto 1,10 × 1,10 × 0,10 m. Ideal para baños y espacios reducidos. "
+            "4 jets dirigibles, motor 1/2 HP o 3/4 HP, 1 pulsador neumático, 1 regulador de aire. "
+            "Estructura autoportante metálica reforzada incluida. Sin obra de albañilería.\n"
+            "Colores sin cargo: Blanco, Beige, Negro, Gris.\n"
+            "Pago: contado o tarjeta. Retiro: San Telmo (CABA) o Zárate (Bs. As.). Envío cotizar.\n"
+            "Fabricación propia EcoFiver — Zárate, Buenos Aires. Garantía estructural incluida."
+        ),
+        "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.69x1.17x0.40-HIDRO.jpeg"],
+    },
+    "Spa Recta": {
+        "tipos":    ["Hidromasaje", "Jacuzzi", "Spa", "Bañera Hidromasaje", "Tina Spa", "Bañera Spa"],
+        "formatos": ["Rectangular", "Doble", "Para 2 Personas", "Amplio"],
+        "dims":     ["165x140", "1.65x1.40m", "165 cm"],
+        "mats":     ["Acrílico", "Acrílico Sanitario", "PRFV"],
+        "marcas":   ["EcoFiver", "Eco Fiver"],
+        "extra":    ["6 Jets", "Motor 3/4 HP", "Para 2 Personas", ""],
+        "sku_base": "ECOF-HIDRO-RECTA",
+        "precio_contado": 1_520_000,
+        "categoria_ml":   "MLA9226",
+        "descripcion_base": (
+            "Hidromasaje rectangular Spa Recta de EcoFiver. Acrílico sanitario reforzado PRFV. "
+            "Formato rectangular doble 1,65 × 1,40 × 0,45 m. Confort para dos personas. "
+            "6 jets dirigibles, motor 3/4 HP, 1 pulsador neumático, 2 reguladores de aire. "
+            "Estructura autoportante metálica reforzada incluida. Sin obra de albañilería.\n"
+            "Colores sin cargo: Blanco, Beige, Negro, Gris.\n"
+            "Pago: contado o tarjeta. Retiro: San Telmo (CABA) o Zárate (Bs. As.). Envío cotizar.\n"
+            "Fabricación propia EcoFiver — Zárate, Buenos Aires. Garantía estructural incluida."
+        ),
+        "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.65x1.40x0.45-HIDRO.jpeg"],
+    },
+    "Spa Orbis": {
+        "tipos":    ["Hidromasaje", "Jacuzzi", "Spa", "Bañera Hidromasaje", "Tina Spa", "Spa Circular"],
+        "formatos": ["Circular", "Redondo", "Panorámico", "Circular de Lujo"],
+        "dims":     ["176x176", "1.76x1.76m", "176 cm"],
+        "mats":     ["Acrílico", "Acrílico Sanitario", "PRFV"],
+        "marcas":   ["EcoFiver", "Eco Fiver"],
+        "extra":    ["6 a 8 Jets", "Motor 3/4 HP", "Lujo", ""],
+        "sku_base": "ECOF-HIDRO-ORBIS",
+        "precio_contado": 1_620_000,
+        "categoria_ml":   "MLA9226",
+        "descripcion_base": (
+            "Hidromasaje circular panorámico Spa Orbis de EcoFiver. Acrílico sanitario reforzado PRFV. "
+            "Diseño circular 1,76 × 1,76 × 0,40 m. Ideal para baños de lujo, terrazas o ambientes spa. "
+            "6 a 8 jets dirigibles, motor 3/4 HP, 1 pulsador neumático, 2 reguladores de aire. "
+            "Estructura autoportante metálica reforzada incluida. Sin obra de albañilería.\n"
+            "Colores sin cargo: Blanco, Beige, Negro, Gris.\n"
+            "Pago: contado o tarjeta. Retiro: San Telmo (CABA) o Zárate (Bs. As.). Envío cotizar.\n"
+            "Fabricación propia EcoFiver — Zárate, Buenos Aires. Garantía estructural incluida."
+        ),
+        "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.76x1.76x0.40-HIDRO.jpeg"],
+    },
+    "Spa Delta": {
+        "tipos":    ["Hidromasaje", "Jacuzzi", "Mini Spa", "Bañera Spa", "Tina Spa", "Spa Rectangular"],
+        "formatos": ["Rectangular XL", "Extra Grande", "Gran Capacidad", "Amplio"],
+        "dims":     ["197x142", "1.97x1.42m", "197 cm"],
+        "mats":     ["Acrílico", "Acrílico Sanitario", "PRFV"],
+        "marcas":   ["EcoFiver", "Eco Fiver"],
+        "extra":    ["8 Jets", "Motor 1 HP", "Mayor Capacidad", ""],
+        "sku_base": "ECOF-HIDRO-DELTA",
+        "precio_contado": 1_890_000,
+        "categoria_ml":   "MLA9226",
+        "descripcion_base": (
+            "Mini spa hidromasaje Spa Delta de EcoFiver. Acrílico sanitario reforzado PRFV. "
+            "Mayor capacidad de la línea: 1,97 × 1,42 × 0,52 m. "
+            "8 jets dirigibles, motor 1 HP, 1 pulsador neumático, 2 reguladores de aire. "
+            "Estructura autoportante metálica reforzada incluida. Sin obra de albañilería.\n"
+            "Colores sin cargo: Blanco, Beige, Negro, Gris.\n"
+            "Pago: contado o tarjeta. Retiro: San Telmo (CABA) o Zárate (Bs. As.). Envío cotizar.\n"
+            "Fabricación propia EcoFiver — Zárate, Buenos Aires. Garantía estructural incluida."
+        ),
+        "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.97x1.42x0.52-HIDRO.jpeg"],
+    },
+}
+
+
+def _generar_titulos_hidro(modelo: str, n: int) -> list[str]:
+    """
+    Genera hasta N títulos únicos ≤60 chars para un modelo de hidromasaje.
+    Combina palabras clave (tipo / formato / dimensiones / material / marca / extra)
+    con itertools.product para maximizar la cobertura de términos de búsqueda.
+    """
+    pool = _POOLS_HIDRO[modelo]
+    vistos: set = set()
+    titulos: list = []
+
+    # Combinaciones principales (tipo + formato + dims + mat + marca)
+    for tipo, fmt, dim, mat, marca in _itertools.product(
+        pool["tipos"], pool["formatos"], pool["dims"], pool["mats"], pool["marcas"]
+    ):
+        t = f"{tipo} {fmt} {dim} {mat} {marca}"[:60].strip()
+        if t not in vistos:
+            vistos.add(t)
+            titulos.append(t)
+            if len(titulos) >= n:
+                return titulos
+
+    # Variantes con "extra" (ej. "6 Jets", "Sin Obra")
+    for tipo, fmt, dim, extra, marca in _itertools.product(
+        pool["tipos"], pool["formatos"], pool["dims"], pool["extra"], pool["marcas"]
+    ):
+        if not extra:
+            continue
+        t = f"{tipo} {fmt} {dim} {extra} {marca}"[:60].strip()
+        if t not in vistos:
+            vistos.add(t)
+            titulos.append(t)
+            if len(titulos) >= n:
+                return titulos
+
+    # Variantes invertidas (marca primero)
+    for marca, tipo, fmt, dim, mat in _itertools.product(
+        pool["marcas"], pool["tipos"], pool["formatos"], pool["dims"], pool["mats"]
+    ):
+        t = f"{marca} {tipo} {fmt} {dim} {mat}"[:60].strip()
+        if t not in vistos:
+            vistos.add(t)
+            titulos.append(t)
+            if len(titulos) >= n:
+                return titulos
+
+    # Relleno numerado si hace falta
+    base = f"{pool['tipos'][0]} {modelo} EcoFiver"[:50]
+    i = len(titulos) + 1
+    while len(titulos) < n:
+        t = f"{base} V{i:04d}"[:60]
+        if t not in vistos:
+            vistos.add(t)
+            titulos.append(t)
+        i += 1
+
+    return titulos[:n]
+
+
+@router.post("/api/ml/borradores/masivos")
+async def crear_borradores_masivos(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Crea en lote N borradores ML por cada modelo de hidromasaje, con:
+    - Títulos únicos rotando palabras clave (SEO diversificado)
+    - Precio calculado: precio_contado × (1 + ganancia_pct) / (1 − comisión ML)
+    - Fotos reales desde ecofiver.site
+    - SKU único por variante: {base_sku}-{NNNN}
+
+    Body (todos opcionales):
+      modelos          lista de modelos a procesar (default: los 4 hidromasajes)
+      cantidad         variantes por modelo (default: 500, max: 500)
+      ganancia_pct     margen sobre precio contado en decimal (default: 0.05 = 5 %)
+    """
+    import json as _json_local
+
+    data = await request.json()
+    modelos_req  = data.get("modelos") or list(_POOLS_HIDRO.keys())
+    cantidad     = min(int(data.get("cantidad") or 500), 500)
+    ganancia_pct = float(data.get("ganancia_pct") or 0.05)
+
+    # Validar modelos pedidos
+    modelos_validos = [m for m in modelos_req if m in _POOLS_HIDRO]
+    if not modelos_validos:
+        raise HTTPException(400, f"Modelos no reconocidos: {modelos_req}. "
+                                 f"Válidos: {list(_POOLS_HIDRO.keys())}")
+
+    creados_total  = 0
+    omitidos_total = 0
+    detalle        = {}
+
+    for modelo in modelos_validos:
+        pool          = _POOLS_HIDRO[modelo]
+        precio_contado = pool["precio_contado"]
+        precio_ml      = calcular_precio_ml(precio_contado, ganancia_pct)
+        titulos        = _generar_titulos_hidro(modelo, cantidad)
+        sku_base       = pool["sku_base"]
+        fotos_json     = _json_local.dumps(pool["fotos"])
+        descripcion    = pool["descripcion_base"]
+        categoria_ml   = pool["categoria_ml"]
+
+        creados_modelo  = 0
+        omitidos_modelo = 0
+
+        for i, titulo in enumerate(titulos, start=1):
+            sku = f"{sku_base}-{i:04d}"
+            existe = db.query(BorradorML).filter(BorradorML.seller_sku == sku).first()
+            if existe:
+                omitidos_modelo += 1
+                continue
+
+            b = BorradorML(
+                origen             = "masiva",
+                titulo             = titulo,
+                descripcion        = descripcion,
+                producto           = "HIDROMASAJE",
+                precio             = precio_ml,
+                costo              = float(precio_contado),
+                seller_sku         = sku,
+                modelo_nombre      = modelo,
+                condicion          = "new",
+                listing_type       = "gold_special",
+                cuotas_sin_interes = 0,
+                cantidad           = 1,
+                fotos_json         = fotos_json,
+                categoria          = categoria_ml,
+                estado             = "borrador",
+                created_by_id      = current_user.id,
+            )
+            db.add(b)
+            creados_modelo += 1
+
+            # Flush cada 100 para no cargar todo en RAM
+            if creados_modelo % 100 == 0:
+                db.flush()
+
+        db.flush()
+        detalle[modelo] = {
+            "precio_contado": precio_contado,
+            "precio_ml":      precio_ml,
+            "ganancia_neta_estimada": round(precio_ml * (1 - ML_COMISION_GOLD_SPECIAL) - precio_contado),
+            "creados":  creados_modelo,
+            "omitidos": omitidos_modelo,
+        }
+        creados_total  += creados_modelo
+        omitidos_total += omitidos_modelo
+
+    db.commit()
+
+    return {
+        "ok":      True,
+        "creados": creados_total,
+        "omitidos": omitidos_total,
+        "ganancia_pct_usada": ganancia_pct,
+        "comision_ml_usada":  ML_COMISION_GOLD_SPECIAL,
+        "detalle": detalle,
+    }

@@ -63,6 +63,7 @@
       <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="borImportarArchivo(this)"></label>
     <button class="btn btn-secondary btn-sm" onclick="borImportarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
     <button class="btn btn-secondary btn-sm" onclick="borSeedHidromasajes()" title="Carga hidromasajes (4 modelos + 5 accesorios), 7 bañeras y 3 receptáculos de ducha con fotos reales">🛁 Cargar spas / bañeras</button>
+    <button class="btn btn-sm" onclick="borCrearMasivos()" title="Genera 500 variantes de título por modelo de hidromasaje — precio automático con 5% ganancia" style="background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a">⚡ 500 variantes × hidro</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-reintentar-errores" onclick="borReintentarErrores()" style="display:none;color:#fbbf24" title="Selecciona y reintenta publicar todos los borradores con error">🔧 Reintentar errores (<span id="bor-n-errores">0</span>)</button>
@@ -2752,6 +2753,51 @@ async function borSeedHidromasajes() {
     showToast(msg, j.creados > 0 ? 'success' : 'info');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
+async function borCrearMasivos() {
+  // precio_contado × 1.05 ÷ (1 − 11%) redondeado a múltiplo de $1.000
+  const _pml = c => (Math.ceil(c * 1.05 / 0.89 / 1000) * 1000).toLocaleString('es-AR');
+  const msg =
+    '⚡ Generación masiva de 500 variantes por modelo de hidromasaje\n\n' +
+    '📦 Modelos: Spa Quadra · Spa Recta · Spa Orbis · Spa Delta\n' +
+    '🔢 Total de borradores: hasta 2.000 (500 × 4 modelos)\n\n' +
+    '💰 Precios calculados automáticamente:\n' +
+    '   • Spa Quadra  $1.220.000 → $' + _pml(1220000) + '\n' +
+    '   • Spa Recta   $1.520.000 → $' + _pml(1520000) + '\n' +
+    '   • Spa Orbis   $1.620.000 → $' + _pml(1620000) + '\n' +
+    '   • Spa Delta   $1.890.000 → $' + _pml(1890000) + '\n\n' +
+    '   Fórmula: precio_contado × 1.05 ÷ (1 − 11% comisión ML)\n' +
+    '   → Ganancia neta estimada: +5% sobre precio de contado\n\n' +
+    '📝 Títulos únicos rotando ~30 variantes de palabras clave SEO.\n' +
+    'Los que ya existan (por SKU) se omiten — podés volver a correr sin miedo.';
+  const ok = await showConfirm(msg, '⚡ Crear 500 variantes × 4 modelos');
+  if (!ok) return;
+
+  const gananciaStr = prompt(
+    '¿Qué ganancia % querés sobre el precio de contado?\n' +
+    '(Por defecto: 5 — escribí solo el número, ej: 5 o 8)',
+    '5'
+  );
+  if (gananciaStr === null) return;
+  const ganancia_pct = (parseFloat(gananciaStr) || 5) / 100;
+
+  showToast('Generando borradores… puede tardar 10-20 seg ⏳', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/masivos', {
+      ganancia_pct,
+      cantidad: 500,
+    });
+    borCargar();
+    const lineas = Object.entries(j.detalle || {}).map(([modelo, d]) =>
+      `${modelo}: ${d.creados} creados — precio ML $${(d.precio_ml || 0).toLocaleString('es-AR')} (neto ~+${Math.round(d.ganancia_neta_estimada / 1000)}K)`
+    ).join('\n');
+    const resumen = `✅ ${j.creados} borradores creados · ${j.omitidos} omitidos\n\n${lineas}`;
+    alert(resumen);
+    showToast(`✅ ${j.creados} borradores creados`, 'success');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
 async function borVariantes(id) {
   const nStr = prompt('¿Cuántas variantes generar con IA? (1 a 50)\n\nTip: generá 20-50 y usá "Publicar seleccionados" para publicarlas todas de una.', '20');
   if (!nStr) return;

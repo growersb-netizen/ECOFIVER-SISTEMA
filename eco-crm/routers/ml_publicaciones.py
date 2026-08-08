@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import BorradorML, Usuario
+from database.models import BorradorML, PublicacionML, Usuario
 from routers.auth import get_current_user, get_user_roles
 from routers.configuracion import _require_config_access
 from routers.mercadolibre import (
@@ -96,6 +96,7 @@ async def _run_lote_bg(job_id: str, bids: list):
             if res and res["ok"]:
                 b.estado = "publicada"; b.item_id = res["item_id"]
                 b.permalink = res.get("permalink"); b.error_msg = ""
+                _sincronizar_pub_ml(db, b)   # crear/actualizar registro PublicacionML
                 job["ok"] += 1
             else:
                 error_msg = (res or {}).get("error", "Error desconocido")
@@ -332,6 +333,18 @@ CATEGORIAS_FIJAS: dict = {
     # Para asignar manualmente: usar 🔍 "Buscar categoría ML" en el editor de borrador.
 }
 
+# Títulos de fallback usados cuando el predictor falla para un tipo de producto.
+# Permite que "Tina Spa Compacto 110x110", "Bañera Orbis" y similares
+# obtengan una categoría válida incluso si el predictor no reconoce el título exacto.
+_FALLBACK_TITULO_POR_TIPO: dict = {
+    "HIDROMASAJE":          "Hidromasaje jacuzzi con jets acrílico sanitario",
+    "BANERA":               "Bañera de acrílico sanitario",
+    "RECEPTACULO":          "Receptáculo plato de ducha acrílico",
+    "PISCINA":              "Pileta piscina fibra de vidrio",
+    "MINIPISCINA":          "Minipiscina pileta compacta fibra de vidrio",
+    "ACCESORIO_HIDROMASAJE":"Accesorio para hidromasaje jacuzzi",
+}
+
 # Categorías de ML que solo admiten buying_mode="classified" (viviendas, inmuebles, construcción).
 # En modo classified: no va available_quantity ni condition.
 CATEGORIAS_CLASIFICADAS: set = {
@@ -473,6 +486,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
             categoria, cat_nombre = fija
     if not categoria:
         categoria = await _ml_categoria_sugerida(db, b.titulo)
+    # Fallback: si el predictor no reconoció el título, intentar con un título genérico
+    # según el tipo de producto (ej. "Tina Spa Compacto" → predictor con "Hidromasaje jacuzzi…")
+    if not categoria and b.producto:
+        fallback_titulo = _FALLBACK_TITULO_POR_TIPO.get((b.producto or "").upper())
+        if fallback_titulo:
+            categoria = await _ml_categoria_sugerida(db, fallback_titulo)
     if not categoria:
         return {"ok": False, "error": "No se pudo detectar la categoría. Seleccioná el tipo de producto antes de publicar."}
     try:
@@ -598,6 +617,31 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     return {"ok": True, "item_id": item.get("id"), "permalink": item.get("permalink")}
 
 
+def _sincronizar_pub_ml(db: Session, b: BorradorML) -> None:
+    """Crea o actualiza el registro PublicacionML cuando se publica un borrador."""
+    if not b.item_id:
+        return
+    try:
+        pub = db.query(PublicacionML).filter(PublicacionML.item_id == b.item_id).first()
+        if pub:
+            pub.titulo    = b.titulo    or pub.titulo
+            pub.descripcion = b.descripcion or pub.descripcion or ""
+            pub.precio    = b.precio    or pub.precio
+            pub.permalink = b.permalink or pub.permalink or ""
+            pub.estado_ml = "active"
+        else:
+            db.add(PublicacionML(
+                item_id    = b.item_id,
+                titulo     = b.titulo    or "",
+                descripcion= b.descripcion or "",
+                precio     = b.precio    or 0,
+                permalink  = b.permalink or "",
+                estado_ml  = "active",
+            ))
+    except Exception:
+        pass  # No queremos que un error de sync mate la publicación
+
+
 @router.post("/api/ml/borradores/{bid}/publicar")
 async def publicar(bid: int, db: Session = Depends(get_db),
                    x_api_key: Optional[str] = Header(None),
@@ -611,6 +655,7 @@ async def publicar(bid: int, db: Session = Depends(get_db),
     res = await _publicar(db, b)
     if res["ok"]:
         b.estado = "publicada"; b.item_id = res["item_id"]; b.permalink = res.get("permalink"); b.error_msg = ""
+        _sincronizar_pub_ml(db, b)
     else:
         b.estado = "error"; b.error_msg = res["error"]
     db.commit(); db.refresh(b)
@@ -632,6 +677,7 @@ async def publicar_lote(request: Request, db: Session = Depends(get_db),
         res = await _publicar(db, b)
         if res["ok"]:
             b.estado = "publicada"; b.item_id = res["item_id"]; b.permalink = res.get("permalink"); b.error_msg = ""; pub += 1
+            _sincronizar_pub_ml(db, b)
         else:
             b.estado = "error"; b.error_msg = res["error"]; err += 1
         db.commit()

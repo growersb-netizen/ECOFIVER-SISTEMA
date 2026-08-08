@@ -4473,8 +4473,14 @@ async function _pollPMJob() {
 /* ─── RECALCULAR PRECIOS CORRECTOS (comisión real ML) ─────────────────── */
 let _rcJobId    = null;
 let _rcInterval = null;
+const _RC_BTN_ORIG = '🔧 Recalcular precios';
+
+function _rcSetBtn(txt) {
+  document.querySelectorAll('button[onclick="abrirRecalcularPrecios()"]').forEach(b => b.textContent = txt);
+}
 
 async function abrirRecalcularPrecios() {
+  if (_rcJobId) { showToast('Ya hay un recálculo en curso, esperá que termine.', 'warning'); return; }
   if (!confirm('⚠️ Esto recalculará el precio de TODOS los borradores consultando la comisión real de MercadoLibre y actualizará los ya publicados en ML.\n\n¿Continuar?')) return;
   const skuFilter = prompt('Filtrar por prefijo de SKU (dejar vacío para TODOS):', 'ECOF-HIDRO-');
   const sku_prefixes = skuFilter && skuFilter.trim() ? [skuFilter.trim()] : null;
@@ -4483,7 +4489,8 @@ async function abrirRecalcularPrecios() {
   try {
     const r = await API.post('/api/ml/publicaciones/recalcular-precios', { ganancia_pct: 0.05, sku_prefixes });
     _rcJobId = r.job_id;
-    showToast(`Job iniciado: ${r.job_id.slice(0, 8)}…`, 'info');
+    _rcSetBtn('⏳ Iniciando…');
+    document.title = '⏳ Recalculando… — MercadoLibre';
     _rcInterval = setInterval(_pollRCJob, 3000);
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
@@ -4494,22 +4501,37 @@ async function _pollRCJob() {
   if (!_rcJobId) return;
   try {
     const j = await API.get(`/api/ml/publicaciones/recalcular-precios/estado/${_rcJobId}`);
-    const pct = j.total ? Math.round(j.procesados / j.total * 100) : 0;
+    const proc = j.procesados || 0;
+    const tot  = j.total || 0;
+    const pct  = tot ? Math.round(proc / tot * 100) : 0;
+
     if (j.status === 'done') {
       clearInterval(_rcInterval); _rcInterval = null;
+      _rcJobId = null;
+      _rcSetBtn(_RC_BTN_ORIG);
+      document.title = 'MercadoLibre — Panel';
       const grupos = (j.detalle_grupos || []).map(g =>
         `${g.n_borradores} borradores costo $${(g.costo/1000).toFixed(0)}k → $${(g.precio_correcto/1000).toFixed(0)}k (comisión ${g.fee_rate_pct}%)`
       ).join('\n');
       showToast(
-        `✓ Precios recalculados: ${j.ok} actualizados · ${j.ya_ok || 0} ya correctos · ${j.errores.length} errores`,
-        j.errores.length ? 'warning' : 'success'
+        `✓ Precios recalculados: ${j.ok} actualizados · ${j.ya_ok || 0} ya correctos · ${(j.errores||[]).length} errores`,
+        (j.errores||[]).length ? 'warning' : 'success'
       );
       if (grupos) alert('📊 Resultado del recálculo:\n\n' + grupos);
       loadPublicaciones();
     } else {
-      if (pct % 10 === 0) showToast(`Recalculando… ${pct}% (${j.procesados}/${j.total})`, 'info');
+      // Mostrar progreso en el botón y en el título del tab — visible aunque el toast se cierre
+      const label = tot
+        ? `⏳ ${pct}% (${proc}/${tot})`
+        : `⏳ Consultando comisiones…`;
+      _rcSetBtn(label);
+      document.title = `${label} — ML`;
+      // Toast solo en hitos (0, 10, 20...) para no saturar
+      if (tot && proc > 0 && proc % Math.max(1, Math.floor(tot / 10)) < 3) {
+        showToast(`🔧 Recalculando precios… ${pct}% (${proc}/${tot})`, 'info');
+      }
     }
-  } catch(e) { /* retry */ }
+  } catch(e) { /* retry silencioso */ }
 }
 
 /* ─── INIT ───────────────────────────────────────────────────────────── */

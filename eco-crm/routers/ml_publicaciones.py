@@ -104,7 +104,17 @@ async def _run_lote_bg(job_id: str, bids: list):
                 job["err"] += 1
                 job["ultimos_errores"].append({"id": bid, "titulo": (b.titulo or "")[:40], "msg": error_msg[:100]})
 
-            db.commit()
+            # Commit con retry — SQLite puede estar bloqueado por otro job concurrente
+            for _retry_db in range(5):
+                try:
+                    db.commit()
+                    break
+                except Exception as _e_commit:
+                    if "database is locked" in str(_e_commit).lower() and _retry_db < 4:
+                        await asyncio.sleep(2 + _retry_db * 2)
+                    else:
+                        raise
+
             job["procesados"] = i + 1
             job["ultimo_item"] = {"id": bid, "ok": bool(res and res["ok"]), "titulo": (b.titulo or "")[:40]}
 
@@ -477,19 +487,33 @@ async def _ml_classified_location(db: Session) -> dict:
 async def _publicar(db: Session, b: BorradorML) -> dict:
     """Crea el ítem en ML a partir del borrador."""
     tok = await _ml_valid_token(db)
+
+    # Determinar tipo de producto — primero del campo, si no desde el título
+    tipo_prod = (b.producto or "").upper()
+    if not tipo_prod and b.titulo:
+        _tl = b.titulo.lower()
+        if any(k in _tl for k in ["hidromasaje", "jacuzzi", "spa", "tina spa"]):
+            tipo_prod = "HIDROMASAJE"
+        elif any(k in _tl for k in ["bañera", "banera"]):
+            tipo_prod = "BANERA"
+        elif any(k in _tl for k in ["receptáculo", "receptaculo", "plato de ducha"]):
+            tipo_prod = "RECEPTACULO"
+        elif any(k in _tl for k in ["piscina", "pileta"]):
+            tipo_prod = "PISCINA"
+
     # Prioridad: 1) categoría manual del borrador → 2) fija por tipo de producto → 3) predictor por título
     categoria = b.categoria or ""
     cat_nombre = b.categoria_nombre or ""
-    if not categoria and b.producto:
-        fija = CATEGORIAS_FIJAS.get((b.producto or "").upper())
+    if not categoria and tipo_prod:
+        fija = CATEGORIAS_FIJAS.get(tipo_prod)
         if fija:
             categoria, cat_nombre = fija
     if not categoria:
         categoria = await _ml_categoria_sugerida(db, b.titulo)
     # Fallback: si el predictor no reconoció el título, intentar con un título genérico
     # según el tipo de producto (ej. "Tina Spa Compacto" → predictor con "Hidromasaje jacuzzi…")
-    if not categoria and b.producto:
-        fallback_titulo = _FALLBACK_TITULO_POR_TIPO.get((b.producto or "").upper())
+    if not categoria and tipo_prod:
+        fallback_titulo = _FALLBACK_TITULO_POR_TIPO.get(tipo_prod)
         if fallback_titulo:
             categoria = await _ml_categoria_sugerida(db, fallback_titulo)
     if not categoria:
@@ -502,8 +526,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         atributos = json.loads(b.atributos_json or "[]")
     except Exception:
         atributos = []
-
-    tipo_prod = (b.producto or "").upper()
+    # tipo_prod ya definido al inicio de la función (no redefinir aquí)
 
     # Tipos que usan texto libre para atributos de medidas (no listas predefinidas de ML).
     # Para piscinas ML usa value_id de lista; para hidromasajes/bañeras acepta texto.

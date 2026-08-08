@@ -8,10 +8,26 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./eco_crm.db")
 
+_is_sqlite = "sqlite" in DATABASE_URL
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    connect_args={"check_same_thread": False, "timeout": 30} if _is_sqlite else {},
+    # Pool pequeño para SQLite (un solo escritor a la vez)
+    pool_size=1 if _is_sqlite else 5,
+    max_overflow=4 if _is_sqlite else 10,
 )
+
+if _is_sqlite:
+    from sqlalchemy import event as _sa_event
+
+    @_sa_event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, _record):
+        """WAL mode: permite lecturas concurrentes mientras se escribe. busy_timeout=30s."""
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

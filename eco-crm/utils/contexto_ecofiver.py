@@ -140,6 +140,8 @@ LO QUE VENDEMOS Y FABRICAMOS
    · Quinchos prefabricados (con o sin pared lateral)
    · Pérgolas y gazebos de madera o metal
    · Reposeras de fibra de vidrio (reclinables, colores blanco/beige)
+     Precio: $150.000 por unidad — $250.000 el par de 2 (descuento comprando juntas)
+     Venta: contado o tarjeta. Sin financiación propia.
    · Cuchas / casillas para perros de madera (tallas: chica, mediana, grande, extra grande)
    · Iluminación LED para piscinas (focos sumergibles, multicolor o blanco)
    · Accesorios de filtración: bomba filtradora, filtro de arena, escalera inoxidable, cobertor de invierno

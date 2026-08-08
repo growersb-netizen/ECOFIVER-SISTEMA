@@ -428,17 +428,19 @@ DEFAULT_CATALOGO = {
         "colores": ["Blanco", "Beige"],
         "pago": "Contado o tarjeta.",
         "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "nota_precio": "Precio por unidad $150.000 — par de 2 unidades $250.000 (descuento comprando el par).",
         "modelos": {
             "Reposera Individual": {
-                "descripcion_corta": "Reposera reclinable de fibra de vidrio. Regulable en varios ángulos.",
+                "descripcion_corta": "Reposera reclinable de fibra de vidrio. Regulable en varios ángulos. Resistente a la intemperie.",
                 "medidas": {"largo_m": None, "ancho_m": None},
-                "precio_contado": None,
+                "precio_contado": 150000,
                 "fotos": [],
             },
-            "Reposera con Mesa": {
-                "descripcion_corta": "Reposera con mesa lateral incorporada. Para comodidad en la pileta.",
+            "Par de Reposeras": {
+                "descripcion_corta": "Par de 2 reposeras reclinables de fibra de vidrio. Precio especial comprando las 2 juntas.",
                 "medidas": {"largo_m": None, "ancho_m": None},
-                "precio_contado": None,
+                "precio_contado": 250000,
+                "unidades": 2,
                 "fotos": [],
             },
         },
@@ -522,6 +524,37 @@ def load_catalogo() -> dict:
                     m = cat["hidromasajes"].get("modelos", {}).get(modelo)
                     if m is not None and not m.get("fotos") and datos.get("fotos"):
                         m["fotos"] = datos["fotos"]
+                        cambiado = True
+            # Actualizar precios y fotos de las nuevas líneas cuando DEFAULT tiene
+            # un valor real y el catálogo guardado todavía tiene None
+            for seccion in ("baneras", "receptaculos", "reposeras", "cuchas_perros",
+                            "garitas_seguridad", "banios_quimicos", "depositos_jardin"):
+                if seccion not in cat:
+                    continue
+                default_sec = DEFAULT_CATALOGO.get(seccion, {})
+                modelos_default = default_sec.get("modelos") or default_sec.get("productos", {})
+                modelos_cat = cat[seccion].get("modelos") or cat[seccion].get("productos", {})
+                for nombre, datos in modelos_default.items():
+                    m = modelos_cat.get(nombre)
+                    if m is None:
+                        continue
+                    # Precio: actualizar si el default tiene valor y el guardado es None
+                    if m.get("precio_contado") is None and datos.get("precio_contado") is not None:
+                        m["precio_contado"] = datos["precio_contado"]
+                        cambiado = True
+                    # Fotos: actualizar si el default tiene fotos y el guardado está vacío
+                    if not m.get("fotos") and datos.get("fotos"):
+                        m["fotos"] = datos["fotos"]
+                        cambiado = True
+                    # Campos nuevos: unidades, nota, etc.
+                    for campo in ("unidades", "descripcion_corta"):
+                        if campo not in m and campo in datos:
+                            m[campo] = datos[campo]
+                            cambiado = True
+                # Campos raíz nuevos (nota_precio, etc.)
+                for campo, val in default_sec.items():
+                    if campo not in ("modelos", "productos") and campo not in cat[seccion]:
+                        cat[seccion][campo] = val
                         cambiado = True
             # Seed medidas desde lista de precios oficial si el dict está vacío
             if not cat["piscinas"].get("medidas"):

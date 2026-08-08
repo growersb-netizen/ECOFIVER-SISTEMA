@@ -726,8 +726,9 @@ async def set_fotos_catalogo(
     tipo = data.get("tipo", "")
     clave = data.get("clave", "")
     fotos = data.get("fotos", [])
-    if tipo not in ("piscinas", "modulos", "combos", "modulos_deposito") or not clave:
-        raise HTTPException(400, "tipo/clave inválidos")
+    _TIPOS_LEGACY = {"piscinas", "modulos", "combos", "modulos_deposito"}
+    if not tipo or not clave:
+        raise HTTPException(400, "tipo/clave requeridos")
     if not isinstance(fotos, list):
         raise HTTPException(400, "fotos debe ser una lista de URLs")
 
@@ -745,9 +746,20 @@ async def set_fotos_catalogo(
         if tamano not in tamanos or linea not in tamanos[tamano]:
             raise HTTPException(404, "Tamaño/línea no encontrados")
         tamanos[tamano][linea]["fotos"] = fotos
-    else:
+    elif tipo in _TIPOS_LEGACY:
+        # piscinas / modulos: fotos en cat[tipo]["fotos"][clave]
         cat[tipo].setdefault("fotos", {})
         cat[tipo]["fotos"][clave] = fotos
+    else:
+        # Categoría genérica (hidromasajes, baneras, receptaculos, etc.):
+        # las fotos se guardan en el propio producto → cat[tipo][key][clave]["fotos"]
+        if tipo not in cat:
+            raise HTTPException(404, f"Categoría '{tipo}' no encontrada")
+        key = _items_key(cat[tipo])
+        items = cat[tipo].get(key, {})
+        if clave not in items:
+            raise HTTPException(404, f"Producto '{clave}' no encontrado en '{tipo}'")
+        items[clave]["fotos"] = fotos
 
     save_catalogo(cat)
 
@@ -1325,3 +1337,184 @@ async def set_fotos_hidromasaje(
     modelos[modelo]["fotos"] = [str(f) for f in fotos if f]
     save_catalogo(cat)
     return {"ok": True, "modelo": modelo, "fotos": modelos[modelo]["fotos"]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Gestión genérica de categorías de productos (no-legacy)
+# Categorías legacy tienen su propia UI específica: piscinas, módulos, etc.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CATEGORIAS_LEGACY = {"piscinas", "modulos", "modulos_deposito", "combos"}
+
+
+def _items_key(cat_data: dict) -> str:
+    """Clave del dict que contiene los ítems (modelos o productos) de la sección."""
+    return "modelos" if "modelos" in cat_data else "productos"
+
+
+def _get_items(cat_data: dict) -> dict:
+    """Dict de ítems de la sección."""
+    return cat_data.get("modelos") or cat_data.get("productos") or {}
+
+
+@router.get("/api/catalogo/categorias")
+async def listar_categorias_genericas():
+    """Lista todas las categorías no-legacy con sus productos y precios."""
+    cat = load_catalogo()
+    resultado = {}
+    for nombre, datos in cat.items():
+        if nombre in CATEGORIAS_LEGACY or not isinstance(datos, dict):
+            continue
+        key = _items_key(datos)
+        items = datos.get(key) or {}
+        resultado[nombre] = {
+            "titulo": datos.get("titulo") or nombre.replace("_", " ").title(),
+            "key": key,
+            "productos": {
+                k: {
+                    "descripcion": v.get("descripcion_corta") or v.get("descripcion") or "",
+                    "precio_contado": v.get("precio_contado"),
+                    "fotos": v.get("fotos") or [],
+                }
+                for k, v in items.items()
+                if isinstance(v, dict)
+            },
+        }
+    return resultado
+
+
+@router.post("/api/catalogo/categorias")
+async def crear_categoria_generica(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Crea una nueva categoría de productos en el catálogo."""
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    titulo = (data.get("titulo") or "").strip()
+    nombre = (data.get("nombre") or titulo).strip().lower().replace(" ", "_")
+    nota = (data.get("nota") or "").strip()
+    if not nombre:
+        raise HTTPException(400, "Falta el nombre de la categoría")
+    if not titulo:
+        titulo = nombre.replace("_", " ").title()
+    cat = load_catalogo()
+    if nombre in cat:
+        raise HTTPException(409, f"La categoría '{nombre}' ya existe")
+    cat[nombre] = {
+        "titulo": titulo,
+        "nota": nota,
+        "pago": "Contado o tarjeta.",
+        "modelos": {},
+    }
+    save_catalogo(cat)
+    return {"ok": True, "nombre": nombre, "titulo": titulo}
+
+
+@router.delete("/api/catalogo/categorias/{cat_nombre}")
+async def eliminar_categoria_generica(
+    cat_nombre: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Elimina una categoría no-legacy del catálogo."""
+    _write_auth(x_api_key, current_user)
+    if cat_nombre in CATEGORIAS_LEGACY:
+        raise HTTPException(400, f"'{cat_nombre}' es una categoría del sistema y no se puede eliminar")
+    cat = load_catalogo()
+    if cat_nombre not in cat:
+        raise HTTPException(404, f"Categoría '{cat_nombre}' no encontrada")
+    del cat[cat_nombre]
+    save_catalogo(cat)
+    return {"ok": True}
+
+
+@router.post("/api/catalogo/categorias/{cat_nombre}/productos")
+async def agregar_producto_generico(
+    cat_nombre: str,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Agrega un producto / modelo a una categoría existente."""
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    nombre_prod = (data.get("nombre") or "").strip()
+    descripcion = (data.get("descripcion") or "").strip()
+    precio_raw = data.get("precio_contado")
+    if not nombre_prod:
+        raise HTTPException(400, "Falta el nombre del producto")
+    cat = load_catalogo()
+    if cat_nombre not in cat:
+        raise HTTPException(404, f"Categoría '{cat_nombre}' no encontrada")
+    key = _items_key(cat[cat_nombre])
+    if key not in cat[cat_nombre]:
+        cat[cat_nombre][key] = {}
+    if nombre_prod in cat[cat_nombre][key]:
+        raise HTTPException(409, f"El producto '{nombre_prod}' ya existe en '{cat_nombre}'")
+    cat[cat_nombre][key][nombre_prod] = {
+        "descripcion_corta": descripcion,
+        "precio_contado": float(precio_raw) if precio_raw is not None and str(precio_raw).strip() != "" else None,
+        "fotos": [],
+    }
+    save_catalogo(cat)
+    return {"ok": True, "nombre": nombre_prod}
+
+
+@router.put("/api/catalogo/categorias/{cat_nombre}/productos/{prod_nombre}/precio")
+async def actualizar_precio_generico(
+    cat_nombre: str,
+    prod_nombre: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Actualiza el precio de contado de un producto genérico. Registra historial."""
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    precio_raw = data.get("precio_contado")
+    cat = load_catalogo()
+    if cat_nombre not in cat:
+        raise HTTPException(404, f"Categoría '{cat_nombre}' no encontrada")
+    items = _get_items(cat[cat_nombre])
+    if prod_nombre not in items:
+        raise HTTPException(404, f"Producto '{prod_nombre}' no encontrado en '{cat_nombre}'")
+    precio_nuevo = float(precio_raw) if precio_raw is not None and str(precio_raw).strip() != "" else None
+    precio_anterior = items[prod_nombre].get("precio_contado")
+    items[prod_nombre]["precio_contado"] = precio_nuevo
+    save_catalogo(cat)
+    if precio_nuevo is not None and precio_nuevo != precio_anterior:
+        try:
+            db.add(PrecioHistorial(
+                clave=f"{cat_nombre}.{prod_nombre}",
+                valor_anterior=float(precio_anterior) if precio_anterior is not None else None,
+                valor_nuevo=precio_nuevo,
+                cambiado_por_id=current_user.id if current_user else None,
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+    return {"ok": True, "precio_contado": precio_nuevo}
+
+
+@router.delete("/api/catalogo/categorias/{cat_nombre}/productos/{prod_nombre}")
+async def eliminar_producto_generico(
+    cat_nombre: str,
+    prod_nombre: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Elimina un producto de una categoría."""
+    _write_auth(x_api_key, current_user)
+    cat = load_catalogo()
+    if cat_nombre not in cat:
+        raise HTTPException(404, f"Categoría '{cat_nombre}' no encontrada")
+    key = _items_key(cat[cat_nombre])
+    items = cat[cat_nombre].get(key, {})
+    if prod_nombre not in items:
+        raise HTTPException(404, f"Producto '{prod_nombre}' no encontrado en '{cat_nombre}'")
+    del items[prod_nombre]
+    save_catalogo(cat)
+    return {"ok": True}

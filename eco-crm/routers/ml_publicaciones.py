@@ -628,6 +628,42 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                         await asyncio.sleep(10)
                     else:
                         break
+
+            # Auto-retry si la categoría predicha es claramente incorrecta para el tipo de producto.
+            # Señales en el error 400: ML pide DOOR_TYPE (aberturas), IS_SUITABLE_FOR_INTERIOR
+            # (aberturas/pisos), "Tipo de alimentación" (bombas) — ninguno aplica a jacuzzis/bañeras.
+            if r.status_code not in (200, 201) and tipo_prod in _TIPOS_DIM_LIBRE:
+                err_upper = r.text.upper()
+                _WRONG_CAT_SIGNALS = [
+                    "DOOR_TYPE", "IS_SUITABLE_FOR_INTERIOR", "IS_SUITABLE_FOR_EXTERIOR",
+                    "TIPO DE ALIMENTACI",   # "Tipo de alimentación" truncado
+                    "POTENCIA_",
+                ]
+                if any(sig in err_upper for sig in _WRONG_CAT_SIGNALS):
+                    _ALT_TITULOS: dict = {
+                        "HIDROMASAJE": [
+                            "Jacuzzi bañera con jets hidromasaje",
+                            "Bañera de hidromasaje acrílica con jets agua",
+                            "Tina jacuzzi spa con bomba jets",
+                        ],
+                        "BANERA":      [
+                            "Bañera individual de acrílico sanitario",
+                            "Tina de baño acrílica",
+                        ],
+                        "RECEPTACULO": [
+                            "Plato de ducha receptáculo acrílico",
+                            "Receptáculo ducha bajo perfil acrílico",
+                        ],
+                    }
+                    for alt_t in _ALT_TITULOS.get(tipo_prod, []):
+                        new_cat = await _ml_categoria_sugerida(db, alt_t)
+                        if new_cat and new_cat != payload["category_id"]:
+                            payload["category_id"] = new_cat
+                            r = await hc.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
+                            if r.status_code in (200, 201):
+                                break
+                            await asyncio.sleep(0.3)
+
             if r.status_code not in (200, 201):
                 return {"ok": False, "error": _error_ml(r)}
         item = r.json()

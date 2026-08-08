@@ -13,7 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import FotoML, SetFotosML, PublicacionML, Usuario, ConfiguracionSistema
+from database.models import FotoML, SetFotosML, PublicacionML, Usuario, ConfiguracionSistema, RespuestaAutoML
 from routers.configuracion import _require_config_access
 from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE
 from utils.ai_client import ai_complete
@@ -582,18 +582,38 @@ async def _auto_responder_preguntas_job():
                         body = item.get("body", item)
                         titulos[body.get("id", "")] = body.get("title", "")
 
+        # Cachear descripciones locales por item_id para enriquecer el contexto
+        local_pubs: Dict[str, PublicacionML] = {}
+        if item_ids:
+            rows = db.query(PublicacionML).filter(PublicacionML.item_id.in_(item_ids[:20])).all()
+            for row in rows:
+                if row.item_id:
+                    local_pubs[row.item_id] = row
+
         respondidas = 0
         for p in preguntas:
-            qid = p.get("id")
-            texto = (p.get("text") or "").strip()
-            item_titulo = titulos.get(p.get("item_id", ""), "")
+            qid       = p.get("id")
+            texto     = (p.get("text") or "").strip()
+            item_id_p = p.get("item_id", "")
+            item_titulo = titulos.get(item_id_p, "")
+            comprador_nick = (p.get("from") or {}).get("nickname", "")
 
             if not texto or not qid:
                 continue
 
+            # Obtener descripción local para contexto enriquecido
+            pub_local = local_pubs.get(item_id_p)
+            descripcion_pub = ""
+            if pub_local:
+                descripcion_pub = pub_local.descripcion or ""
+                if not item_titulo and pub_local.titulo:
+                    item_titulo = pub_local.titulo
+
             prompt = ctx_preguntas_ml(
                 item_titulo=item_titulo or "producto EcoFiver",
                 pregunta=texto,
+                descripcion_pub=descripcion_pub,
+                comprador=comprador_nick,
             )
 
             try:
@@ -610,6 +630,22 @@ async def _auto_responder_preguntas_job():
             if r3.status_code in (200, 201):
                 respondidas += 1
                 log.info(f"[AUTO-RESP] Respondida pregunta {qid} para '{item_titulo[:40]}'")
+                # ── Guardar registro histórico ─────────────────────────────────
+                try:
+                    registro = RespuestaAutoML(
+                        question_id     = str(qid),
+                        item_id         = str(item_id_p) if item_id_p else None,
+                        item_titulo     = item_titulo[:499] if item_titulo else None,
+                        comprador_nick  = comprador_nick[:199] if comprador_nick else None,
+                        pregunta_texto  = texto,
+                        respuesta_texto = respuesta,
+                        respondida_por  = "auto",
+                    )
+                    db.add(registro)
+                    db.commit()
+                except Exception as e_db:
+                    log.warning(f"[AUTO-RESP] No se pudo guardar registro para {qid}: {e_db}")
+                    db.rollback()
             else:
                 log.warning(f"[AUTO-RESP] Error al responder {qid}: {r3.text[:100]}")
 
@@ -646,3 +682,34 @@ async def set_auto_responder_config(
     _set_cfg("ml_auto_responder_activo", "true" if activo else "false", db)
     log.info(f"[AUTO-RESP] {'Activado' if activo else 'Desactivado'} por usuario")
     return {"ok": True, "activo": activo}
+
+
+@router.get("/api/ml/auto-responder/historial")
+async def get_historial_respuestas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+    limit: int = 50,
+    respondida_por: str = "",
+):
+    """
+    Historial de respuestas a preguntas de ML (auto-responder + manuales).
+    Devuelve los últimos `limit` registros, más reciente primero.
+    """
+    q = db.query(RespuestaAutoML).order_by(RespuestaAutoML.created_at.desc())
+    if respondida_por in ("auto", "manual"):
+        q = q.filter(RespuestaAutoML.respondida_por == respondida_por)
+    registros = q.limit(limit).all()
+    return [
+        {
+            "id":              r.id,
+            "question_id":     r.question_id,
+            "item_id":         r.item_id,
+            "item_titulo":     r.item_titulo or "",
+            "comprador_nick":  r.comprador_nick or "",
+            "pregunta_texto":  r.pregunta_texto,
+            "respuesta_texto": r.respuesta_texto,
+            "respondida_por":  r.respondida_por,
+            "created_at":      r.created_at.isoformat() if r.created_at else "",
+        }
+        for r in registros
+    ]

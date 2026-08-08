@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import PublicacionML, Usuario, ConfiguracionSistema, BorradorML, MLCategoriaLinea
+from database.models import PublicacionML, Usuario, ConfiguracionSistema, BorradorML, MLCategoriaLinea, RespuestaAutoML
 from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.configuracion import get_config_value, _require_config_access
 from database.encryption import encrypt_value
@@ -1519,7 +1519,21 @@ async def responder_pregunta(
     sugerir_solo     = data.get("sugerir_solo", False)
     pregunta_texto   = data.get("pregunta_texto", data.get("texto_pregunta", "")).strip()
     item_titulo      = data.get("item_titulo", "").strip()
+    item_id_data     = data.get("item_id", "").strip()
+    comprador_nick   = data.get("comprador_nick", data.get("from_nickname", "")).strip()
     respuesta_manual = data.get("respuesta_manual", data.get("respuesta", ""))
+
+    # ── Buscar descripción local para enriquecer el contexto ────────────────
+    descripcion_pub = ""
+    pub_local = None
+    if item_id_data:
+        pub_local = db.query(PublicacionML).filter(PublicacionML.item_id == item_id_data).first()
+        if pub_local:
+            descripcion_pub = pub_local.descripcion or ""
+            if not item_titulo and pub_local.titulo:
+                item_titulo = pub_local.titulo
+
+    es_generada_por_ia = False
 
     # ── Generar respuesta con IA si no se proveyó una manual ────────────────
     if not respuesta_manual:
@@ -1529,10 +1543,13 @@ async def responder_pregunta(
         prompt = ctx_preguntas_ml(
             item_titulo=item_titulo or "producto EcoFiver",
             pregunta=pregunta_texto,
+            descripcion_pub=descripcion_pub,
+            comprador=comprador_nick,
         )
         try:
             respuesta_manual = await ai_complete(db, prompt, max_tokens=400, temperature=0.6)
             respuesta_manual = " ".join(respuesta_manual.split())
+            es_generada_por_ia = True
         except Exception as e:
             raise HTTPException(502, f"Error generando respuesta con IA: {e}. Configurá un proveedor en Configuración → API Keys.")
 
@@ -1548,6 +1565,22 @@ async def responder_pregunta(
 
     if r.status_code not in (200, 201):
         raise HTTPException(r.status_code, f"Error ML al responder: {r.text[:200]}")
+
+    # ── Guardar registro histórico ───────────────────────────────────────────
+    try:
+        registro = RespuestaAutoML(
+            question_id     = str(qid),
+            item_id         = item_id_data or (pub_local.item_id if pub_local else None),
+            item_titulo     = item_titulo[:499] if item_titulo else None,
+            comprador_nick  = comprador_nick[:199] if comprador_nick else None,
+            pregunta_texto  = pregunta_texto,
+            respuesta_texto = respuesta_manual,
+            respondida_por  = "auto-manual" if es_generada_por_ia else "manual",
+        )
+        db.add(registro)
+        db.commit()
+    except Exception as e_db:
+        db.rollback()  # no es fatal — la respuesta ya se envió a ML
 
     return {"ok": True, "respuesta": respuesta_manual, "question_id": qid}
 

@@ -123,25 +123,50 @@ RESTRICCIONES ABSOLUTAS EN RESPUESTAS AL PÚBLICO
 
 # ─── CONTEXTOS ESPECÍFICOS POR USO ───────────────────────────────────────────
 
-def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "") -> str:
+def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
+                      descripcion_pub: str = "", comprador: str = "") -> str:
     """
     Contexto para responder preguntas de compradores en MercadoLibre.
     Incluye el contexto maestro + instrucciones específicas para ML.
+
+    Args:
+        item_titulo:     Título de la publicación en ML
+        pregunta:        Texto exacto de la pregunta del comprador
+        descripcion_pub: Descripción completa de la publicación (si se tiene)
+        comprador:       Nickname del comprador (para personalizar si aplica)
     """
     base = ctx_empresa()
-    contexto_item = f"\nProducto consultado en MercadoLibre: {item_titulo}" if item_titulo else ""
-    contexto_pregunta = f"\nPregunta del comprador: {pregunta}" if pregunta else ""
 
-    return f"""{base}
-{contexto_item}{contexto_pregunta}
+    # ── Contexto específico del producto consultado ──────────────────────────
+    prod_lines = []
+    if item_titulo:
+        prod_lines.append(f"Título de la publicación consultada: {item_titulo}")
+    if descripcion_pub:
+        # Recortar para no gastar demasiados tokens
+        desc_corta = descripcion_pub.strip()[:800]
+        prod_lines.append(f"Descripción de la publicación:\n{desc_corta}")
+    if comprador:
+        prod_lines.append(f"Comprador que pregunta: {comprador}")
 
-CÓMO RESPONDER PREGUNTAS EN MERCADOLIBRE
-- Respondé DIRECTAMENTE la pregunta en 2 a 3 oraciones máximo
-- Sé específico: si preguntan por el filtro, respondé sobre el filtro; si preguntan por cuotas, respondé sobre financiación
-- Para preguntas de precio o flete: explicá que varía según zona/modelo y que hay que coordinar el detalle. Invitá a avanzar con la compra para que el equipo se contacte
-- Para preguntas de medidas: usá las medidas reales del modelo si las conocés; si no, decí que varían según el modelo y que pueden consultarlo antes de comprar
-- Nunca uses markdown, asteriscos, guiones como viñetas ni emojis
-- Solo texto plano corrido, sin listas ni formatos especiales (MercadoLibre no renderiza formato)"""
+    prod_ctx = ("\n\nDATO DE LA PUBLICACIÓN CONSULTADA\n" + "\n".join(prod_lines)) if prod_lines else ""
+
+    pregunta_ctx = f"\n\nPREGUNTA DEL COMPRADOR:\n{pregunta}" if pregunta else ""
+
+    return f"""{base}{prod_ctx}{pregunta_ctx}
+
+INSTRUCCIONES PARA RESPONDER ESTA PREGUNTA
+- Respondé ÚNICAMENTE lo que preguntó el comprador, en 2 a 4 oraciones máximo
+- Usá los datos reales del catálogo de EcoFiver que están en el contexto de arriba
+- Si la pregunta es sobre medidas de un modelo específico: buscá las medidas exactas en el catálogo y dálas
+- Si la pregunta es sobre precio: no inventés precio; decí que varía según modelo/zona y que el equipo les da el detalle
+- Si la pregunta es sobre flete/envío: aclará que el flete se cotiza aparte según zona y modelo
+- Si la pregunta es sobre instalación: confirmá que está incluida en el precio publicado, plazo aprox 30-45 días desde señal
+- Si la pregunta es sobre financiación: confirmá que tienen cuotas propias sin banco ni tarjeta
+- Si no sabés la respuesta con certeza: no inventés. Decí "podés coordinarlo con el equipo antes de comprar"
+- NUNCA des números de teléfono, WhatsApp ni redes sociales (MercadoLibre lo penaliza y puede dar de baja la publicación)
+- NUNCA uses markdown, asteriscos, guiones como viñetas ni emojis
+- Solo texto plano corrido, sin listas ni formatos especiales (MercadoLibre no renderiza nada)
+- No agregues frases de cierre genéricas como "quedamos a tu disposición" — terminá con la info concreta"""
 
 
 def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente: str = "") -> str:
@@ -210,6 +235,7 @@ def ctx_marketing_blog(tipo: str = "", longitud: str = "media") -> str:
     Contexto para generación de artículos de blog y contenido web.
     """
     base = ctx_empresa()
+    palabras_count = {"corta": "500-700", "media": "900-1200", "larga": "1500-2000"}.get(longitud, "900-1200")
     return f"""{base}
 
 CONTEXTO PARA CONTENIDO EDITORIAL
@@ -217,5 +243,5 @@ Objetivo: posicionar a EcoFiver como referente en piscinas de fibra y módulos h
 Lector objetivo: propietario de casa con jardín o terraza, clase media-alta, busca mejorar su espacio de vida.
 Tono editorial: experto que comparte conocimiento útil, no publicidad directa.
 Palabras clave a integrar naturalmente: piscina de fibra de vidrio, pileta, natatorio, módulo habitacional, vivienda prefabricada, wood frame, instalación llave en mano.
-Longitud objetivo: {{"corta": "500-700", "media": "900-1200", "larga": "1500-2000"}}.get("{longitud}", "900-1200") palabras.
+Longitud objetivo: {palabras_count} palabras.
 Tipo de contenido: {tipo if tipo else "artículo informativo"}."""

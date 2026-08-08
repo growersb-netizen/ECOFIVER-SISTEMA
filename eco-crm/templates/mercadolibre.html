@@ -704,6 +704,25 @@
           </div>
         </div>
 
+        <!-- Historial de respuestas -->
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:600;font-size:13px">📋 Historial de respuestas</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select id="historial-filtro" class="input" style="font-size:12px;padding:4px 8px;height:auto" onchange="cargarHistorialRespuestas()">
+                <option value="">Todas</option>
+                <option value="auto">Solo automáticas</option>
+                <option value="auto-manual">IA + enviada manualmente</option>
+                <option value="manual">Solo manuales</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="cargarHistorialRespuestas()">🔄</button>
+            </div>
+          </div>
+          <div id="historial-respuestas-lista" style="max-height:400px;overflow-y:auto">
+            <div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:20px">Cargando...</div>
+          </div>
+        </div>
+
         <p style="font-size:12px;color:var(--text-secondary)">
           Para tokens de acceso: <a href="/configuracion" style="color:var(--primary)">Configuración → API Keys</a>.
         </p>
@@ -1947,8 +1966,18 @@ async function loadPreguntas() {
 
 function renderPregunta(q) {
   const fecha = q.fecha ? new Date(q.fecha).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+  // Guardamos todo en atributos del card para que los handlers los lean
+  const safeTexto    = (q.texto||'').replace(/"/g, '&quot;');
+  const safeTitulo   = (q.item_titulo||q.item_id||'').replace(/"/g, '&quot;');
+  const safeItemId   = (q.item_id||'').replace(/"/g, '&quot;');
+  const safeComprador= (q.from_nickname||'').replace(/"/g, '&quot;');
   return `
-  <div class="card" id="pregunta-${q.id}" style="margin-bottom:12px;padding:16px">
+  <div class="card" id="pregunta-${q.id}"
+    data-pregunta="${safeTexto}"
+    data-titulo="${safeTitulo}"
+    data-item-id="${safeItemId}"
+    data-comprador="${safeComprador}"
+    style="margin-bottom:12px;padding:16px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">
@@ -1961,11 +1990,7 @@ function renderPregunta(q) {
           placeholder="Escribí la respuesta... o usá ✨ IA para sugerir una automáticamente"
           style="font-size:13px;width:100%;margin-bottom:8px"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm"
-            data-qid="${q.id}"
-            data-texto="${escHtml(q.texto||'')}"
-            data-titulo="${escHtml(q.item_titulo||q.item_id||'')}"
-            onclick="sugerirRespuesta(this)">
+          <button class="btn btn-secondary btn-sm" onclick="sugerirRespuesta(${q.id})">
             ✨ Sugerir con IA
           </button>
           <button class="btn btn-primary btn-sm" onclick="enviarRespuesta(${q.id})">
@@ -1977,10 +2002,12 @@ function renderPregunta(q) {
   </div>`;
 }
 
-async function sugerirRespuesta(btn) {
-  const qId           = btn.dataset.qid;
-  const preguntaTexto = btn.dataset.texto;
-  const itemTitulo    = btn.dataset.titulo || '';
+async function sugerirRespuesta(qId) {
+  const card          = document.getElementById('pregunta-' + qId);
+  const preguntaTexto = card?.dataset.pregunta || '';
+  const itemTitulo    = card?.dataset.titulo   || '';
+  const itemId        = card?.dataset.itemId   || '';
+  const comprador     = card?.dataset.comprador|| '';
 
   const textarea = document.getElementById('resp-' + qId);
   if (!textarea) { showToast('Error interno: textarea no encontrado', 'error'); return; }
@@ -1991,16 +2018,18 @@ async function sugerirRespuesta(btn) {
   }
 
   const oldVal = textarea.value;
-  btn.disabled = true;
-  btn.textContent = '⏳ Generando...';
+  const btn = card?.querySelector('button');  // botón "Sugerir"
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando...'; }
   textarea.value = '⏳ Generando respuesta con IA...';
   textarea.disabled = true;
 
   try {
     const res = await API.post(`/api/ml/preguntas/${qId}/responder`, {
-      sugerir_solo: true,
-      pregunta_texto: preguntaTexto,
-      item_titulo: itemTitulo,
+      sugerir_solo:    true,
+      pregunta_texto:  preguntaTexto,
+      item_titulo:     itemTitulo,
+      item_id:         itemId,
+      comprador_nick:  comprador,
     });
     const sugerida = res.respuesta_sugerida || res.texto || '';
     if (sugerida) {
@@ -2013,24 +2042,34 @@ async function sugerirRespuesta(btn) {
     textarea.value = '⚠ Error IA: ' + (e.message || 'sin detalle');
     showToast('Error IA: ' + (e.message || 'sin detalle'), 'error');
   } finally {
-    btn.disabled = false;
-    btn.textContent = '✨ Sugerir con IA';
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Sugerir con IA'; }
     textarea.disabled = false;
     textarea.focus();
   }
 }
 
 async function enviarRespuesta(qId) {
+  const card     = document.getElementById('pregunta-' + qId);
   const textarea = document.getElementById('resp-' + qId);
-  const texto = textarea.value.trim();
+  const texto    = textarea.value.trim();
   if (!texto) { showToast('Escribí una respuesta primero', 'warning'); return; }
+
+  // Datos del card para guardar el registro
+  const preguntaTexto = card?.dataset.pregunta  || '';
+  const itemTitulo    = card?.dataset.titulo    || '';
+  const itemId        = card?.dataset.itemId    || '';
+  const comprador     = card?.dataset.comprador || '';
 
   textarea.disabled = true;
   try {
-    await API.post(`/api/ml/preguntas/${qId}/responder`, { respuesta_manual: texto });
+    await API.post(`/api/ml/preguntas/${qId}/responder`, {
+      respuesta_manual: texto,
+      pregunta_texto:   preguntaTexto,
+      item_titulo:      itemTitulo,
+      item_id:          itemId,
+      comprador_nick:   comprador,
+    });
     showToast('✓ Respuesta enviada', 'success');
-    // Eliminar la tarjeta del DOM
-    const card = document.getElementById('pregunta-' + qId);
     if (card) card.remove();
     _preguntasData = _preguntasData.filter(p => p.id !== qId);
     const badge = document.getElementById('badge-preguntas');
@@ -3469,6 +3508,56 @@ async function toggleAutoResponder(chk) {
   }
 }
 
+// ── Historial de respuestas ────────────────────────────────────────────────
+async function cargarHistorialRespuestas() {
+  const cont = document.getElementById('historial-respuestas-lista');
+  if (!cont) return;
+  const filtro = document.getElementById('historial-filtro')?.value || '';
+  cont.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:20px">Cargando...</div>';
+  try {
+    const params = filtro ? `?respondida_por=${encodeURIComponent(filtro)}&limit=50` : '?limit=50';
+    const rows = await API.get('/api/ml/auto-responder/historial' + params);
+    if (!rows.length) {
+      cont.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:20px">Sin registros todavía. Las respuestas aparecerán aquí.</div>';
+      return;
+    }
+    cont.innerHTML = rows.map(r => {
+      const fecha = r.created_at ? new Date(r.created_at).toLocaleString('es-AR', {
+        day:'2-digit', month:'2-digit', year:'2-digit',
+        hour:'2-digit', minute:'2-digit'
+      }) : '';
+      const badge = r.respondida_por === 'auto'
+        ? '<span style="background:#3b82f620;color:#3b82f6;font-size:10px;padding:1px 6px;border-radius:10px;white-space:nowrap">🤖 auto</span>'
+        : r.respondida_por === 'auto-manual'
+        ? '<span style="background:#a855f720;color:#a855f7;font-size:10px;padding:1px 6px;border-radius:10px;white-space:nowrap">🤖 IA+enviada</span>'
+        : '<span style="background:#22c55e20;color:#22c55e;font-size:10px;padding:1px 6px;border-radius:10px;white-space:nowrap">✍️ manual</span>';
+
+      const comprador = r.comprador_nick
+        ? `<span style="font-size:11px;color:var(--text-secondary)">🙋 ${escHtml(r.comprador_nick)}</span>`
+        : '';
+
+      return `<div style="border-bottom:1px solid var(--border);padding:10px 0;font-size:12px">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          ${badge}
+          <span style="font-size:11px;color:var(--text-secondary)">${fecha}</span>
+          ${comprador}
+          ${r.item_titulo ? `<span style="font-size:11px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(r.item_titulo)}">📦 ${escHtml(r.item_titulo)}</span>` : ''}
+        </div>
+        <div style="background:var(--bg-primary);border-left:3px solid #ef4444;padding:6px 10px;border-radius:0 6px 6px 0;margin-bottom:4px">
+          <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px">❓ PREGUNTA</div>
+          <div style="color:var(--text-primary)">${escHtml(r.pregunta_texto)}</div>
+        </div>
+        <div style="background:var(--bg-primary);border-left:3px solid #22c55e;padding:6px 10px;border-radius:0 6px 6px 0">
+          <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px">💬 RESPUESTA ENVIADA</div>
+          <div style="color:var(--text-primary)">${escHtml(r.respuesta_texto)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    cont.innerHTML = `<div style="font-size:12px;color:#ef4444;text-align:center;padding:12px">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
 // ── Renovación manual ───────────────────────────────────────────────────
 async function triggerRenovarManual() {
   const res_el = document.getElementById('renovar-resultado');
@@ -3488,5 +3577,6 @@ checkMLStatus();
 loadPublicaciones();
 onTipoChange();
 loadAutoResponderConfig();
+cargarHistorialRespuestas();
 </script>
 {% endblock %}

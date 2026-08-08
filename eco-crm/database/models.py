@@ -1481,3 +1481,21 @@ class SetFotosML(Base):
     foto_ids_json  = Column(Text, default="[]")             # JSON list de FotoML.id (orden importa)
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
     updated_at     = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class RespuestaAutoML(Base):
+    """
+    Registro histórico de respuestas dadas a preguntas de MercadoLibre,
+    tanto por el auto-responder de IA como por el operador manualmente.
+    """
+    __tablename__ = "respuestas_auto_ml"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    question_id     = Column(String(50), nullable=True, index=True)   # ID pregunta en ML
+    item_id         = Column(String(50), nullable=True, index=True)   # ID publicación ML
+    item_titulo     = Column(String(500), nullable=True)              # Título de la publicación
+    comprador_nick  = Column(String(200), nullable=True)              # Nickname del comprador
+    pregunta_texto  = Column(Text, nullable=False)                    # Lo que preguntó
+    respuesta_texto = Column(Text, nullable=False)                    # Lo que se respondió
+    respondida_por  = Column(String(20), default="auto")             # "auto" | "manual"
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())

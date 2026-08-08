@@ -4298,43 +4298,72 @@ async function triggerRenovarManual() {
 }
 
 /* ─── HEALTH SCORE ──────────────────────────────────────────────────── */
+let _healthPollIv = null;
+
+function _mostrarHealthScore(job, cont) {
+  if (!job.items || !job.items.length) {
+    cont.innerHTML = '<p style="color:var(--text-secondary)">No se encontraron publicaciones activas.</p>';
+    return;
+  }
+  const gradeColor = { A: '#22c55e', B: '#84cc16', C: '#f59e0b', D: '#ef4444' };
+  let html = `<p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">${job.items.length} publicaciones analizadas — ordenadas de peor a mejor</p>`;
+  html += '<div style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto">';
+  job.items.forEach(it => {
+    const clr = gradeColor[it.grade] || '#94a3b8';
+    html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:20px;font-weight:700;color:${clr};min-width:32px;text-align:center">${it.grade}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.titulo}</div>
+          <div style="font-size:11px;color:var(--text-secondary)">${it.item_id} · ${it.n_fotos} fotos · ${it.n_palabras} palabras desc.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:50px;height:6px;border-radius:3px;background:var(--border);overflow:hidden">
+            <div style="height:100%;width:${it.score}%;background:${clr}"></div>
+          </div>
+          <span style="font-size:12px;font-weight:600;color:${clr}">${it.score}</span>
+        </div>
+        ${it.permalink ? `<a href="${it.permalink}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">Ver ↗</a>` : ''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        ${it.checks.map(c => `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${c.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'};color:${c.ok ? '#22c55e' : '#ef4444'}">${c.ok ? '✓' : '✗'} ${c.label}</span>`).join('')}
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
 async function abrirHealthScore() {
   openModal('modal-health');
+  if (_healthPollIv) { clearInterval(_healthPollIv); _healthPollIv = null; }
   const cont = document.getElementById('health-content');
-  cont.innerHTML = '<div class="loading">Calculando health scores… esto puede tardar unos segundos.</div>';
+  cont.innerHTML = '<div class="loading">Iniciando análisis de health score…</div>';
   try {
-    const d = await API.get('/api/ml/publicaciones/health-score');
-    if (!d.ok || !d.items.length) {
-      cont.innerHTML = '<p style="color:var(--text-secondary)">No se encontraron publicaciones activas.</p>';
-      return;
-    }
-    const gradeColor = { A: '#22c55e', B: '#84cc16', C: '#f59e0b', D: '#ef4444' };
-    let html = `<p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">${d.total} publicaciones analizadas — ordenadas de peor a mejor</p>`;
-    html += '<div style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto">';
-    d.items.forEach(it => {
-      const clr = gradeColor[it.grade] || '#94a3b8';
-      html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-          <span style="font-size:20px;font-weight:700;color:${clr};min-width:32px;text-align:center">${it.grade}</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.titulo}</div>
-            <div style="font-size:11px;color:var(--text-secondary)">${it.item_id} · ${it.n_fotos} fotos · ${it.n_palabras} palabras desc.</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px">
-            <div style="width:50px;height:6px;border-radius:3px;background:var(--border);overflow:hidden">
-              <div style="height:100%;width:${it.score}%;background:${clr}"></div>
-            </div>
-            <span style="font-size:12px;font-weight:600;color:${clr}">${it.score}</span>
-          </div>
-          ${it.permalink ? `<a href="${it.permalink}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">Ver ↗</a>` : ''}
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">
-          ${it.checks.map(c => `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${c.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'};color:${c.ok ? '#22c55e' : '#ef4444'}">${c.ok ? '✓' : '✗'} ${c.label}</span>`).join('')}
-        </div>
-      </div>`;
-    });
-    html += '</div>';
-    cont.innerHTML = html;
+    const j = await API.post('/api/ml/publicaciones/health-score/iniciar');
+    if (!j.ok) throw new Error(j.detail || 'Error al iniciar');
+    const jobId = j.job_id;
+    // Si ya está listo (sin publicaciones) mostramos directo
+    if (j.total === 0) { _mostrarHealthScore({items:[]}, cont); return; }
+    cont.innerHTML = `<div class="loading">Analizando publicaciones… 0/${j.total}</div>`;
+    _healthPollIv = setInterval(async () => {
+      try {
+        const d = await API.get(`/api/ml/publicaciones/health-score/estado/${jobId}`);
+        if (d.estado === 'procesando') {
+          const pct = d.total ? Math.round(d.procesados * 100 / d.total) : 0;
+          cont.innerHTML = `<div class="loading">Analizando publicaciones… ${d.procesados}/${d.total} (${pct}%)</div>`;
+        } else if (d.estado === 'listo') {
+          clearInterval(_healthPollIv); _healthPollIv = null;
+          _mostrarHealthScore(d, cont);
+        } else {
+          clearInterval(_healthPollIv); _healthPollIv = null;
+          cont.innerHTML = `<p style="color:#ef4444">Error: ${d.error || 'desconocido'}</p>`;
+        }
+      } catch(pe) {
+        clearInterval(_healthPollIv); _healthPollIv = null;
+        cont.innerHTML = `<p style="color:#ef4444">Error al verificar: ${pe.message}</p>`;
+      }
+    }, 2000);
   } catch(e) {
     cont.innerHTML = `<p style="color:#ef4444">Error al cargar: ${e.message}</p>`;
   }
@@ -4358,7 +4387,7 @@ async function abrirActualizarPrecios() {
   document.getElementById('pm-count').textContent = 'Cargando...';
   pmSetModo('porcentaje');
   try {
-    const d = await API.get('/api/ml/publicaciones/health-score');   // reutilizamos el endpoint
+    const d = await API.get('/api/ml/publicaciones/lista');   // lista local sin llamar a ML API
     _pmPubsData = (d.items || []);
     _renderPMLista();
     pmActualizarPreview();

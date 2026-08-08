@@ -2849,91 +2849,162 @@ def _calcular_health(titulo: str, n_fotos: int, n_palabras: int) -> dict:
     return {"score": score, "grade": grade, "checks": checks}
 
 
-@router.get("/api/ml/publicaciones/health-score")
-async def health_score_publicaciones(
+# ─────────────────────────────────────────────────────────────────────────────
+# HEALTH SCORE (background job — puede tener 2000+ items)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_HEALTH_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+async def _health_score_bg(
+    job_id: str,
+    token: str,
+    item_ids: list,
+    pub_map: dict,   # item_id → PublicacionML (solo para descripción local)
+    bor_map: dict,   # item_id → BorradorML
+) -> None:
+    job = _HEALTH_JOBS[job_id]
+    BATCH = 20
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            for i in range(0, len(item_ids), BATCH):
+                batch = item_ids[i:i + BATCH]
+                try:
+                    r = await c.get(
+                        f"{ML_BASE}/items",
+                        headers=_ml_headers(token),
+                        params={"ids": ",".join(batch), "attributes": "id,title,status,pictures,description,permalink"},
+                    )
+                    if r.status_code != 200:
+                        log.warning(f"[HEALTH] batch error {r.status_code}")
+                    else:
+                        for raw in r.json():
+                            body = raw.get("body", raw) if isinstance(raw, dict) and "body" in raw else raw
+                            if not body or "id" not in body:
+                                continue
+                            item_id  = body["id"]
+                            titulo   = body.get("title", "")
+                            fotos    = body.get("pictures", [])
+                            desc_raw = body.get("description") or {}
+                            if isinstance(desc_raw, dict):
+                                desc_text = desc_raw.get("plain_text") or desc_raw.get("text") or ""
+                            else:
+                                desc_text = str(desc_raw)
+                            n_fotos    = len(fotos) if isinstance(fotos, list) else 0
+                            n_palabras = len(desc_text.split()) if desc_text else 0
+
+                            # Enriquecer descripción desde BD local si ML no la devolvió
+                            if n_palabras == 0:
+                                _pub_l = pub_map.get(item_id)
+                                _bor_l = bor_map.get(item_id)
+                                _desc_l = (
+                                    (getattr(_pub_l, "descripcion", None) if _pub_l else None)
+                                    or (getattr(_bor_l, "descripcion", None) if _bor_l else None)
+                                    or ""
+                                )
+                                if _desc_l:
+                                    n_palabras = len(_desc_l.split())
+
+                            health = _calcular_health(titulo, n_fotos, n_palabras)
+                            # permalink viene directo de ML (PublicacionML no tiene esa columna)
+                            job["items"].append({
+                                "item_id":    item_id,
+                                "titulo":     titulo,
+                                "estado_ml":  body.get("status", ""),
+                                "n_fotos":    n_fotos,
+                                "n_palabras": n_palabras,
+                                "score":      health["score"],
+                                "grade":      health["grade"],
+                                "checks":     health["checks"],
+                                "permalink":  body.get("permalink", ""),
+                            })
+                except Exception as _e_batch:
+                    log.warning(f"[HEALTH] batch exception: {_e_batch}")
+                job["procesados"] = min(i + BATCH, len(item_ids))
+                await asyncio.sleep(0.1)
+
+        job["items"].sort(key=lambda x: x["score"])  # peores primero
+        job["estado"] = "listo"
+        job["total_final"] = len(job["items"])
+    except Exception as e:
+        log.error(f"[HEALTH] job error: {e}")
+        job["estado"] = "error"
+        job["error"] = str(e)
+
+
+@router.post("/api/ml/publicaciones/health-score/iniciar")
+async def iniciar_health_score(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_config_access),
 ):
-    """
-    Calcula el health score de las publicaciones activas en ML.
-    Evalúa título (largo + símbolos), cantidad de fotos y largo de descripción.
-    """
+    """Lanza el cálculo de health score en background y devuelve un job_id."""
     token = await _get_token(db)
 
-    # Obtener item_ids de PublicacionML Y de BorradorML publicados
     pubs = db.query(PublicacionML).filter(PublicacionML.item_id.isnot(None)).all()
     bors_pub = db.query(BorradorML).filter(
         BorradorML.item_id.isnot(None),
         BorradorML.estado == "publicada",
     ).all()
 
-    # Unión deduplicada
     pub_map: dict = {p.item_id: p for p in pubs}
     bor_map: dict = {b.item_id: b for b in bors_pub}
     item_ids = list({*(p.item_id for p in pubs if p.item_id), *(b.item_id for b in bors_pub if b.item_id)})
 
     if not item_ids:
-        return {"ok": True, "items": [], "total": 0}
+        # No hay nada que analizar — devolvemos un job "listo" vacío
+        job_id = str(uuid.uuid4())[:8]
+        _HEALTH_JOBS[job_id] = {"estado": "listo", "procesados": 0, "total": 0, "total_final": 0, "items": []}
+        return {"ok": True, "job_id": job_id}
 
-    resultados = []
-    BATCH = 20
-    for i in range(0, len(item_ids), BATCH):
-        batch = item_ids[i:i + BATCH]
-        try:
-            async with httpx.AsyncClient(timeout=15) as c:
-                r = await c.get(
-                    f"{ML_BASE}/items",
-                    headers=_ml_headers(token),
-                    params={"ids": ",".join(batch), "attributes": "id,title,status,pictures,description,permalink"},
-                )
-            if r.status_code != 200:
-                log.warning(f"[HEALTH] batch error {r.status_code}")
-                continue
-            for raw in r.json():
-                body = raw.get("body", raw) if isinstance(raw, dict) and "body" in raw else raw
-                if not body or "id" not in body:
-                    continue
-                item_id  = body["id"]
-                titulo   = body.get("title", "")
-                fotos    = body.get("pictures", [])
-                desc_raw = body.get("description") or {}
-                if isinstance(desc_raw, dict):
-                    desc_text = desc_raw.get("plain_text") or desc_raw.get("text") or ""
-                else:
-                    desc_text = str(desc_raw)
-                n_fotos    = len(fotos) if isinstance(fotos, list) else 0
-                n_palabras = len(desc_text.split()) if desc_text else 0
+    job_id = str(uuid.uuid4())[:8]
+    _HEALTH_JOBS[job_id] = {
+        "estado":       "procesando",
+        "procesados":   0,
+        "total":        len(item_ids),
+        "total_final":  0,
+        "items":        [],
+    }
+    background_tasks.add_task(_health_score_bg, job_id, token, item_ids, pub_map, bor_map)
+    return {"ok": True, "job_id": job_id, "total": len(item_ids)}
 
-                # Intentar enriquecer descripción desde BD local si ML no la devolvió
-                if n_palabras == 0:
-                    pub_local = pub_map.get(item_id)
-                    bor_local = bor_map.get(item_id)
-                    desc_local = (
-                        (pub_local.descripcion if pub_local else None)
-                        or (bor_local.descripcion if bor_local else None)
-                        or ""
-                    )
-                    if desc_local:
-                        n_palabras = len(desc_local.split())
 
-                health = _calcular_health(titulo, n_fotos, n_palabras)
-                pub_local = pub_map.get(item_id)
-                resultados.append({
-                    "item_id":    item_id,
-                    "titulo":     titulo,
-                    "estado_ml":  body.get("status", ""),
-                    "n_fotos":    n_fotos,
-                    "n_palabras": n_palabras,
-                    "score":      health["score"],
-                    "grade":      health["grade"],
-                    "checks":     health["checks"],
-                    "permalink":  body.get("permalink") or (pub_local.permalink if pub_local else None),
-                })
-        except Exception as e:
-            log.warning(f"[HEALTH] batch exception: {e}")
+@router.get("/api/ml/publicaciones/health-score/estado/{job_id}")
+async def estado_health_score(
+    job_id: str,
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Devuelve el estado del job de health score."""
+    job = _HEALTH_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job no encontrado")
+    return job
 
-    resultados.sort(key=lambda x: x["score"])  # peores primero
-    return {"ok": True, "items": resultados, "total": len(resultados)}
+
+# ─── Lista rápida de publicaciones (sin llamar a ML API) ─────────────────────
+
+@router.get("/api/ml/publicaciones/lista")
+async def lista_publicaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Lista liviana de borradores publicados (solo BD local, sin llamar a ML).
+    Usada por el modal de actualización de precios."""
+    bors = db.query(BorradorML).filter(
+        BorradorML.item_id.isnot(None),
+        BorradorML.estado == "publicada",
+    ).order_by(BorradorML.titulo).all()
+    items = [
+        {
+            "item_id": b.item_id,
+            "titulo":  b.titulo or "",
+            "precio":  b.precio or 0,
+            "score":   0,
+            "grade":   "—",
+        }
+        for b in bors
+    ]
+    return {"ok": True, "items": items, "total": len(items)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

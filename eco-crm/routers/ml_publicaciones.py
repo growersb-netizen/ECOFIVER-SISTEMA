@@ -503,6 +503,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     except Exception:
         atributos = []
 
+    tipo_prod = (b.producto or "").upper()
+
+    # Tipos que usan texto libre para atributos de medidas (no listas predefinidas de ML).
+    # Para piscinas ML usa value_id de lista; para hidromasajes/bañeras acepta texto.
+    _TIPOS_DIM_LIBRE = {"HIDROMASAJE", "BANERA", "RECEPTACULO"}
+
     clean_attrs = []
     for attr in atributos:
         aid = (attr.get("id") or "").upper()
@@ -515,11 +521,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
             # GTINs inválidos → omitir completamente
 
         elif any(k == aid for k in _NUMERIC_ATTRS):
-            # Atributos numéricos de medidas: en piletas ML usa listas predefinidas con value_id.
-            # Si no hay value_id (fue auto-generado, no seleccionado de ML), omitirlo —
-            # enviar un número libre causa "El valor es incorrecto".
-            # Si tiene value_id (cargado con "Cargar requeridos"), enviarlo tal cual.
+            # Atributos numéricos de medidas:
+            # - Piscinas: ML usa listas predefinidas → solo incluir si tiene value_id
+            # - Hidromasajes/bañeras/receptáculos: ML acepta texto libre → incluir siempre si tiene valor
             if attr.get("value_id"):
+                clean_attrs.append(attr)
+            elif tipo_prod in _TIPOS_DIM_LIBRE and val:
                 clean_attrs.append(attr)
 
         else:
@@ -542,12 +549,30 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "RECEPTACULO":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "REPOSERA_FIBRA": [("COLOR", "Blanco")],
     }
-    tipo_prod = (b.producto or "").upper()
     # Refrescar set con lo que ya se inyectó arriba
     existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
     for attr_id, attr_val in _ATTRS_DEFAULT_TIPO.get(tipo_prod, []):
         if attr_id.upper() not in existing_ids:
             clean_attrs.append({"id": attr_id, "value_name": attr_val})
+
+    # Auto-inyectar dimensiones para tipos que ML las requiere pero los borradores
+    # generados masivamente no las tienen en atributos_json.
+    # Se parsean del título (ej. "Spa Cuadrado 110x110" → W=110cm, L=110cm)
+    # y HEIGHT se inyecta con default según tipo (altura real del producto).
+    if tipo_prod in _TIPOS_DIM_LIBRE:
+        existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
+        _dim_m = re.search(r'(\d{2,3})[xX×](\d{2,3})', b.titulo or "")
+        if _dim_m:
+            w_cm, l_cm = _dim_m.group(1), _dim_m.group(2)
+            if "WIDTH" not in existing_ids:
+                clean_attrs.append({"id": "WIDTH", "value_name": f"{w_cm} cm"})
+            if "LENGTH" not in existing_ids:
+                clean_attrs.append({"id": "LENGTH", "value_name": f"{l_cm} cm"})
+        # Altura del producto (dimensión vertical, no la planta)
+        _ALTURA_DEFAULT = {"HIDROMASAJE": "65 cm", "BANERA": "60 cm", "RECEPTACULO": "15 cm"}
+        existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
+        if "HEIGHT" not in existing_ids:
+            clean_attrs.append({"id": "HEIGHT", "value_name": _ALTURA_DEFAULT.get(tipo_prod, "65 cm")})
 
     # Payload estándar (marketplace buy_it_now)
     # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente

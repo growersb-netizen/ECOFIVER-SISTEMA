@@ -51,6 +51,7 @@
       <button class="btn btn-sm" onclick="abrirHealthScore()" title="Calcula el health score de todas las publicaciones (título, fotos, descripción)" style="background:#1a2a1a;color:#4ade80;border-color:#2a4a2a">📊 Health score</button>
       <button class="btn btn-sm" onclick="abrirActualizarPrecios()" title="Aumentar o bajar el precio de múltiples publicaciones a la vez" style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a">💰 Actualizar precios</button>
       <button class="btn btn-sm" onclick="abrirRecalcularPrecios()" title="Recalcula el precio correcto usando la comisión REAL de MercadoLibre por categoría para que quede precio contado + 5% de ganancia neta" style="background:#2a1a0a;color:#fb923c;border-color:#5a3a0a">🔧 Recalcular precios</button>
+      <button id="btn-verificar-cat" class="btn btn-sm" onclick="abrirVerificarCategorias()" title="Verifica que las publicaciones estén en la categoría correcta de MercadoLibre y reclasifica las incorrectas" style="background:#1a0a2a;color:#c084fc;border-color:#3a1a5a">🔍 Verificar categorías</button>
       <button class="btn btn-secondary btn-sm" onclick="syncPrecios()">🔄 Sincronizar precios</button>
       <button class="btn btn-secondary btn-sm" onclick="loadPublicaciones()">↺ Actualizar</button>
     </div>
@@ -4532,6 +4533,151 @@ async function _pollRCJob() {
       }
     }
   } catch(e) { /* retry silencioso */ }
+}
+
+/* ─── VERIFICAR Y RECLASIFICAR CATEGORÍAS ────────────────────────────── */
+let _vcJobId    = null;
+let _vcInterval = null;
+let _vcResultData = null;   // guarda incorrectas para poder reclasificar después
+
+async function abrirVerificarCategorias() {
+  if (_vcJobId) { showToast('Ya hay una verificación en curso.', 'warning'); return; }
+  const sku = prompt('Prefijo SKU a verificar (vacío = todos los publicados):', 'ECOF-HIDRO-');
+  if (sku === null) return;  // canceló
+  const sku_prefixes = sku.trim() ? [sku.trim()] : null;
+
+  const btn = document.getElementById('btn-verificar-cat');
+  if (btn) btn.textContent = '⏳ Verificando…';
+  showToast('Verificando categorías en MercadoLibre…', 'info');
+
+  try {
+    const r = await API.post('/api/ml/publicaciones/verificar-categorias', {
+      sku_prefixes, tipo_producto: null,
+    });
+    _vcJobId = r.job_id;
+    _vcInterval = setInterval(_pollVCJob, 4000);
+  } catch(e) {
+    if (btn) btn.textContent = '🔍 Verificar categorías';
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function _pollVCJob() {
+  if (!_vcJobId) return;
+  try {
+    const j = await API.get(`/api/ml/publicaciones/verificar-categorias/estado/${_vcJobId}`);
+    const pct = j.total ? Math.round(j.procesados / j.total * 100) : 0;
+    const btn = document.getElementById('btn-verificar-cat');
+
+    if (j.status === 'done') {
+      clearInterval(_vcInterval); _vcInterval = null;
+      if (btn) btn.textContent = '🔍 Verificar categorías';
+      _vcJobId = null;
+      _vcResultData = j.incorrectas || [];
+      _mostrarResultadoVerificacion(j);
+    } else {
+      if (btn) btn.textContent = `⏳ ${pct}% (${j.procesados}/${j.total || '?'})`;
+    }
+  } catch(e) { /* retry */ }
+}
+
+function _mostrarResultadoVerificacion(j) {
+  const incorrectas = j.incorrectas || [];
+  const total       = j.total || 0;
+  const correctas   = total - incorrectas.length - (j.sin_respuesta || []).length;
+
+  if (incorrectas.length === 0) {
+    showToast(`✅ Todas las categorías correctas (${total} verificadas)`, 'success');
+    return;
+  }
+
+  // Construir modal con tabla de incorrectas
+  const rows = incorrectas.map(it => `
+    <tr>
+      <td style="font-size:11px;color:var(--text-secondary)">${it.sku || it.item_id}</td>
+      <td style="font-size:12px">${escHtml(it.titulo)}</td>
+      <td style="font-size:11px;color:#f87171">${escHtml(it.cat_actual)}</td>
+      <td style="font-size:11px;color:var(--text-secondary)">${escHtml(it.cat_path)}</td>
+    </tr>`).join('');
+
+  const html = `
+    <div style="margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">
+      <span style="color:#4ade80">✅ ${correctas} correctas</span>
+      <span style="color:#f87171">❌ ${incorrectas.length} incorrectas</span>
+      ${j.sin_respuesta?.length ? `<span style="color:#fbbf24">⚠️ ${j.sin_respuesta.length} sin respuesta ML</span>` : ''}
+    </div>
+    <div style="overflow-x:auto;max-height:340px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="color:var(--text-secondary);border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:4px 8px">SKU</th>
+            <th style="text-align:left;padding:4px 8px">Título</th>
+            <th style="text-align:left;padding:4px 8px">Categoría actual</th>
+            <th style="text-align:left;padding:4px 8px">Path completo</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary btn-sm" onclick="cerrarModal()">Cerrar</button>
+      <button class="btn btn-sm" style="background:#7c3aed;border-color:#5b21b6;color:#fff"
+        onclick="reclasificarIncorrectas()">
+        ⚡ Reclasificar ${incorrectas.length} incorrectas
+      </button>
+    </div>`;
+
+  abrirModalContenido('🔍 Verificación de categorías', html);
+}
+
+let _rclfJobId    = null;
+let _rclfInterval = null;
+
+async function reclasificarIncorrectas() {
+  if (!_vcResultData || _vcResultData.length === 0) return;
+  if (!confirm(`¿Reclasificar ${_vcResultData.length} publicaciones con categoría incorrecta?\n\nML intentará cambiar la categoría de cada ítem activo.`)) return;
+
+  cerrarModal();
+  showToast('Iniciando reclasificación…', 'info');
+
+  const items = _vcResultData.map(it => ({
+    item_id:    it.item_id,
+    borrador_id: it.borrador_id,
+    producto:   it.producto || 'HIDROMASAJE',
+  }));
+
+  try {
+    const r = await API.post('/api/ml/publicaciones/reclasificar-categorias', { items });
+    _rclfJobId = r.job_id;
+    _rclfInterval = setInterval(_pollRCLFJob, 3000);
+    document.getElementById('btn-verificar-cat').textContent = '⏳ Reclasificando…';
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function _pollRCLFJob() {
+  if (!_rclfJobId) return;
+  try {
+    const j = await API.get(`/api/ml/publicaciones/reclasificar-categorias/estado/${_rclfJobId}`);
+    const pct = j.total ? Math.round(j.procesados / j.total * 100) : 0;
+    const btn = document.getElementById('btn-verificar-cat');
+
+    if (j.status === 'done') {
+      clearInterval(_rclfInterval); _rclfInterval = null;
+      _rclfJobId = null;
+      if (btn) btn.textContent = '🔍 Verificar categorías';
+      showToast(
+        `✅ Reclasificación: ${j.ok} actualizadas · ${(j.errores||[]).length} errores`,
+        (j.errores||[]).length ? 'warning' : 'success'
+      );
+      if ((j.errores||[]).length) {
+        alert('Errores en reclasificación:\n\n' + j.errores.slice(0,10).join('\n'));
+      }
+    } else {
+      if (btn) btn.textContent = `⏳ Reclasif. ${pct}%`;
+    }
+  } catch(e) { /* retry */ }
 }
 
 /* ─── INIT ───────────────────────────────────────────────────────────── */

@@ -3232,3 +3232,270 @@ async def recalcular_precios_estado(
     if not job:
         raise HTTPException(404, "Job no encontrado")
     return job
+
+
+# VERIFICACIÓN Y RECLASIFICACIÓN DE CATEGORÍAS
+# Detecta publicaciones que quedaron en categorías incorrectas (ej. hidromasajes
+# publicados como "Viviendas Prefabricadas") y permite reclasificarlas.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_VERIFICAR_JOBS:   Dict[str, Dict[str, Any]] = {}
+_RECLASIF_JOBS:    Dict[str, Dict[str, Any]] = {}
+
+# Keywords que DEBEN aparecer en el path de categoría ML para considerar correcto el tipo.
+# Si ninguna aparece → categoría incorrecta.
+_CATEG_OK_KEYWORDS: Dict[str, set] = {
+    "HIDROMASAJE": {"jacuzzi", "hidromasaje", "bañera", "spa", "baño"},
+    "BANERA":      {"bañera", "hidromasaje", "baño", "spa"},
+    "RECEPTACULO": {"ducha", "receptáculo", "receptaculo", "baño", "sanitario"},
+    "PISCINA":     {"piscina", "pileta", "natación"},
+    "MINIPISCINA": {"piscina", "pileta"},
+    "MODULO":      {"módulo", "modulo", "vivienda", "prefabricada", "construcción"},
+}
+
+
+async def _verificar_categorias_bg(
+    job_id: str,
+    token: str,
+    sku_prefixes: Optional[list],
+    tipo_producto: Optional[str],
+):
+    """
+    Verifica que cada publicación publicada esté en la categoría correcta de ML.
+    Hace multiget en batches de 20; para cada category_id único descarga el path
+    y lo compara contra _CATEG_OK_KEYWORDS.
+    """
+    from database.database import SessionLocal
+    from sqlalchemy import or_ as _or
+
+    db_bg = SessionLocal()
+    job = _VERIFICAR_JOBS[job_id]
+    try:
+        q = db_bg.query(BorradorML).filter(
+            BorradorML.item_id.isnot(None),
+            BorradorML.estado == "publicada",
+        )
+        if tipo_producto:
+            q = q.filter(BorradorML.producto == tipo_producto)
+        if sku_prefixes:
+            q = q.filter(_or(*[BorradorML.seller_sku.like(f"{p}%") for p in sku_prefixes]))
+        borradores = q.all()
+
+        job["total"] = len(borradores)
+        if not borradores:
+            job["status"] = "done"
+            return
+
+        item_map: dict = {b.item_id: b for b in borradores}
+        ids_list = list(item_map.keys())
+        categ_cache: dict = {}    # category_id → {name, path, ok}
+        item_cats:   dict = {}    # item_id → category_id
+
+        async with httpx.AsyncClient(timeout=12) as hc:
+            # ── Multiget: obtener category_id de cada ítem ──────────────────
+            for i in range(0, len(ids_list), 20):
+                batch = ids_list[i:i+20]
+                r = await hc.get(
+                    f"{ML_BASE}/items",
+                    params={"ids": ",".join(batch), "attributes": "id,category_id"},
+                    headers=_ml_headers(token),
+                )
+                if r.status_code == 200:
+                    for entry in r.json():
+                        if (entry.get("code") or 0) == 200:
+                            body   = entry.get("body", {})
+                            iid    = body.get("id")
+                            cat_id = body.get("category_id")
+                            if iid and cat_id:
+                                item_cats[iid] = cat_id
+
+                # ── Para categorías nuevas, descargar el path ────────────────
+                for iid in batch:
+                    cat_id = item_cats.get(iid)
+                    if not cat_id or cat_id in categ_cache:
+                        continue
+                    rc = await hc.get(f"{ML_BASE}/categories/{cat_id}")
+                    if rc.status_code == 200:
+                        cd = rc.json()
+                        path_names = [lv["name"] for lv in cd.get("path_from_root", [])]
+                        path_str   = " > ".join(path_names)
+                        path_lower = path_str.lower()
+                        # Determinar tipo para este item
+                        b_tipo  = (item_map.get(iid, BorradorML()).producto or tipo_producto or "HIDROMASAJE").upper()
+                        ok_kws  = _CATEG_OK_KEYWORDS.get(b_tipo, set())
+                        categ_cache[cat_id] = {
+                            "name": cd.get("name", cat_id),
+                            "path": path_str,
+                            "ok":   any(k in path_lower for k in ok_kws),
+                        }
+
+                job["procesados"] = min(i + 20, len(ids_list))
+                await asyncio.sleep(0.3)
+
+        # ── Clasificar resultados ────────────────────────────────────────────
+        for iid, cat_id in item_cats.items():
+            b        = item_map.get(iid)
+            if not b:
+                continue
+            cat_info = categ_cache.get(cat_id, {"name": cat_id, "path": cat_id, "ok": True})
+            if not cat_info["ok"]:
+                job["incorrectas"].append({
+                    "item_id":        iid,
+                    "titulo":         (b.titulo or "")[:60],
+                    "sku":            b.seller_sku or "",
+                    "borrador_id":    b.id,
+                    "producto":       b.producto or "",
+                    "cat_actual_id":  cat_id,
+                    "cat_actual":     cat_info["name"],
+                    "cat_path":       cat_info["path"],
+                })
+
+        # items sin respuesta de ML
+        for iid in ids_list:
+            if iid not in item_cats:
+                b = item_map[iid]
+                job["sin_respuesta"].append({"item_id": iid, "sku": b.seller_sku or ""})
+
+    except Exception as e:
+        log.error(f"[VERIFICAR_CAT] fatal: {e}")
+        job["error"] = str(e)
+    finally:
+        db_bg.close()
+        job["status"] = "done"
+        log.info(f"[VERIFICAR_CAT] job {job_id}: {len(job['incorrectas'])} incorrectas / {job['total']} total")
+
+
+async def _reclasificar_bg(
+    job_id: str,
+    token: str,
+    items_info: list,   # lista de {item_id, borrador_id, producto}
+):
+    """
+    Reclasifica publicaciones en categorías incorrectas:
+    1. Predice la categoría correcta con un título genérico por tipo
+    2. PUT /items/{id} con la nueva categoría
+    3. Actualiza el campo 'categoria' del borrador en DB
+    """
+    from database.database import SessionLocal
+    from routers.mercadolibre import _ml_categoria_sugerida
+
+    db_bg = SessionLocal()
+    job = _RECLASIF_JOBS[job_id]
+    job["total"] = len(items_info)
+
+    # Precalcular categoría correcta por tipo (una llamada al predictor por tipo único)
+    tipo_cat_cache: dict = {}
+
+    try:
+        async with httpx.AsyncClient(timeout=12) as hc:
+            for info in items_info:
+                item_id    = info["item_id"]
+                bid        = info["borrador_id"]
+                tipo       = (info.get("producto") or "HIDROMASAJE").upper()
+
+                # Categoría correcta — predecir una vez por tipo
+                if tipo not in tipo_cat_cache:
+                    fallback_t = _FALLBACK_TITULO_POR_TIPO.get(tipo, "")
+                    if fallback_t:
+                        # Usar sesión temporal para el predictor
+                        _db_tmp = db_bg
+                        nueva_cat = await _ml_categoria_sugerida(_db_tmp, fallback_t)
+                        tipo_cat_cache[tipo] = nueva_cat
+                    else:
+                        tipo_cat_cache[tipo] = None
+
+                nueva_cat = tipo_cat_cache.get(tipo)
+                if not nueva_cat:
+                    job["errores"].append(f"{item_id}: sin categoría predicha para tipo {tipo}")
+                    job["procesados"] += 1
+                    continue
+
+                # PUT a ML con nueva categoría
+                r = await hc.put(
+                    f"{ML_BASE}/items/{item_id}",
+                    headers=_ml_headers(token),
+                    json={"category_id": nueva_cat},
+                )
+                if r.status_code in (200, 201, 204):
+                    job["ok"] += 1
+                    # Actualizar borrador en DB
+                    b = db_bg.query(BorradorML).filter(BorradorML.id == bid).first()
+                    if b:
+                        b.categoria = nueva_cat
+                else:
+                    job["errores"].append(f"{item_id}: HTTP {r.status_code} — {r.text[:80]}")
+
+                job["procesados"] += 1
+                await asyncio.sleep(0.4)
+
+        db_bg.commit()
+
+    except Exception as e:
+        log.error(f"[RECLASIF] fatal: {e}")
+        job["errores"].append(f"Error crítico: {e}")
+    finally:
+        db_bg.close()
+        job["status"] = "done"
+        log.info(f"[RECLASIF] job {job_id}: {job['ok']} OK, {len(job['errores'])} errores")
+
+
+@router.post("/api/ml/publicaciones/verificar-categorias")
+async def verificar_categorias(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Inicia verificación de categorías de publicaciones en ML."""
+    body         = await request.json()
+    sku_prefixes = body.get("sku_prefixes") or None
+    tipo         = body.get("tipo_producto") or None
+    tok          = await _ml_valid_token(db)
+    job_id       = str(uuid.uuid4())
+    _VERIFICAR_JOBS[job_id] = {
+        "status":       "running",
+        "total":        0,
+        "procesados":   0,
+        "incorrectas":  [],
+        "sin_respuesta":[],
+        "error":        None,
+    }
+    background_tasks.add_task(_verificar_categorias_bg, job_id, tok, sku_prefixes, tipo)
+    return {"job_id": job_id}
+
+
+@router.get("/api/ml/publicaciones/verificar-categorias/estado/{job_id}")
+async def verificar_categorias_estado(job_id: str):
+    job = _VERIFICAR_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    return job
+
+
+@router.post("/api/ml/publicaciones/reclasificar-categorias")
+async def reclasificar_categorias(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Reclasifica en ML las publicaciones con categoría incorrecta."""
+    body       = await request.json()
+    items_info = body.get("items") or []    # [{item_id, borrador_id, producto}]
+    if not items_info:
+        raise HTTPException(400, "Sin ítems para reclasificar")
+    tok    = await _ml_valid_token(db)
+    job_id = str(uuid.uuid4())
+    _RECLASIF_JOBS[job_id] = {
+        "status": "running", "total": 0, "procesados": 0, "ok": 0, "errores": [],
+    }
+    background_tasks.add_task(_reclasificar_bg, job_id, tok, items_info)
+    return {"job_id": job_id}
+
+
+@router.get("/api/ml/publicaciones/reclasificar-categorias/estado/{job_id}")
+async def reclasificar_categorias_estado(job_id: str):
+    job = _RECLASIF_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    return job

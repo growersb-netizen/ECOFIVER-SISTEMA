@@ -124,7 +124,7 @@ DEFAULT_CATALOGO = {
                 "pulsadores": 1,
                 "reguladores_aire": 1,
                 "precio_contado": 1220000,
-                "fotos": [],
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.69x1.17x0.40-HIDRO.jpeg"],
             },
             "Spa Recta": {
                 "descripcion_corta": "Rectangular doble. Diseño confort para dos personas.",
@@ -135,7 +135,7 @@ DEFAULT_CATALOGO = {
                 "pulsadores": 1,
                 "reguladores_aire": 2,
                 "precio_contado": 1520000,
-                "fotos": [],
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.65x1.40x0.45-HIDRO.jpeg"],
             },
             "Spa Orbis": {
                 "descripcion_corta": "Circular panorámico. Para baños de lujo, terrazas o ambiente SPA.",
@@ -146,7 +146,7 @@ DEFAULT_CATALOGO = {
                 "pulsadores": 1,
                 "reguladores_aire": 2,
                 "precio_contado": 1620000,
-                "fotos": [],
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.76x1.76x0.40-HIDRO.jpeg"],
             },
             "Spa Delta": {
                 "descripcion_corta": "Mini spa rectangular XL. Mayor profundidad de la línea.",
@@ -157,7 +157,7 @@ DEFAULT_CATALOGO = {
                 "pulsadores": 1,
                 "reguladores_aire": 2,
                 "precio_contado": 1890000,
-                "fotos": [],
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.97x1.42x0.52-HIDRO.jpeg"],
             },
         },
         "equipamiento_comun": [
@@ -209,6 +209,261 @@ DEFAULT_CATALOGO = {
             "24": {"BASE": {"precio_contado": None, "fotos": []}, "PREMIUM": {"precio_contado": None, "fotos": []}},
         },
     },
+    # ── Bañeras de acrílico ───────────────────────────────────────────────────
+    "baneras": {
+        "material": "Acrílico sanitario de alta resistencia reforzado con PRFV (Poliéster Reforzado en Fibra de Vidrio)",
+        "instalacion": "Instalación directa sobre el piso. Conexión a agua fría/caliente y desagüe. Sin obra de albañilería.",
+        "colores": ["Blanco", "Beige", "Negro", "Gris"],
+        "pago": "Contado, tarjeta de crédito o débito. Sin financiación propia en cuotas.",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "envio": "Disponible a domicilio, cotizar según zona.",
+        "garantia": "Garantía estructural incluida.",
+        "modelos": {
+            "Lumina": {
+                "descripcion_corta": "Bañera rectangular estándar. 1,90 m. Ideal para baños amplios.",
+                "formato": "Rectangular",
+                "medidas": {"largo_m": 1.90, "ancho_m": 0.90, "profundidad_m": 0.50},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/lumina.jpg"],
+            },
+            "Sensa": {
+                "descripcion_corta": "Angular doble asiento. Formato para dos personas.",
+                "formato": "Angular doble",
+                "medidas": {"largo_m": 1.70, "ancho_m": 1.18, "profundidad_m": 0.45},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/sensa.jpg"],
+            },
+            "Vento": {
+                "descripcion_corta": "Bañera compacta. Ideal para baños de espacio reducido.",
+                "formato": "Compacta rectangular",
+                "medidas": {"largo_m": 1.40, "ancho_m": 0.77, "profundidad_m": 0.49},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/vento.jpg"],
+            },
+            "Aqua": {
+                "descripcion_corta": "Doble asiento XL. Para baños de lujo o suites.",
+                "formato": "Doble asiento XL",
+                "medidas": {"largo_m": 1.65, "ancho_m": 1.40, "profundidad_m": 0.50},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/aquaaa.jpg"],
+            },
+            "Curve": {
+                "descripcion_corta": "Bañera esquinera cuadrada. Aprovecha el rincón del baño.",
+                "formato": "Esquinera cuadrada",
+                "medidas": {"largo_m": 1.40, "ancho_m": 1.40, "profundidad_m": 0.55},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/curve.jpg"],
+            },
+            "Pure": {
+                "descripcion_corta": "Bañera clásica rectangular de alta profundidad.",
+                "formato": "Rectangular clásica",
+                "medidas": {"largo_m": 1.84, "ancho_m": 0.96, "profundidad_m": 0.45},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/pure.jpg"],
+            },
+            "Vita": {
+                "descripcion_corta": "Bañera rectangular estándar versátil. 1,80 m.",
+                "formato": "Rectangular estándar",
+                "medidas": {"largo_m": 1.80, "ancho_m": 0.90, "profundidad_m": 0.50},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/vita.jpg"],
+            },
+        },
+    },
+    # ── Receptáculos de ducha ─────────────────────────────────────────────────
+    "receptaculos": {
+        "material": "Acrílico sanitario de alta resistencia reforzado con PRFV, superficie antideslizante",
+        "instalacion": "Instalación directa sobre el piso. Conexión a desagüe estándar. Sin obra.",
+        "colores": ["Blanco", "Beige", "Negro", "Gris"],
+        "pago": "Contado, tarjeta de crédito o débito. Sin financiación propia en cuotas.",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "modelos": {
+            "Clásico": {
+                "descripcion_corta": "Receptáculo cuadrado estándar 110x110. El más popular.",
+                "formato": "Cuadrado",
+                "medidas": {"largo_m": 1.10, "ancho_m": 1.10, "profundidad_m": 0.10},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.10x1.10x0.10-RECEP.jpeg"],
+            },
+            "Esquinero": {
+                "descripcion_corta": "Receptáculo esquinero 99x75 cm. Aprovecha los rincones.",
+                "formato": "Esquinero rectangular",
+                "medidas": {"largo_m": 0.99, "ancho_m": 0.75, "profundidad_m": 0.10},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/99X75-RECEP.jpeg"],
+            },
+            "Pequeño": {
+                "descripcion_corta": "Receptáculo compacto 90x90 cm. Para espacios reducidos.",
+                "formato": "Cuadrado compacto",
+                "medidas": {"largo_m": 0.90, "ancho_m": 0.90, "profundidad_m": 0.09},
+                "precio_contado": None,
+                "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/90x90x0.90-RECEP.jpeg"],
+            },
+        },
+    },
+    # ── Accesorios y equipos para piscinas ───────────────────────────────────
+    "accesorios_piscinas": {
+        "nota": "Accesorios compatibles con todas las líneas de piscinas EcoFiver.",
+        "pago": "Contado, tarjeta de crédito o débito.",
+        "productos": {
+            "Iluminación LED Sumergible": {
+                "descripcion": "Luz LED sumergible para piscinas. Multicolor o blanco cálido/frío. Resistente al agua. Fácil instalación.",
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Bomba Filtradora": {
+                "descripcion": "Equipo de filtración para piscinas. Distintas potencias según el volumen de la pileta. Consultar modelo.",
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Filtro de Arena": {
+                "descripcion": "Filtro de arena para piscinas. Elimina impurezas y mantiene el agua limpia. Compatible con bombas estándar.",
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Escalera de Piscina": {
+                "descripcion": "Escalera de acero inoxidable para piscinas. Distintos modelos (2 y 3 peldaños). Fácil instalación.",
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Cobertor de Invierno": {
+                "descripcion": "Cobertor para proteger la piscina fuera de temporada. A medida según dimensiones.",
+                "precio_contado": None,
+                "fotos": [],
+            },
+        },
+    },
+    # ── Baños químicos ────────────────────────────────────────────────────────
+    "banios_quimicos": {
+        "material": "Estructura de polipropileno de alta densidad",
+        "usos": "Obras de construcción, eventos, festivales, camping, ferias, zonas rurales sin saneamiento.",
+        "pago": "Contado o tarjeta. Disponible también en alquiler (consultar).",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "modelos": {
+            "Estándar": {
+                "descripcion_corta": "Baño químico portátil individual. Inodoro, urinario y porta papel.",
+                "precio_contado": None,
+                "precio_alquiler_dia": None,
+                "fotos": [],
+            },
+            "Con Lavamanos": {
+                "descripcion_corta": "Baño químico con lavamanos integrado. Mayor confort e higiene.",
+                "precio_contado": None,
+                "precio_alquiler_dia": None,
+                "fotos": [],
+            },
+            "Discapacitados": {
+                "descripcion_corta": "Baño químico accesible. Dimensiones para silla de ruedas, con barras de apoyo.",
+                "precio_contado": None,
+                "precio_alquiler_dia": None,
+                "fotos": [],
+            },
+        },
+    },
+    # ── Garitas de seguridad ──────────────────────────────────────────────────
+    "garitas_seguridad": {
+        "material": "Estructura metálica con paredes de PRFV / chapa. Aislación interior.",
+        "usos": "Control de acceso a edificios, countries, barrios cerrados, plantas industriales, peajes.",
+        "pago": "Contado o tarjeta.",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "envio": "Disponible a domicilio, cotizar según zona.",
+        "modelos": {
+            "Básica": {
+                "descripcion_corta": "Garita individual prefabricada. Ventana corrediza, puerta, aislación básica.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Con Baño": {
+                "descripcion_corta": "Garita con baño interior integrado. Mayor autonomía para el guardia.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Doble": {
+                "descripcion_corta": "Garita para dos puestos de control. Doble acceso.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+        },
+    },
+    # ── Cuchas para perros ────────────────────────────────────────────────────
+    "cuchas_perros": {
+        "material": "Madera tratada para exterior (pino impregnado o melamina). Techo desmontable.",
+        "usos": "Para perros de todos los tamaños. Uso en exteriores e interiores.",
+        "pago": "Contado o tarjeta.",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "modelos": {
+            "Chica": {
+                "descripcion_corta": "Para razas pequeñas (hasta 5 kg). Tejkel, Chihuahua, etc.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Mediana": {
+                "descripcion_corta": "Para razas medianas (hasta 15 kg). Beagle, Caniche grande, etc.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Grande": {
+                "descripcion_corta": "Para razas grandes (hasta 35 kg). Labrador, Golden, etc.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Extra Grande": {
+                "descripcion_corta": "Para razas extra grandes (más de 35 kg). Gran Danés, Ovejero, etc.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+        },
+    },
+    # ── Reposeras de fibra ────────────────────────────────────────────────────
+    "reposeras": {
+        "material": "Fibra de vidrio con gel coat UV. Resistente a la intemperie y al agua.",
+        "usos": "Piletas, playas, jardines, terrazas, spa.",
+        "colores": ["Blanco", "Beige"],
+        "pago": "Contado o tarjeta.",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "modelos": {
+            "Reposera Individual": {
+                "descripcion_corta": "Reposera reclinable de fibra de vidrio. Regulable en varios ángulos.",
+                "medidas": {"largo_m": None, "ancho_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Reposera con Mesa": {
+                "descripcion_corta": "Reposera con mesa lateral incorporada. Para comodidad en la pileta.",
+                "medidas": {"largo_m": None, "ancho_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+        },
+    },
+    # ── Depósitos de jardín ───────────────────────────────────────────────────
+    "depositos_jardin": {
+        "material": "Chapa galvanizada / PRFV según modelo.",
+        "usos": "Guardado de herramientas, equipos de jardín, bicicletas, etc.",
+        "pago": "Contado o tarjeta.",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "modelos": {
+            "Pequeño": {
+                "descripcion_corta": "Depósito compacto para herramientas y equipos pequeños.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+            "Mediano": {
+                "descripcion_corta": "Depósito mediano. Capacidad para bicicletas y equipos de jardín.",
+                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
+                "precio_contado": None,
+                "fotos": [],
+            },
+        },
+    },
 }
 
 
@@ -244,6 +499,30 @@ def load_catalogo() -> dict:
             if "modulos_deposito" not in cat:
                 cat["modulos_deposito"] = json.loads(json.dumps(DEFAULT_CATALOGO["modulos_deposito"]))
                 cambiado = True
+            # Migración: nuevas líneas de productos
+            for seccion_nueva in ("baneras", "receptaculos", "accesorios_piscinas",
+                                  "banios_quimicos", "garitas_seguridad", "cuchas_perros",
+                                  "reposeras", "depositos_jardin"):
+                if seccion_nueva not in cat:
+                    cat[seccion_nueva] = json.loads(json.dumps(DEFAULT_CATALOGO[seccion_nueva]))
+                    cambiado = True
+                else:
+                    # Agregar modelos nuevos que falten sin pisar los existentes
+                    modelos_default = DEFAULT_CATALOGO[seccion_nueva].get("modelos") or \
+                                      DEFAULT_CATALOGO[seccion_nueva].get("productos", {})
+                    modelos_cat = cat[seccion_nueva].get("modelos") or \
+                                  cat[seccion_nueva].get("productos", {})
+                    for nombre, datos in modelos_default.items():
+                        if nombre not in modelos_cat:
+                            modelos_cat[nombre] = datos
+                            cambiado = True
+            # Actualizar fotos de hidromasajes si el modelo tiene fotos vacías
+            if "hidromasajes" in cat:
+                for modelo, datos in DEFAULT_CATALOGO["hidromasajes"]["modelos"].items():
+                    m = cat["hidromasajes"].get("modelos", {}).get(modelo)
+                    if m is not None and not m.get("fotos") and datos.get("fotos"):
+                        m["fotos"] = datos["fotos"]
+                        cambiado = True
             # Seed medidas desde lista de precios oficial si el dict está vacío
             if not cat["piscinas"].get("medidas"):
                 cat["piscinas"]["medidas"] = dict(_MEDIDAS_PDF)

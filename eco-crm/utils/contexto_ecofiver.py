@@ -111,12 +111,47 @@ LO QUE VENDEMOS Y FABRICAMOS
    Paquete integrado: piscina de fibra + módulo de servicio o descanso junto a la pileta
    Ahorro en logística al contratar ambos con la misma empresa
 
+3b. BAÑERAS DE ACRÍLICO
+   Material: acrílico sanitario reforzado con PRFV (igual que los hidromasajes, sin jets)
+   Colores disponibles: Blanco, Beige, Negro, Gris
+   Instalación: directa sobre el piso, sin obra. Conexión a agua fría/caliente y desagüe.
+   Pago: contado, tarjeta de crédito o débito. Sin financiación propia en cuotas.
+   Modelos y medidas exactas:
+   · Lumina   1,90 × 0,90 × 0,50 m — rectangular estándar
+   · Sensa    1,70 × 1,18 × 0,45 m — angular doble asiento
+   · Vento    1,40 × 0,77 × 0,49 m — compacta rectangular
+   · Aqua     1,65 × 1,40 × 0,50 m — doble asiento XL
+   · Curve    1,40 × 1,40 × 0,55 m — esquinera cuadrada
+   · Pure     1,84 × 0,96 × 0,45 m — rectangular clásica
+   · Vita     1,80 × 0,90 × 0,50 m — rectangular estándar
+   Precios: consultar (actualizables en el CRM → Catálogo)
+
+3c. RECEPTÁCULOS DE DUCHA
+   Material: acrílico sanitario reforzado con PRFV, superficie antideslizante
+   Colores disponibles: Blanco, Beige, Negro, Gris
+   Pago: contado, tarjeta de crédito o débito. Sin financiación propia en cuotas.
+   Modelos y medidas exactas:
+   · Clásico   1,10 × 1,10 × 0,10 m — cuadrado estándar
+   · Esquinero 0,99 × 0,75 × 0,10 m — esquinero rectangular
+   · Pequeño   0,90 × 0,90 × 0,09 m — cuadrado compacto para espacios reducidos
+   Precios: consultar (actualizables en el CRM → Catálogo)
+
 6. ACCESORIOS Y OTROS PRODUCTOS
    · Quinchos prefabricados (con o sin pared lateral)
    · Pérgolas y gazebos de madera o metal
-   · Reposeras de fibra de vidrio (color a elección)
-   · Cuchas / casillas para perro de fibra
-   · Iluminación LED para piscinas (focos sumergibles)
+   · Reposeras de fibra de vidrio (reclinables, colores blanco/beige)
+   · Cuchas / casillas para perros de madera (tallas: chica, mediana, grande, extra grande)
+   · Iluminación LED para piscinas (focos sumergibles, multicolor o blanco)
+   · Accesorios de filtración: bomba filtradora, filtro de arena, escalera inoxidable, cobertor de invierno
+   · Repuestos para piscinas (consultar)
+
+7. PREFABRICADOS VARIOS
+   · Baños químicos portátiles: modelo estándar, con lavamanos, accesible (discapacitados)
+     Disponibles en venta y alquiler (consultar precios). Estructura de polipropileno de alta densidad.
+   · Garitas de seguridad: básica, con baño integrado, doble puesto.
+     Estructura metálica con paredes de PRFV. Para countries, edificios, plantas industriales.
+   · Depósitos de jardín: de chapa o PRFV, varios tamaños (consultar).
+   Todos los prefabricados varios: sin precios fijos en catálogo, consultar por modelo y tamaño.
 
 MODELO DE NEGOCIO Y LOGÍSTICA
 - Fabricación: planta propia en Zárate, Buenos Aires

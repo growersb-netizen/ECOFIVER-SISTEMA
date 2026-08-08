@@ -2860,12 +2860,20 @@ async def health_score_publicaciones(
     """
     token = await _get_token(db)
 
+    # Obtener item_ids de PublicacionML Y de BorradorML publicados
     pubs = db.query(PublicacionML).filter(PublicacionML.item_id.isnot(None)).all()
-    if not pubs:
-        return {"ok": True, "items": [], "total": 0}
+    bors_pub = db.query(BorradorML).filter(
+        BorradorML.item_id.isnot(None),
+        BorradorML.estado == "publicada",
+    ).all()
 
-    item_ids = [p.item_id for p in pubs if p.item_id]
-    pub_map = {p.item_id: p for p in pubs}
+    # Unión deduplicada
+    pub_map: dict = {p.item_id: p for p in pubs}
+    bor_map: dict = {b.item_id: b for b in bors_pub}
+    item_ids = list({*(p.item_id for p in pubs if p.item_id), *(b.item_id for b in bors_pub if b.item_id)})
+
+    if not item_ids:
+        return {"ok": True, "items": [], "total": 0}
 
     resultados = []
     BATCH = 20
@@ -2899,8 +2907,14 @@ async def health_score_publicaciones(
                 # Intentar enriquecer descripción desde BD local si ML no la devolvió
                 if n_palabras == 0:
                     pub_local = pub_map.get(item_id)
-                    if pub_local and pub_local.descripcion:
-                        n_palabras = len(pub_local.descripcion.split())
+                    bor_local = bor_map.get(item_id)
+                    desc_local = (
+                        (pub_local.descripcion if pub_local else None)
+                        or (bor_local.descripcion if bor_local else None)
+                        or ""
+                    )
+                    if desc_local:
+                        n_palabras = len(desc_local.split())
 
                 health = _calcular_health(titulo, n_fotos, n_palabras)
                 pub_local = pub_map.get(item_id)

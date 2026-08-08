@@ -563,3 +563,324 @@ FICHAS_MODULOS: dict = {
     str(m2): ficha_modulo(m2)
     for m2 in [6, 12, 18, 24, 30, 36, 42, 48, 54, 60]
 }
+
+
+# ─── HIDROMASAJES / SPAS ──────────────────────────────────────────────────────
+
+FICHAS_HIDROMASAJES: dict = {
+
+    "Spa Quadra": {
+        "titulo_ml": "Hidromasaje esquinero acrílico 1.10x1.10 4 jets con estructura",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "110", "WIDTH": "110", "DEPTH": "10"},
+        "descripcion_ml": (
+            "Hidromasaje Spa Quadra de acrílico sanitario reforzado con PRFV, formato esquinero "
+            "ultracompacto de 1,10 m × 1,10 m. Ideal para baños pequeños y espacios reducidos "
+            "donde el hidromasaje convencional no entra.\n\n"
+            "El Spa Quadra incluye 4 jets dirigibles con vista cromo, motor de 1/2 o 3/4 HP, "
+            "1 pulsador neumático de encendido, 1 regulador de flujo de aire, sistema de succión "
+            "completo (filtro de pelos + sopapa + desborde conectados) y estructura autoportante "
+            "metálica reforzada. Todo incluido en el precio.\n\n"
+            "El acrílico sanitario de alta resistencia reforzado con PRFV (Poliéster Reforzado en "
+            "Fibra de Vidrio) es el material premium para hidromasajes: superficie no porosa, fácil "
+            "limpieza, resistente al calor y a los productos de tratamiento. No se fisura ni opaca "
+            "con el uso.\n\n"
+            "Disponible en colores Blanco, Beige, Negro y Gris sin cargo adicional. "
+            "Instalación sin obra de albañilería: conexión a agua fría/caliente existente, "
+            "desagüe y electricidad. Sin financiación propia en cuotas — pago contado, "
+            "tarjeta de crédito o débito. Entrega desde San Telmo (CABA) o Zárate (Buenos Aires). "
+            "Cotizar envío a domicilio según zona. Garantía estructural incluida."
+        ),
+    },
+
+    "Spa Recta": {
+        "titulo_ml": "Hidromasaje rectangular acrílico 1.65x1.40 6 jets para dos personas",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "165", "WIDTH": "140", "DEPTH": "45"},
+        "descripcion_ml": (
+            "Hidromasaje Spa Recta de acrílico sanitario reforzado con PRFV, diseño rectangular "
+            "de 1,65 m de largo × 1,40 m de ancho. Formato confort para dos personas con "
+            "profundidad de 0,45 m.\n\n"
+            "El Spa Recta incluye 6 jets dirigibles con vista cromo, motor de 3/4 HP, "
+            "1 pulsador neumático de encendido, 2 reguladores de flujo de aire, sistema de succión "
+            "completo (filtro de pelos + sopapa + desborde conectados) y estructura autoportante "
+            "metálica reforzada. Todo incluido.\n\n"
+            "El diseño rectangular permite aprovechar el espacio de baño de forma eficiente. "
+            "Con 6 jets y motor de 3/4 HP, el Spa Recta ofrece una hidroterapia de nivel "
+            "superior: jets masajeadores dirigibles para espalda, lumbar y piernas.\n\n"
+            "El acrílico sanitario reforzado con PRFV es duradero, de fácil limpieza y "
+            "resistente al calor y productos de spa. Sin mantenimiento estructural. "
+            "Disponible en Blanco, Beige, Negro y Gris sin cargo adicional. "
+            "Instalación sin obra: conexión a agua caliente/fría, desagüe y eléctrico. "
+            "Pago contado o tarjeta. Entrega desde San Telmo o Zárate. Consultar flete."
+        ),
+    },
+
+    "Spa Orbis": {
+        "titulo_ml": "Hidromasaje circular acrílico 1.76 diámetro 6 jets spa de lujo",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "176", "WIDTH": "176", "DEPTH": "40"},
+        "descripcion_ml": (
+            "Hidromasaje Spa Orbis de acrílico sanitario reforzado con PRFV, formato circular "
+            "panorámico de 1,76 m de diámetro. Diseño premium para baños de lujo, terrazas, "
+            "jardines o ambientes SPA. Ideal como pieza central del baño principal.\n\n"
+            "El Spa Orbis incluye 6 a 8 jets dirigibles con vista cromo, motor de 3/4 HP, "
+            "1 pulsador neumático de encendido, 2 reguladores de flujo de aire, sistema de succión "
+            "completo y estructura autoportante metálica reforzada. Todo incluido en el precio.\n\n"
+            "El formato circular ofrece una distribución de jets de 360 grados, masajeando "
+            "uniformemente todo el cuerpo. Profundidad de 0,40 m, adecuada para uso en "
+            "posición reclinada. El diseño redondo se adapta a espacios libres de ángulos "
+            "y da un aspecto spa de alta gama.\n\n"
+            "Material: acrílico sanitario de alta resistencia reforzado con PRFV — no poroso, "
+            "resistente al calor, al cloro y a otros productos de tratamiento. "
+            "Disponible en Blanco, Beige, Negro y Gris. Instalación sin obra de albañilería. "
+            "Pago contado o tarjeta. Entrega desde San Telmo (CABA) o Zárate (Buenos Aires)."
+        ),
+    },
+
+    "Spa Delta": {
+        "titulo_ml": "Hidromasaje mini spa acrílico 1.97x1.42 8 jets motor 1HP",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "197", "WIDTH": "142", "DEPTH": "52"},
+        "descripcion_ml": (
+            "Hidromasaje Spa Delta de acrílico sanitario reforzado con PRFV, el modelo más grande "
+            "de la línea: 1,97 m de largo × 1,42 m de ancho y 0,52 m de profundidad. "
+            "Categoría mini spa rectangular XL para uso familiar o profesional.\n\n"
+            "El Spa Delta incluye 8 jets dirigibles con vista cromo, motor de 1 HP (el más "
+            "potente de la línea), 1 pulsador neumático de encendido, 2 reguladores de flujo "
+            "de aire, sistema de succión completo (filtro de pelos + sopapa + desborde "
+            "conectados) y estructura autoportante metálica reforzada.\n\n"
+            "Con 8 jets y motor de 1 HP, el Spa Delta es el hidromasaje con mayor potencia "
+            "de hidroterapia de la línea EcoFiver. La profundidad de 0,52 m permite sumergirse "
+            "completamente y aprovechar todos los puntos de masaje. Ideal para uso diario, "
+            "recuperación muscular y relajación profunda.\n\n"
+            "Material: acrílico sanitario de alta resistencia reforzado con PRFV — no poroso, "
+            "resistente al calor y a los productos de spa. Disponible en Blanco, Beige, Negro "
+            "y Gris sin cargo adicional. Instalación sin obra. Pago contado o tarjeta. "
+            "Entrega desde San Telmo (CABA) o Zárate (Buenos Aires). Garantía estructural."
+        ),
+    },
+}
+
+
+# ─── BAÑERAS DE ACRÍLICO ──────────────────────────────────────────────────────
+
+FICHAS_BANERAS: dict = {
+
+    "Lumina": {
+        "titulo_ml": "Bañera rectangular acrílico 1.90x0.90 metros sanitaria",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "190", "WIDTH": "90", "DEPTH": "50"},
+        "descripcion_ml": (
+            "Bañera Lumina de acrílico sanitario reforzado con PRFV, formato rectangular de "
+            "1,90 m de largo × 0,90 m de ancho. Ideal para baños amplios. "
+            "Profundidad de 0,50 m para una inmersión cómoda.\n\n"
+            "La bañera Lumina es el modelo estándar de mayor tamaño de la línea EcoFiver. "
+            "Su formato rectangular clásico se adapta a la mayoría de los baños principales. "
+            "El acrílico sanitario de alta resistencia reforzado con PRFV ofrece una superficie "
+            "tersa, no porosa, fácil de limpiar y resistente al calor del agua.\n\n"
+            "Instalación directa sobre el piso existente. Conexión a agua fría/caliente y "
+            "desagüe estándar. Sin obra de albañilería. No requiere estructura especial. "
+            "Disponible en colores Blanco, Beige, Negro y Gris sin cargo adicional. "
+            "Pago contado o tarjeta de crédito/débito. Sin financiación propia en cuotas. "
+            "Entrega desde San Telmo (CABA) o Zárate (Buenos Aires). Cotizar envío según zona. "
+            "Garantía estructural incluida."
+        ),
+    },
+
+    "Sensa": {
+        "titulo_ml": "Bañera angular doble asiento acrílico 1.70x1.18 para dos personas",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "170", "WIDTH": "118", "DEPTH": "45"},
+        "descripcion_ml": (
+            "Bañera Sensa de acrílico sanitario reforzado con PRFV, formato angular doble "
+            "de 1,70 m × 1,18 m. Diseñada para dos personas con dos asientos moldeados "
+            "enfrentados. Profundidad de 0,45 m.\n\n"
+            "El formato angular de la bañera Sensa aprovecha el espacio del baño de manera "
+            "eficiente y permite una experiencia de baño compartida con posición ergonómica "
+            "para cada usuario. Los dos asientos moldeados brindan soporte lumbar y cervical "
+            "durante la inmersión.\n\n"
+            "El acrílico sanitario PRFV es el material premium para bañeras: superficie lisa, "
+            "no porosa, resistente al calor (hasta 70°C del agua), fácil de limpiar y "
+            "duradera sin pintura ni mantenimiento. "
+            "Disponible en Blanco, Beige, Negro y Gris. Instalación directa, sin obra. "
+            "Pago contado o tarjeta. Entrega desde San Telmo o Zárate. Consultar flete."
+        ),
+    },
+
+    "Vento": {
+        "titulo_ml": "Bañera compacta acrílico 1.40x0.77 metros baños chicos",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "140", "WIDTH": "77", "DEPTH": "49"},
+        "descripcion_ml": (
+            "Bañera Vento de acrílico sanitario reforzado con PRFV, formato compacto de "
+            "1,40 m de largo × 0,77 m de ancho. La opción ideal cuando el baño tiene espacio "
+            "reducido pero se quiere incorporar una bañera. Profundidad de 0,49 m.\n\n"
+            "La bañera Vento es la más compacta de la línea EcoFiver, especialmente diseñada "
+            "para baños pequeños de departamentos o casas donde el espacio disponible no permite "
+            "una bañera de tamaño estándar. Sin sacrificar comodidad ni calidad de material.\n\n"
+            "Acrílico sanitario de alta resistencia reforzado con PRFV: superficie no porosa, "
+            "tersa, fácil de limpiar y resistente al calor del agua. Sin mantenimiento especial. "
+            "Disponible en Blanco, Beige, Negro y Gris sin cargo adicional. "
+            "Instalación directa sobre el piso. Conexión a agua y desagüe estándar, sin obra. "
+            "Pago contado o tarjeta. Garantía estructural incluida. "
+            "Entrega desde San Telmo (CABA) o Zárate (Buenos Aires)."
+        ),
+    },
+
+    "Aqua": {
+        "titulo_ml": "Bañera doble asiento XL acrílico 1.65x1.40 baños de lujo",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "165", "WIDTH": "140", "DEPTH": "50"},
+        "descripcion_ml": (
+            "Bañera Aqua de acrílico sanitario reforzado con PRFV, formato doble asiento XL "
+            "de 1,65 m × 1,40 m y 0,50 m de profundidad. El modelo de mayor capacidad de la "
+            "línea, pensado para baños de lujo, suites y ambientes premium.\n\n"
+            "La bañera Aqua ofrece dos asientos enfrentados con amplio espacio interior, "
+            "ideal para parejas o para quien busca la máxima comodidad en el baño. "
+            "El formato cuadrado-amplio permite sumergirse completamente con espacio para "
+            "estirar las piernas en ambas posiciones.\n\n"
+            "Fabricada en acrílico sanitario de alta resistencia reforzado con PRFV — "
+            "el mismo material usado en bañeras de spa de alto nivel. Superficie no porosa, "
+            "tersa, de fácil limpieza y duradera. No requiere pintura ni mantenimiento especial. "
+            "Disponible en Blanco, Beige, Negro y Gris. Instalación directa sin obra. "
+            "Pago contado o tarjeta. Entrega desde San Telmo o Zárate. "
+            "Consultar envío a domicilio según zona. Garantía estructural incluida."
+        ),
+    },
+
+    "Curve": {
+        "titulo_ml": "Bañera esquinera cuadrada acrílico 1.40x1.40 metros aprovecha rincón",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "140", "WIDTH": "140", "DEPTH": "55"},
+        "descripcion_ml": (
+            "Bañera Curve de acrílico sanitario reforzado con PRFV, formato esquinero cuadrado "
+            "de 1,40 m × 1,40 m. Diseñada para instalarse en el rincón del baño, aprovechando "
+            "el espacio de esquina que normalmente queda sin uso. Profundidad de 0,55 m — "
+            "la mayor de la línea.\n\n"
+            "La bañera Curve tiene la mayor profundidad de toda la línea EcoFiver (0,55 m), "
+            "lo que permite una inmersión total con el agua hasta el hombro. El formato "
+            "esquinero cuadrado crea un ambiente de spa doméstico en el rincón del baño, "
+            "maximizando el espacio disponible.\n\n"
+            "Material: acrílico sanitario de alta resistencia reforzado con PRFV — no poroso, "
+            "resistente al calor, fácil de limpiar y duradero. Sin mantenimiento especial. "
+            "Disponible en Blanco, Beige, Negro y Gris sin cargo adicional. "
+            "Instalación directa sobre el piso, sin obra. Conexión estándar a agua y desagüe. "
+            "Pago contado o tarjeta. Entrega desde San Telmo (CABA) o Zárate (Buenos Aires)."
+        ),
+    },
+
+    "Pure": {
+        "titulo_ml": "Bañera rectangular clásica acrílico 1.84x0.96 alta profundidad",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "184", "WIDTH": "96", "DEPTH": "45"},
+        "descripcion_ml": (
+            "Bañera Pure de acrílico sanitario reforzado con PRFV, formato rectangular clásico "
+            "de 1,84 m de largo × 0,96 m de ancho. El modelo con el ancho más generoso de la "
+            "línea rectangular, con profundidad de 0,45 m.\n\n"
+            "La bañera Pure combina el formato clásico con dimensiones interiores amplias: "
+            "casi 2 metros de largo y casi 1 metro de ancho ofrecen el mayor espacio interior "
+            "de los modelos rectangulares EcoFiver. Ideal para quien busca una bañera "
+            "tradicional con el máximo confort.\n\n"
+            "Fabricada en acrílico sanitario de alta resistencia reforzado con PRFV — "
+            "superficie no porosa, resistente al calor del agua, de fácil limpieza y "
+            "duradera. Sin pintura ni mantenimiento estructural especial. "
+            "Disponible en Blanco, Beige, Negro y Gris. Instalación directa sin obra. "
+            "Pago contado o tarjeta de crédito/débito. Sin financiación propia en cuotas. "
+            "Entrega desde San Telmo (CABA) o Zárate (Buenos Aires). Consultar flete."
+        ),
+    },
+
+    "Vita": {
+        "titulo_ml": "Bañera rectangular estándar acrílico 1.80x0.90 metros versátil",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "180", "WIDTH": "90", "DEPTH": "50"},
+        "descripcion_ml": (
+            "Bañera Vita de acrílico sanitario reforzado con PRFV, formato rectangular estándar "
+            "de 1,80 m de largo × 0,90 m de ancho. La bañera más versátil de la línea: "
+            "dimensiones universales que se adaptan a la gran mayoría de los baños. "
+            "Profundidad de 0,50 m.\n\n"
+            "La bañera Vita es el equilibrio perfecto entre tamaño y comodidad. Con 1,80 m × "
+            "0,90 m y 0,50 m de profundidad, se ajusta a los baños estándar argentinos sin "
+            "necesidad de reformas. Líneas rectas y perfil moderno.\n\n"
+            "Material: acrílico sanitario de alta resistencia reforzado con PRFV — superficie "
+            "no porosa, tersa, resistente al calor del agua (hasta 70°C) y a los productos "
+            "de limpieza. Sin mantenimiento especial. "
+            "Disponible en Blanco, Beige, Negro y Gris sin cargo adicional. "
+            "Instalación directa sobre el piso. Sin obra de albañilería. "
+            "Conexión estándar a agua fría/caliente y desagüe. "
+            "Pago contado o tarjeta. Entrega desde San Telmo o Zárate. "
+            "Garantía estructural incluida."
+        ),
+    },
+}
+
+
+# ─── RECEPTÁCULOS DE DUCHA ────────────────────────────────────────────────────
+
+FICHAS_RECEPTACULOS: dict = {
+
+    "Clásico": {
+        "titulo_ml": "Receptáculo ducha acrílico 1.10x1.10 cuadrado antideslizante",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "110", "WIDTH": "110", "DEPTH": "10"},
+        "descripcion_ml": (
+            "Receptáculo de ducha Clásico de acrílico sanitario reforzado con PRFV, "
+            "formato cuadrado de 1,10 m × 1,10 m. El modelo más popular de la línea "
+            "EcoFiver para duchas. Profundidad de 0,10 m con superficie antideslizante.\n\n"
+            "El receptáculo Clásico es la base de ducha estándar por excelencia: medidas "
+            "universales que se adaptan a la mayoría de los boxes de ducha. "
+            "La superficie antideslizante integrada en el acrílico brinda seguridad en el uso "
+            "diario, especialmente en hogares con niños y adultos mayores.\n\n"
+            "El acrílico sanitario de alta resistencia reforzado con PRFV ofrece una superficie "
+            "no porosa, fácil de limpiar y resistente a jabones, champús y productos de "
+            "limpieza habituales. Sin manchas ni calcificación visible. "
+            "Instalación directa sobre el piso. Conexión a desagüe estándar. Sin obra. "
+            "Disponible en Blanco, Beige, Negro y Gris sin cargo adicional. "
+            "Pago contado o tarjeta. Entrega desde San Telmo (CABA) o Zárate (Buenos Aires)."
+        ),
+    },
+
+    "Esquinero": {
+        "titulo_ml": "Receptáculo ducha esquinero acrílico 99x75 cm antideslizante",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "99", "WIDTH": "75", "DEPTH": "10"},
+        "descripcion_ml": (
+            "Receptáculo de ducha Esquinero de acrílico sanitario reforzado con PRFV, "
+            "99 cm de largo × 75 cm de ancho. Diseñado para aprovechar los rincones del baño "
+            "con el menor espacio posible. Profundidad de 0,10 m con superficie antideslizante.\n\n"
+            "El receptáculo Esquinero es la solución para baños pequeños donde el espacio "
+            "es limitado pero se quiere instalar una ducha cómoda. El formato rectangular "
+            "asimétrico se adapta perfectamente al rincón del baño, dejando libre el resto "
+            "del espacio disponible.\n\n"
+            "Fabricado en acrílico sanitario de alta resistencia reforzado con PRFV — "
+            "superficie antideslizante integrada, no porosa, fácil de limpiar y resistente "
+            "a los productos de higiene habituales. Sin calcificación visible. "
+            "Instalación directa, sin obra. Conexión a desagüe estándar. "
+            "Disponible en Blanco, Beige, Negro y Gris. Pago contado o tarjeta. "
+            "Entrega desde San Telmo (CABA) o Zárate (Buenos Aires). Consultar flete."
+        ),
+    },
+
+    "Pequeño": {
+        "titulo_ml": "Receptáculo ducha cuadrado acrílico 90x90 cm compacto antideslizante",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
+                         "LENGTH": "90", "WIDTH": "90", "DEPTH": "9"},
+        "descripcion_ml": (
+            "Receptáculo de ducha Pequeño de acrílico sanitario reforzado con PRFV, "
+            "formato cuadrado compacto de 90 cm × 90 cm. La base de ducha más pequeña "
+            "de la línea EcoFiver, para baños con espacio muy reducido. "
+            "Profundidad de 0,09 m con superficie antideslizante.\n\n"
+            "El receptáculo Pequeño es ideal para baños de servicio, toilettes ampliados, "
+            "departamentos pequeños o cualquier espacio donde el ancho mínimo lo exige. "
+            "A pesar de sus dimensiones compactas, mantiene la calidad de material de toda "
+            "la línea EcoFiver.\n\n"
+            "Acrílico sanitario de alta resistencia reforzado con PRFV: superficie "
+            "antideslizante integrada, no porosa, resistente a jabones y productos de "
+            "limpieza. Fácil mantenimiento, sin calcificación visible. "
+            "Instalación directa sobre el piso. Sin obra de albañilería. "
+            "Conexión a desagüe estándar. Disponible en Blanco, Beige, Negro y Gris. "
+            "Pago contado o tarjeta. Entrega desde San Telmo (CABA) o Zárate. Consultar flete."
+        ),
+    },
+}

@@ -47,12 +47,104 @@
 <div id="tab-publicaciones">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <span id="pub-count" style="color:var(--text-secondary);font-size:13px"></span>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="abrirHealthScore()" title="Calcula el health score de todas las publicaciones (título, fotos, descripción)" style="background:#1a2a1a;color:#4ade80;border-color:#2a4a2a">📊 Health score</button>
+      <button class="btn btn-sm" onclick="abrirActualizarPrecios()" title="Aumentar o bajar el precio de múltiples publicaciones a la vez" style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a">💰 Actualizar precios</button>
+      <button class="btn btn-sm" onclick="abrirRecalcularPrecios()" title="Recalcula el precio correcto usando la comisión REAL de MercadoLibre por categoría para que quede precio contado + 5% de ganancia neta" style="background:#2a1a0a;color:#fb923c;border-color:#5a3a0a">🔧 Recalcular precios</button>
       <button class="btn btn-secondary btn-sm" onclick="syncPrecios()">🔄 Sincronizar precios</button>
       <button class="btn btn-secondary btn-sm" onclick="loadPublicaciones()">↺ Actualizar</button>
     </div>
   </div>
   <div id="publicaciones-content"><div class="loading">Cargando publicaciones...</div></div>
+</div>
+
+<!-- Modal: Health Score publicaciones -->
+<div class="modal-overlay" id="modal-health" style="display:none">
+  <div class="modal" style="max-width:780px;width:96vw">
+    <div class="modal-header">
+      <h3>📊 Health score de publicaciones</h3>
+      <button class="btn btn-icon" onclick="closeModal('modal-health')">✕</button>
+    </div>
+    <div style="padding:16px">
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
+        Evalúa cada publicación según los factores que MercadoLibre usa para el posicionamiento:
+        calidad del título (longitud y caracteres prohibidos), cantidad de fotos y extensión de la descripción.
+      </p>
+      <div id="health-content" style="min-height:120px">
+        <div class="loading">Calculando health scores...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Actualización masiva de precios -->
+<div class="modal-overlay" id="modal-precios-lote" style="display:none">
+  <div class="modal" style="max-width:620px;width:96vw">
+    <div class="modal-header">
+      <h3>💰 Actualizar precios en MercadoLibre</h3>
+      <button class="btn btn-icon" onclick="closeModal('modal-precios-lote')">✕</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
+
+      <!-- Modo -->
+      <div style="display:flex;gap:8px">
+        <button id="btn-pm-pct" class="btn btn-sm" onclick="pmSetModo('porcentaje')"
+          style="flex:1;background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a">📈 Por porcentaje</button>
+        <button id="btn-pm-fijo" class="btn btn-sm btn-secondary" onclick="pmSetModo('fijo')"
+          style="flex:1">🔢 Precio fijo</button>
+      </div>
+
+      <!-- Input valor -->
+      <div id="pm-panel-pct">
+        <label class="form-label">Ajuste de precio (%)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="input" id="pm-pct-valor" type="number" step="0.5" value="5" placeholder="5"
+            style="max-width:120px" oninput="pmActualizarPreview()">
+          <span style="font-size:13px;color:var(--text-secondary)">
+            ej: <b>5</b> = subir 5% · <b>-10</b> = bajar 10%
+          </span>
+        </div>
+        <div id="pm-pct-preview" style="font-size:12px;color:var(--text-secondary);margin-top:6px"></div>
+      </div>
+
+      <div id="pm-panel-fijo" style="display:none">
+        <label class="form-label">Nuevo precio fijo para todas las seleccionadas (ARS)</label>
+        <input class="input" id="pm-fijo-valor" type="number" min="1000" step="1000" placeholder="Ej: 2500000"
+          style="max-width:200px">
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Se aplica el mismo precio a todas las publicaciones seleccionadas.</div>
+      </div>
+
+      <!-- Selector de publicaciones -->
+      <div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+          <input id="pm-buscar" class="input" placeholder="🔍 Buscar en título..." oninput="filtrarPMPubs()" style="flex:1;font-size:13px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer">
+            <input type="checkbox" id="pm-sel-todos" onchange="pmSelTodos(this)"> Todas
+          </label>
+        </div>
+        <div id="pm-count" style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">Cargando...</div>
+        <div id="pm-lista" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+          <div class="loading" style="padding:20px">Cargando publicaciones...</div>
+        </div>
+      </div>
+
+      <!-- Progreso -->
+      <div id="pm-progreso" style="display:none">
+        <div style="background:var(--bg-secondary);border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden">
+          <div id="pm-bar" style="height:100%;background:var(--primary);transition:width 0.5s;width:0%"></div>
+        </div>
+        <div id="pm-status" style="font-size:13px;margin-bottom:4px"></div>
+        <div id="pm-errores" style="font-size:12px;color:#ef4444;max-height:60px;overflow-y:auto"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" id="btn-pm-cancel" onclick="closeModal('modal-precios-lote')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-pm-ok" onclick="confirmarActualizarPrecios()" disabled>
+          💰 Actualizar 0 publicaciones
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ── BORRADORES Y COSTOS ML ── -->
@@ -2527,33 +2619,34 @@ async function borCargarFichasDropdown(modeloActual) {
   const tipo = document.getElementById('mp-producto').value;
   const TIPOS_PISCINA = ['PISCINA', 'MINIPISCINA'];
   const TIPOS_MODULO  = ['MODULO', 'MODULO_DEPOSITO', 'COMBO', 'QUINCHO', 'PERGOLA'];
+  const TIPOS_HIDRO   = ['HIDROMASAJE', 'BANERA', 'RECEPTACULO'];
   try {
     if (!_fichasCache) _fichasCache = await API.get('/api/ml/fichas');
-    const piscinas = (_fichasCache.piscinas || []);
-    const modulos  = (_fichasCache.modulos  || []);
+    const piscinas     = (_fichasCache.piscinas     || []);
+    const modulos      = (_fichasCache.modulos      || []);
+    const hidromasajes = (_fichasCache.hidromasajes || []);
+    const baneras      = (_fichasCache.baneras      || []);
+    const receptaculos = (_fichasCache.receptaculos || []);
     sel.innerHTML = '<option value="">— Elegir modelo para cargar ficha —</option>';
-    if (TIPOS_PISCINA.includes(tipo) && piscinas.length) {
-      const og1 = document.createElement('optgroup');
-      og1.label = 'Piscinas';
-      piscinas.forEach(m => {
+
+    const addOG = (label, lista) => {
+      if (!lista.length) return;
+      const og = document.createElement('optgroup');
+      og.label = label;
+      lista.forEach(m => {
         const o = document.createElement('option');
         o.value = m; o.textContent = m;
         if (m === modeloActual) o.selected = true;
-        og1.appendChild(o);
+        og.appendChild(o);
       });
-      sel.appendChild(og1);
-    }
-    if (TIPOS_MODULO.includes(tipo) && modulos.length) {
-      const og2 = document.createElement('optgroup');
-      og2.label = 'Módulos';
-      modulos.forEach(m => {
-        const o = document.createElement('option');
-        o.value = m; o.textContent = m;
-        if (m === modeloActual) o.selected = true;
-        og2.appendChild(o);
-      });
-      sel.appendChild(og2);
-    }
+      sel.appendChild(og);
+    };
+
+    if (TIPOS_PISCINA.includes(tipo)) addOG('🏊 Piscinas',      piscinas);
+    if (TIPOS_MODULO.includes(tipo))  addOG('🏠 Módulos',       modulos);
+    if (tipo === 'HIDROMASAJE')       addOG('🛁 Hidromasajes',  hidromasajes);
+    if (tipo === 'BANERA')            addOG('🛁 Bañeras',       baneras);
+    if (tipo === 'RECEPTACULO')       addOG('🚿 Receptáculos',  receptaculos);
   } catch(e) { /* silent */ }
 }
 
@@ -3376,14 +3469,41 @@ async function borCargarTasas() {
 
 let BOR_CATALOGO_ITEMS = {};
 let _borPrecioContadoRef = null;
+
+// Mapeo de nombre de categoría del catálogo → tipo de producto ML
+const _CAT_TIPO_MAP = {
+  hidromasajes: 'HIDROMASAJE',
+  baneras:      'BANERA',
+  receptaculos: 'RECEPTACULO',
+  reposeras:    'ACCESORIO',
+  accesorios_piscinas: 'ACCESORIO',
+  cuchas_perros: 'ACCESORIO',
+  garitas_seguridad: 'ACCESORIO',
+  banios_quimicos: 'ACCESORIO',
+  depositos_jardin: 'ACCESORIO',
+};
+const _CAT_EMOJI_MAP = {
+  hidromasajes: '🛁',
+  baneras:      '🛁',
+  receptaculos: '🚿',
+  reposeras:    '☀️',
+  accesorios_piscinas: '🔧',
+  cuchas_perros: '🐕',
+  garitas_seguridad: '🏠',
+  banios_quimicos: '🚽',
+  depositos_jardin: '🌿',
+};
+
 async function borCargarCatalogoSelect() {
   const sel = document.getElementById('mp-catalogo-sel');
   try {
+    // Cargar legacy (piscinas, módulos, combos, depósito)
     const d = await API.get('/api/catalogo');
     let html = '<option value="">— Elegir del catálogo —</option>';
     BOR_CATALOGO_ITEMS = {};
+
     const addGroup = (label, tipo, precios) => {
-      const nombres = Object.keys(precios || {});
+      const nombres = Object.keys(precios || {}).filter(n => precios[n] > 0);
       if (!nombres.length) return;
       html += `<optgroup label="${label}">`;
       nombres.forEach(n => {
@@ -3393,6 +3513,7 @@ async function borCargarCatalogoSelect() {
       });
       html += '</optgroup>';
     };
+
     addGroup('🏊 Piscinas', 'PISCINA', d.piscinas && d.piscinas.precios);
     addGroup('🏠 Viviendas modulares', 'MODULO', d.modulos && d.modulos.precios);
     if (d.combos) {
@@ -3410,6 +3531,27 @@ async function borCargarCatalogoSelect() {
       }
       addGroup('📦 Módulos de depósito', 'MODULO_DEPOSITO', depPrecios);
     }
+
+    // Cargar categorías no-legacy (hidromasajes, bañeras, receptáculos, etc.)
+    try {
+      const cats = await API.get('/api/catalogo/categorias');
+      for (const [catNombre, catData] of Object.entries(cats)) {
+        const tipo  = _CAT_TIPO_MAP[catNombre]  || 'ACCESORIO';
+        const emoji = _CAT_EMOJI_MAP[catNombre] || '📦';
+        const titulo = catData.titulo || catNombre.replace(/_/g, ' ');
+        const prods  = catData.productos || {};
+        const validos = Object.entries(prods).filter(([, v]) => v.precio_contado > 0);
+        if (!validos.length) continue;
+        html += `<optgroup label="${emoji} ${titulo}">`;
+        validos.forEach(([nombre, v]) => {
+          const key = tipo + '::' + nombre;
+          BOR_CATALOGO_ITEMS[key] = { tipo, precioContado: v.precio_contado, nombre };
+          html += `<option value="${key}">${nombre} — ${borFmt(v.precio_contado)}</option>`;
+        });
+        html += '</optgroup>';
+      }
+    } catch (_) { /* si la API de categorías falla, continúa con solo las legacy */ }
+
     sel.innerHTML = html;
   } catch (e) {}
 }
@@ -3435,6 +3577,7 @@ async function borOnCatalogoSel() {
     return;
   }
   document.getElementById('mp-producto').value = item.tipo;
+  borCargarFichasDropdown(item.nombre);   // actualiza fichas según el tipo/nombre seleccionado
   // Auto-llenar título si está vacío
   if (!document.getElementById('mp-titulo').value.trim()) {
     document.getElementById('mp-titulo').value = item.nombre.substring(0, 60);
@@ -4151,6 +4294,222 @@ async function triggerRenovarManual() {
     res_el.textContent = 'Error: ' + e.message;
     showToast('Error al renovar: ' + e.message, 'error');
   }
+}
+
+/* ─── HEALTH SCORE ──────────────────────────────────────────────────── */
+async function abrirHealthScore() {
+  openModal('modal-health');
+  const cont = document.getElementById('health-content');
+  cont.innerHTML = '<div class="loading">Calculando health scores… esto puede tardar unos segundos.</div>';
+  try {
+    const d = await API.get('/api/ml/publicaciones/health-score');
+    if (!d.ok || !d.items.length) {
+      cont.innerHTML = '<p style="color:var(--text-secondary)">No se encontraron publicaciones activas.</p>';
+      return;
+    }
+    const gradeColor = { A: '#22c55e', B: '#84cc16', C: '#f59e0b', D: '#ef4444' };
+    let html = `<p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">${d.total} publicaciones analizadas — ordenadas de peor a mejor</p>`;
+    html += '<div style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto">';
+    d.items.forEach(it => {
+      const clr = gradeColor[it.grade] || '#94a3b8';
+      html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-size:20px;font-weight:700;color:${clr};min-width:32px;text-align:center">${it.grade}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.titulo}</div>
+            <div style="font-size:11px;color:var(--text-secondary)">${it.item_id} · ${it.n_fotos} fotos · ${it.n_palabras} palabras desc.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:50px;height:6px;border-radius:3px;background:var(--border);overflow:hidden">
+              <div style="height:100%;width:${it.score}%;background:${clr}"></div>
+            </div>
+            <span style="font-size:12px;font-weight:600;color:${clr}">${it.score}</span>
+          </div>
+          ${it.permalink ? `<a href="${it.permalink}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">Ver ↗</a>` : ''}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${it.checks.map(c => `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${c.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'};color:${c.ok ? '#22c55e' : '#ef4444'}">${c.ok ? '✓' : '✗'} ${c.label}</span>`).join('')}
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    cont.innerHTML = html;
+  } catch(e) {
+    cont.innerHTML = `<p style="color:#ef4444">Error al cargar: ${e.message}</p>`;
+  }
+}
+
+/* ─── ACTUALIZAR PRECIOS EN LOTE ─────────────────────────────────────── */
+let _pmPubsData  = [];   // lista completa de publicaciones
+let _pmPubsSel   = new Set();
+let _pmJobId     = null;
+let _pmInterval  = null;
+let _pmModo      = 'porcentaje';
+
+async function abrirActualizarPrecios() {
+  openModal('modal-precios-lote');
+  _pmPubsData = [];
+  _pmPubsSel  = new Set();
+  _pmJobId    = null;
+  if (_pmInterval) { clearInterval(_pmInterval); _pmInterval = null; }
+  document.getElementById('pm-progreso').style.display = 'none';
+  document.getElementById('pm-lista').innerHTML = '<div class="loading" style="padding:20px">Cargando publicaciones...</div>';
+  document.getElementById('pm-count').textContent = 'Cargando...';
+  pmSetModo('porcentaje');
+  try {
+    const d = await API.get('/api/ml/publicaciones/health-score');   // reutilizamos el endpoint
+    _pmPubsData = (d.items || []);
+    _renderPMLista();
+    pmActualizarPreview();
+  } catch(e) {
+    document.getElementById('pm-lista').innerHTML = `<p style="padding:12px;color:#ef4444">Error: ${e.message}</p>`;
+  }
+}
+
+function pmSetModo(modo) {
+  _pmModo = modo;
+  document.getElementById('pm-panel-pct').style.display  = modo === 'porcentaje' ? '' : 'none';
+  document.getElementById('pm-panel-fijo').style.display = modo === 'fijo'       ? '' : 'none';
+  document.getElementById('btn-pm-pct').classList.toggle('btn-secondary', modo !== 'porcentaje');
+  document.getElementById('btn-pm-fijo').classList.toggle('btn-secondary', modo !== 'fijo');
+  pmActualizarPreview();
+}
+
+function pmActualizarPreview() {
+  const prev = document.getElementById('pm-pct-preview');
+  if (!prev) return;
+  const pct = parseFloat(document.getElementById('pm-pct-valor').value) || 0;
+  if (pct === 0) { prev.textContent = ''; return; }
+  const sign = pct > 0 ? '+' : '';
+  prev.textContent = `Ejemplo: un artículo a $1.000.000 quedaría a $${Math.round(1000000 * (1 + pct/100) / 1000) * 1000 .toLocaleString('es-AR')}`;
+  _updatePMBtn();
+}
+
+function _renderPMLista(filtro = '') {
+  const lista = document.getElementById('pm-lista');
+  const filt  = filtro.toLowerCase();
+  const items = filt ? _pmPubsData.filter(p => p.titulo.toLowerCase().includes(filt)) : _pmPubsData;
+  document.getElementById('pm-count').textContent = `${items.length} publicaciones${filtro ? ' (filtradas)' : ''}`;
+  if (!items.length) { lista.innerHTML = '<p style="padding:12px;color:var(--text-secondary)">Sin resultados.</p>'; return; }
+  lista.innerHTML = items.map(p => {
+    const chk = _pmPubsSel.has(p.item_id) ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer">
+      <input type="checkbox" ${chk} onchange="_pmToggle('${p.item_id}',this.checked)">
+      <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.titulo}</span>
+      <span style="font-size:11px;color:var(--text-secondary);white-space:nowrap">${p.item_id}</span>
+    </label>`;
+  }).join('');
+}
+
+function _pmToggle(itemId, checked) {
+  checked ? _pmPubsSel.add(itemId) : _pmPubsSel.delete(itemId);
+  _updatePMBtn();
+}
+function filtrarPMPubs() {
+  _renderPMLista(document.getElementById('pm-buscar').value);
+}
+function pmSelTodos(el) {
+  const filt = document.getElementById('pm-buscar').value.toLowerCase();
+  const items = filt ? _pmPubsData.filter(p => p.titulo.toLowerCase().includes(filt)) : _pmPubsData;
+  items.forEach(p => el.checked ? _pmPubsSel.add(p.item_id) : _pmPubsSel.delete(p.item_id));
+  _renderPMLista(filt);
+  _updatePMBtn();
+}
+function _updatePMBtn() {
+  const btn = document.getElementById('btn-pm-ok');
+  const n   = _pmPubsSel.size;
+  btn.textContent = `💰 Actualizar ${n} publicación${n !== 1 ? 'es' : ''}`;
+  btn.disabled = n === 0;
+}
+
+async function confirmarActualizarPrecios() {
+  const modo  = _pmModo;
+  const valor = modo === 'porcentaje'
+    ? parseFloat(document.getElementById('pm-pct-valor').value)
+    : parseFloat(document.getElementById('pm-fijo-valor').value);
+  if (!valor || isNaN(valor)) { showToast('Ingresá un valor válido', 'error'); return; }
+  if (!_pmPubsSel.size) { showToast('Seleccioná al menos una publicación', 'error'); return; }
+
+  document.getElementById('pm-progreso').style.display = '';
+  document.getElementById('pm-bar').style.width = '0%';
+  document.getElementById('pm-status').textContent = 'Iniciando...';
+  document.getElementById('pm-errores').textContent = '';
+  document.getElementById('btn-pm-ok').disabled = true;
+  document.getElementById('btn-pm-cancel').disabled = true;
+
+  try {
+    const r = await API.post('/api/ml/publicaciones/actualizar-precios-lote', {
+      item_ids: [..._pmPubsSel], modo, valor
+    });
+    _pmJobId = r.job_id;
+    _pmInterval = setInterval(_pollPMJob, 1500);
+  } catch(e) {
+    document.getElementById('pm-status').textContent = 'Error: ' + e.message;
+    document.getElementById('btn-pm-cancel').disabled = false;
+  }
+}
+
+async function _pollPMJob() {
+  if (!_pmJobId) return;
+  try {
+    const j = await API.get(`/api/ml/publicaciones/actualizar-precios-lote/estado/${_pmJobId}`);
+    const pct = j.total ? Math.round(j.procesados / j.total * 100) : 0;
+    document.getElementById('pm-bar').style.width = pct + '%';
+    document.getElementById('pm-status').textContent =
+      `${j.procesados}/${j.total} procesadas · ${j.ok} actualizadas · ${j.errores.length} errores`;
+    if (j.errores.length) {
+      document.getElementById('pm-errores').textContent = j.errores.slice(-3).join('\n');
+    }
+    if (j.status === 'done') {
+      clearInterval(_pmInterval); _pmInterval = null;
+      document.getElementById('btn-pm-cancel').disabled = false;
+      document.getElementById('btn-pm-cancel').textContent = 'Cerrar';
+      showToast(`✓ ${j.ok} precios actualizados${j.errores.length ? ` · ${j.errores.length} errores` : ''}`, j.errores.length ? 'warning' : 'success');
+      loadPublicaciones();
+    }
+  } catch(e) { /* retry */ }
+}
+
+/* ─── RECALCULAR PRECIOS CORRECTOS (comisión real ML) ─────────────────── */
+let _rcJobId    = null;
+let _rcInterval = null;
+
+async function abrirRecalcularPrecios() {
+  if (!confirm('⚠️ Esto recalculará el precio de TODOS los borradores consultando la comisión real de MercadoLibre y actualizará los ya publicados en ML.\n\n¿Continuar?')) return;
+  const skuFilter = prompt('Filtrar por prefijo de SKU (dejar vacío para TODOS):', 'ECOF-HIDRO-');
+  const sku_prefixes = skuFilter && skuFilter.trim() ? [skuFilter.trim()] : null;
+
+  showToast('Iniciando recálculo de precios…', 'info');
+  try {
+    const r = await API.post('/api/ml/publicaciones/recalcular-precios', { ganancia_pct: 0.05, sku_prefixes });
+    _rcJobId = r.job_id;
+    showToast(`Job iniciado: ${r.job_id.slice(0, 8)}…`, 'info');
+    _rcInterval = setInterval(_pollRCJob, 3000);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function _pollRCJob() {
+  if (!_rcJobId) return;
+  try {
+    const j = await API.get(`/api/ml/publicaciones/recalcular-precios/estado/${_rcJobId}`);
+    const pct = j.total ? Math.round(j.procesados / j.total * 100) : 0;
+    if (j.status === 'done') {
+      clearInterval(_rcInterval); _rcInterval = null;
+      const grupos = (j.detalle_grupos || []).map(g =>
+        `${g.n_borradores} borradores costo $${(g.costo/1000).toFixed(0)}k → $${(g.precio_correcto/1000).toFixed(0)}k (comisión ${g.fee_rate_pct}%)`
+      ).join('\n');
+      showToast(
+        `✓ Precios recalculados: ${j.ok} actualizados · ${j.ya_ok || 0} ya correctos · ${j.errores.length} errores`,
+        j.errores.length ? 'warning' : 'success'
+      );
+      if (grupos) alert('📊 Resultado del recálculo:\n\n' + grupos);
+      loadPublicaciones();
+    } else {
+      if (pct % 10 === 0) showToast(`Recalculando… ${pct}% (${j.procesados}/${j.total})`, 'info');
+    }
+  } catch(e) { /* retry */ }
 }
 
 /* ─── INIT ───────────────────────────────────────────────────────────── */

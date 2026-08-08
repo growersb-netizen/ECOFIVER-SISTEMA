@@ -1214,13 +1214,19 @@ async def listar_fichas_ml(
 ):
     """Lista todos los modelos disponibles con ficha pre-escrita."""
     try:
-        from utils.ml_fichas_content import FICHAS_PISCINAS, FICHAS_MODULOS
+        from utils.ml_fichas_content import (
+            FICHAS_PISCINAS, FICHAS_MODULOS,
+            FICHAS_HIDROMASAJES, FICHAS_BANERAS, FICHAS_RECEPTACULOS,
+        )
     except ImportError:
-        return {"piscinas": [], "modulos": []}
+        return {"piscinas": [], "modulos": [], "hidromasajes": [], "baneras": [], "receptaculos": []}
 
     return {
-        "piscinas": list(FICHAS_PISCINAS.keys()),
-        "modulos": [f"{k}m2" for k in FICHAS_MODULOS.keys()],
+        "piscinas":     list(FICHAS_PISCINAS.keys()),
+        "modulos":      [f"{k}m2" for k in FICHAS_MODULOS.keys()],
+        "hidromasajes": list(FICHAS_HIDROMASAJES.keys()),
+        "baneras":      list(FICHAS_BANERAS.keys()),
+        "receptaculos": list(FICHAS_RECEPTACULOS.keys()),
     }
 
 
@@ -1232,32 +1238,49 @@ async def get_ficha_ml(
 ):
     """Devuelve la ficha pre-escrita (título + descripción) para el modelo dado."""
     try:
-        from utils.ml_fichas_content import FICHAS_PISCINAS, FICHAS_MODULOS
+        from utils.ml_fichas_content import (
+            FICHAS_PISCINAS, FICHAS_MODULOS,
+            FICHAS_HIDROMASAJES, FICHAS_BANERAS, FICHAS_RECEPTACULOS,
+        )
     except ImportError:
         raise HTTPException(500, "No se pudo cargar el archivo de fichas de producto")
 
-    # Buscar en piscinas (coincidencia exacta o insensible a acentos/case)
-    ficha = FICHAS_PISCINAS.get(modelo)
-    if not ficha:
-        modelo_norm = modelo.lower().strip()
-        for k, v in FICHAS_PISCINAS.items():
-            if k.lower().strip() == modelo_norm:
-                ficha = v
-                break
+    modelo_norm = modelo.lower().strip()
 
-    # Buscar en módulos (buscar por m2 numérico)
+    def _buscar(diccionario: dict) -> Optional[dict]:
+        """Búsqueda exacta y luego case-insensitive."""
+        found = diccionario.get(modelo)
+        if found:
+            return found
+        for k, v in diccionario.items():
+            if k.lower().strip() == modelo_norm:
+                return v
+        return None
+
+    # Buscar en piscinas
+    ficha = _buscar(FICHAS_PISCINAS)
+
+    # Buscar en módulos (clave numérica, acepta "12m2", "12m²", "12")
     if not ficha:
-        m2_str = modelo.replace("m2", "").replace("m²", "").strip()
+        m2_str = modelo_norm.replace("m2", "").replace("m²", "").strip()
         ficha = FICHAS_MODULOS.get(m2_str)
+
+    # Buscar en hidromasajes, bañeras, receptáculos
+    if not ficha:
+        ficha = _buscar(FICHAS_HIDROMASAJES)
+    if not ficha:
+        ficha = _buscar(FICHAS_BANERAS)
+    if not ficha:
+        ficha = _buscar(FICHAS_RECEPTACULOS)
 
     if not ficha:
         raise HTTPException(404, f"No se encontró ficha para el modelo: {modelo}")
 
     return {
-        "modelo": modelo,
-        "titulo_ml": ficha.get("titulo_ml", ""),
+        "modelo":        modelo,
+        "titulo_ml":     ficha.get("titulo_ml", ""),
         "descripcion_ml": ficha.get("descripcion_ml", ""),
-        "atributos_ml": ficha.get("atributos_ml", {}),
+        "atributos_ml":  ficha.get("atributos_ml", {}),
     }
 
 
@@ -2253,10 +2276,11 @@ async def ml_precio_mercado(
 import math as _math
 import itertools as _itertools
 
-# Comisión gold_special aproximada en MLA (Argentina).
-# Fuente: ML listing_prices — varía levemente por categoría y precio.
-# Se usa como constante para el cálculo offline de precio de publicación.
-ML_COMISION_GOLD_SPECIAL = 0.11
+# Comisión gold_special (Clásica) en MLA (Argentina) — 12 % para la mayoría
+# de las categorías (bañeras, jacuzzis, piscinas, módulos, etc.).
+# Fuente: ML listing_prices API. Se usa como fallback cuando la API no está
+# disponible; cuando hay token activo se consulta el valor real.
+ML_COMISION_GOLD_SPECIAL = 0.12
 
 
 def calcular_precio_ml(precio_contado: float, ganancia_pct: float = 0.05) -> float:
@@ -2764,3 +2788,433 @@ async def crear_borradores_masivos(
         "comision_ml_usada":  ML_COMISION_GOLD_SPECIAL,
         "detalle":          detalle,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HEALTH SCORE DE PUBLICACIONES
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SIMBOLOS_PROHIBIDOS = set(",|:;!?\"–—_%")
+
+def _calcular_health(titulo: str, n_fotos: int, n_palabras: int) -> dict:
+    """Calcula el health score de una publicación (0-100)."""
+    score = 0
+    checks = []
+
+    # Título (30 pts)
+    tlen = len(titulo)
+    if 40 <= tlen <= 60:
+        score += 20
+        checks.append({"ok": True, "label": f"Título {tlen} chars (40-60 ✓)"})
+    else:
+        checks.append({"ok": False, "label": f"Título {tlen} chars — necesita entre 40 y 60"})
+
+    sin_simb = not any(c in _SIMBOLOS_PROHIBIDOS for c in titulo)
+    if sin_simb:
+        score += 10
+        checks.append({"ok": True, "label": "Sin símbolos prohibidos ✓"})
+    else:
+        checks.append({"ok": False, "label": "Tiene símbolos prohibidos (,|:;!?\"–—_%)"})
+
+    # Fotos (30 pts)
+    if n_fotos >= 8:
+        score += 30
+        checks.append({"ok": True, "label": f"{n_fotos} fotos (excelente ✓)"})
+    elif n_fotos >= 5:
+        score += 20
+        checks.append({"ok": True, "label": f"{n_fotos} fotos (bueno — ideal 8+)"})
+    elif n_fotos >= 3:
+        score += 10
+        checks.append({"ok": False, "label": f"{n_fotos} fotos (mínimo — subí más fotos)"})
+    else:
+        checks.append({"ok": False, "label": f"{n_fotos} foto(s) — necesitás al menos 3"})
+
+    # Descripción (40 pts)
+    if n_palabras >= 300:
+        score += 40
+        checks.append({"ok": True, "label": f"Descripción {n_palabras} palabras (excelente ✓)"})
+    elif n_palabras >= 200:
+        score += 30
+        checks.append({"ok": True, "label": f"Descripción {n_palabras} palabras (buena)"})
+    elif n_palabras >= 100:
+        score += 15
+        checks.append({"ok": False, "label": f"Descripción {n_palabras} palabras (ideal 200+)"})
+    elif n_palabras > 0:
+        score += 5
+        checks.append({"ok": False, "label": f"Descripción muy corta ({n_palabras} palabras)"})
+    else:
+        checks.append({"ok": False, "label": "Sin descripción — impacta el posicionamiento"})
+
+    grade = "A" if score >= 85 else "B" if score >= 65 else "C" if score >= 45 else "D"
+    return {"score": score, "grade": grade, "checks": checks}
+
+
+@router.get("/api/ml/publicaciones/health-score")
+async def health_score_publicaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Calcula el health score de las publicaciones activas en ML.
+    Evalúa título (largo + símbolos), cantidad de fotos y largo de descripción.
+    """
+    token = await _get_token(db)
+
+    pubs = db.query(PublicacionML).filter(PublicacionML.item_id.isnot(None)).all()
+    if not pubs:
+        return {"ok": True, "items": [], "total": 0}
+
+    item_ids = [p.item_id for p in pubs if p.item_id]
+    pub_map = {p.item_id: p for p in pubs}
+
+    resultados = []
+    BATCH = 20
+    for i in range(0, len(item_ids), BATCH):
+        batch = item_ids[i:i + BATCH]
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.get(
+                    f"{ML_BASE}/items",
+                    headers=_ml_headers(token),
+                    params={"ids": ",".join(batch), "attributes": "id,title,status,pictures,description,permalink"},
+                )
+            if r.status_code != 200:
+                log.warning(f"[HEALTH] batch error {r.status_code}")
+                continue
+            for raw in r.json():
+                body = raw.get("body", raw) if isinstance(raw, dict) and "body" in raw else raw
+                if not body or "id" not in body:
+                    continue
+                item_id  = body["id"]
+                titulo   = body.get("title", "")
+                fotos    = body.get("pictures", [])
+                desc_raw = body.get("description") or {}
+                if isinstance(desc_raw, dict):
+                    desc_text = desc_raw.get("plain_text") or desc_raw.get("text") or ""
+                else:
+                    desc_text = str(desc_raw)
+                n_fotos    = len(fotos) if isinstance(fotos, list) else 0
+                n_palabras = len(desc_text.split()) if desc_text else 0
+
+                # Intentar enriquecer descripción desde BD local si ML no la devolvió
+                if n_palabras == 0:
+                    pub_local = pub_map.get(item_id)
+                    if pub_local and pub_local.descripcion:
+                        n_palabras = len(pub_local.descripcion.split())
+
+                health = _calcular_health(titulo, n_fotos, n_palabras)
+                pub_local = pub_map.get(item_id)
+                resultados.append({
+                    "item_id":    item_id,
+                    "titulo":     titulo,
+                    "estado_ml":  body.get("status", ""),
+                    "n_fotos":    n_fotos,
+                    "n_palabras": n_palabras,
+                    "score":      health["score"],
+                    "grade":      health["grade"],
+                    "checks":     health["checks"],
+                    "permalink":  body.get("permalink") or (pub_local.permalink if pub_local else None),
+                })
+        except Exception as e:
+            log.warning(f"[HEALTH] batch exception: {e}")
+
+    resultados.sort(key=lambda x: x["score"])  # peores primero
+    return {"ok": True, "items": resultados, "total": len(resultados)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ACTUALIZACIÓN MASIVA DE PRECIOS EN ML
+# ─────────────────────────────────────────────────────────────────────────────
+
+_PRICE_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+async def _actualizar_precios_bg(
+    job_id: str,
+    token: str,
+    item_ids: list,
+    modo: str,
+    valor: float,
+):
+    """
+    Worker de fondo para actualización masiva de precios.
+    modo='porcentaje' → nuevo = redondear(precio_actual × (1+valor/100), 1000)
+    modo='fijo'       → nuevo = valor (mismo para todos)
+    """
+    from database.database import SessionLocal
+    db_bg = SessionLocal()
+    job = _PRICE_JOBS[job_id]
+    try:
+        for item_id in item_ids:
+            try:
+                if modo == "porcentaje":
+                    async with httpx.AsyncClient(timeout=10) as c:
+                        r = await c.get(
+                            f"{ML_BASE}/items/{item_id}",
+                            headers=_ml_headers(token),
+                            params={"attributes": "id,price"},
+                        )
+                    if r.status_code != 200:
+                        job["errores"].append(f"{item_id}: no se pudo leer precio ({r.status_code})")
+                        job["procesados"] += 1
+                        continue
+                    precio_actual = float(r.json().get("price", 0) or 0)
+                    nuevo_precio  = round(precio_actual * (1 + valor / 100) / 1000) * 1000
+                else:  # fijo
+                    nuevo_precio = int(valor)
+
+                async with httpx.AsyncClient(timeout=10) as c:
+                    r2 = await c.put(
+                        f"{ML_BASE}/items/{item_id}",
+                        headers=_ml_headers(token),
+                        json={"price": nuevo_precio},
+                    )
+                if r2.status_code in (200, 201, 204):
+                    job["ok"] += 1
+                    pub = db_bg.query(PublicacionML).filter(PublicacionML.item_id == item_id).first()
+                    if pub:
+                        pub.precio = nuevo_precio
+                        db_bg.commit()
+                else:
+                    job["errores"].append(f"{item_id}: {r2.text[:80]}")
+            except Exception as e:
+                job["errores"].append(f"{item_id}: {e}")
+            job["procesados"] += 1
+            await asyncio.sleep(0.5)
+    finally:
+        db_bg.close()
+        job["status"] = "done"
+        log.info(f"[PRECIOS] job {job_id}: {job['ok']}/{job['total']} OK, {len(job['errores'])} errores")
+
+
+@router.post("/api/ml/publicaciones/actualizar-precios-lote")
+async def actualizar_precios_lote(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Actualiza el precio de publicaciones activas en ML en segundo plano.
+
+    Body JSON:
+      - item_ids:  lista de item_ids a actualizar (vacío = todas las activas)
+      - modo:      'porcentaje' | 'fijo'
+      - valor:     porcentaje (+/-) o precio fijo
+    """
+    data      = await request.json()
+    item_ids  = data.get("item_ids", [])
+    modo      = data.get("modo", "porcentaje")
+    valor     = float(data.get("valor", 0))
+
+    if modo not in ("porcentaje", "fijo"):
+        raise HTTPException(400, "modo debe ser 'porcentaje' o 'fijo'")
+    if modo == "fijo" and valor <= 0:
+        raise HTTPException(400, "El precio fijo debe ser mayor a 0")
+
+    # Si no se especifican IDs, tomar todas las publicaciones activas con item_id
+    if not item_ids:
+        pubs = db.query(PublicacionML).filter(
+            PublicacionML.item_id.isnot(None),
+            PublicacionML.estado_ml == "active",
+        ).all()
+        item_ids = [p.item_id for p in pubs if p.item_id]
+
+    if not item_ids:
+        raise HTTPException(400, "No hay publicaciones activas para actualizar")
+
+    token  = await _get_token(db)
+    job_id = str(uuid.uuid4())
+    _PRICE_JOBS[job_id] = {
+        "status": "running", "total": len(item_ids),
+        "procesados": 0, "ok": 0, "errores": [],
+    }
+    background_tasks.add_task(_actualizar_precios_bg, job_id, token, item_ids, modo, valor)
+    return {"ok": True, "job_id": job_id, "total": len(item_ids)}
+
+
+@router.get("/api/ml/publicaciones/actualizar-precios-lote/estado/{job_id}")
+async def estado_precios_lote(job_id: str):
+    """Consulta el progreso de un job de actualización masiva de precios."""
+    job = _PRICE_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    return job
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RECÁLCULO DE PRECIOS CORRECTOS (comisión REAL de ML por categoría)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_RECALCULAR_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+async def _recalcular_precios_bg(
+    job_id: str,
+    token: str,
+    ganancia_pct: float,
+    sku_prefixes: Optional[list],
+):
+    """
+    Background: recalcula el precio de cada borrador usando la tasa de comisión
+    REAL de ML (consulta listing_prices una vez por grupo de costo/listing_type).
+    Para los borradores ya publicados (item_id), actualiza también en ML.
+    """
+    from database.database import SessionLocal
+    from sqlalchemy import or_ as _or
+
+    db_bg = SessionLocal()
+    job = _RECALCULAR_JOBS[job_id]
+    try:
+        # 1. Obtener borradores candidatos
+        q = db_bg.query(BorradorML).filter(
+            BorradorML.costo.isnot(None),
+            BorradorML.costo > 0,
+        )
+        if sku_prefixes:
+            q = q.filter(_or(*[BorradorML.seller_sku.like(f"{p}%") for p in sku_prefixes]))
+        borradores = q.all()
+
+        job["total"] = len(borradores)
+        if not borradores:
+            job["status"] = "done"
+            return
+
+        # 2. Agrupar por (listing_type, costo) para minimizar llamadas a ML
+        grupos: dict = {}
+        for b in borradores:
+            lt    = b.listing_type or "gold_special"
+            costo = float(b.costo)
+            grupos.setdefault((lt, costo), []).append(b)
+
+        # 3. Para cada grupo, consultar la tasa real de comisión a ML
+        precio_correcto_map: dict = {}          # (lt, costo) → precio_correcto
+        for (lt, costo) in grupos:
+            precio_ref = calcular_precio_ml(costo, ganancia_pct)
+            fee_rate   = ML_COMISION_GOLD_SPECIAL   # fallback
+            try:
+                async with httpx.AsyncClient(timeout=15) as c:
+                    r = await c.get(
+                        f"{ML_BASE}/sites/MLA/listing_prices",
+                        params={"price": precio_ref, "listing_type_id": lt},
+                        headers=_ml_headers(token),
+                    )
+                if r.status_code == 200:
+                    fee_data   = r.json()
+                    fee_amount: float = 0.0
+                    if isinstance(fee_data, list):
+                        match = next((x for x in fee_data if x.get("listing_type_id") == lt), None)
+                        fee_amount = float((match or fee_data[0]).get("sale_fee_amount", 0))
+                    elif isinstance(fee_data, dict):
+                        fee_amount = float(fee_data.get("sale_fee_amount", 0))
+                    if fee_amount > 0 and precio_ref > 0:
+                        fee_rate = fee_amount / precio_ref
+            except Exception as fe:
+                log.warning(f"[RECALCULAR] fee query error ({lt}, {costo}): {fe}")
+
+            correcto = _math.ceil(costo * (1 + ganancia_pct) / max(1 - fee_rate, 0.01) / 1_000) * 1_000
+            precio_correcto_map[(lt, costo)] = correcto
+            job["detalle_grupos"].append({
+                "listing_type":   lt,
+                "costo":          costo,
+                "fee_rate_pct":   round(fee_rate * 100, 2),
+                "precio_correcto": correcto,
+                "n_borradores":   len(grupos[(lt, costo)]),
+            })
+
+        # 4. Actualizar cada borrador
+        for (lt, costo), items in grupos.items():
+            precio_correcto = precio_correcto_map.get((lt, costo), calcular_precio_ml(costo, ganancia_pct))
+            for b in items:
+                old_precio = float(b.precio or 0)
+                diff = abs(old_precio - precio_correcto)
+
+                if diff < 500:                         # ya está correcto (tolerancia $500)
+                    job["ya_ok"] += 1
+                    job["procesados"] += 1
+                    continue
+
+                try:
+                    if b.item_id:                      # publicado → actualizar en ML también
+                        async with httpx.AsyncClient(timeout=10) as c2:
+                            r2 = await c2.put(
+                                f"{ML_BASE}/items/{b.item_id}",
+                                headers=_ml_headers(token),
+                                json={"price": precio_correcto},
+                            )
+                        if r2.status_code in (200, 201, 204):
+                            b.precio = precio_correcto
+                            db_bg.flush()
+                            job["ok"] += 1
+                        else:
+                            job["errores"].append(f"{b.item_id}: {r2.text[:80]}")
+                        await asyncio.sleep(0.35)      # rate-limit ML
+                    else:                              # solo borrador → update DB
+                        b.precio = precio_correcto
+                        db_bg.flush()
+                        job["ok"] += 1
+                except Exception as e:
+                    job["errores"].append(f"bor{b.id}: {e}")
+                job["procesados"] += 1
+
+                if job["procesados"] % 200 == 0:
+                    db_bg.commit()
+
+        db_bg.commit()
+    except Exception as e:
+        log.error(f"[RECALCULAR] fatal: {e}")
+        job["errores"].append(f"Error crítico: {e}")
+    finally:
+        db_bg.close()
+        job["status"] = "done"
+        log.info(
+            f"[RECALCULAR] job {job_id}: {job['ok']} actualizados, "
+            f"{job.get('ya_ok',0)} ya correctos, {len(job['errores'])} errores"
+        )
+
+
+@router.post("/api/ml/publicaciones/recalcular-precios")
+async def recalcular_precios(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Recalcula el precio de publicación de borradores usando la comisión REAL de ML.
+
+    Para cada grupo de (listing_type, precio_contado), consulta la API de ML
+    una sola vez para obtener la tasa exacta, luego corrige todos los borradores
+    de ese grupo. Los ya publicados (item_id) también se actualizan en ML.
+
+    Body JSON:
+      - ganancia_pct:  margen deseado, default 0.05 (5 %)
+      - sku_prefixes:  lista de prefijos de SKU para filtrar (default: todos)
+                       ej: ["ECOF-HIDRO-"] para solo hidromasajes
+    """
+    data         = await request.json()
+    ganancia_pct = float(data.get("ganancia_pct") or 0.05)
+    sku_prefixes = data.get("sku_prefixes") or None
+
+    token  = await _get_token(db)
+    job_id = str(uuid.uuid4())
+    _RECALCULAR_JOBS[job_id] = {
+        "status": "running", "total": 0, "procesados": 0,
+        "ok": 0, "ya_ok": 0, "errores": [], "detalle_grupos": [],
+    }
+    background_tasks.add_task(
+        _recalcular_precios_bg, job_id, token, ganancia_pct, sku_prefixes
+    )
+    return {"ok": True, "job_id": job_id}
+
+
+@router.get("/api/ml/publicaciones/recalcular-precios/estado/{job_id}")
+async def recalcular_precios_estado(
+    job_id: str,
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Consulta el progreso del job de recálculo de precios."""
+    job = _RECALCULAR_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    return job

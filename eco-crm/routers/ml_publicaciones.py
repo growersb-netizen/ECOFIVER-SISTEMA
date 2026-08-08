@@ -512,6 +512,24 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         if attr_id not in existing_ids:
             clean_attrs.append({"id": attr_id, "value_name": attr_val})
 
+    # Auto-inyectar atributos obligatorios según tipo de producto.
+    # IS_INFLATABLE es un error bloqueante en categorías de spas/piletas.
+    # COLOR es warning pero mejora la ficha.
+    _ATTRS_DEFAULT_TIPO = {
+        "HIDROMASAJE":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "PISCINA":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "MINIPISCINA":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "BANERA":         [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "RECEPTACULO":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "REPOSERA_FIBRA": [("COLOR", "Blanco")],
+    }
+    tipo_prod = (b.producto or "").upper()
+    # Refrescar set con lo que ya se inyectó arriba
+    existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
+    for attr_id, attr_val in _ATTRS_DEFAULT_TIPO.get(tipo_prod, []):
+        if attr_id.upper() not in existing_ids:
+            clean_attrs.append({"id": attr_id, "value_name": attr_val})
+
     # Payload estándar (marketplace buy_it_now)
     # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente
     payload = {

@@ -2418,6 +2418,236 @@ def _generar_titulos_hidro(modelo: str, n: int) -> list[str]:
     return titulos[:n]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# GENERACIÓN MASIVA GENÉRICA — TODOS LOS PRODUCTOS DEL CATÁLOGO
+# ─────────────────────────────────────────────────────────────────────────────
+
+import unicodedata as _unicodedata
+import re as _re_gen
+
+
+def _sku_slug(texto: str) -> str:
+    """'Spa Quadra' → 'SPA-QUADRA'  (max 20 chars, ASCII limpio, para SKU)."""
+    norm = _unicodedata.normalize("NFD", texto)
+    ascii_only = norm.encode("ascii", "ignore").decode()
+    slug = _re_gen.sub(r"[^A-Za-z0-9]+", "-", ascii_only).strip("-").upper()
+    return slug[:20]
+
+
+# Pools de palabras clave por categoría del catálogo
+_POOLS_GENERICOS: dict = {
+    "piscinas": {
+        "tipos":   ["Pileta", "Piscina", "Pileta de Fibra", "Piscina de Fibra",
+                    "Pileta Fibra de Vidrio", "Piscina Fibra de Vidrio"],
+        "extras":  ["Autoinstalable", "Sin Obra", "Con Escalera",
+                    "Autoportante", "Resistente UV", ""],
+        "mats":    ["Fibra de Vidrio", "PRFV", "Fibra"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "PISCINA",
+    },
+    "baneras": {
+        "tipos":   ["Bañera", "Tina", "Bañera de Lujo", "Bañera Clásica",
+                    "Bañera Autoportante", "Bañera Acrílico"],
+        "extras":  ["Autoportante", "Empotrable", "Con Desagüe", ""],
+        "mats":    ["Acrílico", "Acrílico Sanitario", "PRFV"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "BANERA",
+    },
+    "receptaculos": {
+        "tipos":   ["Receptáculo", "Base de Ducha", "Plato de Ducha",
+                    "Receptáculo Fibra", "Plato Ducha Fibra"],
+        "extras":  ["Antideslizante", "Sin Obra", "Fácil Instalación", ""],
+        "mats":    ["Fibra de Vidrio", "PRFV", "Fibra"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "RECEPTACULO",
+    },
+    "reposeras": {
+        "tipos":   ["Reposera", "Reposera de Pileta", "Silla Reposera",
+                    "Reposera Reclinable", "Tumbona"],
+        "extras":  ["Para Pileta", "Exterior", "Reclinable", "UV", ""],
+        "mats":    ["Fibra de Vidrio", "Fibra", "PRFV"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "REPOSERA_FIBRA",
+    },
+    "modulos": {
+        "tipos":   ["Módulo Habitacional", "Casa Prefabricada", "Vivienda Modular",
+                    "Casa Modular", "Construcción Modular"],
+        "extras":  ["Llave en Mano", "Entrega Rápida", "Sin Obra Civil", ""],
+        "mats":    ["Steel Frame", "Hormigón Celular", "Madera"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "MODULO",
+    },
+    "modulos_deposito": {
+        "tipos":   ["Depósito", "Galpón Modular", "Módulo Depósito",
+                    "Depósito Prefabricado", "Galpón"],
+        "extras":  ["Rápido Montaje", "Autoportante", "Sin Obra", ""],
+        "mats":    ["Metal", "Steel Frame", "Chapa Galvanizada"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "MODULO_DEPOSITO",
+    },
+    "combos": {
+        "tipos":   ["Combo", "Pack Completo", "Kit", "Conjunto"],
+        "extras":  ["Llave en Mano", "Completo", "Todo Incluido", ""],
+        "mats":    ["Fibra de Vidrio", "PRFV"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "COMBO",
+    },
+    "hidromasajes": {
+        "tipos":   ["Hidromasaje", "Jacuzzi", "Spa", "Bañera Hidromasaje",
+                    "Tina Spa", "Bañera Spa"],
+        "extras":  ["Con Jets", "Motor Incluido", "Sin Obra", ""],
+        "mats":    ["Acrílico", "Acrílico Sanitario", "PRFV"],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "HIDROMASAJE",
+    },
+    "_default": {
+        "tipos":   ["Producto", "Artículo"],
+        "extras":  ["Original", ""],
+        "mats":    [],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": None,
+    },
+}
+
+
+def _generar_titulos_generico(nombre_display: str, categoria: str,
+                               descripcion: str, n: int) -> list:
+    """
+    Genera hasta N títulos únicos ≤60 chars para cualquier producto del catálogo.
+    Combina el nombre del producto con el pool de su categoría.
+    """
+    pool   = _POOLS_GENERICOS.get(categoria, _POOLS_GENERICOS["_default"])
+    tipos  = pool["tipos"]
+    extras = pool["extras"]
+    mats   = pool["mats"] or [""]
+    marcas = pool["marcas"]
+
+    # Extraer dimensiones del nombre o descripción (ej: "3x6", "120x60 cm")
+    raw = nombre_display + " " + descripcion
+    dims_found = _re_gen.findall(
+        r'\d{1,3}[xX×]\d{1,3}(?:[xX×]\d{1,3})?(?:\s*(?:cm|m|metros?))?', raw
+    )
+    dims = list(dict.fromkeys(dims_found))[:3]
+
+    nombre_clean = nombre_display.strip()
+    vistos: set  = set()
+    titulos: list = []
+
+    def _add(partes):
+        t = " ".join(p for p in partes if p).strip()[:60]
+        if t and t not in vistos:
+            vistos.add(t)
+            titulos.append(t)
+            return len(titulos) >= n
+        return False
+
+    # Ronda 1: tipo + nombre + extra + mat + marca
+    for tipo, extra, mat, marca in _itertools.product(tipos, extras, mats, marcas):
+        if _add([tipo, nombre_clean, extra, mat, marca]):
+            return titulos
+
+    # Ronda 2: con dimensiones
+    for tipo, dim, extra, marca in _itertools.product(tipos, dims or [""], extras, marcas):
+        if _add([tipo, nombre_clean, dim, extra, marca]):
+            return titulos
+
+    # Ronda 3: marca adelante
+    for marca, tipo, extra in _itertools.product(marcas, tipos, extras):
+        if _add([marca, tipo, nombre_clean, extra]):
+            return titulos
+
+    # Relleno numerado
+    base = f"{tipos[0]} {nombre_clean} EcoFiver"[:50]
+    i = len(titulos) + 1
+    while len(titulos) < n and i < n * 3:
+        t = f"{base} V{i:04d}"[:60]
+        if t not in vistos:
+            vistos.add(t)
+            titulos.append(t)
+        i += 1
+
+    return titulos[:n]
+
+
+def _leer_productos_catalogo() -> list:
+    """
+    Lee catalogo.json y devuelve lista normalizada de todos los productos
+    con precio_contado > 0.  Incluye todas las categorías (legacy + genéricas).
+    """
+    from routers.catalogo import load_catalogo, _get_items
+
+    cat = load_catalogo()
+    resultado: list = []
+
+    for cat_nombre, cat_data in cat.items():
+        if not isinstance(cat_data, dict):
+            continue
+        items = _get_items(cat_data)
+        if not items:
+            continue
+        pool_meta = _POOLS_GENERICOS.get(cat_nombre, _POOLS_GENERICOS["_default"])
+
+        for prod_nombre, prod_data in items.items():
+            if not isinstance(prod_data, dict):
+                continue
+            precio = prod_data.get("precio_contado")
+            if not precio:
+                continue
+            try:
+                precio_f = float(precio)
+            except (TypeError, ValueError):
+                continue
+            if precio_f <= 0:
+                continue
+
+            fotos = prod_data.get("fotos") or []
+            sku_base = f"ECOF-{_sku_slug(cat_nombre)[:6]}-{_sku_slug(prod_nombre)[:12]}"
+            nombre_display = (prod_data.get("nombre")
+                              or prod_nombre.replace("_", " ").title())
+            resultado.append({
+                "categoria":      cat_nombre,
+                "nombre":         prod_nombre,
+                "nombre_display": nombre_display,
+                "precio_contado": precio_f,
+                "fotos":          fotos,
+                "descripcion":    (prod_data.get("descripcion_corta")
+                                   or prod_data.get("descripcion") or ""),
+                "sku_base":       sku_base,
+                "tipo_producto":  pool_meta.get("tipo_producto") or cat_nombre.upper()[:20],
+                "tiene_fotos":    bool(fotos),
+                "n_fotos":        len(fotos),
+            })
+
+    return resultado
+
+
+@router.get("/api/ml/borradores/catalogo-disponible")
+async def catalogo_disponible(
+    db: Session = Depends(get_db), x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Lista productos del catálogo con precio configurado, listos para publicación masiva."""
+    _auth(x_api_key, current_user)
+    from routers.mercadolibre import calcular_precio_ml as _cpm
+    productos = _leer_productos_catalogo()
+    por_cat: dict = {}
+    for p in productos:
+        cat = p["categoria"]
+        if cat not in por_cat:
+            por_cat[cat] = []
+        por_cat[cat].append({
+            "nombre":          p["nombre"],
+            "nombre_display":  p["nombre_display"],
+            "precio_contado":  p["precio_contado"],
+            "precio_ml":       _cpm(p["precio_contado"]),
+            "tiene_fotos":     p["tiene_fotos"],
+            "n_fotos":         p["n_fotos"],
+            "sku_base":        p["sku_base"],
+            "tipo_producto":   p["tipo_producto"],
+        })
+    return {"ok": True, "por_categoria": por_cat, "total": len(productos)}
+
+
 @router.post("/api/ml/borradores/masivos")
 async def crear_borradores_masivos(
     request: Request,
@@ -2425,99 +2655,112 @@ async def crear_borradores_masivos(
     current_user: Usuario = Depends(_require_config_access),
 ):
     """
-    Crea en lote N borradores ML por cada modelo de hidromasaje, con:
-    - Títulos únicos rotando palabras clave (SEO diversificado)
-    - Precio calculado: precio_contado × (1 + ganancia_pct) / (1 − comisión ML)
-    - Fotos reales desde ecofiver.site
-    - SKU único por variante: {base_sku}-{NNNN}
+    Crea en lote N borradores ML con títulos únicos SEO para CUALQUIER producto.
 
     Body (todos opcionales):
-      modelos          lista de modelos a procesar (default: los 4 hidromasajes)
-      cantidad         variantes por modelo (default: 500, max: 500)
-      ganancia_pct     margen sobre precio contado en decimal (default: 0.05 = 5 %)
+      from_catalogo  bool — si True usa todos los productos del catálogo con precio
+      categorias     lista de categorías a incluir (filtro; default: todas)
+      modelos        lista de modelos de hidromasaje (modo legado si from_catalogo=False)
+      cantidad       variantes por producto (default: 500, max: 500)
+      ganancia_pct   margen sobre precio contado (default: 0.05 = 5 %)
     """
     import json as _json_local
 
-    data = await request.json()
-    modelos_req  = data.get("modelos") or list(_POOLS_HIDRO.keys())
-    cantidad     = min(int(data.get("cantidad") or 500), 500)
-    ganancia_pct = float(data.get("ganancia_pct") or 0.05)
-
-    # Validar modelos pedidos
-    modelos_validos = [m for m in modelos_req if m in _POOLS_HIDRO]
-    if not modelos_validos:
-        raise HTTPException(400, f"Modelos no reconocidos: {modelos_req}. "
-                                 f"Válidos: {list(_POOLS_HIDRO.keys())}")
+    data          = await request.json()
+    cantidad      = min(int(data.get("cantidad") or 500), 500)
+    ganancia_pct  = float(data.get("ganancia_pct") or 0.05)
+    from_catalogo = bool(data.get("from_catalogo", False))
+    cat_filter    = data.get("categorias")  # None = todas
 
     creados_total  = 0
     omitidos_total = 0
-    detalle        = {}
+    detalle: dict  = {}
 
-    for modelo in modelos_validos:
-        pool          = _POOLS_HIDRO[modelo]
-        precio_contado = pool["precio_contado"]
-        precio_ml      = calcular_precio_ml(precio_contado, ganancia_pct)
-        titulos        = _generar_titulos_hidro(modelo, cantidad)
-        sku_base       = pool["sku_base"]
-        fotos_json     = _json_local.dumps(pool["fotos"])
-        descripcion    = pool["descripcion_base"]
-        # No seteamos categoria en el borrador: al publicar _publicar()
-        # usará CATEGORIAS_FIJAS["HIDROMASAJE"] = ("MLA88471", "Jacuzzis e Hidromasajes")
-        # que es la categoría verificada en ML Argentina.
+    def _procesar(cat_nombre, prod_nombre, nombre_display,
+                  precio_contado, fotos, descripcion, sku_base, tipo_producto):
+        nonlocal creados_total, omitidos_total
+        precio_ml  = calcular_precio_ml(precio_contado, ganancia_pct)
+        fotos_json = _json_local.dumps(fotos)
 
-        creados_modelo  = 0
-        omitidos_modelo = 0
+        # Generador curado para los 4 modelos de hidromasaje, genérico para el resto
+        if cat_nombre == "hidromasajes" and prod_nombre in _POOLS_HIDRO:
+            titulos = _generar_titulos_hidro(prod_nombre, cantidad)
+        else:
+            titulos = _generar_titulos_generico(nombre_display, cat_nombre, descripcion, cantidad)
 
+        creados_prod  = 0
+        omitidos_prod = 0
         for i, titulo in enumerate(titulos, start=1):
             sku = f"{sku_base}-{i:04d}"
-            existe = db.query(BorradorML).filter(BorradorML.seller_sku == sku).first()
-            if existe:
-                omitidos_modelo += 1
+            if db.query(BorradorML).filter(BorradorML.seller_sku == sku).first():
+                omitidos_prod += 1
                 continue
-
-            b = BorradorML(
+            db.add(BorradorML(
                 origen             = "masiva",
                 titulo             = titulo,
                 descripcion        = descripcion,
-                producto           = "HIDROMASAJE",
+                producto           = tipo_producto,
                 precio             = precio_ml,
                 costo              = float(precio_contado),
                 seller_sku         = sku,
-                modelo_nombre      = modelo,
+                modelo_nombre      = nombre_display,
                 condicion          = "new",
                 listing_type       = "gold_special",
                 cuotas_sin_interes = 0,
                 cantidad           = 1,
                 fotos_json         = fotos_json,
-                categoria          = "",   # resuelto por CATEGORIAS_FIJAS al publicar
+                categoria          = "",   # predictor ML lo resuelve al publicar
                 estado             = "borrador",
                 created_by_id      = current_user.id,
-            )
-            db.add(b)
-            creados_modelo += 1
-
-            # Flush cada 100 para no cargar todo en RAM
-            if creados_modelo % 100 == 0:
+            ))
+            creados_prod += 1
+            if creados_prod % 100 == 0:
                 db.flush()
 
         db.flush()
-        detalle[modelo] = {
-            "precio_contado": precio_contado,
-            "precio_ml":      precio_ml,
+        key = f"{cat_nombre}/{prod_nombre}" if from_catalogo else prod_nombre
+        detalle[key] = {
+            "precio_contado":         precio_contado,
+            "precio_ml":              precio_ml,
             "ganancia_neta_estimada": round(precio_ml * (1 - ML_COMISION_GOLD_SPECIAL) - precio_contado),
-            "creados":  creados_modelo,
-            "omitidos": omitidos_modelo,
+            "creados":                creados_prod,
+            "omitidos":               omitidos_prod,
+            "tiene_fotos":            bool(fotos),
         }
-        creados_total  += creados_modelo
-        omitidos_total += omitidos_modelo
+        creados_total  += creados_prod
+        omitidos_total += omitidos_prod
+
+    # ── MODO CATÁLOGO: todos los productos con precio ─────────────────────────
+    if from_catalogo:
+        productos = _leer_productos_catalogo()
+        if cat_filter:
+            productos = [p for p in productos if p["categoria"] in cat_filter]
+        if not productos:
+            raise HTTPException(400, "No se encontraron productos con precio en el catálogo.")
+        for p in productos:
+            _procesar(p["categoria"], p["nombre"], p["nombre_display"],
+                      p["precio_contado"], p["fotos"], p["descripcion"],
+                      p["sku_base"], p["tipo_producto"])
+
+    # ── MODO LEGADO: solo hidromasajes (compatibilidad hacia atrás) ───────────
+    else:
+        modelos_req     = data.get("modelos") or list(_POOLS_HIDRO.keys())
+        modelos_validos = [m for m in modelos_req if m in _POOLS_HIDRO]
+        if not modelos_validos:
+            raise HTTPException(400, f"Modelos no reconocidos: {modelos_req}. "
+                                     f"Válidos: {list(_POOLS_HIDRO.keys())}")
+        for modelo in modelos_validos:
+            pool = _POOLS_HIDRO[modelo]
+            _procesar("hidromasajes", modelo, modelo,
+                      pool["precio_contado"], pool["fotos"], pool["descripcion_base"],
+                      pool["sku_base"], "HIDROMASAJE")
 
     db.commit()
-
     return {
-        "ok":      True,
-        "creados": creados_total,
-        "omitidos": omitidos_total,
+        "ok":               True,
+        "creados":          creados_total,
+        "omitidos":         omitidos_total,
         "ganancia_pct_usada": ganancia_pct,
         "comision_ml_usada":  ML_COMISION_GOLD_SPECIAL,
-        "detalle": detalle,
+        "detalle":          detalle,
     }

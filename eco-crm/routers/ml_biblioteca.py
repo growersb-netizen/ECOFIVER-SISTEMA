@@ -331,7 +331,7 @@ async def _aplicar_set_bg(
 
             async with httpx.AsyncClient(timeout=15) as c:
                 r2 = await c.put(
-                    f"{ML_BASE}/items/{item_id}/pictures",
+                    f"{ML_BASE}/items/{item_id}",
                     headers=_ml_headers(token),
                     json={"pictures": pictures},
                 )
@@ -696,7 +696,7 @@ async def get_historial_respuestas(
     Devuelve los últimos `limit` registros, más reciente primero.
     """
     q = db.query(RespuestaAutoML).order_by(RespuestaAutoML.created_at.desc())
-    if respondida_por in ("auto", "manual"):
+    if respondida_por in ("auto", "manual", "auto-manual"):
         q = q.filter(RespuestaAutoML.respondida_por == respondida_por)
     registros = q.limit(limit).all()
     return [

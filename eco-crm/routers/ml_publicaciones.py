@@ -1080,6 +1080,40 @@ async def location_config_reset(db: Session = Depends(get_db), x_api_key=Header(
     return {"ok": True, "msg": "Caché de location borrado — se re-buscará en el próximo publish"}
 
 
+@router.post("/api/ml/borradores/reparar-categorias")
+async def reparar_categorias(
+    db: Session = Depends(get_db), x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Limpia categorías inválidas de los borradores.
+    Al publicar, _publicar() resolverá la categoría correcta vía CATEGORIAS_FIJAS o el predictor.
+    Específicamente corrige MLA9226 que ML rechaza con HTTP 400.
+    """
+    _auth(x_api_key, current_user)
+    INVALIDAS = {"MLA9226"}  # IDs conocidos como inexistentes en ML Argentina
+    borradores = (
+        db.query(BorradorML)
+        .filter(BorradorML.categoria.in_(INVALIDAS))
+        .all()
+    )
+    actualizados = len(borradores)
+    for b in borradores:
+        b.categoria = ""
+        b.categoria_nombre = ""
+    if actualizados:
+        db.commit()
+    return {
+        "ok": True,
+        "actualizados": actualizados,
+        "mensaje": (
+            f"{actualizados} borradores reparados (categoría MLA9226 → vacío). "
+            "Al publicar se usará automáticamente MLA88471 (Jacuzzis e Hidromasajes) "
+            "para producto HIDROMASAJE, o el predictor de ML para otros tipos."
+        ),
+    }
+
+
 @router.post("/api/ml/borradores/{bid}/duplicar")
 async def duplicar(bid: int, db: Session = Depends(get_db), x_api_key=Header(None),
                    current_user: Optional[Usuario] = Depends(get_current_user)):

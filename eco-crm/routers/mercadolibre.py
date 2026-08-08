@@ -147,15 +147,20 @@ def _guardar_tokens(db: Session, j: dict):
     _ml_save(db, "ml_token_expira", exp.isoformat(), secreto=False)
 
 # Categorías ML de emergencia (si falla el predictor Y no hay cache en BD)
+# Verificadas en ML Argentina 2025-2026:
+#   MLA373513 → Piletas y Piscinas de Fibra
+#   MLA88471  → Jacuzzis e Hidromasajes
+#   MLA413502 → Cabañas y Casas Prefabricadas (classified)
+#   MLA1647   → Casas Prefabricadas (alternativa)
 ML_CATEGORIAS = {
-    "PISCINA":              "MLA9226",    # Piletas y Jacuzzis
-    "MINIPISCINA":          "MLA9226",
-    "HIDROMASAJE":          "MLA9226",    # el predictor refina a Jacuzzis e Hidromasajes
-    "MODULO":               "MLA1647",    # Casas Prefabricadas
-    "MODULO_DEPOSITO":      "MLA1647",
-    "COMBO":                "MLA9226",
-    "QUINCHO":              "MLA1647",
-    "PERGOLA":              "MLA1647",
+    "PISCINA":              "MLA373513",  # Piletas de Fibra de Vidrio
+    "MINIPISCINA":          "MLA373513",
+    "HIDROMASAJE":          "MLA88471",   # Jacuzzis e Hidromasajes ✓
+    "MODULO":               "MLA413502",  # Cabañas y Casas Prefabricadas (classified)
+    "MODULO_DEPOSITO":      "MLA413502",
+    "COMBO":                "MLA413502",
+    "QUINCHO":              "MLA413502",
+    "PERGOLA":              "MLA413502",
 }
 # Nota: BANIO_QUIMICO, GARITA_SEGURIDAD, CUCHA, REPOSERA_FIBRA, EQUIPO_PISCINA, etc.
 # no tienen fallback fijo — el predictor ML los resuelve por título y los cachea en BD.
@@ -2277,7 +2282,7 @@ _POOLS_HIDRO = {
         "extra":    ["4 Jets", "Motor 1/2 HP", "Sin Obra", ""],
         "sku_base": "ECOF-HIDRO-QUADRA",
         "precio_contado": 1_220_000,
-        "categoria_ml":   "MLA9226",  # Hidromasajes y Jacuzzis
+        "categoria_ml":   "MLA88471",  # Jacuzzis e Hidromasajes ✓
         "descripcion_base": (
             "Hidromasaje esquinero Spa Quadra de EcoFiver. Acrílico sanitario reforzado PRFV. "
             "Diseño esquinero compacto 1,10 × 1,10 × 0,10 m. Ideal para baños y espacios reducidos. "
@@ -2298,7 +2303,7 @@ _POOLS_HIDRO = {
         "extra":    ["6 Jets", "Motor 3/4 HP", "Para 2 Personas", ""],
         "sku_base": "ECOF-HIDRO-RECTA",
         "precio_contado": 1_520_000,
-        "categoria_ml":   "MLA9226",
+        "categoria_ml":   "MLA88471",  # Jacuzzis e Hidromasajes ✓
         "descripcion_base": (
             "Hidromasaje rectangular Spa Recta de EcoFiver. Acrílico sanitario reforzado PRFV. "
             "Formato rectangular doble 1,65 × 1,40 × 0,45 m. Confort para dos personas. "
@@ -2319,7 +2324,7 @@ _POOLS_HIDRO = {
         "extra":    ["6 a 8 Jets", "Motor 3/4 HP", "Lujo", ""],
         "sku_base": "ECOF-HIDRO-ORBIS",
         "precio_contado": 1_620_000,
-        "categoria_ml":   "MLA9226",
+        "categoria_ml":   "MLA88471",  # Jacuzzis e Hidromasajes ✓
         "descripcion_base": (
             "Hidromasaje circular panorámico Spa Orbis de EcoFiver. Acrílico sanitario reforzado PRFV. "
             "Diseño circular 1,76 × 1,76 × 0,40 m. Ideal para baños de lujo, terrazas o ambientes spa. "
@@ -2340,7 +2345,7 @@ _POOLS_HIDRO = {
         "extra":    ["8 Jets", "Motor 1 HP", "Mayor Capacidad", ""],
         "sku_base": "ECOF-HIDRO-DELTA",
         "precio_contado": 1_890_000,
-        "categoria_ml":   "MLA9226",
+        "categoria_ml":   "MLA88471",  # Jacuzzis e Hidromasajes ✓
         "descripcion_base": (
             "Mini spa hidromasaje Spa Delta de EcoFiver. Acrílico sanitario reforzado PRFV. "
             "Mayor capacidad de la línea: 1,97 × 1,42 × 0,52 m. "
@@ -2456,7 +2461,9 @@ async def crear_borradores_masivos(
         sku_base       = pool["sku_base"]
         fotos_json     = _json_local.dumps(pool["fotos"])
         descripcion    = pool["descripcion_base"]
-        categoria_ml   = pool["categoria_ml"]
+        # No seteamos categoria en el borrador: al publicar _publicar()
+        # usará CATEGORIAS_FIJAS["HIDROMASAJE"] = ("MLA88471", "Jacuzzis e Hidromasajes")
+        # que es la categoría verificada en ML Argentina.
 
         creados_modelo  = 0
         omitidos_modelo = 0
@@ -2482,7 +2489,7 @@ async def crear_borradores_masivos(
                 cuotas_sin_interes = 0,
                 cantidad           = 1,
                 fotos_json         = fotos_json,
-                categoria          = categoria_ml,
+                categoria          = "",   # resuelto por CATEGORIAS_FIJAS al publicar
                 estado             = "borrador",
                 created_by_id      = current_user.id,
             )

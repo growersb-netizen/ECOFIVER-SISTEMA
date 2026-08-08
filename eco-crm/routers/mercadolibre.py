@@ -148,10 +148,17 @@ def _guardar_tokens(db: Session, j: dict):
 
 # Categorías ML de emergencia (si falla el predictor Y no hay cache en BD)
 ML_CATEGORIAS = {
-    "PISCINA": "MLA9226",    # Piletas y Jacuzzis
-    "MODULO":  "MLA1647",    # Casas Prefabricadas
-    "COMBO":   "MLA9226",
+    "PISCINA":              "MLA9226",    # Piletas y Jacuzzis
+    "MINIPISCINA":          "MLA9226",
+    "HIDROMASAJE":          "MLA9226",    # el predictor refina a Jacuzzis e Hidromasajes
+    "MODULO":               "MLA1647",    # Casas Prefabricadas
+    "MODULO_DEPOSITO":      "MLA1647",
+    "COMBO":                "MLA9226",
+    "QUINCHO":              "MLA1647",
+    "PERGOLA":              "MLA1647",
 }
+# Nota: BANIO_QUIMICO, GARITA_SEGURIDAD, CUCHA, REPOSERA_FIBRA, EQUIPO_PISCINA, etc.
+# no tienen fallback fijo — el predictor ML los resuelve por título y los cachea en BD.
 
 # Líneas de producto propias con un título de referencia para resolver su
 # categoría ML una sola vez (vía category_predictor) y cachearla en BD.
@@ -159,18 +166,37 @@ ML_CATEGORIAS = {
 # categoría fija (ej. "importados varios" puede ser cualquier cosa): para
 # esas SIEMPRE se predice en vivo con el título real del producto.
 LINEAS_PRODUCTO = {
-    "PISCINA":           "Pileta de Fibra de Vidrio",
-    "MODULO":            "Casa Modulo Habitacional Industrializado",
-    "COMBO":             "Pileta de Fibra de Vidrio",
-    "DEPOSITO_JARDIN":   "Deposito para Jardin de Chapa",
-    "GARITA_SEGURIDAD":  "Garita de Seguridad Prefabricada",
-    "BANIO_QUIMICO":     "Bano Quimico Portatil",
-    "CUCHA_PERRO":       "Cucha para Perro de Madera",
-    "ACCESORIO_PISCINA": "Luz Led Sumergible para Pileta",
-    "ACCESORIO_MODULO":  "Placa de PVC para Pared",
-    "MODULO_DEPOSITO":   "Modulo de Chapa para Deposito",
-    "CAMPING_PESCA":     None,
-    "IMPORTADO_VARIOS":  None,
+    # ── Piscinas e hidromasajes ────────────────────────────────────────────
+    "PISCINA":              "Pileta de Fibra de Vidrio",
+    "MINIPISCINA":          "Pileta Pequeña de Fibra de Vidrio Autoinstalable",
+    "HIDROMASAJE":          "Hidromasaje Jacuzzi Spa Acrílico Autoportante",
+    "ACCESORIO_HIDROMASAJE": None,       # heterogéneos → predictor usa el título real
+    # ── Módulos y estructuras ─────────────────────────────────────────────
+    "MODULO":               "Casa Modulo Habitacional Industrializado",
+    "MODULO_DEPOSITO":      "Modulo de Chapa para Deposito",
+    "QUINCHO":              "Quincho Prefabricado de Madera",
+    "PERGOLA":              "Pergola Gazebo de Madera para Jardin",
+    "COMBO":                "Combo Pileta de Fibra de Vidrio con Modulo",
+    # ── Prefabricados varios ──────────────────────────────────────────────
+    "BANIO_QUIMICO":        "Bano Quimico Portatil",
+    "GARITA_SEGURIDAD":     "Garita de Seguridad Prefabricada",
+    "DEPOSITO_JARDIN":      "Deposito para Jardin de Chapa",
+    # ── Accesorios y equipos ──────────────────────────────────────────────
+    "ACCESORIO_PISCINA":    "Accesorio para Pileta de Natacion",
+    "ILUMINACION_PISCINA":  "Luz LED Sumergible para Pileta",
+    "EQUIPO_PISCINA":       "Bomba Filtradora para Piscina",
+    "REPUESTO_PISCINA":     None,        # heterogéneos → predictor usa el título real
+    # ── Bañeras y receptáculos ────────────────────────────────────────────
+    "BANERA":               "Bañera de Acrílico Sanitario Autoportante",
+    "RECEPTACULO":          "Receptáculo de Ducha Acrílico",
+    # ── Otros productos EcoFiver ─────────────────────────────────────────
+    "CUCHA":                "Cucha para Perro de Madera Grande",
+    "CUCHA_PERRO":          "Cucha para Perro de Madera Grande",  # alias legacy
+    "REPOSERA_FIBRA":       "Reposera de Fibra de Vidrio Reclinable",
+    "ACCESORIO_MODULO":     "Placa de PVC para Pared",
+    # ── Heterogéneos (sin categoría fija) ────────────────────────────────
+    "CAMPING_PESCA":        None,
+    "IMPORTADO_VARIOS":     None,
 }
 
 
@@ -803,16 +829,27 @@ async def generar_titulo(
         raise HTTPException(400, "Falta la descripción del producto")
 
     tipo_label = {
-        "PISCINA": "piscina / pileta de fibra de vidrio",
-        "MINIPISCINA": "minipiscina / pileta pequeña de fibra de vidrio",
-        "HIDROMASAJE": "hidromasaje / jacuzzi / spa",
-        "MODULO": "vivienda modular wood frame / casa prefabricada",
-        "MODULO_DEPOSITO": "módulo depósito / galpón prefabricado",
-        "QUINCHO": "quincho prefabricado",
-        "PERGOLA": "pérgola / gazebo",
-        "REPOSERA_FIBRA": "reposera de fibra de vidrio",
-        "CUCHA": "cucha / casilla para perro",
-        "COMBO": "combo piscina y módulo habitacional",
+        "PISCINA":              "piscina / pileta de fibra de vidrio",
+        "MINIPISCINA":          "minipiscina / pileta pequeña de fibra de vidrio",
+        "HIDROMASAJE":          "hidromasaje / jacuzzi / spa de acrílico sanitario EcoFiver",
+        "ACCESORIO_HIDROMASAJE":"accesorio opcional para hidromasaje / jacuzzi / spa",
+        "MODULO":               "vivienda modular wood frame / casa prefabricada",
+        "MODULO_DEPOSITO":      "módulo depósito / galpón prefabricado",
+        "QUINCHO":              "quincho prefabricado",
+        "PERGOLA":              "pérgola / gazebo",
+        "COMBO":                "combo piscina y módulo habitacional",
+        "BANIO_QUIMICO":        "baño químico portátil",
+        "GARITA_SEGURIDAD":     "garita de seguridad prefabricada",
+        "DEPOSITO_JARDIN":      "depósito de jardín prefabricado",
+        "ACCESORIO_PISCINA":    "accesorio para piscina",
+        "ILUMINACION_PISCINA":  "iluminación LED sumergible para piscina",
+        "EQUIPO_PISCINA":       "equipo para piscina (filtro / bomba / calentador)",
+        "REPUESTO_PISCINA":     "repuesto para piscina",
+        "BANERA":               "bañera de acrílico sanitario",
+        "RECEPTACULO":          "receptáculo de ducha de acrílico",
+        "REPOSERA_FIBRA":       "reposera de fibra de vidrio reclinable",
+        "CUCHA":                "cucha / casilla para perro",
+        "CUCHA_PERRO":          "cucha / casilla para perro",
     }.get(tipo_producto, tipo_producto.lower())
 
     prompt = f"""{ctx_seo_ml(tipo_producto=tipo_label, descripcion_existente=descripcion)}
@@ -1048,6 +1085,10 @@ async def crear_publicacion(
             if url
         ],
         "attributes": atributos,
+        # Forzar "acuerdo con el vendedor" — previene asignación automática de
+        # MercadoEnvíos por dimensiones. Todos los productos EcoFiver son de gran
+        # porte o requieren coordinación directa; ME2 no aplica.
+        "shipping": {"mode": "not_specified", "free_shipping": False},
     }
 
     async with httpx.AsyncClient(timeout=20) as c:
@@ -1378,6 +1419,346 @@ async def _aplicar_texto_tipo_bg(job_id: str, token: str, pub_data: list, texto:
         job["errores_detalle"].append({"item_id": "global", "status": str(e_outer)[:120]})
     finally:
         job["status"] = "done"
+
+
+@router.post("/api/ml/catalogo/hidromasajes/seed")
+async def seed_borradores_hidromasajes(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Crea los borradores ML pre-configurados de la línea completa EcoFiver:
+    - 4 hidromasajes / spas (Quadra / Recta / Orbis / Delta) con fotos reales
+    - 5 accesorios opcionales para hidromasajes
+    - 7 bañeras de acrílico (Lumina / Sensa / Vento / Aqua / Curve / Pure / Vita) con fotos
+    - 3 receptáculos de ducha (Clásico / Esquinero / Pequeño) con fotos
+    Usa seller_sku como clave de unicidad — no duplica si ya existen.
+    """
+    import json as _json
+
+    # ── URLs de fotos reales extraídas de ecofiver.site ───────────────────────
+    FOTOS_HIDRO = {
+        "Spa Quadra": ["https://ecofiver.site/wp-content/uploads/2025/12/1.69x1.17x0.40-HIDRO.jpeg"],
+        "Spa Recta":  ["https://ecofiver.site/wp-content/uploads/2025/12/1.65x1.40x0.45-HIDRO.jpeg"],
+        "Spa Orbis":  ["https://ecofiver.site/wp-content/uploads/2025/12/1.76x1.76x0.40-HIDRO.jpeg"],
+        "Spa Delta":  ["https://ecofiver.site/wp-content/uploads/2025/12/1.97x1.42x0.52-HIDRO.jpeg"],
+    }
+    FOTOS_BANERA = {
+        "Lumina": ["https://ecofiver.site/wp-content/uploads/2025/12/lumina.jpg"],
+        "Sensa":  ["https://ecofiver.site/wp-content/uploads/2025/12/sensa.jpg"],
+        "Vento":  ["https://ecofiver.site/wp-content/uploads/2025/12/vento.jpg"],
+        "Aqua":   ["https://ecofiver.site/wp-content/uploads/2025/12/aquaaa.jpg"],
+        "Curve":  ["https://ecofiver.site/wp-content/uploads/2025/12/curve.jpg"],
+        "Pure":   ["https://ecofiver.site/wp-content/uploads/2025/12/pure.jpg"],
+        "Vita":   ["https://ecofiver.site/wp-content/uploads/2025/12/vita.jpg"],
+    }
+    FOTOS_RECEP = {
+        "Clásico":   ["https://ecofiver.site/wp-content/uploads/2025/12/1.10x1.10x0.10-RECEP.jpeg"],
+        "Esquinero": ["https://ecofiver.site/wp-content/uploads/2025/12/99X75-RECEP.jpeg"],
+        "Pequeño":   ["https://ecofiver.site/wp-content/uploads/2025/12/90x90x0.90-RECEP.jpeg"],
+    }
+
+    # ── Texto base hidromasajes ───────────────────────────────────────────────
+    DESC_BASE_HIDRO = (
+        "\n\nEquipamiento incluido: jets dirigibles vista cromo, motor según modelo, "
+        "pulsador neumático de encendido, reguladores de flujo de aire, "
+        "sistema de succión con filtro de pelos, sopapa y desborde conectados. "
+        "Estructura autoportante metálica reforzada incluida, sin obra de albañilería."
+        "\n\nColores disponibles sin cargo adicional: Blanco, Beige, Negro y Gris. "
+        "Indicar el color al comprar o por mensaje antes de la preparación."
+        "\n\nOpcionales con cargo (consultar): blower de aire 12 inyectores, cromoterapia LED, "
+        "grifería con pico cisne o cascada (cromo/negro mate), ozonizador con sensor de nivel, "
+        "revestimiento exterior WPC símil madera."
+        "\n\nPago: contado, tarjeta de crédito o débito. Sin financiación en cuotas."
+        "\n\nRetiro: San Telmo (CABA) o Zárate (Bs. As.). Envío a domicilio cotizar."
+        "\n\nFabricación propia EcoFiver — Zárate, Buenos Aires. Garantía estructural incluida."
+    )
+
+    # ── Texto base bañeras ────────────────────────────────────────────────────
+    DESC_BASE_BANERA = (
+        "\n\nFabricada en acrílico sanitario de alta resistencia reforzado con fibra de vidrio (PRFV). "
+        "Superficie suave, fácil limpieza, resistente a productos de limpieza y rayos UV."
+        "\n\nColores disponibles: Blanco, Beige, Negro, Gris."
+        "\n\nInstalación directa sobre el piso. Conexión a agua fría/caliente y desagüe. "
+        "Sin obra de albañilería."
+        "\n\nPago: contado, tarjeta de crédito o débito. Sin financiación en cuotas."
+        "\n\nRetiro: San Telmo (CABA) o Zárate (Bs. As.). Envío a domicilio cotizar."
+        "\n\nFabricación propia EcoFiver — Zárate, Buenos Aires. Garantía incluida."
+    )
+
+    # ── Texto base receptáculos ───────────────────────────────────────────────
+    DESC_BASE_RECEP = (
+        "\n\nFabricado en acrílico sanitario de alta resistencia reforzado con fibra de vidrio (PRFV). "
+        "Antideslizante, resistente a químicos de limpieza. Instalación directa sobre el piso."
+        "\n\nColores disponibles: Blanco, Beige, Negro, Gris."
+        "\n\nPago: contado, tarjeta de crédito o débito. Sin financiación en cuotas."
+        "\n\nRetiro: San Telmo (CABA) o Zárate (Bs. As.)."
+        "\n\nFabricación propia EcoFiver — Zárate, Buenos Aires. Garantía incluida."
+    )
+
+    # ── Datos de hidromasajes ─────────────────────────────────────────────────
+    modelos_data = [
+        {
+            "sku": "ECOF-HIDRO-QUADRA", "modelo": "Spa Quadra", "precio": 1220000,
+            "titulo": "Hidromasaje Esquinero Spa Quadra 110x110 Acrílico EcoFiver",
+            "descripcion": (
+                "Hidromasaje esquinero modelo Spa Quadra de EcoFiver. "
+                "Fabricado en acrílico sanitario reforzado con fibra de vidrio. "
+                "Diseño esquinero compacto de 1,10 m × 1,10 m, ideal para baños y espacios reducidos. "
+                "Profundidad 0,10 m. Conexión directa a agua fría/caliente, desagüe y electricidad."
+                "\n\nEspecificaciones: 1,10 × 1,10 × 0,10 m · 4 jets dirigibles · "
+                "Motor 1/2 HP o 3/4 HP · 1 pulsador neumático · 1 regulador de aire."
+                + DESC_BASE_HIDRO
+            ),
+        },
+        {
+            "sku": "ECOF-HIDRO-RECTA", "modelo": "Spa Recta", "precio": 1520000,
+            "titulo": "Hidromasaje Rectangular Spa Recta 165x140 Acrílico EcoFiver",
+            "descripcion": (
+                "Hidromasaje rectangular modelo Spa Recta de EcoFiver. "
+                "Acrílico sanitario reforzado con fibra de vidrio. "
+                "Formato rectangular doble de 1,65 m × 1,40 m con 0,45 m de profundidad, "
+                "ideal para baños amplios, suites o instalación sobre deck exterior."
+                "\n\nEspecificaciones: 1,65 × 1,40 × 0,45 m · 6 jets dirigibles · "
+                "Motor 3/4 HP · 1 pulsador neumático · 2 reguladores de aire."
+                + DESC_BASE_HIDRO
+            ),
+        },
+        {
+            "sku": "ECOF-HIDRO-ORBIS", "modelo": "Spa Orbis", "precio": 1620000,
+            "titulo": "Hidromasaje Circular Spa Orbis 176x176 Acrílico EcoFiver",
+            "descripcion": (
+                "Hidromasaje circular panorámico modelo Spa Orbis de EcoFiver. "
+                "Acrílico sanitario reforzado con fibra de vidrio. "
+                "Diseño circular de 1,76 m × 1,76 m con 0,40 m de profundidad, "
+                "ideal para baños de lujo, terrazas o ambientes spa."
+                "\n\nEspecificaciones: 1,76 × 1,76 × 0,40 m · 6 a 8 jets dirigibles · "
+                "Motor 3/4 HP · 1 pulsador neumático · 2 reguladores de aire."
+                + DESC_BASE_HIDRO
+            ),
+        },
+        {
+            "sku": "ECOF-HIDRO-DELTA", "modelo": "Spa Delta", "precio": 1890000,
+            "titulo": "Mini Spa Hidromasaje Spa Delta 197x142 Acrílico EcoFiver",
+            "descripcion": (
+                "Mini spa modelo Spa Delta de EcoFiver. El hidromasaje de mayor capacidad de la línea. "
+                "Acrílico sanitario reforzado con fibra de vidrio. "
+                "Formato rectangular XL de 1,97 m × 1,42 m con 0,52 m de profundidad."
+                "\n\nEspecificaciones: 1,97 × 1,42 × 0,52 m · 8 jets dirigibles · "
+                "Motor 1 HP · 1 pulsador neumático · 2 reguladores de aire."
+                + DESC_BASE_HIDRO
+            ),
+        },
+    ]
+
+    accesorios_data = [
+        {
+            "sku": "ECOF-HIDRO-ACC-BLOWER", "modelo": "Kit Blower de Aire", "precio": 0,
+            "titulo": "Kit Blower Burbujas para Hidromasaje 12 Inyectores EcoFiver",
+            "descripcion": (
+                "Kit blower de aire para hidromasajes y spas EcoFiver. "
+                "Motor blower independiente + 12 inyectores en piso para efecto burbujas. "
+                "Compatible con Spa Quadra, Recta, Orbis y Delta. Consultar precio."
+                "\n\nFabricación EcoFiver · Retiro: San Telmo (CABA) o Zárate (Bs. As.)."
+            ),
+        },
+        {
+            "sku": "ECOF-HIDRO-ACC-LED", "modelo": "Kit Cromoterapia LED", "precio": 0,
+            "titulo": "Kit Cromoterapia LED Sumergible Hidromasaje Spa EcoFiver",
+            "descripcion": (
+                "Kit de cromoterapia LED para hidromasajes y spas EcoFiver. "
+                "Spot LED multicolor sumergible, secuencias programables. "
+                "Compatible con todos los modelos Spa EcoFiver. Consultar precio."
+                "\n\nFabricación EcoFiver · Retiro: San Telmo (CABA) o Zárate (Bs. As.)."
+            ),
+        },
+        {
+            "sku": "ECOF-HIDRO-ACC-GRIF", "modelo": "Kit Grifería y Cascada", "precio": 0,
+            "titulo": "Kit Grifería Cascada Hidromasaje Spa Cromo Negro Mate EcoFiver",
+            "descripcion": (
+                "Kit de grifería y cascada para hidromasajes EcoFiver. "
+                "Pico cisne o cascada ovalada en cromo o negro mate. "
+                "Compatible con todos los modelos Spa EcoFiver. Consultar precio."
+                "\n\nFabricación EcoFiver · Retiro: San Telmo (CABA) o Zárate (Bs. As.)."
+            ),
+        },
+        {
+            "sku": "ECOF-HIDRO-ACC-OZON", "modelo": "Sistema de Desinfección", "precio": 0,
+            "titulo": "Kit Desinfección Ozonizador Sensor Nivel Hidromasaje EcoFiver",
+            "descripcion": (
+                "Sistema de desinfección para hidromasajes EcoFiver. "
+                "Ozonizador + sensor electrónico de nivel. "
+                "Protege el motor y mantiene el agua en óptimas condiciones. "
+                "Compatible con todos los modelos. Consultar precio."
+                "\n\nFabricación EcoFiver · Retiro: San Telmo (CABA) o Zárate (Bs. As.)."
+            ),
+        },
+        {
+            "sku": "ECOF-HIDRO-ACC-WPC", "modelo": "Revestimiento Exterior WPC", "precio": 0,
+            "titulo": "Revestimiento WPC Símil Madera Faldón Hidromasaje Spa EcoFiver",
+            "descripcion": (
+                "Revestimiento exterior WPC símil madera para hidromasajes EcoFiver. "
+                "Faldones de WPC (madera+polímero) resistentes a humedad y UV. "
+                "Ideal para instalaciones en deck exterior o jardín. A medida. Consultar precio."
+                "\n\nFabricación EcoFiver · Retiro: San Telmo (CABA) o Zárate (Bs. As.)."
+            ),
+        },
+    ]
+
+    # ── Datos de bañeras ──────────────────────────────────────────────────────
+    baneras_data = [
+        {
+            "sku": "ECOF-BAN-LUMINA", "modelo": "Lumina", "precio": 0,
+            "titulo": "Bañera Acrílica Lumina 190x90 EcoFiver Fabricación Propia",
+            "descripcion": (
+                "Bañera modelo Lumina de EcoFiver. Acrílico sanitario reforzado con PRFV. "
+                "Formato rectangular, ideal para baños estándar. 1,90 m × 0,90 m × 0,50 m."
+                + DESC_BASE_BANERA
+            ),
+        },
+        {
+            "sku": "ECOF-BAN-SENSA", "modelo": "Sensa", "precio": 0,
+            "titulo": "Bañera Acrílica Sensa 170x118 Angular EcoFiver Fabricación Propia",
+            "descripcion": (
+                "Bañera modelo Sensa de EcoFiver. Acrílico sanitario reforzado con PRFV. "
+                "Formato angular doble asiento. 1,18 m × 1,70 m × 0,45 m."
+                + DESC_BASE_BANERA
+            ),
+        },
+        {
+            "sku": "ECOF-BAN-VENTO", "modelo": "Vento", "precio": 0,
+            "titulo": "Bañera Acrílica Vento 140x77 Compacta EcoFiver Fabricación Propia",
+            "descripcion": (
+                "Bañera modelo Vento de EcoFiver. Acrílico sanitario reforzado con PRFV. "
+                "Formato compacto rectangular. 1,40 m × 0,77 m × 0,49 m."
+                + DESC_BASE_BANERA
+            ),
+        },
+        {
+            "sku": "ECOF-BAN-AQUA", "modelo": "Aqua", "precio": 0,
+            "titulo": "Bañera Acrílica Aqua 165x140 Doble Asiento EcoFiver",
+            "descripcion": (
+                "Bañera modelo Aqua de EcoFiver. Acrílico sanitario reforzado con PRFV. "
+                "Formato doble asiento XL. 1,40 m × 1,65 m × 0,50 m."
+                + DESC_BASE_BANERA
+            ),
+        },
+        {
+            "sku": "ECOF-BAN-CURVE", "modelo": "Curve", "precio": 0,
+            "titulo": "Bañera Acrílica Curve 140x140 Esquinera EcoFiver",
+            "descripcion": (
+                "Bañera esquinera modelo Curve de EcoFiver. Acrílico sanitario reforzado con PRFV. "
+                "Formato esquinero cuadrado. 1,40 m × 1,40 m × 0,55 m."
+                + DESC_BASE_BANERA
+            ),
+        },
+        {
+            "sku": "ECOF-BAN-PURE", "modelo": "Pure", "precio": 0,
+            "titulo": "Bañera Acrílica Pure 184x96 Clásica EcoFiver Fabricación Propia",
+            "descripcion": (
+                "Bañera modelo Pure de EcoFiver. Acrílico sanitario reforzado con PRFV. "
+                "Formato rectangular clásico. 1,84 m × 0,96 m × 0,45 m."
+                + DESC_BASE_BANERA
+            ),
+        },
+        {
+            "sku": "ECOF-BAN-VITA", "modelo": "Vita", "precio": 0,
+            "titulo": "Bañera Acrílica Vita 180x90 Estándar EcoFiver Fabricación Propia",
+            "descripcion": (
+                "Bañera modelo Vita de EcoFiver. Acrílico sanitario reforzado con PRFV. "
+                "Formato rectangular estándar. 1,80 m × 0,90 m × 0,50 m."
+                + DESC_BASE_BANERA
+            ),
+        },
+    ]
+
+    # ── Datos de receptáculos ─────────────────────────────────────────────────
+    receptaculos_data = [
+        {
+            "sku": "ECOF-RECEP-CLASICO", "modelo": "Receptáculo Clásico", "precio": 0,
+            "titulo": "Receptáculo Ducha Clásico 110x110 Acrílico EcoFiver",
+            "descripcion": (
+                "Receptáculo de ducha modelo Clásico de EcoFiver. "
+                "Acrílico sanitario reforzado con PRFV. Cuadrado de 1,10 m × 1,10 m × 0,10 m. "
+                "Antideslizante. Conexión a desagüe estándar."
+                + DESC_BASE_RECEP
+            ),
+        },
+        {
+            "sku": "ECOF-RECEP-ESQUINERO", "modelo": "Receptáculo Esquinero", "precio": 0,
+            "titulo": "Receptáculo Ducha Esquinero 99x75 Acrílico EcoFiver",
+            "descripcion": (
+                "Receptáculo de ducha esquinero modelo Esquinero de EcoFiver. "
+                "Acrílico sanitario reforzado con PRFV. 99 cm × 75 cm × 10 cm. "
+                "Diseño aprovecha el rincón. Antideslizante."
+                + DESC_BASE_RECEP
+            ),
+        },
+        {
+            "sku": "ECOF-RECEP-PEQUENO", "modelo": "Receptáculo Pequeño", "precio": 0,
+            "titulo": "Receptáculo Ducha Pequeño 90x90 Acrílico EcoFiver",
+            "descripcion": (
+                "Receptáculo de ducha modelo Pequeño de EcoFiver. "
+                "Acrílico sanitario reforzado con PRFV. 90 cm × 90 cm × 9 cm. "
+                "Formato compacto, ideal para baños de servicio o espacios reducidos. Antideslizante."
+                + DESC_BASE_RECEP
+            ),
+        },
+    ]
+
+    creados = []
+    omitidos = []
+
+    def _crear_borrador(item: dict, producto: str, fotos_map: dict | None = None) -> None:
+        sku = item["sku"]
+        existe = db.query(BorradorML).filter(BorradorML.seller_sku == sku).first()
+        if existe:
+            # Actualizar fotos si el borrador existe pero no tiene fotos cargadas
+            if fotos_map and existe.fotos_json in (None, "[]", ""):
+                fotos_urls = fotos_map.get(item["modelo"], [])
+                if fotos_urls:
+                    existe.fotos_json = _json.dumps(fotos_urls)
+                    omitidos.append({"sku": sku, "razon": "ya existe (fotos actualizadas)", "id": existe.id})
+                    return
+            omitidos.append({"sku": sku, "razon": "ya existe", "id": existe.id})
+            return
+        fotos_urls = (fotos_map or {}).get(item["modelo"], [])
+        b = BorradorML(
+            origen            = "catalogo",
+            titulo            = item["titulo"][:200],
+            descripcion       = item["descripcion"],
+            producto          = producto,
+            precio            = item["precio"],
+            seller_sku        = sku,
+            modelo_nombre     = item["modelo"],
+            condicion         = "new",
+            listing_type      = "gold_special",
+            cuotas_sin_interes= 0,
+            fotos_json        = _json.dumps(fotos_urls),
+            estado            = "borrador",
+            created_by_id     = current_user.id,
+        )
+        db.add(b)
+        db.flush()
+        creados.append({"sku": sku, "titulo": item["titulo"], "id": b.id, "fotos": len(fotos_urls)})
+
+    for m in modelos_data:
+        _crear_borrador(m, "HIDROMASAJE", FOTOS_HIDRO)
+    for a in accesorios_data:
+        _crear_borrador(a, "ACCESORIO_HIDROMASAJE", None)
+    for b in baneras_data:
+        _crear_borrador(b, "BANERA", FOTOS_BANERA)
+    for r in receptaculos_data:
+        _crear_borrador(r, "RECEPTACULO", FOTOS_RECEP)
+
+    db.commit()
+    return {
+        "ok": True,
+        "creados": len(creados),
+        "omitidos": len(omitidos),
+        "detalle_creados": creados,
+        "detalle_omitidos": omitidos,
+    }
 
 
 @router.get("/api/ml/publicaciones/con-item-id")

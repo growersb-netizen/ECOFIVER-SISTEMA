@@ -42,10 +42,57 @@ LO QUE VENDEMOS Y FABRICAMOS
    Qué NO incluye: el flete se cotiza por separado según la distancia y el modelo (el transporte de un casco grande varía mucho)
    Tiempo de producción: aproximadamente 30-45 días desde la señal
 
-2. HIDROMASAJES, JACUZZIS Y SPAS DE FIBRA
-   Modelos autoportantes sin excavar: Autoportante, Miniportante, Minideck (uso como spa/jacuzzi)
-   Se instalan sin obra, van sobre cualquier superficie firme (terraza, deck, jardín)
+2. HIDROMASAJES, JACUZZIS Y SPAS (línea propia EcoFiver — acrílico sanitario)
+   Material: acrílico sanitario de alta resistencia reforzado con PRFV (Poliéster Reforzado en Fibra de Vidrio)
+   Estructura autoportante metálica incluida en todos los modelos — instalación sin obra de albañilería
+   Colores disponibles sin cargo adicional: Blanco, Beige, Negro, Gris
+   Puntos de entrega: San Telmo (CABA) y Zárate (Buenos Aires)
    Categoría ML correcta: "Jacuzzis e Hidromasajes" — NO "Piscinas de fibra"
+
+   MODELOS Y ESPECIFICACIONES EXACTAS:
+   · Spa Quadra (esquinero ultracompacto)
+     Medidas: 1,10 x 1,10 x 0,10 m
+     Jets: 4 jets dirigibles vista cromo
+     Motor: 1/2 HP o 3/4 HP (alta eficiencia)
+     Extras incluidos: 1 pulsador neumático, 1 regulador de aire, succión con filtro de pelos + sopapa + desborde
+     Precio contado: $1.220.000 ARS
+
+   · Spa Recta (rectangular doble)
+     Medidas: 1,65 x 1,40 x 0,45 m
+     Jets: 6 jets dirigibles vista cromo
+     Motor: 3/4 HP
+     Extras incluidos: 1 pulsador neumático, 2 reguladores de flujo de aire, succión con filtro de pelos + sopapa + desborde
+     Precio contado: $1.520.000 ARS
+
+   · Spa Orbis (circular panorámico)
+     Medidas: 1,76 x 1,76 x 0,40 m
+     Jets: 6 a 8 jets dirigibles vista cromo
+     Motor: 3/4 HP
+     Extras incluidos: 1 pulsador neumático, 2 reguladores de flujo de aire, succión con filtro de pelos + sopapa + desborde
+     Precio contado: $1.620.000 ARS
+
+   · Spa Delta (mini spa rectangular XL)
+     Medidas: 1,97 x 1,42 x 0,52 m
+     Jets: 8 jets dirigibles vista cromo
+     Motor: 1 HP (alta potencia)
+     Extras incluidos: 1 pulsador neumático, 2 reguladores de flujo de aire, succión con filtro de pelos + sopapa + desborde
+     Precio contado: $1.890.000 ARS
+
+   EQUIPAMIENTO INCLUIDO EN TODOS LOS MODELOS:
+   - Estructura autoportante metálica reforzada (sin necesidad de obra)
+   - Motor según modelo (ver arriba)
+   - Jets dirigibles vista cromo (cantidad según modelo)
+   - Pulsador neumático de encendido
+   - Reguladores de flujo de aire
+   - Sistema de succión: filtro de pelos + sopapa + desborde conectados
+   - Conexión lista para agua fría/caliente, desagüe y electricidad
+
+   OPCIONALES (UPSELL — con cargo aparte):
+   - Kit Blower de Aire (burbujas): motor blower independiente + 12 inyectores de aire distribuidos en el piso
+   - Kit Cromoterapia LED: spot multicolor sumergible con secuencias programables
+   - Kit Grifería y Cascada: pico cisne o cascada ovalada en cromo o negro mate
+   - Sistema de Desinfección: ozonizador + sensor electrónico de nivel (protección motor en seco)
+   - Revestimiento Exterior WPC: faldones/paneles símil madera resistentes a la intemperie (ideal deck/exterior)
 
 3. MÓDULOS HABITACIONALES WOOD FRAME
    Sistema constructivo: entramado de madera (wood frame), paneles prefabricados, terminaciones interiores incluidas
@@ -228,6 +275,35 @@ TONO PARA REDES SOCIALES DE ECOFIVER
 - CTA claro al final: "Consultá por tu proyecto", "Pedí tu cotización", "Escribinos"
 - Hashtags: mezclar específicos (#piscinadefibra #modularwoodframe) con genéricos (#pileta #hogar #jardín)
 - Nunca prometer precios ni plazos exactos en redes (pueden variar)"""
+
+
+def ctx_hidromasajes_ml(modelo: str = "", pregunta: str = "", descripcion_pub: str = "") -> str:
+    """
+    Contexto específico para responder preguntas sobre hidromasajes/jacuzzis/spas en ML.
+    Incluye el catálogo completo con medidas, equipamiento y precios reales.
+    """
+    base = ctx_empresa()
+    modelo_ctx = f"\n\nModelo consultado: {modelo}" if modelo else ""
+    desc_ctx = f"\n\nDescripción de la publicación:\n{descripcion_pub[:600]}" if descripcion_pub else ""
+    pregunta_ctx = f"\n\nPREGUNTA DEL COMPRADOR:\n{pregunta}" if pregunta else ""
+
+    return f"""{base}{modelo_ctx}{desc_ctx}{pregunta_ctx}
+
+RESPUESTAS ESPECÍFICAS PARA HIDROMASAJES ECOFIVER
+- Medidas exactas por modelo (usarlas siempre, nunca inventar otras):
+  Spa Quadra: 1,10 x 1,10 x 0,10 m — 4 jets — motor 1/2 o 3/4 HP — $1.220.000 contado
+  Spa Recta: 1,65 x 1,40 x 0,45 m — 6 jets — motor 3/4 HP — $1.520.000 contado
+  Spa Orbis: 1,76 x 1,76 x 0,40 m — 6 a 8 jets — motor 3/4 HP — $1.620.000 contado
+  Spa Delta: 1,97 x 1,42 x 0,52 m — 8 jets — motor 1 HP — $1.890.000 contado
+- Todos los modelos incluyen: estructura autoportante metálica, motor, jets vista cromo, pulsador neumático, reguladores de aire, filtro de pelos, sopapa y desborde conectados
+- Material: acrílico sanitario + PRFV. Colores: Blanco, Beige, Negro, Gris sin cargo extra
+- No requieren obra: se conectan a agua existente, desagüe y electricidad
+- Retiro sin cargo: San Telmo (CABA) o Zárate (Buenos Aires)
+- Envío a domicilio: se cotiza aparte según zona
+- Opcionales con cargo (NO dar precio): blower burbujas, cromoterapia LED, grifería/cascada, ozonizador, WPC exterior
+- Financiación: cuotas propias directas, sin banco ni tarjeta
+- NUNCA des teléfono, WhatsApp ni redes sociales
+- Solo texto plano, sin markdown ni emojis"""
 
 
 def ctx_marketing_blog(tipo: str = "", longitud: str = "media") -> str:

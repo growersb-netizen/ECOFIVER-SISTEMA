@@ -62,6 +62,7 @@
     <label class="btn btn-secondary btn-sm" style="cursor:pointer">📥 Importar CSV/Excel
       <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="borImportarArchivo(this)"></label>
     <button class="btn btn-secondary btn-sm" onclick="borImportarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
+    <button class="btn btn-secondary btn-sm" onclick="borSeedHidromasajes()" title="Carga hidromasajes (4 modelos + 5 accesorios), 7 bañeras y 3 receptáculos de ducha con fotos reales">🛁 Cargar spas / bañeras</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-reintentar-errores" onclick="borReintentarErrores()" style="display:none;color:#fbbf24" title="Selecciona y reintenta publicar todos los borradores con error">🔧 Reintentar errores (<span id="bor-n-errores">0</span>)</button>
@@ -76,15 +77,24 @@
       <option value="">Todos los tipos</option>
       <option value="PISCINA">Piscinas</option>
       <option value="MINIPISCINA">Minipiscinas</option>
+      <option value="HIDROMASAJE">Hidromasajes / Spa</option>
+      <option value="ACCESORIO_HIDROMASAJE">Accesorios hidromasaje</option>
+      <option value="BANERA">Bañeras de acrílico</option>
+      <option value="RECEPTACULO">Receptáculos de ducha</option>
       <option value="MODULO">Vivienda modular</option>
       <option value="MODULO_DEPOSITO">Módulo depósito</option>
       <option value="COMBO">Combo piscina+módulo</option>
       <option value="QUINCHO">Quincho</option>
       <option value="PERGOLA">Pérgola</option>
-      <option value="HIDROMASAJE">Hidromasaje</option>
+      <option value="BANIO_QUIMICO">Baño químico</option>
+      <option value="GARITA_SEGURIDAD">Garita de seguridad</option>
+      <option value="DEPOSITO_JARDIN">Depósito de jardín</option>
+      <option value="ACCESORIO_PISCINA">Accesorios piscina</option>
+      <option value="ILUMINACION_PISCINA">Iluminación piscina</option>
+      <option value="EQUIPO_PISCINA">Equipos piscina</option>
+      <option value="REPUESTO_PISCINA">Repuestos piscina</option>
       <option value="REPOSERA_FIBRA">Reposera de fibra</option>
       <option value="CUCHA">Cucha para perro</option>
-      <option value="ILUMINACION_PISCINA">Iluminación piscina</option>
     </select>
     <label style="font-size:13px;color:var(--text-secondary)"><input type="checkbox" id="bor-sel-all" onchange="borToggleTodos(this)"> Seleccionar todo</label>
     <span id="bor-count" style="font-size:13px;color:var(--text-secondary)"></span>
@@ -135,8 +145,12 @@
             <optgroup label="Piscinas y agua">
               <option value="PISCINA">Piscina / Pileta de fibra de vidrio</option>
               <option value="MINIPISCINA">Minipiscina / Pileta pequeña</option>
+            </optgroup>
+            <optgroup label="Hidromasajes, bañeras y spa">
               <option value="HIDROMASAJE">Hidromasaje / Jacuzzi / Spa</option>
-              <option value="ILUMINACION_PISCINA">Iluminación para piscinas</option>
+              <option value="ACCESORIO_HIDROMASAJE">Accesorio para hidromasaje</option>
+              <option value="BANERA">Bañera de acrílico</option>
+              <option value="RECEPTACULO">Receptáculo de ducha</option>
             </optgroup>
             <optgroup label="Viviendas y estructuras">
               <option value="MODULO">Vivienda modular Wood Frame</option>
@@ -145,7 +159,16 @@
               <option value="PERGOLA">Pérgola / Gazebo</option>
               <option value="COMBO">Combo piscina + módulo</option>
             </optgroup>
-            <optgroup label="Accesorios y jardín">
+            <optgroup label="Prefabricados varios">
+              <option value="BANIO_QUIMICO">Baño químico portátil</option>
+              <option value="GARITA_SEGURIDAD">Garita de seguridad</option>
+              <option value="DEPOSITO_JARDIN">Depósito de jardín</option>
+            </optgroup>
+            <optgroup label="Accesorios y equipos">
+              <option value="ACCESORIO_PISCINA">Accesorio para piscina</option>
+              <option value="ILUMINACION_PISCINA">Iluminación para piscinas</option>
+              <option value="EQUIPO_PISCINA">Equipo para piscina (filtro/bomba)</option>
+              <option value="REPUESTO_PISCINA">Repuesto para piscina</option>
               <option value="REPOSERA_FIBRA">Reposera de fibra de vidrio</option>
               <option value="CUCHA">Cucha / Casilla para perro</option>
             </optgroup>
@@ -421,12 +444,23 @@
         <option value="">Todos los tipos</option>
         <option value="PISCINA">Piscinas</option>
         <option value="MINIPISCINA">Minipiscinas</option>
-        <option value="HIDROMASAJE">Hidromasajes / Jacuzzi</option>
+        <option value="HIDROMASAJE">Hidromasajes / Spa</option>
+        <option value="ACCESORIO_HIDROMASAJE">Accesorios hidromasaje</option>
+        <option value="BANERA">Bañeras de acrílico</option>
+        <option value="RECEPTACULO">Receptáculos de ducha</option>
         <option value="MODULO">Vivienda modular</option>
         <option value="MODULO_DEPOSITO">Módulo depósito</option>
         <option value="COMBO">Combo</option>
         <option value="QUINCHO">Quincho</option>
         <option value="PERGOLA">Pérgola</option>
+        <option value="BANIO_QUIMICO">Baño químico</option>
+        <option value="GARITA_SEGURIDAD">Garita seguridad</option>
+        <option value="DEPOSITO_JARDIN">Depósito jardín</option>
+        <option value="ACCESORIO_PISCINA">Accesorios piscina</option>
+        <option value="EQUIPO_PISCINA">Equipos piscina</option>
+        <option value="REPUESTO_PISCINA">Repuestos piscina</option>
+        <option value="REPOSERA_FIBRA">Reposera de fibra</option>
+        <option value="CUCHA">Cucha perro</option>
       </select>
       <input class="input" id="bib-f-modelo" placeholder="Filtrar modelo..." style="max-width:160px" oninput="bibCargarFotos()">
       <input class="input" id="bib-f-tag" placeholder="Filtrar tag..." style="max-width:140px" oninput="bibCargarFotos()">
@@ -470,11 +504,23 @@
             <option value="">— Seleccioná —</option>
             <option value="PISCINA">Piscina</option>
             <option value="MINIPISCINA">Minipiscina</option>
-            <option value="HIDROMASAJE">Hidromasaje / Jacuzzi</option>
+            <option value="HIDROMASAJE">Hidromasaje / Spa</option>
+            <option value="ACCESORIO_HIDROMASAJE">Accesorio hidromasaje</option>
+            <option value="BANERA">Bañera de acrílico</option>
+            <option value="RECEPTACULO">Receptáculo de ducha</option>
             <option value="MODULO">Vivienda modular</option>
             <option value="MODULO_DEPOSITO">Módulo depósito</option>
             <option value="COMBO">Combo</option>
             <option value="QUINCHO">Quincho</option>
+            <option value="PERGOLA">Pérgola</option>
+            <option value="BANIO_QUIMICO">Baño químico</option>
+            <option value="GARITA_SEGURIDAD">Garita de seguridad</option>
+            <option value="DEPOSITO_JARDIN">Depósito de jardín</option>
+            <option value="ACCESORIO_PISCINA">Accesorio piscina</option>
+            <option value="EQUIPO_PISCINA">Equipo piscina</option>
+            <option value="REPUESTO_PISCINA">Repuesto piscina</option>
+            <option value="REPOSERA_FIBRA">Reposera de fibra</option>
+            <option value="CUCHA">Cucha perro</option>
           </select>
         </div>
         <div class="form-group">
@@ -523,11 +569,23 @@
             <option value="">— Sin tipo —</option>
             <option value="PISCINA">Piscina</option>
             <option value="MINIPISCINA">Minipiscina</option>
-            <option value="HIDROMASAJE">Hidromasaje / Jacuzzi</option>
+            <option value="HIDROMASAJE">Hidromasaje / Spa</option>
+            <option value="ACCESORIO_HIDROMASAJE">Accesorio hidromasaje</option>
+            <option value="BANERA">Bañera de acrílico</option>
+            <option value="RECEPTACULO">Receptáculo de ducha</option>
             <option value="MODULO">Vivienda modular</option>
             <option value="MODULO_DEPOSITO">Módulo depósito</option>
             <option value="COMBO">Combo</option>
             <option value="QUINCHO">Quincho</option>
+            <option value="PERGOLA">Pérgola</option>
+            <option value="BANIO_QUIMICO">Baño químico</option>
+            <option value="GARITA_SEGURIDAD">Garita de seguridad</option>
+            <option value="DEPOSITO_JARDIN">Depósito de jardín</option>
+            <option value="ACCESORIO_PISCINA">Accesorio piscina</option>
+            <option value="EQUIPO_PISCINA">Equipo piscina</option>
+            <option value="REPUESTO_PISCINA">Repuesto piscina</option>
+            <option value="REPOSERA_FIBRA">Reposera de fibra</option>
+            <option value="CUCHA">Cucha perro</option>
           </select>
         </div>
         <div class="form-group">
@@ -2674,6 +2732,25 @@ async function borImportarCatalogo() {
     borCargar();
     showToast('Importados del catálogo: ' + (j.creados || 0), 'success');
   } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+async function borSeedHidromasajes() {
+  const ok = await showConfirm(
+    '¿Cargar toda la línea de spas, bañeras y receptáculos EcoFiver como borradores?\n\n' +
+    '🛁 Hidromasajes / Spas: Spa Quadra, Recta, Orbis, Delta (con fotos reales)\n' +
+    '🔧 Accesorios spa: Kit Blower, LED, Grifería, Ozono, WPC\n' +
+    '🛁 Bañeras: Lumina, Sensa, Vento, Aqua, Curve, Pure, Vita (con fotos)\n' +
+    '🚿 Receptáculos: Clásico, Esquinero, Pequeño (con fotos)\n\n' +
+    'Los que ya existan (por SKU) se omiten. Se actualizan fotos si estaban vacías.',
+    '🛁 Cargar spas, bañeras y receptáculos'
+  );
+  if (!ok) return;
+  showToast('Cargando borradores de hidromasajes…', 'info');
+  try {
+    const j = await API.post('/api/ml/catalogo/hidromasajes/seed', {});
+    borCargar();
+    const msg = `Creados: ${j.creados || 0} borradores. Omitidos (ya existían): ${j.omitidos || 0}.`;
+    showToast(msg, j.creados > 0 ? 'success' : 'info');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 async function borVariantes(id) {
   const nStr = prompt('¿Cuántas variantes generar con IA? (1 a 50)\n\nTip: generá 20-50 y usá "Publicar seleccionados" para publicarlas todas de una.', '20');

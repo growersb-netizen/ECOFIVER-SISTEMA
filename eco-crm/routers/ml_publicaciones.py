@@ -528,6 +528,11 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "listing_type_id": b.listing_type or "gold_special",
         "condition": b.condicion or "new",
         "pictures": [{"source": u} for u in fotos if u],
+        # Forzar "acuerdo con el vendedor" — evita que ML asigne MercadoEnvíos
+        # automáticamente cuando el ítem cumple dimensiones ME2.
+        # Todos los productos EcoFiver son de gran porte o requieren coordinación;
+        # MercadoEnvíos no aplica. Esto previene ventas que luego hay que cancelar.
+        "shipping": {"mode": "not_specified", "free_shipping": False},
     }
     if clean_attrs:
         payload["attributes"] = clean_attrs

@@ -102,6 +102,95 @@ DEFAULT_CATALOGO = {
         "cuotas_max": 60,       # plazo más largo ofrecido — usado para publicar en ML al valor de la cuota
     },
     "combos": {},  # nombre -> {"precio_lista":..., "precio_contado":..., "descripcion":..., "fotos": [...]}
+    "hidromasajes": {
+        # Línea propia EcoFiver: acrílico sanitario + PRFV, estructura autoportante incluida.
+        # Se venden DE CONTADO o tarjeta. Sin financiación propia en cuotas.
+        "material": "Acrílico sanitario de alta resistencia reforzado con PRFV (Poliéster Reforzado en Fibra de Vidrio)",
+        "estructura": "Autoportante metálica reforzada (incluida en todos los modelos)",
+        "instalacion": "Sin obra de albañilería. Conexión a agua fría/caliente existente, desagüe y electricidad.",
+        "colores": ["Blanco", "Beige", "Negro", "Gris"],
+        "colores_nota": "Sin cargo adicional por color. Indicar al momento de la compra.",
+        "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
+        "envio": "Disponible a domicilio, cotizar según zona.",
+        "pago": "Contado, tarjeta de crédito o débito. Sin financiación propia en cuotas.",
+        "garantia": "Garantía estructural incluida.",
+        "modelos": {
+            "Spa Quadra": {
+                "descripcion_corta": "Esquinero ultracompacto. Ideal para baños y espacios reducidos.",
+                "formato": "Esquinero",
+                "medidas": {"largo_m": 1.10, "ancho_m": 1.10, "profundidad_m": 0.10},
+                "jets": 4,
+                "motor_hp": "1/2 o 3/4",
+                "pulsadores": 1,
+                "reguladores_aire": 1,
+                "precio_contado": 1220000,
+                "fotos": [],
+            },
+            "Spa Recta": {
+                "descripcion_corta": "Rectangular doble. Diseño confort para dos personas.",
+                "formato": "Rectangular",
+                "medidas": {"largo_m": 1.65, "ancho_m": 1.40, "profundidad_m": 0.45},
+                "jets": 6,
+                "motor_hp": "3/4",
+                "pulsadores": 1,
+                "reguladores_aire": 2,
+                "precio_contado": 1520000,
+                "fotos": [],
+            },
+            "Spa Orbis": {
+                "descripcion_corta": "Circular panorámico. Para baños de lujo, terrazas o ambiente SPA.",
+                "formato": "Circular",
+                "medidas": {"largo_m": 1.76, "ancho_m": 1.76, "profundidad_m": 0.40},
+                "jets": "6 a 8",
+                "motor_hp": "3/4",
+                "pulsadores": 1,
+                "reguladores_aire": 2,
+                "precio_contado": 1620000,
+                "fotos": [],
+            },
+            "Spa Delta": {
+                "descripcion_corta": "Mini spa rectangular XL. Mayor profundidad de la línea.",
+                "formato": "Rectangular XL / Mini Spa",
+                "medidas": {"largo_m": 1.97, "ancho_m": 1.42, "profundidad_m": 0.52},
+                "jets": 8,
+                "motor_hp": "1",
+                "pulsadores": 1,
+                "reguladores_aire": 2,
+                "precio_contado": 1890000,
+                "fotos": [],
+            },
+        },
+        "equipamiento_comun": [
+            "Jets dirigibles con vista cromo (cantidad según modelo)",
+            "Motor (potencia según modelo)",
+            "1 pulsador neumático de encendido",
+            "Reguladores de flujo de aire (cantidad según modelo)",
+            "Sistema de succión: filtro de pelos + sopapa + desborde conectados",
+            "Estructura autoportante metálica reforzada",
+        ],
+        "opcionales": {
+            "Kit Blower de Aire": {
+                "descripcion": "Motor blower independiente + 12 inyectores de aire distribuidos en el piso. Genera efecto burbujas independiente del sistema de jets.",
+                "precio_contado": None,
+            },
+            "Kit Cromoterapia LED": {
+                "descripcion": "Spot LED multicolor sumergible con secuencias de iluminación programables.",
+                "precio_contado": None,
+            },
+            "Kit Grifería y Cascada": {
+                "descripcion": "Juego de grifería integrada sobreborde: pico cisne o cascada ovalada. Acabado cromo o negro mate.",
+                "precio_contado": None,
+            },
+            "Sistema de Desinfección": {
+                "descripcion": "Ozonizador para tratamiento de agua + sensor electrónico de nivel para protección del motor contra encendido en seco.",
+                "precio_contado": None,
+            },
+            "Revestimiento Exterior WPC": {
+                "descripcion": "Faldones/paneles exteriores símil madera, resistentes a la intemperie. Para instalación sobre deck o espacios al aire libre.",
+                "precio_contado": None,
+            },
+        },
+    },
     "modulos_deposito": {
         # Línea de módulos de calidad inferior a las viviendas modulares, para uso
         # como depósito. Se venden DE CONTADO (no financiado). Tamaños fijos x línea.
@@ -138,6 +227,20 @@ def load_catalogo() -> dict:
             if "combos" not in cat:
                 cat["combos"] = {}
                 cambiado = True
+            if "hidromasajes" not in cat:
+                cat["hidromasajes"] = json.loads(json.dumps(DEFAULT_CATALOGO["hidromasajes"]))
+                cambiado = True
+            else:
+                # Agregar modelos nuevos que falten sin pisar los existentes
+                for modelo, datos in DEFAULT_CATALOGO["hidromasajes"]["modelos"].items():
+                    if modelo not in cat["hidromasajes"].get("modelos", {}):
+                        cat["hidromasajes"].setdefault("modelos", {})[modelo] = datos
+                        cambiado = True
+                # Agregar campos raíz nuevos
+                for campo, val in DEFAULT_CATALOGO["hidromasajes"].items():
+                    if campo not in cat["hidromasajes"]:
+                        cat["hidromasajes"][campo] = val
+                        cambiado = True
             if "modulos_deposito" not in cat:
                 cat["modulos_deposito"] = json.loads(json.dumps(DEFAULT_CATALOGO["modulos_deposito"]))
                 cambiado = True
@@ -811,3 +914,102 @@ async def get_historial_precios(
         "cambiado_por": h.cambiado_por.nombre if h.cambiado_por else "",
         "created_at": h.created_at.isoformat() if h.created_at else "",
     } for h in historial]
+
+
+# ─── API — HIDROMASAJES ───────────────────────────────────────────────────────
+
+@router.get("/api/catalogo/hidromasajes")
+async def get_hidromasajes(current_user: Usuario = Depends(require_auth)):
+    """Devuelve la sección hidromasajes del catálogo."""
+    cat = load_catalogo()
+    return cat.get("hidromasajes", {})
+
+
+@router.put("/api/catalogo/hidromasajes/precio")
+async def set_precio_hidromasaje(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Actualiza el precio contado de un modelo de hidromasaje.
+    Body: { modelo, precio_contado }
+    """
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    modelo = (data.get("modelo") or "").strip()
+    precio = data.get("precio_contado")
+
+    cat = load_catalogo()
+    modelos = cat.get("hidromasajes", {}).get("modelos", {})
+    if modelo not in modelos:
+        raise HTTPException(404, f"Modelo '{modelo}' no encontrado en hidromasajes")
+
+    precio_anterior = modelos[modelo].get("precio_contado")
+    modelos[modelo]["precio_contado"] = float(precio) if precio is not None else None
+    save_catalogo(cat)
+
+    # Historial de precios
+    if precio_anterior != modelos[modelo]["precio_contado"]:
+        from database.models import PrecioHistorial
+        h = PrecioHistorial(
+            clave=f"hidromasajes.{modelo}.precio_contado",
+            valor_anterior=precio_anterior,
+            valor_nuevo=modelos[modelo]["precio_contado"],
+            cambiado_por_id=current_user.id if current_user else None,
+        )
+        db.add(h)
+        db.commit()
+
+    return {"ok": True, "modelo": modelo, "precio_contado": modelos[modelo]["precio_contado"]}
+
+
+@router.put("/api/catalogo/hidromasajes/opcional/precio")
+async def set_precio_opcional_hidromasaje(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Actualiza el precio de un opcional/accesorio de hidromasaje.
+    Body: { nombre, precio_contado }
+    """
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    nombre = (data.get("nombre") or "").strip()
+    precio = data.get("precio_contado")
+
+    cat = load_catalogo()
+    opcionales = cat.get("hidromasajes", {}).get("opcionales", {})
+    if nombre not in opcionales:
+        raise HTTPException(404, f"Opcional '{nombre}' no encontrado")
+
+    opcionales[nombre]["precio_contado"] = float(precio) if precio is not None else None
+    save_catalogo(cat)
+    return {"ok": True, "nombre": nombre, "precio_contado": opcionales[nombre]["precio_contado"]}
+
+
+@router.put("/api/catalogo/hidromasajes/fotos")
+async def set_fotos_hidromasaje(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Actualiza las fotos de un modelo de hidromasaje.
+    Body: { modelo, fotos: [url1, url2, ...] }
+    """
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    modelo = (data.get("modelo") or "").strip()
+    fotos = data.get("fotos", [])
+
+    cat = load_catalogo()
+    modelos = cat.get("hidromasajes", {}).get("modelos", {})
+    if modelo not in modelos:
+        raise HTTPException(404, f"Modelo '{modelo}' no encontrado")
+
+    modelos[modelo]["fotos"] = [str(f) for f in fotos if f]
+    save_catalogo(cat)
+    return {"ok": True, "modelo": modelo, "fotos": modelos[modelo]["fotos"]}

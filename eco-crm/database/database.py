@@ -12,9 +12,6 @@ _is_sqlite = "sqlite" in DATABASE_URL
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False, "timeout": 30} if _is_sqlite else {},
-    # Pool pequeño para SQLite (un solo escritor a la vez)
-    pool_size=1 if _is_sqlite else 5,
-    max_overflow=4 if _is_sqlite else 10,
 )
 
 if _is_sqlite:
@@ -22,7 +19,7 @@ if _is_sqlite:
 
     @_sa_event.listens_for(engine, "connect")
     def _set_sqlite_pragmas(dbapi_conn, _record):
-        """WAL mode: permite lecturas concurrentes mientras se escribe. busy_timeout=30s."""
+        """WAL: lecturas y escrituras concurrentes sin bloqueo. busy_timeout=30s."""
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA busy_timeout=30000")

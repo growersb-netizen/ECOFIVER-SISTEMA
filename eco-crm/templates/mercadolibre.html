@@ -395,9 +395,62 @@
       <label class="form-label">Título * <small style="color:var(--text-secondary)">(máx 60)</small></label>
       <input class="input" id="mp-titulo" maxlength="60" style="width:100%" oninput="document.getElementById('mp-tlen').textContent=this.value.length;checklistCalidad('mp-titulo','mp-desc','mp-fotos','mp-checklist-calidad')">
       <div style="font-size:11px;color:var(--text-secondary);text-align:right"><span id="mp-tlen">0</span>/60</div>
+      <!-- ── SELECTOR AUTOMÁTICO DE MODO DE PUBLICACIÓN ──────────────────── -->
+      <div style="background:var(--surface-2,var(--bg-secondary,#f8f9fa));border:1px solid var(--border);border-radius:10px;padding:14px 14px 10px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">🎯 Modo de publicación — elegí y el precio se calcula solo</div>
+        <div style="margin-bottom:10px">
+          <label class="form-label" style="margin-bottom:4px">💵 Precio de contado (precio que cobrás en efectivo sin ML)</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="input" type="number" id="mp-contado" placeholder="Ej: 1000000"
+              style="max-width:200px"
+              oninput="borModoAplicar()">
+            <span style="font-size:12px;color:var(--text-secondary)">→ El precio ML se calcula cubriendo todos los cargos + 5% para vos</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-bottom:8px" id="mp-modos-grid">
+          <button type="button" class="btn btn-sm" id="mpmod-gold_special-0"
+            onclick="borSeleccionarModo('gold_special',0)"
+            style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
+            <span style="font-size:12px;font-weight:500">Clásica — 1 pago</span>
+            <span style="font-size:10px;opacity:.75">comisión 9% · sin cuotas</span>
+          </button>
+          <button type="button" class="btn btn-sm" id="mpmod-gold_pro-0"
+            onclick="borSeleccionarModo('gold_pro',0)"
+            style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
+            <span style="font-size:12px;font-weight:500">Premium — 1 pago</span>
+            <span style="font-size:10px;opacity:.75">comisión 13,5% · sin cuotas</span>
+          </button>
+          <button type="button" class="btn btn-sm" id="mpmod-gold_pro-3"
+            onclick="borSeleccionarModo('gold_pro',3)"
+            style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
+            <span style="font-size:12px;font-weight:500">Premium — 3 cuotas</span>
+            <span style="font-size:10px;opacity:.75">13,5% + 8,5% = 22% total</span>
+          </button>
+          <button type="button" class="btn btn-sm" id="mpmod-gold_pro-6"
+            onclick="borSeleccionarModo('gold_pro',6)"
+            style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
+            <span style="font-size:12px;font-weight:500">Premium — 6 cuotas</span>
+            <span style="font-size:10px;opacity:.75">13,5% + 14,8% = 28,3% total</span>
+          </button>
+          <button type="button" class="btn btn-sm" id="mpmod-gold_pro-12"
+            onclick="borSeleccionarModo('gold_pro',12)"
+            style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
+            <span style="font-size:12px;font-weight:500">Premium — 12 cuotas</span>
+            <span style="font-size:10px;opacity:.75">13,5% + 26,2% = 39,7% total</span>
+          </button>
+          <button type="button" class="btn btn-sm" id="mpmod-gold_pro-18"
+            onclick="borSeleccionarModo('gold_pro',18)"
+            style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
+            <span style="font-size:12px;font-weight:500">Premium — 18 cuotas</span>
+            <span style="font-size:10px;opacity:.75">13,5% + 36,0% = 49,5% total</span>
+          </button>
+        </div>
+        <div id="mp-modo-resultado" style="font-size:12px;color:var(--text-secondary);min-height:18px;line-height:1.5"></div>
+      </div>
+      <!-- ────────────────────────────────────────────────────────────────── -->
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Precio (ARS) *</label><input class="input" type="number" id="mp-precio" oninput="borCalcGanancia();borChequearPrecioBajoContado()"></div>
-        <div class="form-group"><label class="form-label">Costo del producto</label><input class="input" type="number" id="mp-costo" placeholder="para calcular ganancia" oninput="borCalcGanancia();borActualizarPrecioSugerido()"></div>
+        <div class="form-group"><label class="form-label">Precio ML (ARS) *</label><input class="input" type="number" id="mp-precio" oninput="borCalcGanancia();borChequearPrecioBajoContado()"></div>
+        <div class="form-group"><label class="form-label">Costo fabricación/compra</label><input class="input" type="number" id="mp-costo" placeholder="para calcular ganancia" oninput="borCalcGanancia();borActualizarPrecioSugerido()"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Precio referencia (competencia)</label><input class="input" type="number" id="mp-ref" placeholder="el más barato que viste"></div>
@@ -2872,6 +2925,15 @@ function borNuevaPub() {
   document.getElementById('mp-pc-warn').style.display = 'none';
   _borPrecioContadoRef = null;
   _borLitrosActual = '';
+  // Limpiar selector de modo
+  _borModoActivo = null;
+  const contadoEl = document.getElementById('mp-contado');
+  if (contadoEl) contadoEl.value = '';
+  document.querySelectorAll('#mp-modos-grid button').forEach(btn => {
+    btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = '';
+  });
+  const resEl = document.getElementById('mp-modo-resultado');
+  if (resEl) resEl.textContent = '';
   borCargarCatalogoSelect();
   borCargarFichasDropdown();
   borOnProductoChange();
@@ -2912,6 +2974,29 @@ function borEditar(id_o_obj) {
   document.getElementById('mp-precio-ref-box').style.display = 'none';
   document.getElementById('mp-pc-warn').style.display = 'none';
   _borPrecioContadoRef = null;
+  // ── Restaurar selector de modo ──────────────────────────────────────────
+  _borModoActivo = null;
+  const contadoElE = document.getElementById('mp-contado');
+  if (contadoElE) contadoElE.value = '';
+  document.querySelectorAll('#mp-modos-grid button').forEach(btn => {
+    btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = '';
+  });
+  const ltGuardado = b.listing_type || 'gold_special';
+  const cuotasGuardado = b.cuotas_sin_interes || 0;
+  const btnExist = document.getElementById('mpmod-' + ltGuardado + '-' + cuotasGuardado);
+  if (btnExist) {
+    btnExist.style.borderColor = 'var(--color-primary, #2a78d6)';
+    btnExist.style.background = 'var(--color-primary, #2a78d6)';
+    btnExist.style.color = '#fff';
+    _borModoActivo = { lt: ltGuardado, cuotas: cuotasGuardado };
+  }
+  const resElE = document.getElementById('mp-modo-resultado');
+  if (resElE) {
+    const ltLbl = ltGuardado === 'gold_pro' ? 'Premium' : 'Clásica';
+    const cLbl = cuotasGuardado > 0 ? cuotasGuardado + ' cuotas sin interés' : '1 pago';
+    resElE.innerHTML = '<span style="color:var(--color-primary,#2a78d6)">✓ Modo guardado: ' + ltLbl + ' · ' + cLbl + '</span> — ingresá el precio de contado para recalcular el precio ML.';
+  }
+  // ────────────────────────────────────────────────────────────────────────
   borCargarCatalogoSelect();
   borCargarFichasDropdown(b.modelo_nombre);
   openModal('modal-bor');
@@ -3066,6 +3151,97 @@ async function borGenerarTituloIA() {
 const BOR_COSTO_CUOTAS = { 0: 0, 3: 0.085, 6: 0.148, 9: 0.206, 12: 0.262, 18: 0.360 };
 // Comisiones base por tipo de publicación (ML Argentina)
 const BOR_COMISION_BASE = { gold_special: 0.09, gold_pro: 0.135 };
+
+// ── SELECTOR AUTOMÁTICO DE MODO DE PUBLICACIÓN ────────────────────────────────
+let _borModoActivo = null; // { lt, cuotas }
+
+function borSeleccionarModo(lt, cuotas) {
+  _borModoActivo = { lt, cuotas };
+
+  // Resaltar botón activo
+  document.querySelectorAll('#mp-modos-grid button').forEach(btn => {
+    btn.style.borderColor = '';
+    btn.style.background = '';
+    btn.style.color = '';
+  });
+  const btnActivo = document.getElementById('mpmod-' + lt + '-' + cuotas);
+  if (btnActivo) {
+    btnActivo.style.borderColor = 'var(--color-primary, #2a78d6)';
+    btnActivo.style.background = 'var(--color-primary, #2a78d6)';
+    btnActivo.style.color = '#fff';
+  }
+
+  // Sincronizar selects del formulario
+  const selLt = document.getElementById('mp-listing');
+  const selCuotas = document.getElementById('mp-cuotas');
+  if (selLt) selLt.value = lt;
+  if (selCuotas) selCuotas.value = String(cuotas);
+
+  // Calcular y aplicar precio si hay precio de contado
+  borModoAplicar();
+}
+
+function borModoAplicar() {
+  const contado = parseFloat(document.getElementById('mp-contado')?.value) || 0;
+  const res = document.getElementById('mp-modo-resultado');
+
+  if (!_borModoActivo) {
+    if (res) res.textContent = '';
+    return;
+  }
+
+  const { lt, cuotas } = _borModoActivo;
+  const comisionRate = BOR_COMISION_BASE[lt] || 0.09;
+  const cuotasRate = (cuotas > 0 && lt === 'gold_pro') ? (BOR_COSTO_CUOTAS[cuotas] || 0) : 0;
+  const totalRate = comisionRate + cuotasRate;
+
+  // Etiquetas para el resultado
+  const ltLabel = lt === 'gold_pro' ? 'Premium' : 'Clásica';
+  const cuotasLabel = cuotas > 0 ? (cuotas + ' cuotas sin interés') : '1 pago';
+  const pctTotal = (totalRate * 100).toFixed(1);
+
+  if (!contado) {
+    if (res) res.innerHTML =
+      '<span style="color:var(--color-primary,#2a78d6)">✓ Modo: ' + ltLabel + ' · ' + cuotasLabel +
+      ' (' + pctTotal + '% total ML)</span> — ingresá el precio de contado para calcular el precio ML automáticamente.';
+    return;
+  }
+
+  // precio_ml = contado × 1.05 / (1 − totalRate)
+  // → Cubrís toda la comisión ML y además te queda 5% encima del precio de contado
+  const MARGEN_EXTRA = 0.05;
+  const precioML = Math.ceil((contado * (1 + MARGEN_EXTRA)) / (1 - totalRate) / 100) * 100;
+  const netoReal = precioML * (1 - totalRate);
+  const gananciaSobre = netoReal - contado;
+
+  // Aplicar al campo precio
+  const campoPrecio = document.getElementById('mp-precio');
+  if (campoPrecio) {
+    campoPrecio.value = precioML;
+    campoPrecio.dispatchEvent(new Event('input'));
+  }
+
+  // Resultado visual
+  if (res) {
+    res.innerHTML =
+      '<span style="color:var(--color-primary,#2a78d6);font-weight:500">✓ ' + ltLabel + ' · ' + cuotasLabel + '</span>' +
+      ' — Contado <b>' + borFmt(contado) + '</b>' +
+      ' → Precio ML: <b style="color:var(--text-primary)">' + borFmt(precioML) + '</b>' +
+      ' <span style="color:var(--text-secondary)">(ML cobra ' + pctTotal + '% = ' + borFmt(Math.round(precioML * totalRate)) + ',' +
+      ' te queda el precio contado + <span style="color:#22c55e;font-weight:500">' + borFmt(Math.round(gananciaSobre)) + ' (' + (((gananciaSobre/contado)*100).toFixed(1)) + '%)</span>)</span>';
+  }
+
+  // Actualizar cuotas info
+  const cv = document.getElementById('mp-cuota-val');
+  if (cv && cuotas > 0) {
+    cv.innerHTML = 'El comprador paga <b>' + cuotas + ' cuotas de ' + borFmt(Math.round(precioML / cuotas)) + '</b> sin interés (vos absorbés el costo)';
+  } else if (cv) {
+    cv.textContent = '';
+  }
+
+  borCalcGanancia();
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function borDesgloseCostos(precio, comision, cuotas, listing_type, costo) {
   // Devuelve objeto con todos los números y HTML del panel

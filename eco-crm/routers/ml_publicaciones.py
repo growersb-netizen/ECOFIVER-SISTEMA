@@ -399,24 +399,101 @@ async def recalcular_precios(request: Request, db: Session = Depends(get_db),
     }
 
 
-# ── Regenerar títulos y descripciones de módulos con IA ──────────────────────
+# ── Regenerar títulos y descripciones de módulos con IA (background) ──────────
 
 _TIPOS_MODULO = {"MODULO", "MODULO_HABITACIONAL", "VIVIENDA_MODULAR", "MODULO_DEPOSITO",
                  "QUINCHO", "PERGOLA", "COMBO"}
 
+# Estado del job de regeneración (simple, en memoria)
+_REGEN_JOB: Dict[str, Any] = {}
+
+_TIPO_LABEL_MODULO = {
+    "MODULO":             "módulo habitacional de celulosa estructural / espacio habitacional prefabricado",
+    "MODULO_HABITACIONAL":"módulo habitacional de celulosa estructural (6-18 m²) — espacio auxiliar, NO es vivienda",
+    "VIVIENDA_MODULAR":   "vivienda modular de celulosa estructural / casa prefabricada (24 m² en adelante)",
+    "MODULO_DEPOSITO":    "módulo depósito / galpón prefabricado de celulosa estructural",
+    "QUINCHO":            "quincho prefabricado",
+    "PERGOLA":            "pérgola / gazebo",
+    "COMBO":              "combo piscina y módulo habitacional",
+}
+
+
+async def _regen_modulos_bg(bid_list: list, db_maker):
+    """Background task: regenera IA para cada borrador de módulo en bid_list."""
+    import json as _json
+    import re as _re
+    from database.database import SessionLocal
+    from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
+
+    _REGEN_JOB["estado"] = "en_curso"
+    _REGEN_JOB["total"] = len(bid_list)
+    _REGEN_JOB["actualizados"] = 0
+    _REGEN_JOB["errores"] = 0
+
+    for i, bid in enumerate(bid_list):
+        _REGEN_JOB["idx"] = i
+        db = SessionLocal()
+        try:
+            b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+            if not b:
+                continue
+            tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
+            palabras = b.modelo_nombre or b.titulo or tipo_label
+            prompt = (
+                _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
+                + "\n\n════════════════════════════════════════════\n"
+                + "TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
+                + f"Datos del producto:\n{palabras}\n\n"
+                + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra:\n"
+                + '{"titulo": "...", "descripcion": "..."}'
+            )
+            try:
+                texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
+                try:
+                    result = _json.loads(texto)
+                except Exception:
+                    m = _re.search(r'\{.*\}', texto, _re.DOTALL)
+                    if not m:
+                        _REGEN_JOB["errores"] += 1
+                        continue
+                    result = _json.loads(m.group())
+
+                # Sanear título (inline)
+                tit = result.get("titulo") or ""
+                tit = _re.sub(r'[,|:;!?"–—_%]', ' ', tit)
+                tit = _re.sub(r'\s+', ' ', tit).strip()
+                if len(tit) > 60:
+                    cut = tit[:60]
+                    tit = (cut[:cut.rfind(' ')] if ' ' in cut else cut).strip()
+
+                desc = result.get("descripcion", "")
+                if tit:
+                    b.titulo = tit
+                if desc and len(desc) > 200:
+                    b.descripcion = desc
+                db.commit()
+                _REGEN_JOB["actualizados"] += 1
+            except Exception:
+                _REGEN_JOB["errores"] += 1
+        finally:
+            db.close()
+
+    _REGEN_JOB["estado"] = "completado"
+
+
 @router.post("/api/ml/borradores/regenerar-ia-modulos")
 async def regenerar_ia_modulos(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """
-    Regenera título + descripción con IA para todos los borradores de módulos
-    (MODULO, MODULO_HABITACIONAL, VIVIENDA_MODULAR, etc.).
+    Lanza en BACKGROUND la regeneración de título + descripción con IA
+    para todos los borradores de módulos. Devuelve inmediatamente con el total.
     Body opcional: { "tipos": ["MODULO", "VIVIENDA_MODULAR"], "estado": "borrador" }
     """
-    import json as _json, re as _re
     _auth(x_api_key, current_user)
     data = {}
     try:
@@ -424,68 +501,37 @@ async def regenerar_ia_modulos(
     except Exception:
         pass
 
-    tipos_filtro = set(data.get("tipos") or _TIPOS_MODULO)
-    estado_filtro = data.get("estado")  # None = todos
+    tipos_filtro = list(set(data.get("tipos") or _TIPOS_MODULO))
+    estado_filtro = data.get("estado")
 
-    q = db.query(BorradorML).filter(BorradorML.producto.in_(list(tipos_filtro)))
+    q = db.query(BorradorML.id).filter(BorradorML.producto.in_(tipos_filtro))
     if estado_filtro:
         q = q.filter(BorradorML.estado == estado_filtro)
-    borradores = q.all()
+    bid_list = [row[0] for row in q.all()]
 
-    actualizados = 0
-    errores = 0
+    if not bid_list:
+        return {"ok": True, "total": 0, "mensaje": "No hay borradores de módulos para regenerar."}
 
-    from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
+    _REGEN_JOB.update({"estado": "iniciado", "total": len(bid_list), "actualizados": 0, "errores": 0, "idx": 0})
 
-    for b in borradores:
-        tipo_label = {
-            "MODULO":             "módulo habitacional de celulosa estructural / espacio habitacional prefabricado",
-            "MODULO_HABITACIONAL":"módulo habitacional de celulosa estructural (6-18 m²) — espacio auxiliar, NO es vivienda",
-            "VIVIENDA_MODULAR":   "vivienda modular de celulosa estructural / casa prefabricada (24 m² en adelante)",
-            "MODULO_DEPOSITO":    "módulo depósito / galpón prefabricado de celulosa estructural",
-            "QUINCHO":            "quincho prefabricado",
-            "PERGOLA":            "pérgola / gazebo",
-            "COMBO":              "combo piscina y módulo habitacional",
-        }.get(b.producto or "MODULO", "módulo habitacional prefabricado")
+    from database.database import SessionLocal as _SL
+    background_tasks.add_task(_regen_modulos_bg, bid_list, _SL)
 
-        palabras = b.modelo_nombre or b.titulo or tipo_label
-        prompt = (
-            _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
-            + "\n\n════════════════════════════════════════════\n"
-            + f"TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
-            + f"Datos del producto a publicar:\n{palabras}\n\n"
-            + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra ni markdown:\n"
-            + '{"titulo": "...", "descripcion": "..."}'
-        )
-        try:
-            texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
-            try:
-                result = _json.loads(texto)
-            except Exception:
-                match = _re.search(r'\{.*\}', texto, _re.DOTALL)
-                if not match:
-                    errores += 1
-                    continue
-                result = _json.loads(match.group())
-
-            from routers.mercadolibre import _sanear_titulo_ml
-            nuevo_titulo = _sanear_titulo_ml(result.get("titulo") or "")
-            nueva_desc = result.get("descripcion", "")
-            if nuevo_titulo:
-                b.titulo = nuevo_titulo
-            if nueva_desc and len(nueva_desc) > 200:
-                b.descripcion = nueva_desc
-            actualizados += 1
-        except Exception:
-            errores += 1
-
-    db.commit()
     return {
         "ok": True,
-        "actualizados": actualizados,
-        "errores": errores,
-        "total": len(borradores),
+        "total": len(bid_list),
+        "mensaje": f"Regenerando {len(bid_list)} borradores en segundo plano. Actualizá la lista en unos minutos.",
     }
+
+
+@router.get("/api/ml/borradores/regenerar-ia-modulos/estado")
+async def regenerar_ia_estado(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Estado del job de regeneración en curso."""
+    _auth(x_api_key, current_user)
+    return _REGEN_JOB or {"estado": "sin_job"}
 
 
 @router.delete("/api/ml/borradores/{bid}")

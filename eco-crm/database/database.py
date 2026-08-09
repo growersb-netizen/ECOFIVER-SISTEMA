@@ -150,6 +150,10 @@ def run_migrations():
             # ── BorradorML: tipo de precio y modelo para fichas ML ────────────────
             "ALTER TABLE borradores_ml ADD COLUMN tipo_precio TEXT DEFAULT 'completo'",
             "ALTER TABLE borradores_ml ADD COLUMN modelo_nombre TEXT DEFAULT ''",
+            # ── BorradorML: precio contado base + flete integrado ─────────────────
+            "ALTER TABLE borradores_ml ADD COLUMN precio_contado REAL",
+            "ALTER TABLE borradores_ml ADD COLUMN incluir_envio INTEGER DEFAULT 0",
+            "ALTER TABLE borradores_ml ADD COLUMN costo_flete REAL",
         ]
         for stmt in migrations:
             try:

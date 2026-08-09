@@ -3330,15 +3330,33 @@ async function borRegenerarModulosIA() {
     'Incluye: Módulo habitacional, Vivienda modular, Módulo depósito, Quincho, Combo.\n\n' +
     'Los títulos y descripciones existentes se van a reemplazar con el texto nuevo generado por IA ' +
     '(celulosa estructural, líneas Base/Premium, instalación en el día, garantía 10 años).\n\n' +
-    '⏱ Puede tardar varios minutos según la cantidad de borradores.',
+    '⏱ Se procesa en segundo plano — la lista se actualiza automáticamente al terminar.',
     '🏠 Regenerar módulos con IA'
   );
   if (!ok) return;
-  showToast('Regenerando módulos con IA… esto puede tardar varios minutos', 'info');
   try {
     const j = await API.post('/api/ml/borradores/regenerar-ia-modulos', {});
-    showToast(`✅ ${j.actualizados} módulos actualizados${j.errores ? ' · ' + j.errores + ' con error' : ''}`, 'success');
-    borCargar();
+    if (!j.ok) { showToast('Error: ' + (j.error || 'desconocido'), 'error'); return; }
+    if (j.total === 0) { showToast('No hay borradores de módulos para regenerar.', 'info'); return; }
+    showToast(`🏠 Regenerando ${j.total} módulos en segundo plano…`, 'info');
+    // Polling de estado cada 8 segundos hasta completar
+    let pollId = setInterval(async () => {
+      try {
+        const st = await API.get('/api/ml/borradores/regenerar-ia-modulos/estado');
+        if (st.estado === 'completado') {
+          clearInterval(pollId);
+          const msg = `✅ ${st.actualizados} módulos actualizados` +
+            (st.errores ? ` · ${st.errores} con error` : '');
+          showToast(msg, 'success');
+          borCargar();
+        } else if (st.estado === 'en_curso') {
+          const pct = st.total > 0 ? Math.round(((st.idx || 0) / st.total) * 100) : 0;
+          showToast(`🏠 Regenerando módulos… ${pct}% (${st.actualizados || 0}/${st.total})`, 'info');
+        }
+      } catch (_) { /* ignora errores de polling */ }
+    }, 8000);
+    // Timeout máximo de 15 min
+    setTimeout(() => clearInterval(pollId), 900000);
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }

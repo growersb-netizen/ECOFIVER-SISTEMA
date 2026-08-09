@@ -409,10 +409,12 @@ async def ml_page(
     roles = get_user_roles(current_user)
     catalogo_data = {"piscinas": {"modelos": [], "colores": [], "fotos": {}},
                       "modulos": {"modelos": [], "fotos": {}},
-                      "modulos_deposito": {"tamanos": {}}}
+                      "modulos_deposito": {"tamanos": {}},
+                      "hidromasajes": {}, "baneras": {}, "receptaculos": {}}
     try:
         from routers.catalogo import load_catalogo, get_all_modelos_piscina, get_all_modelos_modulo
         cat = load_catalogo()
+        sup_all = cat["modulos"]["superficies_m2"]
         catalogo_data = {
             "piscinas": {
                 "modelos": get_all_modelos_piscina(),
@@ -424,12 +426,27 @@ async def ml_page(
             },
             "modulos": {
                 "modelos": get_all_modelos_modulo(),
+                "superficies_habitacionales": [m for m in sup_all if m <= 18],
+                "superficies_viviendas":      [m for m in sup_all if m > 18],
                 "fotos": cat["modulos"].get("fotos", {}),
                 "precios_lista": cat["modulos"].get("precios_lista", {}),
                 "cuotas_max": cat["modulos"].get("cuotas_max", 60),
                 "tecnologia": cat["modulos"].get("tecnologia", ""),
             },
             "modulos_deposito": cat.get("modulos_deposito", {"tamanos": {}}),
+            # Líneas adicionales de productos
+            "hidromasajes": {
+                "modelos": cat.get("hidromasajes", {}).get("modelos", {}),
+                "colores":  cat.get("hidromasajes", {}).get("colores", []),
+            },
+            "baneras": {
+                "modelos": cat.get("baneras", {}).get("modelos", {}),
+                "colores":  cat.get("baneras", {}).get("colores", []),
+            },
+            "receptaculos": {
+                "modelos": cat.get("receptaculos", {}).get("modelos", {}),
+                "colores":  cat.get("receptaculos", {}).get("colores", []),
+            },
         }
     except Exception:
         pass

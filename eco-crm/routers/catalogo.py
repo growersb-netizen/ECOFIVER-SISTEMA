@@ -620,6 +620,10 @@ async def catalogo_admin_page(
 @router.get("/api/catalogo")
 async def get_catalogo(current_user: Usuario = Depends(require_auth)):
     cat = load_catalogo()
+    # Superficies separadas: módulos habitacionales (6-18 m²) vs viviendas modulares (24+ m²)
+    sup_all = cat["modulos"]["superficies_m2"]
+    sup_habitacionales = [m for m in sup_all if m <= 18]
+    sup_viviendas      = [m for m in sup_all if m > 18]
     return {
         "piscinas": {
             "modelos": cat["piscinas"]["modelos"],
@@ -631,7 +635,9 @@ async def get_catalogo(current_user: Usuario = Depends(require_auth)):
             "medidas": cat["piscinas"].get("medidas", {}),
         },
         "modulos": {
-            "superficies_m2": cat["modulos"]["superficies_m2"],
+            "superficies_m2":          sup_all,
+            "superficies_habitacionales": sup_habitacionales,  # 6-18 m² — NO son viviendas
+            "superficies_viviendas":      sup_viviendas,       # 24+ m² — sí son viviendas
             "tecnologia": cat["modulos"]["tecnologia"],
             "modelos_custom": cat["modulos"].get("modelos_custom", []),
             "precios": cat["modulos"].get("precios", {}),
@@ -641,6 +647,16 @@ async def get_catalogo(current_user: Usuario = Depends(require_auth)):
         },
         "combos": cat.get("combos", {}),
         "modulos_deposito": cat.get("modulos_deposito", DEFAULT_CATALOGO["modulos_deposito"]),
+        # ── Líneas de productos adicionales ─────────────────────────────────────
+        "hidromasajes":      cat.get("hidromasajes", {}),
+        "baneras":           cat.get("baneras", {}),
+        "receptaculos":      cat.get("receptaculos", {}),
+        "accesorios_piscinas": cat.get("accesorios_piscinas", {}),
+        "banios_quimicos":   cat.get("banios_quimicos", {}),
+        "garitas_seguridad": cat.get("garitas_seguridad", {}),
+        "cuchas_perros":     cat.get("cuchas_perros", {}),
+        "reposeras":         cat.get("reposeras", {}),
+        "depositos_jardin":  cat.get("depositos_jardin", {}),
     }
 
 
@@ -648,6 +664,7 @@ async def get_catalogo(current_user: Usuario = Depends(require_auth)):
 async def get_catalogo_publico():
     """Catálogo público sin autenticación — usado por web, agentes IA, simulador."""
     cat = load_catalogo()
+    sup_all = cat["modulos"]["superficies_m2"]
     return {
         "piscinas": {
             "modelos": cat["piscinas"]["modelos"],
@@ -656,13 +673,21 @@ async def get_catalogo_publico():
             "precios_lista": cat["piscinas"].get("precios_lista", {}),
         },
         "modulos": {
-            "superficies_m2": cat["modulos"]["superficies_m2"],
+            "superficies_m2":             sup_all,
+            "superficies_habitacionales": [m for m in sup_all if m <= 18],
+            "superficies_viviendas":      [m for m in sup_all if m > 18],
             "tecnologia": cat["modulos"]["tecnologia"],
             "modelos_custom": cat["modulos"].get("modelos_custom", []),
             "precios": cat["modulos"].get("precios", {}),
             "precios_lista": cat["modulos"].get("precios_lista", {}),
         },
         "combos": cat.get("combos", {}),
+        "hidromasajes":    {k: {"precio_contado": v.get("precio_contado"), "medidas": v.get("medidas")}
+                           for k, v in cat.get("hidromasajes", {}).get("modelos", {}).items()},
+        "baneras":         {k: {"medidas": v.get("medidas")}
+                           for k, v in cat.get("baneras", {}).get("modelos", {}).items()},
+        "receptaculos":    {k: {"medidas": v.get("medidas")}
+                           for k, v in cat.get("receptaculos", {}).get("modelos", {}).items()},
     }
 
 

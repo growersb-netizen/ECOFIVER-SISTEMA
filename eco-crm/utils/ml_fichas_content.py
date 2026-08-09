@@ -258,7 +258,7 @@ FICHAS_PISCINAS: dict = {
             "de nado permite saltos y zambullidas. La zona de playa de 1,25 metros es ideal "
             "para el descanso y el uso con niños.\n\n"
             "Casco de fibra de vidrio con laminado reforzado y gelcoat UV de alta durabilidad. "
-            "Fabricado en Zárate, Buenos Aires, con 5 años de garantía en la estructura. "
+            "Fabricado en Zárate, Buenos Aires, con 10 años de garantía en la estructura. "
             "Sin mantenimiento estructural ni pintura. Resistente a productos químicos de "
             "tratamiento y a las condiciones climáticas extremas de Argentina.\n\n"
             "Medidas: 8,10 m × 3,35 m, profundidad 1,25-1,80 m. La instalación incluye "
@@ -281,7 +281,7 @@ FICHAS_PISCINAS: dict = {
             "formal y simétrico, ideal para jardines de diseño geométrico. La diferencia de "
             "profundidad crea zonas diferenciadas para adultos y niños.\n\n"
             "Fabricada en fibra de vidrio de alta resistencia en Zárate, Buenos Aires. "
-            "Garantía de fábrica 5 años en estructura. Instalación incluida. Consultar zona "
+            "Garantía de fábrica 10 años en estructura. Instalación incluida. Consultar zona "
             "de cobertura y flete antes de ofertar."
         ),
     },
@@ -299,7 +299,7 @@ FICHAS_PISCINAS: dict = {
             "diseño orgánico o paisajístico. Mismas dimensiones que la versión Recto, con un "
             "estilo visual más fluido. 8,10 metros de largo y 1,80 m de profundidad máxima "
             "para un natatorio familiar completo.\n\n"
-            "Fabricada en fibra de vidrio en Zárate, Buenos Aires. Garantía 5 años en "
+            "Fabricada en fibra de vidrio en Zárate, Buenos Aires. Garantía 10 años en "
             "estructura. Instalación incluida en zona de cobertura. Consultar antes de ofertar."
         ),
     },
@@ -360,7 +360,7 @@ FICHAS_PISCINAS: dict = {
             "un área más baja y confortable para niños y recreación, mientras el resto de "
             "la pileta tiene la profundidad ideal para el nado.\n\n"
             "Casco de fibra de vidrio de laminado reforzado, fabricado en Zárate, Buenos Aires. "
-            "Garantía 5 años en estructura. Sin pintura ni mantenimiento estructural. "
+            "Garantía 10 años en estructura. Sin pintura ni mantenimiento estructural. "
             "Instalación completa incluida. Consultar zona y flete antes de ofertar."
         ),
     },
@@ -380,7 +380,7 @@ FICHAS_PISCINAS: dict = {
             "de 1,80 metros para nado, saltos y buceo. Ideal para familias numerosas y "
             "propiedades grandes.\n\n"
             "Casco de fibra de vidrio fabricado con laminado de alta resistencia en Zárate, "
-            "Buenos Aires. 5 años de garantía en estructura. Sin pintura, sin fisuras, sin "
+            "Buenos Aires. 10 años de garantía en estructura. Sin pintura, sin fisuras, sin "
             "mantenimiento estructural. Resistencia UV y a los productos de tratamiento.\n\n"
             "Medidas: 9,20 m × 3,80 m, profundidad 1,25-1,80 m. Instalación incluida: "
             "excavación, colocación, conexión hidráulica completa y puesta en marcha del "
@@ -400,7 +400,7 @@ FICHAS_PISCINAS: dict = {
             "La combinación de playa y abanico permite el uso simultáneo de toda la familia: "
             "zona baja segura para niños y zona profunda para adultos. El formato semicircular "
             "del abanico optimiza el espacio disponible.\n\n"
-            "Fabricada en fibra de vidrio en Zárate, Buenos Aires. Garantía 5 años. "
+            "Fabricada en fibra de vidrio en Zárate, Buenos Aires. Garantía 10 años con certificado de calidad premium."
             "Instalación incluida. Consultar zona y flete antes de ofertar."
         ),
     },
@@ -416,7 +416,7 @@ FICHAS_PISCINAS: dict = {
             "Natatorio familiar de grandes dimensiones con doble zona de uso: playa baja "
             "para niños y recreación, abanico profundo para nado y saltos. Fabricada en "
             "fibra de vidrio de primera calidad en Zárate, Buenos Aires.\n\n"
-            "Garantía 5 años en estructura. Instalación incluida. Consultar zona y flete."
+            "Garantía 10 años en estructura. Instalación incluida. Consultar zona y flete."
         ),
     },
 
@@ -432,7 +432,7 @@ FICHAS_PISCINAS: dict = {
             "Playa de ingreso gradual + abanico profundo de 1,80 metros = la piscina ideal "
             "para uso intensivo familiar. 9,20 metros de largo garantizan espacio para nadar "
             "y disfrutar sin aglomeraciones.\n\n"
-            "Fabricada en fibra de vidrio en Zárate, Buenos Aires. Garantía 5 años. "
+            "Fabricada en fibra de vidrio en Zárate, Buenos Aires. Garantía 10 años con certificado de calidad premium."
             "Instalación incluida. Consultar disponibilidad logística antes de ofertar."
         ),
     },
@@ -474,7 +474,7 @@ FICHAS_PISCINAS: dict = {
             "ideal para jardines de diseño moderno, integración con decks, pérgolas y "
             "espacios de arquitectura contemporánea.\n\n"
             "Fabricada en fibra de vidrio de alta resistencia en Zárate, Buenos Aires. "
-            "No requiere pintura ni mantenimiento estructural. Garantía de fábrica 5 años. "
+            "No requiere pintura ni mantenimiento estructural. Garantía de fábrica 10 años con certificado de calidad premium."
             "La instalación incluye excavación, colocación, conexión hidráulica y puesta "
             "en marcha del sistema de filtrado.\n\n"
             "Medidas: 5,50 m × 2,90 m × 1,50 m de profundidad. Consultar zona de "
@@ -497,7 +497,7 @@ FICHAS_PISCINAS: dict = {
             "modelo favorito para arquitectos y paisajistas modernos.\n\n"
             "Casco de fibra de vidrio con laminado reforzado, gelcoat UV de alta durabilidad, "
             "fabricado en Zárate, Buenos Aires. Sin pintura, sin fisuras, sin mantenimiento "
-            "estructural. 5 años de garantía en estructura.\n\n"
+            "estructural. 10 años de garantía en estructura.\n\n"
             "Medidas: 6,40 m × 3,00 m × 1,40 m de profundidad. Instalación incluida: "
             "excavación, nivelación, colocación, conexión hidráulica completa. "
             "Consultar zona de instalación y flete antes de ofertar. Financiación en cuotas."

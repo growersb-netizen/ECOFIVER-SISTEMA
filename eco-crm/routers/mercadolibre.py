@@ -153,17 +153,34 @@ def _guardar_tokens(db: Session, j: dict):
 #   MLA413502 → Cabañas y Casas Prefabricadas (classified)
 #   MLA1647   → Casas Prefabricadas (alternativa)
 ML_CATEGORIAS = {
+    # ── Piscinas ──────────────────────────────────────────────────────────────
     "PISCINA":              "MLA373513",  # Piletas de Fibra de Vidrio
     "MINIPISCINA":          "MLA373513",
+    # ── Hidromasajes y baños ──────────────────────────────────────────────────
     "HIDROMASAJE":          "MLA88471",   # Jacuzzis e Hidromasajes ✓
+    "BANERA":               "MLA88471",   # en ML AR las bañeras van en la misma cat
+    "ACCESORIO_HIDROMASAJE": "",          # predictor por título
+    # ── Módulos y viviendas ───────────────────────────────────────────────────
     "MODULO":               "MLA413502",  # Cabañas y Casas Prefabricadas (classified)
+    "MODULO_HABITACIONAL":  "MLA413502",  # 6-18 m² — espacio habitacional auxiliar
+    "VIVIENDA_MODULAR":     "MLA413502",  # 24+ m² — vivienda completa
     "MODULO_DEPOSITO":      "MLA413502",
     "COMBO":                "MLA413502",
     "QUINCHO":              "MLA413502",
     "PERGOLA":              "MLA413502",
+    "GARITA_SEGURIDAD":     "MLA413502",
+    # ── Predictor por título (heterogéneos o sin categoría fija confirmada) ───
+    "BANIO_QUIMICO":        "",
+    "RECEPTACULO":          "",
+    "REPOSERA_FIBRA":       "",
+    "CUCHA":                "",
+    "CUCHA_PERRO":          "",
+    "DEPOSITO_JARDIN":      "",
+    "ACCESORIO_PISCINA":    "",
+    "EQUIPO_PISCINA":       "",
 }
-# Nota: BANIO_QUIMICO, GARITA_SEGURIDAD, CUCHA, REPOSERA_FIBRA, EQUIPO_PISCINA, etc.
-# no tienen fallback fijo — el predictor ML los resuelve por título y los cachea en BD.
+# Las entradas con "" usan el predictor ML en vivo al publicar (más preciso pero
+# requiere token). Las entradas con MLA* son fallback si el predictor falla.
 
 # Líneas de producto propias con un título de referencia para resolver su
 # categoría ML una sola vez (vía category_predictor) y cachearla en BD.
@@ -2522,25 +2539,47 @@ _POOLS_GENERICOS: dict = {
         "tipo_producto": "REPOSERA_FIBRA",
     },
     "modulos": {
+        # Legacy key — se usa cuando tipo_producto no está definido
         "tipos":   ["Módulo Habitacional", "Casa Prefabricada", "Vivienda Modular",
                     "Casa Modular", "Construcción Modular"],
         "extras":  ["Llave en Mano", "Entrega Rápida", "Sin Obra Civil", ""],
-        "mats":    ["Steel Frame", "Hormigón Celular", "Madera"],
+        "mats":    ["Wood Frame", "Steel Frame", "Madera"],
         "marcas":  ["EcoFiver", "Eco Fiver"],
         "tipo_producto": "MODULO",
     },
+    # Pools por tipo_producto (tienen prioridad sobre cat_nombre en título genérico)
+    "MODULO_HABITACIONAL": {
+        "tipos":   ["Módulo Habitacional", "Espacio Habitacional Prefabricado",
+                    "Ambiente Prefabricado", "Módulo Prefabricado Wood Frame",
+                    "Espacio Prefabricado"],
+        "extras":  ["Montaje en el Día", "Llave en Mano", "Sin Obra Civil",
+                    "Instalación en el Día", ""],
+        "mats":    ["Wood Frame", "Madera", ""],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "MODULO_HABITACIONAL",
+    },
+    "VIVIENDA_MODULAR": {
+        "tipos":   ["Vivienda Modular", "Casa Prefabricada", "Casa Modular",
+                    "Vivienda Prefabricada", "Casa Wood Frame",
+                    "Construcción en Seco"],
+        "extras":  ["Llave en Mano", "Entrega Rápida", "Sin Obra Civil",
+                    "Financiada", ""],
+        "mats":    ["Wood Frame", "Madera", "Steel Frame", ""],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "VIVIENDA_MODULAR",
+    },
     "modulos_deposito": {
-        "tipos":   ["Depósito", "Galpón Modular", "Módulo Depósito",
-                    "Depósito Prefabricado", "Galpón"],
+        "tipos":   ["Módulo Depósito", "Galpón Modular", "Depósito Prefabricado",
+                    "Galpón", "Depósito Modular"],
         "extras":  ["Rápido Montaje", "Autoportante", "Sin Obra", ""],
-        "mats":    ["Metal", "Steel Frame", "Chapa Galvanizada"],
+        "mats":    ["Metal", "Steel Frame", "Chapa Galvanizada", ""],
         "marcas":  ["EcoFiver", "Eco Fiver"],
         "tipo_producto": "MODULO_DEPOSITO",
     },
     "combos": {
         "tipos":   ["Combo", "Pack Completo", "Kit", "Conjunto"],
         "extras":  ["Llave en Mano", "Completo", "Todo Incluido", ""],
-        "mats":    ["Fibra de Vidrio", "PRFV"],
+        "mats":    ["Fibra de Vidrio", "PRFV", ""],
         "marcas":  ["EcoFiver", "Eco Fiver"],
         "tipo_producto": "COMBO",
     },
@@ -2548,9 +2587,49 @@ _POOLS_GENERICOS: dict = {
         "tipos":   ["Hidromasaje", "Jacuzzi", "Spa", "Bañera Hidromasaje",
                     "Tina Spa", "Bañera Spa"],
         "extras":  ["Con Jets", "Motor Incluido", "Sin Obra", ""],
-        "mats":    ["Acrílico", "Acrílico Sanitario", "PRFV"],
+        "mats":    ["Acrílico", "Acrílico Sanitario", "PRFV", ""],
         "marcas":  ["EcoFiver", "Eco Fiver"],
         "tipo_producto": "HIDROMASAJE",
+    },
+    "accesorios_piscinas": {
+        "tipos":   ["Accesorio para Pileta", "Accesorio para Piscina",
+                    "Equipo para Pileta", "Accesorio Piscina"],
+        "extras":  ["Original", ""],
+        "mats":    [],
+        "marcas":  ["EcoFiver", ""],
+        "tipo_producto": "ACCESORIO_PISCINA",
+    },
+    "banios_quimicos": {
+        "tipos":   ["Baño Químico", "Baño Portátil", "Sanitario Portátil",
+                    "Baño Químico Portátil"],
+        "extras":  ["Para Obra", "Reforzado", "Con Ventilación", ""],
+        "mats":    ["Polipropileno", "HDPE", ""],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "BANIO_QUIMICO",
+    },
+    "garitas_seguridad": {
+        "tipos":   ["Garita de Seguridad", "Casilla de Seguridad",
+                    "Garita Prefabricada", "Casilla Prefabricada"],
+        "extras":  ["Con Ventana", "Reforzada", "Sin Obra", ""],
+        "mats":    ["Steel Frame", "Metal", ""],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "GARITA_SEGURIDAD",
+    },
+    "cuchas_perros": {
+        "tipos":   ["Cucha para Perro", "Casa para Perro", "Cucha",
+                    "Refugio Canino"],
+        "extras":  ["Con Techo", "Impermeable", "Grande", ""],
+        "mats":    ["Madera", "Pino", ""],
+        "marcas":  ["EcoFiver", ""],
+        "tipo_producto": "CUCHA",
+    },
+    "depositos_jardin": {
+        "tipos":   ["Depósito de Jardín", "Galpón de Jardín",
+                    "Depósito Exterior", "Storage Jardín"],
+        "extras":  ["Con Puerta", "Resistente UV", ""],
+        "mats":    ["Steel Frame", "Metal", "Chapa", ""],
+        "marcas":  ["EcoFiver", "Eco Fiver"],
+        "tipo_producto": "DEPOSITO_JARDIN",
     },
     "_default": {
         "tipos":   ["Producto", "Artículo"],
@@ -2563,12 +2642,16 @@ _POOLS_GENERICOS: dict = {
 
 
 def _generar_titulos_generico(nombre_display: str, categoria: str,
-                               descripcion: str, n: int) -> list:
+                               descripcion: str, n: int,
+                               tipo_producto_key: str = "") -> list:
     """
     Genera hasta N títulos únicos ≤60 chars para cualquier producto del catálogo.
     Combina el nombre del producto con el pool de su categoría.
+    tipo_producto_key tiene prioridad sobre categoria para buscar el pool.
     """
-    pool   = _POOLS_GENERICOS.get(categoria, _POOLS_GENERICOS["_default"])
+    pool   = (_POOLS_GENERICOS.get(tipo_producto_key)
+              or _POOLS_GENERICOS.get(categoria)
+              or _POOLS_GENERICOS["_default"])
     tipos  = pool["tipos"]
     extras = pool["extras"]
     mats   = pool["mats"] or [""]
@@ -2625,6 +2708,7 @@ def _leer_productos_catalogo() -> list:
     """
     Lee catalogo.json y devuelve lista normalizada de todos los productos
     con precio_contado > 0.  Incluye todas las categorías (legacy + genéricas).
+    Maneja correctamente módulos (por m²) y módulos depósito (por tamaño+línea).
     """
     from routers.catalogo import load_catalogo, _get_items
 
@@ -2634,6 +2718,84 @@ def _leer_productos_catalogo() -> list:
     for cat_nombre, cat_data in cat.items():
         if not isinstance(cat_data, dict):
             continue
+
+        # ── Módulos habitacionales / viviendas modulares ──────────────────────
+        # (no usan "modelos", usan "precios" keyed por superficie en m²)
+        if cat_nombre == "modulos":
+            precios   = cat_data.get("precios", {})
+            fotos_cat = cat_data.get("fotos", {})
+            tecnologia = cat_data.get("tecnologia", "")
+            for sup_str, precio_c in precios.items():
+                if not precio_c:
+                    continue
+                try:
+                    precio_f = float(precio_c)
+                    sup_m2   = int(float(sup_str))
+                except (TypeError, ValueError):
+                    continue
+                if precio_f <= 0:
+                    continue
+                es_hab   = sup_m2 <= 18
+                tipo     = "MODULO_HABITACIONAL" if es_hab else "VIVIENDA_MODULAR"
+                desc_tip = "Módulo Habitacional" if es_hab else "Vivienda Modular"
+                fotos    = fotos_cat.get(sup_str, [])
+                if not isinstance(fotos, list):
+                    fotos = []
+                resultado.append({
+                    "categoria":      "modulos",
+                    "nombre":         f"{sup_str}m2",
+                    "nombre_display": f"{desc_tip} {sup_str} m²",
+                    "precio_contado": precio_f,
+                    "fotos":          fotos,
+                    "descripcion":    tecnologia,
+                    "sku_base":       f"ECOF-MOD-{sup_str}M2",
+                    "tipo_producto":  tipo,
+                    "tiene_fotos":    bool(fotos),
+                    "n_fotos":        len(fotos),
+                })
+            continue  # no caer en la rama genérica
+
+        # ── Módulos depósito ──────────────────────────────────────────────────
+        # (usan "tamanos" keyed por tamaño → linea → {precio_contado, fotos})
+        if cat_nombre == "modulos_deposito":
+            tamanos   = cat_data.get("tamanos", {})
+            desc_base = cat_data.get("descripcion_base", "")
+            desc_prem = cat_data.get("descripcion_premium", "")
+            for tam_str, lineas in tamanos.items():
+                if not isinstance(lineas, dict):
+                    continue
+                for linea_nombre, linea_data in lineas.items():
+                    if not isinstance(linea_data, dict):
+                        continue
+                    precio_c = linea_data.get("precio_contado")
+                    if not precio_c:
+                        continue
+                    try:
+                        precio_f = float(precio_c)
+                    except (TypeError, ValueError):
+                        continue
+                    if precio_f <= 0:
+                        continue
+                    fotos = linea_data.get("fotos", [])
+                    if not isinstance(fotos, list):
+                        fotos = []
+                    desc = desc_prem if linea_nombre.upper() == "PREMIUM" else desc_base
+                    sku_base = f"ECOF-DEP{tam_str}-{linea_nombre[:3].upper()}"
+                    resultado.append({
+                        "categoria":      "modulos_deposito",
+                        "nombre":         f"{tam_str}m2_{linea_nombre}",
+                        "nombre_display": f"Módulo Depósito {tam_str} m² {linea_nombre.title()}",
+                        "precio_contado": precio_f,
+                        "fotos":          fotos,
+                        "descripcion":    desc,
+                        "sku_base":       sku_base,
+                        "tipo_producto":  "MODULO_DEPOSITO",
+                        "tiene_fotos":    bool(fotos),
+                        "n_fotos":        len(fotos),
+                    })
+            continue  # no caer en la rama genérica
+
+        # ── Categorías genéricas (modelos / productos dict) ───────────────────
         items = _get_items(cat_data)
         if not items:
             continue
@@ -2710,11 +2872,14 @@ async def crear_borradores_masivos(
     Crea en lote N borradores ML con títulos únicos SEO para CUALQUIER producto.
 
     Body (todos opcionales):
+      prod_sku       sku_base del producto seleccionado → solo ese producto
       from_catalogo  bool — si True usa todos los productos del catálogo con precio
       categorias     lista de categorías a incluir (filtro; default: todas)
       modelos        lista de modelos de hidromasaje (modo legado si from_catalogo=False)
       cantidad       variantes por producto (default: 500, max: 500)
       ganancia_pct   margen sobre precio contado (default: 0.05 = 5 %)
+
+    Retorna: {ok, creados, omitidos, ids (lista de IDs creados), detalle}
     """
     import json as _json_local
 
@@ -2727,6 +2892,7 @@ async def crear_borradores_masivos(
     creados_total  = 0
     omitidos_total = 0
     detalle: dict  = {}
+    ids_creados:   list = []   # IDs de borradores creados en este lote
 
     def _procesar(cat_nombre, prod_nombre, nombre_display,
                   precio_contado, fotos, descripcion, sku_base, tipo_producto):
@@ -2734,11 +2900,17 @@ async def crear_borradores_masivos(
         precio_ml  = calcular_precio_ml(precio_contado, ganancia_pct)
         fotos_json = _json_local.dumps(fotos)
 
+        # Categoría ML pre-asignada (fallback si falla predictor al publicar)
+        categoria_ml = ML_CATEGORIAS.get(tipo_producto, "")
+
         # Generador curado para los 4 modelos de hidromasaje, genérico para el resto
         if cat_nombre == "hidromasajes" and prod_nombre in _POOLS_HIDRO:
             titulos = _generar_titulos_hidro(prod_nombre, cantidad)
         else:
-            titulos = _generar_titulos_generico(nombre_display, cat_nombre, descripcion, cantidad)
+            titulos = _generar_titulos_generico(
+                nombre_display, cat_nombre, descripcion, cantidad,
+                tipo_producto_key=tipo_producto,
+            )
 
         creados_prod  = 0
         omitidos_prod = 0
@@ -2747,7 +2919,7 @@ async def crear_borradores_masivos(
             if db.query(BorradorML).filter(BorradorML.seller_sku == sku).first():
                 omitidos_prod += 1
                 continue
-            db.add(BorradorML(
+            b = BorradorML(
                 origen             = "masiva",
                 titulo             = titulo,
                 descripcion        = descripcion,
@@ -2761,15 +2933,17 @@ async def crear_borradores_masivos(
                 cuotas_sin_interes = 0,
                 cantidad           = 1,
                 fotos_json         = fotos_json,
-                categoria          = "",   # predictor ML lo resuelve al publicar
+                categoria          = categoria_ml,  # pre-asignada desde ML_CATEGORIAS
                 estado             = "borrador",
                 created_by_id      = current_user.id,
-            ))
+            )
+            db.add(b)
+            db.flush()          # para obtener el id generado
+            ids_creados.append(b.id)
             creados_prod += 1
             if creados_prod % 100 == 0:
                 db.flush()
 
-        db.flush()
         key = f"{cat_nombre}/{prod_nombre}" if from_catalogo else prod_nombre
         detalle[key] = {
             "precio_contado":         precio_contado,
@@ -2778,12 +2952,24 @@ async def crear_borradores_masivos(
             "creados":                creados_prod,
             "omitidos":               omitidos_prod,
             "tiene_fotos":            bool(fotos),
+            "categoria_ml":           categoria_ml,
         }
         creados_total  += creados_prod
         omitidos_total += omitidos_prod
 
+    # ── MODO PRODUCTO ÚNICO: un solo producto del catálogo ────────────────────
+    prod_sku = data.get("prod_sku")   # sku_base del producto seleccionado
+    if prod_sku:
+        productos = _leer_productos_catalogo()
+        prod_match = next((p for p in productos if p["sku_base"] == prod_sku), None)
+        if not prod_match:
+            raise HTTPException(400, f"Producto no encontrado en catálogo: {prod_sku}")
+        _procesar(prod_match["categoria"], prod_match["nombre"], prod_match["nombre_display"],
+                  prod_match["precio_contado"], prod_match["fotos"], prod_match["descripcion"],
+                  prod_match["sku_base"], prod_match["tipo_producto"])
+
     # ── MODO CATÁLOGO: todos los productos con precio ─────────────────────────
-    if from_catalogo:
+    elif from_catalogo:
         productos = _leer_productos_catalogo()
         if cat_filter:
             productos = [p for p in productos if p["categoria"] in cat_filter]
@@ -2812,6 +2998,7 @@ async def crear_borradores_masivos(
         "ok":               True,
         "creados":          creados_total,
         "omitidos":         omitidos_total,
+        "ids":              ids_creados,        # para "publicar todos" sin recargar
         "ganancia_pct_usada": ganancia_pct,
         "comision_ml_usada":  ML_COMISION_GOLD_SPECIAL,
         "detalle":          detalle,

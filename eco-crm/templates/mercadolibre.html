@@ -762,65 +762,77 @@
 
 </div>
 
-<!-- Modal: 500 variantes — selector de productos -->
+<!-- Modal: 500 variantes — selector de producto único -->
 <div class="modal-overlay" id="modal-masivos" style="display:none">
-  <div class="modal" style="max-width:640px;width:96vw">
+  <div class="modal" style="max-width:720px;width:96vw">
     <div class="modal-header">
-      <h3>⚡ Generar variantes de título en lote</h3>
+      <h3>⚡ 500 variantes de publicación</h3>
       <button class="btn btn-icon" onclick="closeModal('modal-masivos')">✕</button>
     </div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
 
-      <!-- Modo -->
-      <div style="display:flex;gap:8px">
-        <button id="btn-modo-hidro" class="btn btn-sm" onclick="masivosSetModo('hidro')"
-          style="flex:1;background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a">🛁 Solo hidromasajes</button>
-        <button id="btn-modo-catalogo" class="btn btn-sm btn-secondary" onclick="masivosSetModo('catalogo')"
-          style="flex:1">📦 Todos los productos del catálogo</button>
-      </div>
-
-      <!-- Panel: hidromasajes (legado) -->
-      <div id="masivos-panel-hidro">
-        <div style="font-size:13px;color:var(--text-secondary)">
-          Genera hasta 500 variantes por cada uno de los 4 modelos de hidromasaje
-          con pools de palabras clave curados (jacuzzi, spa, tina, acrílico, etc.).
-        </div>
-        <div style="margin-top:10px;font-size:12px;color:var(--text-secondary)">
-          📦 Spa Quadra · Spa Recta · Spa Orbis · Spa Delta
+      <!-- Buscador de producto -->
+      <div>
+        <label class="form-label">Seleccioná un producto del catálogo</label>
+        <input class="input" id="masivos-buscar" placeholder="🔍  Buscar por nombre, categoría..." oninput="masivosBuscarProductos()" style="margin-bottom:8px">
+        <div id="masivos-prod-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-card)">
+          <div style="padding:12px;color:var(--text-secondary);font-size:13px">Cargando productos del catálogo…</div>
         </div>
       </div>
 
-      <!-- Panel: catálogo -->
-      <div id="masivos-panel-catalogo" style="display:none">
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
-          Genera variantes para todos los productos del catálogo que tengan precio configurado.
-        </div>
-        <div id="masivos-cat-lista" style="max-height:250px;overflow-y:auto;font-size:13px">
-          <div style="color:var(--text-secondary)">
-            <button class="btn btn-sm btn-secondary" onclick="masivosCargarCatalogo()">🔄 Cargar productos del catálogo</button>
+      <!-- Detalle del producto seleccionado -->
+      <div id="masivos-prod-detalle" style="display:none;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <div style="font-weight:600;font-size:14px" id="masivos-det-nombre">—</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px" id="masivos-det-tipo">—</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-weight:700;font-size:15px;color:#22c55e" id="masivos-det-precio">—</div>
+            <div style="font-size:11px;color:var(--text-secondary)" id="masivos-det-fotos">—</div>
           </div>
         </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;padding:2px 8px;border-radius:12px;background:var(--bg-card);border:1px solid var(--border-color)" id="masivos-det-cat">—</span>
+          <span style="font-size:11px;padding:2px 8px;border-radius:12px;background:var(--bg-card);border:1px solid var(--border-color)" id="masivos-det-cat-ml">—</span>
+        </div>
       </div>
 
-      <!-- Parámetros comunes -->
+      <!-- Parámetros -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div>
           <label class="form-label">Ganancia % sobre contado</label>
-          <input class="input" id="masivos-ganancia" type="number" min="0" max="50" step="1" value="5" placeholder="5">
+          <input class="input" id="masivos-ganancia" type="number" min="0" max="50" step="1" value="5">
         </div>
         <div>
-          <label class="form-label">Variantes por producto (máx 500)</label>
-          <input class="input" id="masivos-cantidad" type="number" min="1" max="500" step="1" value="500">
+          <label class="form-label">Variantes a generar (máx 500)</label>
+          <input class="input" id="masivos-cantidad" type="number" min="1" max="500" step="1" value="500"
+            oninput="const b=document.getElementById('masivos-btn-generar');if(b&&_masivos_sel)b.textContent='⚡ Generar '+(Math.min(parseInt(this.value)||500,500))+' variantes'">
         </div>
       </div>
       <div style="font-size:11px;color:var(--text-secondary)">
         💰 Precio ML = precio_contado × (1 + ganancia%) ÷ (1 − 11% comisión ML), redondeado a $1.000.<br>
-        Los SKUs ya existentes se omiten — podés correr varias veces sin duplicar.
+        🔄 Cada variante recibe un título único con combinaciones distintas de palabras clave SEO.<br>
+        ✅ Los SKUs ya existentes se omiten — podés volver a correr sin duplicar.
+      </div>
+
+      <!-- Resultado post-generación -->
+      <div id="masivos-resultado" style="display:none;background:#0d2218;border:1px solid #22c55e;border-radius:8px;padding:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:600;color:#22c55e;font-size:14px" id="masivos-res-titulo">✅ Borradores creados</div>
+            <div style="font-size:12px;color:#86efac;margin-top:2px" id="masivos-res-detalle">—</div>
+          </div>
+          <button class="btn btn-primary" id="masivos-btn-publicar" onclick="masivosPublicarTodos()"
+            style="background:#16a34a;border-color:#15803d;flex-shrink:0">
+            🚀 Publicar todos ahora
+          </button>
+        </div>
       </div>
 
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-secondary" onclick="closeModal('modal-masivos')">Cancelar</button>
-        <button class="btn btn-primary" onclick="masivosGenerar()">⚡ Generar borradores</button>
+        <button class="btn btn-primary" id="masivos-btn-generar" onclick="masivosGenerar()">⚡ Generar 500 variantes</button>
       </div>
     </div>
   </div>
@@ -3187,109 +3199,255 @@ async function borSeedHidromasajes() {
     showToast(msg, j.creados > 0 ? 'success' : 'info');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
-/* ─── MODAL 500 VARIANTES (TODOS LOS PRODUCTOS) ──────────────────────────── */
-let _masivos_modo = 'hidro';   // 'hidro' | 'catalogo'
-let _masivos_catalogo = null;  // cache de catalogo-disponible
+/* ─── MODAL 500 VARIANTES — PRODUCTO ÚNICO DEL CATÁLOGO ──────────────────── */
+let _masivos_catalogo  = null;   // cache de catalogo-disponible [{sku_base, nombre_display,...}]
+let _masivos_sel       = null;   // producto seleccionado actualmente
+let _masivos_ids_lote  = [];     // IDs del último lote generado (para publicar todos)
 
-function abrirModalMasivos() {
-  _masivos_modo = 'hidro';
-  masivosSetModo('hidro');
+// Mapa de tipo_producto → emoji / etiqueta amigable
+const _TIPO_LABEL = {
+  PISCINA:             '🏊 Piscina',
+  MINIPISCINA:         '🏊 Minipiscina',
+  HIDROMASAJE:         '🛁 Hidromasaje',
+  BANERA:              '🛁 Bañera',
+  RECEPTACULO:         '🚿 Receptáculo',
+  MODULO_HABITACIONAL: '🏠 Módulo habitacional',
+  VIVIENDA_MODULAR:    '🏡 Vivienda modular',
+  MODULO_DEPOSITO:     '📦 Módulo depósito',
+  COMBO:               '📦 Combo',
+  BANIO_QUIMICO:       '🚽 Baño químico',
+  GARITA_SEGURIDAD:    '🏢 Garita de seguridad',
+  REPOSERA_FIBRA:      '🛋 Reposera',
+  CUCHA:               '🐾 Cucha',
+  CUCHA_PERRO:         '🐾 Cucha perro',
+  DEPOSITO_JARDIN:     '🌿 Depósito jardín',
+  ACCESORIO_PISCINA:   '🔧 Accesorio piscina',
+  EQUIPO_PISCINA:      '⚙️ Equipo piscina',
+};
+// tipo_producto → ID de categoría ML pre-asignada (igual que ML_CATEGORIAS en backend)
+const _TIPO_CAT_ML_MAP = {
+  PISCINA:             'MLA373513',
+  MINIPISCINA:         'MLA373513',
+  HIDROMASAJE:         'MLA88471',
+  BANERA:              'MLA88471',
+  MODULO:              'MLA413502',
+  MODULO_HABITACIONAL: 'MLA413502',
+  VIVIENDA_MODULAR:    'MLA413502',
+  MODULO_DEPOSITO:     'MLA413502',
+  COMBO:               'MLA413502',
+  QUINCHO:             'MLA413502',
+  GARITA_SEGURIDAD:    'MLA413502',
+};
+const _CAT_ML_LABEL = {
+  MLA373513: 'MLA373513 — Piletas de Fibra',
+  MLA88471:  'MLA88471 — Jacuzzis e Hidromasajes',
+  MLA413502: 'MLA413502 — Casas Prefabricadas',
+  '':        'Categoría por predictor ML',
+};
+const _pml_calc = (c, g) => Math.ceil(c * (1 + g / 100) / 0.89 / 1000) * 1000;
+
+async function abrirModalMasivos() {
+  _masivos_sel      = null;
+  _masivos_ids_lote = [];
+  document.getElementById('masivos-prod-detalle').style.display = 'none';
+  document.getElementById('masivos-resultado').style.display    = 'none';
+  document.getElementById('masivos-buscar').value               = '';
+  const btn = document.getElementById('masivos-btn-generar');
+  if (btn) { btn.textContent = '⚡ Generar 500 variantes'; btn.disabled = false; }
   openModal('modal-masivos');
-}
-
-function masivosSetModo(modo) {
-  _masivos_modo = modo;
-  document.getElementById('masivos-panel-hidro').style.display     = modo === 'hidro' ? '' : 'none';
-  document.getElementById('masivos-panel-catalogo').style.display  = modo === 'catalogo' ? '' : 'none';
-  document.getElementById('btn-modo-hidro').className    = 'btn btn-sm' + (modo === 'hidro' ? '' : ' btn-secondary');
-  document.getElementById('btn-modo-hidro').style.cssText = modo === 'hidro'
-    ? 'flex:1;background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a'
-    : 'flex:1';
-  document.getElementById('btn-modo-catalogo').className = 'btn btn-sm' + (modo === 'catalogo' ? '' : ' btn-secondary');
-  document.getElementById('btn-modo-catalogo').style.cssText = modo === 'catalogo'
-    ? 'flex:1;background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a'
-    : 'flex:1';
-  if (modo === 'catalogo' && !_masivos_catalogo) masivosCargarCatalogo();
+  await masivosCargarCatalogo();
 }
 
 async function masivosCargarCatalogo() {
-  const box = document.getElementById('masivos-cat-lista');
-  box.innerHTML = '<span style="color:var(--text-secondary)">Cargando productos del catálogo…</span>';
+  const box = document.getElementById('masivos-prod-lista');
+  box.innerHTML = '<div style="padding:12px;color:var(--text-secondary);font-size:13px">Cargando…</div>';
   try {
     const j = await API.get('/api/ml/borradores/catalogo-disponible');
-    _masivos_catalogo = j;
-    if (!j.ok || !j.total) {
-      box.innerHTML = '<span style="color:#ef4444">No hay productos con precio en el catálogo. Configurá los precios primero en la sección Catálogo.</span>';
+    _masivos_catalogo = [];
+    const cats = j.por_categoria || {};
+    for (const [cat, prods] of Object.entries(cats)) {
+      for (const p of prods) {
+        _masivos_catalogo.push({ ...p, cat_nombre: cat });
+      }
+    }
+    if (!_masivos_catalogo.length) {
+      box.innerHTML = '<div style="padding:12px;color:#ef4444;font-size:13px">No hay productos con precio. Configurá precios en el Catálogo primero.</div>';
       return;
     }
-    const _pml = (c, g) => (Math.ceil(c * (1 + g/100) / 0.89 / 1000) * 1000).toLocaleString('es-AR');
-    const gPct = () => parseFloat(document.getElementById('masivos-ganancia').value) || 5;
-
-    const cats = j.por_categoria || {};
-    box.innerHTML = '<div style="margin-bottom:8px"><label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="masivos-sel-all" checked onchange="masivosToggleAll(this.checked)"><strong>Seleccionar todas las categorías</strong></label></div>' +
-      Object.entries(cats).map(([cat, prods]) => {
-        const sin_fotos = prods.filter(p => !p.tiene_fotos).length;
-        return `<div style="margin-bottom:10px">
-          <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;cursor:pointer">
-            <input type="checkbox" class="masivos-cat-chk" data-cat="${cat}" checked>
-            ${cat.replace(/_/g,' ').toUpperCase()} (${prods.length} producto${prods.length !== 1 ? 's' : ''})
-            ${sin_fotos ? `<span style="color:#f59e0b;font-size:11px">⚠ ${sin_fotos} sin fotos</span>` : ''}
-          </label>
-          <div style="margin-left:22px;font-size:11px;color:var(--text-secondary)">${
-            prods.map(p =>
-              `${p.nombre_display} — $${p.precio_contado.toLocaleString('es-AR')} → ML $${_pml(p.precio_contado, gPct())}${p.tiene_fotos ? '' : ' ⚠'}`
-            ).join('<br>')
-          }</div>
-        </div>`;
-      }).join('');
+    masivosRenderLista('');
   } catch(e) {
-    box.innerHTML = `<span style="color:#ef4444">Error: ${e.message}</span>`;
+    box.innerHTML = `<div style="padding:12px;color:#ef4444;font-size:13px">Error: ${e.message}</div>`;
   }
 }
 
-function masivosToggleAll(checked) {
-  document.querySelectorAll('.masivos-cat-chk').forEach(c => c.checked = checked);
+function masivosBuscarProductos() {
+  const q = (document.getElementById('masivos-buscar').value || '').toLowerCase();
+  masivosRenderLista(q);
+}
+
+function masivosRenderLista(q) {
+  const box = document.getElementById('masivos-prod-lista');
+  if (!_masivos_catalogo) { box.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--text-secondary)">Cargando…</div>'; return; }
+  const gPct = parseFloat(document.getElementById('masivos-ganancia').value) || 5;
+  const filtered = q
+    ? _masivos_catalogo.filter(p =>
+        (p.nombre_display + ' ' + p.cat_nombre + ' ' + (p.tipo_producto || '')).toLowerCase().includes(q))
+    : _masivos_catalogo;
+
+  if (!filtered.length) {
+    box.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--text-secondary)">Sin resultados</div>';
+    return;
+  }
+
+  // Agrupar por categoria
+  const grupos = {};
+  for (const p of filtered) {
+    (grupos[p.cat_nombre] = grupos[p.cat_nombre] || []).push(p);
+  }
+
+  box.innerHTML = Object.entries(grupos).map(([cat, prods]) => `
+    <div>
+      <div style="padding:4px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--text-secondary);background:var(--bg-secondary);text-transform:uppercase">
+        ${cat.replace(/_/g,' ')}
+      </div>
+      ${prods.map(p => {
+        const pml = _pml_calc(p.precio_contado, gPct).toLocaleString('es-AR');
+        const fotoWarn = p.tiene_fotos ? '' : ' <span style="color:#f59e0b">⚠</span>';
+        const activo = _masivos_sel?.sku_base === p.sku_base;
+        return `<div class="masivos-prod-row" data-sku="${p.sku_base}"
+          onclick="masivosSeleccionar('${p.sku_base}')"
+          style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border-color);
+                 ${activo ? 'background:#1a3a1a;border-left:3px solid #22c55e;' : 'border-left:3px solid transparent;'}
+                 display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-weight:500">${escHtml(p.nombre_display)}${fotoWarn}</div>
+            <div style="font-size:11px;color:var(--text-secondary)">${_TIPO_LABEL[p.tipo_producto] || p.tipo_producto}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;font-size:12px">
+            <div style="color:#22c55e;font-weight:600">$${pml}</div>
+            <div style="color:var(--text-secondary)">ML</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function masivosSeleccionar(skuBase) {
+  if (!_masivos_catalogo) return;
+  _masivos_sel = _masivos_catalogo.find(p => p.sku_base === skuBase) || null;
+  if (!_masivos_sel) return;
+
+  // Resaltar en lista
+  document.querySelectorAll('.masivos-prod-row').forEach(el => {
+    const activo = el.dataset.sku === skuBase;
+    el.style.background   = activo ? '#1a3a1a' : '';
+    el.style.borderLeft   = activo ? '3px solid #22c55e' : '3px solid transparent';
+  });
+
+  // Mostrar detalle
+  const gPct   = parseFloat(document.getElementById('masivos-ganancia').value) || 5;
+  const pml    = _pml_calc(_masivos_sel.precio_contado, gPct);
+  const catMl  = _TIPO_CAT_ML_MAP[_masivos_sel.tipo_producto] || '';
+  document.getElementById('masivos-det-nombre').textContent  = _masivos_sel.nombre_display;
+  document.getElementById('masivos-det-tipo').textContent    = _TIPO_LABEL[_masivos_sel.tipo_producto] || _masivos_sel.tipo_producto;
+  document.getElementById('masivos-det-precio').textContent  = `$${pml.toLocaleString('es-AR')} ML (contado $${_masivos_sel.precio_contado.toLocaleString('es-AR')})`;
+  document.getElementById('masivos-det-fotos').textContent   = _masivos_sel.tiene_fotos
+    ? `${_masivos_sel.n_fotos} foto${_masivos_sel.n_fotos !== 1 ? 's' : ''} ✓`
+    : '⚠ Sin fotos — agregar antes de publicar';
+  document.getElementById('masivos-det-cat').textContent     = _masivos_sel.cat_nombre.replace(/_/g,' ');
+  document.getElementById('masivos-det-cat-ml').textContent  = _CAT_ML_LABEL[catMl] || (catMl || 'Predictor ML');
+  document.getElementById('masivos-prod-detalle').style.display = '';
+
+  // Actualizar texto del botón
+  const n = parseInt(document.getElementById('masivos-cantidad').value) || 500;
+  const btn = document.getElementById('masivos-btn-generar');
+  if (btn) btn.textContent = `⚡ Generar ${n} variantes`;
+
+  // Ocultar resultado anterior
+  document.getElementById('masivos-resultado').style.display = 'none';
+  _masivos_ids_lote = [];
 }
 
 async function masivosGenerar() {
+  if (!_masivos_sel) { showToast('Seleccioná un producto primero', 'error'); return; }
+
   const cantidad    = Math.min(parseInt(document.getElementById('masivos-cantidad').value) || 500, 500);
   const ganancia_pct = (parseFloat(document.getElementById('masivos-ganancia').value) || 5) / 100;
 
-  let body = { cantidad, ganancia_pct };
+  const pml = _pml_calc(_masivos_sel.precio_contado, ganancia_pct * 100);
+  const ok  = await showConfirm(
+    `⚡ Generar ${cantidad} variantes de:\n\n` +
+    `  ${_masivos_sel.nombre_display}\n` +
+    `  Tipo: ${_TIPO_LABEL[_masivos_sel.tipo_producto] || _masivos_sel.tipo_producto}\n` +
+    `  Precio ML: $${pml.toLocaleString('es-AR')} (ganancia ${(ganancia_pct*100).toFixed(0)}%)\n` +
+    `  Fotos: ${_masivos_sel.n_fotos || 0}\n\n` +
+    `Cada variante tendrá un título único (combinaciones de palabras clave SEO).\n` +
+    `Los SKUs ya existentes se omiten. ¿Continuar?`,
+    '⚡ Generar borradores'
+  );
+  if (!ok) return;
 
-  if (_masivos_modo === 'catalogo') {
-    const cats = [...document.querySelectorAll('.masivos-cat-chk:checked')].map(c => c.dataset.cat);
-    if (!cats.length) { showToast('Seleccioná al menos una categoría', 'error'); return; }
-    body.from_catalogo = true;
-    body.categorias    = cats;
-    const total_prods  = cats.reduce((acc, c) => acc + (_masivos_catalogo?.por_categoria?.[c]?.length || 0), 0);
-    const ok = await showConfirm(
-      `⚡ Generar hasta ${cantidad} variantes × ${total_prods} producto(s) en ${cats.length} categoría(s)\n\n` +
-      `Categorías: ${cats.join(', ')}\n` +
-      `Ganancia: ${(ganancia_pct*100).toFixed(0)}% | Variantes/producto: ${cantidad}\n\n` +
-      `Los SKUs ya existentes se omiten. ¿Continuar?`,
-      '⚡ Generar borradores en lote'
-    );
-    if (!ok) return;
-  } else {
-    const ok = await showConfirm(
-      `⚡ Generar ${cantidad} variantes × 4 modelos de hidromasaje\n` +
-      `Ganancia: ${(ganancia_pct*100).toFixed(0)}%\n\nLos existentes se omiten.`,
-      '⚡ Generar borradores hidromasaje'
-    );
-    if (!ok) return;
-  }
+  const btn = document.getElementById('masivos-btn-generar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+  showToast('Generando borradores… puede tardar unos segundos ⏳', 'info');
 
-  closeModal('modal-masivos');
-  showToast('Generando borradores… puede tardar ⏳', 'info');
   try {
-    const j = await API.post('/api/ml/borradores/masivos', body);
-    borCargar();
-    const lineas = Object.entries(j.detalle || {}).map(([k, d]) =>
-      `${k}: ${d.creados} creados${d.tiene_fotos === false ? ' ⚠ sin fotos' : ''} — $${(d.precio_ml||0).toLocaleString('es-AR')}`
-    ).join('\n');
-    alert(`✅ ${j.creados} borradores creados · ${j.omitidos} omitidos\n\n${lineas}`);
+    const j = await API.post('/api/ml/borradores/masivos', {
+      prod_sku:    _masivos_sel.sku_base,
+      cantidad,
+      ganancia_pct,
+    });
+
+    _masivos_ids_lote = j.ids || [];
+    borCargar();  // refrescar lista de borradores
+
+    // Mostrar panel de resultado
+    const det = Object.values(j.detalle || {})[0] || {};
+    document.getElementById('masivos-res-titulo').textContent =
+      `✅ ${j.creados} borrador${j.creados !== 1 ? 'es' : ''} creado${j.creados !== 1 ? 's' : ''}${j.omitidos ? ` · ${j.omitidos} omitidos` : ''}`;
+    document.getElementById('masivos-res-detalle').textContent =
+      `${_masivos_sel.nombre_display} · precio ML $${(det.precio_ml||0).toLocaleString('es-AR')}` +
+      (det.tiene_fotos === false ? ' · ⚠ sin fotos' : '');
+    const btnPub = document.getElementById('masivos-btn-publicar');
+    if (btnPub) {
+      btnPub.disabled     = !_masivos_ids_lote.length;
+      btnPub.style.display = _masivos_ids_lote.length ? '' : 'none';
+    }
+    document.getElementById('masivos-resultado').style.display = '';
     showToast(`✅ ${j.creados} borradores creados`, 'success');
+  } catch(e) {
+    showToast('Error al generar: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = `⚡ Generar ${cantidad} variantes`; }
+  }
+}
+
+async function masivosPublicarTodos() {
+  if (!_masivos_ids_lote.length) { showToast('No hay borradores en el lote', 'info'); return; }
+  const n  = _masivos_ids_lote.length;
+  const ok = await showConfirm(
+    `🚀 Publicar ${n} borrador${n !== 1 ? 'es' : ''} en MercadoLibre?\n\n` +
+    `Producto: ${_masivos_sel?.nombre_display || '—'}\n` +
+    `La publicación corre en segundo plano. Podés seguir trabajando mientras tanto.`,
+    '🚀 Publicar todos en ML'
+  );
+  if (!ok) return;
+
+  try {
+    const res = await fetch('/api/ml/lote-publicar', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: _masivos_ids_lote }),
+    });
+    const j = await res.json();
+    if (j.job_id) {
+      closeModal('modal-masivos');
+      loteIniciarPolling(j.job_id);
+      BOR_SEL.clear(); borActLote();
+      showToast(`🚀 Cola iniciada — ${j.total} publicaciones en ML`, 'info');
+    } else {
+      showToast('Error al iniciar lote: ' + (j.detail || 'sin detalle'), 'error');
+    }
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
   }
@@ -3297,51 +3455,7 @@ async function masivosGenerar() {
 
 // Alias legacy para compatibilidad
 async function borCrearMasivos() { abrirModalMasivos(); }
-
-async function borCrearMasivos_legacy() {
-  // precio_contado × 1.05 ÷ (1 − 11%) redondeado a múltiplo de $1.000
-  const _pml = c => (Math.ceil(c * 1.05 / 0.89 / 1000) * 1000).toLocaleString('es-AR');
-  const msg =
-    '⚡ Generación masiva de 500 variantes por modelo de hidromasaje\n\n' +
-    '📦 Modelos: Spa Quadra · Spa Recta · Spa Orbis · Spa Delta\n' +
-    '🔢 Total de borradores: hasta 2.000 (500 × 4 modelos)\n\n' +
-    '💰 Precios calculados automáticamente:\n' +
-    '   • Spa Quadra  $1.220.000 → $' + _pml(1220000) + '\n' +
-    '   • Spa Recta   $1.520.000 → $' + _pml(1520000) + '\n' +
-    '   • Spa Orbis   $1.620.000 → $' + _pml(1620000) + '\n' +
-    '   • Spa Delta   $1.890.000 → $' + _pml(1890000) + '\n\n' +
-    '   Fórmula: precio_contado × 1.05 ÷ (1 − 11% comisión ML)\n' +
-    '   → Ganancia neta estimada: +5% sobre precio de contado\n\n' +
-    '📝 Títulos únicos rotando ~30 variantes de palabras clave SEO.\n' +
-    'Los que ya existan (por SKU) se omiten — podés volver a correr sin miedo.';
-  const ok = await showConfirm(msg, '⚡ Crear 500 variantes × 4 modelos');
-  if (!ok) return;
-
-  const gananciaStr = prompt(
-    '¿Qué ganancia % querés sobre el precio de contado?\n' +
-    '(Por defecto: 5 — escribí solo el número, ej: 5 o 8)',
-    '5'
-  );
-  if (gananciaStr === null) return;
-  const ganancia_pct = (parseFloat(gananciaStr) || 5) / 100;
-
-  showToast('Generando borradores… puede tardar 10-20 seg ⏳', 'info');
-  try {
-    const j = await API.post('/api/ml/borradores/masivos', {
-      ganancia_pct,
-      cantidad: 500,
-    });
-    borCargar();
-    const lineas = Object.entries(j.detalle || {}).map(([modelo, d]) =>
-      `${modelo}: ${d.creados} creados — precio ML $${(d.precio_ml || 0).toLocaleString('es-AR')} (neto ~+${Math.round(d.ganancia_neta_estimada / 1000)}K)`
-    ).join('\n');
-    const resumen = `✅ ${j.creados} borradores creados · ${j.omitidos} omitidos\n\n${lineas}`;
-    alert(resumen);
-    showToast(`✅ ${j.creados} borradores creados`, 'success');
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  }
-}
+async function borCrearMasivos_legacy() { abrirModalMasivos(); }
 
 async function borRepararCategorias() {
   const msg =

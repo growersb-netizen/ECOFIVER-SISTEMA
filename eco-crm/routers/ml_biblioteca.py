@@ -288,46 +288,81 @@ async def _aplicar_set_bg(
       - reemplazar    → reemplaza TODAS las fotos con las del set
       - agregar_inicio → antepone las fotos del set a las existentes
       - agregar_fin   → agrega las fotos del set al final de las existentes
+
+    FIX: PUT /items/{id} requiere {"id": pic_id}, NO {"source": url}.
+    Las fotos del set se suben UNA SOLA VEZ con POST /pictures y los IDs
+    se reutilizan para todas las publicaciones (performance + correctness).
     """
     job = _APPLY_JOBS[job_id]
     job["total"] = len(item_ids)
     job["procesados"] = 0
     job["ok"] = 0
     job["errores"] = []
-    job["actual"] = ""
+    job["actual"] = "Subiendo fotos del set…"
 
+    # ── 1. Subir fotos del set a ML UNA SOLA VEZ ────────────────────────────
+    set_pic_ids: List[str] = []
+    async with httpx.AsyncClient(timeout=20) as c:
+        for url in urls:
+            try:
+                rp = await c.post(
+                    f"{ML_BASE}/pictures",
+                    headers=_ml_headers(token),
+                    json={"source": url},
+                )
+                if rp.status_code in (200, 201):
+                    pid = rp.json().get("id")
+                    if pid:
+                        set_pic_ids.append(pid)
+                    else:
+                        log.warning(f"[SET-APPLY] foto subida sin ID: {url}")
+                else:
+                    log.warning(f"[SET-APPLY] error subiendo foto {url}: {rp.status_code} {rp.text[:100]}")
+            except Exception as ef:
+                log.warning(f"[SET-APPLY] excepción subiendo foto: {ef}")
+
+    if not set_pic_ids:
+        job["errores"].append("No se pudo subir ninguna foto del set a ML — verificar URLs y token")
+        job["status"] = "done"
+        return
+
+    log.info(f"[SET-APPLY {job_id}] {len(set_pic_ids)}/{len(urls)} fotos subidas → IDs: {set_pic_ids}")
+
+    # ── 2. Aplicar a cada publicación usando los IDs ya obtenidos ────────────
     for item_id in item_ids:
         job["actual"] = item_id
         try:
             if modo in ("agregar_inicio", "agregar_fin"):
+                # Traer IDs de fotos actuales del ítem (NO las URLs)
                 async with httpx.AsyncClient(timeout=10) as c:
                     r = await c.get(
                         f"{ML_BASE}/items/{item_id}",
                         headers=_ml_headers(token),
                         params={"attributes": "pictures"},
                     )
-                existing_urls = []
+                existing_ids: List[str] = []
                 if r.status_code == 200:
-                    existing_urls = [
-                        p.get("url") for p in r.json().get("pictures", []) if p.get("url")
+                    existing_ids = [
+                        p.get("id") for p in r.json().get("pictures", []) if p.get("id")
                     ]
 
                 if modo == "agregar_inicio":
-                    combined = urls + existing_urls
-                else:
-                    combined = existing_urls + urls
-            else:
-                combined = list(urls)
+                    combined = set_pic_ids + existing_ids
+                else:  # agregar_fin
+                    combined = existing_ids + set_pic_ids
+            else:  # reemplazar
+                combined = list(set_pic_ids)
 
             # Deduplicar preservando orden
             seen: set = set()
-            final_urls: List[str] = []
-            for u in combined:
-                if u not in seen:
-                    seen.add(u)
-                    final_urls.append(u)
+            final_ids: List[str] = []
+            for pid in combined:
+                if pid not in seen:
+                    seen.add(pid)
+                    final_ids.append(pid)
 
-            pictures = [{"source": u} for u in final_urls[:12]]  # ML: máximo 12 fotos
+            # PUT con picture IDs (no source URLs — eso solo es válido en POST /items)
+            pictures = [{"id": pid} for pid in final_ids[:12]]  # ML: máximo 12 fotos
 
             async with httpx.AsyncClient(timeout=15) as c:
                 r2 = await c.put(
@@ -339,13 +374,13 @@ async def _aplicar_set_bg(
             if r2.status_code in (200, 201):
                 job["ok"] += 1
             else:
-                job["errores"].append(f"{item_id}: {r2.text[:100]}")
+                job["errores"].append(f"{item_id}: {r2.text[:120]}")
 
         except Exception as e:
             job["errores"].append(f"{item_id}: {e}")
 
         job["procesados"] += 1
-        await asyncio.sleep(0.6)  # respetar rate limit de ML
+        await asyncio.sleep(0.3)  # subida ya no ocurre por ítem → rate limit más liviano
 
     job["status"] = "done"
     log.info(f"[SET-APPLY {job_id}] {job['ok']}/{job['total']} OK, {len(job['errores'])} errores")

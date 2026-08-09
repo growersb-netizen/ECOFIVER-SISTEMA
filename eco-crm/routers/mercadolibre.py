@@ -566,12 +566,36 @@ async def _sincronizar_fotos_publicaciones(db: Session, tipo: str, clave: str, f
         return 0
 
     actualizadas = 0
-    payload = {"pictures": [{"source": u} for u in fotos if u]}
+
+    # PUT /items/{id} requiere {"id": pic_id}, NO {"source": url}.
+    # Subir las fotos una sola vez y reusar los IDs para todas las publicaciones.
+    pic_ids: list = []
+    async with httpx.AsyncClient(timeout=20) as c:
+        for url in fotos:
+            if not url:
+                continue
+            try:
+                rp = await c.post(
+                    f"{ML_BASE}/pictures",
+                    headers=_ml_headers(token),
+                    json={"source": url},
+                )
+                if rp.status_code in (200, 201):
+                    pid = rp.json().get("id")
+                    if pid:
+                        pic_ids.append(pid)
+            except Exception:
+                pass
+
+    if not pic_ids:
+        return 0
+
+    payload = {"pictures": [{"id": pid} for pid in pic_ids]}
     for pub in publicaciones:
         try:
             async with httpx.AsyncClient(timeout=15) as c:
                 r = await c.put(f"{ML_BASE}/items/{pub.item_id}", headers=_ml_headers(token), json=payload)
-            if r.status_code in (200, 204):
+            if r.status_code in (200, 201, 204):
                 actualizadas += 1
         except Exception:
             continue

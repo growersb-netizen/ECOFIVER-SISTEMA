@@ -534,6 +534,193 @@ async def regenerar_ia_estado(
     return _REGEN_JOB or {"estado": "sin_job"}
 
 
+# ── Actualizar publicaciones VIVAS en ML con IA ───────────────────────────────
+
+_ACTUALIZAR_VIVO_JOB: Dict[str, Any] = {}
+
+
+async def _actualizar_publicados_bg(bid_list: list):
+    """Background task: actualiza título+descripción en ML para publicaciones ya activas."""
+    import json as _json
+    import re as _re
+    from database.database import SessionLocal
+    from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
+
+    _ACTUALIZAR_VIVO_JOB["estado"] = "en_curso"
+    _ACTUALIZAR_VIVO_JOB["total"] = len(bid_list)
+    _ACTUALIZAR_VIVO_JOB["actualizados"] = 0
+    _ACTUALIZAR_VIVO_JOB["errores"] = 0
+    _ACTUALIZAR_VIVO_JOB["detalles"] = []
+
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for i, bid in enumerate(bid_list):
+            _ACTUALIZAR_VIVO_JOB["idx"] = i
+            db = SessionLocal()
+            try:
+                b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+                if not b or not b.item_id:
+                    continue
+
+                # ── 1. Generar título+descripción con IA ─────────────────────
+                tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
+                palabras = b.modelo_nombre or b.titulo or tipo_label
+                prompt = (
+                    _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
+                    + "\n\n════════════════════════════════════════════\n"
+                    + "TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
+                    + f"Datos del producto:\n{palabras}\n\n"
+                    + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra:\n"
+                    + '{"titulo": "...", "descripcion": "..."}'
+                )
+                try:
+                    texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
+                    try:
+                        result = _json.loads(texto)
+                    except Exception:
+                        m = _re.search(r'\{.*\}', texto, _re.DOTALL)
+                        if not m:
+                            _ACTUALIZAR_VIVO_JOB["errores"] += 1
+                            _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": "JSON inválido de IA"})
+                            continue
+                        result = _json.loads(m.group())
+
+                    # Sanear título
+                    tit = result.get("titulo") or ""
+                    tit = _re.sub(r'[,|:;!?"–—_%]', ' ', tit)
+                    tit = _re.sub(r'\s+', ' ', tit).strip()
+                    if len(tit) > 60:
+                        cut = tit[:60]
+                        tit = (cut[:cut.rfind(' ')] if ' ' in cut else cut).strip()
+                    desc = result.get("descripcion", "")
+
+                    if not tit or len(desc) < 200:
+                        _ACTUALIZAR_VIVO_JOB["errores"] += 1
+                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": "IA generó texto demasiado corto"})
+                        continue
+
+                    # ── 2. Obtener token ML ──────────────────────────────────
+                    tok = await _ml_valid_token(db)
+                    if not tok:
+                        _ACTUALIZAR_VIVO_JOB["errores"] += 1
+                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": "sin token ML"})
+                        continue
+
+                    hdrs = _ml_headers(tok)
+
+                    # ── 3. Actualizar título en ML ───────────────────────────
+                    r_tit = await hc.put(
+                        f"{ML_BASE}/items/{b.item_id}",
+                        json={"title": tit},
+                        headers=hdrs,
+                    )
+                    tit_ok = r_tit.status_code in (200, 201)
+
+                    # ── 4. Actualizar descripción en ML ─────────────────────
+                    try:
+                        from routers.mercadolibre import _armar_descripcion_ml
+                        desc_final = _armar_descripcion_ml(db, desc, tipo=b.tipo_precio or "completo")
+                    except Exception:
+                        desc_final = desc
+                    r_desc = await hc.put(
+                        f"{ML_BASE}/items/{b.item_id}/description",
+                        json={"plain_text": desc_final},
+                        headers=hdrs,
+                    )
+                    desc_ok = r_desc.status_code in (200, 201)
+
+                    # ── 5. Guardar en BD aunque ML falle ────────────────────
+                    if tit:
+                        b.titulo = tit
+                    if len(desc) > 200:
+                        b.descripcion = desc
+                    # Sincronizar PublicacionML
+                    try:
+                        pub = db.query(PublicacionML).filter(PublicacionML.item_id == b.item_id).first()
+                        if pub:
+                            pub.titulo = tit or pub.titulo
+                            pub.descripcion = desc or pub.descripcion
+                    except Exception:
+                        pass
+                    db.commit()
+
+                    if tit_ok and desc_ok:
+                        _ACTUALIZAR_VIVO_JOB["actualizados"] += 1
+                    else:
+                        errs = []
+                        if not tit_ok:
+                            errs.append(f"título HTTP {r_tit.status_code}")
+                        if not desc_ok:
+                            errs.append(f"desc HTTP {r_desc.status_code}")
+                        _ACTUALIZAR_VIVO_JOB["errores"] += 1
+                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": ", ".join(errs)})
+
+                except Exception as ex:
+                    _ACTUALIZAR_VIVO_JOB["errores"] += 1
+                    _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": str(ex)[:120]})
+            finally:
+                db.close()
+
+    _ACTUALIZAR_VIVO_JOB["estado"] = "completado"
+
+
+@router.post("/api/ml/publicaciones/actualizar-ia-modulos")
+async def actualizar_publicados_ia(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Regenera título + descripción con IA y los actualiza en MercadoLibre
+    para todas las publicaciones de módulos ya publicadas (estado='publicada').
+    Body opcional: { "tipos": ["MODULO", "VIVIENDA_MODULAR"] }
+    """
+    _auth(x_api_key, current_user)
+    data = {}
+    try:
+        data = await request.json()
+    except Exception:
+        pass
+
+    tipos_filtro = list(set(data.get("tipos") or _TIPOS_MODULO))
+
+    # Solo borradores con item_id (ya publicados)
+    bid_list = [
+        row[0] for row in
+        db.query(BorradorML.id)
+          .filter(BorradorML.producto.in_(tipos_filtro))
+          .filter(BorradorML.estado == "publicada")
+          .filter(BorradorML.item_id.isnot(None))
+          .all()
+    ]
+
+    if not bid_list:
+        return {"ok": True, "total": 0, "mensaje": "No hay publicaciones activas de módulos para actualizar."}
+
+    _ACTUALIZAR_VIVO_JOB.update({
+        "estado": "iniciado", "total": len(bid_list),
+        "actualizados": 0, "errores": 0, "idx": 0, "detalles": [],
+    })
+    background_tasks.add_task(_actualizar_publicados_bg, bid_list)
+
+    return {
+        "ok": True,
+        "total": len(bid_list),
+        "mensaje": f"Actualizando {len(bid_list)} publicaciones en MercadoLibre en segundo plano.",
+    }
+
+
+@router.get("/api/ml/publicaciones/actualizar-ia-modulos/estado")
+async def actualizar_publicados_estado(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Estado del job de actualización de publicaciones vivas."""
+    _auth(x_api_key, current_user)
+    return _ACTUALIZAR_VIVO_JOB or {"estado": "sin_job"}
+
+
 @router.delete("/api/ml/borradores/{bid}")
 async def borrar(bid: int, db: Session = Depends(get_db),
                  x_api_key: Optional[str] = Header(None),

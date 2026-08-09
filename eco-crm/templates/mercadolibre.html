@@ -334,6 +334,7 @@
     <button class="btn btn-sm" onclick="abrirModalMasivos()" title="Genera 500 variantes de título por producto — para cualquier categoría del catálogo" style="background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a">⚡ 500 variantes (todos)</button>
     <button class="btn btn-sm" onclick="borRecalcularTodos()" title="Recalcula el precio ML de todos los borradores con precio de contado guardado, usando el margen configurado" style="background:#2a1a0a;color:#fb923c;border-color:#5a3a0a">🔧 Recalcular precios</button>
     <button class="btn btn-sm" onclick="borRegenerarModulosIA()" title="Regenera títulos y descripciones de TODOS los borradores de módulos usando la IA con la info actualizada (celulosa estructural, líneas Base/Premium, etc.)" style="background:#1a2a1a;color:#4ade80;border-color:#2a5a2a">🏠 Regenerar módulos IA</button>
+    <button class="btn btn-sm" onclick="borActualizarPublicadosIA()" title="Actualiza título y descripción en MercadoLibre de todas las publicaciones de módulos YA PUBLICADAS (llama a la API de ML)" style="background:#1a1a2a;color:#a78bfa;border-color:#3a2a5a">📡 Actualizar publicados ML</button>
     <button class="btn btn-sm" onclick="borRepararCategorias()" title="Corrige categorías inválidas (ej. MLA9226 → detecta la correcta al publicar)" style="background:#1a1a0a;color:#fbbf24;border-color:#4a4a0a">🔧 Reparar categorías</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
@@ -3357,6 +3358,46 @@ async function borRegenerarModulosIA() {
     }, 8000);
     // Timeout máximo de 15 min
     setTimeout(() => clearInterval(pollId), 900000);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function borActualizarPublicadosIA() {
+  const ok = await showConfirm(
+    '¿Actualizar título y descripción en MercadoLibre de TODAS las publicaciones de módulos ya publicadas?\n\n' +
+    'Incluye: Módulo habitacional, Vivienda modular, Módulo depósito, Quincho, Combo.\n\n' +
+    'Esto llama directamente a la API de ML para cada publicación activa — los cambios se ven en el anuncio de ML.\n\n' +
+    '⏱ Se procesa en segundo plano. Puede tardar varios minutos.',
+    '📡 Actualizar publicaciones de módulos en ML'
+  );
+  if (!ok) return;
+  try {
+    const j = await API.post('/api/ml/publicaciones/actualizar-ia-modulos', {});
+    if (!j.ok) { showToast('Error: ' + (j.error || 'desconocido'), 'error'); return; }
+    if (j.total === 0) { showToast('No hay publicaciones activas de módulos para actualizar.', 'info'); return; }
+    showToast(`📡 Actualizando ${j.total} publicaciones en ML en segundo plano…`, 'info');
+    // Polling de estado cada 10 segundos
+    let pollId = setInterval(async () => {
+      try {
+        const st = await API.get('/api/ml/publicaciones/actualizar-ia-modulos/estado');
+        if (st.estado === 'completado') {
+          clearInterval(pollId);
+          const msg = `✅ ${st.actualizados} publicaciones actualizadas en ML` +
+            (st.errores ? ` · ${st.errores} con error` : '');
+          showToast(msg, 'success');
+          if (st.detalles && st.detalles.length > 0) {
+            console.warn('[ML actualizar] Errores:', st.detalles);
+          }
+          borCargar();
+        } else if (st.estado === 'en_curso') {
+          const pct = st.total > 0 ? Math.round(((st.idx || 0) / st.total) * 100) : 0;
+          showToast(`📡 Actualizando en ML… ${pct}% (${st.actualizados || 0}/${st.total})`, 'info');
+        }
+      } catch (_) { /* ignora errores de polling */ }
+    }, 10000);
+    // Timeout máximo de 20 min
+    setTimeout(() => clearInterval(pollId), 1200000);
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }

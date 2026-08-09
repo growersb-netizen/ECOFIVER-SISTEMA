@@ -8,6 +8,21 @@ REGLA: nunca pasar contexto genérico a la IA. Siempre pasar ctx_empresa() como
 base y agregar encima el contexto específico de la tarea.
 """
 
+# ─── ENCABEZADO Y PIE ESTÁNDAR PARA DESCRIPCIONES ML ─────────────────────────
+
+DESC_ENCABEZADO = """INSTALACIÓN EN EL DÍA · GARANTÍA 10 AÑOS · CERTIFICADO DE CALIDAD PREMIUM
+
+EcoFiver fabrica, transporta e instala todo con equipo propio. El precio incluye la instalación profesional completa. Al finalizar la jornada, el producto queda probado y en pleno funcionamiento."""
+
+DESC_PIE = """PUNTOS DE RETIRO SIN CARGO
+· CABA — Zona San Telmo: acceso fácil en subte (Línea C y Línea A) y colectivos por Av. San Juan y Paseo Colón. Zona céntrica sur, cerca de Constitución, Puerto Madero y Parque Lezama.
+· ZONA OESTE — Paso del Rey: acceso por Autopista del Oeste (Ruta 7) y Tren Sarmiento (estación Paso del Rey).
+· Zárate: planta de fabricación (coordinar previamente).
+
+GARANTÍA 10 AÑOS con certificado de calidad premium incluido.
+Fabricación propia en Zárate, Buenos Aires. Sin intermediarios."""
+
+
 # ─── CONTEXTO MAESTRO DE EMPRESA ─────────────────────────────────────────────
 
 def ctx_empresa() -> str:
@@ -23,11 +38,29 @@ IDENTIDAD
 - Fabricamos, transportamos e instalamos todo con equipo propio. No somos intermediarios ni revendedores.
 - Nombre comercial doble: "EcoFiver" para el mercado general, "Eco Módulos y Piscinas" para el rubro construcción.
 
+GARANTÍA Y CALIDAD
+- Garantía de 10 años en estructura de todos los productos.
+- Certificado de calidad premium incluido con cada producto.
+
+INSTALACIÓN Y SERVICIO
+- Módulos habitacionales (6, 12, 18 m²): montaje y entrega en el mismo día.
+- Piscinas de fibra de vidrio: instalación completa en el mismo día. El sistema se entrega probado y funcionando.
+- Hidromasajes, jacuzzis y spas: instalación sin obra de albañilería, lista en horas.
+- Bañeras y receptáculos: instalación directa, conexión inmediata.
+- El precio publicado incluye la instalación profesional completa con equipo propio.
+- No tercerizan la instalación: todo lo hace el equipo propio de EcoFiver.
+
+PUNTOS DE RETIRO (sin cargo para el cliente)
+- CABA — Zona San Telmo: punto de retiro en el centro sur de la ciudad. Fácil acceso en subte (Línea C, estación San Juan o Constitución; Línea A, estación Lima) y colectivos por Av. San Juan, Av. Brasil y Paseo Colón. Zona: cerca de Constitución, Puerto Madero, Parque Lezama y San Telmo market.
+- ZONA OESTE — Paso del Rey: punto de retiro en GBA Oeste. Acceso por Autopista del Oeste (Ruta 7) y Tren Sarmiento (estación Paso del Rey, ramal Moreno). A menos de 40 km de CABA.
+- Zárate (planta de fabricación): retiro coordinando previamente con el equipo.
+IMPORTANTE: en textos públicos NO mencionar direcciones exactas, solo las zonas de referencia.
+
 LO QUE VENDEMOS Y FABRICAMOS
 
 1. PISCINAS DE FIBRA DE VIDRIO (línea principal)
    Materiales: casco monoblock de fibra de vidrio (poliéster reforzado con fibra de vidrio + gelcoat)
-   Ventajas reales sobre hormigón: no requiere pintura, no se fisura, instalación en 1-2 días sin obra, superficie vitrificada dificulta algas
+   Ventajas reales sobre hormigón: no requiere pintura, no se fisura, instalación en el día sin obra, superficie vitrificada dificulta algas
    Ventajas sobre vinilo/armada: durable, sin mantenimiento estructural, resistente a UV y productos químicos
    Modelos disponibles con sus medidas exactas:
    · Minideck / Minideck Chico: 3,00 m × 2,00 m × 0,70 m prof. — 4.200 litros. Con plataforma lateral integrada
@@ -38,7 +71,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    · Arco Romano Chico c/Desnivel: 4,60 m × 2,35 m, prof. variable 1,10-1,30 m — 12.972 litros
    · Wave / Bali y otras líneas: modelos de mayor metraje (5x2.5, 6x3, 7x3, 8x4 y más)
    Colores disponibles: blanco, gris perla, azul turquesa, verde agua, piedra (varían según modelo)
-   Qué incluye el precio publicado (precio completo): fabricación + transporte hasta obra + instalación + puesta en marcha del sistema de filtrado
+   Qué incluye el precio publicado (precio completo): fabricación + transporte hasta obra + instalación en el día + puesta en marcha del sistema de filtrado + entrega probado y funcionando
    Qué NO incluye: el flete se cotiza por separado según la distancia y el modelo (el transporte de un casco grande varía mucho)
    Tiempo de producción: aproximadamente 30-45 días desde la señal
 
@@ -46,7 +79,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    Material: acrílico sanitario de alta resistencia reforzado con PRFV (Poliéster Reforzado en Fibra de Vidrio)
    Estructura autoportante metálica incluida en todos los modelos — instalación sin obra de albañilería
    Colores disponibles sin cargo adicional: Blanco, Beige, Negro, Gris
-   Puntos de entrega: San Telmo (CABA) y Zárate (Buenos Aires)
+   Puntos de entrega: San Telmo (CABA), Paso del Rey (Zona Oeste) y Zárate (Buenos Aires)
    Categoría ML correcta: "Jacuzzis e Hidromasajes" — NO "Piscinas de fibra"
 
    MODELOS Y ESPECIFICACIONES EXACTAS:
@@ -96,7 +129,8 @@ LO QUE VENDEMOS Y FABRICAMOS
 
 3. MÓDULOS HABITACIONALES WOOD FRAME
    Sistema constructivo: entramado de madera (wood frame), paneles prefabricados, terminaciones interiores incluidas
-   Metrajes disponibles: 25 m², 36 m², 48 m², 60 m² (y combinaciones)
+   Metrajes disponibles: 6 m², 12 m², 18 m², 25 m², 36 m², 48 m², 60 m² (y combinaciones)
+   Instalación: montaje en el día para los módulos de 6, 12 y 18 m²
    Usos: vivienda familiar, oficina, local comercial, depósito premium, estudio
    Precio: por metro cuadrado de superficie habitable (varía según terminaciones y zona)
    Comercialización en ML: clasificado (precio orientativo, el real se coordina con el equipo)
@@ -160,16 +194,19 @@ MODELO DE NEGOCIO Y LOGÍSTICA
 - Instalación: equipo técnico propio, no tercerizan la instalación
 - Zona de cobertura de instalación: Gran Buenos Aires, provincia de Buenos Aires y provincias del interior del país (consultar zona específica antes de comprar)
 - Flete: se cotiza aparte según el modelo, el peso/volumen del casco y la distancia a la obra. El flete de una piscina grande puede ser significativo — siempre consultarlo antes de cerrar
-- Garantía estructural: 5 años en la estructura del casco de fibra
+- Garantía: 10 años con certificado de calidad premium incluido en todos los productos
 - Financiación: propia, en cuotas directas con la empresa. También se acepta pago contado con descuento. No dependen de bancos ni tarjetas para financiar
 - Plan de cuotas: pago inicial (señal/anticipo) + cuotas mensuales. El plan se arma según el cliente
 
 PREGUNTAS FRECUENTES CON RESPUESTAS CORRECTAS
 P: ¿El precio incluye la instalación?
-R: Sí, el precio publicado incluye fabricación e instalación. El flete se cotiza aparte según la zona.
+R: Sí, el precio publicado incluye fabricación e instalación completa. El sistema se entrega probado y funcionando. El flete se cotiza aparte según la zona.
 
-P: ¿Cuánto tarda en llegar/instalarse?
-R: El tiempo de producción es de aprox. 30-45 días para piscinas, 45-60 para módulos. La instalación toma 1-2 días en obra.
+P: ¿Cuánto tarda la instalación?
+R: La instalación se realiza en el mismo día. Para piscinas: un equipo propio instala, conecta y prueba el sistema ese mismo día. Para módulos de 6, 12 y 18 m²: el montaje se completa en el día.
+
+P: ¿Cuánto tarda en producirse/fabricarse?
+R: El tiempo de producción es de aprox. 30-45 días para piscinas, 45-60 para módulos. La instalación en obra toma solo un día.
 
 P: ¿Puedo financiarlo?
 R: Sí, tienen financiación propia en cuotas directas con la empresa, sin banco ni tarjeta.
@@ -189,6 +226,12 @@ R: Tienen cobertura en Buenos Aires, GBA e interior del país. Consultar la zona
 P: ¿Fabrican o revenden?
 R: Fabricación propia. No son revendedores. Todo el proceso (fabricación, transporte, instalación) es con equipo propio.
 
+P: ¿Qué garantía tienen?
+R: Todos los productos tienen garantía de 10 años con certificado de calidad premium incluido.
+
+P: ¿Puedo retirar el producto en persona?
+R: Sí, tienen puntos de retiro sin cargo en CABA (zona San Telmo, acceso en subte y colectivos) y en Zona Oeste (Paso del Rey, acceso por Ruta 7 y Tren Sarmiento). También se puede coordinar retiro en la planta de Zárate.
+
 TONO Y ESTILO DE COMUNICACIÓN
 - Castellano rioplatense: "vos", "podés", "tenés", "acá", "che" si el contexto lo amerita
 - Tono profesional y cercano. Confianza sin informalidad excesiva
@@ -202,6 +245,7 @@ RESTRICCIONES ABSOLUTAS EN RESPUESTAS AL PÚBLICO
 ✗ No decir que el flete está incluido (solo se incluye si el precio publicado lo dice explícitamente)
 ✗ No prometer tiempos de entrega exactos sin antes coordinar con el equipo
 ✗ No mencionar otros competidores
+✗ No incluir direcciones exactas en textos públicos (solo mencionar zonas de referencia)
 ═══════════════════════════════════════════════════════"""
 
 
@@ -244,8 +288,11 @@ INSTRUCCIONES PARA RESPONDER ESTA PREGUNTA
 - Si la pregunta es sobre medidas de un modelo específico: buscá las medidas exactas en el catálogo y dálas
 - Si la pregunta es sobre precio: no inventés precio; decí que varía según modelo/zona y que el equipo les da el detalle
 - Si la pregunta es sobre flete/envío: aclará que el flete se cotiza aparte según zona y modelo
-- Si la pregunta es sobre instalación: confirmá que está incluida en el precio publicado, plazo aprox 30-45 días desde señal
+- Si la pregunta es sobre instalación: confirmá que la instalación se realiza en el mismo día y el sistema se entrega probado y funcionando
+- Si la pregunta es sobre plazo de fabricación: 30-45 días para piscinas, 45-60 para módulos. La instalación en sí es en el día
+- Si la pregunta es sobre garantía: confirmá que tienen garantía de 10 años con certificado de calidad premium
 - Si la pregunta es sobre financiación: confirmá que tienen cuotas propias sin banco ni tarjeta
+- Si la pregunta es sobre retiro: mencioná que tienen puntos de retiro en CABA (zona San Telmo) y en Zona Oeste (Paso del Rey), sin dar dirección exacta
 - Si no sabés la respuesta con certeza: no inventés. Decí "podés coordinarlo con el equipo antes de comprar"
 - NUNCA des números de teléfono, WhatsApp ni redes sociales (MercadoLibre lo penaliza y puede dar de baja la publicación)
 - NUNCA uses markdown, asteriscos, guiones como viñetas ni emojis
@@ -253,9 +300,14 @@ INSTRUCCIONES PARA RESPONDER ESTA PREGUNTA
 - No agregues frases de cierre genéricas como "quedamos a tu disposición" — terminá con la info concreta"""
 
 
-def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente: str = "") -> str:
+def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente: str = "",
+               variante_idx: int = 0, total_variantes: int = 0) -> str:
     """
     Contexto para generar títulos y descripciones optimizadas para MercadoLibre.
+
+    Args:
+        variante_idx:    Si >0, indica que es la variante N de un lote (para generar textos únicos en bulk)
+        total_variantes: Total de variantes del lote (para referencia de la IA)
     """
     base = ctx_empresa()
     prod_ctx = ""
@@ -266,8 +318,19 @@ def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente:
     if descripcion_existente:
         prod_ctx += f"\nDescripción existente del producto:\n{descripcion_existente[:600]}"
 
+    variante_ctx = ""
+    if variante_idx > 0 and total_variantes > 1:
+        variante_ctx = f"""
+VARIANTE {variante_idx} DE {total_variantes}
+IMPORTANTE: Este texto es la variante #{variante_idx} de un lote de {total_variantes} publicaciones del mismo producto.
+El título y la descripción deben ser ÚNICOS y claramente diferenciables de las otras variantes:
+- Usá un orden y estructura de palabras distinto al de las demás variantes
+- Empezá el texto por un ángulo diferente (material, medida, uso, beneficio, instalación, garantía)
+- Varía el énfasis: en una resaltá las medidas, en otra el proceso de instalación, en otra la garantía, etc.
+- Misma precisión de datos, redacción completamente diferente. No repetir frases de otras variantes."""
+
     return f"""{base}
-{prod_ctx}
+{prod_ctx}{variante_ctx}
 
 REGLAS SEO PARA MERCADOLIBRE ARGENTINA
 TÍTULO (factor #1 del algoritmo de ML):
@@ -279,13 +342,23 @@ TÍTULO (factor #1 del algoritmo de ML):
 - Sin: !, ?, comas, puntos, |, guión largo, emojis, MAYÚSCULAS sostenidas, marca "EcoFiver" (nadie la busca)
 - Sin frases emocionales: "ideal para", "de calidad", "premium", "exclusiva", "el mejor"
 
-DESCRIPCIÓN:
-- 300 palabras mínimo, texto plano sin markdown ni emojis
+DESCRIPCIÓN — ESTRUCTURA OBLIGATORIA:
+ENCABEZADO (primeras líneas, siempre incluir):
+{DESC_ENCABEZADO}
+
+CUERPO (mínimo 300 palabras en total):
 - Párrafo 1 (visible sin scroll): qué es exactamente, medidas, material, para quién
-- Párrafo 2-3: especificaciones técnicas reales, proceso de instalación, garantía
+- Párrafo 2-3: especificaciones técnicas reales, proceso de instalación, garantía 10 años
 - Párrafo 4: sinónimos naturales (piscina/pileta/natatorio, casa prefabricada/vivienda modular)
-- Cierre: fabricación propia en Zárate Buenos Aires, instalación incluida, financiación disponible, flete a cotizar
-- NUNCA mencionar que el flete está incluido si no se sabe con certeza"""
+- Párrafo 5: fabricación propia en Zárate Buenos Aires, instalación en el día, financiación disponible, flete a cotizar
+
+PIE (últimas líneas, siempre incluir):
+{DESC_PIE}
+
+RESTRICCIONES:
+- Texto plano sin markdown ni emojis
+- NUNCA mencionar que el flete está incluido si no se sabe con certeza
+- NUNCA incluir dirección exacta, solo zonas de referencia"""
 
 
 def ctx_redes_sociales(tipo_contenido: str = "", producto: str = "", modelo: str = "") -> str:
@@ -309,6 +382,7 @@ TONO PARA REDES SOCIALES DE ECOFIVER
 - Castellano argentino relajado pero prolijo: "tu pileta", "la instalamos nosotros", "fabricamos en Zárate"
 - Emojis permitidos y recomendados (1-3 por post), elegir según el producto y la emoción
 - Generá curiosidad o aspiración: mostrar el beneficio final (disfrutar, descansar, vivir mejor)
+- Destacar: instalación en el día, garantía 10 años, certificado de calidad premium, puntos de retiro CABA y Zona Oeste
 - CTA claro al final: "Consultá por tu proyecto", "Pedí tu cotización", "Escribinos"
 - Hashtags: mezclar específicos (#piscinadefibra #modularwoodframe) con genéricos (#pileta #hogar #jardín)
 - Nunca prometer precios ni plazos exactos en redes (pueden variar)"""
@@ -335,7 +409,8 @@ RESPUESTAS ESPECÍFICAS PARA HIDROMASAJES ECOFIVER
 - Todos los modelos incluyen: estructura autoportante metálica, motor, jets vista cromo, pulsador neumático, reguladores de aire, filtro de pelos, sopapa y desborde conectados
 - Material: acrílico sanitario + PRFV. Colores: Blanco, Beige, Negro, Gris sin cargo extra
 - No requieren obra: se conectan a agua existente, desagüe y electricidad
-- Retiro sin cargo: San Telmo (CABA) o Zárate (Buenos Aires)
+- Garantía: 10 años con certificado de calidad premium incluido
+- Puntos de retiro sin cargo: CABA (zona San Telmo) o Zona Oeste (Paso del Rey) o Zárate
 - Envío a domicilio: se cotiza aparte según zona
 - Opcionales con cargo (NO dar precio): blower burbujas, cromoterapia LED, grifería/cascada, ozonizador, WPC exterior
 - Financiación: cuotas propias directas, sin banco ni tarjeta
@@ -355,6 +430,7 @@ CONTEXTO PARA CONTENIDO EDITORIAL
 Objetivo: posicionar a EcoFiver como referente en piscinas de fibra y módulos habitacionales en Argentina.
 Lector objetivo: propietario de casa con jardín o terraza, clase media-alta, busca mejorar su espacio de vida.
 Tono editorial: experto que comparte conocimiento útil, no publicidad directa.
-Palabras clave a integrar naturalmente: piscina de fibra de vidrio, pileta, natatorio, módulo habitacional, vivienda prefabricada, wood frame, instalación llave en mano.
+Palabras clave a integrar naturalmente: piscina de fibra de vidrio, pileta, natatorio, módulo habitacional, vivienda prefabricada, wood frame, instalación llave en mano, garantía 10 años.
+Puntos de valor a destacar cuando corresponda: instalación en el día, garantía 10 años, certificado de calidad premium, puntos de retiro en CABA y Zona Oeste.
 Longitud objetivo: {palabras_count} palabras.
 Tipo de contenido: {tipo if tipo else "artículo informativo"}."""

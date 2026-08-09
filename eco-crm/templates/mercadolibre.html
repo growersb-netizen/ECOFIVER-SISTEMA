@@ -190,29 +190,29 @@
 
       <div id="bulk-opt-info" style="font-size:13px;padding:8px;background:var(--bg-secondary);border-radius:6px"></div>
 
-      <!-- Título común -->
+      <!-- Título común / variantes -->
       <div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-          <label class="form-label" style="margin:0;flex:1">📝 Título <small style="font-weight:400;color:var(--text-secondary)">(dejá vacío para no modificar)</small></label>
-          <span id="bulk-tit-count" style="font-size:11px;min-width:70px;text-align:right"></span>
-          <button class="btn btn-sm" onclick="_bulkGenTitulo()"
-            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ IA</button>
+          <label class="form-label" style="margin:0;flex:1">📝 Título <small style="font-weight:400;color:var(--text-secondary)">(vacío = IA genera variante única por publicación)</small></label>
+          <span id="bulk-tit-count" style="font-size:11px;min-width:90px;text-align:right"></span>
+          <button class="btn btn-sm" id="btn-bulk-gen-titulo" onclick="_bulkGenTitulo()"
+            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ Variantes</button>
         </div>
         <input class="input" id="bulk-titulo" oninput="_bulkUpdateTitulo()" style="width:100%"
-          placeholder="Mismo título para todas las publicaciones seleccionadas…">
+          placeholder="Dejá vacío y usá ✨ Variantes para generar un título único por publicación">
       </div>
 
-      <!-- Descripción común -->
+      <!-- Descripción común / variantes -->
       <div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-          <label class="form-label" style="margin:0;flex:1">📄 Descripción <small style="font-weight:400;color:var(--text-secondary)">(dejá vacío para no modificar)</small></label>
-          <span id="bulk-desc-count" style="font-size:11px;min-width:70px;text-align:right"></span>
-          <button class="btn btn-sm" onclick="_bulkGenDesc()"
-            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ IA</button>
+          <label class="form-label" style="margin:0;flex:1">📄 Descripción <small style="font-weight:400;color:var(--text-secondary)">(vacío = IA genera variante única por publicación)</small></label>
+          <span id="bulk-desc-count" style="font-size:11px;min-width:90px;text-align:right"></span>
+          <button class="btn btn-sm" id="btn-bulk-gen-desc" onclick="_bulkGenDesc()"
+            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ Variantes</button>
         </div>
         <textarea class="input" id="bulk-desc" rows="5" oninput="_bulkUpdateDesc()"
           style="width:100%;resize:vertical;font-size:13px"
-          placeholder="Misma descripción para todas las publicaciones seleccionadas…"></textarea>
+          placeholder="Dejá vacío y usá ✨ Variantes para generar una descripción única por publicación"></textarea>
       </div>
 
       <!-- Set de fotos -->
@@ -4971,23 +4971,34 @@ function _calcHS(titulo, n_fotos, n_palabras) {
 
 /* ─── OPTIMIZACIÓN MASIVA ─────────────────────────────────────────────────── */
 
-let _bulkOptItems = [];
-let _bulkOptJobId = null;
-let _bulkOptIv    = null;
-let _allSets      = [];
+let _bulkOptItems   = [];
+let _bulkOptJobId   = null;
+let _bulkOptIv      = null;
+let _allSets        = [];
+// Variantes generadas por la IA (una por ítem): { item_id → texto }
+let _bulkVarTitulos = {};
+let _bulkVarDescs   = {};
 
 function _abrirBulkOpt(items) {
   if (!items||!items.length) { showToast('Seleccioná publicaciones primero','warning'); return; }
-  _bulkOptItems = items;
-  _bulkOptJobId = null;
+  _bulkOptItems   = items;
+  _bulkOptJobId   = null;
+  _bulkVarTitulos = {};
+  _bulkVarDescs   = {};
   if (_bulkOptIv) { clearInterval(_bulkOptIv); _bulkOptIv=null; }
 
   const tipos = [...new Set(items.map(it=>it.producto).filter(Boolean))];
   document.getElementById('bulk-opt-info').innerHTML =
-    `<b>${items.length}</b> publicaciones · tipos: <b>${tipos.join(', ')||'variados'}</b>`;
+    `<b>${items.length}</b> publicaciones · tipos: <b>${tipos.join(', ')||'variados'}</b> · <span style="color:#a78bfa">✨ Variantes genera texto único por publicación</span>`;
   document.getElementById('bulk-opt-count').textContent = items.length;
   document.getElementById('bulk-titulo').value = '';
+  document.getElementById('bulk-titulo').placeholder = 'Dejá vacío + usá ✨ Variantes para generar un título único por publicación';
   document.getElementById('bulk-desc').value   = '';
+  document.getElementById('bulk-desc').placeholder = 'Dejá vacío + usá ✨ Variantes para generar una descripción única por publicación';
+  const titCt = document.getElementById('bulk-tit-count');
+  const descCt = document.getElementById('bulk-desc-count');
+  if(titCt)  { titCt.textContent='';  titCt.style.color=''; }
+  if(descCt) { descCt.textContent=''; descCt.style.color=''; }
   document.getElementById('bulk-set-preview').innerHTML = '';
   document.getElementById('bulk-modo-fotos-wrap').style.display = 'none';
   document.getElementById('bulk-opt-progreso').style.display  = 'none';
@@ -5036,41 +5047,72 @@ function _bulkUpdateDesc() {
 }
 
 async function _bulkGenTitulo() {
-  const btns=document.querySelectorAll('#modal-bulk-opt .btn');
-  const btn=[...btns].find(b=>b.onclick?.toString().includes('_bulkGenTitulo'));
+  const btn = document.getElementById('btn-bulk-gen-titulo');
   if(btn){btn.disabled=true;btn.textContent='⏳…';}
+  _bulkVarTitulos = {};
+  const n   = _bulkOptItems.length;
+  const ctEl = document.getElementById('bulk-tit-count');
   try {
-    const tipos=[...new Set(_bulkOptItems.map(it=>it.producto).filter(Boolean))];
-    const tipo=tipos[0]||'PISCINA';
-    const modelo=[...new Set(_bulkOptItems.map(it=>it.modelo).filter(Boolean))][0]||tipo;
-    const r=await API.post('/api/ml/generar-titulo',{descripcion:modelo,tipo_producto:tipo});
-    if(r.titulo){document.getElementById('bulk-titulo').value=r.titulo;_bulkUpdateTitulo();}
+    for(let i=0;i<n;i++){
+      const it  = _bulkOptItems[i];
+      if(ctEl) ctEl.textContent=`Generando ${i+1}/${n}…`;
+      const tipo   = it.producto || 'PISCINA';
+      const modelo = it.modelo   || tipo;
+      const r = await API.post('/api/ml/generar-titulo',{
+        descripcion: modelo, tipo_producto: tipo,
+        variante_idx: i+1, total_variantes: n,
+      });
+      if(r.titulo) _bulkVarTitulos[it.item_id]=r.titulo;
+    }
+    const ok=Object.keys(_bulkVarTitulos).length;
+    if(ctEl){ctEl.textContent=`✅ ${ok}/${n} variantes`;ctEl.style.color='#22c55e';}
+    // Vaciar el campo para que la lógica de iniciar use las variantes
+    document.getElementById('bulk-titulo').value='';
+    document.getElementById('bulk-titulo').placeholder=`✅ ${ok} títulos únicos generados — se aplica uno distinto por publicación`;
+    showToast(`✅ ${ok} títulos únicos generados`,'success');
   } catch(e){showToast('Error: '+e.message,'error');}
-  finally{if(btn){btn.disabled=false;btn.textContent='✨ IA';}}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ Variantes';}}
 }
 
 async function _bulkGenDesc() {
-  const btns=document.querySelectorAll('#modal-bulk-opt .btn');
-  const btn=[...btns].find(b=>b.onclick?.toString().includes('_bulkGenDesc'));
+  const btn = document.getElementById('btn-bulk-gen-desc');
   if(btn){btn.disabled=true;btn.textContent='⏳…';}
+  _bulkVarDescs = {};
+  const n   = _bulkOptItems.length;
+  const ctEl = document.getElementById('bulk-desc-count');
   try {
-    const tipos=[...new Set(_bulkOptItems.map(it=>it.producto).filter(Boolean))];
-    const tipo=tipos[0]||'PISCINA';
-    const modelo=[...new Set(_bulkOptItems.map(it=>it.modelo).filter(Boolean))][0]||tipo;
-    const r=await API.post('/api/ml/generar-descripcion',{palabras_clave:modelo||tipo});
-    if(r.descripcion){document.getElementById('bulk-desc').value=r.descripcion;_bulkUpdateDesc();}
+    for(let i=0;i<n;i++){
+      const it  = _bulkOptItems[i];
+      if(ctEl) ctEl.textContent=`Generando ${i+1}/${n}…`;
+      const tipo   = it.producto || 'PISCINA';
+      const modelo = it.modelo   || tipo;
+      const r = await API.post('/api/ml/generar-descripcion',{
+        palabras_clave: modelo || tipo,
+        variante_idx: i+1, total_variantes: n,
+      });
+      if(r.descripcion) _bulkVarDescs[it.item_id]=r.descripcion;
+    }
+    const ok=Object.keys(_bulkVarDescs).length;
+    if(ctEl){ctEl.textContent=`✅ ${ok}/${n} variantes`;ctEl.style.color='#22c55e';}
+    // Vaciar el campo para que la lógica de iniciar use las variantes
+    document.getElementById('bulk-desc').value='';
+    document.getElementById('bulk-desc').placeholder=`✅ ${ok} descripciones únicas generadas — se aplica una distinta por publicación`;
+    showToast(`✅ ${ok} descripciones únicas generadas`,'success');
   } catch(e){showToast('Error: '+e.message,'error');}
-  finally{if(btn){btn.disabled=false;btn.textContent='✨ IA';}}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ Variantes';}}
 }
 
 async function _bulkOptIniciar() {
-  const titulo      = document.getElementById('bulk-titulo').value.trim();
-  const descripcion = document.getElementById('bulk-desc').value.trim();
+  const tituloComun = document.getElementById('bulk-titulo').value.trim();
+  const descComun   = document.getElementById('bulk-desc').value.trim();
   const setId       = parseInt(document.getElementById('bulk-set-id').value)||0;
   const modoFotos   = document.getElementById('bulk-modo-fotos')?.value||'reemplazar';
 
-  if(!titulo&&!descripcion&&!setId) {
-    showToast('Ingresá al menos título, descripción o un set de fotos','warning'); return;
+  const tieneVarTit  = Object.keys(_bulkVarTitulos).length > 0;
+  const tieneVarDesc = Object.keys(_bulkVarDescs).length   > 0;
+
+  if(!tituloComun&&!tieneVarTit&&!descComun&&!tieneVarDesc&&!setId) {
+    showToast('Ingresá al menos título, descripción (o usá ✨ Variantes) o un set de fotos','warning'); return;
   }
 
   let foto_urls=[];
@@ -5079,9 +5121,13 @@ async function _bulkOptIniciar() {
     foto_urls=(s?.fotos||[]).map(f=>f.url).filter(Boolean);
   }
 
+  // Usar variante por ítem si está disponible; si no, usar texto común
   const items=_bulkOptItems.map(it=>({
-    item_id:it.item_id, titulo:titulo||null, descripcion:descripcion||null,
-    foto_urls, modo_fotos:modoFotos,
+    item_id:     it.item_id,
+    titulo:      tituloComun || _bulkVarTitulos[it.item_id] || null,
+    descripcion: descComun   || _bulkVarDescs[it.item_id]   || null,
+    foto_urls,
+    modo_fotos:  modoFotos,
   }));
 
   document.getElementById('btn-bulk-opt-ok').disabled=true;

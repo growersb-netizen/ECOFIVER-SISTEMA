@@ -771,13 +771,15 @@ async def generar_descripcion(
     modelo = data.get("modelo", "")
     color = data.get("color", "")
     superficie = data.get("superficie_m2", "")
+    variante_idx    = int(data.get("variante_idx", 0) or 0)
+    total_variantes = int(data.get("total_variantes", 0) or 0)
     if not palabras:
         partes = [p for p in [tipo, modelo, color, f"{superficie}m²" if superficie else ""] if p]
         palabras = ", ".join(partes)
     if not palabras:
         raise HTTPException(400, "Ingresá algunas palabras clave del producto")
 
-    prompt = f"""{ctx_seo_ml(descripcion_existente=palabras)}
+    prompt = f"""{ctx_seo_ml(descripcion_existente=palabras, variante_idx=variante_idx, total_variantes=total_variantes)}
 
 ════════════════════════════════════════════
 TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.
@@ -829,6 +831,8 @@ async def generar_titulo(
     data = await request.json()
     descripcion = (data.get("descripcion") or "").strip()[:800]
     tipo_producto = (data.get("tipo_producto") or "PISCINA").upper()
+    variante_idx    = int(data.get("variante_idx", 0) or 0)
+    total_variantes = int(data.get("total_variantes", 0) or 0)
 
     if not descripcion:
         raise HTTPException(400, "Falta la descripción del producto")
@@ -857,7 +861,11 @@ async def generar_titulo(
         "CUCHA_PERRO":          "cucha / casilla para perro",
     }.get(tipo_producto, tipo_producto.lower())
 
-    prompt = f"""{ctx_seo_ml(tipo_producto=tipo_label, descripcion_existente=descripcion)}
+    variante_hint = ""
+    if variante_idx > 0 and total_variantes > 1:
+        variante_hint = f"\n\nVARIANTE {variante_idx} DE {total_variantes}: el título debe ser ÚNICO. Usá estructura, énfasis y palabras clave distintas a las otras variantes del mismo producto."
+
+    prompt = f"""{ctx_seo_ml(tipo_producto=tipo_label, descripcion_existente=descripcion, variante_idx=variante_idx, total_variantes=total_variantes)}
 
 ════════════════════════════════════════════
 TAREA: Generá UN título optimizado para MercadoLibre Argentina.
@@ -866,7 +874,7 @@ TAREA: Generá UN título optimizado para MercadoLibre Argentina.
 Tipo de producto: {tipo_label}
 
 Descripción de referencia:
-{descripcion}
+{descripcion}{variante_hint}
 
 Respondé SOLO con el título, sin explicaciones ni comillas. Máximo 60 caracteres."""
 

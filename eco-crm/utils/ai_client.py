@@ -182,7 +182,7 @@ async def _openai_complete(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    async with httpx.AsyncClient(timeout=60) as c:
+    async with httpx.AsyncClient(timeout=120) as c:
         r = await c.post(
             f"{base_url}/chat/completions",
             headers={
@@ -196,8 +196,13 @@ async def _openai_complete(
                 "temperature": temperature,
             },
         )
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"].strip()
+    if not r.is_success:
+        raise ValueError(f"OpenRouter HTTP {r.status_code}: {r.text[:400]}")
+    data = r.json()
+    # OpenRouter puede devolver error 200 con campo "error" en el body
+    if "error" in data:
+        raise ValueError(f"OpenRouter error: {data['error']}")
+    return data["choices"][0]["message"]["content"].strip()
 
 
 async def _gemini_complete(

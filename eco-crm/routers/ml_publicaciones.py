@@ -432,11 +432,25 @@ def _regen_sanear_titulo(tit: str) -> str:
     return tit
 
 
+def _prompt_regen(tipo_label: str, palabras: str) -> tuple[str, str]:
+    """Devuelve (system, user_prompt) para regenerar título+desc de un módulo."""
+    from utils.contexto_ecofiver import ctx_empresa, ctx_seo_ml
+    system = ctx_empresa()
+    user_prompt = (
+        ctx_seo_ml(tipo_producto=tipo_label, descripcion_existente=palabras[:400])
+        + "\n\n════════════════════════════════════════\n"
+        "TAREA: Generá TÍTULO y DESCRIPCIÓN para MercadoLibre Argentina.\n"
+        f"Producto: {palabras[:300]}\n\n"
+        'Respondé SOLO con JSON válido, sin texto extra ni markdown:\n'
+        '{"titulo": "...", "descripcion": "..."}'
+    )
+    return system, user_prompt
+
+
 async def _regen_un_borrador(bid: int, job_dict: dict) -> None:
     """Procesa un solo borrador: genera IA y guarda. Actualiza job_dict."""
     import json as _json
     from database.database import SessionLocal
-    from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
 
     db = SessionLocal()
     try:
@@ -445,15 +459,8 @@ async def _regen_un_borrador(bid: int, job_dict: dict) -> None:
             return
         tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
         palabras = b.modelo_nombre or b.titulo or tipo_label
-        prompt = (
-            _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
-            + "\n\n════════════════════════════════════════════\n"
-            + "TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
-            + f"Datos del producto:\n{palabras}\n\n"
-            + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra:\n"
-            + '{"titulo": "...", "descripcion": "..."}'
-        )
-        texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
+        system, user_prompt = _prompt_regen(tipo_label, palabras)
+        texto = await ai_complete(db, user_prompt, system=system, max_tokens=2800, temperature=0.6)
         try:
             result = _json.loads(texto)
         except Exception:
@@ -581,7 +588,6 @@ async def _actualizar_publicados_bg(bid_list: list):
     """Background task: actualiza título+descripción en ML para publicaciones ya activas."""
     import json as _json
     from database.database import SessionLocal
-    from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
 
     _ACTUALIZAR_VIVO_JOB["estado"] = "en_curso"
     _ACTUALIZAR_VIVO_JOB["total"] = len(bid_list)
@@ -604,7 +610,7 @@ async def _actualizar_publicados_bg(bid_list: list):
     finally:
         _db_test.close()
 
-    async with httpx.AsyncClient(timeout=60) as hc:
+    async with httpx.AsyncClient(timeout=120) as hc:
         for i, bid in enumerate(bid_list):
             _ACTUALIZAR_VIVO_JOB["idx"] = i
             db = SessionLocal()
@@ -615,16 +621,9 @@ async def _actualizar_publicados_bg(bid_list: list):
 
                 tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
                 palabras = b.modelo_nombre or b.titulo or tipo_label
-                prompt = (
-                    _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
-                    + "\n\n════════════════════════════════════════════\n"
-                    + "TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
-                    + f"Datos del producto:\n{palabras}\n\n"
-                    + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra:\n"
-                    + '{"titulo": "...", "descripcion": "..."}'
-                )
+                system, user_prompt = _prompt_regen(tipo_label, palabras)
                 try:
-                    texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
+                    texto = await ai_complete(db, user_prompt, system=system, max_tokens=2800, temperature=0.6)
                     try:
                         result = _json.loads(texto)
                     except Exception:
@@ -759,6 +758,31 @@ async def actualizar_publicados_estado(
     """Estado del job de actualización de publicaciones vivas."""
     _auth(x_api_key, current_user)
     return _ACTUALIZAR_VIVO_JOB or {"estado": "sin_job"}
+
+
+@router.get("/api/ml/test-ia")
+async def test_ia(
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Diagnóstico rápido del proveedor de IA.
+    Llama a ai_complete con un prompt mínimo y devuelve el resultado o el error exacto.
+    """
+    _auth(x_api_key, current_user)
+    from utils.ai_client import get_active_provider, get_ai_key_info
+    info = get_ai_key_info(db)
+    if not info.get("configurado"):
+        return {"ok": False, "proveedor": None, "error": "Ningún proveedor de IA configurado (DB ni env vars)"}
+    try:
+        resultado = await ai_complete(db, 'Respondé solo con el JSON: {"saludo": "hola"}',
+                                      max_tokens=50, temperature=0)
+        return {"ok": True, "proveedor": info.get("proveedor"), "modelo": info.get("modelo"),
+                "respuesta": resultado}
+    except Exception as exc:
+        return {"ok": False, "proveedor": info.get("proveedor"), "modelo": info.get("modelo"),
+                "error": str(exc)[:500]}
 
 
 @router.delete("/api/ml/borradores/{bid}")

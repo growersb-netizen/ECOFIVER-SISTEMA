@@ -2168,11 +2168,13 @@ async def responder_pregunta(
 
     # ── Buscar descripción local para enriquecer el contexto ────────────────
     descripcion_pub = ""
+    precio_pub = 0.0
     pub_local = None
     if item_id_data:
         pub_local = db.query(PublicacionML).filter(PublicacionML.item_id == item_id_data).first()
         if pub_local:
             descripcion_pub = pub_local.descripcion or ""
+            precio_pub = float(pub_local.precio or 0)
             if not item_titulo and pub_local.titulo:
                 item_titulo = pub_local.titulo
 
@@ -2188,6 +2190,7 @@ async def responder_pregunta(
             pregunta=pregunta_texto,
             descripcion_pub=descripcion_pub,
             comprador=comprador_nick,
+            precio_pub=precio_pub,
         )
         try:
             respuesta_manual = await ai_complete(db, prompt, max_tokens=400, temperature=0.6)

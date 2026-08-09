@@ -73,7 +73,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    · Wave / Bali y otras líneas: modelos de mayor metraje (5x2.5, 6x3, 7x3, 8x4 y más)
    Colores disponibles: blanco, gris perla, azul turquesa, verde agua, piedra (varían según modelo)
    Qué incluye el precio publicado (precio completo): fabricación + transporte hasta obra + instalación en el día + puesta en marcha del sistema de filtrado + entrega probado y funcionando
-   Qué NO incluye: el flete se cotiza por separado según la distancia y el modelo (el transporte de un casco grande varía mucho)
+   Qué NO incluye: el flete hasta la obra, que se cotiza a razón de $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Alternativa gratuita: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
    Tiempo de producción: aproximadamente 30-45 días desde la señal
 
 2. HIDROMASAJES, JACUZZIS Y SPAS (línea propia EcoFiver — acrílico sanitario)
@@ -205,14 +205,14 @@ MODELO DE NEGOCIO Y LOGÍSTICA
 - Fabricación: planta propia en Zárate, Buenos Aires
 - Instalación: equipo técnico propio, no tercerizan la instalación
 - Zona de cobertura de instalación: Gran Buenos Aires, provincia de Buenos Aires y provincias del interior del país (consultar zona específica antes de comprar)
-- Flete: se cotiza aparte según el modelo, el peso/volumen del casco y la distancia a la obra. El flete de una piscina grande puede ser significativo — siempre consultarlo antes de cerrar
+- Flete: $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si se conoce la localidad del comprador se calcula al momento. Alternativa: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste). Flete estimado para zonas frecuentes: CABA ~$360.000 (90 km), GBA Norte/Oeste ~$280.000-$320.000 (70-80 km), Rosario ~$1.120.000 (280 km), Córdoba ~$2.800.000 (700 km).
 - Garantía: 10 años con certificado de calidad premium incluido en todos los productos
 - Financiación: propia, en cuotas directas con la empresa. También se acepta pago contado con descuento. No dependen de bancos ni tarjetas para financiar
 - Plan de cuotas: pago inicial (señal/anticipo) + cuotas mensuales. El plan se arma según el cliente
 
 PREGUNTAS FRECUENTES CON RESPUESTAS CORRECTAS
 P: ¿El precio incluye la instalación?
-R: Sí, el precio publicado incluye fabricación e instalación completa. El sistema se entrega probado y funcionando. El flete se cotiza aparte según la zona.
+R: Sí, el precio publicado incluye fabricación e instalación completa. El sistema se entrega probado y funcionando. El flete sale $4.000 por kilómetro desde Zárate — si nos decís tu zona, calculamos el total. O podés retirar sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
 
 P: ¿Cuánto tarda la instalación?
 R: La instalación se realiza en el mismo día. Para piscinas: un equipo propio instala, conecta y prueba el sistema ese mismo día. Para módulos de 6, 12 y 18 m²: el montaje se completa en el día.
@@ -224,7 +224,7 @@ P: ¿Puedo financiarlo?
 R: Sí, tienen financiación propia en cuotas directas con la empresa, sin banco ni tarjeta.
 
 P: ¿Cuánto es el flete a mi zona?
-R: El flete se cotiza aparte según la zona de entrega y el modelo. Hay que coordinar el detalle antes de comprar.
+R: El flete sale $4.000 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires. Si sabemos tu localidad, calculamos el total exacto al momento. También podés retirar sin cargo en CABA (zona San Telmo) o Paso del Rey (Zona Oeste).
 
 P: ¿Qué incluye el sistema de filtrado?
 R: La instalación incluye la conexión hidráulica y puesta en marcha del filtro. El equipo de filtrado puede estar incluido o cotizarse aparte según el paquete — consultarlo al comprar.
@@ -264,7 +264,8 @@ RESTRICCIONES ABSOLUTAS EN RESPUESTAS AL PÚBLICO
 # ─── CONTEXTOS ESPECÍFICOS POR USO ───────────────────────────────────────────
 
 def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
-                      descripcion_pub: str = "", comprador: str = "") -> str:
+                      descripcion_pub: str = "", comprador: str = "",
+                      precio_pub: float = 0) -> str:
     """
     Contexto para responder preguntas de compradores en MercadoLibre.
     Incluye el contexto maestro + instrucciones específicas para ML.
@@ -274,6 +275,7 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
         pregunta:        Texto exacto de la pregunta del comprador
         descripcion_pub: Descripción completa de la publicación (si se tiene)
         comprador:       Nickname del comprador (para personalizar si aplica)
+        precio_pub:      Precio publicado en ARS (para mencionarlo en respuestas sobre precio)
     """
     base = ctx_empresa()
 
@@ -281,6 +283,14 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
     prod_lines = []
     if item_titulo:
         prod_lines.append(f"Título de la publicación consultada: {item_titulo}")
+    if precio_pub and precio_pub > 0:
+        precio_fmt = f"${precio_pub:,.0f}".replace(",", ".")
+        prod_lines.append(
+            f"Precio publicado en MercadoLibre: {precio_fmt} ARS. "
+            f"Este precio INCLUYE fabricación e instalación completa con equipo propio de EcoFiver. "
+            f"El flete hasta la obra NO está incluido y sale $4.000 por km desde Zárate, Buenos Aires. "
+            f"El comprador puede retirar SIN CARGO en CABA (San Telmo) o Zona Oeste (Paso del Rey)."
+        )
     if descripcion_pub:
         # Recortar para no gastar demasiados tokens
         desc_corta = descripcion_pub.strip()[:800]
@@ -294,22 +304,69 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
 
     return f"""{base}{prod_ctx}{pregunta_ctx}
 
-INSTRUCCIONES PARA RESPONDER ESTA PREGUNTA
-- Respondé ÚNICAMENTE lo que preguntó el comprador, en 2 a 4 oraciones máximo
-- Usá los datos reales del catálogo de EcoFiver que están en el contexto de arriba
-- Si la pregunta es sobre medidas de un modelo específico: buscá las medidas exactas en el catálogo y dálas
-- Si la pregunta es sobre precio: no inventés precio; decí que varía según modelo/zona y que el equipo les da el detalle
-- Si la pregunta es sobre flete/envío: aclará que el flete se cotiza aparte según zona y modelo
-- Si la pregunta es sobre instalación: confirmá que la instalación se realiza en el mismo día y el sistema se entrega probado y funcionando
-- Si la pregunta es sobre plazo de fabricación: 30-45 días para piscinas, 45-60 para módulos. La instalación en sí es en el día
-- Si la pregunta es sobre garantía: confirmá que tienen garantía de 10 años con certificado de calidad premium
-- Si la pregunta es sobre financiación: confirmá que tienen cuotas propias sin banco ni tarjeta
-- Si la pregunta es sobre retiro: mencioná que tienen puntos de retiro en CABA (zona San Telmo) y en Zona Oeste (Paso del Rey), sin dar dirección exacta
-- Si no sabés la respuesta con certeza: no inventés. Decí "podés coordinarlo con el equipo antes de comprar"
-- NUNCA des números de teléfono, WhatsApp ni redes sociales (MercadoLibre lo penaliza y puede dar de baja la publicación)
-- NUNCA uses markdown, asteriscos, guiones como viñetas ni emojis
-- Solo texto plano corrido, sin listas ni formatos especiales (MercadoLibre no renderiza nada)
-- No agregues frases de cierre genéricas como "quedamos a tu disposición" — terminá con la info concreta"""
+INSTRUCCIONES PARA RESPONDER ESTA PREGUNTA — OBLIGATORIO LEER ANTES DE RESPONDER
+
+OBJETIVO: Cerrar la venta o lograr que el comprador dé el siguiente paso. No alcanza con informar; hay que convencer.
+
+TONO Y OBJETIVO COMERCIAL
+- Respondé con convicción, no con evasivas. El comprador ya está interesado; tu trabajo es darle el empuje final.
+- Mencioná siempre al menos UN beneficio clave (instalación en el día, garantía 10 años, cuotas propias, equipo propio).
+- Terminá SIEMPRE con una acción clara que el comprador puede dar ahora (no genérica, sino específica a lo que preguntó).
+- Máximo 3 oraciones. Directo, concreto, comercial.
+
+INSTRUCCIONES POR TIPO DE PREGUNTA
+
+Si la pregunta es sobre PRECIO:
+- Mencioná el precio publicado si lo tenés (está en "Dato de la publicación consultada" arriba).
+- Aclará que ese precio ya incluye fabricación e instalación completa con equipo propio — no es solo el producto.
+- Mencioná la financiación propia en cuotas directas con EcoFiver (sin banco ni tarjeta).
+- CTA: "Antes de comprar consultanos tu zona para calcular el flete y el total final."
+- Ejemplo de respuesta: "El precio publicado es de $X e incluye fabricación e instalación completa con nuestro equipo en el mismo día. Tenemos cuotas propias sin banco ni tarjeta. Consultanos tu zona para calcular el flete y darte el total."
+
+Si la pregunta es sobre FLETE / ENVÍO / CÓMO LLEGA:
+- Explicá las DOS opciones disponibles claramente.
+- Opción 1 (gratis): Retiro sin cargo en CABA zona San Telmo (acceso en subte Líneas A y C) o Zona Oeste Paso del Rey (Ruta 7 y Tren Sarmiento). Se retira listo para instalar.
+- Opción 2 (con flete): EcoFiver lo transporta e instala en la obra. El flete sale $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. La instalación completa ya está incluida en el precio publicado.
+- Si el comprador mencionó su localidad: calculá el flete estimado. Distancias de referencia desde Zárate: CABA ~90 km ($360.000), GBA Norte/Oeste ~70-80 km ($280.000-320.000), GBA Sur ~80 km ($320.000), Rosario ~280 km ($1.120.000), Córdoba ~700 km ($2.800.000). Usá estas referencias para dar un número orientativo.
+- CTA: "Compartinos tu localidad exacta y te calculamos el flete al toque."
+- NUNCA digas solo "el flete se cotiza aparte" sin dar las alternativas de retiro y la tarifa por km.
+
+Si la pregunta es sobre INSTALACIÓN:
+- Confirmá que la instalación la hace el equipo propio de EcoFiver, no terceros.
+- Para piscinas, módulos y spas: se instala, conecta y deja funcionando en el mismo día.
+- El precio publicado incluye la instalación completa.
+- CTA: "Si ya tenés el espacio listo, podemos coordinar fecha."
+
+Si la pregunta es sobre MEDIDAS / ESPECIFICACIONES:
+- Buscá las medidas exactas en el catálogo del contexto y dálas con precisión (en metros y litros si aplica).
+- Agregá qué hace que esas medidas sean una ventaja (ej: "entra por un pasillo estándar de 80 cm").
+- CTA: "Si tenés dudas del espacio disponible, contanos las medidas y te ayudamos."
+
+Si la pregunta es sobre PLAZO DE FABRICACIÓN / CUÁNDO LLEGA:
+- Piscinas: 30-45 días de producción. La instalación en obra toma solo un día.
+- Módulos 6/12/18 m²: 45-60 días. El montaje es en el día.
+- CTA: "Si dejás la señal esta semana, podemos darte fecha de entrega."
+
+Si la pregunta es sobre GARANTÍA:
+- Garantía de 10 años en estructura, con certificado de calidad premium incluido.
+- No es una garantía de marca, es de EcoFiver como fabricante directo.
+- CTA: "Con 10 años de garantía y fabricación propia, comprás con total respaldo."
+
+Si la pregunta es sobre FINANCIACIÓN / CUOTAS:
+- Cuotas propias directas con EcoFiver, sin banco ni tarjeta de crédito.
+- El plan se arma según el cliente: señal inicial + cuotas mensuales a convenir.
+- CTA: "Consultanos el monto y armamos un plan que se adapte a vos."
+
+Si la pregunta es sobre ZONA DE COBERTURA / DÓNDE INSTALAN:
+- Cubren Buenos Aires, Gran Buenos Aires e interior del país.
+- CTA: "Contanos tu localidad y confirmamos cobertura y flete."
+
+RESTRICCIONES ABSOLUTAS (IMPORTANTES)
+- NUNCA des números de teléfono, WhatsApp ni Instagram (MercadoLibre penaliza y puede suspender la publicación)
+- NUNCA uses markdown: sin asteriscos, guiones como viñetas, ni emojis
+- Solo texto plano corrido. MercadoLibre no renderiza nada.
+- No inventés medidas, precios ni especificaciones que no estén en el contexto
+- No uses frases genéricas de cierre como "quedamos a disposición" — reemplazalas con el CTA específico"""
 
 
 def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente: str = "",

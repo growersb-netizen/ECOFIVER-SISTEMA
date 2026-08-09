@@ -510,10 +510,20 @@
         <div class="form-group"><label class="form-label">💳 Cuotas sin interés <small style="color:var(--text-secondary)">(solo Premium)</small></label>
           <select class="input" id="mp-cuotas" onchange="borCalcGanancia();borActualizarPrecioSugerido()">
             <option value="0">1 pago (sin cuotas)</option>
-            <option value="3">3 cuotas sin interés</option>
-            <option value="6">6 cuotas sin interés</option>
+            <option value="3">3 cuotas sin interés (~8,5% extra)</option>
+            <option value="6">6 cuotas sin interés (~14,8% extra)</option>
+            <option value="9">9 cuotas sin interés (~20,6% extra)</option>
+            <option value="12">12 cuotas sin interés (~26,2% extra)</option>
+            <option value="18">18 cuotas sin interés (~36,0% extra)</option>
           </select></div>
         <div id="mp-cuota-val" style="align-self:flex-end;font-size:13px;color:var(--text-secondary)"></div>
+      </div>
+      <div id="mp-costos-panel" style="display:none;background:var(--surface-2,var(--surface-1));border:1px solid var(--border);border-radius:8px;padding:12px;margin:8px 0;font-size:12px">
+        <div style="font-weight:500;margin-bottom:8px;font-size:13px">📊 Desglose de costos MercadoLibre</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tbody id="mp-costos-tabla"></tbody>
+        </table>
+        <div id="mp-costos-sugerido" style="margin-top:8px;padding:8px;background:var(--color-success,#22c55e)22;border-radius:4px;font-size:12px"></div>
       </div>
       <label class="form-label">Fotos</label>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
@@ -2769,7 +2779,7 @@ async function borCargar() {
       <div class="pm-actions">
         ${btnPublicar}
         ${b.estado !== 'publicada' ? `<button class="btn btn-sm btn-secondary" onclick="borEditar(${b.id})">Editar</button>` : ''}
-        <button class="btn btn-sm" onclick="borVerCostos(${b.id},${b.precio || 0},'${b.listing_type}','${b.categoria || ''}',${b.costo || 0})" title="Comisión ML y ganancia">💰 Costos</button>
+        <button class="btn btn-sm" onclick="borVerCostos(${b.id},${b.precio || 0},'${b.listing_type}','${b.categoria || ''}',${b.costo || 0},${b.cuotas_sin_interes || 0})" title="Comisión ML y ganancia">💰 Costos</button>
         <button class="btn btn-sm" onclick="borCompetencia(${b.id})" title="Buscar precio competencia (auto)">🔍 Competencia</button>
         ${b.estado !== 'publicada' ? `<button class="btn btn-sm" onclick="borVariantes(${b.id})" title="Generar variantes con IA">🤖 Variantes</button>` : ''}
         <button class="btn btn-sm" onclick="borDuplicar(${b.id})" title="Duplicar publicación">📋 Duplicar</button>
@@ -3051,27 +3061,83 @@ async function borGenerarTituloIA() {
     msg.style.color = '#f87171';
   }
 }
-const BOR_COSTO_CUOTAS = { 0: 0, 3: 0.09, 6: 0.16, 9: 0.22, 12: 0.27 };
+// Tasas de financiación que ML cobra al vendedor cuando absorbe cuotas sin interés
+// Fuente: MercadoLibre Argentina — estas tasas cambian; actualizalas desde Configuración
+const BOR_COSTO_CUOTAS = { 0: 0, 3: 0.085, 6: 0.148, 9: 0.206, 12: 0.262, 18: 0.360 };
+// Comisiones base por tipo de publicación (ML Argentina)
+const BOR_COMISION_BASE = { gold_special: 0.09, gold_pro: 0.135 };
+
+function borDesgloseCostos(precio, comision, cuotas, listing_type, costo) {
+  // Devuelve objeto con todos los números y HTML del panel
+  const tasaCuotas = (cuotas > 0 && listing_type === 'gold_pro') ? (BOR_COSTO_CUOTAS[cuotas] || 0) : 0;
+  const costoCuotas = precio * tasaCuotas;
+  const totalML = comision + costoCuotas;
+  const neto = precio - totalML;
+  const gan = neto - (costo || 0);
+  const pctML = precio > 0 ? ((totalML / precio) * 100).toFixed(1) : 0;
+  // Precio sugerido para absorber costos ML y mantener margen: precio / (1 - pctTotal)
+  const pctComision = precio > 0 ? comision / precio : BOR_COMISION_BASE[listing_type] || 0.09;
+  const factorTotal = pctComision + tasaCuotas;
+  const precioSugerido = costo > 0 ? Math.ceil(costo / (1 - factorTotal - 0.15)) : 0; // 15% margen mínimo
+  return { comision, costoCuotas, totalML, neto, gan, pctML, precioSugerido, tasaCuotas };
+}
+
 async function borCalcGanancia() {
   const precio = parseFloat(document.getElementById('mp-precio').value) || 0;
   const costo = parseFloat(document.getElementById('mp-costo').value) || 0;
   const lt = document.getElementById('mp-listing').value, cat = document.getElementById('mp-cat').value.trim();
   const cuotas = parseInt(document.getElementById('mp-cuotas').value) || 0;
   const g = document.getElementById('mp-ganancia'), cv = document.getElementById('mp-cuota-val');
-  if (cuotas > 0 && precio) { cv.innerHTML = (lt !== 'gold_pro' ? '⚠️ Las cuotas requieren Premium. ' : '') + 'Se publica en <b>' + cuotas + ' cuotas de ' + borFmt(precio / cuotas) + '</b> sin interés'; }
-  else cv.textContent = '';
-  if (!precio) { g.textContent = ''; return; }
+  const panel = document.getElementById('mp-costos-panel');
+  const tabla = document.getElementById('mp-costos-tabla');
+  const sugerido = document.getElementById('mp-costos-sugerido');
+
+  if (cuotas > 0 && precio) {
+    cv.innerHTML = (lt !== 'gold_pro' ? '⚠️ Las cuotas requieren Premium · ' : '') +
+      'Se publica en <b>' + cuotas + ' cuotas de ' + borFmt(Math.round(precio / cuotas)) + '</b> sin interés para el comprador';
+  } else cv.textContent = '';
+
+  if (!precio) { g.textContent = ''; if (panel) panel.style.display = 'none'; return; }
+
   let u = '/api/ml/fees?precio=' + precio + '&listing_type=' + lt + (cat ? '&categoria=' + encodeURIComponent(cat) : '') + (costo ? '&costo=' + costo : '');
   try {
     const d = await API.get(u);
-    if (!(d.ok && d.comision != null)) { g.textContent = ''; return; }
-    const costoFin = (cuotas > 0 && lt === 'gold_pro') ? precio * (BOR_COSTO_CUOTAS[cuotas] || 0) : 0;
-    const gan = (d.neto != null ? d.neto : precio) - (costo || 0) - costoFin;
-    let txt = '💸 Comisión ML: <b>' + borFmt(d.comision) + '</b>';
-    if (costoFin) txt += ' · 💳 Costo cuotas s/interés (aprox): <b>' + borFmt(costoFin) + '</b>';
-    txt += ' · ' + (costo || costoFin ? 'Ganancia neta: ' : 'Te queda: ') + '<b style="color:#22c55e">' + borFmt(gan) + '</b>' + (!costo ? ' <small>(sin costo)</small>' : '');
+    if (!(d.ok && d.comision != null)) { g.textContent = ''; if (panel) panel.style.display = 'none'; return; }
+    const { comision, costoCuotas, totalML, neto, gan, pctML, precioSugerido, tasaCuotas } = borDesgloseCostos(precio, d.comision, cuotas, lt, costo);
+
+    // Línea resumen compacta en el formulario
+    let txt = '💸 Comisión ML: <b>' + borFmt(comision) + '</b>';
+    if (costoCuotas > 0) txt += ' · 💳 Cuotas: <b>' + borFmt(costoCuotas) + '</b> (' + (tasaCuotas*100).toFixed(1) + '%)';
+    txt += ' · <b style="color:var(--text-primary)">Total ML: ' + borFmt(totalML) + ' (' + pctML + '%)</b>';
+    if (costo) txt += ' · Ganancia: <b style="color:#22c55e">' + borFmt(gan) + '</b>';
+    else txt += ' · Te queda: <b style="color:#22c55e">' + borFmt(neto) + '</b>';
     g.innerHTML = txt;
-  } catch (e) { g.textContent = ''; }
+
+    // Panel de desglose detallado
+    if (panel) {
+      const ltLabel = lt === 'gold_pro' ? 'Premium (13,5%)' : 'Clásica (9,0%)';
+      const cuotasLabel = cuotas > 0 ? cuotas + ' cuotas s/interés (' + (tasaCuotas*100).toFixed(1) + '%)' : '1 pago (0%)';
+      const rowStyle = 'padding:4px 6px;border-bottom:0.5px solid var(--border)';
+      const labelStyle = 'color:var(--text-secondary)';
+      const valStyle = 'text-align:right;font-variant-numeric:tabular-nums';
+      const negStyle = 'text-align:right;color:#f87171;font-variant-numeric:tabular-nums';
+      const posStyle = 'text-align:right;color:#22c55e;font-weight:500;font-variant-numeric:tabular-nums';
+      tabla.innerHTML = `
+        <tr style="${rowStyle}"><td style="${labelStyle}">Precio de venta</td><td style="${valStyle}">${borFmt(precio)}</td></tr>
+        <tr style="${rowStyle}"><td style="${labelStyle}">Tipo publicación: ${ltLabel}</td><td style="${negStyle}">− ${borFmt(comision)}</td></tr>
+        ${costoCuotas > 0 ? `<tr style="${rowStyle}"><td style="${labelStyle}">Cuotas s/interés: ${cuotasLabel}</td><td style="${negStyle}">− ${borFmt(costoCuotas)}</td></tr>` : ''}
+        <tr style="${rowStyle};font-weight:500"><td>Total que cobra ML</td><td style="${negStyle};font-weight:500">− ${borFmt(totalML)} (${pctML}%)</td></tr>
+        ${costo ? `<tr style="${rowStyle}"><td style="${labelStyle}">Costo del producto</td><td style="${negStyle}">− ${borFmt(costo)}</td></tr>` : ''}
+        <tr style="padding:6px"><td style="font-weight:500">${costo ? 'Ganancia neta' : 'Lo que te queda (sin costo)'}</td><td style="${gan >= 0 ? posStyle : negStyle};font-size:14px">${borFmt(costo ? gan : neto)}</td></tr>
+      `;
+      if (costo && precioSugerido > 0) {
+        sugerido.innerHTML = '💡 Para mantener un margen del 15% absorbiendo todos los costos ML, el precio sugerido sería <b>' + borFmt(precioSugerido) + '</b>';
+      } else {
+        sugerido.innerHTML = costo ? '' : '💡 Cargá el costo del producto para ver la ganancia real y el precio sugerido.';
+      }
+      panel.style.display = 'block';
+    }
+  } catch (e) { g.textContent = ''; if (panel) panel.style.display = 'none'; }
 }
 async function borBorrar(id) {
   const ok = await showConfirm('¿Borrar esta publicación?', 'Borrar borrador');
@@ -3813,15 +3879,38 @@ async function borDuplicar(id) {
   try { await API.post('/api/ml/borradores/' + id + '/duplicar', {}); borCargar(); showToast('Duplicada ✓', 'success'); }
   catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
-async function borVerCostos(id, precio, lt, cat, costo) {
+async function borVerCostos(id, precio, lt, cat, costo, cuotas) {
+  cuotas = parseInt(cuotas) || 0;
   showToast('Consultando comisión ML…', 'info');
   let u = '/api/ml/fees?precio=' + precio + '&listing_type=' + lt + (cat ? '&categoria=' + encodeURIComponent(cat) : '') + (costo ? '&costo=' + costo : '');
   const d = await API.get(u);
-  if (d.ok && d.comision != null) {
-    alert('💰 Costos de la publicación\n\nPrecio de venta: ' + borFmt(precio) +
-      '\nComisión MercadoLibre: ' + borFmt(d.comision) +
-      (costo ? ('\nCosto del producto: ' + borFmt(costo) + '\n\nGANANCIA NETA: ' + borFmt(d.ganancia)) : ('\n\nTe queda (sin descontar costo): ' + borFmt(d.neto) + '\n(Cargá el costo en Editar para ver la ganancia real)')));
-  } else alert('ML no devolvió la comisión (revisá precio/categoría).');
+  if (!(d.ok && d.comision != null)) { alert('ML no devolvió la comisión (revisá precio/categoría).'); return; }
+
+  const { comision, costoCuotas, totalML, neto, gan, pctML, precioSugerido, tasaCuotas } = borDesgloseCostos(precio, d.comision, cuotas, lt, costo);
+  const ltLabel = lt === 'gold_pro' ? 'Premium (13,5%)' : 'Clásica (9,0%)';
+  const cuotasLabel = cuotas > 0 ? cuotas + ' cuotas sin interés (' + (tasaCuotas*100).toFixed(1) + '%)' : '1 pago (sin cuotas)';
+
+  // Mostrar en modal de costos reutilizando un modal genérico si existe, o alert mejorado
+  const html = [
+    '💰 DESGLOSE DE COSTOS — ' + (lt === 'gold_pro' ? 'PREMIUM' : 'CLÁSICA'),
+    '',
+    'Precio de venta:       ' + borFmt(precio),
+    'Comisión ML (' + ltLabel + '): − ' + borFmt(comision),
+    cuotas > 0 ? ('Cuotas sin interés (' + cuotasLabel + '): − ' + borFmt(costoCuotas)) : null,
+    '─────────────────────────────────────',
+    'TOTAL que cobra ML:    − ' + borFmt(totalML) + ' (' + pctML + '% del precio)',
+    costo ? ('Costo del producto:    − ' + borFmt(costo)) : null,
+    '─────────────────────────────────────',
+    costo ? ('GANANCIA NETA:         ' + borFmt(gan)) : ('Lo que te queda:       ' + borFmt(neto)),
+    '',
+    costo && precioSugerido > 0 ? ('💡 Precio sugerido para 15% margen: ' + borFmt(precioSugerido)) : (costo ? '' : '(Cargá el costo del producto en Editar para ver la ganancia real)'),
+    '',
+    '📌 Tasas de cuotas sin interés (aprox. ML Argentina):',
+    '  3 cuotas:  8,5% | 6 cuotas: 14,8% | 9 cuotas: 20,6%',
+    ' 12 cuotas: 26,2% | 18 cuotas: 36,0%',
+    '(El costo lo absorbés volviendo proporcional el precio de venta)',
+  ].filter(l => l !== null).join('\n');
+  alert(html);
 }
 async function borSubirFoto(input) {
   if (!input.files || !input.files[0]) return;

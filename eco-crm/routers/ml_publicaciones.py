@@ -179,6 +179,9 @@ def _dict(b: BorradorML) -> dict:
         "producto": b.producto or "", "precio": b.precio or 0,
         "cantidad": b.cantidad or 1, "condicion": b.condicion or "new", "costo": b.costo,
         "listing_type": b.listing_type or "gold_special", "cuotas_sin_interes": b.cuotas_sin_interes or 0,
+        "precio_contado": b.precio_contado,
+        "incluir_envio": bool(b.incluir_envio),
+        "costo_flete": b.costo_flete,
         "fotos": fotos,
         "precio_referencia": b.precio_referencia, "precio_competencia": b.precio_competencia,
         "referencia_usada": ref, "semaforo": semaforo,
@@ -226,6 +229,9 @@ async def crear(request: Request, db: Session = Depends(get_db),
         condicion=d.get("condicion", "new"),
         listing_type=d.get("listing_type", "gold_special"),
         cuotas_sin_interes=int(d.get("cuotas_sin_interes") or 0),
+        precio_contado=(float(d["precio_contado"]) if d.get("precio_contado") else None),
+        incluir_envio=bool(d.get("incluir_envio", False)),
+        costo_flete=(float(d["costo_flete"]) if d.get("costo_flete") else None),
         fotos_json=json.dumps(d.get("fotos") or []),
         atributos_json=json.dumps(d.get("atributos") or []),
         precio_referencia=(float(d["precio_referencia"]) if d.get("precio_referencia") else None),
@@ -271,8 +277,215 @@ async def editar(bid: int, request: Request, db: Session = Depends(get_db),
         b.tipo_precio = d["tipo_precio"] or "completo"
     if "modelo_nombre" in d:
         b.modelo_nombre = (d["modelo_nombre"] or "").strip()
+    if "precio_contado" in d:
+        b.precio_contado = float(d["precio_contado"]) if d["precio_contado"] else None
+    if "incluir_envio" in d:
+        b.incluir_envio = bool(d["incluir_envio"])
+    if "costo_flete" in d:
+        b.costo_flete = float(d["costo_flete"]) if d["costo_flete"] else None
     db.commit(); db.refresh(b)
     return {"ok": True, **_dict(b)}
+
+
+# ── Configuración de margen extra ML ─────────────────────────────────────────
+
+_ML_MARGEN_KEY = "ml_margen_extra"
+_ML_MARGEN_DEFAULT = 5.0  # porcentaje, e.g. 5.0 → 5%
+
+@router.get("/api/ml/config/margen")
+async def get_margen(db: Session = Depends(get_db),
+                     x_api_key: Optional[str] = Header(None),
+                     current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Devuelve el % de margen extra configurado (sobre el precio de contado). Default: 5%."""
+    _auth(x_api_key, current_user)
+    from database.models import ConfiguracionSistema
+    row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == _ML_MARGEN_KEY).first()
+    val = float(row.valor) if row and row.valor else _ML_MARGEN_DEFAULT
+    return {"ok": True, "margen": val}
+
+
+@router.put("/api/ml/config/margen")
+async def set_margen(request: Request, db: Session = Depends(get_db),
+                     x_api_key: Optional[str] = Header(None),
+                     current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Actualiza el % de margen extra (entre 1% y 30%)."""
+    _auth(x_api_key, current_user)
+    d = await request.json()
+    val = max(1.0, min(30.0, float(d.get("margen") or _ML_MARGEN_DEFAULT)))
+    from database.models import ConfiguracionSistema
+    row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == _ML_MARGEN_KEY).first()
+    if row:
+        row.valor = str(val)
+    else:
+        db.add(ConfiguracionSistema(
+            clave=_ML_MARGEN_KEY, valor=str(val),
+            categoria="ml_pricing", es_secreto=False, estado="activa"
+        ))
+    db.commit()
+    return {"ok": True, "margen": val}
+
+
+# ── Recalcular precios de todos los borradores con precio_contado ─────────────
+
+@router.post("/api/ml/borradores/recalcular-precios")
+async def recalcular_precios(request: Request, db: Session = Depends(get_db),
+                             x_api_key: Optional[str] = Header(None),
+                             current_user: Optional[Usuario] = Depends(get_current_user)):
+    """
+    Recalcula el precio ML de todos los borradores que tienen precio_contado guardado.
+    Usa: precio_ml = (contado*(1+margen) + flete) / (1 - tasa_comision - tasa_cuotas - iibb)
+    Body: { margen: float (%), iibb: float (%), tasas_cuotas: {3: %, 6: %, ...} }
+    Devuelve: { actualizados: N, sin_contado: M, total: T }
+    """
+    _auth(x_api_key, current_user)
+    d = await request.json()
+
+    # Leer margen (del body, o del config guardado)
+    from database.models import ConfiguracionSistema
+    cfg_margen = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == _ML_MARGEN_KEY).first()
+    margen_pct = float(d.get("margen") or (float(cfg_margen.valor) if cfg_margen else _ML_MARGEN_DEFAULT))
+    margen_factor = margen_pct / 100.0
+
+    iibb_pct = float(d.get("iibb") or 0) / 100.0
+
+    # Tasas de comisión con IVA (21%)
+    IVA = 1.21
+    comision_rates = {"gold_special": 0.09 * IVA, "gold_pro": 0.135 * IVA}
+
+    # Tasas de cuotas sin interés con IVA — pueden venir en el body para usar los del cliente
+    cuotas_neto = {0: 0, 3: 0.085, 6: 0.148, 9: 0.206, 12: 0.262, 18: 0.360}
+    cuotas_body = d.get("tasas_cuotas") or {}
+    for k, v in cuotas_body.items():
+        try:
+            cuotas_neto[int(k)] = float(v) / 100.0
+        except Exception:
+            pass
+    cuotas_rates = {k: v * IVA for k, v in cuotas_neto.items()}
+
+    borradores = db.query(BorradorML).filter(BorradorML.precio_contado != None).all()
+    actualizados = 0
+    sin_contado = db.query(BorradorML).filter(BorradorML.precio_contado == None).count()
+    total = db.query(BorradorML).count()
+
+    for b in borradores:
+        contado = b.precio_contado or 0
+        if contado <= 0:
+            continue
+        lt = b.listing_type or "gold_special"
+        cuotas = b.cuotas_sin_interes or 0
+        flete = (b.costo_flete or 0) if b.incluir_envio else 0
+
+        tasa_comision = comision_rates.get(lt, 0.09 * IVA)
+        tasa_cuotas = cuotas_rates.get(cuotas, 0) if (cuotas > 0 and lt == "gold_pro") else 0
+        tasa_total = tasa_comision + tasa_cuotas + iibb_pct
+
+        if tasa_total >= 1:
+            continue  # evitar división por cero o precios negativos
+        # precio_ml = (contado*(1+margen) + flete) / (1 - tasa_total)
+        # Redondear a centenas
+        precio_nuevo = round((contado * (1 + margen_factor) + flete) / (1 - tasa_total) / 100) * 100
+        if precio_nuevo != b.precio and precio_nuevo > 0:
+            b.precio = precio_nuevo
+            actualizados += 1
+
+    db.commit()
+    return {
+        "ok": True,
+        "actualizados": actualizados,
+        "sin_contado": sin_contado,
+        "total": total,
+        "margen_usado": margen_pct,
+        "iibb_usado": iibb_pct * 100,
+    }
+
+
+# ── Regenerar títulos y descripciones de módulos con IA ──────────────────────
+
+_TIPOS_MODULO = {"MODULO", "MODULO_HABITACIONAL", "VIVIENDA_MODULAR", "MODULO_DEPOSITO",
+                 "QUINCHO", "PERGOLA", "COMBO"}
+
+@router.post("/api/ml/borradores/regenerar-ia-modulos")
+async def regenerar_ia_modulos(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Regenera título + descripción con IA para todos los borradores de módulos
+    (MODULO, MODULO_HABITACIONAL, VIVIENDA_MODULAR, etc.).
+    Body opcional: { "tipos": ["MODULO", "VIVIENDA_MODULAR"], "estado": "borrador" }
+    """
+    import json as _json, re as _re
+    _auth(x_api_key, current_user)
+    data = {}
+    try:
+        data = await request.json()
+    except Exception:
+        pass
+
+    tipos_filtro = set(data.get("tipos") or _TIPOS_MODULO)
+    estado_filtro = data.get("estado")  # None = todos
+
+    q = db.query(BorradorML).filter(BorradorML.producto.in_(list(tipos_filtro)))
+    if estado_filtro:
+        q = q.filter(BorradorML.estado == estado_filtro)
+    borradores = q.all()
+
+    actualizados = 0
+    errores = 0
+
+    from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
+
+    for b in borradores:
+        tipo_label = {
+            "MODULO":             "módulo habitacional de celulosa estructural / espacio habitacional prefabricado",
+            "MODULO_HABITACIONAL":"módulo habitacional de celulosa estructural (6-18 m²) — espacio auxiliar, NO es vivienda",
+            "VIVIENDA_MODULAR":   "vivienda modular de celulosa estructural / casa prefabricada (24 m² en adelante)",
+            "MODULO_DEPOSITO":    "módulo depósito / galpón prefabricado de celulosa estructural",
+            "QUINCHO":            "quincho prefabricado",
+            "PERGOLA":            "pérgola / gazebo",
+            "COMBO":              "combo piscina y módulo habitacional",
+        }.get(b.producto or "MODULO", "módulo habitacional prefabricado")
+
+        palabras = b.modelo_nombre or b.titulo or tipo_label
+        prompt = (
+            _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
+            + "\n\n════════════════════════════════════════════\n"
+            + f"TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
+            + f"Datos del producto a publicar:\n{palabras}\n\n"
+            + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra ni markdown:\n"
+            + '{"titulo": "...", "descripcion": "..."}'
+        )
+        try:
+            texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
+            try:
+                result = _json.loads(texto)
+            except Exception:
+                match = _re.search(r'\{.*\}', texto, _re.DOTALL)
+                if not match:
+                    errores += 1
+                    continue
+                result = _json.loads(match.group())
+
+            from routers.mercadolibre import _sanear_titulo_ml
+            nuevo_titulo = _sanear_titulo_ml(result.get("titulo") or "")
+            nueva_desc = result.get("descripcion", "")
+            if nuevo_titulo:
+                b.titulo = nuevo_titulo
+            if nueva_desc and len(nueva_desc) > 200:
+                b.descripcion = nueva_desc
+            actualizados += 1
+        except Exception:
+            errores += 1
+
+    db.commit()
+    return {
+        "ok": True,
+        "actualizados": actualizados,
+        "errores": errores,
+        "total": len(borradores),
+    }
 
 
 @router.delete("/api/ml/borradores/{bid}")
@@ -631,26 +844,35 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "price": payload["price"],
                     "currency_id": "ARS",
                     "buying_mode": "classified",
-                    "listing_type_id": "free",   # único listing type válido para classified
+                    "listing_type_id": "free",
                     "location": location,
                     "pictures": payload.get("pictures", []),
                 }
                 if clean_attrs:
                     payload_cl["attributes"] = clean_attrs
-                # Retry hasta 2 veces si ML dice "temporarily unavailable" (max 20s total).
-                for intento in range(2):
-                    r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
+
+                # Intentar primero con "free"; si ML dice "not available" (cuota agotada
+                # O categoría que no acepta free), reintentar con "gold_special" y luego "classic".
+                for lt_cl in ["free", "gold_special", "classic"]:
+                    payload_cl["listing_type_id"] = lt_cl
+                    for intento in range(2):
+                        r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
+                        if r.status_code in (200, 201):
+                            break
+                        rt = r.text.upper()
+                        if "NOT AVAILABLE FOR CATEGORY" in rt or ("NOT AVAILABLE" in rt and "LISTING" in rt):
+                            break  # este lt_cl no funciona → probar el siguiente
+                        if "TEMPORARILY" in rt or "TRY AGAIN" in rt:
+                            await asyncio.sleep(10)
+                        else:
+                            break  # otro error — no reintentar con este lt_cl
                     if r.status_code in (200, 201):
-                        break
+                        break  # publicado → salir del loop de listing types
+                # Si ningún listing type funcionó, lo marcamos como error clasificado permanente
+                if r.status_code not in (200, 201):
                     rt = r.text.upper()
-                    # Cuota agotada o listing type no disponible para la categoría → error permanente,
-                    # no tiene sentido reintentar. Marcamos con error_tipo para que el lote lo detecte.
                     if "NOT AVAILABLE FOR CATEGORY" in rt or ("NOT AVAILABLE" in rt and "LISTING" in rt):
                         return {"ok": False, "error": _error_ml(r), "error_tipo": "cuota_classified"}
-                    if "TEMPORARILY" in rt or "TRY AGAIN" in rt:
-                        await asyncio.sleep(10)
-                    else:
-                        break
 
             # Auto-retry si la categoría predicha es claramente incorrecta para el tipo de producto.
             # Señales en el error 400: ML pide DOOR_TYPE (aberturas), IS_SUITABLE_FOR_INTERIOR

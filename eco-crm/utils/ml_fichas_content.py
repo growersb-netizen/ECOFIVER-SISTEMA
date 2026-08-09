@@ -544,7 +544,7 @@ def ficha_modulo(m2: int) -> dict:
         f"Modulo habitacional de {m2} m² de superficie, fabricado con nucleo de celulosa estructural. "
         f"Disponible en dos lineas: Linea Base (sin acabado final de exterior ni piso) y "
         f"Linea Premium (doble aislante con malla centrifugada, acabado final de fibra con "
-        f"Regina nautica y shelcio, piso incluido).\n\n"
+        f"resina nautica y shelcio, piso incluido).\n\n"
         f"Que incluye la entrega en ambas lineas:\n"
         f"Aberturas (puertas y ventanas) instaladas. Pintura completa blanca interior. "
         f"Instalaciones internas de luz. Instalacion sobre pilotes propios de EcoFiver "

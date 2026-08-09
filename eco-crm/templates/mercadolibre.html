@@ -333,6 +333,7 @@
     <button class="btn btn-secondary btn-sm" onclick="borSeedHidromasajes()" title="Carga hidromasajes (4 modelos + 5 accesorios), 7 bañeras y 3 receptáculos de ducha con fotos reales">🛁 Cargar spas / bañeras</button>
     <button class="btn btn-sm" onclick="abrirModalMasivos()" title="Genera 500 variantes de título por producto — para cualquier categoría del catálogo" style="background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a">⚡ 500 variantes (todos)</button>
     <button class="btn btn-sm" onclick="borRecalcularTodos()" title="Recalcula el precio ML de todos los borradores con precio de contado guardado, usando el margen configurado" style="background:#2a1a0a;color:#fb923c;border-color:#5a3a0a">🔧 Recalcular precios</button>
+    <button class="btn btn-sm" onclick="borRegenerarModulosIA()" title="Regenera títulos y descripciones de TODOS los borradores de módulos usando la IA con la info actualizada (celulosa estructural, líneas Base/Premium, etc.)" style="background:#1a2a1a;color:#4ade80;border-color:#2a5a2a">🏠 Regenerar módulos IA</button>
     <button class="btn btn-sm" onclick="borRepararCategorias()" title="Corrige categorías inválidas (ej. MLA9226 → detecta la correcta al publicar)" style="background:#1a1a0a;color:#fbbf24;border-color:#4a4a0a">🔧 Reparar categorías</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
@@ -3323,6 +3324,26 @@ async function borRecalcularTodos() {
   }
 }
 
+async function borRegenerarModulosIA() {
+  const ok = await showConfirm(
+    '¿Regenerar título y descripción con IA de TODOS los borradores de módulos?\n\n' +
+    'Incluye: Módulo habitacional, Vivienda modular, Módulo depósito, Quincho, Combo.\n\n' +
+    'Los títulos y descripciones existentes se van a reemplazar con el texto nuevo generado por IA ' +
+    '(celulosa estructural, líneas Base/Premium, instalación en el día, garantía 10 años).\n\n' +
+    '⏱ Puede tardar varios minutos según la cantidad de borradores.',
+    '🏠 Regenerar módulos con IA'
+  );
+  if (!ok) return;
+  showToast('Regenerando módulos con IA… esto puede tardar varios minutos', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/regenerar-ia-modulos', {});
+    showToast(`✅ ${j.actualizados} módulos actualizados${j.errores ? ' · ' + j.errores + ' con error' : ''}`, 'success');
+    borCargar();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
 // ── SELECTOR AUTOMÁTICO DE MODO DE PUBLICACIÓN ────────────────────────────────
 let _borModoActivo = null; // { lt, cuotas }
 
@@ -3611,7 +3632,7 @@ function _loteActualizarPanel(job) {
   const elEspera = document.getElementById('lote-panel-espera');
   if (elEspera) {
     if (job.cuota_classified_agotada) {
-      elEspera.innerHTML = '⚠️ <b>Cuota gratuita ML agotada</b> para módulos/combos.<br><small style="color:#aaa">Las piscinas siguen publicando normal. Intentá los módulos mañana.</small>';
+      elEspera.innerHTML = '⚠️ <b>ML no acepta publicación gratuita en esta categoría</b>.<br><small style="color:#aaa">El sistema reintenta automáticamente con listing pago (gold_special). Si el error persiste, cambiá la categoría del módulo.</small>';
     } else if (job.seg_restantes > 0) {
       const mm = Math.floor(job.seg_restantes / 60), ss = job.seg_restantes % 60;
       elEspera.textContent = `Próximo en: ${mm > 0 ? mm + 'm ' : ''}${ss}s`;

@@ -134,7 +134,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    Metrajes: 6 m², 12 m², 18 m²
    Dos líneas de terminación:
      · Línea Base: estructura base sin acabado final de exterior ni terminación de piso incluida
-     · Línea Premium: doble aislante con malla centrifugada + acabado final de fibra (Regina náutica y shelcio) + piso incluido
+     · Línea Premium: doble aislante con malla centrifugada + acabado final de fibra (resina náutica y shelcio) + piso incluido
    Precios de contado (referencias):
      · 6 m²  Base: $2.990.000 — Premium: $3.690.000
      · 12 m² Base: $4.990.000 — Premium: $5.990.000

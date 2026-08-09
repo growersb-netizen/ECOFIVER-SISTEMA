@@ -2906,6 +2906,7 @@ async def _health_score_bg(
                                     n_palabras = len(_desc_l.split())
 
                             health = _calcular_health(titulo, n_fotos, n_palabras)
+                            _bor_l = bor_map.get(item_id)
                             # permalink viene directo de ML (PublicacionML no tiene esa columna)
                             job["items"].append({
                                 "item_id":    item_id,
@@ -2917,6 +2918,8 @@ async def _health_score_bg(
                                 "grade":      health["grade"],
                                 "checks":     health["checks"],
                                 "permalink":  body.get("permalink", ""),
+                                "producto":   getattr(_bor_l, "producto", None) or "",
+                                "modelo":     getattr(_bor_l, "modelo_nombre", None) or "",
                             })
                 except Exception as _e_batch:
                     log.warning(f"[HEALTH] batch exception: {_e_batch}")
@@ -3005,6 +3008,295 @@ async def lista_publicaciones(
         for b in bors
     ]
     return {"ok": True, "items": items, "total": len(items)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTIMIZACIÓN DE PUBLICACIONES (individual + masiva)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/api/ml/publicaciones/{item_id}/detalle")
+async def detalle_publicacion_ml(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Detalle completo de una publicación: ML API + BD local. Incluye URLs de fotos."""
+    token = await _get_token(db)
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{ML_BASE}/items/{item_id}", headers=_ml_headers(token))
+    if r.status_code != 200:
+        raise HTTPException(r.status_code, f"ML error: {r.text[:200]}")
+    item = r.json()
+
+    bor = db.query(BorradorML).filter(BorradorML.item_id == item_id).first()
+    pub = db.query(PublicacionML).filter(PublicacionML.item_id == item_id).first()
+
+    fotos = [
+        {"id": p.get("id", ""), "url": p.get("url") or p.get("secure_url", "")}
+        for p in item.get("pictures", [])
+        if p.get("id")
+    ]
+    desc_raw = item.get("description") or {}
+    if isinstance(desc_raw, dict):
+        desc_text = desc_raw.get("plain_text") or desc_raw.get("text") or ""
+    else:
+        desc_text = str(desc_raw)
+    if not desc_text:
+        desc_text = getattr(bor, "descripcion", None) or getattr(pub, "descripcion", None) or ""
+
+    return {
+        "ok":          True,
+        "item_id":     item_id,
+        "titulo":      item.get("title", ""),
+        "descripcion": desc_text,
+        "estado_ml":   item.get("status", ""),
+        "permalink":   item.get("permalink", ""),
+        "precio":      item.get("price"),
+        "fotos":       fotos,
+        "producto":    getattr(bor, "producto", None) or "",
+        "modelo":      getattr(bor, "modelo_nombre", None) or "",
+    }
+
+
+@router.post("/api/ml/publicaciones/{item_id}/optimizar")
+async def optimizar_publicacion(
+    item_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Aplica optimizaciones (título, descripción, fotos desde biblioteca) a una publicación ML."""
+    token = await _get_token(db)
+    data = await request.json()
+
+    titulo           = (data.get("titulo") or "").strip()
+    descripcion      = (data.get("descripcion") or "").strip()
+    foto_urls        = data.get("foto_urls") or []         # URLs biblioteca → subir a ML
+    modo_fotos       = data.get("modo_fotos", "reemplazar")  # reemplazar | agregar_fin
+    picture_ids_keep = data.get("picture_ids_keep")        # IDs existentes a conservar (sin re-upload)
+
+    resultados: dict = {}
+
+    async with httpx.AsyncClient(timeout=20) as c:
+        # 1) Subir fotos de biblioteca a ML y obtener picture_ids
+        nuevos_ids: list = []
+        for url in foto_urls:
+            try:
+                rp = await c.post(
+                    f"{ML_BASE}/pictures",
+                    headers=_ml_headers(token),
+                    json={"source": url},
+                )
+                if rp.status_code in (200, 201):
+                    nuevos_ids.append(rp.json().get("id"))
+                else:
+                    log.warning(f"[OPT] foto no subida {url}: {rp.status_code}")
+            except Exception as _ef:
+                log.warning(f"[OPT] error subir foto: {_ef}")
+
+        # 2) Construir lista final de picture_ids para el PUT
+        picture_ids: list = []
+        if picture_ids_keep is not None and not foto_urls:
+            # Usuario removió fotos desde el tab "Actuales" → conservar solo los IDs indicados
+            picture_ids = [pid for pid in picture_ids_keep if pid]
+        elif nuevos_ids:
+            if modo_fotos == "agregar_fin":
+                # Traer fotos actuales y agregar al final
+                try:
+                    rc = await c.get(
+                        f"{ML_BASE}/items/{item_id}",
+                        headers=_ml_headers(token),
+                        params={"attributes": "pictures"},
+                    )
+                    if rc.status_code == 200:
+                        actuales = [p["id"] for p in rc.json().get("pictures", []) if p.get("id")]
+                        picture_ids = actuales + nuevos_ids
+                except Exception:
+                    picture_ids = nuevos_ids
+            else:
+                picture_ids = nuevos_ids
+
+        # 3) Actualizar ítem (título + fotos)
+        payload: dict = {}
+        if titulo:
+            payload["title"] = titulo
+        if picture_ids:
+            payload["pictures"] = [{"id": pid} for pid in picture_ids if pid]
+        if payload:
+            ri = await c.put(
+                f"{ML_BASE}/items/{item_id}",
+                headers=_ml_headers(token),
+                json=payload,
+            )
+            resultados["item"] = ri.status_code
+            if ri.status_code not in (200, 201):
+                log.warning(f"[OPT] PUT item {item_id}: {ri.status_code} {ri.text[:200]}")
+
+        # 4) Actualizar descripción (endpoint separado en ML)
+        if descripcion:
+            rd = await c.put(
+                f"{ML_BASE}/items/{item_id}/description",
+                headers=_ml_headers(token),
+                json={"plain_text": descripcion},
+            )
+            resultados["descripcion"] = rd.status_code
+            if rd.status_code not in (200, 201):
+                log.warning(f"[OPT] PUT desc {item_id}: {rd.status_code}")
+
+    # 5) Actualizar BD local
+    try:
+        bor = db.query(BorradorML).filter(BorradorML.item_id == item_id).first()
+        pub = db.query(PublicacionML).filter(PublicacionML.item_id == item_id).first()
+        for obj in filter(None, [bor, pub]):
+            if titulo:
+                obj.titulo = titulo
+            if descripcion:
+                obj.descripcion = descripcion
+        db.commit()
+    except Exception as _ed:
+        log.warning(f"[OPT] DB update: {_ed}")
+
+    ok = all(v in (200, 201) for v in resultados.values()) if resultados else True
+    return {"ok": ok, "resultados": resultados}
+
+
+# ─── Optimización masiva (background job) ────────────────────────────────────
+
+_BULK_OPT_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+async def _bulk_optimizar_bg(
+    job_id: str,
+    token: str,
+    items: list,    # list of {item_id, titulo?, descripcion?, foto_urls?, modo_fotos?}
+) -> None:
+    job = _BULK_OPT_JOBS[job_id]
+    from database.database import SessionLocal
+    db_bg = SessionLocal()
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            for i, it in enumerate(items):
+                item_id     = it["item_id"]
+                titulo      = (it.get("titulo") or "").strip()
+                descripcion = (it.get("descripcion") or "").strip()
+                foto_urls   = it.get("foto_urls") or []
+                modo_fotos  = it.get("modo_fotos", "reemplazar")
+                try:
+                    # Subir fotos
+                    nuevos_ids: list = []
+                    for url in foto_urls:
+                        try:
+                            rp = await c.post(
+                                f"{ML_BASE}/pictures",
+                                headers=_ml_headers(token),
+                                json={"source": url},
+                            )
+                            if rp.status_code in (200, 201):
+                                nuevos_ids.append(rp.json().get("id"))
+                        except Exception:
+                            pass
+
+                    picture_ids = nuevos_ids
+                    if modo_fotos == "agregar_fin" and nuevos_ids:
+                        try:
+                            rc = await c.get(
+                                f"{ML_BASE}/items/{item_id}",
+                                headers=_ml_headers(token),
+                                params={"attributes": "pictures"},
+                            )
+                            if rc.status_code == 200:
+                                actuales = [p["id"] for p in rc.json().get("pictures", []) if p.get("id")]
+                                picture_ids = actuales + nuevos_ids
+                        except Exception:
+                            pass
+
+                    payload: dict = {}
+                    if titulo:
+                        payload["title"] = titulo
+                    if picture_ids:
+                        payload["pictures"] = [{"id": pid} for pid in picture_ids if pid]
+                    if payload:
+                        ri = await c.put(
+                            f"{ML_BASE}/items/{item_id}",
+                            headers=_ml_headers(token),
+                            json=payload,
+                        )
+                        if ri.status_code not in (200, 201):
+                            job["errores"].append(f"{item_id}: HTTP {ri.status_code}")
+
+                    if descripcion:
+                        await c.put(
+                            f"{ML_BASE}/items/{item_id}/description",
+                            headers=_ml_headers(token),
+                            json={"plain_text": descripcion},
+                        )
+
+                    # BD local
+                    bor = db_bg.query(BorradorML).filter(BorradorML.item_id == item_id).first()
+                    pub = db_bg.query(PublicacionML).filter(PublicacionML.item_id == item_id).first()
+                    for obj in filter(None, [bor, pub]):
+                        if titulo:
+                            obj.titulo = titulo
+                        if descripcion:
+                            obj.descripcion = descripcion
+
+                    job["ok"] = job.get("ok", 0) + 1
+                except Exception as e:
+                    job["errores"].append(f"{item_id}: {str(e)[:60]}")
+
+                job["procesados"] = i + 1
+                if (i + 1) % 20 == 0:
+                    try:
+                        db_bg.commit()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.4)
+
+        try:
+            db_bg.commit()
+        except Exception:
+            pass
+    finally:
+        db_bg.close()
+
+    job["estado"] = "listo"
+
+
+@router.post("/api/ml/publicaciones/bulk-optimizar/iniciar")
+async def iniciar_bulk_optimizar(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Lanza optimización masiva en background. Body: {items: [{item_id, titulo?, descripcion?, foto_urls?, modo_fotos?}]}"""
+    token = await _get_token(db)
+    data = await request.json()
+    items = data.get("items", [])
+    if not items:
+        raise HTTPException(400, "Sin items para optimizar")
+
+    job_id = str(uuid.uuid4())[:8]
+    _BULK_OPT_JOBS[job_id] = {
+        "estado":     "procesando",
+        "procesados": 0,
+        "total":      len(items),
+        "ok":         0,
+        "errores":    [],
+    }
+    background_tasks.add_task(_bulk_optimizar_bg, job_id, token, items)
+    return {"ok": True, "job_id": job_id, "total": len(items)}
+
+
+@router.get("/api/ml/publicaciones/bulk-optimizar/estado/{job_id}")
+async def estado_bulk_optimizar(
+    job_id: str,
+    current_user: Usuario = Depends(_require_config_access),
+):
+    job = _BULK_OPT_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    return job
 
 
 # ─────────────────────────────────────────────────────────────────────────────

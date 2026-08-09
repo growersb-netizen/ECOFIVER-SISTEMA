@@ -78,6 +78,180 @@
   </div>
 </div>
 
+<!-- ── Modal: Optimizar publicación individual ─────────────────────────── -->
+<div class="modal-overlay" id="modal-opt-pub" style="display:none">
+  <div class="modal" style="max-width:860px;width:97vw;max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="opt-grade-badge" style="font-size:24px;font-weight:700;width:38px;text-align:center;border-radius:8px;padding:2px 0">B</span>
+        <div>
+          <span style="font-weight:600;font-size:15px">✨ Optimizar publicación</span>
+          <div id="opt-item-id-label" style="font-size:11px;color:var(--text-secondary)"></div>
+        </div>
+      </div>
+      <button class="btn btn-icon" onclick="closeModal('modal-opt-pub')">✕</button>
+    </div>
+    <div style="padding:16px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
+
+      <!-- Score overview -->
+      <div id="opt-checks-wrap" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+
+      <!-- Título -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <label class="form-label" style="margin:0;flex:1">📝 Título <small style="font-weight:400;color:var(--text-secondary)">(objetivo: 40–60 chars, sin símbolos)</small></label>
+          <span id="opt-tit-count" style="font-size:11px;min-width:80px;text-align:right"></span>
+          <button class="btn btn-sm" onclick="_optGenTitulo()"
+            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ Generar IA</button>
+        </div>
+        <input class="input" id="opt-titulo" oninput="_optUpdateTitulo()" style="width:100%"
+          placeholder="Ingresá o generá el título optimizado…">
+      </div>
+
+      <!-- Descripción -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <label class="form-label" style="margin:0;flex:1">📄 Descripción <small style="font-weight:400;color:var(--text-secondary)">(objetivo: 200+ palabras)</small></label>
+          <span id="opt-desc-count" style="font-size:11px;min-width:80px;text-align:right"></span>
+          <button class="btn btn-sm" onclick="_optGenDesc()"
+            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ Generar IA</button>
+        </div>
+        <textarea class="input" id="opt-desc" rows="7" oninput="_optUpdateDesc()"
+          style="width:100%;resize:vertical;font-size:13px"
+          placeholder="Ingresá o generá la descripción optimizada…"></textarea>
+      </div>
+
+      <!-- Fotos -->
+      <div>
+        <label class="form-label">📸 Fotos <small style="font-weight:400;color:var(--text-secondary)">(objetivo: 8+ fotos)</small></label>
+        <!-- Tabs -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px">
+          <button id="opt-tab-btn-actual" onclick="_optSetTab('actual')"
+            style="padding:6px 14px;font-size:13px;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;background:transparent;color:var(--primary);cursor:pointer;font-weight:600">Actuales</button>
+          <button id="opt-tab-btn-bib" onclick="_optSetTab('bib')"
+            style="padding:6px 14px;font-size:13px;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;background:transparent;color:var(--text-secondary);cursor:pointer">📚 Biblioteca</button>
+        </div>
+        <!-- Tab: actuales -->
+        <div id="opt-tab-actual">
+          <div id="opt-fotos-actuales-wrap" style="display:flex;flex-wrap:wrap;gap:8px;min-height:60px">
+            <div class="loading" style="font-size:13px">Cargando fotos…</div>
+          </div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:6px">
+            Tocá una foto para marcarla. Las fotos marcadas en rojo NO se enviarán a MercadoLibre.
+          </div>
+        </div>
+        <!-- Tab: biblioteca -->
+        <div id="opt-tab-bib" style="display:none">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+            <select class="input btn-sm" id="opt-bib-tipo" onchange="_optCargarBiblioteca()" style="max-width:170px;font-size:13px">
+              <option value="">Todos los tipos</option>
+              <option value="PISCINA">Piscinas</option>
+              <option value="MINIPISCINA">Minipiscinas</option>
+              <option value="HIDROMASAJE">Hidromasaje / Spa</option>
+              <option value="BANERA">Bañeras</option>
+              <option value="RECEPTACULO">Receptáculos</option>
+              <option value="MODULO">Modular</option>
+              <option value="MODULO_DEPOSITO">Módulo depósito</option>
+              <option value="COMBO">Combos</option>
+            </select>
+            <select class="input btn-sm" id="opt-bib-modo" style="max-width:210px;font-size:13px">
+              <option value="reemplazar">🔄 Reemplazar todas las fotos</option>
+              <option value="agregar_fin">➕ Agregar al final de las actuales</option>
+            </select>
+          </div>
+          <div id="opt-bib-sets-wrap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:220px;overflow-y:auto;padding:2px">
+            <div style="color:var(--text-secondary);font-size:13px;padding:10px">Seleccioná un tipo para ver los sets disponibles.</div>
+          </div>
+          <div id="opt-bib-preview-wrap" style="display:none;margin-top:8px">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">Fotos del set seleccionado:</div>
+            <div id="opt-bib-preview-fotos" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;padding-top:4px;border-top:1px solid var(--border)">
+        <div id="opt-resultado" style="flex:1;font-size:13px"></div>
+        <button class="btn btn-secondary" onclick="closeModal('modal-opt-pub')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-opt-aplicar" onclick="_optAplicar()">✅ Aplicar optimización</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Optimización masiva ──────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-bulk-opt" style="display:none">
+  <div class="modal" style="max-width:680px;width:96vw">
+    <div class="modal-header">
+      <h3>⚡ Optimización masiva</h3>
+      <button class="btn btn-icon" onclick="closeModal('modal-bulk-opt')">✕</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
+
+      <div id="bulk-opt-info" style="font-size:13px;padding:8px;background:var(--bg-secondary);border-radius:6px"></div>
+
+      <!-- Título común -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <label class="form-label" style="margin:0;flex:1">📝 Título <small style="font-weight:400;color:var(--text-secondary)">(dejá vacío para no modificar)</small></label>
+          <span id="bulk-tit-count" style="font-size:11px;min-width:70px;text-align:right"></span>
+          <button class="btn btn-sm" onclick="_bulkGenTitulo()"
+            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ IA</button>
+        </div>
+        <input class="input" id="bulk-titulo" oninput="_bulkUpdateTitulo()" style="width:100%"
+          placeholder="Mismo título para todas las publicaciones seleccionadas…">
+      </div>
+
+      <!-- Descripción común -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <label class="form-label" style="margin:0;flex:1">📄 Descripción <small style="font-weight:400;color:var(--text-secondary)">(dejá vacío para no modificar)</small></label>
+          <span id="bulk-desc-count" style="font-size:11px;min-width:70px;text-align:right"></span>
+          <button class="btn btn-sm" onclick="_bulkGenDesc()"
+            style="background:#1a1a3a;color:#a78bfa;border-color:#2a2a5a;white-space:nowrap">✨ IA</button>
+        </div>
+        <textarea class="input" id="bulk-desc" rows="5" oninput="_bulkUpdateDesc()"
+          style="width:100%;resize:vertical;font-size:13px"
+          placeholder="Misma descripción para todas las publicaciones seleccionadas…"></textarea>
+      </div>
+
+      <!-- Set de fotos -->
+      <div>
+        <label class="form-label">📸 Set de fotos <small style="font-weight:400;color:var(--text-secondary)">(opcional — dejá en blanco para no modificar fotos)</small></label>
+        <select class="input" id="bulk-set-id" onchange="_bulkSetSelected()" style="font-size:13px">
+          <option value="">— Sin cambio de fotos —</option>
+        </select>
+        <div id="bulk-set-preview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+
+      <!-- Modo fotos -->
+      <div id="bulk-modo-fotos-wrap" style="display:none">
+        <label class="form-label">Modo de aplicación de fotos</label>
+        <select class="input" id="bulk-modo-fotos" style="font-size:13px">
+          <option value="reemplazar">🔄 Reemplazar todas las fotos</option>
+          <option value="agregar_fin">➕ Agregar al final de las actuales</option>
+        </select>
+      </div>
+
+      <!-- Progreso -->
+      <div id="bulk-opt-progreso" style="display:none">
+        <div style="background:var(--bg-secondary);border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden">
+          <div id="bulk-opt-bar" style="height:100%;background:var(--primary);transition:width 0.4s;width:0%"></div>
+        </div>
+        <div id="bulk-opt-status" style="font-size:13px;margin-bottom:4px"></div>
+        <div id="bulk-opt-errores" style="font-size:12px;color:#ef4444;max-height:60px;overflow-y:auto;white-space:pre-line"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" id="btn-bulk-opt-cancel" onclick="closeModal('modal-bulk-opt')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-bulk-opt-ok" onclick="_bulkOptIniciar()">
+          ⚡ Optimizar <span id="bulk-opt-count">0</span> publicaciones
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Actualización masiva de precios -->
 <div class="modal-overlay" id="modal-precios-lote" style="display:none">
   <div class="modal" style="max-width:620px;width:96vw">
@@ -4298,40 +4472,214 @@ async function triggerRenovarManual() {
 }
 
 /* ─── HEALTH SCORE ──────────────────────────────────────────────────── */
+/* ─── HEALTH SCORE — paginación · filtros · grupos · optimización ─────── */
+
 let _healthPollIv = null;
 
+// Estado global del health score
+let _hsJobItems = [];
+let _hsPage     = 0;
+const _hsPerPage = 200;
+let _hsFiltroProd   = '';
+let _hsFiltroTexto  = '';
+let _hsAgrupado     = false;
+let _hsSel          = new Set();
+let _hsContEl       = null;
+const _hsGC = { A:'#22c55e', B:'#84cc16', C:'#f59e0b', D:'#ef4444' };
+
+function _escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function _mostrarHealthScore(job, cont) {
-  if (!job.items || !job.items.length) {
-    cont.innerHTML = '<p style="color:var(--text-secondary)">No se encontraron publicaciones activas.</p>';
+  _hsContEl   = cont;
+  _hsJobItems = job.items || [];
+  _hsPage     = 0; _hsFiltroProd = ''; _hsFiltroTexto = ''; _hsSel = new Set();
+
+  if (!_hsJobItems.length) {
+    cont.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:24px">No se encontraron publicaciones activas.</p>';
     return;
   }
-  const gradeColor = { A: '#22c55e', B: '#84cc16', C: '#f59e0b', D: '#ef4444' };
-  let html = `<p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">${job.items.length} publicaciones analizadas — ordenadas de peor a mejor</p>`;
-  html += '<div style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto">';
-  job.items.forEach(it => {
-    const clr = gradeColor[it.grade] || '#94a3b8';
-    html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-        <span style="font-size:20px;font-weight:700;color:${clr};min-width:32px;text-align:center">${it.grade}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.titulo}</div>
-          <div style="font-size:11px;color:var(--text-secondary)">${it.item_id} · ${it.n_fotos} fotos · ${it.n_palabras} palabras desc.</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <div style="width:50px;height:6px;border-radius:3px;background:var(--border);overflow:hidden">
-            <div style="height:100%;width:${it.score}%;background:${clr}"></div>
-          </div>
-          <span style="font-size:12px;font-weight:600;color:${clr}">${it.score}</span>
-        </div>
-        ${it.permalink ? `<a href="${it.permalink}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">Ver ↗</a>` : ''}
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px">
-        ${it.checks.map(c => `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${c.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'};color:${c.ok ? '#22c55e' : '#ef4444'}">${c.ok ? '✓' : '✗'} ${c.label}</span>`).join('')}
-      </div>
+
+  const tipos = [...new Set(_hsJobItems.map(it=>it.producto).filter(Boolean))].sort();
+  const grades = {A:0,B:0,C:0,D:0};
+  _hsJobItems.forEach(it => { grades[it.grade] = (grades[it.grade]||0)+1; });
+
+  cont.innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;margin-bottom:12px">
+      ${Object.entries(grades).map(([g,n]) =>
+        `<button onclick="_hsSetProd('');_hsFiltroTexto='';document.getElementById('hs-buscar').value='';_hsPage=0;_hsRender()"
+          style="background:none;border:none;cursor:pointer;text-align:center;padding:4px 8px;border-radius:6px">
+          <div style="font-size:20px;font-weight:700;color:${_hsGC[g]}">${g}</div>
+          <div style="font-size:11px;color:var(--text-secondary)">${n}</div>
+        </button>`
+      ).join('<span style="color:var(--border);align-self:stretch;width:1px;background:var(--border);margin:4px 2px"></span>')}
+      <span style="margin-left:auto;font-size:12px;color:var(--text-secondary)">${_hsJobItems.length} publicaciones</span>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <input id="hs-buscar" class="input" placeholder="🔍 Buscar título, ID, modelo…"
+        oninput="_hsSetFiltro(this.value)" style="flex:1;min-width:140px;font-size:13px">
+      <select id="hs-f-prod" class="input" onchange="_hsSetProd(this.value)" style="max-width:175px;font-size:13px">
+        <option value="">Todos los tipos</option>
+        ${tipos.map(t=>`<option value="${t}">${t}</option>`).join('')}
+      </select>
+      <button id="btn-hs-agrup" class="btn btn-sm btn-secondary" onclick="_hsToggleAgrupado()">📦 Agrupar</button>
+    </div>
+
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <button class="btn btn-sm btn-secondary" onclick="_hsSelPage(true)">☑ Selec. página</button>
+      <button class="btn btn-sm btn-secondary" onclick="_hsSelPage(false)">✕ Limpiar</button>
+      <button id="btn-hs-bulk" class="btn btn-sm" disabled onclick="_abrirBulkOpt(_hsGetSelItems())"
+        style="background:#1a2a1a;color:#4ade80;border-color:#2a4a2a">
+        ⚡ Optimizar selección (<span id="hs-sel-count">0</span>)
+      </button>
+    </div>
+
+    <div id="hs-list-cont" style="overflow-y:auto;max-height:480px;padding-right:2px"></div>
+  `;
+  _hsRender();
+}
+
+function _hsFilteredItems() {
+  let items = _hsJobItems;
+  if (_hsFiltroTexto) {
+    const ft = _hsFiltroTexto.toLowerCase();
+    items = items.filter(it =>
+      (it.titulo||'').toLowerCase().includes(ft) || (it.item_id||'').toLowerCase().includes(ft) ||
+      (it.producto||'').toLowerCase().includes(ft) || (it.modelo||'').toLowerCase().includes(ft)
+    );
+  }
+  if (_hsFiltroProd) items = items.filter(it => it.producto === _hsFiltroProd);
+  return items;
+}
+
+function _hsRender() {
+  const lc = document.getElementById('hs-list-cont');
+  if (!lc) return;
+  const items     = _hsFilteredItems();
+  const total     = items.length;
+  const startIdx  = _hsPage * _hsPerPage;
+  const pageItems = items.slice(startIdx, startIdx + _hsPerPage);
+  const totalPages = Math.max(1, Math.ceil(total / _hsPerPage));
+
+  let html = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">
+    ${total} publicaciones${_hsFiltroTexto||_hsFiltroProd?' (filtradas)':''} · Página ${_hsPage+1} de ${totalPages}
+  </div>`;
+
+  if (!pageItems.length) {
+    html += '<p style="color:var(--text-secondary);text-align:center;padding:20px">Sin resultados para este filtro.</p>';
+  } else if (_hsAgrupado) {
+    html += _hsRenderGrupos(pageItems);
+  } else {
+    html += `<div style="display:flex;flex-direction:column;gap:6px">${pageItems.map(it=>_hsRenderItem(it)).join('')}</div>`;
+  }
+
+  if (totalPages > 1) {
+    html += `<div style="display:flex;gap:8px;justify-content:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+      <button class="btn btn-sm btn-secondary" onclick="_hsSetPage(${_hsPage-1})" ${_hsPage===0?'disabled':''}>← Anterior</button>
+      <span style="align-self:center;font-size:13px">${_hsPage+1} / ${totalPages}</span>
+      <button class="btn btn-sm btn-secondary" onclick="_hsSetPage(${_hsPage+1})" ${_hsPage>=totalPages-1?'disabled':''}>Siguiente →</button>
     </div>`;
+  }
+  lc.innerHTML = html;
+  _hsUpdateSelCount();
+}
+
+function _hsRenderItem(it) {
+  const clr = _hsGC[it.grade] || '#94a3b8';
+  const chk = _hsSel.has(it.item_id) ? 'checked' : '';
+  // Serialise item for onclick — escape quotes
+  const itS = encodeURIComponent(JSON.stringify(it));
+  return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;gap:10px;align-items:flex-start">
+    <input type="checkbox" ${chk} onchange="_hsToggleSel('${it.item_id}',this.checked)" style="margin-top:4px;flex-shrink:0">
+    <span style="font-size:20px;font-weight:700;color:${clr};min-width:26px;text-align:center;flex-shrink:0">${it.grade}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escHtml(it.titulo)}">${_escHtml(it.titulo)}</div>
+      <div style="font-size:11px;color:var(--text-secondary);margin:2px 0">${it.item_id}${it.producto?' · '+it.producto:''}${it.modelo?' – '+_escHtml(it.modelo):''}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">
+        ${(it.checks||[]).map(c=>`<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:${c.ok?'rgba(34,197,94,0.1)':'rgba(239,68,68,0.1)'};color:${c.ok?'#22c55e':'#ef4444'}">${c.ok?'✓':'✗'} ${c.label}</span>`).join('')}
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:4px">
+        <div style="width:40px;height:5px;border-radius:3px;background:var(--border);overflow:hidden">
+          <div style="height:100%;width:${it.score}%;background:${clr}"></div>
+        </div>
+        <span style="font-size:11px;font-weight:600;color:${clr}">${it.score}</span>
+      </div>
+      ${it.permalink?`<a href="${it.permalink}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">Ver ↗</a>`:''}
+      <button class="btn btn-sm" onclick="_abrirOptPubEnc('${itS}')"
+        style="background:#1a2a3a;color:#60a5fa;border-color:#1e3a5a;font-size:11px;padding:3px 8px;white-space:nowrap">✨ Optimizar</button>
+    </div>
+  </div>`;
+}
+
+function _abrirOptPubEnc(enc) { _abrirOptPub(JSON.parse(decodeURIComponent(enc))); }
+
+function _hsRenderGrupos(pageItems) {
+  const grupos = {};
+  pageItems.forEach(it => {
+    const key = (it.producto||'SIN TIPO')+'|||'+(it.modelo||'');
+    if (!grupos[key]) grupos[key] = {producto:it.producto||'SIN TIPO', modelo:it.modelo||'', items:[]};
+    grupos[key].items.push(it);
   });
-  html += '</div>';
-  cont.innerHTML = html;
+  let html = '';
+  for (const g of Object.values(grupos)) {
+    const gItems = g.items;
+    const avg = Math.round(gItems.reduce((s,it)=>s+it.score,0)/gItems.length);
+    const enc = encodeURIComponent(JSON.stringify(gItems));
+    html += `<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-secondary)">
+        <div style="flex:1">
+          <b style="font-size:13px">${g.producto}</b>
+          ${g.modelo?`<span style="font-size:12px;color:var(--text-secondary)"> – ${_escHtml(g.modelo)}</span>`:''}
+          <span style="font-size:11px;color:var(--text-secondary);margin-left:6px">${gItems.length} pubs · score prom. ${avg}</span>
+        </div>
+        <button class="btn btn-sm" onclick="_abrirBulkOpt(JSON.parse(decodeURIComponent('${enc}')))"
+          style="background:#1a2a1a;color:#4ade80;border-color:#2a4a2a;font-size:11px;white-space:nowrap">⚡ Optimizar grupo</button>
+      </div>
+      ${gItems.map((it,idx) => {
+        const clr = _hsGC[it.grade]||'#94a3b8';
+        const itS = encodeURIComponent(JSON.stringify(it));
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;${idx>0?'border-top:1px solid var(--border)':''}">
+          <span style="font-size:15px;font-weight:700;color:${clr};width:22px;text-align:center">${it.grade}</span>
+          <div style="flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(it.titulo)}</div>
+          <span style="font-size:11px;color:var(--text-secondary);white-space:nowrap">${it.n_fotos}📸 ${it.n_palabras}📝</span>
+          ${it.permalink?`<a href="${it.permalink}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">Ver↗</a>`:''}
+          <button class="btn btn-sm" onclick="_abrirOptPubEnc('${itS}')"
+            style="background:#1a2a3a;color:#60a5fa;border-color:#1e3a5a;font-size:10px;padding:2px 7px">✨</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+  return html;
+}
+
+function _hsSetFiltro(v) { _hsFiltroTexto=v; _hsPage=0; _hsRender(); }
+function _hsSetProd(v) {
+  _hsFiltroProd=v;
+  const s=document.getElementById('hs-f-prod'); if(s)s.value=v;
+  _hsPage=0; _hsRender();
+}
+function _hsSetPage(n) { _hsPage=n; _hsRender(); }
+function _hsToggleAgrupado() {
+  _hsAgrupado=!_hsAgrupado;
+  const b=document.getElementById('btn-hs-agrup');
+  if(b){b.classList.toggle('btn-primary',_hsAgrupado);b.classList.toggle('btn-secondary',!_hsAgrupado);}
+  _hsRender();
+}
+function _hsToggleSel(id,checked) { checked?_hsSel.add(id):_hsSel.delete(id); _hsUpdateSelCount(); }
+function _hsSelPage(sel) {
+  const items=_hsFilteredItems().slice(_hsPage*_hsPerPage,(_hsPage+1)*_hsPerPage);
+  items.forEach(it=>sel?_hsSel.add(it.item_id):_hsSel.delete(it.item_id));
+  _hsRender();
+}
+function _hsGetSelItems() { return _hsJobItems.filter(it=>_hsSel.has(it.item_id)); }
+function _hsUpdateSelCount() {
+  const n=_hsSel.size;
+  const el=document.getElementById('hs-sel-count'); if(el)el.textContent=n;
+  const btn=document.getElementById('btn-hs-bulk'); if(btn)btn.disabled=n===0;
 }
 
 async function abrirHealthScore() {
@@ -4342,22 +4690,21 @@ async function abrirHealthScore() {
   try {
     const j = await API.post('/api/ml/publicaciones/health-score/iniciar');
     if (!j.ok) throw new Error(j.detail || 'Error al iniciar');
-    const jobId = j.job_id;
-    // Si ya está listo (sin publicaciones) mostramos directo
     if (j.total === 0) { _mostrarHealthScore({items:[]}, cont); return; }
     cont.innerHTML = `<div class="loading">Analizando publicaciones… 0/${j.total}</div>`;
+    const jobId = j.job_id;
     _healthPollIv = setInterval(async () => {
       try {
         const d = await API.get(`/api/ml/publicaciones/health-score/estado/${jobId}`);
         if (d.estado === 'procesando') {
-          const pct = d.total ? Math.round(d.procesados * 100 / d.total) : 0;
-          cont.innerHTML = `<div class="loading">Analizando publicaciones… ${d.procesados}/${d.total} (${pct}%)</div>`;
+          const pct = d.total ? Math.round(d.procesados*100/d.total) : 0;
+          cont.innerHTML = `<div class="loading">Analizando… ${d.procesados}/${d.total} (${pct}%)</div>`;
         } else if (d.estado === 'listo') {
           clearInterval(_healthPollIv); _healthPollIv = null;
           _mostrarHealthScore(d, cont);
         } else {
           clearInterval(_healthPollIv); _healthPollIv = null;
-          cont.innerHTML = `<p style="color:#ef4444">Error: ${d.error || 'desconocido'}</p>`;
+          cont.innerHTML = `<p style="color:#ef4444">Error: ${d.error||'desconocido'}</p>`;
         }
       } catch(pe) {
         clearInterval(_healthPollIv); _healthPollIv = null;
@@ -4366,6 +4713,410 @@ async function abrirHealthScore() {
     }, 2000);
   } catch(e) {
     cont.innerHTML = `<p style="color:#ef4444">Error al cargar: ${e.message}</p>`;
+  }
+}
+
+/* ─── OPTIMIZACIÓN INDIVIDUAL ─────────────────────────────────────────────── */
+
+let _optItemId          = null;
+let _optProducto        = '';
+let _optModelo          = '';
+let _optFotosActuales   = [];       // [{id, url}] cargados desde ML
+let _optFotosRemovedIds = new Set();
+let _optBibSetUrls      = [];       // URLs del set de biblioteca seleccionado
+
+function _abrirOptPub(itemData) {
+  _optItemId   = itemData.item_id;
+  _optProducto = itemData.producto || '';
+  _optModelo   = itemData.modelo   || '';
+  _optFotosActuales   = [];
+  _optFotosRemovedIds = new Set();
+  _optBibSetUrls      = [];
+
+  // Header
+  document.getElementById('opt-item-id-label').textContent = _optItemId;
+  const grade = itemData.grade || '?';
+  const gc = _hsGC[grade] || '#94a3b8';
+  const badge = document.getElementById('opt-grade-badge');
+  badge.textContent = grade;
+  badge.style.color      = gc;
+  badge.style.background = gc + '22';
+
+  // Checks actuales
+  const cw = document.getElementById('opt-checks-wrap');
+  cw.innerHTML = (itemData.checks||[]).map(c =>
+    `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${c.ok?'rgba(34,197,94,0.1)':'rgba(239,68,68,0.1)'};color:${c.ok?'#22c55e':'#ef4444'}">${c.ok?'✓':'✗'} ${c.label}</span>`
+  ).join('');
+
+  // Pre-fill
+  document.getElementById('opt-titulo').value = itemData.titulo || '';
+  document.getElementById('opt-desc').value   = '';
+  _optUpdateTitulo(); _optUpdateDesc();
+  document.getElementById('opt-resultado').textContent = '';
+  document.getElementById('btn-opt-aplicar').disabled  = false;
+  document.getElementById('btn-opt-aplicar').textContent = '✅ Aplicar optimización';
+
+  // Tab fotos: actuales por defecto
+  _optSetTab('actual');
+
+  // Pre-seleccionar tipo en bib
+  const ts = document.getElementById('opt-bib-tipo');
+  if (ts && _optProducto) ts.value = _optProducto;
+
+  openModal('modal-opt-pub');
+
+  // Cargar detalle completo en background (fotos actuales + descripcion)
+  _optCargarDetalle(_optItemId);
+}
+
+async function _optCargarDetalle(itemId) {
+  const wrap = document.getElementById('opt-fotos-actuales-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading" style="font-size:13px">Cargando fotos actuales…</div>';
+  try {
+    const d = await API.get(`/api/ml/publicaciones/${itemId}/detalle`);
+    _optFotosActuales = d.fotos || [];
+
+    // Pre-fill descripción si está vacía
+    const descEl = document.getElementById('opt-desc');
+    if (descEl && !descEl.value.trim() && d.descripcion) {
+      descEl.value = d.descripcion;
+      _optUpdateDesc();
+    }
+    _optRenderFotosActuales();
+  } catch(e) {
+    if (wrap) wrap.innerHTML = `<span style="font-size:12px;color:#ef4444">Error cargando fotos: ${e.message}</span>`;
+  }
+}
+
+function _optRenderFotosActuales() {
+  const wrap = document.getElementById('opt-fotos-actuales-wrap');
+  if (!wrap) return;
+  if (!_optFotosActuales.length) {
+    wrap.innerHTML = '<span style="font-size:13px;color:var(--text-secondary)">Esta publicación no tiene fotos en MercadoLibre.</span>';
+    return;
+  }
+  wrap.innerHTML = _optFotosActuales.map(f => {
+    const rm = _optFotosRemovedIds.has(f.id);
+    return `<div onclick="_optToggleFoto('${f.id}')"
+      style="cursor:pointer;position:relative;border-radius:6px;overflow:hidden;width:88px;height:88px;flex-shrink:0;border:2px solid ${rm?'#ef4444':'var(--border)'};opacity:${rm?.4:1};transition:all .2s;display:flex;align-items:center;justify-content:center;background:var(--bg-secondary)">
+      <img src="${f.url}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentElement.innerHTML='📷'">
+      ${rm?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(239,68,68,.35);font-size:24px">✕</div>':''}
+    </div>`;
+  }).join('');
+}
+
+function _optToggleFoto(fotoId) {
+  _optFotosRemovedIds.has(fotoId) ? _optFotosRemovedIds.delete(fotoId) : _optFotosRemovedIds.add(fotoId);
+  _optRenderFotosActuales();
+}
+
+function _optSetTab(tab) {
+  const isA = tab==='actual';
+  document.getElementById('opt-tab-actual').style.display = isA ? '' : 'none';
+  document.getElementById('opt-tab-bib').style.display    = isA ? 'none' : '';
+  const bA=document.getElementById('opt-tab-btn-actual'), bB=document.getElementById('opt-tab-btn-bib');
+  if(bA){bA.style.borderBottomColor=isA?'var(--primary)':'transparent';bA.style.color=isA?'var(--primary)':'var(--text-secondary)';bA.style.fontWeight=isA?'600':'400';}
+  if(bB){bB.style.borderBottomColor=isA?'transparent':'var(--primary)';bB.style.color=isA?'var(--text-secondary)':'var(--primary)';bB.style.fontWeight=isA?'400':'600';}
+  if (!isA) _optCargarBiblioteca();
+}
+
+async function _optCargarBiblioteca() {
+  const tipo = document.getElementById('opt-bib-tipo')?.value || '';
+  const wrap = document.getElementById('opt-bib-sets-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="loading" style="font-size:13px">Cargando sets…</div>';
+  try {
+    const sets = await API.get('/api/ml/fotos/sets');
+    const filtrados = tipo ? sets.filter(s=>!s.tipo_producto||s.tipo_producto===tipo) : sets;
+    if (!filtrados.length) {
+      wrap.innerHTML = '<span style="font-size:13px;color:var(--text-secondary)">No hay sets para este tipo. Creá uno desde la pestaña Biblioteca de Imágenes.</span>'; return;
+    }
+    wrap.innerHTML = filtrados.map(s => {
+      const fotsEnc = encodeURIComponent(JSON.stringify(s.fotos||[]));
+      return `<div onclick="_optSelectBibSet(${s.id},'${fotsEnc}')"
+        style="border:2px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;transition:border-color .15s"
+        id="opt-bib-set-${s.id}" onmouseenter="this.style.borderColor='var(--primary)'" onmouseleave="this.style.borderColor=this.dataset.sel?'var(--primary)':'var(--border)'">
+        ${s.preview_url?`<img src="${s.preview_url}" style="width:100%;height:70px;object-fit:cover;border-radius:4px;margin-bottom:4px" loading="lazy" onerror="this.style.display='none'">`:'<div style="height:70px;background:var(--bg-secondary);border-radius:4px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;font-size:26px">📷</div>'}
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(s.nombre)}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">${s.total_fotos} fotos</div>
+      </div>`;
+    }).join('');
+  } catch(e) { wrap.innerHTML = `<span style="font-size:12px;color:#ef4444">Error: ${e.message}</span>`; }
+}
+
+function _optSelectBibSet(setId, fotosEnc) {
+  const fotos = JSON.parse(decodeURIComponent(fotosEnc));
+  _optBibSetUrls = fotos.map(f=>f.url).filter(Boolean);
+  document.querySelectorAll('[id^="opt-bib-set-"]').forEach(el=>{el.style.borderColor='var(--border)';delete el.dataset.sel;});
+  const sel=document.getElementById(`opt-bib-set-${setId}`);
+  if(sel){sel.style.borderColor='var(--primary)';sel.dataset.sel='1';}
+  const pw=document.getElementById('opt-bib-preview-wrap'), pf=document.getElementById('opt-bib-preview-fotos');
+  if(pf) pf.innerHTML=_optBibSetUrls.map(u=>`<img src="${u}" style="width:68px;height:68px;object-fit:cover;border-radius:6px" loading="lazy" onerror="this.style.display='none'">`).join('');
+  if(pw) pw.style.display=_optBibSetUrls.length?'':'none';
+}
+
+function _optUpdateTitulo() {
+  const v=document.getElementById('opt-titulo')?.value||'';
+  const el=document.getElementById('opt-tit-count'); if(!el)return;
+  const n=v.length; el.textContent=`${n} chars`;
+  el.style.color=n>=40&&n<=60?'#22c55e':n>0?'#f59e0b':'var(--text-secondary)';
+}
+function _optUpdateDesc() {
+  const v=document.getElementById('opt-desc')?.value||'';
+  const el=document.getElementById('opt-desc-count'); if(!el)return;
+  const n=v.trim().split(/\s+/).filter(Boolean).length; el.textContent=n?`${n} palabras`:'0 palabras';
+  el.style.color=n>=200?'#22c55e':n>=100?'#f59e0b':n>0?'#ef4444':'var(--text-secondary)';
+}
+
+async function _optGenTitulo() {
+  const btns=document.querySelectorAll('#modal-opt-pub button');
+  const btn=[...btns].find(b=>b.textContent.includes('Generar IA'));
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generando…';}
+  try {
+    const tipo=_optProducto||'PISCINA';
+    const modelo=_optModelo||document.getElementById('opt-titulo')?.value||tipo;
+    const r=await API.post('/api/ml/generar-titulo',{descripcion:modelo,tipo_producto:tipo});
+    if(r.titulo){document.getElementById('opt-titulo').value=r.titulo;_optUpdateTitulo();}
+  } catch(e){showToast('Error generando título: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ Generar IA';}}
+}
+
+async function _optGenDesc() {
+  const btns=document.querySelectorAll('#modal-opt-pub button');
+  const btn=[...btns].find(b=>b.textContent.includes('Generar IA')&&b.previousElementSibling?.id==='opt-desc-count');
+  const fallBtn=[...document.querySelectorAll('#modal-opt-pub .btn')].find(b=>b.onclick?.toString().includes('_optGenDesc'));
+  const useBtn=btn||fallBtn;
+  if(useBtn){useBtn.disabled=true;useBtn.textContent='⏳ Generando…';}
+  try {
+    const tipo=_optProducto||'PISCINA';
+    const modelo=_optModelo||document.getElementById('opt-titulo')?.value||tipo;
+    const r=await API.post('/api/ml/generar-descripcion',{palabras_clave:modelo||tipo});
+    if(r.descripcion){document.getElementById('opt-desc').value=r.descripcion;_optUpdateDesc();}
+  } catch(e){showToast('Error generando descripción: '+e.message,'error');}
+  finally{if(useBtn){useBtn.disabled=false;useBtn.textContent='✨ Generar IA';}}
+}
+
+async function _optAplicar() {
+  const titulo      = document.getElementById('opt-titulo').value.trim();
+  const descripcion = document.getElementById('opt-desc').value.trim();
+  const tabBib      = document.getElementById('opt-tab-bib').style.display !== 'none';
+
+  let foto_urls = [], modo_fotos = 'reemplazar', picture_ids_keep = null;
+
+  if (tabBib) {
+    foto_urls  = _optBibSetUrls;
+    modo_fotos = document.getElementById('opt-bib-modo')?.value || 'reemplazar';
+    if (!foto_urls.length) { showToast('Seleccioná un set de fotos de la biblioteca', 'warning'); return; }
+  } else if (_optFotosRemovedIds.size > 0) {
+    // Usuario removió fotos del tab "Actuales" → enviar IDs a conservar
+    const remaining = _optFotosActuales.filter(f => !_optFotosRemovedIds.has(f.id));
+    if (!remaining.length) { showToast('Tenés que dejar al menos 1 foto', 'error'); return; }
+    picture_ids_keep = remaining.map(f => f.id);
+  }
+
+  if (!titulo && !descripcion && !foto_urls.length && !picture_ids_keep) {
+    showToast('Ingresá al menos un cambio: título, descripción o fotos', 'warning'); return;
+  }
+
+  const btn = document.getElementById('btn-opt-aplicar');
+  btn.disabled = true; btn.textContent = '⏳ Aplicando…';
+  document.getElementById('opt-resultado').textContent = '';
+  try {
+    const body = { titulo, descripcion, foto_urls, modo_fotos };
+    if (picture_ids_keep) body.picture_ids_keep = picture_ids_keep;
+    const r = await API.post(`/api/ml/publicaciones/${_optItemId}/optimizar`, body);
+    if (r.ok) {
+      document.getElementById('opt-resultado').innerHTML = '<span style="color:#22c55e">✅ Optimización aplicada en MercadoLibre</span>';
+      showToast('✅ Publicación actualizada', 'success');
+      // Refrescar en memoria
+      const it = _hsJobItems.find(x=>x.item_id===_optItemId);
+      if (it) {
+        if (titulo) it.titulo = titulo;
+        if (descripcion) { it.n_palabras = descripcion.trim().split(/\s+/).filter(Boolean).length; }
+        const h = _calcHS(it.titulo, it.n_fotos, it.n_palabras);
+        it.score=h.score; it.grade=h.grade; it.checks=h.checks;
+        if (foto_urls.length) it.n_fotos = Math.max(it.n_fotos, foto_urls.length);
+      }
+    } else {
+      document.getElementById('opt-resultado').innerHTML = `<span style="color:#f59e0b">⚠️ Advertencias: ${JSON.stringify(r.resultados)}</span>`;
+    }
+  } catch(e) {
+    document.getElementById('opt-resultado').innerHTML = `<span style="color:#ef4444">❌ Error: ${e.message}</span>`;
+  } finally {
+    btn.disabled=false; btn.textContent='✅ Aplicar optimización';
+  }
+}
+
+// Espejo JS del _calcular_health del backend
+function _calcHS(titulo, n_fotos, n_palabras) {
+  const SIMB = [',','|',':',';','!','?','"','–','—','_','%'];
+  let score=0; const checks=[];
+  const tl=(titulo||'').length;
+  if(tl>=40&&tl<=60){score+=20;checks.push({ok:true,label:`Título ${tl} chars ✓`});}
+  else checks.push({ok:false,label:`Título ${tl} chars — objetivo 40–60`});
+  const sinSimb=!SIMB.some(c=>(titulo||'').includes(c));
+  if(sinSimb){score+=10;checks.push({ok:true,label:'Sin símbolos ✓'});}
+  else checks.push({ok:false,label:'Tiene símbolos prohibidos'});
+  if(n_fotos>=8){score+=30;checks.push({ok:true,label:`${n_fotos} fotos ✓`});}
+  else if(n_fotos>=5){score+=20;checks.push({ok:true,label:`${n_fotos} fotos (ideal 8+)`});}
+  else if(n_fotos>=3){score+=10;checks.push({ok:false,label:`${n_fotos} fotos (necesitás más)`});}
+  else checks.push({ok:false,label:`${n_fotos} foto(s) — mínimo 3`});
+  if(n_palabras>=300){score+=40;checks.push({ok:true,label:`${n_palabras} palabras ✓`});}
+  else if(n_palabras>=200){score+=30;checks.push({ok:true,label:`${n_palabras} palabras (buena)`});}
+  else if(n_palabras>=100){score+=15;checks.push({ok:false,label:`${n_palabras} palabras (ideal 200+)`});}
+  else if(n_palabras>0){score+=5;checks.push({ok:false,label:'Descripción muy corta'});}
+  else checks.push({ok:false,label:'Sin descripción'});
+  return {score,grade:score>=85?'A':score>=65?'B':score>=45?'C':'D',checks};
+}
+
+/* ─── OPTIMIZACIÓN MASIVA ─────────────────────────────────────────────────── */
+
+let _bulkOptItems = [];
+let _bulkOptJobId = null;
+let _bulkOptIv    = null;
+let _allSets      = [];
+
+function _abrirBulkOpt(items) {
+  if (!items||!items.length) { showToast('Seleccioná publicaciones primero','warning'); return; }
+  _bulkOptItems = items;
+  _bulkOptJobId = null;
+  if (_bulkOptIv) { clearInterval(_bulkOptIv); _bulkOptIv=null; }
+
+  const tipos = [...new Set(items.map(it=>it.producto).filter(Boolean))];
+  document.getElementById('bulk-opt-info').innerHTML =
+    `<b>${items.length}</b> publicaciones · tipos: <b>${tipos.join(', ')||'variados'}</b>`;
+  document.getElementById('bulk-opt-count').textContent = items.length;
+  document.getElementById('bulk-titulo').value = '';
+  document.getElementById('bulk-desc').value   = '';
+  document.getElementById('bulk-set-preview').innerHTML = '';
+  document.getElementById('bulk-modo-fotos-wrap').style.display = 'none';
+  document.getElementById('bulk-opt-progreso').style.display  = 'none';
+  document.getElementById('btn-bulk-opt-cancel').textContent   = 'Cancelar';
+  document.getElementById('btn-bulk-opt-cancel').disabled      = false;
+  document.getElementById('btn-bulk-opt-ok').disabled          = false;
+  _bulkUpdateTitulo(); _bulkUpdateDesc();
+  openModal('modal-bulk-opt');
+  _bulkCargarSets();
+}
+
+async function _bulkCargarSets() {
+  try {
+    _allSets = await API.get('/api/ml/fotos/sets');
+    const sel = document.getElementById('bulk-set-id');
+    sel.innerHTML = '<option value="">— Sin cambio de fotos —</option>';
+    _allSets.forEach(s => {
+      const op=document.createElement('option');
+      op.value=s.id;
+      op.textContent=`${s.nombre} (${s.total_fotos} fotos${s.tipo_producto?' · '+s.tipo_producto:''})`;
+      sel.appendChild(op);
+    });
+  } catch(e){}
+}
+
+function _bulkSetSelected() {
+  const setId=parseInt(document.getElementById('bulk-set-id').value)||0;
+  document.getElementById('bulk-modo-fotos-wrap').style.display=setId?'':'none';
+  const prev=document.getElementById('bulk-set-preview');
+  if(!setId){prev.innerHTML='';return;}
+  const s=_allSets.find(x=>x.id===setId);
+  if(s) prev.innerHTML=(s.fotos||[]).slice(0,10).map(f=>`<img src="${f.url}" style="width:58px;height:58px;object-fit:cover;border-radius:6px" loading="lazy" onerror="this.style.display='none'">`).join('');
+}
+
+function _bulkUpdateTitulo() {
+  const v=document.getElementById('bulk-titulo')?.value||'';
+  const el=document.getElementById('bulk-tit-count'); if(!el)return;
+  const n=v.length; el.textContent=n?`${n} chars`:'';
+  el.style.color=n>=40&&n<=60?'#22c55e':n>0?'#f59e0b':'var(--text-secondary)';
+}
+function _bulkUpdateDesc() {
+  const v=document.getElementById('bulk-desc')?.value||'';
+  const el=document.getElementById('bulk-desc-count'); if(!el)return;
+  const n=v.trim().split(/\s+/).filter(Boolean).length; el.textContent=n?`${n} palabras`:'';
+  el.style.color=n>=200?'#22c55e':n>0?'#f59e0b':'var(--text-secondary)';
+}
+
+async function _bulkGenTitulo() {
+  const btns=document.querySelectorAll('#modal-bulk-opt .btn');
+  const btn=[...btns].find(b=>b.onclick?.toString().includes('_bulkGenTitulo'));
+  if(btn){btn.disabled=true;btn.textContent='⏳…';}
+  try {
+    const tipos=[...new Set(_bulkOptItems.map(it=>it.producto).filter(Boolean))];
+    const tipo=tipos[0]||'PISCINA';
+    const modelo=[...new Set(_bulkOptItems.map(it=>it.modelo).filter(Boolean))][0]||tipo;
+    const r=await API.post('/api/ml/generar-titulo',{descripcion:modelo,tipo_producto:tipo});
+    if(r.titulo){document.getElementById('bulk-titulo').value=r.titulo;_bulkUpdateTitulo();}
+  } catch(e){showToast('Error: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ IA';}}
+}
+
+async function _bulkGenDesc() {
+  const btns=document.querySelectorAll('#modal-bulk-opt .btn');
+  const btn=[...btns].find(b=>b.onclick?.toString().includes('_bulkGenDesc'));
+  if(btn){btn.disabled=true;btn.textContent='⏳…';}
+  try {
+    const tipos=[...new Set(_bulkOptItems.map(it=>it.producto).filter(Boolean))];
+    const tipo=tipos[0]||'PISCINA';
+    const modelo=[...new Set(_bulkOptItems.map(it=>it.modelo).filter(Boolean))][0]||tipo;
+    const r=await API.post('/api/ml/generar-descripcion',{palabras_clave:modelo||tipo});
+    if(r.descripcion){document.getElementById('bulk-desc').value=r.descripcion;_bulkUpdateDesc();}
+  } catch(e){showToast('Error: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ IA';}}
+}
+
+async function _bulkOptIniciar() {
+  const titulo      = document.getElementById('bulk-titulo').value.trim();
+  const descripcion = document.getElementById('bulk-desc').value.trim();
+  const setId       = parseInt(document.getElementById('bulk-set-id').value)||0;
+  const modoFotos   = document.getElementById('bulk-modo-fotos')?.value||'reemplazar';
+
+  if(!titulo&&!descripcion&&!setId) {
+    showToast('Ingresá al menos título, descripción o un set de fotos','warning'); return;
+  }
+
+  let foto_urls=[];
+  if(setId){
+    const s=_allSets.find(x=>x.id===setId);
+    foto_urls=(s?.fotos||[]).map(f=>f.url).filter(Boolean);
+  }
+
+  const items=_bulkOptItems.map(it=>({
+    item_id:it.item_id, titulo:titulo||null, descripcion:descripcion||null,
+    foto_urls, modo_fotos:modoFotos,
+  }));
+
+  document.getElementById('btn-bulk-opt-ok').disabled=true;
+  document.getElementById('bulk-opt-progreso').style.display='';
+  document.getElementById('bulk-opt-bar').style.width='0%';
+  document.getElementById('bulk-opt-status').textContent='Iniciando…';
+  document.getElementById('bulk-opt-errores').textContent='';
+
+  try {
+    const r=await API.post('/api/ml/publicaciones/bulk-optimizar/iniciar',{items});
+    _bulkOptJobId=r.job_id;
+    _bulkOptIv=setInterval(_pollBulkOpt,1500);
+  } catch(e) {
+    document.getElementById('bulk-opt-status').textContent='Error: '+e.message;
+    document.getElementById('btn-bulk-opt-ok').disabled=false;
+  }
+}
+
+async function _pollBulkOpt() {
+  if(!_bulkOptJobId)return;
+  try {
+    const j=await API.get(`/api/ml/publicaciones/bulk-optimizar/estado/${_bulkOptJobId}`);
+    const pct=j.total?Math.round(j.procesados/j.total*100):0;
+    document.getElementById('bulk-opt-bar').style.width=pct+'%';
+    document.getElementById('bulk-opt-status').textContent=`${j.procesados}/${j.total} · ${j.ok||0} OK · ${(j.errores||[]).length} errores`;
+    if((j.errores||[]).length) document.getElementById('bulk-opt-errores').textContent=j.errores.slice(-5).join('\n');
+    if(j.estado==='listo'){
+      clearInterval(_bulkOptIv);_bulkOptIv=null;
+      document.getElementById('btn-bulk-opt-cancel').textContent='Cerrar';
+      document.getElementById('btn-bulk-opt-cancel').disabled=false;
+      showToast(`✅ ${j.ok} publicaciones optimizadas${j.errores?.length?' · '+j.errores.length+' errores':''}`,j.errores?.length?'warning':'success');
+    }
+  } catch(e){
+    clearInterval(_bulkOptIv);_bulkOptIv=null;
+    document.getElementById('bulk-opt-status').textContent='Error: '+e.message;
   }
 }
 

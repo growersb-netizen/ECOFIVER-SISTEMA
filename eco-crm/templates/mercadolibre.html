@@ -398,51 +398,55 @@
       <!-- ── SELECTOR AUTOMÁTICO DE MODO DE PUBLICACIÓN ──────────────────── -->
       <div style="background:var(--surface-2,var(--bg-secondary,#f8f9fa));border:1px solid var(--border);border-radius:10px;padding:14px 14px 10px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">🎯 Modo de publicación — elegí y el precio se calcula solo</div>
-        <div style="margin-bottom:10px">
-          <label class="form-label" style="margin-bottom:4px">💵 Precio de contado (precio que cobrás en efectivo sin ML)</label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input class="input" type="number" id="mp-contado" placeholder="Ej: 1000000"
-              style="max-width:200px"
-              oninput="borModoAplicar()">
-            <span style="font-size:12px;color:var(--text-secondary)">→ El precio ML se calcula cubriendo todos los cargos + 5% para vos</span>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end">
+          <div style="flex:1;min-width:180px">
+            <label class="form-label" style="margin-bottom:4px">💵 Precio de contado (efectivo, sin ML)</label>
+            <input class="input" type="number" id="mp-contado" placeholder="Ej: 1000000" oninput="borModoAplicar()">
+          </div>
+          <div style="width:110px">
+            <label class="form-label" style="margin-bottom:4px">📋 IIBB % <small style="opacity:.7">(consultá tu contador)</small></label>
+            <input class="input" type="number" id="mp-iibb" placeholder="Ej: 1.5" min="0" max="10" step="0.1" oninput="borModoAplicar()" title="Percepción de Ingresos Brutos que ML aplica según tu provincia. Bs.As.: ~1-3%. CABA: ~1,5%. Consultá con tu contador.">
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-bottom:8px" id="mp-modos-grid">
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">
+          ⚠️ Los porcentajes incluyen IVA 21% sobre comisión y cuotas (lo que ML realmente descuenta). El IIBB es adicional según tu provincia.
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:6px;margin-bottom:8px" id="mp-modos-grid">
           <button type="button" class="btn btn-sm" id="mpmod-gold_special-0"
             onclick="borSeleccionarModo('gold_special',0)"
             style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
             <span style="font-size:12px;font-weight:500">Clásica — 1 pago</span>
-            <span style="font-size:10px;opacity:.75">comisión 9% · sin cuotas</span>
+            <span style="font-size:10px;opacity:.75">9% base + IVA = <b>10,9%</b> real</span>
           </button>
           <button type="button" class="btn btn-sm" id="mpmod-gold_pro-0"
             onclick="borSeleccionarModo('gold_pro',0)"
             style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
             <span style="font-size:12px;font-weight:500">Premium — 1 pago</span>
-            <span style="font-size:10px;opacity:.75">comisión 13,5% · sin cuotas</span>
+            <span style="font-size:10px;opacity:.75">13,5% base + IVA = <b>16,3%</b> real</span>
           </button>
           <button type="button" class="btn btn-sm" id="mpmod-gold_pro-3"
             onclick="borSeleccionarModo('gold_pro',3)"
             style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
             <span style="font-size:12px;font-weight:500">Premium — 3 cuotas</span>
-            <span style="font-size:10px;opacity:.75">13,5% + 8,5% = 22% total</span>
+            <span style="font-size:10px;opacity:.75">16,3% + 10,3% = <b>26,6%</b> c/IVA</span>
           </button>
           <button type="button" class="btn btn-sm" id="mpmod-gold_pro-6"
             onclick="borSeleccionarModo('gold_pro',6)"
             style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
             <span style="font-size:12px;font-weight:500">Premium — 6 cuotas</span>
-            <span style="font-size:10px;opacity:.75">13,5% + 14,8% = 28,3% total</span>
+            <span style="font-size:10px;opacity:.75">16,3% + 17,9% = <b>34,2%</b> c/IVA</span>
           </button>
           <button type="button" class="btn btn-sm" id="mpmod-gold_pro-12"
             onclick="borSeleccionarModo('gold_pro',12)"
             style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
             <span style="font-size:12px;font-weight:500">Premium — 12 cuotas</span>
-            <span style="font-size:10px;opacity:.75">13,5% + 26,2% = 39,7% total</span>
+            <span style="font-size:10px;opacity:.75">16,3% + 31,7% = <b>48,0%</b> c/IVA</span>
           </button>
           <button type="button" class="btn btn-sm" id="mpmod-gold_pro-18"
             onclick="borSeleccionarModo('gold_pro',18)"
             style="flex-direction:column;height:auto;padding:8px 10px;text-align:left;gap:2px">
             <span style="font-size:12px;font-weight:500">Premium — 18 cuotas</span>
-            <span style="font-size:10px;opacity:.75">13,5% + 36,0% = 49,5% total</span>
+            <span style="font-size:10px;opacity:.75">16,3% + 43,6% = <b>59,9%</b> c/IVA</span>
           </button>
         </div>
         <div id="mp-modo-resultado" style="font-size:12px;color:var(--text-secondary);min-height:18px;line-height:1.5"></div>
@@ -2929,6 +2933,8 @@ function borNuevaPub() {
   _borModoActivo = null;
   const contadoEl = document.getElementById('mp-contado');
   if (contadoEl) contadoEl.value = '';
+  const iibbEl = document.getElementById('mp-iibb');
+  if (iibbEl) iibbEl.value = '';
   document.querySelectorAll('#mp-modos-grid button').forEach(btn => {
     btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = '';
   });
@@ -3146,11 +3152,32 @@ async function borGenerarTituloIA() {
     msg.style.color = '#f87171';
   }
 }
-// Tasas de financiación que ML cobra al vendedor cuando absorbe cuotas sin interés
-// Fuente: MercadoLibre Argentina — estas tasas cambian; actualizalas desde Configuración
-const BOR_COSTO_CUOTAS = { 0: 0, 3: 0.085, 6: 0.148, 9: 0.206, 12: 0.262, 18: 0.360 };
-// Comisiones base por tipo de publicación (ML Argentina)
-const BOR_COMISION_BASE = { gold_special: 0.09, gold_pro: 0.135 };
+// ── TASAS MERCADOLIBRE ARGENTINA (con IVA 21% incluido) ──────────────────────
+// Las tasas base (comisión y cuotas) que publica ML son sin IVA.
+// ML factura el IVA 21% SOBRE esas tasas → multiplicar por 1.21 para el costo real.
+// Fuente: ML Argentina 2026 — verificar periódicamente en Tu Cuenta → Tarifas.
+const IVA_ML = 1.21;
+
+// Tasas NETAS de cuotas sin interés (lo que ML cobra al vendedor, sin IVA aún)
+const _BOR_CUOTAS_NETO = { 0: 0, 3: 0.085, 6: 0.148, 9: 0.206, 12: 0.262, 18: 0.360 };
+// Tasas CON IVA (lo que realmente pagás — esto es lo que usa el calculador)
+const BOR_COSTO_CUOTAS = Object.fromEntries(
+  Object.entries(_BOR_CUOTAS_NETO).map(([k, v]) => [k, parseFloat((v * IVA_ML).toFixed(5))])
+);
+// Comisiones base SIN IVA (gold_special: 9%, gold_pro: 13,5%)
+// Comisiones CON IVA (gold_special: 10,89%, gold_pro: 16,335%) — usadas en el selector
+const BOR_COMISION_BASE = {
+  gold_special: parseFloat((0.09  * IVA_ML).toFixed(5)),  // 10,89%
+  gold_pro:     parseFloat((0.135 * IVA_ML).toFixed(5)),  // 16,335%
+};
+
+// IIBB (Ingresos Brutos): percepción que aplica ML según provincia del vendedor.
+// Bs As provincia: ~1-3% | CABA: ~1,5% | Otras: variable. Consultá tu contador.
+// Este valor se lee del campo mp-iibb del formulario (default 0).
+function _borIIBBRate() {
+  const el = document.getElementById('mp-iibb');
+  return el ? (parseFloat(el.value) || 0) / 100 : 0;
+}
 
 // ── SELECTOR AUTOMÁTICO DE MODO DE PUBLICACIÓN ────────────────────────────────
 let _borModoActivo = null; // { lt, cuotas }
@@ -3183,6 +3210,7 @@ function borSeleccionarModo(lt, cuotas) {
 
 function borModoAplicar() {
   const contado = parseFloat(document.getElementById('mp-contado')?.value) || 0;
+  const iibbRate = _borIIBBRate();
   const res = document.getElementById('mp-modo-resultado');
 
   if (!_borModoActivo) {
@@ -3191,27 +3219,27 @@ function borModoAplicar() {
   }
 
   const { lt, cuotas } = _borModoActivo;
-  const comisionRate = BOR_COMISION_BASE[lt] || 0.09;
-  const cuotasRate = (cuotas > 0 && lt === 'gold_pro') ? (BOR_COSTO_CUOTAS[cuotas] || 0) : 0;
-  const totalRate = comisionRate + cuotasRate;
+  const comisionRate = BOR_COMISION_BASE[lt] || 0.1089; // c/IVA
+  const cuotasRate   = (cuotas > 0 && lt === 'gold_pro') ? (BOR_COSTO_CUOTAS[cuotas] || 0) : 0; // c/IVA
+  const totalRate    = comisionRate + cuotasRate + iibbRate;
 
   // Etiquetas para el resultado
-  const ltLabel = lt === 'gold_pro' ? 'Premium' : 'Clásica';
+  const ltLabel    = lt === 'gold_pro' ? 'Premium' : 'Clásica';
   const cuotasLabel = cuotas > 0 ? (cuotas + ' cuotas sin interés') : '1 pago';
-  const pctTotal = (totalRate * 100).toFixed(1);
+  const pctTotal   = (totalRate * 100).toFixed(1);
 
   if (!contado) {
     if (res) res.innerHTML =
       '<span style="color:var(--color-primary,#2a78d6)">✓ Modo: ' + ltLabel + ' · ' + cuotasLabel +
-      ' (' + pctTotal + '% total ML)</span> — ingresá el precio de contado para calcular el precio ML automáticamente.';
+      ' (' + pctTotal + '% total c/IVA)</span> — ingresá el precio de contado para calcular el precio ML automáticamente.';
     return;
   }
 
   // precio_ml = contado × 1.05 / (1 − totalRate)
-  // → Cubrís toda la comisión ML y además te queda 5% encima del precio de contado
+  // → Cubrís todos los costos ML (c/IVA + IIBB) y te queda 5% neto encima del precio de contado
   const MARGEN_EXTRA = 0.05;
-  const precioML = Math.ceil((contado * (1 + MARGEN_EXTRA)) / (1 - totalRate) / 100) * 100;
-  const netoReal = precioML * (1 - totalRate);
+  const precioML   = Math.ceil((contado * (1 + MARGEN_EXTRA)) / (1 - totalRate) / 100) * 100;
+  const netoReal   = precioML * (1 - totalRate);
   const gananciaSobre = netoReal - contado;
 
   // Aplicar al campo precio
@@ -3223,18 +3251,19 @@ function borModoAplicar() {
 
   // Resultado visual
   if (res) {
+    const iibbTxt = iibbRate > 0 ? ' + IIBB ' + (iibbRate*100).toFixed(1) + '%' : '';
     res.innerHTML =
       '<span style="color:var(--color-primary,#2a78d6);font-weight:500">✓ ' + ltLabel + ' · ' + cuotasLabel + '</span>' +
       ' — Contado <b>' + borFmt(contado) + '</b>' +
       ' → Precio ML: <b style="color:var(--text-primary)">' + borFmt(precioML) + '</b>' +
-      ' <span style="color:var(--text-secondary)">(ML cobra ' + pctTotal + '% = ' + borFmt(Math.round(precioML * totalRate)) + ',' +
-      ' te queda el precio contado + <span style="color:#22c55e;font-weight:500">' + borFmt(Math.round(gananciaSobre)) + ' (' + (((gananciaSobre/contado)*100).toFixed(1)) + '%)</span>)</span>';
+      ' <span style="color:var(--text-secondary)">(costo total ML ' + pctTotal + '%' + iibbTxt + ' c/IVA = ' + borFmt(Math.round(precioML * totalRate)) +
+      ', te queda: <span style="color:#22c55e;font-weight:500">' + borFmt(Math.round(gananciaSobre)) + ' (' + (((gananciaSobre/contado)*100).toFixed(1)) + '% sobre contado)</span>)</span>';
   }
 
   // Actualizar cuotas info
   const cv = document.getElementById('mp-cuota-val');
   if (cv && cuotas > 0) {
-    cv.innerHTML = 'El comprador paga <b>' + cuotas + ' cuotas de ' + borFmt(Math.round(precioML / cuotas)) + '</b> sin interés (vos absorbés el costo)';
+    cv.innerHTML = 'El comprador paga <b>' + cuotas + ' cuotas de ' + borFmt(Math.round(precioML / cuotas)) + '</b> sin interés (vos absorbés el costo de financiación + IVA)';
   } else if (cv) {
     cv.textContent = '';
   }
@@ -3243,19 +3272,21 @@ function borModoAplicar() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-function borDesgloseCostos(precio, comision, cuotas, listing_type, costo) {
-  // Devuelve objeto con todos los números y HTML del panel
+function borDesgloseCostos(precio, comisionApi, cuotas, listing_type, costo) {
+  // comisionApi: lo que devuelve la API de ML (ya incluye IVA sobre comisión)
+  // Para el costo de cuotas: BOR_COSTO_CUOTAS ya está con IVA (×1.21)
+  const iibbRate   = _borIIBBRate();
   const tasaCuotas = (cuotas > 0 && listing_type === 'gold_pro') ? (BOR_COSTO_CUOTAS[cuotas] || 0) : 0;
+  const costoIIBB  = precio * iibbRate;
   const costoCuotas = precio * tasaCuotas;
-  const totalML = comision + costoCuotas;
-  const neto = precio - totalML;
-  const gan = neto - (costo || 0);
-  const pctML = precio > 0 ? ((totalML / precio) * 100).toFixed(1) : 0;
-  // Precio sugerido para absorber costos ML y mantener margen: precio / (1 - pctTotal)
-  const pctComision = precio > 0 ? comision / precio : BOR_COMISION_BASE[listing_type] || 0.09;
-  const factorTotal = pctComision + tasaCuotas;
-  const precioSugerido = costo > 0 ? Math.ceil(costo / (1 - factorTotal - 0.15)) : 0; // 15% margen mínimo
-  return { comision, costoCuotas, totalML, neto, gan, pctML, precioSugerido, tasaCuotas };
+  const totalML    = comisionApi + costoCuotas + costoIIBB;
+  const neto       = precio - totalML;
+  const gan        = neto - (costo || 0);
+  const pctML      = precio > 0 ? ((totalML / precio) * 100).toFixed(1) : 0;
+  // Precio sugerido con margen 15% sobre costo
+  const factorTotal = precio > 0 ? totalML / precio : (BOR_COMISION_BASE[listing_type] || 0.1089) + tasaCuotas + iibbRate;
+  const precioSugerido = costo > 0 ? Math.ceil(costo / (1 - factorTotal - 0.15) / 100) * 100 : 0;
+  return { comision: comisionApi, costoCuotas, costoIIBB, totalML, neto, gan, pctML, precioSugerido, tasaCuotas, iibbRate };
 }
 
 async function borCalcGanancia() {
@@ -3281,35 +3312,42 @@ async function borCalcGanancia() {
     if (!(d.ok && d.comision != null)) { g.textContent = ''; if (panel) panel.style.display = 'none'; return; }
     const { comision, costoCuotas, totalML, neto, gan, pctML, precioSugerido, tasaCuotas } = borDesgloseCostos(precio, d.comision, cuotas, lt, costo);
 
-    // Línea resumen compacta en el formulario
-    let txt = '💸 Comisión ML: <b>' + borFmt(comision) + '</b>';
-    if (costoCuotas > 0) txt += ' · 💳 Cuotas: <b>' + borFmt(costoCuotas) + '</b> (' + (tasaCuotas*100).toFixed(1) + '%)';
-    txt += ' · <b style="color:var(--text-primary)">Total ML: ' + borFmt(totalML) + ' (' + pctML + '%)</b>';
+    // Línea resumen compacta
+    let txt = '💸 Comisión c/IVA: <b>' + borFmt(comision) + '</b>';
+    if (costoCuotas > 0) txt += ' · 💳 Cuotas c/IVA: <b>' + borFmt(costoCuotas) + '</b>';
+    if (costoIIBB > 0)   txt += ' · 📋 IIBB: <b>' + borFmt(costoIIBB) + '</b>';
+    txt += ' · <b style="color:var(--text-primary)">Total: ' + borFmt(totalML) + ' (' + pctML + '%)</b>';
     if (costo) txt += ' · Ganancia: <b style="color:#22c55e">' + borFmt(gan) + '</b>';
     else txt += ' · Te queda: <b style="color:#22c55e">' + borFmt(neto) + '</b>';
     g.innerHTML = txt;
 
     // Panel de desglose detallado
     if (panel) {
-      const ltLabel = lt === 'gold_pro' ? 'Premium (13,5%)' : 'Clásica (9,0%)';
-      const cuotasLabel = cuotas > 0 ? cuotas + ' cuotas s/interés (' + (tasaCuotas*100).toFixed(1) + '%)' : '1 pago (0%)';
+      const ltNeto  = lt === 'gold_pro' ? '13,5%' : '9,0%';
+      const ltLabel = lt === 'gold_pro' ? `Premium ${ltNeto} neto + IVA 21% = 16,3%` : `Clásica ${ltNeto} neto + IVA 21% = 10,9%`;
+      const cuotasNeto = cuotas > 0 ? (_BOR_CUOTAS_NETO[cuotas] * 100).toFixed(1) : '0';
+      const cuotasLabel = cuotas > 0
+        ? `${cuotas} cuotas: ${cuotasNeto}% neto + IVA = ${(tasaCuotas*100).toFixed(1)}% real`
+        : '1 pago (sin financiación)';
       const rowStyle = 'padding:4px 6px;border-bottom:0.5px solid var(--border)';
-      const labelStyle = 'color:var(--text-secondary)';
-      const valStyle = 'text-align:right;font-variant-numeric:tabular-nums';
-      const negStyle = 'text-align:right;color:#f87171;font-variant-numeric:tabular-nums';
-      const posStyle = 'text-align:right;color:#22c55e;font-weight:500;font-variant-numeric:tabular-nums';
+      const labelStyle = 'color:var(--text-secondary);font-size:12px';
+      const valStyle   = 'text-align:right;font-variant-numeric:tabular-nums;font-size:12px';
+      const negStyle   = 'text-align:right;color:#f87171;font-variant-numeric:tabular-nums;font-size:12px';
+      const posStyle   = 'text-align:right;color:#22c55e;font-weight:500;font-variant-numeric:tabular-nums';
       tabla.innerHTML = `
-        <tr style="${rowStyle}"><td style="${labelStyle}">Precio de venta</td><td style="${valStyle}">${borFmt(precio)}</td></tr>
-        <tr style="${rowStyle}"><td style="${labelStyle}">Tipo publicación: ${ltLabel}</td><td style="${negStyle}">− ${borFmt(comision)}</td></tr>
+        <tr style="${rowStyle}"><td style="${labelStyle}">Precio de venta ML</td><td style="${valStyle}">${borFmt(precio)}</td></tr>
+        <tr style="${rowStyle}"><td style="${labelStyle}">Comisión: ${ltLabel}</td><td style="${negStyle}">− ${borFmt(comision)}</td></tr>
         ${costoCuotas > 0 ? `<tr style="${rowStyle}"><td style="${labelStyle}">Cuotas s/interés: ${cuotasLabel}</td><td style="${negStyle}">− ${borFmt(costoCuotas)}</td></tr>` : ''}
-        <tr style="${rowStyle};font-weight:500"><td>Total que cobra ML</td><td style="${negStyle};font-weight:500">− ${borFmt(totalML)} (${pctML}%)</td></tr>
-        ${costo ? `<tr style="${rowStyle}"><td style="${labelStyle}">Costo del producto</td><td style="${negStyle}">− ${borFmt(costo)}</td></tr>` : ''}
-        <tr style="padding:6px"><td style="font-weight:500">${costo ? 'Ganancia neta' : 'Lo que te queda (sin costo)'}</td><td style="${gan >= 0 ? posStyle : negStyle};font-size:14px">${borFmt(costo ? gan : neto)}</td></tr>
+        ${costoIIBB > 0  ? `<tr style="${rowStyle}"><td style="${labelStyle}">IIBB ${(iibbRate*100).toFixed(1)}% (percepción provincial)</td><td style="${negStyle}">− ${borFmt(costoIIBB)}</td></tr>` : ''}
+        <tr style="${rowStyle};font-weight:500"><td style="font-size:12px">▸ Total que descuenta ML</td><td style="${negStyle};font-weight:500">− ${borFmt(totalML)} (${pctML}%)</td></tr>
+        ${costo ? `<tr style="${rowStyle}"><td style="${labelStyle}">Costo fabricación/compra</td><td style="${negStyle}">− ${borFmt(costo)}</td></tr>` : ''}
+        <tr style="padding:6px 6px 2px"><td style="font-weight:500;font-size:13px">${costo ? 'Ganancia neta' : 'Lo que te queda (sin costo cargado)'}</td><td style="${gan >= 0 ? posStyle : negStyle};font-size:14px">${borFmt(costo ? gan : neto)}</td></tr>
+        <tr><td colspan="2" style="font-size:10px;color:var(--text-secondary);padding:2px 6px 6px">* Comisión y cuotas ya incluyen IVA 21%. IIBB varía por provincia — consultá tu contador.</td></tr>
       `;
       if (costo && precioSugerido > 0) {
-        sugerido.innerHTML = '💡 Para mantener un margen del 15% absorbiendo todos los costos ML, el precio sugerido sería <b>' + borFmt(precioSugerido) + '</b>';
+        sugerido.innerHTML = '💡 Para 15% de margen neto absorbiendo todos los cargos ML, precio sugerido: <b>' + borFmt(precioSugerido) + '</b>';
       } else {
-        sugerido.innerHTML = costo ? '' : '💡 Cargá el costo del producto para ver la ganancia real y el precio sugerido.';
+        sugerido.innerHTML = costo ? '' : '💡 Cargá el costo de fabricación para ver la ganancia real y el precio sugerido.';
       }
       panel.style.display = 'block';
     }
@@ -4062,29 +4100,33 @@ async function borVerCostos(id, precio, lt, cat, costo, cuotas) {
   const d = await API.get(u);
   if (!(d.ok && d.comision != null)) { alert('ML no devolvió la comisión (revisá precio/categoría).'); return; }
 
-  const { comision, costoCuotas, totalML, neto, gan, pctML, precioSugerido, tasaCuotas } = borDesgloseCostos(precio, d.comision, cuotas, lt, costo);
-  const ltLabel = lt === 'gold_pro' ? 'Premium (13,5%)' : 'Clásica (9,0%)';
-  const cuotasLabel = cuotas > 0 ? cuotas + ' cuotas sin interés (' + (tasaCuotas*100).toFixed(1) + '%)' : '1 pago (sin cuotas)';
+  const { comision, costoCuotas, costoIIBB, totalML, neto, gan, pctML, precioSugerido, tasaCuotas, iibbRate } = borDesgloseCostos(precio, d.comision, cuotas, lt, costo);
+  const ltNeto  = lt === 'gold_pro' ? '13,5%' : '9,0%';
+  const ltReal  = lt === 'gold_pro' ? '16,3%' : '10,9%';
+  const cuotasNeto = cuotas > 0 ? (_BOR_CUOTAS_NETO[cuotas] * 100).toFixed(1) : '0';
 
-  // Mostrar en modal de costos reutilizando un modal genérico si existe, o alert mejorado
   const html = [
-    '💰 DESGLOSE DE COSTOS — ' + (lt === 'gold_pro' ? 'PREMIUM' : 'CLÁSICA'),
+    '💰 DESGLOSE REAL DE COSTOS ML (con IVA 21%)',
+    lt === 'gold_pro' ? 'PREMIUM' : 'CLÁSICA',
     '',
-    'Precio de venta:       ' + borFmt(precio),
-    'Comisión ML (' + ltLabel + '): − ' + borFmt(comision),
-    cuotas > 0 ? ('Cuotas sin interés (' + cuotasLabel + '): − ' + borFmt(costoCuotas)) : null,
+    'Precio de venta ML:         ' + borFmt(precio),
+    'Comisión ' + ltNeto + ' neto + IVA = ' + ltReal + ':',
+    '                          − ' + borFmt(comision),
+    cuotas > 0 ? ('Cuotas ' + cuotas + 'c: ' + cuotasNeto + '% neto + IVA = ' + (tasaCuotas*100).toFixed(1) + '%:\n                          − ' + borFmt(costoCuotas)) : null,
+    costoIIBB > 0 ? ('IIBB ' + (iibbRate*100).toFixed(1) + '% (prov):        − ' + borFmt(costoIIBB)) : null,
     '─────────────────────────────────────',
-    'TOTAL que cobra ML:    − ' + borFmt(totalML) + ' (' + pctML + '% del precio)',
-    costo ? ('Costo del producto:    − ' + borFmt(costo)) : null,
+    'TOTAL CARGOS ML:          − ' + borFmt(totalML) + ' (' + pctML + '%)',
+    costo ? ('Costo fabricación:        − ' + borFmt(costo)) : null,
     '─────────────────────────────────────',
-    costo ? ('GANANCIA NETA:         ' + borFmt(gan)) : ('Lo que te queda:       ' + borFmt(neto)),
+    costo ? ('GANANCIA NETA:              ' + borFmt(gan)) : ('Lo que te queda:            ' + borFmt(neto)),
     '',
-    costo && precioSugerido > 0 ? ('💡 Precio sugerido para 15% margen: ' + borFmt(precioSugerido)) : (costo ? '' : '(Cargá el costo del producto en Editar para ver la ganancia real)'),
+    costo && precioSugerido > 0 ? ('💡 Precio para 15% margen neto: ' + borFmt(precioSugerido)) : '(Cargá el costo en Editar para ver ganancia)',
     '',
-    '📌 Tasas de cuotas sin interés (aprox. ML Argentina):',
-    '  3 cuotas:  8,5% | 6 cuotas: 14,8% | 9 cuotas: 20,6%',
-    ' 12 cuotas: 26,2% | 18 cuotas: 36,0%',
-    '(El costo lo absorbés volviendo proporcional el precio de venta)',
+    '📋 Tasas reales c/IVA — referencia:',
+    '  Clásica 1p: 10,9%  |  Premium 1p: 16,3%',
+    '  Premium 3c: 26,6%  |  Premium 6c: 34,2%',
+    '  Premium 12c: 48,0% |  Premium 18c: 59,9%',
+    costoIIBB === 0 ? '⚠ IIBB: configuralo en el selector de modo (campo %).' : null,
   ].filter(l => l !== null).join('\n');
   alert(html);
 }

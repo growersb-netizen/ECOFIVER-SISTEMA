@@ -332,6 +332,7 @@
     <button class="btn btn-secondary btn-sm" onclick="borImportarCatalogo()" title="Traer productos del catálogo del CRM">🔄 Del catálogo</button>
     <button class="btn btn-secondary btn-sm" onclick="borSeedHidromasajes()" title="Carga hidromasajes (4 modelos + 5 accesorios), 7 bañeras y 3 receptáculos de ducha con fotos reales">🛁 Cargar spas / bañeras</button>
     <button class="btn btn-sm" onclick="abrirModalMasivos()" title="Genera 500 variantes de título por producto — para cualquier categoría del catálogo" style="background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a">⚡ 500 variantes (todos)</button>
+    <button class="btn btn-sm" onclick="borRecalcularTodos()" title="Recalcula el precio ML de todos los borradores con precio de contado guardado, usando el margen configurado" style="background:#2a1a0a;color:#fb923c;border-color:#5a3a0a">🔧 Recalcular precios</button>
     <button class="btn btn-sm" onclick="borRepararCategorias()" title="Corrige categorías inválidas (ej. MLA9226 → detecta la correcta al publicar)" style="background:#1a1a0a;color:#fbbf24;border-color:#4a4a0a">🔧 Reparar categorías</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
@@ -406,6 +407,25 @@
           <div style="width:110px">
             <label class="form-label" style="margin-bottom:4px">📋 IIBB % <small style="opacity:.7">(consultá tu contador)</small></label>
             <input class="input" type="number" id="mp-iibb" placeholder="Ej: 1.5" min="0" max="10" step="0.1" oninput="borModoAplicar()" title="Percepción de Ingresos Brutos que ML aplica según tu provincia. Bs.As.: ~1-3%. CABA: ~1,5%. Consultá con tu contador.">
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="borAbrirModalMargen()" title="Configurar % de ganancia sobre precio de contado" style="white-space:nowrap">
+              ⚙ Mi ganancia: <b id="mp-margen-label">5%</b>
+            </button>
+          </div>
+        </div>
+        <!-- Fila: checkbox de envío incluido -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="mp-incluir-envio" onchange="borToggleEnvio()" style="width:16px;height:16px">
+            📦 Incluir envío gratis en el precio
+          </label>
+          <div id="mp-flete-row" style="display:none;align-items:center;gap:8px">
+            <label class="form-label" style="margin:0;white-space:nowrap">Costo del flete a absorber (ARS):</label>
+            <input class="input" type="number" id="mp-costo-flete" placeholder="Ej: 360000"
+              style="width:140px" oninput="borModoAplicar()"
+              title="Calculá: $4.000 × km desde Zárate. Ej: CABA ~90km = $360.000">
+            <span style="font-size:11px;color:var(--text-secondary)">($4.000/km desde Zárate)</span>
           </div>
         </div>
         <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">
@@ -900,6 +920,39 @@
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-secondary" onclick="closeModal('modal-masivos')">Cancelar</button>
         <button class="btn btn-primary" id="masivos-btn-generar" onclick="masivosGenerar()">⚡ Generar 500 variantes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Configuración de margen de ganancia -->
+<div class="modal-overlay" id="modal-margen-ml" style="display:none">
+  <div class="modal" style="max-width:420px;width:96vw">
+    <div class="modal-header">
+      <h3>⚙ Mi ganancia sobre precio de contado</h3>
+      <button class="btn btn-icon" onclick="closeModal('modal-margen-ml')">✕</button>
+    </div>
+    <div style="padding:20px">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:18px">
+        Este % se suma al precio de contado antes de calcular el precio ML.
+        Cubre el trabajo de publicación y queda libre neto después de todas las comisiones.
+      </p>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+        <input type="range" id="margen-slider" min="5" max="15" step="1" value="5"
+          oninput="document.getElementById('margen-slider-val').textContent = this.value + '%'"
+          style="flex:1;accent-color:var(--color-primary,#2a78d6)">
+        <span id="margen-slider-val" style="font-size:22px;font-weight:800;min-width:48px;text-align:right">5%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);margin-bottom:20px">
+        <span>5% mínimo</span><span>15% máximo</span>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;font-size:12px;color:var(--text-secondary);margin-bottom:18px">
+        💡 Con 5%: mínimo trabajo garantizado. Con 10-15%: recomendado para cuotas largas o envío incluido.
+        Al guardar se actualiza en todos los nuevos cálculos y podés recalcular todos los precios desde el botón 🔧.
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-margen-ml')">Cancelar</button>
+        <button class="btn btn-sm" onclick="borGuardarMargen()" style="background:var(--color-primary,#2a78d6);color:#fff">Guardar y aplicar</button>
       </div>
     </div>
   </div>
@@ -2797,7 +2850,21 @@ const BOR_SEM = {
 };
 
 let BOR_DATA_CACHE = {};
+let _borMargenCargado = false;
+async function borCargarMargenConfig() {
+  if (_borMargenCargado) return; // solo cargar una vez
+  try {
+    const j = await API.get('/api/ml/config/margen');
+    if (j && typeof j.margen === 'number') {
+      BOR_MARGEN_EXTRA = j.margen;
+      const lbl = document.getElementById('mp-margen-label');
+      if (lbl) lbl.textContent = Math.round(BOR_MARGEN_EXTRA * 100) + '%';
+      _borMargenCargado = true;
+    }
+  } catch (_) {}
+}
 async function borCargar() {
+  borCargarMargenConfig(); // cargar margen en background (no bloquea)
   const e = document.getElementById('bor-f-estado').value;
   const p = document.getElementById('bor-f-producto').value;
   const params = [e ? 'estado=' + e : '', p ? 'producto=' + encodeURIComponent(p) : ''].filter(Boolean).join('&');
@@ -2934,7 +3001,14 @@ function borNuevaPub() {
   const contadoEl = document.getElementById('mp-contado');
   if (contadoEl) contadoEl.value = '';
   const iibbEl = document.getElementById('mp-iibb');
-  if (iibbEl) iibbEl.value = '';
+  if (iibbEl) iibbEl.value = '1.5'; // Default IIBB CABA/Bs.As.
+  // Limpiar flete/envío
+  const inclEnvioEl = document.getElementById('mp-incluir-envio');
+  if (inclEnvioEl) inclEnvioEl.checked = false;
+  const fleteRowEl = document.getElementById('mp-flete-row');
+  if (fleteRowEl) fleteRowEl.style.display = 'none';
+  const fleteEl = document.getElementById('mp-costo-flete');
+  if (fleteEl) fleteEl.value = '';
   document.querySelectorAll('#mp-modos-grid button').forEach(btn => {
     btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = '';
   });
@@ -2980,10 +3054,19 @@ function borEditar(id_o_obj) {
   document.getElementById('mp-precio-ref-box').style.display = 'none';
   document.getElementById('mp-pc-warn').style.display = 'none';
   _borPrecioContadoRef = null;
-  // ── Restaurar selector de modo ──────────────────────────────────────────
+  // ── Restaurar selector de modo y campos nuevos ──────────────────────────
   _borModoActivo = null;
   const contadoElE = document.getElementById('mp-contado');
-  if (contadoElE) contadoElE.value = '';
+  if (contadoElE) contadoElE.value = b.precio_contado || '';
+  const iibbElE = document.getElementById('mp-iibb');
+  if (iibbElE) iibbElE.value = '1.5'; // default IIBB CABA/Bs.As.
+  // Envío incluido
+  const inclEnvioElE = document.getElementById('mp-incluir-envio');
+  if (inclEnvioElE) inclEnvioElE.checked = !!b.incluir_envio;
+  const fleteRowElE = document.getElementById('mp-flete-row');
+  if (fleteRowElE) fleteRowElE.style.display = b.incluir_envio ? 'flex' : 'none';
+  const fleteElE = document.getElementById('mp-costo-flete');
+  if (fleteElE) fleteElE.value = b.costo_flete || '';
   document.querySelectorAll('#mp-modos-grid button').forEach(btn => {
     btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = '';
   });
@@ -3008,6 +3091,7 @@ function borEditar(id_o_obj) {
   openModal('modal-bor');
   setTimeout(borCalcGanancia, 50);
   setTimeout(borOnProductoChange, 50);
+  if (b.precio_contado && _borModoActivo) setTimeout(borModoAplicar, 80);
   checklistCalidad('mp-titulo', 'mp-desc', 'mp-fotos', 'mp-checklist-calidad');
 }
 async function borGuardar() {
@@ -3029,6 +3113,9 @@ async function borGuardar() {
     tipo_precio: document.getElementById('mp-tipo-precio').value || 'completo',
     modelo_nombre: document.getElementById('mp-ficha-modelo').value || '',
     atributos: borCollectAtributos(),
+    precio_contado: parseFloat(document.getElementById('mp-contado')?.value) || null,
+    incluir_envio: document.getElementById('mp-incluir-envio')?.checked || false,
+    costo_flete: parseFloat(document.getElementById('mp-costo-flete')?.value) || null,
   };
   if (!body.titulo) { showToast('El título es obligatorio', 'error'); return; }
   try {
@@ -3179,6 +3266,63 @@ function _borIIBBRate() {
   return el ? (parseFloat(el.value) || 0) / 100 : 0;
 }
 
+// ── MARGEN DE GANANCIA (configurable entre 5% y 15%) ────────────────────────
+let BOR_MARGEN_EXTRA = 0.05; // 5% default — se actualiza desde el modal de configuración
+
+function borToggleEnvio() {
+  const checked = document.getElementById('mp-incluir-envio').checked;
+  const row = document.getElementById('mp-flete-row');
+  if (row) row.style.display = checked ? 'flex' : 'none';
+  if (!checked) {
+    const fleteEl = document.getElementById('mp-costo-flete');
+    if (fleteEl) fleteEl.value = '';
+  }
+  borModoAplicar();
+}
+
+async function borAbrirModalMargen() {
+  // Cargar margen actual desde el backend
+  try {
+    const j = await API.get('/api/ml/config/margen');
+    if (j && typeof j.margen === 'number') BOR_MARGEN_EXTRA = j.margen;
+  } catch (_) {}
+  const pct = Math.round(BOR_MARGEN_EXTRA * 100);
+  document.getElementById('margen-slider').value = pct;
+  document.getElementById('margen-slider-val').textContent = pct + '%';
+  openModal('modal-margen-ml');
+}
+
+async function borGuardarMargen() {
+  const pct = parseInt(document.getElementById('margen-slider').value) || 5;
+  BOR_MARGEN_EXTRA = pct / 100;
+  try {
+    await API.put('/api/ml/config/margen', { margen: BOR_MARGEN_EXTRA });
+    document.getElementById('mp-margen-label').textContent = pct + '%';
+    showToast('Ganancia actualizada a ' + pct + '%', 'success');
+    closeModal('modal-margen-ml');
+    borModoAplicar();
+  } catch (e) {
+    showToast('Error al guardar: ' + e.message, 'error');
+  }
+}
+
+async function borRecalcularTodos() {
+  const ok = await showConfirm(
+    '¿Recalcular el precio ML de TODOS los borradores que tienen precio de contado guardado?\n\n' +
+    'Usa la comisión real de cada categoría y el margen actual (' + Math.round(BOR_MARGEN_EXTRA * 100) + '%).',
+    '🔧 Recalcular todos los precios'
+  );
+  if (!ok) return;
+  showToast('Recalculando precios…', 'info');
+  try {
+    const j = await API.post('/api/ml/borradores/recalcular-precios', {});
+    showToast('✅ ' + (j.actualizados || 0) + ' borradores actualizados', 'success');
+    borCargar();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
 // ── SELECTOR AUTOMÁTICO DE MODO DE PUBLICACIÓN ────────────────────────────────
 let _borModoActivo = null; // { lt, cuotas }
 
@@ -3235,12 +3379,13 @@ function borModoAplicar() {
     return;
   }
 
-  // precio_ml = contado × 1.05 / (1 − totalRate)
-  // → Cubrís todos los costos ML (c/IVA + IIBB) y te queda 5% neto encima del precio de contado
-  const MARGEN_EXTRA = 0.05;
-  const precioML   = Math.ceil((contado * (1 + MARGEN_EXTRA)) / (1 - totalRate) / 100) * 100;
+  // precio_ml = (contado × (1 + margen) + flete) / (1 − totalRate)
+  // → Cubrís todos los costos ML (c/IVA + IIBB + flete) y te queda margen% neto sobre el precio de contado
+  const incluyeEnvio = document.getElementById('mp-incluir-envio')?.checked || false;
+  const flete = incluyeEnvio ? (parseFloat(document.getElementById('mp-costo-flete')?.value) || 0) : 0;
+  const precioML   = Math.ceil((contado * (1 + BOR_MARGEN_EXTRA) + flete) / (1 - totalRate) / 100) * 100;
   const netoReal   = precioML * (1 - totalRate);
-  const gananciaSobre = netoReal - contado;
+  const gananciaSobre = netoReal - contado - flete;
 
   // Aplicar al campo precio
   const campoPrecio = document.getElementById('mp-precio');
@@ -3251,13 +3396,15 @@ function borModoAplicar() {
 
   // Resultado visual
   if (res) {
-    const iibbTxt = iibbRate > 0 ? ' + IIBB ' + (iibbRate*100).toFixed(1) + '%' : '';
+    const iibbTxt  = iibbRate > 0 ? ' + IIBB ' + (iibbRate*100).toFixed(1) + '%' : '';
+    const fleteTxt = flete > 0 ? ' + Flete <b>' + borFmt(flete) + '</b>' : '';
+    const margenPct = Math.round(BOR_MARGEN_EXTRA * 100);
     res.innerHTML =
       '<span style="color:var(--color-primary,#2a78d6);font-weight:500">✓ ' + ltLabel + ' · ' + cuotasLabel + '</span>' +
-      ' — Contado <b>' + borFmt(contado) + '</b>' +
+      ' — Contado <b>' + borFmt(contado) + '</b>' + fleteTxt +
       ' → Precio ML: <b style="color:var(--text-primary)">' + borFmt(precioML) + '</b>' +
-      ' <span style="color:var(--text-secondary)">(costo total ML ' + pctTotal + '%' + iibbTxt + ' c/IVA = ' + borFmt(Math.round(precioML * totalRate)) +
-      ', te queda: <span style="color:#22c55e;font-weight:500">' + borFmt(Math.round(gananciaSobre)) + ' (' + (((gananciaSobre/contado)*100).toFixed(1)) + '% sobre contado)</span>)</span>';
+      ' <span style="color:var(--text-secondary)">(ML ' + pctTotal + '%' + iibbTxt + ' = ' + borFmt(Math.round(precioML * totalRate)) +
+      ' | tu ganancia: <span style="color:#22c55e;font-weight:500">' + borFmt(Math.round(gananciaSobre)) + ' (' + margenPct + '%)</span>)</span>';
   }
 
   // Actualizar cuotas info
@@ -3999,6 +4146,8 @@ function seleccionarCategoria(id, nombre) {
   document.getElementById('cat-sel-nombre').textContent = nombre;
   document.getElementById('cat-seleccionada-box').style.display = '';
   document.getElementById('cat-bulk-box').style.display = 'none';
+  // Auto-aplicar al borrador que está siendo editado (si hay uno)
+  aplicarCatAlEditing();
 }
 
 function aplicarCatAlEditing() {
@@ -4351,6 +4500,14 @@ async function borOnCatalogoSel() {
   _borPrecioContadoRef = item.precioContado || null;
   box.style.display = _borPrecioContadoRef ? '' : 'none';
   document.getElementById('mp-pc-contado').textContent = borFmt(_borPrecioContadoRef);
+  // Auto-rellenar precio de contado en el selector de modo
+  if (_borPrecioContadoRef) {
+    const contadoModoEl = document.getElementById('mp-contado');
+    if (contadoModoEl && !contadoModoEl.value) {
+      contadoModoEl.value = _borPrecioContadoRef;
+      borModoAplicar();
+    }
+  }
   borActualizarPrecioSugerido();
   borChequearPrecioBajoContado();
   borActualizarMedidasPiscina();

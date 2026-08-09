@@ -130,20 +130,33 @@ LO QUE VENDEMOS Y FABRICAMOS
 
 3a. MÓDULOS HABITACIONALES (6, 12, 18 m²)
    ⚠ DISTINCIÓN CLAVE: estos NO son viviendas. Son módulos habitacionales auxiliares o complementarios.
-   Sistema constructivo: wood frame, paneles prefabricados, terminaciones interiores incluidas
+   Material: núcleo de celulosa estructural (NO es wood frame ni steel frame)
    Metrajes: 6 m², 12 m², 18 m²
-   Instalación: montaje en el mismo día
+   Dos líneas de terminación:
+     · Línea Base: estructura base sin acabado final de exterior ni terminación de piso incluida
+     · Línea Premium: doble aislante con malla centrifugada + acabado final de fibra (Regina náutica y shelcio) + piso incluido
+   Precios de contado (referencias):
+     · 6 m²  Base: $2.990.000 — Premium: $3.690.000
+     · 12 m² Base: $4.990.000 — Premium: $5.990.000
+     · 18 m² Base: $7.490.000 — Premium: $8.990.000
+   Qué incluye la entrega en ambas líneas:
+     · Piso colocado y aberturas instaladas
+     · Pintura completa blanca interior
+     · Instalaciones internas de luz
+     · Instalación sobre pilotes propios de EcoFiver (incluye escalera de acceso)
+     · Si el cliente ya tiene platea de cemento: se apoya directamente sobre ella
+   Modalidad de pago: se entrega y se paga en el domicilio (pago contra entrega)
+   Cobertura: toda la Provincia de Buenos Aires
+   Instalación: montaje en el mismo día de entrega
    Usos típicos: dormitorio de servicio, estudio, oficina en fondo de lote, espacio de trabajo, sala de juegos, local pequeño, complemento a vivienda existente
    NUNCA llamarlos "vivienda" ni "casa" — son módulos habitacionales o espacios habitacionales prefabricados
-   Precio: por metro cuadrado (varía según terminaciones y zona)
-   Tiempo de fabricación: 45-60 días según metraje
 
-3b. VIVIENDAS MODULARES WOOD FRAME (24 m² en adelante)
+3b. VIVIENDAS MODULARES (24 m² en adelante)
    ⚠ DISTINCIÓN CLAVE: a partir de 24 m² sí son viviendas, no módulos habitacionales.
-   Sistema constructivo: entramado de madera (wood frame), paneles prefabricados, terminaciones interiores incluidas
+   Material: celulosa estructural (misma tecnología constructiva que los módulos)
    Metrajes disponibles: 25 m², 36 m², 48 m², 60 m² (y combinaciones)
    Usos: vivienda familiar principal, vivienda secundaria de campo/jardín, oficina, local comercial
-   Sinónimos correctos para publicar: vivienda modular, casa prefabricada, vivienda prefabricada, casas de madera, construcción en seco
+   Sinónimos correctos para publicar: vivienda modular, casa prefabricada, vivienda prefabricada, construcción en seco
    Precio: por metro cuadrado de superficie habitable (varía según terminaciones y zona)
    Comercialización en ML: clasificado (precio orientativo, el real se coordina con el equipo)
    Tiempo de fabricación: 45-60 días según metraje
@@ -373,6 +386,7 @@ def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente:
                variante_idx: int = 0, total_variantes: int = 0) -> str:
     """
     Contexto para generar títulos y descripciones optimizadas para MercadoLibre.
+    Genera descripciones de 1500+ caracteres con toda la info que el comprador necesita.
 
     Args:
         variante_idx:    Si >0, indica que es la variante N de un lote (para generar textos únicos en bulk)
@@ -385,7 +399,7 @@ def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente:
     if modelo:
         prod_ctx += f"\nModelo específico: {modelo}"
     if descripcion_existente:
-        prod_ctx += f"\nDescripción existente del producto:\n{descripcion_existente[:600]}"
+        prod_ctx += f"\nDescripción existente del producto:\n{descripcion_existente[:800]}"
 
     variante_ctx = ""
     if variante_idx > 0 and total_variantes > 1:
@@ -401,33 +415,91 @@ El título y la descripción deben ser ÚNICOS y claramente diferenciables de la
     return f"""{base}
 {prod_ctx}{variante_ctx}
 
+════════════════════════════════════════════════════
 REGLAS SEO PARA MERCADOLIBRE ARGENTINA
+════════════════════════════════════════════════════
+
 TÍTULO (factor #1 del algoritmo de ML):
-- Máximo 60 caracteres — contarlos antes de responder
+- Máximo 60 caracteres — contarlos exactamente antes de responder
 - Estructura: [Tipo producto] [Material] [Medida principal] [Característica diferenciadora]
-- Bueno: "Piscina fibra de vidrio 6x3 metros con escalera" / "Pileta armada rectangular 4x2 sin excavar"
-- Malo: "Piscina minimalista IDEAL PARA TU JARDÍN instalación incluida" ← palabras vacías
-- Usar términos que la gente escribe en el buscador: "piscina", "pileta", "natatorio", "fibra de vidrio", "autoportante"
-- Sin: !, ?, comas, puntos, |, guión largo, emojis, MAYÚSCULAS sostenidas, marca "EcoFiver" (nadie la busca)
+- Buenos: "Piscina fibra de vidrio 6x3 metros con escalera" / "Spa jacuzzi acrílico 4 jets 1,17x1,68"
+- Malos: "Piscina minimalista IDEAL PARA TU JARDÍN instalación incluida" ← palabras vacías y emocionales
+- Usar términos que la gente busca: piscina/pileta/natatorio, fibra de vidrio/acrílico, spa/jacuzzi/hidromasaje, módulo/casa prefabricada
+- Sin: !, ?, comas, puntos, |, guión largo, emojis, MAYÚSCULAS sostenidas, ni marca "EcoFiver"
 - Sin frases emocionales: "ideal para", "de calidad", "premium", "exclusiva", "el mejor"
 
-DESCRIPCIÓN — ESTRUCTURA OBLIGATORIA:
-ENCABEZADO (primeras líneas, siempre incluir):
+════════════════════════════════════════════════════
+DESCRIPCIÓN — MÍNIMO 1500 CARACTERES (OBLIGATORIO)
+════════════════════════════════════════════════════
+Los compradores de piletas, spas y módulos NO compran sin información completa.
+Una descripción corta = venta perdida. Target: 1500 a 2800 caracteres de contenido real.
+
+ENCABEZADO FIJO (copiar EXACTAMENTE estas líneas al inicio):
 {DESC_ENCABEZADO}
 
-CUERPO (mínimo 300 palabras en total):
-- Párrafo 1 (visible sin scroll): qué es exactamente, medidas, material, para quién
-- Párrafo 2-3: especificaciones técnicas reales, proceso de instalación, garantía 10 años
-- Párrafo 4: sinónimos naturales (piscina/pileta/natatorio; si es Vivienda Modular 24+ m²: casa prefabricada/vivienda modular/construcción en seco; si es Módulo Habitacional 6-18 m²: espacio habitacional prefabricado/módulo auxiliar — NUNCA llamarlo "vivienda" ni "casa")
-- Párrafo 5: fabricación propia en Zárate Buenos Aires, instalación en el día, financiación disponible, flete a cotizar
+BLOQUE 1 — QUÉ ES Y PARA QUIÉN (primer párrafo visible sin scroll):
+Responder con detalle:
+- Nombre completo con todos los sinónimos de búsqueda (piscina / pileta / natatorio; spa / jacuzzi / hidromasaje; módulo / espacio habitacional / construcción en seco)
+- Medidas exactas si se conocen: largo x ancho x profundidad (metros)
+- Material principal: fibra de vidrio / acrílico sanitario reforzado con PRFV / celulosa estructural (módulos)
+- Capacidad o superficie (litros de agua, m², personas)
+- Para quién: familia, jardín pequeño, uso residencial, uso comercial, etc.
 
-PIE (últimas líneas, siempre incluir):
+BLOQUE 2 — QUÉ INCLUYE (especificaciones de entrega):
+Listar punto por punto todo lo que viene incluido sin cargo extra:
+- Accesorios estándar (escalera, escalinata, equipos de filtración, jets, motor, pulsador, etc.)
+- Colores disponibles sin costo adicional
+- Documentación incluida (certificado de calidad, garantía)
+- Si hay opcionales con cargo: mencionarlos SIN precio ("disponibles como opcional a pedido")
+- Requerimientos mínimos para instalar (espacio libre, conexión eléctrica, desagüe, nivelado)
+
+BLOQUE 3 — PROCESO DE INSTALACIÓN:
+- Quién instala: equipo propio de EcoFiver, no el comprador ni terceros
+- Cuánto tarda: instalación completa en el día de entrega
+- El precio publicado incluye la instalación profesional completa
+- Al finalizar la jornada, el producto queda probado y en pleno funcionamiento
+- No requiere obra previa compleja ni mano de obra adicional del comprador
+
+BLOQUE 4 — GARANTÍA Y FABRICACIÓN:
+- Garantía 10 años: la más extensa del mercado para este tipo de producto
+- Certificado de calidad premium incluido sin cargo
+- Fabricación propia en Zárate, Buenos Aires — sin intermediarios ni revendedores
+- Control de calidad propio en cada unidad antes de la entrega
+
+BLOQUE 5 — FINANCIACIÓN:
+- Cuotas propias disponibles (financiación directa de EcoFiver, sin banco ni tarjeta de crédito)
+- Apto para pago en efectivo y transferencia
+- Consultar planes de financiación al momento de la compra
+
+BLOQUE 6 — LOGÍSTICA Y RETIRO:
+- Retiro SIN CARGO en dos puntos: CABA (zona San Telmo) y Zona Oeste (Paso del Rey)
+- También desde fábrica en Zárate, Buenos Aires (coordinar previamente)
+- Envío e instalación a domicilio en todo el país: cotizar según zona (no incluido en el precio publicado)
+- Coordinar fecha, horario y logística al concretar la compra
+- Notas especiales del tipo de producto si aplican (tamaño, acceso al lugar, etc.)
+
+PIE FIJO (copiar EXACTAMENTE estas líneas al final):
 {DESC_PIE}
 
-RESTRICCIONES:
-- Texto plano sin markdown ni emojis
-- NUNCA mencionar que el flete está incluido si no se sabe con certeza
-- NUNCA incluir dirección exacta, solo zonas de referencia"""
+════════════════════════════════════════════════════
+RESTRICCIONES ABSOLUTAS (violarlas invalida el resultado):
+════════════════════════════════════════════════════
+- Texto plano solamente: sin asteriscos, sin guiones de lista, sin markdown, sin emojis, sin bullets
+- Párrafos separados por línea en blanco — no usar "·" ni "-" al inicio de línea
+- NUNCA decir que el flete o envío está incluido en el precio (solo decir "se cotiza por zona")
+- NUNCA incluir precio, número de teléfono, WhatsApp, redes sociales ni dirección exacta
+- NUNCA inventar medidas o especificaciones que no se conocen con certeza
+- NUNCA usar: "excelente calidad", "el mejor", "no te arrepentirás", "no te lo pierdas"
+- Módulos 6-18 m²: NUNCA llamarlos "vivienda" ni "casa" — son "espacio habitacional" o "módulo auxiliar"
+- Módulos 24+ m²: pueden llamarse "vivienda modular" o "casa prefabricada"
+
+CHECKLIST DE VALIDACIÓN ANTES DE RESPONDER:
+[1] ¿El título tiene exactamente 60 caracteres o menos? Si no → acortarlo
+[2] ¿La descripción tiene al menos 1500 caracteres? Si no → expandir los bloques que faltan
+[3] ¿Está el ENCABEZADO FIJO copiado al inicio? Si no → agregarlo
+[4] ¿Están los 6 bloques de contenido? Si no → completarlos
+[5] ¿Está el PIE FIJO copiado al final? Si no → agregarlo
+[6] ¿Hay algún markdown, emoji o bullet? Si sí → eliminarlo"""
 
 
 def ctx_redes_sociales(tipo_contenido: str = "", producto: str = "", modelo: str = "") -> str:
@@ -499,7 +571,7 @@ CONTEXTO PARA CONTENIDO EDITORIAL
 Objetivo: posicionar a EcoFiver como referente en piscinas de fibra, módulos habitacionales y viviendas modulares en Argentina.
 Lector objetivo: propietario de casa con jardín o terraza, clase media-alta, busca mejorar su espacio de vida.
 Tono editorial: experto que comparte conocimiento útil, no publicidad directa.
-Palabras clave a integrar naturalmente: piscina de fibra de vidrio, pileta, natatorio, módulo habitacional (6-18 m²), vivienda modular (24+ m²), vivienda prefabricada, wood frame, instalación llave en mano, garantía 10 años.
+Palabras clave a integrar naturalmente: piscina de fibra de vidrio, pileta, natatorio, módulo habitacional (6-18 m²), vivienda modular (24+ m²), vivienda prefabricada, celulosa estructural, instalación llave en mano, garantía 10 años.
 DISTINCIÓN EDITORIAL OBLIGATORIA: los módulos de 6, 12 y 18 m² son "módulos habitacionales", NO viviendas. Las viviendas comienzan en 24 m² (25, 36, 48, 60 m²).
 Puntos de valor a destacar cuando corresponda: instalación en el día, garantía 10 años, certificado de calidad premium, puntos de retiro en CABA y Zona Oeste.
 Longitud objetivo: {palabras_count} palabras.

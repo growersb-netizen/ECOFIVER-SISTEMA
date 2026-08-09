@@ -185,7 +185,7 @@ async def _generate_image_openrouter(api_key: str, prompt: str, tipo: str) -> Op
 
 _ECOFIVER_IMG_CTX = (
     "Imagen publicitaria profesional para EcoFiver, empresa argentina fabricante de piscinas de fibra "
-    "de vidrio y viviendas modulares wood frame, ubicada en Zárate, Buenos Aires. "
+    "de vidrio y módulos habitacionales de celulosa estructural, ubicada en Zárate, Buenos Aires. "
     "Estilo fotográfico moderno y aspiracional, colores vibrantes, alta resolución, "
     "ambiente familiar argentino, entorno al aire libre soleado. "
 )

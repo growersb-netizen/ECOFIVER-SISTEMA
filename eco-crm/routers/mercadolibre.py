@@ -1015,7 +1015,7 @@ Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra ni markdown:
 {{"titulo": "...", "descripcion": "..."}}"""
 
     try:
-        texto = await ai_complete(db, prompt, max_tokens=1400, temperature=0.6)
+        texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
     except Exception as e:
         raise HTTPException(400, f"IA no disponible: {e}")
 
@@ -1066,9 +1066,9 @@ async def generar_titulo(
         "HIDROMASAJE":           "hidromasaje / jacuzzi / spa de acrílico sanitario EcoFiver",
         "ACCESORIO_HIDROMASAJE": "accesorio opcional para hidromasaje / jacuzzi / spa",
         # Módulos: distinción crítica por metraje
-        "MODULO_HABITACIONAL":   "módulo habitacional wood frame (6-18 m²) — espacio auxiliar prefabricado, NO es una vivienda",
-        "MODULO":                "módulo habitacional wood frame / espacio habitacional prefabricado",
-        "VIVIENDA_MODULAR":      "vivienda modular wood frame / casa prefabricada (24 m² en adelante)",
+        "MODULO_HABITACIONAL":   "módulo habitacional de celulosa estructural (6-18 m²) — espacio auxiliar prefabricado, NO es una vivienda",
+        "MODULO":                "módulo habitacional de celulosa estructural / espacio habitacional prefabricado",
+        "VIVIENDA_MODULAR":      "vivienda modular de celulosa estructural / casa prefabricada (24 m² en adelante)",
         "MODULO_DEPOSITO":       "módulo depósito / galpón prefabricado",
         "QUINCHO":               "quincho prefabricado",
         "PERGOLA":               "pérgola / gazebo",

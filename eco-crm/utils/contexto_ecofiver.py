@@ -43,7 +43,8 @@ GARANTÍA Y CALIDAD
 - Certificado de calidad premium incluido con cada producto.
 
 INSTALACIÓN Y SERVICIO
-- Módulos habitacionales (6, 12, 18 m²): montaje y entrega en el mismo día.
+- Módulos habitacionales 6/12/18 m² (NO son viviendas, son módulos auxiliares): montaje y entrega en el mismo día.
+- Viviendas modulares 24+ m² (25, 36, 48, 60 m²): sí son viviendas completas; tiempo de instalación a confirmar según metraje.
 - Piscinas de fibra de vidrio: instalación completa en el mismo día. El sistema se entrega probado y funcionando.
 - Hidromasajes, jacuzzis y spas: instalación sin obra de albañilería, lista en horas.
 - Bañeras y receptáculos: instalación directa, conexión inmediata.
@@ -127,11 +128,22 @@ LO QUE VENDEMOS Y FABRICAMOS
    - Sistema de Desinfección: ozonizador + sensor electrónico de nivel (protección motor en seco)
    - Revestimiento Exterior WPC: faldones/paneles símil madera resistentes a la intemperie (ideal deck/exterior)
 
-3. MÓDULOS HABITACIONALES WOOD FRAME
+3a. MÓDULOS HABITACIONALES (6, 12, 18 m²)
+   ⚠ DISTINCIÓN CLAVE: estos NO son viviendas. Son módulos habitacionales auxiliares o complementarios.
+   Sistema constructivo: wood frame, paneles prefabricados, terminaciones interiores incluidas
+   Metrajes: 6 m², 12 m², 18 m²
+   Instalación: montaje en el mismo día
+   Usos típicos: dormitorio de servicio, estudio, oficina en fondo de lote, espacio de trabajo, sala de juegos, local pequeño, complemento a vivienda existente
+   NUNCA llamarlos "vivienda" ni "casa" — son módulos habitacionales o espacios habitacionales prefabricados
+   Precio: por metro cuadrado (varía según terminaciones y zona)
+   Tiempo de fabricación: 45-60 días según metraje
+
+3b. VIVIENDAS MODULARES WOOD FRAME (24 m² en adelante)
+   ⚠ DISTINCIÓN CLAVE: a partir de 24 m² sí son viviendas, no módulos habitacionales.
    Sistema constructivo: entramado de madera (wood frame), paneles prefabricados, terminaciones interiores incluidas
-   Metrajes disponibles: 6 m², 12 m², 18 m², 25 m², 36 m², 48 m², 60 m² (y combinaciones)
-   Instalación: montaje en el día para los módulos de 6, 12 y 18 m²
-   Usos: vivienda familiar, oficina, local comercial, depósito premium, estudio
+   Metrajes disponibles: 25 m², 36 m², 48 m², 60 m² (y combinaciones)
+   Usos: vivienda familiar principal, vivienda secundaria de campo/jardín, oficina, local comercial
+   Sinónimos correctos para publicar: vivienda modular, casa prefabricada, vivienda prefabricada, casas de madera, construcción en seco
    Precio: por metro cuadrado de superficie habitable (varía según terminaciones y zona)
    Comercialización en ML: clasificado (precio orientativo, el real se coordina con el equipo)
    Tiempo de fabricación: 45-60 días según metraje
@@ -349,7 +361,7 @@ ENCABEZADO (primeras líneas, siempre incluir):
 CUERPO (mínimo 300 palabras en total):
 - Párrafo 1 (visible sin scroll): qué es exactamente, medidas, material, para quién
 - Párrafo 2-3: especificaciones técnicas reales, proceso de instalación, garantía 10 años
-- Párrafo 4: sinónimos naturales (piscina/pileta/natatorio, casa prefabricada/vivienda modular)
+- Párrafo 4: sinónimos naturales (piscina/pileta/natatorio; si es Vivienda Modular 24+ m²: casa prefabricada/vivienda modular/construcción en seco; si es Módulo Habitacional 6-18 m²: espacio habitacional prefabricado/módulo auxiliar — NUNCA llamarlo "vivienda" ni "casa")
 - Párrafo 5: fabricación propia en Zárate Buenos Aires, instalación en el día, financiación disponible, flete a cotizar
 
 PIE (últimas líneas, siempre incluir):
@@ -427,10 +439,11 @@ def ctx_marketing_blog(tipo: str = "", longitud: str = "media") -> str:
     return f"""{base}
 
 CONTEXTO PARA CONTENIDO EDITORIAL
-Objetivo: posicionar a EcoFiver como referente en piscinas de fibra y módulos habitacionales en Argentina.
+Objetivo: posicionar a EcoFiver como referente en piscinas de fibra, módulos habitacionales y viviendas modulares en Argentina.
 Lector objetivo: propietario de casa con jardín o terraza, clase media-alta, busca mejorar su espacio de vida.
 Tono editorial: experto que comparte conocimiento útil, no publicidad directa.
-Palabras clave a integrar naturalmente: piscina de fibra de vidrio, pileta, natatorio, módulo habitacional, vivienda prefabricada, wood frame, instalación llave en mano, garantía 10 años.
+Palabras clave a integrar naturalmente: piscina de fibra de vidrio, pileta, natatorio, módulo habitacional (6-18 m²), vivienda modular (24+ m²), vivienda prefabricada, wood frame, instalación llave en mano, garantía 10 años.
+DISTINCIÓN EDITORIAL OBLIGATORIA: los módulos de 6, 12 y 18 m² son "módulos habitacionales", NO viviendas. Las viviendas comienzan en 24 m² (25, 36, 48, 60 m²).
 Puntos de valor a destacar cuando corresponda: instalación en el día, garantía 10 años, certificado de calidad premium, puntos de retiro en CABA y Zona Oeste.
 Longitud objetivo: {palabras_count} palabras.
 Tipo de contenido: {tipo if tipo else "artículo informativo"}."""

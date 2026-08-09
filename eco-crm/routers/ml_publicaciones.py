@@ -6,6 +6,7 @@ Reutiliza el OAuth/token del módulo mercadolibre.
 """
 import json
 import asyncio
+import logging
 import time
 import uuid
 from typing import Optional, Dict, Any
@@ -418,67 +419,101 @@ _TIPO_LABEL_MODULO = {
 }
 
 
-async def _regen_modulos_bg(bid_list: list, db_maker):
-    """Background task: regenera IA para cada borrador de módulo en bid_list."""
-    import json as _json
+_log_regen = logging.getLogger("ml.regen_ia")
+
+
+def _regen_sanear_titulo(tit: str) -> str:
     import re as _re
+    tit = _re.sub(r'[,|:;!?"–—_%]', ' ', tit)
+    tit = _re.sub(r'\s+', ' ', tit).strip()
+    if len(tit) > 60:
+        cut = tit[:60]
+        tit = (cut[:cut.rfind(' ')] if ' ' in cut else cut).strip()
+    return tit
+
+
+async def _regen_un_borrador(bid: int, job_dict: dict) -> None:
+    """Procesa un solo borrador: genera IA y guarda. Actualiza job_dict."""
+    import json as _json
     from database.database import SessionLocal
     from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
 
+    db = SessionLocal()
+    try:
+        b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+        if not b:
+            return
+        tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
+        palabras = b.modelo_nombre or b.titulo or tipo_label
+        prompt = (
+            _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
+            + "\n\n════════════════════════════════════════════\n"
+            + "TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
+            + f"Datos del producto:\n{palabras}\n\n"
+            + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra:\n"
+            + '{"titulo": "...", "descripcion": "..."}'
+        )
+        texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
+        try:
+            result = _json.loads(texto)
+        except Exception:
+            import re as _re
+            m = _re.search(r'\{.*\}', texto, _re.DOTALL)
+            if not m:
+                raise ValueError(f"IA no devolvió JSON válido: {texto[:120]}")
+            result = _json.loads(m.group())
+
+        tit = _regen_sanear_titulo(result.get("titulo") or "")
+        desc = result.get("descripcion", "")
+        if not tit:
+            raise ValueError("Título vacío después de sanear")
+        if len(desc) < 200:
+            raise ValueError(f"Descripción muy corta ({len(desc)} chars)")
+        if tit:
+            b.titulo = tit
+        if desc:
+            b.descripcion = desc
+        db.commit()
+        job_dict["actualizados"] += 1
+    except Exception as exc:
+        err_msg = str(exc)[:200]
+        job_dict["errores"] += 1
+        job_dict.setdefault("ultimo_error", err_msg)
+        _log_regen.error("[regen_modulos bid=%s] %s", bid, err_msg)
+    finally:
+        db.close()
+
+
+async def _regen_modulos_bg(bid_list: list, db_maker):
+    """Background task: regenera IA para cada borrador de módulo en bid_list."""
     _REGEN_JOB["estado"] = "en_curso"
     _REGEN_JOB["total"] = len(bid_list)
     _REGEN_JOB["actualizados"] = 0
     _REGEN_JOB["errores"] = 0
+    _REGEN_JOB.pop("ultimo_error", None)
+
+    # Verificar proveedor antes de empezar (falla rápido)
+    from database.database import SessionLocal
+    _db_test = SessionLocal()
+    try:
+        from utils.ai_client import get_active_provider
+        pname, _ = get_active_provider(_db_test)
+        if not pname:
+            _REGEN_JOB["estado"] = "error"
+            _REGEN_JOB["ultimo_error"] = "No hay proveedor de IA configurado. Andá a Configuración → API Keys."
+            _log_regen.error("[regen_modulos] Sin proveedor IA — abortando")
+            return
+        _log_regen.info("[regen_modulos] Proveedor: %s — %d borradores", pname, len(bid_list))
+    finally:
+        _db_test.close()
 
     for i, bid in enumerate(bid_list):
         _REGEN_JOB["idx"] = i
-        db = SessionLocal()
-        try:
-            b = db.query(BorradorML).filter(BorradorML.id == bid).first()
-            if not b:
-                continue
-            tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
-            palabras = b.modelo_nombre or b.titulo or tipo_label
-            prompt = (
-                _ctx_seo_ml(tipo_producto=tipo_label, modelo=b.modelo_nombre or "", descripcion_existente=palabras)
-                + "\n\n════════════════════════════════════════════\n"
-                + "TAREA: Generá un TÍTULO y una DESCRIPCIÓN para MercadoLibre Argentina.\n"
-                + f"Datos del producto:\n{palabras}\n\n"
-                + "Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra:\n"
-                + '{"titulo": "...", "descripcion": "..."}'
-            )
-            try:
-                texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
-                try:
-                    result = _json.loads(texto)
-                except Exception:
-                    m = _re.search(r'\{.*\}', texto, _re.DOTALL)
-                    if not m:
-                        _REGEN_JOB["errores"] += 1
-                        continue
-                    result = _json.loads(m.group())
-
-                # Sanear título (inline)
-                tit = result.get("titulo") or ""
-                tit = _re.sub(r'[,|:;!?"–—_%]', ' ', tit)
-                tit = _re.sub(r'\s+', ' ', tit).strip()
-                if len(tit) > 60:
-                    cut = tit[:60]
-                    tit = (cut[:cut.rfind(' ')] if ' ' in cut else cut).strip()
-
-                desc = result.get("descripcion", "")
-                if tit:
-                    b.titulo = tit
-                if desc and len(desc) > 200:
-                    b.descripcion = desc
-                db.commit()
-                _REGEN_JOB["actualizados"] += 1
-            except Exception:
-                _REGEN_JOB["errores"] += 1
-        finally:
-            db.close()
+        await _regen_un_borrador(bid, _REGEN_JOB)
 
     _REGEN_JOB["estado"] = "completado"
+    _log_regen.info("[regen_modulos] Completado: %d ok, %d errores",
+                    _REGEN_JOB["actualizados"], _REGEN_JOB["errores"])
 
 
 @router.post("/api/ml/borradores/regenerar-ia-modulos")
@@ -539,10 +574,12 @@ async def regenerar_ia_estado(
 _ACTUALIZAR_VIVO_JOB: Dict[str, Any] = {}
 
 
+_log_actualizar = logging.getLogger("ml.actualizar_vivo")
+
+
 async def _actualizar_publicados_bg(bid_list: list):
     """Background task: actualiza título+descripción en ML para publicaciones ya activas."""
     import json as _json
-    import re as _re
     from database.database import SessionLocal
     from utils.contexto_ecofiver import ctx_seo_ml as _ctx_seo_ml
 
@@ -551,8 +588,23 @@ async def _actualizar_publicados_bg(bid_list: list):
     _ACTUALIZAR_VIVO_JOB["actualizados"] = 0
     _ACTUALIZAR_VIVO_JOB["errores"] = 0
     _ACTUALIZAR_VIVO_JOB["detalles"] = []
+    _ACTUALIZAR_VIVO_JOB.pop("ultimo_error", None)
 
-    async with httpx.AsyncClient(timeout=30) as hc:
+    # ── Fail-fast: verificar proveedor IA ────────────────────────────────────
+    _db_test = SessionLocal()
+    try:
+        from utils.ai_client import get_active_provider
+        pname, _ = get_active_provider(_db_test)
+        if not pname:
+            _ACTUALIZAR_VIVO_JOB["estado"] = "error"
+            _ACTUALIZAR_VIVO_JOB["ultimo_error"] = "No hay proveedor de IA configurado. Andá a Configuración → API Keys."
+            _log_actualizar.error("[actualizar_vivo] Sin proveedor IA — abortando")
+            return
+        _log_actualizar.info("[actualizar_vivo] Proveedor: %s — %d ítems", pname, len(bid_list))
+    finally:
+        _db_test.close()
+
+    async with httpx.AsyncClient(timeout=60) as hc:
         for i, bid in enumerate(bid_list):
             _ACTUALIZAR_VIVO_JOB["idx"] = i
             db = SessionLocal()
@@ -561,7 +613,6 @@ async def _actualizar_publicados_bg(bid_list: list):
                 if not b or not b.item_id:
                     continue
 
-                # ── 1. Generar título+descripción con IA ─────────────────────
                 tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
                 palabras = b.modelo_nombre or b.titulo or tipo_label
                 prompt = (
@@ -577,90 +628,79 @@ async def _actualizar_publicados_bg(bid_list: list):
                     try:
                         result = _json.loads(texto)
                     except Exception:
-                        m = _re.search(r'\{.*\}', texto, _re.DOTALL)
+                        import re as _re2
+                        m = _re2.search(r'\{.*\}', texto, _re2.DOTALL)
                         if not m:
-                            _ACTUALIZAR_VIVO_JOB["errores"] += 1
-                            _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": "JSON inválido de IA"})
-                            continue
+                            raise ValueError(f"IA no devolvió JSON: {texto[:100]}")
                         result = _json.loads(m.group())
 
-                    # Sanear título
-                    tit = result.get("titulo") or ""
-                    tit = _re.sub(r'[,|:;!?"–—_%]', ' ', tit)
-                    tit = _re.sub(r'\s+', ' ', tit).strip()
-                    if len(tit) > 60:
-                        cut = tit[:60]
-                        tit = (cut[:cut.rfind(' ')] if ' ' in cut else cut).strip()
+                    tit = _regen_sanear_titulo(result.get("titulo") or "")
                     desc = result.get("descripcion", "")
 
                     if not tit or len(desc) < 200:
-                        _ACTUALIZAR_VIVO_JOB["errores"] += 1
-                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": "IA generó texto demasiado corto"})
-                        continue
+                        raise ValueError(f"Texto IA demasiado corto (tit={len(tit)}, desc={len(desc)})")
 
-                    # ── 2. Obtener token ML ──────────────────────────────────
+                    # ── Token ML ─────────────────────────────────────────────
                     tok = await _ml_valid_token(db)
                     if not tok:
-                        _ACTUALIZAR_VIVO_JOB["errores"] += 1
-                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": "sin token ML"})
-                        continue
+                        raise ValueError("Sin token ML válido")
 
                     hdrs = _ml_headers(tok)
 
-                    # ── 3. Actualizar título en ML ───────────────────────────
-                    r_tit = await hc.put(
-                        f"{ML_BASE}/items/{b.item_id}",
-                        json={"title": tit},
-                        headers=hdrs,
-                    )
-                    tit_ok = r_tit.status_code in (200, 201)
+                    # ── PUT título ───────────────────────────────────────────
+                    r_tit = await hc.put(f"{ML_BASE}/items/{b.item_id}",
+                                         json={"title": tit}, headers=hdrs)
 
-                    # ── 4. Actualizar descripción en ML ─────────────────────
+                    # ── PUT descripción ──────────────────────────────────────
                     try:
                         from routers.mercadolibre import _armar_descripcion_ml
                         desc_final = _armar_descripcion_ml(db, desc, tipo=b.tipo_precio or "completo")
                     except Exception:
                         desc_final = desc
-                    r_desc = await hc.put(
-                        f"{ML_BASE}/items/{b.item_id}/description",
-                        json={"plain_text": desc_final},
-                        headers=hdrs,
-                    )
-                    desc_ok = r_desc.status_code in (200, 201)
+                    r_desc = await hc.put(f"{ML_BASE}/items/{b.item_id}/description",
+                                          json={"plain_text": desc_final}, headers=hdrs)
 
-                    # ── 5. Guardar en BD aunque ML falle ────────────────────
-                    if tit:
-                        b.titulo = tit
-                    if len(desc) > 200:
-                        b.descripcion = desc
-                    # Sincronizar PublicacionML
+                    # ── Guardar en BD ────────────────────────────────────────
+                    b.titulo = tit
+                    b.descripcion = desc
                     try:
                         pub = db.query(PublicacionML).filter(PublicacionML.item_id == b.item_id).first()
                         if pub:
-                            pub.titulo = tit or pub.titulo
-                            pub.descripcion = desc or pub.descripcion
+                            pub.titulo = tit
+                            pub.descripcion = desc
                     except Exception:
                         pass
                     db.commit()
 
+                    tit_ok = r_tit.status_code in (200, 201)
+                    desc_ok = r_desc.status_code in (200, 201)
                     if tit_ok and desc_ok:
                         _ACTUALIZAR_VIVO_JOB["actualizados"] += 1
+                        _log_actualizar.info("[actualizar_vivo] %s OK", b.item_id)
                     else:
                         errs = []
                         if not tit_ok:
-                            errs.append(f"título HTTP {r_tit.status_code}")
+                            errs.append(f"título {r_tit.status_code}: {r_tit.text[:80]}")
                         if not desc_ok:
-                            errs.append(f"desc HTTP {r_desc.status_code}")
+                            errs.append(f"desc {r_desc.status_code}: {r_desc.text[:80]}")
+                        err_str = "; ".join(errs)
                         _ACTUALIZAR_VIVO_JOB["errores"] += 1
-                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": ", ".join(errs)})
+                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": err_str})
+                        _ACTUALIZAR_VIVO_JOB["ultimo_error"] = err_str
+                        _log_actualizar.warning("[actualizar_vivo] %s error ML: %s", b.item_id, err_str)
 
                 except Exception as ex:
+                    err_msg = str(ex)[:200]
                     _ACTUALIZAR_VIVO_JOB["errores"] += 1
-                    _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": str(ex)[:120]})
+                    _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": getattr(b, "item_id", bid), "error": err_msg})
+                    _ACTUALIZAR_VIVO_JOB["ultimo_error"] = err_msg
+                    _log_actualizar.error("[actualizar_vivo bid=%s] %s", bid, err_msg)
             finally:
                 db.close()
 
     _ACTUALIZAR_VIVO_JOB["estado"] = "completado"
+    _log_actualizar.info("[actualizar_vivo] Completado: %d ok, %d errores",
+                         _ACTUALIZAR_VIVO_JOB["actualizados"], _ACTUALIZAR_VIVO_JOB["errores"])
 
 
 @router.post("/api/ml/publicaciones/actualizar-ia-modulos")

@@ -56,6 +56,9 @@ PROVIDERS = {
 # OpenRouter es el predeterminado (mismo motor que los agentes del multiagente)
 PROVIDER_PRIORITY = ["openrouter", "grok", "gemini", "claude"]
 
+# Modelo gratuito de fallback cuando OpenRouter devuelve 402 (sin créditos)
+OPENROUTER_FREE_FALLBACK = os.getenv("OPENROUTER_FREE_MODEL", "meta-llama/llama-3.2-3b-instruct:free")
+
 
 def _resolver_modelo(pconf: dict) -> str:
     """Modelo a usar: override por variable de entorno si existe, sino el default."""
@@ -162,14 +165,27 @@ async def ai_complete(
     pconf = PROVIDERS[pname]
     modelo = model or _resolver_modelo(pconf)
 
-    if pconf["formato"] == "openai":
-        return await _openai_complete(api_key, pconf["base_url"], modelo, prompt, system, max_tokens, temperature)
-    elif pconf["formato"] == "gemini":
-        return await _gemini_complete(api_key, modelo, prompt, system, max_tokens)
-    elif pconf["formato"] == "anthropic":
-        return await _anthropic_complete(api_key, modelo, prompt, system, max_tokens)
-    else:
-        raise ValueError(f"Formato desconocido: {pconf['formato']}")
+    try:
+        if pconf["formato"] == "openai":
+            return await _openai_complete(api_key, pconf["base_url"], modelo, prompt, system, max_tokens, temperature)
+        elif pconf["formato"] == "gemini":
+            return await _gemini_complete(api_key, modelo, prompt, system, max_tokens)
+        elif pconf["formato"] == "anthropic":
+            return await _anthropic_complete(api_key, modelo, prompt, system, max_tokens)
+        else:
+            raise ValueError(f"Formato desconocido: {pconf['formato']}")
+    except ValueError as exc:
+        # Si OpenRouter devuelve 402 (sin créditos), reintentamos con modelo gratuito
+        if pname == "openrouter" and "402" in str(exc) and modelo != OPENROUTER_FREE_FALLBACK:
+            log.warning(
+                "OpenRouter sin créditos en modelo '%s'. Reintentando con modelo gratuito '%s'.",
+                modelo, OPENROUTER_FREE_FALLBACK,
+            )
+            return await _openai_complete(
+                api_key, pconf["base_url"], OPENROUTER_FREE_FALLBACK,
+                prompt, system, max_tokens, temperature,
+            )
+        raise
 
 
 async def _openai_complete(

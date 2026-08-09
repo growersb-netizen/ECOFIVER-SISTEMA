@@ -116,9 +116,9 @@ DEFAULT_CATALOGO = {
         "garantia": "Garantía estructural incluida.",
         "modelos": {
             "Spa Quadra": {
-                "descripcion_corta": "Esquinero ultracompacto. Ideal para baños y espacios reducidos.",
-                "formato": "Esquinero",
-                "medidas": {"largo_m": 1.10, "ancho_m": 1.10, "profundidad_m": 0.10},
+                "descripcion_corta": "Rectangular compacto. Ideal para baños y espacios reducidos.",
+                "formato": "Rectangular",
+                "medidas": {"largo_m": 1.68, "ancho_m": 1.17, "profundidad_m": 0.45},
                 "jets": 4,
                 "motor_hp": "1/2 o 3/4",
                 "pulsadores": 1,
@@ -149,8 +149,8 @@ DEFAULT_CATALOGO = {
                 "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.76x1.76x0.40-HIDRO.jpeg"],
             },
             "Spa Delta": {
-                "descripcion_corta": "Mini spa rectangular XL. Mayor profundidad de la línea.",
-                "formato": "Rectangular XL / Mini Spa",
+                "descripcion_corta": "Mini spa esquinero XL. Mayor profundidad de la línea.",
+                "formato": "Esquinero XL / Mini Spa",
                 "medidas": {"largo_m": 1.97, "ancho_m": 1.42, "profundidad_m": 0.52},
                 "jets": 8,
                 "motor_hp": "1",

@@ -570,13 +570,13 @@ FICHAS_MODULOS: dict = {
 FICHAS_HIDROMASAJES: dict = {
 
     "Spa Quadra": {
-        "titulo_ml": "Hidromasaje esquinero acrílico 1.10x1.10 4 jets con estructura",
+        "titulo_ml": "Hidromasaje rectangular acrílico 1.17x1.68 4 jets con estructura",
         "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Acrílico sanitario",
-                         "LENGTH": "110", "WIDTH": "110", "DEPTH": "10"},
+                         "LENGTH": "168", "WIDTH": "117", "DEPTH": "45"},
         "descripcion_ml": (
-            "Hidromasaje Spa Quadra de acrílico sanitario reforzado con PRFV, formato esquinero "
-            "ultracompacto de 1,10 m × 1,10 m. Ideal para baños pequeños y espacios reducidos "
-            "donde el hidromasaje convencional no entra.\n\n"
+            "Hidromasaje Spa Quadra de acrílico sanitario reforzado con PRFV, formato rectangular "
+            "compacto de 1,17 m de ancho × 1,68 m de largo con 0,45 m de profundidad. "
+            "Ideal para baños con espacio disponible que buscan un hidromasaje de diseño accesible.\n\n"
             "El Spa Quadra incluye 4 jets dirigibles con vista cromo, motor de 1/2 o 3/4 HP, "
             "1 pulsador neumático de encendido, 1 regulador de flujo de aire, sistema de succión "
             "completo (filtro de pelos + sopapa + desborde conectados) y estructura autoportante "
@@ -645,7 +645,7 @@ FICHAS_HIDROMASAJES: dict = {
         "descripcion_ml": (
             "Hidromasaje Spa Delta de acrílico sanitario reforzado con PRFV, el modelo más grande "
             "de la línea: 1,97 m de largo × 1,42 m de ancho y 0,52 m de profundidad. "
-            "Categoría mini spa rectangular XL para uso familiar o profesional.\n\n"
+            "Formato esquinero XL de gran capacidad, para uso familiar o profesional.\n\n"
             "El Spa Delta incluye 8 jets dirigibles con vista cromo, motor de 1 HP (el más "
             "potente de la línea), 1 pulsador neumático de encendido, 2 reguladores de flujo "
             "de aire, sistema de succión completo (filtro de pelos + sopapa + desborde "

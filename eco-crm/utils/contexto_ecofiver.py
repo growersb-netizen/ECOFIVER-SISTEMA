@@ -84,8 +84,8 @@ LO QUE VENDEMOS Y FABRICAMOS
    Categoría ML correcta: "Jacuzzis e Hidromasajes" — NO "Piscinas de fibra"
 
    MODELOS Y ESPECIFICACIONES EXACTAS:
-   · Spa Quadra (esquinero ultracompacto)
-     Medidas: 1,10 x 1,10 x 0,10 m
+   · Spa Quadra (rectangular compacto)
+     Medidas: 1,17 x 1,68 x 0,45 m
      Jets: 4 jets dirigibles vista cromo
      Motor: 1/2 HP o 3/4 HP (alta eficiencia)
      Extras incluidos: 1 pulsador neumático, 1 regulador de aire, succión con filtro de pelos + sopapa + desborde
@@ -105,7 +105,7 @@ LO QUE VENDEMOS Y FABRICAMOS
      Extras incluidos: 1 pulsador neumático, 2 reguladores de flujo de aire, succión con filtro de pelos + sopapa + desborde
      Precio contado: $1.620.000 ARS
 
-   · Spa Delta (mini spa rectangular XL)
+   · Spa Delta (mini spa esquinero XL)
      Medidas: 1,97 x 1,42 x 0,52 m
      Jets: 8 jets dirigibles vista cromo
      Motor: 1 HP (alta potencia)
@@ -414,7 +414,7 @@ def ctx_hidromasajes_ml(modelo: str = "", pregunta: str = "", descripcion_pub: s
 
 RESPUESTAS ESPECÍFICAS PARA HIDROMASAJES ECOFIVER
 - Medidas exactas por modelo (usarlas siempre, nunca inventar otras):
-  Spa Quadra: 1,10 x 1,10 x 0,10 m — 4 jets — motor 1/2 o 3/4 HP — $1.220.000 contado
+  Spa Quadra: 1,17 x 1,68 x 0,45 m — 4 jets — motor 1/2 o 3/4 HP — $1.220.000 contado
   Spa Recta: 1,65 x 1,40 x 0,45 m — 6 jets — motor 3/4 HP — $1.520.000 contado
   Spa Orbis: 1,76 x 1,76 x 0,40 m — 6 a 8 jets — motor 3/4 HP — $1.620.000 contado
   Spa Delta: 1,97 x 1,42 x 0,52 m — 8 jets — motor 1 HP — $1.890.000 contado

@@ -1762,13 +1762,13 @@ async def seed_borradores_hidromasajes(
     modelos_data = [
         {
             "sku": "ECOF-HIDRO-QUADRA", "modelo": "Spa Quadra", "precio": calcular_precio_ml(1_220_000),
-            "titulo": "Hidromasaje Esquinero Spa Quadra 110x110 Acrílico EcoFiver",
+            "titulo": "Hidromasaje Rectangular Spa Quadra 117x168 Acrílico EcoFiver",
             "descripcion": (
-                "Hidromasaje esquinero modelo Spa Quadra de EcoFiver. "
+                "Hidromasaje rectangular modelo Spa Quadra de EcoFiver. "
                 "Fabricado en acrílico sanitario reforzado con fibra de vidrio. "
-                "Diseño esquinero compacto de 1,10 m × 1,10 m, ideal para baños y espacios reducidos. "
-                "Profundidad 0,10 m. Conexión directa a agua fría/caliente, desagüe y electricidad."
-                "\n\nEspecificaciones: 1,10 × 1,10 × 0,10 m · 4 jets dirigibles · "
+                "Formato rectangular compacto de 1,17 m de ancho × 1,68 m de largo con 0,45 m de profundidad. "
+                "Conexión directa a agua fría/caliente, desagüe y electricidad."
+                "\n\nEspecificaciones: 1,17 × 1,68 × 0,45 m · 4 jets dirigibles · "
                 "Motor 1/2 HP o 3/4 HP · 1 pulsador neumático · 1 regulador de aire."
                 + DESC_BASE_HIDRO
             ),
@@ -1805,7 +1805,7 @@ async def seed_borradores_hidromasajes(
             "descripcion": (
                 "Mini spa modelo Spa Delta de EcoFiver. El hidromasaje de mayor capacidad de la línea. "
                 "Acrílico sanitario reforzado con fibra de vidrio. "
-                "Formato rectangular XL de 1,97 m × 1,42 m con 0,52 m de profundidad."
+                "Formato esquinero XL de 1,97 m × 1,42 m con 0,52 m de profundidad."
                 "\n\nEspecificaciones: 1,97 × 1,42 × 0,52 m · 8 jets dirigibles · "
                 "Motor 1 HP · 1 pulsador neumático · 2 reguladores de aire."
                 + DESC_BASE_HIDRO
@@ -2533,8 +2533,8 @@ def calcular_precio_ml(precio_contado: float, ganancia_pct: float = 0.05) -> flo
 _POOLS_HIDRO = {
     "Spa Quadra": {
         "tipos":    ["Hidromasaje", "Jacuzzi", "Spa", "Bañera Hidromasaje", "Tina Spa", "Bañera Spa"],
-        "formatos": ["Esquinero", "Cuadrado", "Compacto", "Angular"],
-        "dims":     ["110x110", "1.10x1.10m", "110 cm"],
+        "formatos": ["Rectangular", "Compacto", "Mini", "Moderno"],
+        "dims":     ["117x168", "1.17x1.68m", "117x168 cm"],
         "mats":     ["Acrílico", "Acrílico Sanitario", "PRFV"],
         "marcas":   ["EcoFiver", "Eco Fiver"],
         "extra":    ["4 Jets", "Motor 1/2 HP", "Sin Obra", ""],
@@ -2542,8 +2542,8 @@ _POOLS_HIDRO = {
         "precio_contado": 1_220_000,
         "categoria_ml":   "MLA88471",  # Jacuzzis e Hidromasajes ✓
         "descripcion_base": (
-            "Hidromasaje esquinero Spa Quadra de EcoFiver. Acrílico sanitario reforzado PRFV. "
-            "Diseño esquinero compacto 1,10 × 1,10 × 0,10 m. Ideal para baños y espacios reducidos. "
+            "Hidromasaje rectangular Spa Quadra de EcoFiver. Acrílico sanitario reforzado PRFV. "
+            "Formato rectangular compacto 1,17 × 1,68 × 0,45 m. Ideal para baños con espacio disponible. "
             "4 jets dirigibles, motor 1/2 HP o 3/4 HP, 1 pulsador neumático, 1 regulador de aire. "
             "Estructura autoportante metálica reforzada incluida. Sin obra de albañilería.\n"
             "Colores sin cargo: Blanco, Beige, Negro, Gris.\n"
@@ -2595,8 +2595,8 @@ _POOLS_HIDRO = {
         "fotos": ["https://ecofiver.site/wp-content/uploads/2025/12/1.76x1.76x0.40-HIDRO.jpeg"],
     },
     "Spa Delta": {
-        "tipos":    ["Hidromasaje", "Jacuzzi", "Mini Spa", "Bañera Spa", "Tina Spa", "Spa Rectangular"],
-        "formatos": ["Rectangular XL", "Extra Grande", "Gran Capacidad", "Amplio"],
+        "tipos":    ["Hidromasaje", "Jacuzzi", "Mini Spa", "Bañera Spa", "Tina Spa", "Spa Esquinero"],
+        "formatos": ["Esquinero XL", "Extra Grande", "Gran Capacidad", "Amplio"],
         "dims":     ["197x142", "1.97x1.42m", "197 cm"],
         "mats":     ["Acrílico", "Acrílico Sanitario", "PRFV"],
         "marcas":   ["EcoFiver", "Eco Fiver"],

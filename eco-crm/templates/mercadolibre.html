@@ -1325,6 +1325,68 @@
     </div>
 
   </div>
+
+  <!-- ── MIGRACIÓN DE CUENTA ── -->
+  <div style="max-width:900px;margin-top:20px">
+    <div class="card" style="padding:20px;border:2px solid #f59e0b">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span style="font-size:22px">🔄</span>
+        <h3 style="font-size:15px;font-weight:700;margin:0">Migración de cuenta MercadoLibre</h3>
+      </div>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">
+        Usá esto cuando necesites cambiar la cuenta de ML vinculada al sistema. El proceso resguarda todos los datos y deja el sistema listo para republicar en la cuenta nueva.
+      </p>
+
+      <!-- Stats -->
+      <div id="migracion-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px">
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--primary)" id="mig-stat-pubs">—</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Publicaciones activas</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--primary)" id="mig-stat-bors">—</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Borradores publicados</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--primary)" id="mig-stat-fotos">—</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Fotos en biblioteca</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--primary)" id="mig-stat-sets">—</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Sets de fotos</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:14px;font-weight:600;color:var(--text-secondary)" id="mig-stat-cuenta">—</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Cuenta ML actual</div>
+        </div>
+      </div>
+
+      <!-- Pasos -->
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px">📋 Pasos de migración</div>
+        <ol style="font-size:12px;color:var(--text-secondary);margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px">
+          <li><strong>Descargá el backup</strong> — JSON con publicaciones, borradores, fotos y sets de la cuenta actual.</li>
+          <li><strong>Ejecutá "Preparar migración"</strong> — resetea borradores publicados y archiva el historial de la cuenta vieja.</li>
+          <li><strong>Vinculá la cuenta nueva</strong> — hacé click en "Conectar" en la sección de estado de conexión (arriba) y autorizá la nueva cuenta en ML.</li>
+          <li><strong>Regenerá las publicaciones</strong> — usá "500 variantes" por producto → "Publicar todos".</li>
+          <li><strong>Aplicá los sets de fotos</strong> — biblioteca → Sets → Aplicar a todas las publicaciones nuevas.</li>
+        </ol>
+      </div>
+
+      <!-- Botones -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="migBackup()" id="btn-mig-backup">
+          📥 Descargar backup JSON
+        </button>
+        <button class="btn" onclick="migPreparar()"
+          style="background:#f59e0b;color:#fff;font-weight:600"
+          id="btn-mig-preparar">
+          ⚠️ Preparar migración
+        </button>
+      </div>
+      <div id="mig-resultado" style="margin-top:12px;font-size:13px;display:none"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Modal: seleccionar publicaciones para agregar texto -->
@@ -2177,6 +2239,7 @@ function cfgTabSwitch(tab) {
 
 async function loadMLConfig() {
   checkMLStatus(true);
+  migCargarStats();  // stats del panel de migración
   try {
     const all = await API.get('/api/config');
     const renovacion = all.find(c => c.clave === 'ml_renovacion_automatica');
@@ -2417,6 +2480,77 @@ async function toggleRenovacion(chk) {
     showToast('Error: ' + e.message, 'error');
     chk.checked = !chk.checked;
     label.textContent = chk.checked ? 'Activada' : 'Desactivada';
+  }
+}
+
+/* ─── MIGRACIÓN DE CUENTA ────────────────────────────────────────────── */
+async function migCargarStats() {
+  try {
+    const d = await API.get('/api/ml/migracion/status');
+    document.getElementById('mig-stat-pubs').textContent   = d.publicaciones_activas ?? '—';
+    document.getElementById('mig-stat-bors').textContent   = d.borradores_publicados ?? '—';
+    document.getElementById('mig-stat-fotos').textContent  = d.fotos_biblioteca ?? '—';
+    document.getElementById('mig-stat-sets').textContent   = d.sets_fotos ?? '—';
+    document.getElementById('mig-stat-cuenta').textContent = d.usuario_ml ?? '—';
+  } catch(e) {
+    console.warn('migCargarStats:', e);
+  }
+}
+
+function migBackup() {
+  // Descarga directa del endpoint — el browser abre el SaveAs automático
+  const a = document.createElement('a');
+  a.href = '/api/ml/migracion/backup';
+  a.click();
+  showToast('📥 Preparando backup…', 'info');
+}
+
+async function migPreparar() {
+  // Pedir stats primero para mostrarlas en el confirm
+  let stats = {};
+  try { stats = await API.get('/api/ml/migracion/status'); } catch(_) {}
+
+  const pubs = stats.publicaciones_activas ?? '?';
+  const bors = stats.borradores_publicados ?? '?';
+
+  const ok = confirm(
+    `⚠️ PREPARAR MIGRACIÓN\n\n` +
+    `Esto va a:\n` +
+    `  • Resetear ${bors} borradores publicados → "borrador"\n` +
+    `     (se borran los MLA IDs de la cuenta vieja)\n` +
+    `  • Archivar ${pubs} publicaciones ML actuales\n` +
+    `     (no se borran, quedan como historial "migrada")\n\n` +
+    `¿Descargaste el backup JSON antes de continuar?\n\n` +
+    `Esta acción NO SE PUEDE DESHACER.\n` +
+    `Confirmá solo si ya tenés el backup guardado.`
+  );
+  if (!ok) return;
+
+  const btn = document.getElementById('btn-mig-preparar');
+  const res = document.getElementById('mig-resultado');
+  btn.disabled = true;
+  btn.textContent = '⏳ Preparando…';
+  res.style.display = 'none';
+
+  try {
+    const d = await API.post('/api/ml/migracion/preparar', { confirmar: true });
+    res.style.display = 'block';
+    res.innerHTML = `
+      <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:14px;color:#065f46">
+        <div style="font-weight:700;margin-bottom:8px">✅ Migración preparada correctamente</div>
+        <div>• ${d.borradores_reseteados} borradores reseteados a "borrador"</div>
+        <div>• ${d.publicaciones_archivadas} publicaciones archivadas</div>
+        <div style="margin-top:10px;font-size:12px;opacity:.85">${d.mensaje}</div>
+      </div>`;
+    showToast('✅ Sistema listo para cuenta nueva', 'success');
+    migCargarStats();  // refrescar stats
+  } catch(e) {
+    res.style.display = 'block';
+    res.innerHTML = `<div style="color:#c00">Error: ${escHtml(e.message)}</div>`;
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚠️ Preparar migración';
   }
 }
 

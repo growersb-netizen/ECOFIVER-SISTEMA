@@ -13,12 +13,12 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import PublicacionML, Usuario, ConfiguracionSistema, BorradorML, MLCategoriaLinea, RespuestaAutoML
+from database.models import PublicacionML, Usuario, ConfiguracionSistema, BorradorML, MLCategoriaLinea, RespuestaAutoML, FotoML, SetFotosML
 from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.configuracion import get_config_value, _require_config_access
 from database.encryption import encrypt_value
@@ -393,6 +393,171 @@ async def ml_conexion(
         "user_id": uid,
         "nickname": nombre,
         "redirect_uri": _ml_redirect_uri(db),
+    }
+
+
+# ─── MIGRACIÓN DE CUENTA ──────────────────────────────────────────────────────
+
+@router.get("/api/ml/migracion/status")
+async def migracion_status(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Estadísticas del estado actual para planificar la migración de cuenta ML."""
+    pubs_activas  = db.query(PublicacionML).filter(PublicacionML.estado_ml == "active").count()
+    pubs_total    = db.query(PublicacionML).filter(PublicacionML.estado_ml != "migrada").count()
+    bors_pub      = db.query(BorradorML).filter(BorradorML.estado == "publicada").count()
+    bors_total    = db.query(BorradorML).count()
+    fotos_bib     = db.query(FotoML).count()
+    sets          = db.query(SetFotosML).count()
+    uid           = get_config_value("ml_user_id", db)
+    return {
+        "publicaciones_activas":  pubs_activas,
+        "publicaciones_total":    pubs_total,
+        "borradores_publicados":  bors_pub,
+        "borradores_total":       bors_total,
+        "fotos_biblioteca":       fotos_bib,
+        "sets_fotos":             sets,
+        "usuario_ml":             uid or "—",
+    }
+
+
+@router.get("/api/ml/migracion/backup")
+async def migracion_backup(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Descarga un JSON completo con todo lo necesario para recrear la cuenta en ML nueva:
+    publicaciones actuales (MLA IDs + datos), borradores publicados, biblioteca de
+    fotos y sets. Guardar ANTES de ejecutar 'preparar'.
+    """
+    publicaciones = [
+        {
+            "item_id":          p.item_id,
+            "titulo":           p.titulo,
+            "descripcion":      p.descripcion,
+            "precio":           p.precio,
+            "estado_ml":        p.estado_ml,
+            "producto":         p.producto,
+            "modelo_especifico": p.modelo_especifico,
+            "created_at":       p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in db.query(PublicacionML).filter(PublicacionML.estado_ml != "migrada").all()
+    ]
+
+    borradores = [
+        {
+            "id":             b.id,
+            "titulo":         b.titulo,
+            "descripcion":    b.descripcion,
+            "precio":         b.precio,
+            "costo":          b.costo,
+            "categoria":      b.categoria,
+            "producto":       b.producto,
+            "seller_sku":     b.seller_sku,
+            "fotos_json":     b.fotos_json,
+            "atributos_json": b.atributos_json,
+            "listing_type":   b.listing_type,
+            "item_id":        b.item_id,
+            "permalink":      b.permalink,
+            "modelo_nombre":  b.modelo_nombre,
+            "estado":         b.estado,
+        }
+        for b in db.query(BorradorML).filter(BorradorML.estado == "publicada").all()
+    ]
+
+    fotos = [
+        {
+            "id":            f.id,
+            "nombre":        f.nombre,
+            "url":           f.url,
+            "tipo_producto": f.tipo_producto,
+            "modelo":        f.modelo,
+            "tag":           f.tag,
+            "orden":         f.orden,
+        }
+        for f in db.query(FotoML).order_by(FotoML.orden).all()
+    ]
+
+    sets_fotos = [
+        {
+            "id":            s.id,
+            "nombre":        s.nombre,
+            "tipo_producto": s.tipo_producto,
+            "modelo":        s.modelo,
+            "foto_ids_json": s.foto_ids_json,
+        }
+        for s in db.query(SetFotosML).all()
+    ]
+
+    uid   = get_config_value("ml_user_id", db) or "ML"
+    fecha = datetime.now().strftime("%Y%m%d_%H%M")
+
+    data = {
+        "backup_version": "1.0",
+        "fecha":          datetime.now().isoformat(),
+        "cuenta_ml":      uid,
+        "resumen": {
+            "publicaciones":        len(publicaciones),
+            "borradores_publicados": len(borradores),
+            "fotos_biblioteca":     len(fotos),
+            "sets_fotos":           len(sets_fotos),
+        },
+        "publicaciones":        publicaciones,
+        "borradores_publicados": borradores,
+        "foto_biblioteca":      fotos,
+        "sets_fotos":           sets_fotos,
+    }
+
+    return Response(
+        content=json.dumps(data, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="backup-ml-{uid}-{fecha}.json"'},
+    )
+
+
+@router.post("/api/ml/migracion/preparar")
+async def migracion_preparar(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Prepara el sistema para operar con una cuenta ML nueva:
+    1. Resetea borradores publicados → estado 'borrador' (limpia item_id / permalink).
+    2. Archiva PublicacionML actuales marcándolas como 'migrada' (no se borran).
+
+    IRREVERSIBLE — descargar backup primero con GET /api/ml/migracion/backup.
+    """
+    data = await request.json()
+    if not data.get("confirmar"):
+        raise HTTPException(400, "Requerido: {\"confirmar\": true}")
+
+    # 1. Resetear borradores publicados
+    bors = db.query(BorradorML).filter(BorradorML.estado == "publicada").all()
+    for b in bors:
+        b.estado    = "borrador"
+        b.item_id   = None
+        b.permalink = None
+        b.error_msg = ""
+
+    # 2. Archivar publicaciones de la cuenta vieja (sin borrar → referencia histórica)
+    pubs = db.query(PublicacionML).filter(PublicacionML.estado_ml != "migrada").all()
+    for p in pubs:
+        p.estado_ml = "migrada"
+
+    db.commit()
+
+    log.info(f"[MIGRACION] {len(bors)} borradores reseteados, {len(pubs)} publicaciones archivadas")
+    return {
+        "ok":                     True,
+        "borradores_reseteados":  len(bors),
+        "publicaciones_archivadas": len(pubs),
+        "mensaje": (
+            "Sistema listo para la cuenta nueva. "
+            "Próximo paso: vincular la cuenta nueva desde Configuración → Conectar."
+        ),
     }
 
 

@@ -1862,12 +1862,21 @@ async def _ml_categoria_sugerida(db, titulo: str):
 
 
 @router.get("/api/ml/categoria-sugerida")
-async def categoria_sugerida(titulo: str, db: Session = Depends(get_db), x_api_key=Header(None),
+async def categoria_sugerida(titulo: str, tipo_producto: Optional[str] = None,
+                             db: Session = Depends(get_db), x_api_key=Header(None),
                              current_user: Optional[Usuario] = Depends(get_current_user)):
     _auth(x_api_key, current_user)
-    cat = await _ml_categoria_sugerida(db, titulo)
+    # Si el tipo de producto tiene categoría fija, usarla directamente (evita predictor de ML).
+    # Esto previene que módulos/quinchos/etc. sean clasificados como "bloques de hormigón".
+    cat = None
     nombre = None
-    if cat:
+    if tipo_producto:
+        fija = CATEGORIAS_FIJAS.get(tipo_producto.upper())
+        if fija:
+            cat, nombre = fija
+    if not cat:
+        cat = await _ml_categoria_sugerida(db, titulo)
+    if cat and not nombre:
         try:
             tok = await _ml_valid_token(db)
             async with httpx.AsyncClient(timeout=10) as c:

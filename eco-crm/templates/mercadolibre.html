@@ -4608,7 +4608,10 @@ async function detectarCategoriaEditando() {
   catNombre.textContent = '⏳ Detectando…';
   catNombre.style.color = '#fbbf24';
   try {
-    const j = await API.get('/api/ml/categoria-sugerida?titulo=' + encodeURIComponent(titulo));
+    const tipoProd = document.getElementById('mp-producto')?.value || '';
+    let url = '/api/ml/categoria-sugerida?titulo=' + encodeURIComponent(titulo);
+    if (tipoProd) url += '&tipo_producto=' + encodeURIComponent(tipoProd);
+    const j = await API.get(url);
     if (j.categoria) {
       catInput.value = j.categoria;
       catNombre.textContent = '✓ ' + (j.nombre || j.categoria);

@@ -174,7 +174,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    Material: acrílico sanitario reforzado con PRFV (igual que los hidromasajes, sin jets)
    Colores disponibles: Blanco, Beige, Negro, Gris
    Instalación: directa sobre el piso, sin obra. Conexión a agua fría/caliente y desagüe.
-   Pago: contado, transferencia bancaria, tarjeta de crédito/débito y cuotas propias directas con EcoFiver (sin banco ni tarjeta).
+   Pago: contado, transferencia bancaria, tarjeta de crédito/débito. Sin financiación propia en cuotas.
    Modelos y medidas exactas:
    · Lumina   1,90 × 0,90 × 0,50 m — rectangular estándar
    · Sensa    1,70 × 1,18 × 0,45 m — angular doble asiento
@@ -188,7 +188,7 @@ LO QUE VENDEMOS Y FABRICAMOS
 3c. RECEPTÁCULOS DE DUCHA
    Material: acrílico sanitario reforzado con PRFV, superficie antideslizante
    Colores disponibles: Blanco, Beige, Negro, Gris
-   Pago: contado, transferencia bancaria, tarjeta de crédito/débito y cuotas propias directas con EcoFiver (sin banco ni tarjeta).
+   Pago: contado, transferencia bancaria, tarjeta de crédito/débito. Sin financiación propia en cuotas.
    Modelos y medidas exactas:
    · Clásico   1,10 × 1,10 × 0,10 m — cuadrado estándar
    · Esquinero 0,99 × 0,75 × 0,10 m — esquinero rectangular

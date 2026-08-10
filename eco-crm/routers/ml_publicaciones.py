@@ -14,6 +14,7 @@ from typing import Optional, Dict, Any
 import io
 import re
 import httpx
+from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session

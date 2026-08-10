@@ -1352,7 +1352,9 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "category_id": payload["category_id"],
                     "price": payload["price"],
                     "currency_id": "ARS",
+                    "available_quantity": b.cantidad or 1,
                     "buying_mode": "classified",
+                    "condition": b.condicion or "new",
                     "listing_type_id": "free",
                     "location": location,
                     "pictures": payload.get("pictures", []),
@@ -1367,14 +1369,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     payload_cl["attributes"] = _cl_attrs
 
                 # Probar listing types en orden.
-                # None = sin listing_type_id (ML auto-asigna — necesario para
-                # algunas categorías classified como MLA413502 que rechazan el campo).
+                # listing_type_id es OBLIGATORIO para MLA413502 (cause_id 369 cuando falta).
+                # No intentamos "sin-lt" porque ML lo rechaza de inmediato.
                 _first_error: str = ""
-                for lt_cl in [None, "free", "gold_special", "classic"]:
-                    if lt_cl is None:
-                        payload_cl.pop("listing_type_id", None)
-                    else:
-                        payload_cl["listing_type_id"] = lt_cl
+                _last_error: str = ""
+                for lt_cl in ["free", "gold_special", "classic"]:
+                    payload_cl["listing_type_id"] = lt_cl
                     for intento in range(2):
                         # Auto-strip campos root deprecated antes de cada intento classified
                         for _cl_dep in range(4):
@@ -1389,14 +1389,16 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                         if r.status_code in (200, 201):
                             break
                         if not _first_error:
-                            lt_label = lt_cl if lt_cl else "sin-lt"
-                            _first_error = f"[{lt_label}] {r.status_code}: {r.text[:200]}"
+                            _first_error = f"[{lt_cl}] {r.status_code}: {r.text[:200]}"
+                        _last_error = f"[{lt_cl}] {r.status_code}: {r.text[:200]}"
                         rt = r.text.upper()
                         if (
                             "NOT AVAILABLE FOR CATEGORY" in rt
                             or ("NOT AVAILABLE" in rt and "LISTING" in rt)
                             or "NULL FOR PARAMS" in rt
                             or "WAS NULL" in rt
+                            or "BODY.REQUIRED" in rt
+                            or "CAUSE_ID" in rt  # cualquier error estructural → probar siguiente
                         ):
                             break  # este lt_cl no funciona → probar el siguiente
                         if "TEMPORARILY" in rt or "TRY AGAIN" in rt:
@@ -1405,11 +1407,13 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                             break  # otro error — no reintentar con este lt_cl
                     if r.status_code in (200, 201):
                         break  # publicado → salir del loop de listing types
-                # Si ningún listing type funcionó, usar el PRIMER error para diagnóstico
+                # Si ningún listing type funcionó, mostrar primer Y último error para diagnóstico
                 if r.status_code not in (200, 201):
                     if _first_error:
-                        # Devolver el error real del primer intento, no del último
-                        return {"ok": False, "error": f"Classified listing falló. Primer error: {_first_error}", "error_tipo": "cuota_classified"}
+                        _err_msg = f"Classified listing falló. {_first_error}"
+                        if _last_error and _last_error != _first_error:
+                            _err_msg += f" | Último: {_last_error}"
+                        return {"ok": False, "error": _err_msg, "error_tipo": "cuota_classified"}
                     rt = r.text.upper()
                     if "NOT AVAILABLE FOR CATEGORY" in rt or ("NOT AVAILABLE" in rt and "LISTING" in rt):
                         return {"ok": False, "error": _error_ml(r), "error_tipo": "cuota_classified"}

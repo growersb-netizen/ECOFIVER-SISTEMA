@@ -33,7 +33,19 @@ templates = Jinja2Templates(directory="templates")
 
 # ── Cola de publicación en segundo plano ──────────────────────────────────────
 _LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
-_TIPOS_CLASSIFIED = {"MODULO", "MODULO_DEPOSITO", "COMBO"}
+# Tipos que usan buying_mode="classified" (categorías ML que lo requieren, ej: MLA413502)
+_TIPOS_CLASSIFIED = {
+    "MODULO", "MODULO_HABITACIONAL", "MODULO_DEPOSITO", "VIVIENDA_MODULAR",
+    "QUINCHO", "PERGOLA", "COMBO", "GARITA_SEGURIDAD",
+}
+
+# Tipos que van por courier (Mercado Envíos) con envío gratis absorbido en el precio
+_TIPOS_CON_ENVIO_GRATIS = {
+    "HIDROMASAJE", "BANERA", "RECEPTACULO",
+    "REPOSERA_FIBRA", "CUCHA",
+    "ACCESORIO_PISCINA", "ACCESORIO_HIDROMASAJE",
+    "ILUMINACION_PISCINA", "EQUIPO_PISCINA", "REPUESTO_PISCINA",
+}
 
 
 async def _run_lote_bg(job_id: str, bids: list):
@@ -1176,6 +1188,14 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     # Título con keywords mínimas garantizadas (previene categorización errónea por ML)
     titulo_final = _forzar_keywords_titulo((b.titulo or "").strip(), tipo_prod)
 
+    # Shipping: me2+gratis para productos de courier (hidromasajes, bañeras, accesorios);
+    # not_specified para productos de gran porte (piscinas, módulos, etc.).
+    # local_pick_up=True en todos: habilita "Retiro en persona" siempre.
+    if tipo_prod in _TIPOS_CON_ENVIO_GRATIS:
+        _shipping = {"mode": "me2", "free_shipping": True, "local_pick_up": True}
+    else:
+        _shipping = {"mode": "not_specified", "free_shipping": False, "local_pick_up": True}
+
     # Payload estándar (marketplace buy_it_now)
     # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente
     payload = {
@@ -1188,10 +1208,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "listing_type_id": b.listing_type or "gold_special",
         "condition": b.condicion or "new",
         "pictures": [{"source": u} for u in fotos if u],
-        # Forzar "acuerdo con el vendedor" — evita que ML asigne MercadoEnvíos
-        # Todos los productos EcoFiver son de gran porte o requieren coordinación.
-        # local_pick_up=true habilita "Retiro en persona" en el anuncio.
-        "shipping": {"mode": "not_specified", "free_shipping": False, "local_pick_up": True},
+        "shipping": _shipping,
         # Garantía de fábrica — aparece en la ficha del producto en ML
         "warranty": "Garantía de fábrica EcoFiver: 10 años en estructura",
     }

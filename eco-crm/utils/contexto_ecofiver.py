@@ -72,9 +72,9 @@ LO QUE VENDEMOS Y FABRICAMOS
    · Arco Romano Chico c/Desnivel: 4,60 m × 2,35 m, prof. variable 1,10-1,30 m — 12.972 litros
    · Wave / Bali y otras líneas: modelos de mayor metraje (5x2.5, 6x3, 7x3, 8x4 y más)
    Colores disponibles: blanco, gris perla, azul turquesa, verde agua, piedra (varían según modelo)
-   Qué incluye el precio publicado (precio completo): fabricación + transporte hasta obra + instalación en el día + puesta en marcha del sistema de filtrado + entrega probado y funcionando
+   Qué incluye el precio publicado: fabricación + instalación en el día (equipo propio de EcoFiver) + puesta en marcha del sistema de filtrado + entrega probado y funcionando.
    Qué NO incluye: el flete hasta la obra, que se cotiza a razón de $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Alternativa gratuita: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
-   Tiempo de producción: aproximadamente 30-45 días desde la señal
+   Disponibilidad y entrega: modelos estándar en stock, entrega coordinada en 48-72 hs. La instalación completa se realiza en el mismo día de entrega.
 
 2. HIDROMASAJES, JACUZZIS Y SPAS (línea propia EcoFiver — acrílico sanitario)
    Material: acrílico sanitario de alta resistencia reforzado con PRFV (Poliéster Reforzado en Fibra de Vidrio)
@@ -174,7 +174,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    Material: acrílico sanitario reforzado con PRFV (igual que los hidromasajes, sin jets)
    Colores disponibles: Blanco, Beige, Negro, Gris
    Instalación: directa sobre el piso, sin obra. Conexión a agua fría/caliente y desagüe.
-   Pago: contado, tarjeta de crédito o débito. Sin financiación propia en cuotas.
+   Pago: contado, transferencia bancaria, tarjeta de crédito/débito y cuotas propias directas con EcoFiver (sin banco ni tarjeta).
    Modelos y medidas exactas:
    · Lumina   1,90 × 0,90 × 0,50 m — rectangular estándar
    · Sensa    1,70 × 1,18 × 0,45 m — angular doble asiento
@@ -188,7 +188,7 @@ LO QUE VENDEMOS Y FABRICAMOS
 3c. RECEPTÁCULOS DE DUCHA
    Material: acrílico sanitario reforzado con PRFV, superficie antideslizante
    Colores disponibles: Blanco, Beige, Negro, Gris
-   Pago: contado, tarjeta de crédito o débito. Sin financiación propia en cuotas.
+   Pago: contado, transferencia bancaria, tarjeta de crédito/débito y cuotas propias directas con EcoFiver (sin banco ni tarjeta).
    Modelos y medidas exactas:
    · Clásico   1,10 × 1,10 × 0,10 m — cuadrado estándar
    · Esquinero 0,99 × 0,75 × 0,10 m — esquinero rectangular
@@ -231,7 +231,7 @@ P: ¿Cuánto tarda la instalación?
 R: La instalación se realiza en el mismo día. Para piscinas: un equipo propio instala, conecta y prueba el sistema ese mismo día. Para módulos de 6, 12 y 18 m²: el montaje se completa en el día.
 
 P: ¿Cuánto tarda en producirse/fabricarse?
-R: El tiempo de producción es de aprox. 30-45 días para piscinas, 45-60 para módulos. La instalación en obra toma solo un día.
+R: Las piscinas están disponibles en stock — la entrega se coordina en 48-72 hs. Los módulos habitacionales también se entregan rápido. En todos los casos la instalación se realiza en el mismo día de entrega.
 
 P: ¿Puedo financiarlo?
 R: Sí, tienen financiación propia en cuotas directas con la empresa, sin banco ni tarjeta.
@@ -356,8 +356,9 @@ Si la pregunta es sobre MEDIDAS / ESPECIFICACIONES:
 - CTA: "Si tenés dudas del espacio disponible, contanos las medidas y te ayudamos."
 
 Si la pregunta es sobre PLAZO DE FABRICACIÓN / CUÁNDO LLEGA:
-- Piscinas: 30-45 días de producción. La instalación en obra toma solo un día.
-- Módulos 6/12/18 m²: 45-60 días. El montaje es en el día.
+- Piscinas: modelos estándar en stock, entrega coordinada en 48-72 hs. La instalación se realiza en el mismo día de entrega.
+- Módulos 6/12/18 m²: producción propia, el montaje se completa en el mismo día de entrega.
+- Viviendas modulares (24+ m²): 45-60 días según metraje.
 - CTA: "Si dejás la señal esta semana, podemos darte fecha de entrega."
 
 Si la pregunta es sobre GARANTÍA:
@@ -466,10 +467,10 @@ BLOQUE 4 — GARANTÍA Y FABRICACIÓN:
 - Fabricación propia en Zárate, Buenos Aires — sin intermediarios ni revendedores
 - Control de calidad propio en cada unidad antes de la entrega
 
-BLOQUE 5 — FINANCIACIÓN:
-- Cuotas propias disponibles (financiación directa de EcoFiver, sin banco ni tarjeta de crédito)
-- Apto para pago en efectivo y transferencia
-- Consultar planes de financiación al momento de la compra
+BLOQUE 5 — FINANCIACIÓN Y FORMAS DE PAGO:
+- Se acepta: efectivo, transferencia bancaria, tarjeta de crédito/débito y Mercado Pago
+- Cuotas propias directas con EcoFiver (sin banco ni tarjeta): señal inicial + cuotas mensuales a convenir según el cliente
+- Consultar el plan de cuotas al momento de la compra
 
 BLOQUE 6 — LOGÍSTICA Y RETIRO:
 - Retiro SIN CARGO en dos puntos: CABA (zona San Telmo) y Zona Oeste (Paso del Rey)

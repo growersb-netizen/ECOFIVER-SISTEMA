@@ -628,6 +628,16 @@
         <div id="mp-costos-sugerido" style="margin-top:8px;padding:8px;background:var(--color-success,#22c55e)22;border-radius:4px;font-size:12px"></div>
       </div>
       <label class="form-label">Fotos</label>
+      <!-- ── Sets de imágenes ──────────────────────────────────────────── -->
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <select id="mp-set-sel" class="input" style="flex:1;min-width:160px;height:34px;font-size:13px">
+          <option value="">📁 Seleccionar set de fotos…</option>
+        </select>
+        <button type="button" class="btn btn-sm" onclick="borAplicarSet()" title="Carga las URLs del set en el campo de fotos">Cargar</button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="borGuardarSet()" title="Guarda las URLs actuales como un set reutilizable">💾 Guardar set</button>
+        <button type="button" class="btn btn-sm" style="background:#ef4444;color:#fff;border:none" onclick="borEliminarSet()" title="Elimina el set seleccionado">🗑</button>
+      </div>
+      <!-- ── Subir fotos ────────────────────────────────────────────────── -->
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
         <label class="btn btn-sm btn-secondary" style="cursor:pointer">📸 Subir foto a ML
           <input type="file" accept="image/*" style="display:none" onchange="borSubirFoto(this)"></label>
@@ -3321,6 +3331,7 @@ function borNuevaPub() {
   borCargarCatalogoSelect();
   borCargarFichasDropdown();
   borOnProductoChange();
+  borCargarSets('MODULO');  // tipo por defecto en nueva publicación
   document.getElementById('mp-foto-msg').textContent = '';
   document.getElementById('mp-checklist-calidad').innerHTML = '';
   openModal('modal-bor');
@@ -3392,6 +3403,7 @@ function borEditar(id_o_obj) {
   // ────────────────────────────────────────────────────────────────────────
   borCargarCatalogoSelect();
   borCargarFichasDropdown(b.modelo_nombre);
+  borCargarSets(b.producto || '');
   openModal('modal-bor');
   setTimeout(borCalcGanancia, 50);
   setTimeout(borOnProductoChange, 50);
@@ -4600,6 +4612,81 @@ async function aplicarCatBulk() {
   }
 }
 
+// ── Sets de imágenes ────────────────────────────────────────────────────────
+
+let _imgSetsCache = [];  // cache local para no recargar en cada cambio de tipo
+
+async function borCargarSets(tipoProd) {
+  // Carga todos los sets y llena el dropdown.
+  // Los del tipo actual aparecen primero (marcados con ★).
+  try {
+    const j = await API.get('/api/ml/imagen-sets');
+    _imgSetsCache = j.sets || [];
+    const sel = document.getElementById('mp-set-sel');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">📁 Seleccionar set de fotos…</option>';
+    // Ordenar: primero los del tipo actual, luego el resto
+    const tipo = (tipoProd || '').toUpperCase();
+    const propios = _imgSetsCache.filter(s => (s.tipo_producto || '').toUpperCase() === tipo);
+    const otros   = _imgSetsCache.filter(s => (s.tipo_producto || '').toUpperCase() !== tipo);
+    [...propios, ...otros].forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      const esProp = tipo && (s.tipo_producto || '').toUpperCase() === tipo;
+      opt.textContent = (esProp ? '★ ' : '') + s.nombre + (s.tipo_producto ? ` [${s.tipo_producto}]` : '');
+      opt.dataset.urls = JSON.stringify(s.urls);
+      if (s.id === prev) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch(e) { /* silencioso — no bloquear apertura del modal */ }
+}
+
+function borAplicarSet() {
+  const sel = document.getElementById('mp-set-sel');
+  if (!sel || !sel.value) { showToast('Seleccioná un set primero', 'error'); return; }
+  const opt = sel.options[sel.selectedIndex];
+  const urls = JSON.parse(opt.dataset.urls || '[]');
+  if (!urls.length) { showToast('El set no tiene URLs', 'error'); return; }
+  const ta = document.getElementById('mp-fotos');
+  ta.value = urls.join('\n');
+  ta.dispatchEvent(new Event('input'));
+  showToast(`✓ ${urls.length} fotos del set "${opt.textContent.split(' [')[0]}"`, 'success');
+}
+
+async function borGuardarSet() {
+  const urls = (document.getElementById('mp-fotos')?.value || '')
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  if (!urls.length) { showToast('No hay URLs en el campo de fotos', 'error'); return; }
+  const tipoProd = document.getElementById('mp-producto')?.value || '';
+  const nombre = prompt(`Nombre para este set de fotos:\n(${urls.length} URLs)${tipoProd ? '\nTipo: ' + tipoProd : ''}`);
+  if (!nombre || !nombre.trim()) return;
+  try {
+    await API.post('/api/ml/imagen-sets', { nombre: nombre.trim(), tipo_producto: tipoProd || null, urls });
+    showToast(`✓ Set "${nombre.trim()}" guardado`, 'success');
+    await borCargarSets(tipoProd);
+    // Seleccionar el recién guardado
+    const slug = nombre.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 40);
+    const sel = document.getElementById('mp-set-sel');
+    if (sel) {
+      const opt = [...sel.options].find(o => o.value === `imgset_${slug}`);
+      if (opt) sel.value = opt.value;
+    }
+  } catch(e) { showToast('Error al guardar: ' + e.message, 'error'); }
+}
+
+async function borEliminarSet() {
+  const sel = document.getElementById('mp-set-sel');
+  if (!sel || !sel.value) { showToast('Seleccioná un set para eliminar', 'error'); return; }
+  const nombre = sel.options[sel.selectedIndex]?.textContent || sel.value;
+  if (!confirm(`¿Eliminar el set "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await API.delete('/api/ml/imagen-sets/' + encodeURIComponent(sel.value));
+    showToast(`Set eliminado`, 'success');
+    await borCargarSets(document.getElementById('mp-producto')?.value || '');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
 async function detectarCategoriaEditando() {
   const titulo = (document.getElementById('mp-titulo')?.value || '').trim();
   if (!titulo) { showToast('Escribí un título primero', 'error'); return; }
@@ -4963,13 +5050,18 @@ function borChequearPrecioBajoContado() {
 
 // Categorías fijas por tipo de producto — espejo del dict CATEGORIAS_FIJAS en ml_publicaciones.py
 const CATEGORIAS_FIJAS_JS = {
-  PISCINA:         { id: 'MLA373513', nombre: 'Piletas de Fibra' },
-  MINIPISCINA:     { id: 'MLA373513', nombre: 'Piletas de Fibra' },
-  MODULO:          { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  MODULO_DEPOSITO: { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  COMBO:           { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  // HIDROMASAJE, QUINCHO, PERGOLA, REPOSERA_FIBRA, CUCHA, ILUMINACION_PISCINA
-  // no tienen categoría fija → el predictor ML las detecta bien por ser términos específicos
+  PISCINA:             { id: 'MLA373513', nombre: 'Piletas de Fibra de Vidrio' },
+  MINIPISCINA:         { id: 'MLA373513', nombre: 'Piletas de Fibra de Vidrio' },
+  MODULO:              { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  MODULO_HABITACIONAL: { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  MODULO_DEPOSITO:     { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  VIVIENDA_MODULAR:    { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  QUINCHO:             { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  PERGOLA:             { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  COMBO:               { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  GARITA_SEGURIDAD:    { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  HIDROMASAJE:         { id: 'MLA88471',  nombre: 'Jacuzzis e Hidromasajes' },
+  BANERA:              { id: 'MLA88471',  nombre: 'Jacuzzis e Hidromasajes' },
 };
 
 function borOnProductoChange() {
@@ -4986,6 +5078,7 @@ function borOnProductoChange() {
   borActualizarPrecioSugerido();
   const fichaActual = document.getElementById('mp-ficha-modelo').value;
   borCargarFichasDropdown(fichaActual);
+  borCargarSets(tipo);  // refrescar sets al cambiar tipo de producto
 }
 
 function borActualizarMedidasPiscina() {

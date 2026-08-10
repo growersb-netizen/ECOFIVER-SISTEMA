@@ -1888,6 +1888,91 @@ async def categoria_sugerida(titulo: str, tipo_producto: Optional[str] = None,
     return {"categoria": cat, "nombre": nombre}
 
 
+# ── Sets de imágenes ─────────────────────────────────────────────────────────
+# Guardados en ConfiguracionSistema con categoria="imagen_set".
+# valor = JSON {nombre, tipo_producto, urls}
+
+@router.get("/api/ml/imagen-sets")
+async def imagen_sets_list(tipo_producto: Optional[str] = None,
+                           db: Session = Depends(get_db), x_api_key=Header(None),
+                           current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Lista todos los sets de imágenes guardados, opcionalmente filtrados por tipo."""
+    _auth(x_api_key, current_user)
+    from database.models import ConfiguracionSistema
+    rows = db.query(ConfiguracionSistema).filter(
+        ConfiguracionSistema.categoria == "imagen_set",
+        ConfiguracionSistema.estado == "activa"
+    ).order_by(ConfiguracionSistema.clave).all()
+    sets = []
+    for row in rows:
+        try:
+            data = json.loads(row.valor or "{}")
+            if tipo_producto and data.get("tipo_producto") and data["tipo_producto"] != tipo_producto.upper():
+                continue
+            sets.append({
+                "id": row.clave,
+                "nombre": data.get("nombre", row.clave),
+                "tipo_producto": data.get("tipo_producto", ""),
+                "urls": data.get("urls", []),
+            })
+        except Exception:
+            pass
+    return {"sets": sets}
+
+
+class ImagenSetIn(BaseModel):
+    nombre: str
+    tipo_producto: Optional[str] = None
+    urls: list
+
+
+@router.post("/api/ml/imagen-sets")
+async def imagen_sets_save(body: ImagenSetIn, db: Session = Depends(get_db),
+                           x_api_key=Header(None),
+                           current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Crea o actualiza un set de imágenes."""
+    _auth(x_api_key, current_user)
+    from database.models import ConfiguracionSistema
+    import re as _re
+    # Clave estable basada en el nombre (slug)
+    slug = _re.sub(r"[^a-z0-9_]", "_", body.nombre.lower().strip())[:40]
+    clave = f"imgset_{slug}"
+    data = {
+        "nombre": body.nombre.strip(),
+        "tipo_producto": (body.tipo_producto or "").upper() or None,
+        "urls": [u.strip() for u in body.urls if u.strip()],
+    }
+    row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
+    if row:
+        row.valor = json.dumps(data, ensure_ascii=False)
+        row.estado = "activa"
+    else:
+        db.add(ConfiguracionSistema(
+            clave=clave, valor=json.dumps(data, ensure_ascii=False),
+            categoria="imagen_set", es_secreto=False, estado="activa"
+        ))
+    db.commit()
+    return {"ok": True, "id": clave, "nombre": data["nombre"]}
+
+
+@router.delete("/api/ml/imagen-sets/{set_id}")
+async def imagen_sets_delete(set_id: str, db: Session = Depends(get_db),
+                             x_api_key=Header(None),
+                             current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Elimina un set de imágenes."""
+    _auth(x_api_key, current_user)
+    from database.models import ConfiguracionSistema
+    row = db.query(ConfiguracionSistema).filter(
+        ConfiguracionSistema.clave == set_id,
+        ConfiguracionSistema.categoria == "imagen_set"
+    ).first()
+    if not row:
+        raise HTTPException(404, "Set no encontrado")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/api/ml/fees")
 async def calcular_fees(precio: float, listing_type: str = "gold_special",
                         categoria: Optional[str] = None, costo: Optional[float] = None,

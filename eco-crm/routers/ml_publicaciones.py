@@ -436,7 +436,9 @@ _log_regen = logging.getLogger("ml.regen_ia")
 
 def _regen_sanear_titulo(tit: str) -> str:
     import re as _re
-    tit = _re.sub(r'[,|:;!?"–—_%]', ' ', tit)
+    # Whitelist: solo letras (incluyendo tildes/ñ), números, espacios y
+    # puntuación básica que ML acepta. Todo lo demás → espacio.
+    tit = _re.sub(r"[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ0-9 \-\+\.\/\(\)&']", ' ', tit)
     tit = _re.sub(r'\s+', ' ', tit).strip()
     if len(tit) > 60:
         cut = tit[:60]
@@ -658,15 +660,14 @@ async def _actualizar_publicados_bg(bid_list: list):
 
                     hdrs = _ml_headers(tok)
 
-                    # ── PUT título + garantía ────────────────────────────────
-                    # Aplicar keyword mínima antes de mandar a ML
+                    # ── PUT título (solo el título, sin otros campos) ─────────
+                    # Aplicar keyword mínima antes de mandar a ML.
+                    # IMPORTANTE: no mezclar "warranty" en este PUT — los listings
+                    # classified (módulos) rechazan updates mixtos con cause_id 277.
                     tit = _forzar_keywords_titulo(tit, b.producto or "")
                     r_tit = await hc.put(
                         f"{ML_BASE}/items/{b.item_id}",
-                        json={
-                            "title": tit,
-                            "warranty": "Garantía de fábrica EcoFiver: 10 años en estructura",
-                        },
+                        json={"title": tit},
                         headers=hdrs,
                     )
 
@@ -691,17 +692,24 @@ async def _actualizar_publicados_bg(bid_list: list):
                         pass
                     db.commit()
 
-                    tit_ok = r_tit.status_code in (200, 201)
+                    tit_ok  = r_tit.status_code  in (200, 201)
                     desc_ok = r_desc.status_code in (200, 201)
-                    if tit_ok and desc_ok:
+                    if desc_ok:
+                        # Descripción OK → contar como actualizado aunque el título falle
                         _ACTUALIZAR_VIVO_JOB["actualizados"] += 1
-                        _log_actualizar.info("[actualizar_vivo] %s OK", b.item_id)
+                        if tit_ok:
+                            _log_actualizar.info("[actualizar_vivo] %s OK (título+desc)", b.item_id)
+                        else:
+                            # Título rechazado por ML (frecuente en classified listings pausados)
+                            tit_err = f"tít. no actualizado ML {r_tit.status_code}: {r_tit.text[:60]}"
+                            _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "warn": tit_err})
+                            _log_actualizar.warning("[actualizar_vivo] %s desc OK pero título error: %s", b.item_id, tit_err)
                     else:
                         errs = []
                         if not tit_ok:
-                            errs.append(f"título {r_tit.status_code}: {r_tit.text[:80]}")
+                            errs.append(f"título {r_tit.status_code}: {r_tit.text[:60]}")
                         if not desc_ok:
-                            errs.append(f"desc {r_desc.status_code}: {r_desc.text[:80]}")
+                            errs.append(f"desc {r_desc.status_code}: {r_desc.text[:60]}")
                         err_str = "; ".join(errs)
                         _ACTUALIZAR_VIVO_JOB["errores"] += 1
                         _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": err_str})

@@ -1283,16 +1283,29 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                 if clean_attrs:
                     payload_cl["attributes"] = clean_attrs
 
-                # Intentar primero con "free"; si ML dice "not available" (cuota agotada
-                # O categoría que no acepta free), reintentar con "gold_special" y luego "classic".
-                for lt_cl in ["free", "gold_special", "classic"]:
-                    payload_cl["listing_type_id"] = lt_cl
+                # Probar listing types en orden.
+                # None = sin listing_type_id (ML auto-asigna — necesario para
+                # algunas categorías classified como MLA413502 que rechazan el campo).
+                _first_error: str = ""
+                for lt_cl in [None, "free", "gold_special", "classic"]:
+                    if lt_cl is None:
+                        payload_cl.pop("listing_type_id", None)
+                    else:
+                        payload_cl["listing_type_id"] = lt_cl
                     for intento in range(2):
                         r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
                         if r.status_code in (200, 201):
                             break
+                        if not _first_error:
+                            lt_label = lt_cl if lt_cl else "sin-lt"
+                            _first_error = f"[{lt_label}] {r.status_code}: {r.text[:200]}"
                         rt = r.text.upper()
-                        if "NOT AVAILABLE FOR CATEGORY" in rt or ("NOT AVAILABLE" in rt and "LISTING" in rt):
+                        if (
+                            "NOT AVAILABLE FOR CATEGORY" in rt
+                            or ("NOT AVAILABLE" in rt and "LISTING" in rt)
+                            or "NULL FOR PARAMS" in rt
+                            or "WAS NULL" in rt
+                        ):
                             break  # este lt_cl no funciona → probar el siguiente
                         if "TEMPORARILY" in rt or "TRY AGAIN" in rt:
                             await asyncio.sleep(10)
@@ -1300,8 +1313,11 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                             break  # otro error — no reintentar con este lt_cl
                     if r.status_code in (200, 201):
                         break  # publicado → salir del loop de listing types
-                # Si ningún listing type funcionó, lo marcamos como error clasificado permanente
+                # Si ningún listing type funcionó, usar el PRIMER error para diagnóstico
                 if r.status_code not in (200, 201):
+                    if _first_error:
+                        # Devolver el error real del primer intento, no del último
+                        return {"ok": False, "error": f"Classified listing falló. Primer error: {_first_error}", "error_tipo": "cuota_classified"}
                     rt = r.text.upper()
                     if "NOT AVAILABLE FOR CATEGORY" in rt or ("NOT AVAILABLE" in rt and "LISTING" in rt):
                         return {"ok": False, "error": _error_ml(r), "error_tipo": "cuota_classified"}

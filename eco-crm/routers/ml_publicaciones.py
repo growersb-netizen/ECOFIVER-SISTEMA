@@ -646,9 +646,17 @@ async def _actualizar_publicados_bg(bid_list: list):
 
                     hdrs = _ml_headers(tok)
 
-                    # ── PUT título ───────────────────────────────────────────
-                    r_tit = await hc.put(f"{ML_BASE}/items/{b.item_id}",
-                                         json={"title": tit}, headers=hdrs)
+                    # ── PUT título + garantía ────────────────────────────────
+                    # Aplicar keyword mínima antes de mandar a ML
+                    tit = _forzar_keywords_titulo(tit, b.producto or "")
+                    r_tit = await hc.put(
+                        f"{ML_BASE}/items/{b.item_id}",
+                        json={
+                            "title": tit,
+                            "warranty": "Garantía de fábrica EcoFiver: 10 años en estructura",
+                        },
+                        headers=hdrs,
+                    )
 
                     # ── PUT descripción ──────────────────────────────────────
                     try:
@@ -1117,9 +1125,15 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         else:
             clean_attrs.append(attr)
 
-    # Auto-inyectar BRAND, MODEL y LINE — ML los exige y siempre son iguales para EcoFiver
+    # Auto-inyectar BRAND, MODEL, LINE y GARANTÍA — siempre iguales para EcoFiver
     existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
-    for attr_id, attr_val in [("BRAND", "EcoFiver"), ("MODEL", "EcoFiver"), ("LINE", "Premium")]:
+    for attr_id, attr_val in [
+        ("BRAND",         "EcoFiver"),
+        ("MODEL",         "EcoFiver"),
+        ("LINE",          "Premium"),
+        ("WARRANTY_TYPE", "Garantía del vendedor"),
+        ("WARRANTY_TIME", "10 años"),
+    ]:
         if attr_id not in existing_ids:
             clean_attrs.append({"id": attr_id, "value_name": attr_val})
 
@@ -1178,6 +1192,8 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         # Todos los productos EcoFiver son de gran porte o requieren coordinación.
         # local_pick_up=true habilita "Retiro en persona" en el anuncio.
         "shipping": {"mode": "not_specified", "free_shipping": False, "local_pick_up": True},
+        # Garantía de fábrica — aparece en la ficha del producto en ML
+        "warranty": "Garantía de fábrica EcoFiver: 10 años en estructura",
     }
     if clean_attrs:
         payload["attributes"] = clean_attrs
@@ -1199,6 +1215,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "location": location,
                     "pictures": payload.get("pictures", []),
                     "shipping": {"local_pick_up": True},
+                    "warranty": "Garantía de fábrica EcoFiver: 10 años en estructura",
                 }
                 if clean_attrs:
                     payload_cl["attributes"] = clean_attrs

@@ -1116,10 +1116,14 @@ async def _ml_classified_location(db: Session) -> dict:
     return loc
 
 
-async def _ml_cat_attributes(categoria: str, tok: str) -> set:
+async def _ml_cat_attributes(categoria: str, tok: str) -> Optional[set]:
     """
     Retorna el set de IDs de atributos válidos (no deprecated) para la categoría.
-    Cacheado 1 hora. Si la llamada falla retorna set vacío (sin filtrar, para no bloquear).
+    Cacheado 1 hora.
+    - Devuelve None si la llamada falla (no se pudo consultar → el caller decide).
+    - Devuelve set() vacío si la API respondió pero la categoría no tiene atributos válidos.
+    - Devuelve {ids...} si hay atributos válidos.
+    El caller usa None para "no sé → no filtr para buy_it_now, sí limpio para classified".
     """
     import time as _time
     cached = _CAT_ATTRS_CACHE.get(categoria)
@@ -1132,7 +1136,7 @@ async def _ml_cat_attributes(categoria: str, tok: str) -> set:
                 headers=_ml_headers(tok),
             )
         if r.status_code != 200:
-            return set()
+            return None  # API no respondió bien → desconocido
         valid_ids = {
             (a.get("id") or "").upper()
             for a in r.json()
@@ -1141,7 +1145,7 @@ async def _ml_cat_attributes(categoria: str, tok: str) -> set:
         _CAT_ATTRS_CACHE[categoria] = {"ids": valid_ids, "ts": _time.time()}
         return valid_ids
     except Exception:
-        return set()
+        return None  # error de red/timeout → desconocido
 
 
 def _ml_strip_deprecated_root_field(payload: dict, error_text: str) -> tuple:
@@ -1290,9 +1294,11 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         if "HEIGHT" not in existing_ids:
             clean_attrs.append({"id": "HEIGHT", "value_name": _ALTURA_DEFAULT.get(tipo_prod, "65 cm")})
 
-    # Filtrar clean_attrs: eliminar atributos que ML marca como deprecated para esta categoría.
-    # Si _valid_attr_ids está vacío (fallo de API) se omite el filtro para no bloquear la publicación.
-    if _valid_attr_ids:
+    # Filtrar clean_attrs según atributos válidos de la categoría.
+    # _valid_attr_ids = None  → API falló, no se puede filtrar (no bloquear publicación)
+    # _valid_attr_ids = set() → categoría sin atributos (ej. real estate) → limpiar todo
+    # _valid_attr_ids = {...} → filtrar a esos IDs
+    if _valid_attr_ids is not None:
         clean_attrs = [a for a in clean_attrs if (a.get("id") or "").upper() in _valid_attr_ids]
 
     # Título con keywords mínimas garantizadas (previene categorización errónea por ML)
@@ -1353,8 +1359,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "shipping": {"local_pick_up": True},
                     # "warranty" eliminado — campo root deprecated en ML (2026-08)
                 }
-                if clean_attrs:
-                    payload_cl["attributes"] = clean_attrs
+                # Para classified: solo incluir attrs explícitamente válidos para la categoría.
+                # Si _valid_attr_ids es None (API falló) → NO enviar attrs: una categoría
+                # de real estate/construcción rechazará BRAND, WARRANTY_*, MODEL, etc.
+                _cl_attrs = [a for a in clean_attrs if _valid_attr_ids is not None and (a.get("id") or "").upper() in _valid_attr_ids]
+                if _cl_attrs:
+                    payload_cl["attributes"] = _cl_attrs
 
                 # Probar listing types en orden.
                 # None = sin listing_type_id (ML auto-asigna — necesario para

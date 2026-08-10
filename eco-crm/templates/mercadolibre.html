@@ -628,14 +628,12 @@
         <div id="mp-costos-sugerido" style="margin-top:8px;padding:8px;background:var(--color-success,#22c55e)22;border-radius:4px;font-size:12px"></div>
       </div>
       <label class="form-label">Fotos</label>
-      <!-- ── Sets de imágenes ──────────────────────────────────────────── -->
+      <!-- ── Sets de imágenes (Biblioteca) ────────────────────────────── -->
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
         <select id="mp-set-sel" class="input" style="flex:1;min-width:160px;height:34px;font-size:13px">
-          <option value="">📁 Seleccionar set de fotos…</option>
+          <option value="">📁 Set de fotos de la biblioteca…</option>
         </select>
-        <button type="button" class="btn btn-sm" onclick="borAplicarSet()" title="Carga las URLs del set en el campo de fotos">Cargar</button>
-        <button type="button" class="btn btn-sm btn-secondary" onclick="borGuardarSet()" title="Guarda las URLs actuales como un set reutilizable">💾 Guardar set</button>
-        <button type="button" class="btn btn-sm" style="background:#ef4444;color:#fff;border:none" onclick="borEliminarSet()" title="Elimina el set seleccionado">🗑</button>
+        <button type="button" class="btn btn-sm" onclick="borAplicarSet()" title="Carga las fotos del set en el campo">✓ Cargar fotos</button>
       </div>
       <!-- ── Subir fotos ────────────────────────────────────────────────── -->
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
@@ -4612,31 +4610,38 @@ async function aplicarCatBulk() {
   }
 }
 
-// ── Sets de imágenes ────────────────────────────────────────────────────────
+// ── Sets de imágenes (desde Biblioteca ML) ──────────────────────────────────
 
-let _imgSetsCache = [];  // cache local para no recargar en cada cambio de tipo
+let _imgSetsCache = [];  // cache para no recargar en cada cambio de tipo
 
 async function borCargarSets(tipoProd) {
-  // Carga todos los sets y llena el dropdown.
-  // Los del tipo actual aparecen primero (marcados con ★).
+  // Usa GET /api/ml/fotos/sets — modelo SetFotosML de la biblioteca real.
+  // Los sets del tipo de producto actual aparecen primero (★).
   try {
-    const j = await API.get('/api/ml/imagen-sets');
-    _imgSetsCache = j.sets || [];
+    const sets = await API.get('/api/ml/fotos/sets');
+    _imgSetsCache = sets || [];
     const sel = document.getElementById('mp-set-sel');
     if (!sel) return;
     const prev = sel.value;
-    sel.innerHTML = '<option value="">📁 Seleccionar set de fotos…</option>';
-    // Ordenar: primero los del tipo actual, luego el resto
+    sel.innerHTML = '<option value="">📁 Set de fotos de la biblioteca…</option>';
     const tipo = (tipoProd || '').toUpperCase();
-    const propios = _imgSetsCache.filter(s => (s.tipo_producto || '').toUpperCase() === tipo);
-    const otros   = _imgSetsCache.filter(s => (s.tipo_producto || '').toUpperCase() !== tipo);
+    const propios = _imgSetsCache.filter(s => (s.tipo_producto || '').toUpperCase() === tipo && s.total_fotos > 0);
+    const otros   = _imgSetsCache.filter(s => (s.tipo_producto || '').toUpperCase() !== tipo && s.total_fotos > 0);
+    if (!propios.length && !otros.length) {
+      sel.innerHTML += '<option disabled>— No hay sets en la biblioteca —</option>';
+      return;
+    }
     [...propios, ...otros].forEach(s => {
       const opt = document.createElement('option');
       opt.value = s.id;
       const esProp = tipo && (s.tipo_producto || '').toUpperCase() === tipo;
-      opt.textContent = (esProp ? '★ ' : '') + s.nombre + (s.tipo_producto ? ` [${s.tipo_producto}]` : '');
-      opt.dataset.urls = JSON.stringify(s.urls);
-      if (s.id === prev) opt.selected = true;
+      const label = (esProp ? '★ ' : '') + s.nombre
+        + (s.modelo ? ` — ${s.modelo}` : '')
+        + ` (${s.total_fotos} foto${s.total_fotos !== 1 ? 's' : ''})`;
+      opt.textContent = label;
+      // Guardar URLs directamente en el option para no necesitar otro fetch
+      opt.dataset.urls = JSON.stringify((s.fotos || []).map(f => f.url));
+      if (String(s.id) === String(prev)) opt.selected = true;
       sel.appendChild(opt);
     });
   } catch(e) { /* silencioso — no bloquear apertura del modal */ }
@@ -4644,47 +4649,15 @@ async function borCargarSets(tipoProd) {
 
 function borAplicarSet() {
   const sel = document.getElementById('mp-set-sel');
-  if (!sel || !sel.value) { showToast('Seleccioná un set primero', 'error'); return; }
+  if (!sel || !sel.value) { showToast('Seleccioná un set de la biblioteca primero', 'error'); return; }
   const opt = sel.options[sel.selectedIndex];
   const urls = JSON.parse(opt.dataset.urls || '[]');
-  if (!urls.length) { showToast('El set no tiene URLs', 'error'); return; }
+  if (!urls.length) { showToast('El set no tiene fotos', 'error'); return; }
   const ta = document.getElementById('mp-fotos');
   ta.value = urls.join('\n');
   ta.dispatchEvent(new Event('input'));
-  showToast(`✓ ${urls.length} fotos del set "${opt.textContent.split(' [')[0]}"`, 'success');
-}
-
-async function borGuardarSet() {
-  const urls = (document.getElementById('mp-fotos')?.value || '')
-    .split('\n').map(s => s.trim()).filter(Boolean);
-  if (!urls.length) { showToast('No hay URLs en el campo de fotos', 'error'); return; }
-  const tipoProd = document.getElementById('mp-producto')?.value || '';
-  const nombre = prompt(`Nombre para este set de fotos:\n(${urls.length} URLs)${tipoProd ? '\nTipo: ' + tipoProd : ''}`);
-  if (!nombre || !nombre.trim()) return;
-  try {
-    await API.post('/api/ml/imagen-sets', { nombre: nombre.trim(), tipo_producto: tipoProd || null, urls });
-    showToast(`✓ Set "${nombre.trim()}" guardado`, 'success');
-    await borCargarSets(tipoProd);
-    // Seleccionar el recién guardado
-    const slug = nombre.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 40);
-    const sel = document.getElementById('mp-set-sel');
-    if (sel) {
-      const opt = [...sel.options].find(o => o.value === `imgset_${slug}`);
-      if (opt) sel.value = opt.value;
-    }
-  } catch(e) { showToast('Error al guardar: ' + e.message, 'error'); }
-}
-
-async function borEliminarSet() {
-  const sel = document.getElementById('mp-set-sel');
-  if (!sel || !sel.value) { showToast('Seleccioná un set para eliminar', 'error'); return; }
-  const nombre = sel.options[sel.selectedIndex]?.textContent || sel.value;
-  if (!confirm(`¿Eliminar el set "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
-  try {
-    await API.delete('/api/ml/imagen-sets/' + encodeURIComponent(sel.value));
-    showToast(`Set eliminado`, 'success');
-    await borCargarSets(document.getElementById('mp-producto')?.value || '');
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  const nombre = opt.textContent.replace(/^★ /, '').split(' (')[0];
+  showToast(`✓ ${urls.length} fotos cargadas desde "${nombre}"`, 'success');
 }
 
 async function detectarCategoriaEditando() {

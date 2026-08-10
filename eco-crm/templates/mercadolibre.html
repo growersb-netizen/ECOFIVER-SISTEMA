@@ -340,6 +340,7 @@
     <button class="btn btn-sm" onclick="borActualizarPublicadosIA()" title="Actualiza título y descripción en MercadoLibre de todas las publicaciones de módulos YA PUBLICADAS (llama a la API de ML)" style="background:#1a1a2a;color:#a78bfa;border-color:#3a2a5a">📡 Actualizar publicados ML</button>
     <button class="btn btn-sm" onclick="borTestIA()" title="Verifica que la IA (OpenRouter) esté funcionando correctamente" style="background:#2a1a2a;color:#f472b6;border-color:#5a2a4a">🧪 Test IA</button>
     <button class="btn btn-sm" onclick="borRepararCategorias()" title="Corrige categorías inválidas (ej. MLA9226 → detecta la correcta al publicar)" style="background:#1a1a0a;color:#fbbf24;border-color:#4a4a0a">🔧 Reparar categorías</button>
+    <button class="btn btn-sm" onclick="borResincronizar()" title="Importa desde ML las publicaciones activas/pausadas que no están en el CRM (útil para recuperar publicaciones borradas por error)" style="background:#0a1a2a;color:#38bdf8;border-color:#0a3a5a">🔄 Re-sincronizar ML</button>
     <button class="btn btn-secondary btn-sm" id="bor-btn-lote" onclick="borPublicarLote()" style="display:none">⬆️ Publicar seleccionados (<span id="bor-sel-n">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-borrar-lote" style="display:none;color:#ef4444" onclick="borBorrarLote()">🗑️ Borrar seleccionados (<span id="bor-sel-n2">0</span>)</button>
     <button class="btn btn-sm" id="bor-btn-reintentar-errores" onclick="borReintentarErrores()" style="display:none;color:#fbbf24" title="Selecciona y reintenta publicar todos los borradores con error">🔧 Reintentar errores (<span id="bor-n-errores">0</span>)</button>
@@ -3110,10 +3111,15 @@ async function borBulkPausar() {
   showToast(`⏸ Pausando ${ids.length} publicaciones…`, 'info');
   try {
     const j = await API.post('/api/ml/publicaciones/pausar', { ids });
-    showToast(`✓ ${j.ok} pausadas · ${j.error} con error`, j.ok > 0 ? 'success' : 'error');
+    if (j.ok > 0) {
+      showToast(`✓ ${j.ok} pausadas` + (j.error > 0 ? ` · ⚠️ ${j.error} con error` : ''), 'success');
+    } else {
+      const primerError = (j.detalles && j.detalles[0]) ? j.detalles[0].error : 'Error desconocido';
+      showToast(`❌ No se pudo pausar: ${String(primerError).substring(0, 120)}`, 'error');
+    }
     if (j.error > 0) console.warn('[pausar] detalles:', j.detalles);
     borCargar();
-  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  } catch (e) { showToast('Error al pausar: ' + e.message, 'error'); }
 }
 
 async function borBulkActivar() {
@@ -3177,14 +3183,67 @@ async function borReintentarErrores() {
 
 async function borBorrarLote() {
   if (!BOR_SEL.size) return;
-  const ok = await showConfirm(`¿Borrar ${BOR_SEL.size} borrador(es)? Esto no se puede deshacer.`, 'Borrar borradores');
+
+  // Clasificar los seleccionados
+  const selItems = [...BOR_SEL].map(id => BOR_DATA_CACHE[id]).filter(Boolean);
+  const publicadas = selItems.filter(b => b.item_id && (b.estado === 'publicada' || b.estado === 'pausada'));
+  const locales    = selItems.filter(b => !b.item_id || (b.estado !== 'publicada' && b.estado !== 'pausada'));
+
+  let msg = `¿Borrar ${BOR_SEL.size} borrador(es)? Esta acción no se puede deshacer.`;
+  if (publicadas.length > 0) {
+    msg = `⚠️ ATENCIÓN: ${publicadas.length} publicacion(es) serán CERRADAS en MercadoLibre antes de eliminarse del CRM.`
+        + (locales.length > 0 ? `\n${locales.length} borrador(es) sin publicar se eliminarán solo del CRM.` : '')
+        + `\n\n¿Confirmar?`;
+  }
+
+  const ok = await showConfirm(msg, '🗑️ Borrar borradores');
   if (!ok) return;
+
+  let okCount = 0, errCount = 0, mlSinCerrar = 0;
   for (const id of [...BOR_SEL]) {
-    try { await API.delete('/api/ml/borradores/' + id); } catch(e) {}
+    try {
+      const r = await API.delete('/api/ml/borradores/' + id);
+      okCount++;
+      if (r && r.item_id && !r.ml_cerrada) mlSinCerrar++;
+    } catch(e) { errCount++; }
   }
   BOR_SEL.clear();
   borCargar();
-  showToast('✓ Borradores eliminados', 'success');
+
+  let toastMsg = `✓ ${okCount} eliminado(s)`;
+  if (errCount > 0) toastMsg += ` · ❌ ${errCount} con error`;
+  if (mlSinCerrar > 0) toastMsg += ` · ⚠️ ${mlSinCerrar} no se pudieron cerrar en ML (revisá manualmente)`;
+  showToast(toastMsg, errCount > 0 ? 'error' : mlSinCerrar > 0 ? 'info' : 'success');
+}
+
+async function borResincronizar() {
+  const ok = await showConfirm(
+    '¿Importar desde MercadoLibre todas las publicaciones activas/pausadas que no están en el CRM?\n\n' +
+    'Útil para recuperar publicaciones eliminadas del CRM por error.\n' +
+    'Las publicaciones importadas quedan con tipo de producto "desconocido" — podés editarlo después.',
+    '🔄 Re-sincronizar desde ML'
+  );
+  if (!ok) return;
+  showToast('⏳ Consultando MercadoLibre…', 'info');
+  try {
+    const j = await API.post('/api/ml/publicaciones/resincronizar', {});
+    if (j.importados > 0) {
+      showToast(
+        `✓ Importadas ${j.importados} publicaciones · ${j.ya_existentes} ya estaban en el CRM` +
+        (j.errores > 0 ? ` · ⚠️ ${j.errores} errores` : ''),
+        'success'
+      );
+      borCargar();
+    } else {
+      showToast(
+        `Todas las publicaciones ya estaban en el CRM (${j.ya_existentes} existentes)` +
+        (j.errores > 0 ? ` · ⚠️ ${j.errores} no se pudieron leer` : ''),
+        'info'
+      );
+    }
+  } catch(e) {
+    showToast('Error al sincronizar: ' + e.message, 'error');
+  }
 }
 
 function borNuevaPub() {

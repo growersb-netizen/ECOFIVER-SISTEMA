@@ -813,8 +813,41 @@ async def borrar(bid: int, db: Session = Depends(get_db),
     b = db.query(BorradorML).filter(BorradorML.id == bid).first()
     if not b:
         raise HTTPException(404, "Borrador no encontrado")
-    db.delete(b); db.commit()
-    return {"ok": True}
+
+    ml_cerrada = False
+    ml_error: Optional[str] = None
+    item_id_local = b.item_id
+
+    # Si está publicada/pausada en ML, intentar cerrar/pausar antes de borrar localmente
+    if b.item_id and b.estado in ("publicada", "pausada"):
+        try:
+            tok = await _ml_valid_token(db)
+            async with httpx.AsyncClient(timeout=15) as hc:
+                # Intentar cerrar (funciona para listings normales Y clasificados)
+                r = await hc.put(
+                    f"{ML_BASE}/items/{b.item_id}",
+                    json={"status": "closed"},
+                    headers=_ml_headers(tok),
+                )
+                if r.is_success:
+                    ml_cerrada = True
+                else:
+                    # Fallback: intentar pausar (solo listings normales)
+                    r2 = await hc.put(
+                        f"{ML_BASE}/items/{b.item_id}",
+                        json={"status": "paused"},
+                        headers=_ml_headers(tok),
+                    )
+                    if r2.is_success:
+                        ml_cerrada = True
+                    else:
+                        ml_error = f"ML {r.status_code}: {r.text[:200]}"
+        except Exception as ex:
+            ml_error = str(ex)[:200]
+
+    db.delete(b)
+    db.commit()
+    return {"ok": True, "ml_cerrada": ml_cerrada, "ml_error": ml_error, "item_id": item_id_local}
 
 
 async def _competencia_precio(db: Session, q: str) -> Optional[float]:
@@ -2146,6 +2179,111 @@ async def activar_publicaciones(
     if results["ok"]:
         db.commit()
     return results
+
+
+@router.post("/api/ml/publicaciones/resincronizar")
+async def resincronizar_desde_ml(
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Re-importa desde MercadoLibre todas las publicaciones activas/pausadas que
+    no existen en el CRM (útil para recuperar borradores eliminados accidentalmente).
+    Crea un BorradorML mínimo por cada publicación encontrada en ML que no tenga
+    un item_id correspondiente en la base local.
+    """
+    _auth(x_api_key, current_user)
+    tok = await _ml_valid_token(db)
+    hdrs = _ml_headers(tok)
+
+    importados = 0
+    ya_existentes = 0
+    errores = 0
+    detalles_error: list[Dict[str, Any]] = []
+
+    async with httpx.AsyncClient(timeout=60) as hc:
+        # Obtener user_id del token
+        me_r = await hc.get(f"{ML_BASE}/users/me", headers=hdrs)
+        if not me_r.is_success:
+            raise HTTPException(502, f"No se pudo obtener usuario ML: {me_r.text[:200]}")
+        user_id = me_r.json()["id"]
+
+        # Recolectar todos los item_ids activos y pausados del vendedor
+        all_items: list[tuple[str, str]] = []  # (item_id, status)
+        for status in ("active", "paused"):
+            offset = 0
+            while True:
+                r = await hc.get(
+                    f"{ML_BASE}/users/{user_id}/items/search",
+                    params={"status": status, "offset": offset, "limit": 100},
+                    headers=hdrs,
+                )
+                if not r.is_success:
+                    break
+                data = r.json()
+                batch = data.get("results", [])
+                if not batch:
+                    break
+                all_items.extend((iid, status) for iid in batch)
+                offset += len(batch)
+                total = data.get("paging", {}).get("total", 0)
+                if offset >= total:
+                    break
+
+        # Filtrar los que ya existen en el CRM
+        known_ids = {
+            b.item_id
+            for b in db.query(BorradorML).filter(BorradorML.item_id.isnot(None)).all()
+        }
+        to_import = [(iid, st) for iid, st in all_items if iid not in known_ids]
+        ya_existentes = len(all_items) - len(to_import)
+
+        # Importar en lotes de 20 (límite de la API de items multi)
+        status_map = {iid: st for iid, st in to_import}
+        item_ids = [iid for iid, _ in to_import]
+        for i in range(0, len(item_ids), 20):
+            batch_ids = item_ids[i : i + 20]
+            r = await hc.get(f"{ML_BASE}/items", params={"ids": ",".join(batch_ids)}, headers=hdrs)
+            if not r.is_success:
+                errores += len(batch_ids)
+                detalles_error.append({"batch": batch_ids[:3], "error": f"ML {r.status_code}"})
+                continue
+            for entry in r.json():
+                if entry.get("code") != 200:
+                    errores += 1
+                    detalles_error.append({"item_id": entry.get("body", {}).get("id"), "error": str(entry.get("code"))})
+                    continue
+                item = entry.get("body", {})
+                iid = item.get("id", "")
+                st = status_map.get(iid, "active")
+                fotos = json.dumps([p["url"] for p in item.get("pictures", []) if p.get("url")])
+                nuevo = BorradorML(
+                    item_id=iid,
+                    titulo=item.get("title", "")[:200],
+                    precio=float(item.get("price") or 0),
+                    descripcion="",
+                    categoria=item.get("category_id", "")[:20],
+                    estado="publicada" if st == "active" else "pausada",
+                    producto=None,          # desconocido — el usuario puede asignarlo
+                    fotos_json=fotos,
+                    cantidad=int(item.get("available_quantity") or 1),
+                    permalink=item.get("permalink", "")[:300],
+                    origen="importado",
+                )
+                db.add(nuevo)
+                importados += 1
+
+        if importados:
+            db.commit()
+
+    return {
+        "ok": True,
+        "importados": importados,
+        "ya_existentes": ya_existentes,
+        "errores": errores,
+        "detalles_error": detalles_error[:10],
+    }
 
 
 @router.post("/api/ml/borradores/{bid}/duplicar")

@@ -594,6 +594,9 @@ async def regenerar_ia_estado(
 
 _ACTUALIZAR_VIVO_JOB: Dict[str, Any] = {}
 
+# Caché de atributos válidos por categoría ML (TTL 1 hora; se reinicia con el proceso)
+_CAT_ATTRS_CACHE: Dict[str, Any] = {}
+
 
 _log_actualizar = logging.getLogger("ml.actualizar_vivo")
 
@@ -1112,6 +1115,56 @@ async def _ml_classified_location(db: Session) -> dict:
     return loc
 
 
+async def _ml_cat_attributes(categoria: str, tok: str) -> set:
+    """
+    Retorna el set de IDs de atributos válidos (no deprecated) para la categoría.
+    Cacheado 1 hora. Si la llamada falla retorna set vacío (sin filtrar, para no bloquear).
+    """
+    import time as _time
+    cached = _CAT_ATTRS_CACHE.get(categoria)
+    if cached and _time.time() - cached["ts"] < 3600:
+        return cached["ids"]
+    try:
+        async with httpx.AsyncClient(timeout=10) as hc:
+            r = await hc.get(
+                f"{ML_BASE}/categories/{categoria}/attributes",
+                headers=_ml_headers(tok),
+            )
+        if r.status_code != 200:
+            return set()
+        valid_ids = {
+            (a.get("id") or "").upper()
+            for a in r.json()
+            if not (a.get("tags") or {}).get("deprecated")
+        }
+        _CAT_ATTRS_CACHE[categoria] = {"ids": valid_ids, "ts": _time.time()}
+        return valid_ids
+    except Exception:
+        return set()
+
+
+def _ml_strip_deprecated_root_field(payload: dict, error_text: str) -> tuple:
+    """
+    Parsea el error de ML buscando el campo root deprecated y lo elimina del payload.
+    Ej: 'Warranty field is deprecated' → elimina payload['warranty'].
+    Retorna (payload_modificado, campo_eliminado) o (payload_sin_cambios, '').
+    """
+    import re as _re
+    patterns = [
+        r"(\w+)\s+field\s+is\s+deprecated",
+        r"field\s+['\"]?(\w+)['\"]?\s+is\s+deprecated",
+        r"['\"]?(\w+)['\"]?\s+is\s+deprecated",
+    ]
+    for pat in patterns:
+        m = _re.search(pat, error_text, _re.IGNORECASE)
+        if m:
+            field = m.group(1).lower()
+            if field in payload:
+                payload.pop(field)
+                return payload, field
+    return payload, ""
+
+
 async def _publicar(db: Session, b: BorradorML) -> dict:
     """Crea el ítem en ML a partir del borrador."""
     tok = await _ml_valid_token(db)
@@ -1146,6 +1199,11 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
             categoria = await _ml_categoria_sugerida(db, fallback_titulo)
     if not categoria:
         return {"ok": False, "error": "No se pudo detectar la categoría. Seleccioná el tipo de producto antes de publicar."}
+
+    # Obtener atributos válidos para la categoría (cacheado 1h).
+    # Se usa para filtrar clean_attrs y evitar IDs deprecated que ML ya no acepta.
+    _valid_attr_ids = await _ml_cat_attributes(categoria, tok)
+
     try:
         fotos = json.loads(b.fotos_json or "[]")
     except Exception:
@@ -1231,6 +1289,11 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         if "HEIGHT" not in existing_ids:
             clean_attrs.append({"id": "HEIGHT", "value_name": _ALTURA_DEFAULT.get(tipo_prod, "65 cm")})
 
+    # Filtrar clean_attrs: eliminar atributos que ML marca como deprecated para esta categoría.
+    # Si _valid_attr_ids está vacío (fallo de API) se omite el filtro para no bloquear la publicación.
+    if _valid_attr_ids:
+        clean_attrs = [a for a in clean_attrs if (a.get("id") or "").upper() in _valid_attr_ids]
+
     # Título con keywords mínimas garantizadas (previene categorización errónea por ML)
     titulo_final = _forzar_keywords_titulo((b.titulo or "").strip(), tipo_prod)
 
@@ -1255,14 +1318,23 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "condition": b.condicion or "new",
         "pictures": [{"source": u} for u in fotos if u],
         "shipping": _shipping,
-        # Garantía de fábrica — aparece en la ficha del producto en ML
-        "warranty": "Garantía de fábrica EcoFiver: 10 años en estructura",
+        # Nota: "warranty" fue eliminado — ML deprecated ese campo root (2026-08).
+        # La garantía se publica como atributo WARRANTY_TYPE/WARRANTY_TIME en clean_attrs.
     }
     if clean_attrs:
         payload["attributes"] = clean_attrs
 
     async with httpx.AsyncClient(timeout=12) as hc:
-        r = await hc.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
+        # Retry automático: si ML rechaza un campo root como deprecated, se elimina y se reintenta.
+        for _dep_try in range(6):
+            r = await hc.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
+            if r.status_code in (200, 201):
+                break
+            if "deprecated" in r.text.lower():
+                payload, _removed = _ml_strip_deprecated_root_field(payload, r.text)
+                if _removed:
+                    continue  # reintentar sin el campo deprecated
+            break  # error no-deprecated: no reintentar aquí
         if r.status_code not in (200, 201):
             # Auto-retry en modo classified si la categoría lo exige
             # (MLA413502 y otras categorías de vivienda/construcción solo aceptan classified)
@@ -1278,7 +1350,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "location": location,
                     "pictures": payload.get("pictures", []),
                     "shipping": {"local_pick_up": True},
-                    "warranty": "Garantía de fábrica EcoFiver: 10 años en estructura",
+                    # "warranty" eliminado — campo root deprecated en ML (2026-08)
                 }
                 if clean_attrs:
                     payload_cl["attributes"] = clean_attrs
@@ -1293,7 +1365,16 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     else:
                         payload_cl["listing_type_id"] = lt_cl
                     for intento in range(2):
-                        r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
+                        # Auto-strip campos root deprecated antes de cada intento classified
+                        for _cl_dep in range(4):
+                            r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
+                            if r.status_code in (200, 201):
+                                break
+                            if "deprecated" in r.text.lower():
+                                payload_cl, _cl_rem = _ml_strip_deprecated_root_field(payload_cl, r.text)
+                                if _cl_rem:
+                                    continue
+                            break
                         if r.status_code in (200, 201):
                             break
                         if not _first_error:

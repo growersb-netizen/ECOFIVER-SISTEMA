@@ -2007,6 +2007,130 @@ async def asignar_categoria_bulk(
     }
 
 
+@router.post("/api/ml/borradores/bulk-precio")
+async def bulk_precio_borradores(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Cambia el precio de múltiples borradores en un solo paso."""
+    _auth(x_api_key, current_user)
+    data = await request.json()
+    ids = data.get("ids", [])
+    precio = data.get("precio")
+    if not ids:
+        raise HTTPException(400, "ids requerido")
+    if precio is None or float(precio) <= 0:
+        raise HTTPException(400, "precio inválido")
+    precio = float(precio)
+    actualizados = 0
+    for bid in ids:
+        b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+        if b:
+            b.precio = precio
+            actualizados += 1
+    if actualizados:
+        db.commit()
+    return {"ok": True, "actualizados": actualizados}
+
+
+@router.post("/api/ml/publicaciones/pausar")
+async def pausar_publicaciones(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Pausa publicaciones en MercadoLibre y actualiza el estado local a 'pausada'."""
+    _auth(x_api_key, current_user)
+    data = await request.json()
+    ids = data.get("ids", [])
+    if not ids:
+        raise HTTPException(400, "ids requerido")
+
+    tok = await _ml_valid_token(db)
+    if not tok:
+        raise HTTPException(401, "Sin token ML válido")
+    hdrs = _ml_headers(tok)
+
+    results: Dict[str, Any] = {"ok": 0, "error": 0, "detalles": []}
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for bid in ids:
+            b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+            if not b or not b.item_id:
+                results["error"] += 1
+                results["detalles"].append({"id": bid, "error": "Sin item_id — no publicada en ML"})
+                continue
+            try:
+                r = await hc.put(
+                    f"{ML_BASE}/items/{b.item_id}",
+                    json={"status": "paused"},
+                    headers=hdrs,
+                )
+                if r.is_success:
+                    b.estado = "pausada"
+                    results["ok"] += 1
+                else:
+                    err = f"ML {r.status_code}: {r.text[:120]}"
+                    results["error"] += 1
+                    results["detalles"].append({"id": bid, "item_id": b.item_id, "error": err})
+            except Exception as ex:
+                results["error"] += 1
+                results["detalles"].append({"id": bid, "error": str(ex)[:120]})
+    if results["ok"]:
+        db.commit()
+    return results
+
+
+@router.post("/api/ml/publicaciones/activar")
+async def activar_publicaciones(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Reactiva publicaciones pausadas en MercadoLibre (status → active)."""
+    _auth(x_api_key, current_user)
+    data = await request.json()
+    ids = data.get("ids", [])
+    if not ids:
+        raise HTTPException(400, "ids requerido")
+
+    tok = await _ml_valid_token(db)
+    if not tok:
+        raise HTTPException(401, "Sin token ML válido")
+    hdrs = _ml_headers(tok)
+
+    results: Dict[str, Any] = {"ok": 0, "error": 0, "detalles": []}
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for bid in ids:
+            b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+            if not b or not b.item_id:
+                results["error"] += 1
+                results["detalles"].append({"id": bid, "error": "Sin item_id — no publicada en ML"})
+                continue
+            try:
+                r = await hc.put(
+                    f"{ML_BASE}/items/{b.item_id}",
+                    json={"status": "active"},
+                    headers=hdrs,
+                )
+                if r.is_success:
+                    b.estado = "publicada"
+                    results["ok"] += 1
+                else:
+                    err = f"ML {r.status_code}: {r.text[:120]}"
+                    results["error"] += 1
+                    results["detalles"].append({"id": bid, "item_id": b.item_id, "error": err})
+            except Exception as ex:
+                results["error"] += 1
+                results["detalles"].append({"id": bid, "error": str(ex)[:120]})
+    if results["ok"]:
+        db.commit()
+    return results
+
+
 @router.post("/api/ml/borradores/{bid}/duplicar")
 async def duplicar(bid: int, db: Session = Depends(get_db), x_api_key=Header(None),
                    current_user: Optional[Usuario] = Depends(get_current_user)):

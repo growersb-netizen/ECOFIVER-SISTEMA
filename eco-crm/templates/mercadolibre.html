@@ -3688,9 +3688,10 @@ async function borActualizarPublicadosIA() {
           borCargar();
         } else if (st.estado === 'en_curso') {
           const pct = st.total > 0 ? Math.round(((st.idx || 0) / st.total) * 100) : 0;
-          let msg = `📡 Actualizando en ML… ${pct}% · ✅ ${st.actualizados || 0} · ❌ ${st.errores || 0}`;
-          if (st.errores > 0 && st.ultimo_error) msg += ` — ${st.ultimo_error.substring(0, 80)}`;
-          showToast(msg, (st.errores > 0 && !st.actualizados) ? 'error' : 'info');
+          let msg = `📡 Actualizando en ML… ${pct}% · ✅ ${st.actualizados || 0}`;
+          if (st.errores > 0) msg += ` · ❌ ${st.errores}`;
+          if (st.ultimo_error) msg += ` — ${st.ultimo_error.substring(0, 80)}`;
+          showToast(msg, st.errores > 0 ? 'error' : 'info');
         }
       } catch (_) { /* ignora errores de polling */ }
     }, 10000);

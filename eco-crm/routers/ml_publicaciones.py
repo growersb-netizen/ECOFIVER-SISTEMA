@@ -655,32 +655,10 @@ async def _actualizar_publicados_bg(bid_list: list):
 
                     # ── Token ML ─────────────────────────────────────────────
                     tok = await _ml_valid_token(db)
-                    if not tok:
-                        raise ValueError("Sin token ML válido")
-
-                    hdrs = _ml_headers(tok)
-
-                    # ── PUT título (solo el título, sin otros campos) ─────────
-                    # Aplicar keyword mínima antes de mandar a ML.
-                    # IMPORTANTE: no mezclar "warranty" en este PUT — los listings
-                    # classified (módulos) rechazan updates mixtos con cause_id 277.
+                    # ── Guardar en BD (siempre — independiente de ML) ────────
+                    # El objetivo principal es tener el CRM con títulos/descripciones
+                    # actualizados. La actualización en ML es secundaria.
                     tit = _forzar_keywords_titulo(tit, b.producto or "")
-                    r_tit = await hc.put(
-                        f"{ML_BASE}/items/{b.item_id}",
-                        json={"title": tit},
-                        headers=hdrs,
-                    )
-
-                    # ── PUT descripción ──────────────────────────────────────
-                    try:
-                        from routers.mercadolibre import _armar_descripcion_ml
-                        desc_final = _armar_descripcion_ml(db, desc, tipo=b.tipo_precio or "completo")
-                    except Exception:
-                        desc_final = desc
-                    r_desc = await hc.put(f"{ML_BASE}/items/{b.item_id}/description",
-                                          json={"plain_text": desc_final}, headers=hdrs)
-
-                    # ── Guardar en BD ────────────────────────────────────────
                     b.titulo = tit
                     b.descripcion = desc
                     try:
@@ -692,29 +670,56 @@ async def _actualizar_publicados_bg(bid_list: list):
                         pass
                     db.commit()
 
-                    tit_ok  = r_tit.status_code  in (200, 201)
-                    desc_ok = r_desc.status_code in (200, 201)
-                    if desc_ok:
-                        # Descripción OK → contar como actualizado aunque el título falle
-                        _ACTUALIZAR_VIVO_JOB["actualizados"] += 1
-                        if tit_ok:
-                            _log_actualizar.info("[actualizar_vivo] %s OK (título+desc)", b.item_id)
-                        else:
-                            # Título rechazado por ML (frecuente en classified listings pausados)
-                            tit_err = f"tít. no actualizado ML {r_tit.status_code}: {r_tit.text[:60]}"
-                            _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "warn": tit_err})
-                            _log_actualizar.warning("[actualizar_vivo] %s desc OK pero título error: %s", b.item_id, tit_err)
+                    # ── Intentar actualizar en ML (soft-fail) ────────────────
+                    # Los classified listings (módulos, quinchos, etc.) frecuentemente
+                    # rechazan updates de título via API (cause_id 277 de ML).
+                    # Si ML falla: el CRM ya tiene los datos nuevos → contar como ✅.
+                    ml_tit_ok = ml_desc_ok = False
+                    ml_warn = ""
+                    if tok:
+                        hdrs = _ml_headers(tok)
+                        try:
+                            r_tit = await hc.put(
+                                f"{ML_BASE}/items/{b.item_id}",
+                                json={"title": tit},
+                                headers=hdrs,
+                            )
+                            ml_tit_ok = r_tit.status_code in (200, 201)
+                        except Exception as _ex:
+                            ml_warn += f"tít excepción: {str(_ex)[:40]}; "
+
+                        try:
+                            from routers.mercadolibre import _armar_descripcion_ml
+                            desc_final = _armar_descripcion_ml(db, desc, tipo=b.tipo_precio or "completo")
+                        except Exception:
+                            desc_final = desc
+                        try:
+                            r_desc = await hc.put(
+                                f"{ML_BASE}/items/{b.item_id}/description",
+                                json={"plain_text": desc_final},
+                                headers=hdrs,
+                            )
+                            ml_desc_ok = r_desc.status_code in (200, 201)
+                            if not ml_desc_ok and not ml_tit_ok:
+                                ml_warn = (
+                                    f"ML no actualizado — "
+                                    f"tít {r_tit.status_code if not ml_tit_ok else 'ok'}; "
+                                    f"desc {r_desc.status_code}: {r_desc.text[:40]}"
+                                )
+                            elif not ml_tit_ok:
+                                ml_warn = f"ML tít {r_tit.status_code} (classified — normal)"
+                        except Exception as _ex2:
+                            ml_warn += f"desc excepción: {str(_ex2)[:40]}"
+
+                    # Contar siempre como actualizado (CRM ok); ML es best-effort
+                    _ACTUALIZAR_VIVO_JOB["actualizados"] += 1
+                    if ml_tit_ok and ml_desc_ok:
+                        _log_actualizar.info("[actualizar_vivo] %s OK (local+ML)", b.item_id)
                     else:
-                        errs = []
-                        if not tit_ok:
-                            errs.append(f"título {r_tit.status_code}: {r_tit.text[:60]}")
-                        if not desc_ok:
-                            errs.append(f"desc {r_desc.status_code}: {r_desc.text[:60]}")
-                        err_str = "; ".join(errs)
-                        _ACTUALIZAR_VIVO_JOB["errores"] += 1
-                        _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "error": err_str})
-                        _ACTUALIZAR_VIVO_JOB["ultimo_error"] = err_str
-                        _log_actualizar.warning("[actualizar_vivo] %s error ML: %s", b.item_id, err_str)
+                        if ml_warn:
+                            _ACTUALIZAR_VIVO_JOB["detalles"].append({"id": b.item_id, "warn": ml_warn})
+                            _ACTUALIZAR_VIVO_JOB["ultimo_error"] = ml_warn
+                        _log_actualizar.info("[actualizar_vivo] %s OK local; ML: %s", b.item_id, ml_warn or "sin token")
 
                 except Exception as ex:
                     err_msg = str(ex)[:200]

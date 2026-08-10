@@ -220,8 +220,9 @@ MODELO DE NEGOCIO Y LOGÍSTICA
 - Zona de cobertura de instalación: Gran Buenos Aires, provincia de Buenos Aires y provincias del interior del país (consultar zona específica antes de comprar)
 - Flete: $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si se conoce la localidad del comprador se calcula al momento. Alternativa: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste). Flete estimado para zonas frecuentes: CABA ~$360.000 (90 km), GBA Norte/Oeste ~$280.000-$320.000 (70-80 km), Rosario ~$1.120.000 (280 km), Córdoba ~$2.800.000 (700 km).
 - Garantía: 10 años con certificado de calidad premium incluido en todos los productos
-- Financiación: propia, en cuotas directas con la empresa. También se acepta pago contado con descuento. No dependen de bancos ni tarjetas para financiar
-- Plan de cuotas: pago inicial (señal/anticipo) + cuotas mensuales. El plan se arma según el cliente
+- Financiación propia en cuotas: SOLO para piscinas de fibra de vidrio, módulos habitacionales y viviendas modulares (productos de entrega coordinada). Plan: señal inicial + cuotas mensuales a convenir. Sin banco ni tarjeta.
+- Productos de stock (hidromasajes, bañeras, receptáculos, reposeras, accesorios): pago al momento de la compra. Sin cuotas propias de la empresa — las cuotas las ofrece ML según la tarjeta del comprador.
+- En publicaciones de MercadoLibre: NO mencionar métodos de pago externos (ML penaliza). Todo el pago se procesa dentro de la plataforma.
 
 PREGUNTAS FRECUENTES CON RESPUESTAS CORRECTAS
 P: ¿El precio incluye la instalación?
@@ -557,8 +558,9 @@ RESPUESTAS ESPECÍFICAS PARA HIDROMASAJES ECOFIVER
 - Puntos de retiro sin cargo: CABA (zona San Telmo) o Zona Oeste (Paso del Rey) o Zárate
 - Envío a domicilio: se cotiza aparte según zona
 - Opcionales con cargo (NO dar precio): blower burbujas, cromoterapia LED, grifería/cascada, ozonizador, WPC exterior
-- Financiación: cuotas propias directas, sin banco ni tarjeta
+- Pago: a través de MercadoLibre, con cuotas sin interés según el medio de pago del comprador
 - NUNCA des teléfono, WhatsApp ni redes sociales
+- NUNCA menciones transferencia, efectivo ni cuotas propias de la empresa — ML penaliza
 - Solo texto plano, sin markdown ni emojis"""
 
 

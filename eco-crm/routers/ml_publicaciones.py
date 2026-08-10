@@ -843,26 +843,78 @@ _NUMERIC_ATTRS = {"CAPACITY", "VOLUME_CAPACITY", "LENGTH", "WIDTH", "HEIGHT",
 # El predictor automático usa el TÍTULO (ej. "autoportante" → automotores, "módulo" → software).
 # Estas categorías se usan siempre que el producto esté en este dict — sin consultar el predictor.
 CATEGORIAS_FIJAS: dict = {
-    # Solo categorías verificadas en producción con ML Argentina.
-    # Las de tipo "classified" se mantienen porque el flow de auto-retry depende de ellas.
-    "COMBO":           ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "MODULO":          ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "MODULO_DEPOSITO": ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    # HIDROMASAJE, PISCINA, MINIPISCINA: no tienen fija → se usa el predictor ML
-    # (domain_discovery/search devuelve IDs reales y actuales de MLA)
-    # Para asignar manualmente: usar 🔍 "Buscar categoría ML" en el editor de borrador.
+    # ── Módulos y construcción (classified) ───────────────────────────────────
+    "COMBO":              ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "MODULO":             ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "MODULO_HABITACIONAL":("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "MODULO_DEPOSITO":    ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "VIVIENDA_MODULAR":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "QUINCHO":            ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "GARITA_SEGURIDAD":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    # ── Hidromasajes y bañeras ────────────────────────────────────────────────
+    # MLA88471 = Jacuzzis e Hidromasajes (verificado en producción MLA)
+    "HIDROMASAJE":        ("MLA88471",  "Jacuzzis e Hidromasajes"),
+    "BANERA":             ("MLA88471",  "Jacuzzis e Hidromasajes"),
+    # ── Piscinas ─────────────────────────────────────────────────────────────
+    # MLA373513 = Piletas de Fibra de Vidrio (verificado en producción MLA)
+    "PISCINA":            ("MLA373513", "Piletas de Fibra de Vidrio"),
+    "MINIPISCINA":        ("MLA373513", "Piletas de Fibra de Vidrio"),
 }
+
+# Palabras clave mínimas obligatorias por tipo para que ML categorice correctamente.
+# Si el título NO contiene ninguna de estas palabras, se prepende el prefijo mínimo.
+_TITULO_KEYWORDS_MINIMAS: dict = {
+    "HIDROMASAJE":        (["hidromasaje", "jacuzzi", "spa"],               "Hidromasaje Jacuzzi"),
+    "BANERA":             (["bañera", "banera", "jacuzzi", "hidromasaje"],  "Bañera Hidromasaje"),
+    "RECEPTACULO":        (["receptáculo", "receptaculo", "ducha"],         "Receptáculo Ducha"),
+    "PISCINA":            (["piscina", "pileta"],                           "Piscina"),
+    "MINIPISCINA":        (["piscina", "pileta", "minipiscina"],            "Minipiscina"),
+    "MODULO":             (["módulo", "modulo", "cabaña", "cabana"],        "Módulo"),
+    "MODULO_HABITACIONAL":(["módulo", "modulo"],                            "Módulo"),
+    "MODULO_DEPOSITO":    (["depósito", "deposito", "módulo", "modulo", "galpón", "galpon"], "Módulo Depósito"),
+    "VIVIENDA_MODULAR":   (["vivienda", "módulo", "modulo", "casa"],        "Vivienda Modular"),
+    "QUINCHO":            (["quincho"],                                     "Quincho"),
+    "PERGOLA":            (["pérgola", "pergola"],                          "Pérgola"),
+    "COMBO":              (["combo", "piscina", "pileta"],                  "Combo Piscina"),
+    "ACCESORIO_HIDROMASAJE":(["accesorio", "spa", "hidromasaje", "jacuzzi"],"Accesorio Spa"),
+    "ACCESORIO_PISCINA":  (["accesorio", "piscina", "pileta"],              "Accesorio Piscina"),
+    "ILUMINACION_PISCINA":(["iluminación", "iluminacion", "led", "piscina"],"Iluminación LED Piscina"),
+}
+
+
+def _forzar_keywords_titulo(titulo: str, tipo_prod: str) -> str:
+    """
+    Garantiza que el título contenga las palabras clave mínimas para que ML
+    categorice correctamente el producto. Si faltan, prepende el prefijo mínimo.
+    Siempre devuelve un título ≤ 60 caracteres.
+    """
+    conf = _TITULO_KEYWORDS_MINIMAS.get(tipo_prod)
+    if not conf or not titulo:
+        return titulo[:60] if titulo else titulo
+    keywords, prefijo = conf
+    tit_low = titulo.lower()
+    if any(k in tit_low for k in keywords):
+        return titulo[:60]
+    # No tiene keywords → prepende el prefijo mínimo
+    nuevo = f"{prefijo} {titulo}"
+    if len(nuevo) > 60:
+        nuevo = nuevo[:60]
+        if ' ' in nuevo:
+            nuevo = nuevo[:nuevo.rfind(' ')].strip()
+    return nuevo
 
 # Títulos de fallback usados cuando el predictor falla para un tipo de producto.
 # Permite que "Tina Spa Compacto 110x110", "Bañera Orbis" y similares
 # obtengan una categoría válida incluso si el predictor no reconoce el título exacto.
 _FALLBACK_TITULO_POR_TIPO: dict = {
-    "HIDROMASAJE":          "Hidromasaje jacuzzi con jets acrílico sanitario",
-    "BANERA":               "Bañera de acrílico sanitario",
+    "HIDROMASAJE":          "Hidromasaje jacuzzi spa con jets acrílico sanitario",
+    "BANERA":               "Bañera hidromasaje jacuzzi con jets acrílico",
     "RECEPTACULO":          "Receptáculo plato de ducha acrílico",
-    "PISCINA":              "Pileta piscina fibra de vidrio",
+    "PISCINA":              "Piscina pileta fibra de vidrio",
     "MINIPISCINA":          "Minipiscina pileta compacta fibra de vidrio",
-    "ACCESORIO_HIDROMASAJE":"Accesorio para hidromasaje jacuzzi",
+    "ACCESORIO_HIDROMASAJE":"Accesorio para hidromasaje jacuzzi spa",
+    "ACCESORIO_PISCINA":    "Accesorio para piscina pileta",
+    "ILUMINACION_PISCINA":  "Iluminación LED sumergible para piscina pileta",
 }
 
 # Categorías de ML que solo admiten buying_mode="classified" (viviendas, inmuebles, construcción).
@@ -1107,10 +1159,13 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         if "HEIGHT" not in existing_ids:
             clean_attrs.append({"id": "HEIGHT", "value_name": _ALTURA_DEFAULT.get(tipo_prod, "65 cm")})
 
+    # Título con keywords mínimas garantizadas (previene categorización errónea por ML)
+    titulo_final = _forzar_keywords_titulo((b.titulo or "").strip(), tipo_prod)
+
     # Payload estándar (marketplace buy_it_now)
     # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente
     payload = {
-        "title": (b.titulo or "")[:60],
+        "title": titulo_final,
         "category_id": categoria,
         "price": b.precio or 0,
         "currency_id": "ARS",
@@ -1120,10 +1175,9 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "condition": b.condicion or "new",
         "pictures": [{"source": u} for u in fotos if u],
         # Forzar "acuerdo con el vendedor" — evita que ML asigne MercadoEnvíos
-        # automáticamente cuando el ítem cumple dimensiones ME2.
-        # Todos los productos EcoFiver son de gran porte o requieren coordinación;
-        # MercadoEnvíos no aplica. Esto previene ventas que luego hay que cancelar.
-        "shipping": {"mode": "not_specified", "free_shipping": False},
+        # Todos los productos EcoFiver son de gran porte o requieren coordinación.
+        # local_pick_up=true habilita "Retiro en persona" en el anuncio.
+        "shipping": {"mode": "not_specified", "free_shipping": False, "local_pick_up": True},
     }
     if clean_attrs:
         payload["attributes"] = clean_attrs
@@ -1144,6 +1198,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "listing_type_id": "free",
                     "location": location,
                     "pictures": payload.get("pictures", []),
+                    "shipping": {"local_pick_up": True},
                 }
                 if clean_attrs:
                     payload_cl["attributes"] = clean_attrs
@@ -1750,33 +1805,44 @@ async def reparar_categorias(
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """
-    Limpia categorías inválidas de los borradores.
-    Al publicar, _publicar() resolverá la categoría correcta vía CATEGORIAS_FIJAS o el predictor.
-    Específicamente corrige MLA9226 que ML rechaza con HTTP 400.
+    Aplica CATEGORIAS_FIJAS a todos los borradores con tipo de producto conocido.
+    Si el tipo está en CATEGORIAS_FIJAS, sobreescribe la categoría con el valor correcto.
+    Si el tipo no está (accesorio, repuesto, etc.), limpia solo categorías conocidas como inválidas.
     """
     _auth(x_api_key, current_user)
-    # IDs verificados como inexistentes o incorrectos en ML Argentina:
-    INVALIDAS = {"MLA9226", "MLA88471", "MLA1647"}
-    borradores = (
-        db.query(BorradorML)
-        .filter(BorradorML.categoria.in_(INVALIDAS))
-        .all()
-    )
-    actualizados = len(borradores)
+
+    # Categorías con IDs inexistentes en ML Argentina (jamás válidas)
+    INVALIDAS_SIEMPRE = {"MLA9226", "MLA1647"}
+
+    borradores = db.query(BorradorML).all()
+    aplicados = 0
+    limpiados = 0
+
     for b in borradores:
-        b.categoria = ""
-        b.categoria_nombre = ""
-    if actualizados:
+        tipo = (b.producto or "").upper()
+        fija = CATEGORIAS_FIJAS.get(tipo)
+        if fija:
+            cat_id, cat_nombre = fija
+            if b.categoria != cat_id:
+                b.categoria = cat_id
+                b.categoria_nombre = cat_nombre
+                aplicados += 1
+        elif b.categoria in INVALIDAS_SIEMPRE:
+            b.categoria = ""
+            b.categoria_nombre = ""
+            limpiados += 1
+
+    if aplicados or limpiados:
         db.commit()
+
     return {
         "ok": True,
-        "actualizados": actualizados,
-        "invalidas_buscadas": list(INVALIDAS),
+        "categorias_aplicadas": aplicados,
+        "invalidas_limpiadas": limpiados,
+        "categorias_fijas": {k: v[0] for k, v in CATEGORIAS_FIJAS.items()},
         "mensaje": (
-            f"{actualizados} borradores limpiados. "
-            "Al publicar, el predictor de ML (domain_discovery) asignará "
-            "la categoría correcta según el título. "
-            "También podés asignar manualmente con '🔍 Buscar categoría ML'."
+            f"{aplicados} borradores actualizados con categoría fija, "
+            f"{limpiados} categorías inválidas limpiadas."
         ),
     }
 

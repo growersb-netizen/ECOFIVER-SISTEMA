@@ -1060,16 +1060,16 @@ async def generar_titulo(
     if not descripcion:
         raise HTTPException(400, "Falta la descripción del producto")
 
+    # Tipo label para el prompt de IA — describe el producto en lenguaje natural
     tipo_label = {
         "PISCINA":               "piscina / pileta de fibra de vidrio",
         "MINIPISCINA":           "minipiscina / pileta pequeña de fibra de vidrio",
         "HIDROMASAJE":           "hidromasaje / jacuzzi / spa de acrílico sanitario EcoFiver",
         "ACCESORIO_HIDROMASAJE": "accesorio opcional para hidromasaje / jacuzzi / spa",
-        # Módulos: distinción crítica por metraje
         "MODULO_HABITACIONAL":   "módulo habitacional de celulosa estructural (6-18 m²) — espacio auxiliar prefabricado, NO es una vivienda",
         "MODULO":                "módulo habitacional de celulosa estructural / espacio habitacional prefabricado",
         "VIVIENDA_MODULAR":      "vivienda modular de celulosa estructural / casa prefabricada (24 m² en adelante)",
-        "MODULO_DEPOSITO":       "módulo depósito / galpón prefabricado",
+        "MODULO_DEPOSITO":       "módulo depósito / galpón prefabricado de celulosa estructural",
         "QUINCHO":               "quincho prefabricado",
         "PERGOLA":               "pérgola / gazebo",
         "COMBO":                 "combo piscina y módulo habitacional",
@@ -1080,12 +1080,28 @@ async def generar_titulo(
         "ILUMINACION_PISCINA":   "iluminación LED sumergible para piscina",
         "EQUIPO_PISCINA":        "equipo para piscina (filtro / bomba / calentador)",
         "REPUESTO_PISCINA":      "repuesto para piscina",
-        "BANERA":                "bañera de acrílico sanitario",
+        "BANERA":                "bañera hidromasaje con jets de acrílico sanitario",
         "RECEPTACULO":           "receptáculo de ducha de acrílico",
         "REPOSERA_FIBRA":        "reposera de fibra de vidrio reclinable",
         "CUCHA":                 "cucha / casilla para perro",
         "CUCHA_PERRO":           "cucha / casilla para perro",
     }.get(tipo_producto, tipo_producto.lower())
+
+    # Palabras clave obligatorias que ML usa para categorizar — el título DEBE contenerlas
+    _kw_oblig = {
+        "HIDROMASAJE":  "DEBE empezar con 'Hidromasaje', 'Jacuzzi' o 'Spa'",
+        "BANERA":       "DEBE incluir 'Bañera Hidromasaje' o 'Jacuzzi' (sin esa palabra ML lo cataloga como gasa médica)",
+        "PISCINA":      "DEBE incluir 'Piscina' o 'Pileta'",
+        "MINIPISCINA":  "DEBE incluir 'Piscina' o 'Pileta' o 'Minipiscina'",
+        "MODULO_DEPOSITO": "DEBE incluir 'Módulo' o 'Depósito' (NO usar 'jardín', 'versatilidad' — ML lo cataloga como gazebo)",
+        "MODULO":       "DEBE incluir 'Módulo' o 'Modulo'",
+        "MODULO_HABITACIONAL": "DEBE incluir 'Módulo'",
+        "RECEPTACULO":  "DEBE incluir 'Receptáculo' o 'Ducha'",
+        "QUINCHO":      "DEBE incluir 'Quincho'",
+        "PERGOLA":      "DEBE incluir 'Pérgola'",
+    }.get(tipo_producto, "")
+
+    kw_hint = f"\n\n⚠️ REGLA CRÍTICA DE CATEGORIZACIÓN ML: {_kw_oblig}" if _kw_oblig else ""
 
     variante_hint = ""
     if variante_idx > 0 and total_variantes > 1:
@@ -1097,7 +1113,7 @@ async def generar_titulo(
 TAREA: Generá UN título optimizado para MercadoLibre Argentina.
 ════════════════════════════════════════════
 
-Tipo de producto: {tipo_label}
+Tipo de producto: {tipo_label}{kw_hint}
 
 Descripción de referencia:
 {descripcion}{variante_hint}

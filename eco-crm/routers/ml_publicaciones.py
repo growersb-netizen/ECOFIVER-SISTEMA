@@ -2194,6 +2194,73 @@ async def activar_publicaciones(
     return results
 
 
+@router.post("/api/ml/publicaciones/cerrar-y-resetear")
+async def cerrar_y_resetear(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Cierra publicaciones en ML (status → closed) y resetea el borrador CRM
+    a estado 'borrador' con item_id/permalink limpios para poder republicar.
+    Útil para classified listings donde ML no permite actualizar título/descripción
+    via API — se cierra, se republicar desde el CRM con contenido nuevo.
+    """
+    _auth(x_api_key, current_user)
+    data = await request.json()
+    ids = data.get("ids", [])
+    if not ids:
+        raise HTTPException(400, "ids requerido")
+
+    tok = await _ml_valid_token(db)
+    hdrs = _ml_headers(tok)
+
+    results: Dict[str, Any] = {"ok": 0, "error": 0, "sin_ml": 0, "detalles": []}
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for bid in ids:
+            b = db.query(BorradorML).filter(BorradorML.id == bid).first()
+            if not b:
+                results["error"] += 1
+                results["detalles"].append({"id": bid, "error": "No encontrado en CRM"})
+                continue
+
+            ml_cerrado = False
+            ml_error = None
+
+            if b.item_id:
+                try:
+                    r = await hc.put(
+                        f"{ML_BASE}/items/{b.item_id}",
+                        json={"status": "closed"},
+                        headers=hdrs,
+                    )
+                    if r.is_success:
+                        ml_cerrado = True
+                    else:
+                        ml_error = f"ML {r.status_code}: {r.text[:120]}"
+                except Exception as ex:
+                    ml_error = str(ex)[:120]
+            else:
+                results["sin_ml"] += 1  # ya era borrador, sin item_id
+
+            # Resetear el borrador en CRM independientemente del resultado ML
+            # (si ML falló el cierre, igual reseteamos localmente — el usuario
+            # puede cerrar manualmente en ML si hace falta)
+            b.item_id = None
+            b.permalink = None
+            b.estado = "borrador"
+            b.error_msg = ""
+            results["ok"] += 1
+            if ml_error:
+                results["detalles"].append({
+                    "id": bid, "warn": f"Reseteado en CRM; ML no cerrado: {ml_error}"
+                })
+
+    db.commit()
+    return results
+
+
 @router.post("/api/ml/publicaciones/resincronizar")
 async def resincronizar_desde_ml(
     db: Session = Depends(get_db),

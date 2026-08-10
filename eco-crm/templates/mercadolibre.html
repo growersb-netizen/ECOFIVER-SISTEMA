@@ -387,6 +387,7 @@
     <button id="bor-bulk-btn-pub" class="btn btn-sm btn-primary" onclick="borPublicarLote()" style="display:none">⬆️ Publicar</button>
     <button id="bor-bulk-btn-pausar" class="btn btn-sm" onclick="borBulkPausar()" style="display:none;background:#1a2a3a;color:#60a5fa;border-color:#2a4a6a">⏸ Pausar</button>
     <button id="bor-bulk-btn-activar" class="btn btn-sm" onclick="borBulkActivar()" style="display:none;background:#1a3a1a;color:#4ade80;border-color:#2a5a2a">▶ Activar</button>
+    <button id="bor-bulk-btn-cerrar" class="btn btn-sm" onclick="borBulkCerrarResetear()" style="display:none;background:#2a1a0a;color:#f97316;border-color:#5a3010">🔄 Cerrar y reabrir</button>
     <div style="display:flex;gap:6px;align-items:center">
       <input type="number" id="bor-bulk-precio" placeholder="$ Nuevo precio" class="input" style="max-width:140px;padding:5px 8px">
       <button class="btn btn-sm" onclick="borBulkCambiarPrecio()" style="background:#2a1a0a;color:#fb923c;border-color:#5a3a0a">💲 Cambiar precio</button>
@@ -3047,9 +3048,11 @@ function borActLote() {
     const btnPub    = document.getElementById('bor-bulk-btn-pub');
     const btnPausar = document.getElementById('bor-bulk-btn-pausar');
     const btnActivar= document.getElementById('bor-bulk-btn-activar');
-    if (btnPub)     btnPub.style.display     = tieneNoPub     ? 'inline-flex' : 'none';
-    if (btnPausar)  btnPausar.style.display  = tienePublicada ? 'inline-flex' : 'none';
-    if (btnActivar) btnActivar.style.display = tienePausada   ? 'inline-flex' : 'none';
+    const btnCerrar = document.getElementById('bor-bulk-btn-cerrar');
+    if (btnPub)     btnPub.style.display     = tieneNoPub                          ? 'inline-flex' : 'none';
+    if (btnPausar)  btnPausar.style.display  = tienePublicada                      ? 'inline-flex' : 'none';
+    if (btnActivar) btnActivar.style.display = tienePausada                        ? 'inline-flex' : 'none';
+    if (btnCerrar)  btnCerrar.style.display  = (tienePublicada || tienePausada)    ? 'inline-flex' : 'none';
   }
 
   /* Botón pendientes */
@@ -3101,6 +3104,34 @@ async function borBulkCambiarPrecio() {
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }
+}
+
+async function borBulkCerrarResetear() {
+  const ids = [...BOR_SEL].filter(id => {
+    const b = BOR_DATA_CACHE[id];
+    return b && (b.estado === 'publicada' || b.estado === 'pausada');
+  });
+  if (!ids.length) { showToast('Ninguna publicación activa/pausada seleccionada', 'info'); return; }
+  const ok = await showConfirm(
+    `⚠️ Esto CERRARÁ ${ids.length} publicacion(es) en MercadoLibre y las pasará a "borrador" en el CRM.\n\n` +
+    `El contenido (título, descripción, precio, fotos) se mantiene — podés republicarlas inmediatamente.\n\n` +
+    `¿Confirmar?`,
+    '🔄 Cerrar en ML y pasar a borrador'
+  );
+  if (!ok) return;
+  showToast(`⏳ Cerrando ${ids.length} publicaciones en ML…`, 'info');
+  try {
+    const j = await API.post('/api/ml/publicaciones/cerrar-y-resetear', { ids });
+    const sinML = j.sin_ml || 0;
+    showToast(
+      `✓ ${j.ok} reseteadas a borrador · ${j.error || 0} con error` +
+      (sinML > 0 ? ` · ${sinML} ya eran borrador` : ''),
+      j.ok > 0 ? 'success' : 'error'
+    );
+    if (j.detalles && j.detalles.length) console.warn('[cerrar-resetear]', j.detalles);
+    BOR_SEL.clear();
+    borCargar();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 async function borBulkPausar() {

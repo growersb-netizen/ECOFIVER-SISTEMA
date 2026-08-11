@@ -456,6 +456,11 @@ def _prompt_regen(tipo_label: str, palabras: str) -> tuple[str, str]:
         + "\n\n════════════════════════════════════════\n"
         "TAREA: Generá TÍTULO y DESCRIPCIÓN para MercadoLibre Argentina.\n"
         f"Producto: {palabras[:300]}\n\n"
+        "REGLAS CRÍTICAS PARA EL TÍTULO (≤60 caracteres):\n"
+        "- Estructura: [tipo producto] [material] [medidas si las hay] [característica diferenciadora]\n"
+        "- Prohibido: palabras emocionales ('ideal para', 'minimalista', 'premium', 'exclusiva'), "
+        "signos ! ? , : ; | — –, mayúsculas sostenidas, emojis, la marca 'EcoFiver'\n"
+        "- Ejemplos correctos: 'Modulo habitacional 12m2 sin obra celulosa estructural' / 'Piscina fibra vidrio 6x3 metros con escalera'\n\n"
         'Respondé SOLO con JSON válido, sin texto extra ni markdown:\n'
         '{"titulo": "...", "descripcion": "..."}'
     )
@@ -475,7 +480,7 @@ async def _regen_un_borrador(bid: int, job_dict: dict) -> None:
         tipo_label = _TIPO_LABEL_MODULO.get(b.producto or "MODULO", "módulo habitacional prefabricado")
         palabras = b.modelo_nombre or b.titulo or tipo_label
         system, user_prompt = _prompt_regen(tipo_label, palabras)
-        texto = await ai_complete(db, user_prompt, system=system, max_tokens=2800, temperature=0.6)
+        texto = await ai_complete(db, user_prompt, system=system, max_tokens=2800, temperature=0.4)
         try:
             result = _json.loads(texto)
         except Exception:
@@ -641,7 +646,7 @@ async def _actualizar_publicados_bg(bid_list: list):
                 palabras = b.modelo_nombre or b.titulo or tipo_label
                 system, user_prompt = _prompt_regen(tipo_label, palabras)
                 try:
-                    texto = await ai_complete(db, user_prompt, system=system, max_tokens=2800, temperature=0.6)
+                    texto = await ai_complete(db, user_prompt, system=system, max_tokens=2800, temperature=0.4)
                     try:
                         result = _json.loads(texto)
                     except Exception:
@@ -1750,12 +1755,15 @@ async def generar_variantes(bid: int, request: Request, db: Session = Depends(ge
         f"- Los {n} títulos deben ser DISTINTOS entre sí y distintos del título actual\n"
         f"- Variá el orden de palabras clave y usá sinónimos válidos (pileta/piscina, modular/prefabricado)\n"
         f"- TODOS deben referirse exactamente a este producto — no inventes características ni modelos distintos\n"
-        f"- Usá keywords longtail al comienzo para SEO\n\n"
+        f"- Estructura obligatoria: [tipo producto] [material] [medidas si las hay] [característica diferenciadora]\n"
+        f"- PROHIBIDO: palabras emocionales ('ideal para', 'minimalista', 'premium', 'exclusiva', 'de calidad'), "
+        f"signos ! ? , : ; | — –, mayúsculas sostenidas, emojis, y la marca 'EcoFiver'\n"
+        f"- Incluí medidas concretas si están en la descripción (ej: '6x3 metros', '1.76x1.76')\n\n"
         f"Devolvé EXCLUSIVAMENTE un JSON array con {n} strings, sin texto extra:\n"
         f'["título 1","título 2",...]'
     )
     try:
-        txt = await ai_complete(db, prompt, max_tokens=n * 80 + 100, temperature=0.65)
+        txt = await ai_complete(db, prompt, max_tokens=n * 80 + 100, temperature=0.35)
     except Exception as e:
         raise HTTPException(400, f"IA no disponible: {e}")
 

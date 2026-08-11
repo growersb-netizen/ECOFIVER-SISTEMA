@@ -1015,7 +1015,7 @@ Respondé EXCLUSIVAMENTE con este JSON válido, sin texto extra ni markdown:
 {{"titulo": "...", "descripcion": "..."}}"""
 
     try:
-        texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.6)
+        texto = await ai_complete(db, prompt, max_tokens=2800, temperature=0.4)
     except Exception as e:
         raise HTTPException(400, f"IA no disponible: {e}")
 
@@ -1118,10 +1118,25 @@ Tipo de producto: {tipo_label}{kw_hint}
 Descripción de referencia:
 {descripcion}{variante_hint}
 
+ESTRUCTURA OBLIGATORIA (en orden de prioridad):
+1. Palabra clave principal de búsqueda (piscina/pileta/hidromasaje/jacuzzi/módulo/etc.)
+2. Material específico (fibra de vidrio/acrílico sanitario/celulosa estructural)
+3. Medidas concretas si están en la descripción (ej: 6x3 metros / 1,76x1,76)
+4. Característica que diferencia (jets / autoportante / sin obra / con escalera)
+PROHIBIDO USAR (el algoritmo de ML penaliza o el buscador los ignora):
+- Palabras emocionales o de marketing: "ideal para", "de calidad", "premium", "exclusiva", "minimalista", "perfecta", "lujosa"
+- Mayúsculas sostenidas (excepción: siglas como PRFV)
+- Signos de puntuación: ! ? , ; : | — –
+- Emojis
+- La marca "EcoFiver"
+- Nombre del vendedor
+EJEMPLO CORRECTO: "Piscina fibra de vidrio 6x3 metros con escalera sin obra"
+EJEMPLO INCORRECTO: "Piscina minimalista IDEAL PARA TU JARDÍN con instalación incluida"
+
 Respondé SOLO con el título, sin explicaciones ni comillas. Máximo 60 caracteres."""
 
     try:
-        texto = await ai_complete(db, prompt, max_tokens=80, temperature=0.5)
+        texto = await ai_complete(db, prompt, max_tokens=80, temperature=0.2)
     except Exception as e:
         raise HTTPException(400, f"IA no disponible: {e}")
 
@@ -1646,11 +1661,11 @@ async def actualizar_descripcion_lote(
 
     # Snapshot de la configuración actual de descripción
     desc_config = {
-        "encabezado":     get_config_value("ml_encabezado", db) or "",
-        "pie":            get_config_value("ml_pie", db) or "",
-        "encabezado_ref": get_config_value("ml_encabezado_ref", db) or "",
-        "pie_ref":        get_config_value("ml_pie_ref", db) or "",
-        "keywords":       get_config_value("ml_keywords", db) or "",
+        "encabezado":     get_config_value("ml_desc_encabezado", db) or "",
+        "pie":            get_config_value("ml_desc_pie", db) or "",
+        "encabezado_ref": get_config_value("ml_desc_encabezado_referencia", db) or "",
+        "pie_ref":        get_config_value("ml_desc_pie_referencia", db) or "",
+        "keywords":       get_config_value("ml_desc_keywords", db) or "",
         "condiciones":    get_config_value("condiciones_generales", db) or "",
     }
 

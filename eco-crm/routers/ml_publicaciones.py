@@ -15,7 +15,7 @@ import io
 import re
 import httpx
 from pydantic import BaseModel
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header, UploadFile, File, Query
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -2147,13 +2147,14 @@ async def diagnostico_categorias_alternativas(
 @router.get("/api/ml/diagnostico/listing-types/{categoria_id}")
 async def diagnostico_listing_types(
     categoria_id: str,
+    precio: int = Query(2000000, description="Precio de referencia en ARS para calcular costos de publicación"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_config_access),
 ):
     """
-    Diagnóstico: qué listing_type_id acepta una categoría de ML.
-    Prueba cada tipo en dry-run y reporta cuál acepta ML para esa categoría.
-    Uso (logueado en el CRM): GET /api/ml/diagnostico/listing-types/MLA413502
+    Diagnóstico: qué listing_type_id acepta una categoría de ML + cuánto cuesta cada uno.
+    Prueba cada tipo en dry-run y consulta /listing_prices para mostrar el costo real.
+    Uso (logueado en el CRM): GET /api/ml/diagnostico/listing-types/MLA413502?precio=5000000
     """
     tok = await _ml_valid_token(db)
     resultado = {}
@@ -2210,6 +2211,56 @@ async def diagnostico_listing_types(
                     resultados_tipos[lt] = f"⚠️ {r_dry.status_code}: {txt[:150]}"
 
     resultado["por_listing_type"] = resultados_tipos
+
+    # 3. Costos reales de publicación por listing type (endpoint ML /listing_prices)
+    ml_user_id = get_config_value("ml_user_id", db) or ""
+    costos_tipos: dict = {}
+    tipos_con_precio = ["free", "silver", "bronze", "gold", "platinum", "gold_special", "classic"]
+    async with httpx.AsyncClient(timeout=12) as hc:
+        for lt in tipos_con_precio:
+            try:
+                # Preferir endpoint de usuario (autenticado, incluye límites de free)
+                if ml_user_id:
+                    r_p = await hc.get(
+                        f"{ML_BASE}/users/{ml_user_id}/listing_prices",
+                        params={"listing_type_id": lt, "category_id": categoria_id, "price": precio},
+                        headers=_ml_headers(tok),
+                    )
+                else:
+                    r_p = await hc.get(
+                        f"{ML_BASE}/sites/MLA/listing_prices",
+                        params={"listing_type_id": lt, "category_id": categoria_id, "price": precio},
+                        headers=_ml_headers(tok),
+                    )
+                if r_p.status_code == 200:
+                    d = r_p.json()
+                    if d.get("not_available") or d.get("error"):
+                        costos_tipos[lt] = {"disponible": False, "detalle": str(d.get("error") or "not_available")}
+                    else:
+                        fee       = d.get("listing_fee_amount") or d.get("fee_amount") or 0
+                        pct_sale  = d.get("sale_fee_amount") or d.get("fee_percentage") or 0
+                        free_left = d.get("free_listings_remaining")  # solo para tipo "free"
+                        item_costo: dict = {
+                            "fee_publicacion_ars": fee,
+                            "comision_venta_pct":  f"{round(float(pct_sale) * 100, 1)}%" if pct_sale < 1 else f"{round(float(pct_sale) / precio * 100, 1)}%",
+                            "costo_total_ref_ars": int(fee + (float(pct_sale) if float(pct_sale) > 1 else precio * float(pct_sale))),
+                            "precio_referencia":   precio,
+                        }
+                        if free_left is not None:
+                            item_costo["free_listings_restantes"] = free_left
+                        costos_tipos[lt] = item_costo
+                else:
+                    costos_tipos[lt] = {"error_http": r_p.status_code, "detalle": r_p.text[:150]}
+            except Exception as exc:
+                costos_tipos[lt] = {"excepcion": str(exc)[:100]}
+
+    resultado["costos_por_listing_type"] = costos_tipos
+    resultado["precio_referencia_ars"] = precio
+    resultado["nota_costos"] = (
+        "fee_publicacion_ars = cargo fijo por publicar la pieza; "
+        "comision_venta_pct = % sobre el precio (en marketplace; en classified suele ser 0); "
+        "costo_total_ref_ars = fee + comisión calculada sobre el precio de referencia."
+    )
     resultado["categoria_consultada"] = categoria_id
     return resultado
 

@@ -934,6 +934,16 @@ CATEGORIAS_FIJAS: dict = {
     "PERGOLA":            ("MLA416584", "Cubículos de Oficina"),
     "MODULO_DEPOSITO":    ("MLA416584", "Cubículos de Oficina"),
     "GARITA_SEGURIDAD":   ("MLA416584", "Cubículos de Oficina"),
+    # Baño Químico Portátil → Cubículos de Oficina es el mejor fit disponible:
+    # unidad sanitaria portátil sin conexión a cloacas, venta y alquiler.
+    # No existe categoría específica en ML Argentina para "baño químico".
+    "BANO_QUIMICO":       ("MLA416584", "Cubículos de Oficina"),
+    # ── Reposeras PRFV ───────────────────────────────────────────────────────
+    # MLA11044 = Reposeras y Camastros (verificado vía domain_discovery 2026-08)
+    "REPOSERA_FIBRA":     ("MLA11044",  "Reposeras y Camastros"),
+    # ── Cuchas PRFV ──────────────────────────────────────────────────────────
+    # MLA32271 = Cuchas (verificado vía domain_discovery 2026-08)
+    "CUCHA":              ("MLA32271",  "Cuchas"),
     # ── Hidromasajes y bañeras ────────────────────────────────────────────────
     # MLA88471 = Jacuzzis e Hidromasajes (verificado en producción MLA)
     "HIDROMASAJE":        ("MLA88471",  "Jacuzzis e Hidromasajes"),
@@ -942,6 +952,16 @@ CATEGORIAS_FIJAS: dict = {
     # MLA373513 = Piletas de Fibra de Vidrio (verificado en producción MLA)
     "PISCINA":            ("MLA373513", "Piletas de Fibra de Vidrio"),
     "MINIPISCINA":        ("MLA373513", "Piletas de Fibra de Vidrio"),
+    # ── Receptáculos de ducha ─────────────────────────────────────────────────
+    # MLA414062 = Receptáculos de Ducha (verificado vía domain_discovery 2026-08)
+    "RECEPTACULO":        ("MLA414062", "Receptáculos de Ducha"),
+    # ── Iluminación piscina ───────────────────────────────────────────────────
+    # MLA412691 = Luces para Piletas (verificado vía domain_discovery 2026-08)
+    "ILUMINACION_PISCINA":("MLA412691", "Luces para Piletas"),
+    # ── Equipos y accesorios piscina ─────────────────────────────────────────
+    # ACCESORIO_PISCINA y EQUIPO_PISCINA: sin categoría fija — el predictor ML
+    # elige según el título (bomba → MLA74622, filtro → MLA74621, cubrepi → MLA74607, etc.)
+    # REPUESTO_PISCINA y ACCESORIO_HIDROMASAJE: idem — demasiado variados para categoría única.
 }
 
 # Palabras clave mínimas obligatorias por tipo para que ML categorice correctamente.
@@ -962,6 +982,12 @@ _TITULO_KEYWORDS_MINIMAS: dict = {
     "ACCESORIO_HIDROMASAJE":(["accesorio", "spa", "hidromasaje", "jacuzzi"],"Accesorio Spa"),
     "ACCESORIO_PISCINA":  (["accesorio", "piscina", "pileta"],              "Accesorio Piscina"),
     "ILUMINACION_PISCINA":(["iluminación", "iluminacion", "led", "piscina"],"Iluminación LED Piscina"),
+    "REPOSERA_FIBRA":     (["reposera", "camastro", "tumbona"],             "Reposera"),
+    "CUCHA":              (["cucha", "casita", "casa para perro"],          "Cucha"),
+    "BANO_QUIMICO":       (["baño", "sanitario", "químico", "quimico"],    "Baño Químico Portátil"),
+    "RECEPTACULO":        (["receptáculo", "receptaculo", "ducha", "plato de ducha"], "Receptáculo Ducha"),
+    "EQUIPO_PISCINA":     (["pileta", "piscina", "bomba", "filtro"],       "Equipo Piscina"),
+    "REPUESTO_PISCINA":   (["repuesto", "recambio", "pileta", "piscina"],  "Repuesto Piscina"),
 }
 
 
@@ -998,6 +1024,12 @@ _FALLBACK_TITULO_POR_TIPO: dict = {
     "ACCESORIO_HIDROMASAJE":"Accesorio para hidromasaje jacuzzi spa",
     "ACCESORIO_PISCINA":    "Accesorio para piscina pileta",
     "ILUMINACION_PISCINA":  "Iluminación LED sumergible para piscina pileta",
+    "REPOSERA_FIBRA":       "Reposera camastro jardín piscina",
+    "CUCHA":                "Cucha casita para perro fibra de vidrio",
+    "BANO_QUIMICO":         "Baño químico portátil sanitario sin obra",
+    "RECEPTACULO":          "Receptáculo plato de ducha acrílico",
+    "EQUIPO_PISCINA":       "Equipo filtro bomba para piscina pileta",
+    "REPUESTO_PISCINA":     "Repuesto accesorio para piscina pileta",
 }
 
 # Categorías de ML que solo admiten buying_mode="classified" (viviendas, inmuebles, construcción).
@@ -1285,14 +1317,30 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     ]
     if _modelo_str:
         _modulo_attrs.append(("MODEL", _modelo_str))
+    # Reutilizable para tipos que solo necesitan BRAND + MODEL
+    _brand_model = [("BRAND", "EcoFiver"), ("MODEL", _modelo_str)]
     _ATTRS_DEFAULT_TIPO = {
+        # ── Spas / piletas ────────────────────────────────────────────────────
         "HIDROMASAJE":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "PISCINA":            [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "MINIPISCINA":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "BANERA":             [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "RECEPTACULO":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "REPOSERA_FIBRA":     [("COLOR", "Blanco")],
-        # Módulos/garitas: MLA416584 requiere BRAND, MODEL, REQUIRES_ASSEMBLY, INCLUDES_ASSEMBLY_MANUAL
+        # ── Receptáculo de ducha (MLA414062) ─────────────────────────────────
+        "RECEPTACULO":        [("BRAND", "EcoFiver"), ("MODEL", _modelo_str), ("COLOR", "Blanco"), ("MATERIAL", "PRFV")],
+        # ── Reposeras PRFV (MLA11044) ─────────────────────────────────────────
+        # IS_PORTABLE=Sí porque son apilables / transportables al borde de la piscina.
+        "REPOSERA_FIBRA":     [("BRAND", "EcoFiver"), ("MODEL", _modelo_str), ("COLOR", "Blanco"), ("IS_PORTABLE", "Si")],
+        # ── Cuchas PRFV (MLA32271) ───────────────────────────────────────────
+        "CUCHA":              [("BRAND", "EcoFiver"), ("MODEL", _modelo_str), ("COLOR", "Blanco"), ("MATERIALS", "PRFV")],
+        # ── Iluminación piscina (MLA412691) ──────────────────────────────────
+        "ILUMINACION_PISCINA":[("BRAND", "EcoFiver"), ("MODEL", _modelo_str)],
+        # ── Accesorios / equipos (predictor elige categoría) ──────────────────
+        "ACCESORIO_PISCINA":  _brand_model,
+        "ACCESORIO_HIDROMASAJE": _brand_model,
+        "EQUIPO_PISCINA":     _brand_model,
+        "REPUESTO_PISCINA":   _brand_model,
+        # ── Módulos/garitas/baño químico: MLA416584 ───────────────────────────
+        # Requeridos: BRAND, MODEL, REQUIRES_ASSEMBLY, INCLUDES_ASSEMBLY_MANUAL
         "MODULO":             _modulo_attrs,
         "MODULO_HABITACIONAL":_modulo_attrs,
         "VIVIENDA_MODULAR":   _modulo_attrs,
@@ -1301,6 +1349,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "COMBO":              _modulo_attrs,
         "MODULO_DEPOSITO":    _modulo_attrs,
         "GARITA_SEGURIDAD":   _modulo_attrs,
+        "BANO_QUIMICO":       _modulo_attrs,
     }
     # Refrescar set con lo que ya se inyectó arriba
     existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
@@ -2944,31 +2993,45 @@ async def completar_atributos_ml(
 
     # 4. Defaults a inyectar por categoría / tipo de producto
     #    Se usa solo si el atributo no existe ya en el ítem.
+    _mla416 = [("BRAND","EcoFiver"),("REQUIRES_ASSEMBLY","No"),("INCLUDES_ASSEMBLY_MANUAL","No"),("MODEL",modelo_str)]
+    _bm = [("BRAND","EcoFiver"),("MODEL",modelo_str)]
+    # CUCHA: BREED_SIZE según título
+    _tit_l = titulo_ml.lower()
+    if "gigante" in _tit_l or "xxl" in _tit_l or ">45" in _tit_l:
+        _breed = "Extra Grande"
+    elif "grande" in _tit_l or "45kg" in _tit_l or "45 kg" in _tit_l:
+        _breed = "Grande"
+    elif "mediana" in _tit_l or "25kg" in _tit_l or "25 kg" in _tit_l:
+        _breed = "Mediano"
+    else:
+        _breed = "Pequeño"
     _defaults_categoria: dict = {
-        # MLA416584 — Cubículos de Oficina
-        "MLA416584": [
-            ("BRAND", "EcoFiver"),
-            ("REQUIRES_ASSEMBLY", "No"),
-            ("INCLUDES_ASSEMBLY_MANUAL", "No"),
-            ("MODEL", modelo_str),
-        ],
+        "MLA416584": _mla416,
+        "MLA11044":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("IS_PORTABLE","Si")],
+        "MLA32271":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIALS","PRFV"),("BREED_SIZE",_breed)],
+        "MLA414062": [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
+        "MLA412691": _bm,
+        "MLA88471":  [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")],
+        "MLA373513": [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")],
     }
-    # Por tipo de producto (anula el de categoría si está definido)
     _defaults_tipo: dict = {
-        "MODULO":             _defaults_categoria.get("MLA416584", []),
-        "MODULO_HABITACIONAL":_defaults_categoria.get("MLA416584", []),
-        "MODULO_DEPOSITO":    _defaults_categoria.get("MLA416584", []),
-        "GARITA_SEGURIDAD":   _defaults_categoria.get("MLA416584", []),
-        "VIVIENDA_MODULAR":   _defaults_categoria.get("MLA416584", []),
-        "QUINCHO":            _defaults_categoria.get("MLA416584", []),
-        "PERGOLA":            _defaults_categoria.get("MLA416584", []),
-        "COMBO":              _defaults_categoria.get("MLA416584", []),
-        "HIDROMASAJE":        [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "BANERA":             [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "RECEPTACULO":        [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "PISCINA":            [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "MINIPISCINA":        [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        k: _mla416 for k in ("MODULO","MODULO_HABITACIONAL","MODULO_DEPOSITO","GARITA_SEGURIDAD",
+                              "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO")
     }
+    _defaults_tipo.update({
+        t: [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")]
+        for t in ("HIDROMASAJE","BANERA","PISCINA","MINIPISCINA")
+    })
+    _defaults_tipo.update({
+        "RECEPTACULO":     [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
+        "REPOSERA_FIBRA":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("IS_PORTABLE","Si")],
+        "CUCHA":           [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIALS","PRFV"),("BREED_SIZE",_breed)],
+        "ILUMINACION_PISCINA": _bm,
+        "ACCESORIO_PISCINA":   _bm,
+        "ACCESORIO_HIDROMASAJE": _bm,
+        "EQUIPO_PISCINA":      _bm,
+        "REPUESTO_PISCINA":    _bm,
+    })
 
     defaults = _defaults_tipo.get(tipo_prod) or _defaults_categoria.get(categoria, [])
 
@@ -3047,23 +3110,48 @@ async def bulk_completar_atributos(
             tipo_prod = (b.producto or "").upper()
             modelo_str = (b.modelo_nombre or titulo_ml).strip()[:60]
 
-            # Mismo mapa de defaults que el endpoint individual
+            # Mismo mapa de defaults que el endpoint individual (sincronizar si se agrega tipo nuevo)
             _mla416_defaults = [
                 ("BRAND", "EcoFiver"), ("REQUIRES_ASSEMBLY", "No"),
                 ("INCLUDES_ASSEMBLY_MANUAL", "No"), ("MODEL", modelo_str),
             ]
+            _brand_model_b = [("BRAND", "EcoFiver"), ("MODEL", modelo_str)]
+            # CUCHA: BREED_SIZE se infiere del título
+            _tit_lower = titulo_ml.lower()
+            if "gigante" in _tit_lower or ">45" in _tit_lower or "xxl" in _tit_lower:
+                _cucha_breed = "Extra Grande"
+            elif "grande" in _tit_lower or "45kg" in _tit_lower or "45 kg" in _tit_lower:
+                _cucha_breed = "Grande"
+            elif "mediana" in _tit_lower or "25kg" in _tit_lower or "25 kg" in _tit_lower:
+                _cucha_breed = "Mediano"
+            else:
+                _cucha_breed = "Pequeño"
             _defaults_map = {
                 "MLA416584": _mla416_defaults,
+                "MLA11044":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("IS_PORTABLE","Si")],
+                "MLA32271":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIALS","PRFV"),("BREED_SIZE",_cucha_breed)],
+                "MLA414062": [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
+                "MLA412691": _brand_model_b,
             }
             _tipo_map = {
                 k: _mla416_defaults for k in (
                     "MODULO","MODULO_HABITACIONAL","MODULO_DEPOSITO","GARITA_SEGURIDAD",
-                    "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO"
+                    "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO"
                 )
             }
             _tipo_map.update({
                 t: [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")]
-                for t in ("HIDROMASAJE","BANERA","RECEPTACULO","PISCINA","MINIPISCINA")
+                for t in ("HIDROMASAJE","BANERA","PISCINA","MINIPISCINA")
+            })
+            _tipo_map.update({
+                "RECEPTACULO":    [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
+                "REPOSERA_FIBRA": [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("IS_PORTABLE","Si")],
+                "CUCHA":          [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIALS","PRFV"),("BREED_SIZE",_cucha_breed)],
+                "ILUMINACION_PISCINA": _brand_model_b,
+                "ACCESORIO_PISCINA":   _brand_model_b,
+                "ACCESORIO_HIDROMASAJE":_brand_model_b,
+                "EQUIPO_PISCINA":      _brand_model_b,
+                "REPUESTO_PISCINA":    _brand_model_b,
             })
 
             defaults = _tipo_map.get(tipo_prod) or _defaults_map.get(categoria, [])

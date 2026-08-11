@@ -34,15 +34,13 @@ templates = Jinja2Templates(directory="templates")
 
 # ── Cola de publicación en segundo plano ──────────────────────────────────────
 _LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
-# Tipos que usan buying_mode="classified" (MLA413502 — Cabañas y Casas Prefabricadas).
-# MLA373483 (Armarios para Exterior) descartada 2026-08: fuerza gold_special + ME1 obligatorio
-# + free shipping mandatory — incompatible con items de 100-300 kg sin ME1 en la cuenta.
-# MODULO_DEPOSITO y GARITA_SEGURIDAD vuelven a classified, igual que el resto de módulos.
-_TIPOS_CLASSIFIED = {
-    "MODULO", "MODULO_HABITACIONAL", "VIVIENDA_MODULAR",
-    "QUINCHO", "PERGOLA", "COMBO",
-    "MODULO_DEPOSITO", "GARITA_SEGURIDAD",
-}
+# Tipos que usan buying_mode="classified".
+# 2026-08: MLA413502 (Cabañas y Casas Prefabricadas) descartada para todos los módulos —
+# cobra por publicación como inmobiliaria (slots gratuitos agotados en esta cuenta).
+# MLA373483 (Armarios para Exterior) descartada: fuerza gold_special + ME1 + free shipping obligatorio.
+# Todos los módulos/garitas/depósitos pasan a buy_it_now en MLA416584 (Cubículos de Oficina):
+# sin costo de publicación, comisión solo al vender, envío "a coordinar" sin ME1 obligatorio.
+_TIPOS_CLASSIFIED: set = set()  # vacío: ningún tipo usa classified por ahora
 
 # Tipos que van por courier (Mercado Envíos) con envío gratis absorbido en el precio
 _TIPOS_CON_ENVIO_GRATIS = {
@@ -922,21 +920,20 @@ _NUMERIC_ATTRS = {"CAPACITY", "VOLUME_CAPACITY", "LENGTH", "WIDTH", "HEIGHT",
 # El predictor automático usa el TÍTULO (ej. "autoportante" → automotores, "módulo" → software).
 # Estas categorías se usan siempre que el producto esté en este dict — sin consultar el predictor.
 CATEGORIAS_FIJAS: dict = {
-    # ── Módulos habitacionales y estructuras (classified MLA413502) ───────────
-    # MLA413502 = Cabañas y Casas Prefabricadas (classified). Tipos válidos: silver/bronze/gold.
-    # El listing_type "free" está AGOTADO para esta cuenta (cause_id 175, verificado 2026-08).
-    # Los módulos habitacionales van aquí por ser estructuras para vivir/usar como espacio.
-    "MODULO":             ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "MODULO_HABITACIONAL":("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "VIVIENDA_MODULAR":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "COMBO":              ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "QUINCHO":            ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    # ── Módulos depósito y garitas (classified MLA413502, igual que módulos hab.) ─
-    # MLA373483 (Armarios para Exterior) descartada 2026-08: fuerza gold_special,
-    # exige ME1 + envío gratis obligatorio — inviable para items de 100-300 kg.
-    # Vuelven a classified MLA413502 junto al resto de estructuras prefabricadas.
-    "MODULO_DEPOSITO":    ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "GARITA_SEGURIDAD":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    # ── Módulos, garitas y estructuras → buy_it_now MLA416584 ────────────────
+    # MLA416584 = Cubículos de Oficina (Industrias y Oficinas > Equipamiento para Oficinas).
+    # Verificado 2026-08: publica sin costo, comisión solo al vender (~14%),
+    # envío "Entrega a acordar con el vendedor" sin ME1 obligatorio.
+    # MLA413502 (Cabañas y Casas Prefabricadas, classified) descartada:
+    #   cobra por publicar como inmobiliaria; slots gratuitos agotados en esta cuenta.
+    "MODULO":             ("MLA416584", "Cubículos de Oficina"),
+    "MODULO_HABITACIONAL":("MLA416584", "Cubículos de Oficina"),
+    "VIVIENDA_MODULAR":   ("MLA416584", "Cubículos de Oficina"),
+    "COMBO":              ("MLA416584", "Cubículos de Oficina"),
+    "QUINCHO":            ("MLA416584", "Cubículos de Oficina"),
+    "PERGOLA":            ("MLA416584", "Cubículos de Oficina"),
+    "MODULO_DEPOSITO":    ("MLA416584", "Cubículos de Oficina"),
+    "GARITA_SEGURIDAD":   ("MLA416584", "Cubículos de Oficina"),
     # ── Hidromasajes y bañeras ────────────────────────────────────────────────
     # MLA88471 = Jacuzzis e Hidromasajes (verificado en producción MLA)
     "HIDROMASAJE":        ("MLA88471",  "Jacuzzis e Hidromasajes"),
@@ -1277,15 +1274,33 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     # Auto-inyectar atributos obligatorios según tipo de producto.
     # IS_INFLATABLE es un error bloqueante en categorías de spas/piletas.
     # COLOR es warning pero mejora la ficha.
+    # Módulos/garitas usan MLA416584 (Cubículos de Oficina, buy_it_now 2026-08):
+    #   atributos requeridos: BRAND, MODEL, REQUIRES_ASSEMBLY, INCLUDES_ASSEMBLY_MANUAL.
+    #   MODEL se inyecta desde modelo_nombre o titulo en _publicar (ver abajo).
+    _modelo_str = (b.modelo_nombre or "").strip() or (b.titulo or "").strip()[:40]
+    _modulo_attrs = [
+        ("BRAND", "EcoFiver"),
+        ("REQUIRES_ASSEMBLY", "No"),
+        ("INCLUDES_ASSEMBLY_MANUAL", "No"),
+    ]
+    if _modelo_str:
+        _modulo_attrs.append(("MODEL", _modelo_str))
     _ATTRS_DEFAULT_TIPO = {
-        "HIDROMASAJE":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "PISCINA":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "MINIPISCINA":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "BANERA":         [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "RECEPTACULO":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "REPOSERA_FIBRA": [("COLOR", "Blanco")],
-        # GARITA_SEGURIDAD y MODULO_DEPOSITO vuelven a classified MLA413502 (2026-08).
-        # Los atributos específicos de MLA373483 (MODEL/WEIGHT/BRAND) no aplican en classified.
+        "HIDROMASAJE":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "PISCINA":            [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "MINIPISCINA":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "BANERA":             [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "RECEPTACULO":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "REPOSERA_FIBRA":     [("COLOR", "Blanco")],
+        # Módulos/garitas: MLA416584 requiere BRAND, MODEL, REQUIRES_ASSEMBLY, INCLUDES_ASSEMBLY_MANUAL
+        "MODULO":             _modulo_attrs,
+        "MODULO_HABITACIONAL":_modulo_attrs,
+        "VIVIENDA_MODULAR":   _modulo_attrs,
+        "QUINCHO":            _modulo_attrs,
+        "PERGOLA":            _modulo_attrs,
+        "COMBO":              _modulo_attrs,
+        "MODULO_DEPOSITO":    _modulo_attrs,
+        "GARITA_SEGURIDAD":   _modulo_attrs,
     }
     # Refrescar set con lo que ya se inyectó arriba
     existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
@@ -2884,6 +2899,204 @@ async def resincronizar_desde_ml(
         "errores": errores,
         "detalles_error": detalles_error[:10],
     }
+
+
+@router.put("/api/ml/items/{item_id}/completar-atributos")
+async def completar_atributos_ml(
+    item_id: str,
+    db: Session = Depends(get_db),
+    x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Completa automáticamente los atributos obligatorios de un ítem ya publicado en ML.
+    Consulta qué atributos requiere la categoría del ítem, detecta los faltantes,
+    y hace PUT /items/{item_id} con los valores por defecto de EcoFiver.
+
+    Atributos que auto-rellena para MLA416584 (Cubículos de Oficina):
+      BRAND → EcoFiver | REQUIRES_ASSEMBLY → No | INCLUDES_ASSEMBLY_MANUAL → No
+      MODEL → extraído del título del ítem si no está ya en ML
+    Para piscinas/hidromasajes también cubre IS_INFLATABLE, COLOR.
+
+    Uso: PUT /api/ml/items/MLA1234567890/completar-atributos
+    """
+    _auth(x_api_key, current_user)
+    tok = await _ml_valid_token(db)
+
+    # 1. Obtener el ítem actual de ML
+    async with httpx.AsyncClient(timeout=15) as hc:
+        r_item = await hc.get(f"{ML_BASE}/items/{item_id}", headers=_ml_headers(tok))
+    if r_item.status_code != 200:
+        return {"ok": False, "error": f"No se pudo obtener el ítem de ML: {r_item.status_code} {r_item.text[:200]}"}
+
+    item_data = r_item.json()
+    categoria = item_data.get("category_id", "")
+    titulo_ml = item_data.get("title", "")
+    attrs_actuales = {(a.get("id") or "").upper(): a for a in (item_data.get("attributes") or [])}
+
+    # 2. Buscar borrador en CRM para obtener producto/modelo_nombre
+    b_crm = db.query(BorradorML).filter(BorradorML.item_id == item_id).first()
+    tipo_prod = ((b_crm.producto or "") if b_crm else "").upper()
+    modelo_str = (b_crm.modelo_nombre or titulo_ml).strip()[:60] if b_crm else titulo_ml.strip()[:60]
+
+    # 3. Obtener atributos válidos para la categoría
+    valid_ids = await _ml_cat_attributes(categoria, tok) or set()
+
+    # 4. Defaults a inyectar por categoría / tipo de producto
+    #    Se usa solo si el atributo no existe ya en el ítem.
+    _defaults_categoria: dict = {
+        # MLA416584 — Cubículos de Oficina
+        "MLA416584": [
+            ("BRAND", "EcoFiver"),
+            ("REQUIRES_ASSEMBLY", "No"),
+            ("INCLUDES_ASSEMBLY_MANUAL", "No"),
+            ("MODEL", modelo_str),
+        ],
+    }
+    # Por tipo de producto (anula el de categoría si está definido)
+    _defaults_tipo: dict = {
+        "MODULO":             _defaults_categoria.get("MLA416584", []),
+        "MODULO_HABITACIONAL":_defaults_categoria.get("MLA416584", []),
+        "MODULO_DEPOSITO":    _defaults_categoria.get("MLA416584", []),
+        "GARITA_SEGURIDAD":   _defaults_categoria.get("MLA416584", []),
+        "VIVIENDA_MODULAR":   _defaults_categoria.get("MLA416584", []),
+        "QUINCHO":            _defaults_categoria.get("MLA416584", []),
+        "PERGOLA":            _defaults_categoria.get("MLA416584", []),
+        "COMBO":              _defaults_categoria.get("MLA416584", []),
+        "HIDROMASAJE":        [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "BANERA":             [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "RECEPTACULO":        [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "PISCINA":            [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        "MINIPISCINA":        [("BRAND", "EcoFiver"), ("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+    }
+
+    defaults = _defaults_tipo.get(tipo_prod) or _defaults_categoria.get(categoria, [])
+
+    # 5. Filtrar: solo inyectar los que no están ya en el ítem y son válidos para la categoría
+    a_inyectar = []
+    for attr_id, attr_val in defaults:
+        if not attr_val:
+            continue
+        if attr_id.upper() in attrs_actuales:
+            continue  # ya existe — no pisar
+        if valid_ids and attr_id.upper() not in valid_ids:
+            continue  # no válido para la categoría
+        a_inyectar.append({"id": attr_id, "value_name": attr_val})
+
+    if not a_inyectar:
+        return {
+            "ok": True, "item_id": item_id, "categoria": categoria,
+            "mensaje": "El ítem ya tiene todos los atributos cubiertos — nada que agregar.",
+            "attrs_existentes": list(attrs_actuales.keys()),
+        }
+
+    # 6. PUT al ítem con los atributos a completar
+    payload_put = {"attributes": a_inyectar}
+    async with httpx.AsyncClient(timeout=15) as hc:
+        r_put = await hc.put(f"{ML_BASE}/items/{item_id}", json=payload_put, headers=_ml_headers(tok))
+
+    if r_put.status_code not in (200, 201):
+        return {
+            "ok": False, "item_id": item_id,
+            "error": f"ML respondió {r_put.status_code}: {r_put.text[:300]}",
+            "attrs_intentados": a_inyectar,
+        }
+
+    return {
+        "ok": True, "item_id": item_id, "categoria": categoria,
+        "attrs_agregados": a_inyectar,
+        "mensaje": f"{len(a_inyectar)} atributo(s) completado(s) en ML.",
+    }
+
+
+@router.post("/api/ml/items/bulk-completar-atributos")
+async def bulk_completar_atributos(
+    db: Session = Depends(get_db),
+    x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Recorre todos los borradores publicados (estado='publicada', item_id válido)
+    y llama a completar-atributos en cada uno.
+    Devuelve un resumen de lo que se actualizó y los errores.
+    """
+    _auth(x_api_key, current_user)
+    publicados = db.query(BorradorML).filter(
+        BorradorML.estado == "publicada",
+        BorradorML.item_id.isnot(None),
+    ).all()
+
+    resultados = []
+    for b in publicados:
+        if not b.item_id or not b.item_id.startswith("MLA"):
+            continue
+        try:
+            # Reutiliza la lógica del endpoint individual
+            tok = await _ml_valid_token(db)
+            async with httpx.AsyncClient(timeout=15) as hc:
+                r_item = await hc.get(f"{ML_BASE}/items/{b.item_id}", headers=_ml_headers(tok))
+            if r_item.status_code != 200:
+                resultados.append({"item_id": b.item_id, "ok": False, "error": f"ML {r_item.status_code}"})
+                continue
+
+            item_data = r_item.json()
+            categoria = item_data.get("category_id", "")
+            titulo_ml = item_data.get("title", "")
+            attrs_actuales = {(a.get("id") or "").upper() for a in (item_data.get("attributes") or [])}
+            valid_ids = await _ml_cat_attributes(categoria, tok) or set()
+            tipo_prod = (b.producto or "").upper()
+            modelo_str = (b.modelo_nombre or titulo_ml).strip()[:60]
+
+            # Mismo mapa de defaults que el endpoint individual
+            _mla416_defaults = [
+                ("BRAND", "EcoFiver"), ("REQUIRES_ASSEMBLY", "No"),
+                ("INCLUDES_ASSEMBLY_MANUAL", "No"), ("MODEL", modelo_str),
+            ]
+            _defaults_map = {
+                "MLA416584": _mla416_defaults,
+            }
+            _tipo_map = {
+                k: _mla416_defaults for k in (
+                    "MODULO","MODULO_HABITACIONAL","MODULO_DEPOSITO","GARITA_SEGURIDAD",
+                    "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO"
+                )
+            }
+            _tipo_map.update({
+                t: [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")]
+                for t in ("HIDROMASAJE","BANERA","RECEPTACULO","PISCINA","MINIPISCINA")
+            })
+
+            defaults = _tipo_map.get(tipo_prod) or _defaults_map.get(categoria, [])
+            a_inyectar = [
+                {"id": aid, "value_name": av}
+                for aid, av in defaults
+                if av and aid.upper() not in attrs_actuales
+                and (not valid_ids or aid.upper() in valid_ids)
+            ]
+
+            if not a_inyectar:
+                resultados.append({"item_id": b.item_id, "ok": True, "mensaje": "ya completo"})
+                continue
+
+            async with httpx.AsyncClient(timeout=15) as hc:
+                r_put = await hc.put(
+                    f"{ML_BASE}/items/{b.item_id}",
+                    json={"attributes": a_inyectar},
+                    headers=_ml_headers(tok),
+                )
+            if r_put.status_code in (200, 201):
+                resultados.append({"item_id": b.item_id, "ok": True, "agregados": [x["id"] for x in a_inyectar]})
+            else:
+                resultados.append({"item_id": b.item_id, "ok": False,
+                                   "error": f"ML {r_put.status_code}: {r_put.text[:200]}"})
+            await asyncio.sleep(0.5)  # throttle leve
+
+        except Exception as ex:
+            resultados.append({"item_id": b.item_id, "ok": False, "error": str(ex)[:100]})
+
+    ok_count = sum(1 for r in resultados if r.get("ok"))
+    err_count = len(resultados) - ok_count
+    return {"ok": True, "total": len(resultados), "actualizados": ok_count, "errores": err_count, "detalle": resultados}
 
 
 @router.post("/api/ml/borradores/{bid}/duplicar")

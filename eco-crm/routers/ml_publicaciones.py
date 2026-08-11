@@ -2101,16 +2101,13 @@ async def location_config_reset(db: Session = Depends(get_db), x_api_key=Header(
 async def diagnostico_listing_types(
     categoria_id: str,
     db: Session = Depends(get_db),
-    x_api_key=Header(None),
-    current_user: Optional[Usuario] = Depends(get_current_user),
+    current_user: Usuario = Depends(_require_config_access),
 ):
     """
     Diagnóstico: qué listing_type_id acepta una categoría de ML.
-    Consulta /sites/MLA/listing_types para todos los tipos disponibles y
-    luego prueba GET /listing_types/{id} para ver si aplican a la categoría.
-    Uso: GET /api/ml/diagnostico/listing-types/MLA413502
+    Prueba cada tipo en dry-run y reporta cuál acepta ML para esa categoría.
+    Uso (logueado en el CRM): GET /api/ml/diagnostico/listing-types/MLA413502
     """
-    _auth(x_api_key, current_user)
     tok = await _ml_valid_token(db)
     resultado = {}
 

@@ -34,12 +34,14 @@ templates = Jinja2Templates(directory="templates")
 
 # ── Cola de publicación en segundo plano ──────────────────────────────────────
 _LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
-# Tipos que usan buying_mode="classified" (solo MLA413502 — Cabañas y Casas Prefabricadas).
-# MODULO_DEPOSITO y GARITA_SEGURIDAD se movieron a MLA373483 (Armarios para Exterior),
-# que es buy_it_now — sin classified, sin location, publicación estándar de producto.
+# Tipos que usan buying_mode="classified" (MLA413502 — Cabañas y Casas Prefabricadas).
+# MLA373483 (Armarios para Exterior) descartada 2026-08: fuerza gold_special + ME1 obligatorio
+# + free shipping mandatory — incompatible con items de 100-300 kg sin ME1 en la cuenta.
+# MODULO_DEPOSITO y GARITA_SEGURIDAD vuelven a classified, igual que el resto de módulos.
 _TIPOS_CLASSIFIED = {
     "MODULO", "MODULO_HABITACIONAL", "VIVIENDA_MODULAR",
     "QUINCHO", "PERGOLA", "COMBO",
+    "MODULO_DEPOSITO", "GARITA_SEGURIDAD",
 }
 
 # Tipos que van por courier (Mercado Envíos) con envío gratis absorbido en el precio
@@ -929,12 +931,12 @@ CATEGORIAS_FIJAS: dict = {
     "VIVIENDA_MODULAR":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
     "COMBO":              ("MLA413502", "Cabañas y Casas Prefabricadas"),
     "QUINCHO":            ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    # ── Módulos depósito y garitas (buy_it_now — más simple que classified) ───
-    # MLA373483 = Armarios para Exterior (verificado vía predictor 2026-08).
-    # El predictor sugiere esta cat para "casilla/depósito de jardín prefabricado".
-    # Es buy_it_now → sin classified, sin location, listado estándar de producto.
-    "MODULO_DEPOSITO":    ("MLA373483", "Armarios para Exterior"),
-    "GARITA_SEGURIDAD":   ("MLA373483", "Armarios para Exterior"),
+    # ── Módulos depósito y garitas (classified MLA413502, igual que módulos hab.) ─
+    # MLA373483 (Armarios para Exterior) descartada 2026-08: fuerza gold_special,
+    # exige ME1 + envío gratis obligatorio — inviable para items de 100-300 kg.
+    # Vuelven a classified MLA413502 junto al resto de estructuras prefabricadas.
+    "MODULO_DEPOSITO":    ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "GARITA_SEGURIDAD":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
     # ── Hidromasajes y bañeras ────────────────────────────────────────────────
     # MLA88471 = Jacuzzis e Hidromasajes (verificado en producción MLA)
     "HIDROMASAJE":        ("MLA88471",  "Jacuzzis e Hidromasajes"),
@@ -1282,22 +1284,8 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "BANERA":         [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "RECEPTACULO":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "REPOSERA_FIBRA": [("COLOR", "Blanco")],
-        # MLA373483 (Armarios para Exterior) — atributos obligatorios de la categoría.
-        # WEIGHT: formato "N kg" (ML exige unidad explícita). IS_SUITABLE_FOR_SHIPMENT
-        # no se envía (cause_id=303: es read-only, ML lo gestiona internamente).
-        # BRAND obligatorio (cause_id=3704): usar "EcoFiver".
-        "GARITA_SEGURIDAD": [
-            ("MODEL",                    "Estándar"),
-            ("WEIGHT",                   "100 kg"),
-            ("INCLUDES_INSTALLATION_KIT","Sí"),
-            ("BRAND",                    "EcoFiver"),
-        ],
-        "MODULO_DEPOSITO": [
-            ("MODEL",                    "Estándar"),
-            ("WEIGHT",                   "300 kg"),
-            ("INCLUDES_INSTALLATION_KIT","Sí"),
-            ("BRAND",                    "EcoFiver"),
-        ],
+        # GARITA_SEGURIDAD y MODULO_DEPOSITO vuelven a classified MLA413502 (2026-08).
+        # Los atributos específicos de MLA373483 (MODEL/WEIGHT/BRAND) no aplican en classified.
     }
     # Refrescar set con lo que ya se inyectó arriba
     existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}

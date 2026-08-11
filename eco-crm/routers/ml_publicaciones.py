@@ -946,10 +946,11 @@ CATEGORIAS_FIJAS: dict = {
     # MLA32271 = Cuchas (verificado vía domain_discovery 2026-08)
     "CUCHA":              ("MLA32271",  "Cuchas"),
     # ── Hidromasajes y bañeras ────────────────────────────────────────────────
-    # MLA417005 = Hidromasajes (verificado domain_discovery 2026-08; MLA88471 no existe)
-    # MLA4333   = Bañeras Sin Hidromasajes (para bañeras acrílico sin jets)
+    # MLA417005 = Hidromasajes  — spas/jacuzzis autónomos
+    # MLA443823 = Con Hidromasajes — bañeras PRFV con jets incorporados
+    # (MLA88471 no existe en ML Argentina; verificado domain_discovery 2026-08)
     "HIDROMASAJE":        ("MLA417005", "Hidromasajes"),
-    "BANERA":             ("MLA4333",   "Bañeras Sin Hidromasajes"),
+    "BANERA":             ("MLA443823", "Con Hidromasajes"),
     # ── Piscinas ─────────────────────────────────────────────────────────────
     # MLA373513 = Piletas de Fibra de Vidrio (verificado en producción MLA)
     "PISCINA":            ("MLA373513", "Piletas de Fibra de Vidrio"),
@@ -1330,8 +1331,8 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         # MLA373513 (Piletas Fibra): IS_INFLATABLE requerido
         "PISCINA":            [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "MINIPISCINA":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        # MLA4333 (Bañeras Sin Hidromasajes): BRAND, MODEL requeridos
-        "BANERA":             [("BRAND", "EcoFiver"), ("MODEL", _modelo_str)],
+        # MLA443823 (Con Hidromasajes): BRAND, MODEL, IS_INFLATABLE — bañeras PRFV con jets
+        "BANERA":             [("BRAND", "EcoFiver"), ("MODEL", _modelo_str), ("IS_INFLATABLE", "No")],
         # ── Receptáculo de ducha (MLA414062) ─────────────────────────────────
         "RECEPTACULO":        [("BRAND", "EcoFiver"), ("MODEL", _modelo_str), ("COLOR", "Blanco"), ("MATERIAL", "PRFV")],
         # ── Reposeras PRFV (MLA11044) ─────────────────────────────────────────
@@ -3019,20 +3020,21 @@ async def completar_atributos_ml(
         "MLA32271":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIALS","PRFV"),("BREED_SIZE",_breed)],
         "MLA414062": [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
         "MLA412691": _bm,
-        # MLA88471 ya no existe; reemplazado por MLA417005 (Hidromasajes) y MLA4333 (Bañeras)
+        # MLA88471 no existe; MLA417005=Hidromasajes, MLA443823=Con Hidromasajes (bañeras PRFV con jets)
         "MLA417005": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
+        "MLA443823": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
         "MLA4333":   [("BRAND","EcoFiver"),("MODEL",modelo_str)],
         "MLA373513": [("IS_INFLATABLE","No"),("COLOR","Blanco")],
     }
-    _defaults_tipo: dict = {
+    _defaults_tipo: dict = {  # tipo de borrador → attrs a inyectar
         k: _mla416 for k in ("MODULO","MODULO_HABITACIONAL","MODULO_DEPOSITO","GARITA_SEGURIDAD",
                               "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO","BANIO_QUIMICO")
     }
     _defaults_tipo.update({
-        # MLA417005: BRAND, MODEL, IS_INFLATABLE
+        # MLA417005: BRAND, MODEL, IS_INFLATABLE — spas autónomos
         "HIDROMASAJE": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
-        # MLA4333: BRAND, MODEL
-        "BANERA":      [("BRAND","EcoFiver"),("MODEL",modelo_str)],
+        # MLA443823 (Con Hidromasajes): BRAND, MODEL, IS_INFLATABLE — bañeras con jets
+        "BANERA":      [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
         # MLA373513: IS_INFLATABLE
         "PISCINA":     [("IS_INFLATABLE","No"),("COLOR","Blanco")],
         "MINIPISCINA": [("IS_INFLATABLE","No"),("COLOR","Blanco")],
@@ -3159,10 +3161,10 @@ async def bulk_completar_atributos(
                 )
             }
             _tipo_map.update({
-                # MLA417005: BRAND, MODEL, IS_INFLATABLE
+                # MLA417005: BRAND, MODEL, IS_INFLATABLE — spas autónomos
                 "HIDROMASAJE": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
-                # MLA4333: BRAND, MODEL
-                "BANERA":      [("BRAND","EcoFiver"),("MODEL",modelo_str)],
+                # MLA443823 (Con Hidromasajes): BRAND, MODEL, IS_INFLATABLE — bañeras con jets
+                "BANERA":      [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
                 # MLA373513: IS_INFLATABLE
                 "PISCINA":     [("IS_INFLATABLE","No"),("COLOR","Blanco")],
                 "MINIPISCINA": [("IS_INFLATABLE","No"),("COLOR","Blanco")],

@@ -534,7 +534,7 @@
               <option value="COMBO">Combo piscina + módulo</option>
             </optgroup>
             <optgroup label="Prefabricados varios">
-              <option value="BANO_QUIMICO">Baño químico portátil</option>
+              <option value="BANIO_QUIMICO">Baño químico portátil</option>
               <option value="GARITA_SEGURIDAD">Garita de seguridad</option>
               <option value="DEPOSITO_JARDIN">Depósito de jardín</option>
             </optgroup>
@@ -3488,7 +3488,7 @@ async function borCargarFichasDropdown(modeloActual) {
     if (tipo === 'RECEPTACULO')          addOG('🚿 Receptáculos',     receptaculos);
     if (tipo === 'REPOSERA_FIBRA')       addOG('🛋 Reposeras PRFV',  reposeras);
     if (['CUCHA','CUCHA_PERRO'].includes(tipo)) addOG('🐾 Cuchas',   cuchas);
-    if (tipo === 'BANO_QUIMICO')         addOG('🚻 Baños Químicos',   banio_quimico);
+    if (tipo === 'BANIO_QUIMICO')        addOG('🚻 Baños Químicos',   banio_quimico);
     if (tipo === 'GARITA_SEGURIDAD')     addOG('🏠 Garitas',          garita);
   } catch(e) { console.error('[fichas]', e); _fichasCache = null; }
 }
@@ -5056,10 +5056,10 @@ const CATEGORIAS_FIJAS_JS = {
   PERGOLA:             { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
   COMBO:               { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
   GARITA_SEGURIDAD:    { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
-  BANO_QUIMICO:        { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
-  // Hidromasajes y bañeras
-  HIDROMASAJE:         { id: 'MLA88471',  nombre: 'Jacuzzis e Hidromasajes' },
-  BANERA:              { id: 'MLA88471',  nombre: 'Jacuzzis e Hidromasajes' },
+  BANIO_QUIMICO:       { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  // Hidromasajes (MLA417005) y bañeras sin jets (MLA4333) — MLA88471 no existe en ML
+  HIDROMASAJE:         { id: 'MLA417005', nombre: 'Hidromasajes' },
+  BANERA:              { id: 'MLA4333',   nombre: 'Bañeras Sin Hidromasajes' },
   // Reposeras PRFV
   REPOSERA_FIBRA:      { id: 'MLA11044',  nombre: 'Reposeras y Camastros' },
   // Cuchas PRFV

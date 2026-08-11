@@ -946,9 +946,10 @@ CATEGORIAS_FIJAS: dict = {
     # MLA32271 = Cuchas (verificado vía domain_discovery 2026-08)
     "CUCHA":              ("MLA32271",  "Cuchas"),
     # ── Hidromasajes y bañeras ────────────────────────────────────────────────
-    # MLA88471 = Jacuzzis e Hidromasajes (verificado en producción MLA)
-    "HIDROMASAJE":        ("MLA88471",  "Jacuzzis e Hidromasajes"),
-    "BANERA":             ("MLA88471",  "Jacuzzis e Hidromasajes"),
+    # MLA417005 = Hidromasajes (verificado domain_discovery 2026-08; MLA88471 no existe)
+    # MLA4333   = Bañeras Sin Hidromasajes (para bañeras acrílico sin jets)
+    "HIDROMASAJE":        ("MLA417005", "Hidromasajes"),
+    "BANERA":             ("MLA4333",   "Bañeras Sin Hidromasajes"),
     # ── Piscinas ─────────────────────────────────────────────────────────────
     # MLA373513 = Piletas de Fibra de Vidrio (verificado en producción MLA)
     "PISCINA":            ("MLA373513", "Piletas de Fibra de Vidrio"),
@@ -1324,10 +1325,13 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     _brand_model = [("BRAND", "EcoFiver"), ("MODEL", _modelo_str)]
     _ATTRS_DEFAULT_TIPO = {
         # ── Spas / piletas ────────────────────────────────────────────────────
-        "HIDROMASAJE":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        # MLA417005 (Hidromasajes): BRAND, MODEL, IS_INFLATABLE requeridos
+        "HIDROMASAJE":        [("BRAND", "EcoFiver"), ("MODEL", _modelo_str), ("IS_INFLATABLE", "No")],
+        # MLA373513 (Piletas Fibra): IS_INFLATABLE requerido
         "PISCINA":            [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "MINIPISCINA":        [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
-        "BANERA":             [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
+        # MLA4333 (Bañeras Sin Hidromasajes): BRAND, MODEL requeridos
+        "BANERA":             [("BRAND", "EcoFiver"), ("MODEL", _modelo_str)],
         # ── Receptáculo de ducha (MLA414062) ─────────────────────────────────
         "RECEPTACULO":        [("BRAND", "EcoFiver"), ("MODEL", _modelo_str), ("COLOR", "Blanco"), ("MATERIAL", "PRFV")],
         # ── Reposeras PRFV (MLA11044) ─────────────────────────────────────────
@@ -1353,6 +1357,7 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "MODULO_DEPOSITO":    _modulo_attrs,
         "GARITA_SEGURIDAD":   _modulo_attrs,
         "BANO_QUIMICO":       _modulo_attrs,
+        "BANIO_QUIMICO":      _modulo_attrs,  # alias frontend
     }
     # Refrescar set con lo que ya se inyectó arriba
     existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
@@ -3014,16 +3019,23 @@ async def completar_atributos_ml(
         "MLA32271":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIALS","PRFV"),("BREED_SIZE",_breed)],
         "MLA414062": [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
         "MLA412691": _bm,
-        "MLA88471":  [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")],
-        "MLA373513": [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")],
+        # MLA88471 ya no existe; reemplazado por MLA417005 (Hidromasajes) y MLA4333 (Bañeras)
+        "MLA417005": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
+        "MLA4333":   [("BRAND","EcoFiver"),("MODEL",modelo_str)],
+        "MLA373513": [("IS_INFLATABLE","No"),("COLOR","Blanco")],
     }
     _defaults_tipo: dict = {
         k: _mla416 for k in ("MODULO","MODULO_HABITACIONAL","MODULO_DEPOSITO","GARITA_SEGURIDAD",
                               "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO","BANIO_QUIMICO")
     }
     _defaults_tipo.update({
-        t: [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")]
-        for t in ("HIDROMASAJE","BANERA","PISCINA","MINIPISCINA")
+        # MLA417005: BRAND, MODEL, IS_INFLATABLE
+        "HIDROMASAJE": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
+        # MLA4333: BRAND, MODEL
+        "BANERA":      [("BRAND","EcoFiver"),("MODEL",modelo_str)],
+        # MLA373513: IS_INFLATABLE
+        "PISCINA":     [("IS_INFLATABLE","No"),("COLOR","Blanco")],
+        "MINIPISCINA": [("IS_INFLATABLE","No"),("COLOR","Blanco")],
     })
     _defaults_tipo.update({
         "RECEPTACULO":     [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
@@ -3135,6 +3147,10 @@ async def bulk_completar_atributos(
                 "MLA32271":  [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIALS","PRFV"),("BREED_SIZE",_cucha_breed)],
                 "MLA414062": [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],
                 "MLA412691": _brand_model_b,
+                # MLA88471 ya no existe; reemplazado 2026-08
+                "MLA417005": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
+                "MLA4333":   [("BRAND","EcoFiver"),("MODEL",modelo_str)],
+                "MLA373513": [("IS_INFLATABLE","No"),("COLOR","Blanco")],
             }
             _tipo_map = {
                 k: _mla416_defaults for k in (
@@ -3143,8 +3159,13 @@ async def bulk_completar_atributos(
                 )
             }
             _tipo_map.update({
-                t: [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")]
-                for t in ("HIDROMASAJE","BANERA","PISCINA","MINIPISCINA")
+                # MLA417005: BRAND, MODEL, IS_INFLATABLE
+                "HIDROMASAJE": [("BRAND","EcoFiver"),("MODEL",modelo_str),("IS_INFLATABLE","No")],
+                # MLA4333: BRAND, MODEL
+                "BANERA":      [("BRAND","EcoFiver"),("MODEL",modelo_str)],
+                # MLA373513: IS_INFLATABLE
+                "PISCINA":     [("IS_INFLATABLE","No"),("COLOR","Blanco")],
+                "MINIPISCINA": [("IS_INFLATABLE","No"),("COLOR","Blanco")],
             })
             _tipo_map.update({
                 "RECEPTACULO":    [("BRAND","EcoFiver"),("MODEL",modelo_str),("COLOR","Blanco"),("MATERIAL","PRFV")],

@@ -1373,12 +1373,14 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                 if _cl_attrs:
                     payload_cl["attributes"] = _cl_attrs
 
-                # Probar listing types en orden.
+                # Probar listing types en orden — IMPORTANTE: usar tipos de classified,
+                # NO tipos de marketplace (gold_special, classic son marketplace → ML los rechaza).
+                # Classified types en ML AR: free (gratis) / silver / gold / platinum.
                 # listing_type_id es OBLIGATORIO para MLA413502 (cause_id 369 cuando falta).
-                # No intentamos "sin-lt" porque ML lo rechaza de inmediato.
+                _bit_now_err = r.text[:300]   # guardamos el error buy_it_now para diagnóstico
                 _first_error: str = ""
                 _last_error: str = ""
-                for lt_cl in ["free", "gold_special", "classic"]:
+                for lt_cl in ["free", "silver", "gold", "platinum"]:
                     payload_cl["listing_type_id"] = lt_cl
                     for intento in range(2):
                         # Auto-strip campos root deprecated antes de cada intento classified
@@ -1418,6 +1420,8 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                         _err_msg = f"Classified listing falló. {_first_error}"
                         if _last_error and _last_error != _first_error:
                             _err_msg += f" | Último: {_last_error}"
+                        if _bit_now_err:
+                            _err_msg += f" | buy_it_now fue: {_bit_now_err[:120]}"
                         return {"ok": False, "error": _err_msg, "error_tipo": "cuota_classified"}
                     rt = r.text.upper()
                     if "NOT AVAILABLE FOR CATEGORY" in rt or ("NOT AVAILABLE" in rt and "LISTING" in rt):
@@ -2091,6 +2095,74 @@ async def location_config_reset(db: Session = Depends(get_db), x_api_key=Header(
             db.delete(row)
     db.commit()
     return {"ok": True, "msg": "Caché de location borrado — se re-buscará en el próximo publish"}
+
+
+@router.get("/api/ml/diagnostico/listing-types/{categoria_id}")
+async def diagnostico_listing_types(
+    categoria_id: str,
+    db: Session = Depends(get_db),
+    x_api_key=Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Diagnóstico: qué listing_type_id acepta una categoría de ML.
+    Consulta /sites/MLA/listing_types para todos los tipos disponibles y
+    luego prueba GET /listing_types/{id} para ver si aplican a la categoría.
+    Uso: GET /api/ml/diagnostico/listing-types/MLA413502
+    """
+    _auth(x_api_key, current_user)
+    tok = await _ml_valid_token(db)
+    resultado = {}
+
+    # 1. Todos los listing_types disponibles en MLA
+    async with httpx.AsyncClient(timeout=12) as hc:
+        r_all = await hc.get(f"{ML_BASE}/sites/MLA/listing_types", headers=_ml_headers(tok))
+        if r_all.status_code == 200:
+            resultado["todos_listing_types"] = r_all.json()
+        else:
+            resultado["todos_listing_types_error"] = f"{r_all.status_code}: {r_all.text[:200]}"
+
+    # 2. Intentar publicar un item mínimo con cada listing type (dry-run = precio 0, sin fotos)
+    # para ver cuál acepta ML para esa categoría.
+    # No publicamos realmente: el intento con precio 0 falla con error de precio, no de listing_type.
+    dry_payload_base = {
+        "title": "test diagnostico listing type",
+        "category_id": categoria_id,
+        "price": 1,
+        "currency_id": "ARS",
+        "available_quantity": 1,
+        "buying_mode": "classified",
+        "location": await _ml_classified_location(db),
+    }
+    tipos_a_probar = ["free", "silver", "gold", "platinum", "bronze",
+                      "gold_special", "classic", "highlighted"]
+    resultados_tipos = {}
+    async with httpx.AsyncClient(timeout=12) as hc:
+        for lt in tipos_a_probar:
+            dry_payload_base["listing_type_id"] = lt
+            r_dry = await hc.post(f"{ML_BASE}/items", json=dry_payload_base, headers=_ml_headers(tok))
+            if r_dry.status_code in (200, 201):
+                # Publicado por error con price=1 — cerrarlo inmediatamente
+                item_id = r_dry.json().get("id")
+                if item_id:
+                    await hc.put(f"{ML_BASE}/items/{item_id}", json={"status": "closed"}, headers=_ml_headers(tok))
+                resultados_tipos[lt] = "✅ ACEPTA (item creado y cerrado)"
+            else:
+                txt = r_dry.text[:300]
+                if "listing_type" in txt.lower() or "listing_type_id" in txt.lower():
+                    resultados_tipos[lt] = f"❌ listing_type inválido: {txt}"
+                elif "channel" in txt.lower():
+                    resultados_tipos[lt] = f"❌ channel no soportado: {txt}"
+                elif "cause_id" in txt.lower():
+                    import re as _re
+                    cause = _re.search(r'"cause_id"\s*:\s*(\d+)', txt)
+                    resultados_tipos[lt] = f"⚠️ cause_id {cause.group(1) if cause else '?'}: {txt[:150]}"
+                else:
+                    resultados_tipos[lt] = f"⚠️ {r_dry.status_code}: {txt[:150]}"
+
+    resultado["por_listing_type"] = resultados_tipos
+    resultado["categoria_consultada"] = categoria_id
+    return resultado
 
 
 @router.post("/api/ml/borradores/reparar-categorias")

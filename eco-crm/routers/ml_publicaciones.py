@@ -34,10 +34,12 @@ templates = Jinja2Templates(directory="templates")
 
 # ── Cola de publicación en segundo plano ──────────────────────────────────────
 _LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
-# Tipos que usan buying_mode="classified" (categorías ML que lo requieren, ej: MLA413502)
+# Tipos que usan buying_mode="classified" (solo MLA413502 — Cabañas y Casas Prefabricadas).
+# MODULO_DEPOSITO y GARITA_SEGURIDAD se movieron a MLA373483 (Armarios para Exterior),
+# que es buy_it_now — sin classified, sin location, publicación estándar de producto.
 _TIPOS_CLASSIFIED = {
-    "MODULO", "MODULO_HABITACIONAL", "MODULO_DEPOSITO", "VIVIENDA_MODULAR",
-    "QUINCHO", "PERGOLA", "COMBO", "GARITA_SEGURIDAD",
+    "MODULO", "MODULO_HABITACIONAL", "VIVIENDA_MODULAR",
+    "QUINCHO", "PERGOLA", "COMBO",
 }
 
 # Tipos que van por courier (Mercado Envíos) con envío gratis absorbido en el precio
@@ -918,14 +920,21 @@ _NUMERIC_ATTRS = {"CAPACITY", "VOLUME_CAPACITY", "LENGTH", "WIDTH", "HEIGHT",
 # El predictor automático usa el TÍTULO (ej. "autoportante" → automotores, "módulo" → software).
 # Estas categorías se usan siempre que el producto esté en este dict — sin consultar el predictor.
 CATEGORIAS_FIJAS: dict = {
-    # ── Módulos y construcción (classified) ───────────────────────────────────
-    "COMBO":              ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    # ── Módulos habitacionales y estructuras (classified MLA413502) ───────────
+    # MLA413502 = Cabañas y Casas Prefabricadas (classified). Tipos válidos: silver/bronze/gold.
+    # El listing_type "free" está AGOTADO para esta cuenta (cause_id 175, verificado 2026-08).
+    # Los módulos habitacionales van aquí por ser estructuras para vivir/usar como espacio.
     "MODULO":             ("MLA413502", "Cabañas y Casas Prefabricadas"),
     "MODULO_HABITACIONAL":("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "MODULO_DEPOSITO":    ("MLA413502", "Cabañas y Casas Prefabricadas"),
     "VIVIENDA_MODULAR":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    "COMBO":              ("MLA413502", "Cabañas y Casas Prefabricadas"),
     "QUINCHO":            ("MLA413502", "Cabañas y Casas Prefabricadas"),
-    "GARITA_SEGURIDAD":   ("MLA413502", "Cabañas y Casas Prefabricadas"),
+    # ── Módulos depósito y garitas (buy_it_now — más simple que classified) ───
+    # MLA373483 = Armarios para Exterior (verificado vía predictor 2026-08).
+    # El predictor sugiere esta cat para "casilla/depósito de jardín prefabricado".
+    # Es buy_it_now → sin classified, sin location, listado estándar de producto.
+    "MODULO_DEPOSITO":    ("MLA373483", "Armarios para Exterior"),
+    "GARITA_SEGURIDAD":   ("MLA373483", "Armarios para Exterior"),
     # ── Hidromasajes y bañeras ────────────────────────────────────────────────
     # MLA88471 = Jacuzzis e Hidromasajes (verificado en producción MLA)
     "HIDROMASAJE":        ("MLA88471",  "Jacuzzis e Hidromasajes"),
@@ -1373,14 +1382,16 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                 if _cl_attrs:
                     payload_cl["attributes"] = _cl_attrs
 
-                # Probar listing types en orden — IMPORTANTE: usar tipos de classified,
-                # NO tipos de marketplace (gold_special, classic son marketplace → ML los rechaza).
-                # Classified types en ML AR: free (gratis) / silver / gold / platinum.
-                # listing_type_id es OBLIGATORIO para MLA413502 (cause_id 369 cuando falta).
+                # Tipos classified válidos para MLA413502 — confirmados por diagnóstico 2026-08:
+                #   silver → FUNCIONA, requiere fotos (que los módulos sí tienen)
+                #   bronze → FUNCIONA, cobra por publicación (402 con item creado)
+                #   gold   → FUNCIONA, cobra más visibilidad (402 con item creado)
+                #   free   → AGOTADO para esta cuenta (cause_id 175)
+                #   gold_special, classic, platinum → listing_type.invalid para MLA413502
                 _bit_now_err = r.text[:300]   # guardamos el error buy_it_now para diagnóstico
                 _first_error: str = ""
                 _last_error: str = ""
-                for lt_cl in ["free", "silver", "gold", "platinum"]:
+                for lt_cl in ["silver", "bronze", "gold"]:
                     payload_cl["listing_type_id"] = lt_cl
                     for intento in range(2):
                         # Auto-strip campos root deprecated antes de cada intento classified
@@ -2169,22 +2180,28 @@ async def diagnostico_listing_types(
     tipos_a_probar = ["free", "silver", "gold", "platinum", "bronze",
                       "gold_special", "classic", "highlighted"]
     resultados_tipos = {}
-    async with httpx.AsyncClient(timeout=12) as hc:
+    async with httpx.AsyncClient(timeout=15) as hc:
         for lt in tipos_a_probar:
             dry_payload_base["listing_type_id"] = lt
             r_dry = await hc.post(f"{ML_BASE}/items", json=dry_payload_base, headers=_ml_headers(tok))
+            item_id = r_dry.json().get("id") if r_dry.text.startswith("{") else None
+            # Cerrar cualquier item que ML haya creado (200, 201, o 402 con item en body)
+            if item_id:
+                await hc.put(f"{ML_BASE}/items/{item_id}", json={"status": "closed"}, headers=_ml_headers(tok))
             if r_dry.status_code in (200, 201):
-                # Publicado por error con price=1 — cerrarlo inmediatamente
-                item_id = r_dry.json().get("id")
-                if item_id:
-                    await hc.put(f"{ML_BASE}/items/{item_id}", json={"status": "closed"}, headers=_ml_headers(tok))
-                resultados_tipos[lt] = "✅ ACEPTA (item creado y cerrado)"
+                resultados_tipos[lt] = f"✅ ACEPTA — item {item_id} creado y cerrado"
+            elif r_dry.status_code == 402:
+                resultados_tipos[lt] = f"✅ ACEPTA (pago requerido) — item {item_id} cerrado. Requiere créditos/suscripción para publicar."
             else:
                 txt = r_dry.text[:300]
                 if "listing_type" in txt.lower() or "listing_type_id" in txt.lower():
                     resultados_tipos[lt] = f"❌ listing_type inválido: {txt}"
                 elif "channel" in txt.lower():
                     resultados_tipos[lt] = f"❌ channel no soportado: {txt}"
+                elif "unavailable" in txt.lower():
+                    resultados_tipos[lt] = f"❌ no disponible para esta cuenta/categoría: {txt[:200]}"
+                elif "requiresPictures" in txt or "pictures" in txt.lower():
+                    resultados_tipos[lt] = f"⚠️ FUNCIONA pero requiere fotos: {txt[:200]}"
                 elif "cause_id" in txt.lower():
                     import re as _re
                     cause = _re.search(r'"cause_id"\s*:\s*(\d+)', txt)

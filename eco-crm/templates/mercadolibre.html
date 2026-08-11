@@ -3453,15 +3453,19 @@ async function borCargarFichasDropdown(modeloActual) {
   if (!sel) return;
   const tipo = document.getElementById('mp-producto').value;
   const TIPOS_PISCINA = ['PISCINA', 'MINIPISCINA'];
-  const TIPOS_MODULO  = ['MODULO', 'MODULO_DEPOSITO', 'COMBO', 'QUINCHO', 'PERGOLA'];
-  const TIPOS_HIDRO   = ['HIDROMASAJE', 'BANERA', 'RECEPTACULO'];
+  const TIPOS_MODULO  = ['MODULO', 'MODULO_HABITACIONAL', 'VIVIENDA_MODULAR',
+                         'MODULO_DEPOSITO', 'COMBO', 'QUINCHO', 'PERGOLA'];
   try {
     if (!_fichasCache) _fichasCache = await API.get('/api/ml/fichas');
-    const piscinas     = (_fichasCache.piscinas     || []);
-    const modulos      = (_fichasCache.modulos      || []);
-    const hidromasajes = (_fichasCache.hidromasajes || []);
-    const baneras      = (_fichasCache.baneras      || []);
-    const receptaculos = (_fichasCache.receptaculos || []);
+    const piscinas      = (_fichasCache.piscinas      || []);
+    const modulos       = (_fichasCache.modulos       || []);
+    const hidromasajes  = (_fichasCache.hidromasajes  || []);
+    const baneras       = (_fichasCache.baneras       || []);
+    const receptaculos  = (_fichasCache.receptaculos  || []);
+    const reposeras     = (_fichasCache.reposeras     || []);
+    const cuchas        = (_fichasCache.cuchas        || []);
+    const banio_quimico = (_fichasCache.banio_quimico || []);
+    const garita        = (_fichasCache.garita_seguridad || []);
     sel.innerHTML = '<option value="">— Elegir modelo para cargar ficha —</option>';
 
     const addOG = (label, lista) => {
@@ -3477,11 +3481,15 @@ async function borCargarFichasDropdown(modeloActual) {
       sel.appendChild(og);
     };
 
-    if (TIPOS_PISCINA.includes(tipo)) addOG('🏊 Piscinas',      piscinas);
-    if (TIPOS_MODULO.includes(tipo))  addOG('🏠 Módulos',       modulos);
-    if (tipo === 'HIDROMASAJE')       addOG('🛁 Hidromasajes',  hidromasajes);
-    if (tipo === 'BANERA')            addOG('🛁 Bañeras',       baneras);
-    if (tipo === 'RECEPTACULO')       addOG('🚿 Receptáculos',  receptaculos);
+    if (TIPOS_PISCINA.includes(tipo))    addOG('🏊 Piscinas',         piscinas);
+    if (TIPOS_MODULO.includes(tipo))     addOG('🏠 Módulos',          modulos);
+    if (tipo === 'HIDROMASAJE')          addOG('🛁 Hidromasajes',     hidromasajes);
+    if (tipo === 'BANERA')               addOG('🛁 Bañeras',          baneras);
+    if (tipo === 'RECEPTACULO')          addOG('🚿 Receptáculos',     receptaculos);
+    if (tipo === 'REPOSERA_FIBRA')       addOG('🛋 Reposeras PRFV',  reposeras);
+    if (['CUCHA','CUCHA_PERRO'].includes(tipo)) addOG('🐾 Cuchas',   cuchas);
+    if (tipo === 'BANIO_QUIMICO')        addOG('🚻 Baños Químicos',   banio_quimico);
+    if (tipo === 'GARITA_SEGURIDAD')     addOG('🏠 Garitas',          garita);
   } catch(e) { /* silent */ }
 }
 

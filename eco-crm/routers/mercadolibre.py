@@ -1467,16 +1467,22 @@ async def listar_fichas_ml(
         from utils.ml_fichas_content import (
             FICHAS_PISCINAS, FICHAS_MODULOS,
             FICHAS_HIDROMASAJES, FICHAS_BANERAS, FICHAS_RECEPTACULOS,
+            FICHAS_REPOSERAS, FICHAS_CUCHAS, FICHAS_BANIO_QUIMICO, FICHAS_GARITA_SEGURIDAD,
         )
     except ImportError:
-        return {"piscinas": [], "modulos": [], "hidromasajes": [], "baneras": [], "receptaculos": []}
+        return {"piscinas": [], "modulos": [], "hidromasajes": [], "baneras": [], "receptaculos": [],
+                "reposeras": [], "cuchas": [], "banio_quimico": [], "garita_seguridad": []}
 
     return {
-        "piscinas":     list(FICHAS_PISCINAS.keys()),
-        "modulos":      [f"{k}m2" for k in FICHAS_MODULOS.keys()],
-        "hidromasajes": list(FICHAS_HIDROMASAJES.keys()),
-        "baneras":      list(FICHAS_BANERAS.keys()),
-        "receptaculos": list(FICHAS_RECEPTACULOS.keys()),
+        "piscinas":         list(FICHAS_PISCINAS.keys()),
+        "modulos":          [f"{k}m2" for k in FICHAS_MODULOS.keys()],
+        "hidromasajes":     list(FICHAS_HIDROMASAJES.keys()),
+        "baneras":          list(FICHAS_BANERAS.keys()),
+        "receptaculos":     list(FICHAS_RECEPTACULOS.keys()),
+        "reposeras":        list(FICHAS_REPOSERAS.keys()),
+        "cuchas":           list(FICHAS_CUCHAS.keys()),
+        "banio_quimico":    list(FICHAS_BANIO_QUIMICO.keys()),
+        "garita_seguridad": list(FICHAS_GARITA_SEGURIDAD.keys()),
     }
 
 
@@ -1491,6 +1497,7 @@ async def get_ficha_ml(
         from utils.ml_fichas_content import (
             FICHAS_PISCINAS, FICHAS_MODULOS,
             FICHAS_HIDROMASAJES, FICHAS_BANERAS, FICHAS_RECEPTACULOS,
+            FICHAS_REPOSERAS, FICHAS_CUCHAS, FICHAS_BANIO_QUIMICO, FICHAS_GARITA_SEGURIDAD,
         )
     except ImportError:
         raise HTTPException(500, "No se pudo cargar el archivo de fichas de producto")
@@ -1522,6 +1529,16 @@ async def get_ficha_ml(
         ficha = _buscar(FICHAS_BANERAS)
     if not ficha:
         ficha = _buscar(FICHAS_RECEPTACULOS)
+
+    # Buscar en reposeras, cuchas, baños químicos, garitas
+    if not ficha:
+        ficha = _buscar(FICHAS_REPOSERAS)
+    if not ficha:
+        ficha = _buscar(FICHAS_CUCHAS)
+    if not ficha:
+        ficha = _buscar(FICHAS_BANIO_QUIMICO)
+    if not ficha:
+        ficha = _buscar(FICHAS_GARITA_SEGURIDAD)
 
     if not ficha:
         raise HTTPException(404, f"No se encontró ficha para el modelo: {modelo}")

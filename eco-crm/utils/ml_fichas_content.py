@@ -890,3 +890,335 @@ FICHAS_RECEPTACULOS: dict = {
         ),
     },
 }
+
+
+# ─── REPOSERAS DE FIBRA DE VIDRIO (PRFV) ─────────────────────────────────────
+# Se venden en JUEGO DE 2 UNIDADES. Sin mesa. Colores: Blanco / Celeste / Azul / Verde.
+# Medidas por unidad: 172 cm × 52 cm × 70 cm. Soporte: 120 kg c/u.
+FICHAS_REPOSERAS: dict = {
+
+    "Juego 2 Reposeras PRFV Blancas": {
+        "titulo_ml": "Juego 2 Reposeras Fibra Vidrio Piscina Solarium Blancas",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Blanco",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Juego de 2 reposeras de fibra de vidrio (PRFV) en color Blanco. "
+            "Ideales para bordes de piscina, solárium, jardín, terraza y playa húmeda. "
+            "No incluye mesa.\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas por unidad: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg por reposera. Sin partes móviles ni mecanismos de recline "
+            "que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor en exceso, no se reseca, no levanta temperatura "
+            "en contacto directo con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro de piscinas y los "
+            "rayos UV. No requiere pintura ni tratamiento anual. "
+            "Limpieza con agua y trapo, sin productos especiales.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+
+    "Juego 2 Reposeras PRFV Celestes": {
+        "titulo_ml": "Juego 2 Reposeras Fibra Vidrio Piscina Solarium Celestes",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Celeste",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Juego de 2 reposeras de fibra de vidrio (PRFV) en color Celeste. "
+            "Ideales para bordes de piscina, solárium, jardín, terraza y playa húmeda. "
+            "No incluye mesa.\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas por unidad: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg por reposera. Sin partes móviles ni mecanismos de recline "
+            "que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor en exceso, no se reseca, no levanta temperatura "
+            "en contacto directo con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro de piscinas y los "
+            "rayos UV. No requiere pintura ni tratamiento anual. "
+            "Limpieza con agua y trapo, sin productos especiales.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+
+    "Juego 2 Reposeras PRFV Azules": {
+        "titulo_ml": "Juego 2 Reposeras Fibra Vidrio Piscina Solarium Azules",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Azul",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Juego de 2 reposeras de fibra de vidrio (PRFV) en color Azul. "
+            "Ideales para bordes de piscina, solárium, jardín, terraza y playa húmeda. "
+            "No incluye mesa.\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas por unidad: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg por reposera. Sin partes móviles ni mecanismos de recline "
+            "que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor en exceso, no se reseca, no levanta temperatura "
+            "en contacto directo con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro de piscinas y los "
+            "rayos UV. No requiere pintura ni tratamiento anual. "
+            "Limpieza con agua y trapo, sin productos especiales.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+
+    "Juego 2 Reposeras PRFV Verdes": {
+        "titulo_ml": "Juego 2 Reposeras Fibra Vidrio Piscina Solarium Verdes",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Verde",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Juego de 2 reposeras de fibra de vidrio (PRFV) en color Verde. "
+            "Ideales para bordes de piscina, solárium, jardín, terraza y playa húmeda. "
+            "No incluye mesa.\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas por unidad: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg por reposera. Sin partes móviles ni mecanismos de recline "
+            "que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor en exceso, no se reseca, no levanta temperatura "
+            "en contacto directo con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro de piscinas y los "
+            "rayos UV. No requiere pintura ni tratamiento anual. "
+            "Limpieza con agua y trapo, sin productos especiales.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+
+    # ── UNIDADES INDIVIDUALES ──────────────────────────────────────────────────
+    "Reposera PRFV Blanca": {
+        "titulo_ml": "Reposera Fibra Vidrio Piscina Solarium Individual Blanca",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Blanco",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Reposera individual de fibra de vidrio (PRFV) en color Blanco. "
+            "Ideal para borde de piscina, solárium, jardín, terraza y playa húmeda. "
+            "Se puede adquirir también en juego de 2 (consultar).\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg. Sin partes móviles que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor, no se reseca, no levanta temperatura "
+            "en contacto con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro y los rayos UV. "
+            "No requiere pintura ni mantenimiento anual. Limpieza con agua y trapo.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+
+    "Reposera PRFV Celeste": {
+        "titulo_ml": "Reposera Fibra Vidrio Piscina Solarium Individual Celeste",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Celeste",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Reposera individual de fibra de vidrio (PRFV) en color Celeste. "
+            "Ideal para borde de piscina, solárium, jardín, terraza y playa húmeda. "
+            "Se puede adquirir también en juego de 2 (consultar).\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg. Sin partes móviles que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor, no se reseca, no levanta temperatura "
+            "en contacto con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro y los rayos UV. "
+            "No requiere pintura ni mantenimiento anual. Limpieza con agua y trapo.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+
+    "Reposera PRFV Azul": {
+        "titulo_ml": "Reposera Fibra Vidrio Piscina Solarium Individual Azul",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Azul",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Reposera individual de fibra de vidrio (PRFV) en color Azul. "
+            "Ideal para borde de piscina, solárium, jardín, terraza y playa húmeda. "
+            "Se puede adquirir también en juego de 2 (consultar).\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg. Sin partes móviles que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor, no se reseca, no levanta temperatura "
+            "en contacto con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro y los rayos UV. "
+            "No requiere pintura ni mantenimiento anual. Limpieza con agua y trapo.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+
+    "Reposera PRFV Verde": {
+        "titulo_ml": "Reposera Fibra Vidrio Piscina Solarium Individual Verde",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio", "COLOR": "Verde",
+                         "LENGTH": "172", "WIDTH": "52", "HEIGHT": "70"},
+        "descripcion_ml": (
+            "Reposera individual de fibra de vidrio (PRFV) en color Verde. "
+            "Ideal para borde de piscina, solárium, jardín, terraza y playa húmeda. "
+            "Se puede adquirir también en juego de 2 (consultar).\n\n"
+            "Estructura y asiento de fibra de vidrio PRFV de alta resistencia en una sola pieza: "
+            "sin soldaduras, sin tornillos que se oxiden y sin plásticos que se quiebren con el sol. "
+            "Diseño anatómico que se adapta a la postura natural del cuerpo en descanso.\n\n"
+            "Medidas: 172 cm de largo × 52 cm de ancho × 70 cm de alto. "
+            "Soporte hasta 120 kg. Sin partes móviles que se traben con el tiempo.\n\n"
+            "La fibra de vidrio no absorbe calor, no se reseca, no levanta temperatura "
+            "en contacto con el sol y no se pega a la piel húmeda. "
+            "Apta para intemperie: resistente al agua, la humedad, el cloro y los rayos UV. "
+            "No requiere pintura ni mantenimiento anual. Limpieza con agua y trapo.\n\n"
+            "Más de 15 años de duración estimada. Fabricada en Zárate, Buenos Aires. "
+            "Entrega coordinada en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Consultar envío a domicilio. Pago contado o tarjeta."
+        ),
+    },
+}
+
+
+# ─── CUCHAS DE FIBRA DE VIDRIO ────────────────────────────────────────────────
+FICHAS_CUCHAS: dict = {
+
+    "Cucha Chica": {
+        "titulo_ml": "Cucha casilla perro fibra de vidrio raza pequeña impermeable",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio"},
+        "descripcion_ml": (
+            "Cucha de fibra de vidrio EcoFiver para razas pequeñas (hasta 10 kg). "
+            "Fabricada en fibra de vidrio de una sola pieza, impermeable, sin uniones ni "
+            "tornillos que se oxiden. No absorbe humedad, no cría hongos, no se pudre.\n\n"
+            "La fibra de vidrio regula mejor la temperatura que el plástico: más fresca en "
+            "verano y más abrigada en invierno. La superficie es lisa y fácil de limpiar, "
+            "ideal para entornos exteriores expuestos a lluvia, sol y humedad.\n\n"
+            "No requiere mantenimiento: no se pinta, no se astilla, no se raja con el frío "
+            "ni se deforma con el calor. A diferencia de las cuchas de madera, no necesita "
+            "impermeabilización ni tratamiento anual.\n\n"
+            "Fabricada en Zárate, Buenos Aires. Retiro en San Telmo (CABA), Paso del Rey "
+            "y Zárate. Envío por Mercado Envíos. Pago contado o tarjeta."
+        ),
+    },
+
+    "Cucha Mediana": {
+        "titulo_ml": "Cucha casilla perro fibra de vidrio raza mediana impermeable",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio"},
+        "descripcion_ml": (
+            "Cucha de fibra de vidrio EcoFiver para razas medianas (hasta 25 kg). "
+            "Estructura de una sola pieza en fibra de vidrio, 100% impermeable. "
+            "Sin maderas que se pudran, sin metales que se oxiden, sin plásticos que se quiebren.\n\n"
+            "La cucha mediana EcoFiver es la opción más elegida para razas como Labrador, "
+            "Golden, Beagle, Boxer y similares. El techo es redondeado para evitar la "
+            "acumulación de agua de lluvia. La abertura frontal permite el ingreso cómodo "
+            "del animal sin obstrucciones.\n\n"
+            "Limpieza fácil: se lava con manguera y jabón. Sin bacterias ni ácaros que se "
+            "alojen en grietas. Superficie lisa no porosa. Resiste el sol, la lluvia y el frío "
+            "sin cambios estructurales.\n\n"
+            "Fabricada en Zárate, Buenos Aires. Envío por Mercado Envíos a todo el país. "
+            "Retiro sin cargo en San Telmo (CABA), Paso del Rey y Zárate. Pago contado o tarjeta."
+        ),
+    },
+
+    "Cucha Grande": {
+        "titulo_ml": "Cucha casilla perro fibra de vidrio raza grande impermeable",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio"},
+        "descripcion_ml": (
+            "Cucha de fibra de vidrio EcoFiver para razas grandes (hasta 45 kg). "
+            "Ideal para Rottweiler, Ovejero, Dogo Argentino, Mastín y razas similares. "
+            "Fabricada en fibra de vidrio de alta resistencia, en una sola pieza sin uniones.\n\n"
+            "Diseño amplio con techo de caída de agua, abertura frontal grande y piso elevado "
+            "del suelo para mejorar la ventilación y evitar la humedad por condensación. "
+            "El material es impermeable, no absorbe olores y se lava con facilidad.\n\n"
+            "A diferencia de las cuchas de madera, no se pudre, no se astilla y no requiere "
+            "pintura. La fibra de vidrio soporta el uso intensivo, los mordiscos y el peso "
+            "de perros activos sin deformarse.\n\n"
+            "Fabricada en Zárate, Buenos Aires. Envío por Mercado Envíos. "
+            "Retiro en CABA (San Telmo), Zona Oeste (Paso del Rey) y Zárate. "
+            "Pago contado o tarjeta de crédito."
+        ),
+    },
+
+    "Cucha Gigante": {
+        "titulo_ml": "Cucha casilla perro fibra de vidrio raza gigante impermeable",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio"},
+        "descripcion_ml": (
+            "Cucha de fibra de vidrio EcoFiver tamaño gigante, para razas de más de 45 kg "
+            "(San Bernardo, Gran Danés, Fila Brasileño y similares). Fabricada en fibra de "
+            "vidrio de alta resistencia, estructura de una sola pieza sin uniones ni costuras.\n\n"
+            "Dimensiones generosas para que el perro pueda entrar, darse vuelta y descansar "
+            "cómodamente. Piso elevado del suelo para ventilación. Techo con pendiente para "
+            "escurrimiento de lluvia. Abertura frontal amplia sin obstáculos.\n\n"
+            "La fibra de vidrio no se pudre, no se oxida, no cría hongos y no absorbe humedad. "
+            "Soporta el peso y la fuerza de razas gigantes sin deformarse. Limpieza con "
+            "manguera y jabón. Sin mantenimiento anual.\n\n"
+            "Fabricada en Zárate, Buenos Aires. Envío por Mercado Envíos (consultar tarifa por peso). "
+            "Retiro sin cargo en CABA (San Telmo), Paso del Rey y Zárate. Pago contado o tarjeta."
+        ),
+    },
+}
+
+
+# ─── BAÑOS QUÍMICOS ───────────────────────────────────────────────────────────
+FICHAS_BANIO_QUIMICO: dict = {
+
+    "Baño Químico Estándar": {
+        "titulo_ml": "Baño químico portátil prefabricado para obra eventos EcoFiver",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio"},
+        "descripcion_ml": (
+            "Baño químico portátil EcoFiver fabricado en fibra de vidrio de alta resistencia. "
+            "Diseñado para uso en obras de construcción, eventos al aire libre, festivales, "
+            "camping, actos institucionales y cualquier situación que requiera un baño portátil "
+            "autónomo.\n\n"
+            "La estructura es de fibra de vidrio en una sola pieza: impermeable, sin uniones, "
+            "fácil de lavar y desinfectar. El tanque de almacenamiento interno tiene capacidad "
+            "para múltiples usos sin necesidad de vaciado inmediato. "
+            "Incluye ventilación natural, techo traslúcido para iluminación diurna y "
+            "porta papel integrado.\n\n"
+            "La fibra de vidrio no absorbe olores, resiste los productos químicos de desinfección "
+            "y aguanta la intemperie sin deteriorarse. Mucho más higiénico que las cabinas "
+            "de plástico convencional.\n\n"
+            "Fabricado en Zárate, Buenos Aires. Entrega coordinada con equipo propio. "
+            "Disponible para venta y alquiler (consultar). Pago contado o tarjeta."
+        ),
+    },
+}
+
+
+# ─── GARITAS DE SEGURIDAD ─────────────────────────────────────────────────────
+FICHAS_GARITA_SEGURIDAD: dict = {
+
+    "Garita Estándar": {
+        "titulo_ml": "Garita seguridad prefabricada fibra de vidrio caseta vigilancia",
+        "atributos_ml": {"BRAND": "EcoFiver", "MATERIAL": "Fibra de vidrio"},
+        "descripcion_ml": (
+            "Garita de seguridad prefabricada EcoFiver en fibra de vidrio. "
+            "Diseñada para puestos de control de acceso, vigilancia, portería y resguardo "
+            "de personal en playas de estacionamiento, empresas, countries y establecimientos "
+            "industriales.\n\n"
+            "Fabricada en fibra de vidrio celular de alta resistencia: más liviana que el "
+            "hormigón, mejor aislante térmico que el acero y sin el mantenimiento de la madera. "
+            "La estructura es autoportante, de una sola pieza, sin juntas que se abran ni "
+            "paredes que se humedezcan.\n\n"
+            "Incluye ventana de atención con vidrio, puerta de acceso con cerradura y "
+            "ventilación. El interior puede equiparse con electricidad (consultar). "
+            "Aislación térmica natural del material que mantiene la temperatura interior "
+            "más estable que las garitas metálicas.\n\n"
+            "Armado e instalación a cargo del equipo técnico EcoFiver en el día de entrega. "
+            "Fabricada en Zárate, Buenos Aires. Entrega coordinada en zona de cobertura. "
+            "Pago contado o tarjeta."
+        ),
+    },
+}

@@ -1283,20 +1283,20 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "RECEPTACULO":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "REPOSERA_FIBRA": [("COLOR", "Blanco")],
         # MLA373483 (Armarios para Exterior) — atributos obligatorios de la categoría.
-        # MODEL y WEIGHT son required; INCLUDES_INSTALLATION_KIT = Sí (EcoFiver instala);
-        # IS_SUITABLE_FOR_SHIPMENT = No (items de gran porte, no aptos para paquetería).
-        # WEIGHT en gramos: garita ~100 kg, depósito ~300 kg.
+        # WEIGHT: formato "N kg" (ML exige unidad explícita). IS_SUITABLE_FOR_SHIPMENT
+        # no se envía (cause_id=303: es read-only, ML lo gestiona internamente).
+        # BRAND obligatorio (cause_id=3704): usar "EcoFiver".
         "GARITA_SEGURIDAD": [
             ("MODEL",                    "Estándar"),
-            ("WEIGHT",                   "100000"),
+            ("WEIGHT",                   "100 kg"),
             ("INCLUDES_INSTALLATION_KIT","Sí"),
-            ("IS_SUITABLE_FOR_SHIPMENT", "No"),
+            ("BRAND",                    "EcoFiver"),
         ],
         "MODULO_DEPOSITO": [
             ("MODEL",                    "Estándar"),
-            ("WEIGHT",                   "300000"),
+            ("WEIGHT",                   "300 kg"),
             ("INCLUDES_INSTALLATION_KIT","Sí"),
-            ("IS_SUITABLE_FOR_SHIPMENT", "No"),
+            ("BRAND",                    "EcoFiver"),
         ],
     }
     # Refrescar set con lo que ya se inyectó arriba
@@ -2226,9 +2226,10 @@ async def diagnostico_envio(
         "condition": "new",
         "attributes": [
             {"id": "MODEL",                    "value_name": "Estándar"},
-            {"id": "WEIGHT",                   "value_name": "100000"},
+            {"id": "WEIGHT",                   "value_name": "100 kg"},
             {"id": "INCLUDES_INSTALLATION_KIT","value_name": "Sí"},
-            {"id": "IS_SUITABLE_FOR_SHIPMENT", "value_name": "No"},
+            {"id": "BRAND",                    "value_name": "EcoFiver"},
+            # IS_SUITABLE_FOR_SHIPMENT omitido: cause_id=303 (no es modificable, ML lo gestiona)
         ],
     }
     modos_envio = {

@@ -1282,6 +1282,22 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
         "BANERA":         [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "RECEPTACULO":    [("IS_INFLATABLE", "No"), ("COLOR", "Blanco")],
         "REPOSERA_FIBRA": [("COLOR", "Blanco")],
+        # MLA373483 (Armarios para Exterior) — atributos obligatorios de la categoría.
+        # MODEL y WEIGHT son required; INCLUDES_INSTALLATION_KIT = Sí (EcoFiver instala);
+        # IS_SUITABLE_FOR_SHIPMENT = No (items de gran porte, no aptos para paquetería).
+        # WEIGHT en gramos: garita ~100 kg, depósito ~300 kg.
+        "GARITA_SEGURIDAD": [
+            ("MODEL",                    "Estándar"),
+            ("WEIGHT",                   "100000"),
+            ("INCLUDES_INSTALLATION_KIT","Sí"),
+            ("IS_SUITABLE_FOR_SHIPMENT", "No"),
+        ],
+        "MODULO_DEPOSITO": [
+            ("MODEL",                    "Estándar"),
+            ("WEIGHT",                   "300000"),
+            ("INCLUDES_INSTALLATION_KIT","Sí"),
+            ("IS_SUITABLE_FOR_SHIPMENT", "No"),
+        ],
     }
     # Refrescar set con lo que ya se inyectó arriba
     existing_ids = {(a.get("id") or "").upper() for a in clean_attrs}
@@ -2197,6 +2213,8 @@ async def diagnostico_envio(
             resultado["atributos_error"] = f"{r_attr.status_code}: {r_attr.text[:200]}"
 
     # 3. Dry-runs con distintas configuraciones de envío
+    # Incluir los atributos requeridos por la categoría (MODEL, WEIGHT, INCLUDES_INSTALLATION_KIT)
+    # para que el único error restante sea — si lo hay — el de shipping.
     base_payload = {
         "title": "test diagnostico envio armario exterior prefabricado",
         "category_id": categoria_id,
@@ -2206,6 +2224,12 @@ async def diagnostico_envio(
         "buying_mode": "buy_it_now",
         "listing_type_id": "bronze",
         "condition": "new",
+        "attributes": [
+            {"id": "MODEL",                    "value_name": "Estándar"},
+            {"id": "WEIGHT",                   "value_name": "100000"},
+            {"id": "INCLUDES_INSTALLATION_KIT","value_name": "Sí"},
+            {"id": "IS_SUITABLE_FOR_SHIPMENT", "value_name": "No"},
+        ],
     }
     modos_envio = {
         "sin_configurar": {},

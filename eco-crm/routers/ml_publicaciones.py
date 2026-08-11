@@ -1357,14 +1357,14 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                     "category_id": payload["category_id"],
                     "price": payload["price"],
                     "currency_id": "ARS",
-                    "available_quantity": b.cantidad or 1,
+                    # IMPORTANTE: classified listings NO llevan condition ni available_quantity
+                    # (son campos de marketplace). Enviarlos dispara cause_id 132
+                    # "Category X and channel not supported" en MLA413502 y similares.
                     "buying_mode": "classified",
-                    "condition": b.condicion or "new",
                     "listing_type_id": "free",
                     "location": location,
                     "pictures": payload.get("pictures", []),
-                    "shipping": {"local_pick_up": True},
-                    # "warranty" eliminado — campo root deprecated en ML (2026-08)
+                    # "warranty", "shipping" también omitidos — no aplican a classified
                 }
                 # Para classified: solo incluir attrs explícitamente válidos para la categoría.
                 # Si _valid_attr_ids es None (API falló) → NO enviar attrs: una categoría
@@ -2097,6 +2097,42 @@ async def location_config_reset(db: Session = Depends(get_db), x_api_key=Header(
     return {"ok": True, "msg": "Caché de location borrado — se re-buscará en el próximo publish"}
 
 
+@router.get("/api/ml/diagnostico/categorias-alternativas")
+async def diagnostico_categorias_alternativas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Busca categorías de ML alternativas a MLA413502 (classified) para módulos,
+    depósitos, casillas, obradores y garitas — categorías marketplace (buy_it_now).
+    Devuelve las predicciones de ML para distintos títulos representativos.
+    """
+    from routers.mercadolibre import _ml_predecir_categoria
+    titulos = [
+        "Casilla prefabricada para depósito de jardin",
+        "Obrador prefabricado modular obra construcción",
+        "Casilla de chapa para obra",
+        "Depósito prefabricado fibra de vidrio jardín",
+        "Garita prefabricada seguridad caseta vigilancia",
+        "Quincho prefabricado madera jardin",
+        "Módulo deposito prefabricado paneles chapa",
+        "Estructura modular prefabricada vivienda",
+    ]
+    tok = await _ml_valid_token(db)
+    resultados = []
+    for titulo in titulos:
+        try:
+            preds = await _ml_predecir_categoria(titulo, token=tok, limit=2)
+            resultados.append({
+                "titulo_buscado": titulo,
+                "predicciones": [{"categoria_id": p["category_id"], "categoria_nombre": p["category_name"]} for p in preds],
+            })
+        except Exception as e:
+            resultados.append({"titulo_buscado": titulo, "error": str(e)[:100]})
+        await asyncio.sleep(0.3)
+    return {"categorias_alternativas": resultados}
+
+
 @router.get("/api/ml/diagnostico/listing-types/{categoria_id}")
 async def diagnostico_listing_types(
     categoria_id: str,
@@ -2123,11 +2159,10 @@ async def diagnostico_listing_types(
     # para ver cuál acepta ML para esa categoría.
     # No publicamos realmente: el intento con precio 0 falla con error de precio, no de listing_type.
     dry_payload_base = {
-        "title": "test diagnostico listing type",
+        "title": "test diagnostico listing type prefabricado",
         "category_id": categoria_id,
-        "price": 1,
+        "price": 500000,   # precio realista para evitar cause_id 109 (precio mínimo)
         "currency_id": "ARS",
-        "available_quantity": 1,
         "buying_mode": "classified",
         "location": await _ml_classified_location(db),
     }

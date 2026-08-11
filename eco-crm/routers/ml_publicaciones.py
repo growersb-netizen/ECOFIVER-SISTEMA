@@ -2144,6 +2144,111 @@ async def diagnostico_categorias_alternativas(
     return {"categorias_alternativas": resultados}
 
 
+@router.get("/api/ml/diagnostico/envio/{categoria_id}")
+async def diagnostico_envio(
+    categoria_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Diagnóstico de requisitos de envío para una categoría buy_it_now.
+    1. Consulta atributos de la categoría (qué campos son required/obligatorios).
+    2. Filtra atributos relacionados a envío/shipping.
+    3. Hace dry-runs con distintas configuraciones de envío para ver cuál acepta ML.
+    Uso: GET /api/ml/diagnostico/envio/MLA373483
+    """
+    tok = await _ml_valid_token(db)
+    resultado: dict = {"categoria_id": categoria_id}
+
+    async with httpx.AsyncClient(timeout=15) as hc:
+        # 1. Datos de la categoría
+        r_cat = await hc.get(f"{ML_BASE}/categories/{categoria_id}", headers=_ml_headers(tok))
+        if r_cat.status_code == 200:
+            cat = r_cat.json()
+            resultado["categoria_nombre"] = cat.get("name")
+            resultado["path"] = " > ".join(p.get("name", "") for p in cat.get("path_from_root", []))
+        else:
+            resultado["categoria_error"] = f"{r_cat.status_code}: {r_cat.text[:200]}"
+
+        # 2. Atributos de la categoría — buscar los relacionados a envío
+        r_attr = await hc.get(f"{ML_BASE}/categories/{categoria_id}/attributes", headers=_ml_headers(tok))
+        if r_attr.status_code == 200:
+            attrs = r_attr.json()
+            shipping_keywords = {"envio", "envío", "ship", "flete", "logistic", "retiro", "pickup", "delivery"}
+            shipping_attrs = [
+                {
+                    "id": a.get("id"),
+                    "nombre": a.get("name"),
+                    "obligatorio": a.get("tags", {}).get("required", False),
+                    "valores": [v.get("name") for v in (a.get("values") or [])[:6]],
+                }
+                for a in attrs
+                if any(kw in (a.get("id", "") + a.get("name", "")).lower() for kw in shipping_keywords)
+            ]
+            required_attrs = [
+                {"id": a.get("id"), "nombre": a.get("name")}
+                for a in attrs
+                if a.get("tags", {}).get("required", False)
+            ]
+            resultado["atributos_envio"] = shipping_attrs
+            resultado["atributos_requeridos"] = required_attrs
+            resultado["total_atributos"] = len(attrs)
+        else:
+            resultado["atributos_error"] = f"{r_attr.status_code}: {r_attr.text[:200]}"
+
+    # 3. Dry-runs con distintas configuraciones de envío
+    base_payload = {
+        "title": "test diagnostico envio armario exterior prefabricado",
+        "category_id": categoria_id,
+        "price": 500000,
+        "currency_id": "ARS",
+        "available_quantity": 1,
+        "buying_mode": "buy_it_now",
+        "listing_type_id": "bronze",
+        "condition": "new",
+    }
+    modos_envio = {
+        "sin_configurar": {},
+        "not_specified": {"shipping": {"mode": "not_specified", "local_pick_up": True, "free_shipping": False}},
+        "custom_retiro": {"shipping": {"mode": "custom", "local_pick_up": True, "free_shipping": False, "methods": []}},
+        "me2_sin_free": {"shipping": {"mode": "me2", "free_shipping": False}},
+        "me2_con_free":  {"shipping": {"mode": "me2", "free_shipping": True}},
+    }
+    resultados_envio: dict = {}
+    async with httpx.AsyncClient(timeout=20) as hc:
+        for nombre_modo, shipping_extra in modos_envio.items():
+            payload = {**base_payload, **shipping_extra}
+            r = await hc.post(f"{ML_BASE}/items", json=payload, headers=_ml_headers(tok))
+            item_id = None
+            try:
+                body = r.json()
+                item_id = body.get("id")
+            except Exception:
+                body = {}
+            if item_id:
+                # Cerrar inmediatamente cualquier item que se haya creado
+                await hc.put(f"{ML_BASE}/items/{item_id}", json={"status": "closed"}, headers=_ml_headers(tok))
+            if r.status_code in (200, 201):
+                resultados_envio[nombre_modo] = f"✅ ACEPTA — item {item_id} creado y cerrado"
+            elif r.status_code == 402:
+                resultados_envio[nombre_modo] = f"✅ ACEPTA (pago requerido 402) — item {item_id} cerrado"
+            else:
+                causas = body.get("cause", []) or []
+                causa_str = "; ".join(
+                    f"cause_id={c.get('cause_id')} {c.get('message','')}" for c in causas[:3]
+                ) if causas else r.text[:250]
+                resultados_envio[nombre_modo] = f"❌ {r.status_code}: {causa_str}"
+
+    resultado["dry_run_modos_envio"] = resultados_envio
+    resultado["nota"] = (
+        "not_specified = ML no calcula el envío, el vendedor coordina. "
+        "custom = modo personalizado con retiro en persona. "
+        "me2 = MercadoEnvíos (paquetería). "
+        "El modo que responda ✅ es el correcto para esta categoría."
+    )
+    return resultado
+
+
 @router.get("/api/ml/diagnostico/listing-types/{categoria_id}")
 async def diagnostico_listing_types(
     categoria_id: str,

@@ -3014,7 +3014,7 @@ function borRenderLista(borradores) {
         ${(b.estado !== 'publicada' && b.estado !== 'pausada') ? `<button class="btn btn-sm" onclick="borVariantes(${b.id})" title="Generar variantes con IA">🤖 Variantes</button>` : ''}
         <button class="btn btn-sm" onclick="borDuplicar(${b.id})" title="Duplicar publicación">📋 Duplicar</button>
         ${verML}
-        ${(b.estado !== 'publicada' && b.estado !== 'pausada') ? `<button class="btn btn-sm" style="color:#f87171" onclick="borBorrar(${b.id})">Borrar</button>` : ''}
+        <button class="btn btn-sm" style="color:#f87171" onclick="borBorrar(${b.id},'${b.estado}','${b.item_id||''}')">🗑️ Borrar</button>
       </div></div>`;
   }).join('');
   borActLote();
@@ -3929,12 +3929,25 @@ async function borCalcGanancia() {
     }
   } catch (e) { g.textContent = ''; if (panel) panel.style.display = 'none'; }
 }
-async function borBorrar(id) {
-  const ok = await showConfirm('¿Borrar esta publicación?', 'Borrar borrador');
+async function borBorrar(id, estado, itemId) {
+  const estaPublicada = itemId && (estado === 'publicada' || estado === 'pausada');
+  const msg = estaPublicada
+    ? `⚠️ Esta publicación está ${estado} en MercadoLibre (${itemId}).\n\nSe va a CERRAR en ML y eliminar del CRM. ¿Confirmás?`
+    : '¿Eliminar este borrador del CRM? Esta acción no se puede deshacer.';
+  const ok = await showConfirm(msg, '🗑️ Eliminar borrador');
   if (!ok) return;
-  await API.delete('/api/ml/borradores/' + id);
-  BOR_SEL.delete(id);
-  borCargar();
+  try {
+    const r = await API.delete('/api/ml/borradores/' + id);
+    BOR_SEL.delete(id);
+    if (estaPublicada && r && !r.ml_cerrada) {
+      showToast('⚠️ Borrador eliminado del CRM pero no se pudo cerrar en ML — revisá manualmente en tu cuenta de MercadoLibre.', 'info');
+    } else {
+      showToast(estaPublicada ? '✓ Publicación cerrada en ML y eliminada del CRM' : '✓ Borrador eliminado', 'success');
+    }
+    borCargar();
+  } catch(e) {
+    showToast('Error al eliminar: ' + (e.message || 'sin detalle'), 'error');
+  }
 }
 async function borCompetencia(id) {
   showToast('Buscando en ML…', 'info');

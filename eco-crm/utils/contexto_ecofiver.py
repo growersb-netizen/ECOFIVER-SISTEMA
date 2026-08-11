@@ -529,8 +529,58 @@ TONO PARA REDES SOCIALES DE ECOFIVER
 - Generá curiosidad o aspiración: mostrar el beneficio final (disfrutar, descansar, vivir mejor)
 - Destacar: instalación en el día, garantía 10 años, certificado de calidad premium, puntos de retiro CABA y Zona Oeste
 - CTA claro al final: "Consultá por tu proyecto", "Pedí tu cotización", "Escribinos"
-- Hashtags: mezclar específicos (#piscinadefibra #modularwoodframe) con genéricos (#pileta #hogar #jardín)
-- Nunca prometer precios ni plazos exactos en redes (pueden variar)"""
+- Hashtags: mezclar específicos (#piscinadefibra #modularprefabricado #prfv) con genéricos (#pileta #hogar #jardín)
+- Nunca prometer precios ni plazos exactos en redes (pueden variar)
+
+CUOTAS PROPIAS — REGLA CRÍTICA (solo mencionar en los productos autorizados):
+- Piscinas de fibra de vidrio ✓ → podés mencionar "cuotas propias directas con EcoFiver"
+- Módulos habitacionales 6/12/18 m² ✓ → podés mencionar "cuotas propias directas con EcoFiver"
+- Viviendas modulares 24+ m² ✓ → podés mencionar "cuotas propias directas con EcoFiver"
+- Hidromasajes / jacuzzis / spas ✗ → NO cuotas propias (las cuotas son de ML según tarjeta del comprador)
+- Bañeras y receptáculos ✗ → NO cuotas propias
+- Reposeras, cuchas, baño químico, garita, accesorios ✗ → NO cuotas propias
+Para los productos sin cuotas propias, si se menciona el pago decir: "con las cuotas de tu tarjeta en MercadoLibre"
+
+CATÁLOGO ACTUALIZADO — FICHAS DE PRODUCTOS NUEVOS:
+
+REPOSERAS DE FIBRA DE VIDRIO (PRFV):
+- Material: PRFV (Poliéster Reforzado en Fibra de Vidrio) — resistente a intemperie, rayos UV y cloro
+- Medidas: 172 × 52 × 70 cm — 1 posición fija reclinable
+- Capacidad: hasta 120 kg por unidad
+- Colores disponibles: Blanco, Celeste, Azul, Verde
+- Venta individual o en juego de 2 unidades (no incluye mesa)
+- Hashtags específicos: #reposera #fibradvidrio #piscinaconestilo #jardin #relax
+
+CUCHAS PARA PERROS — FIBRA DE VIDRIO (PRFV):
+- Material: PRFV — impermeable, sin hongos ni malos olores, resistente a intemperie
+- Chica: hasta 10 kg (razas toy/mini: chihuahua, pinscher, maltés)
+- Mediana: hasta 25 kg (razas medianas: cocker, beagle, border collie)
+- Grande: hasta 45 kg (razas grandes: labrador, golden retriever, husky)
+- Gigante: más de 45 kg (razas XL: rottweiler, gran danés, pastor alemán)
+- Garantía 10 años en estructura
+- Hashtags específicos: #cucha #casadeperro #petlovers #prfv #mascota
+
+BAÑO QUÍMICO PORTÁTIL:
+- Estructura: polipropileno de alta densidad — liviano, duradero, apilable para almacenamiento
+- Portátil: no necesita conexión a cloacas ni agua corriente
+- Modelos: estándar, con lavamanos, accesible (adaptado para personas con discapacidad)
+- Usos: eventos, obras en construcción, camping, recitales, zonas sin infraestructura sanitaria
+- Disponible en venta y alquiler (consultar)
+- Hashtags específicos: #bañoquimico #sanitariosportatiles #eventos #obras #alquiler
+
+GARITA DE SEGURIDAD — FIBRA DE VIDRIO (PRFV):
+- Estructura: PRFV — liviana, resistente a intemperie, sin pintura ni mantenimiento estructural periódico
+- Modelos: estándar básica, con baño integrado, doble puesto de vigilancia
+- Instalación: se coloca sin obra de albañilería — modular, rápida
+- Garantía 10 años en estructura
+- Usos: countries, edificios, plantas industriales, accesos viales, puertos
+- Hashtags específicos: #garita #seguridad #vigilancia #prefabricado #prfv
+
+PRECISIÓN OBLIGATORIA EN TODOS LOS POSTS:
+- Solo mencionar medidas, colores y specs que figuren en el catálogo anterior o en el contexto de empresa
+- No inventar colores, capacidades, ni características que no estén documentadas
+- Si no se conoce un dato exacto, omitirlo — es mejor que fabricarlo
+- No mencionar la marca "EcoFiver" en hashtags (usar #ecomodulos o #ecofiver solo si es un post institucional)"""
 
 
 def ctx_hidromasajes_ml(modelo: str = "", pregunta: str = "", descripcion_pub: str = "") -> str:

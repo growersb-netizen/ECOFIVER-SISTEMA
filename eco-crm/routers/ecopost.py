@@ -100,7 +100,7 @@ async def _gemini_text(api_key: str, prompt: str) -> str:
     """Llama a Gemini Flash para generar texto."""
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.85, "maxOutputTokens": 1024},
+        "generationConfig": {"temperature": 0.65, "maxOutputTokens": 1024},
     }
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(f"{GEMINI_TEXT_URL}?key={api_key}", json=body)
@@ -392,7 +392,7 @@ COPY: [2-3 oraciones para Instagram/Facebook con emojis, mencionar beneficio cla
 HASHTAGS: [6-10 hashtags separados por espacio, mezclar genéricos y específicos]"""
 
     try:
-        respuesta = await ai_complete(db, prompt, max_tokens=1024, temperature=0.85)
+        respuesta = await ai_complete(db, prompt, max_tokens=1024, temperature=0.65)
         # Parsear la respuesta
         titulo = ""
         copy = respuesta
@@ -1061,7 +1061,7 @@ Respondé SOLO con un JSON válido, sin texto adicional:
 ]}}"""
 
     try:
-        respuesta = await ai_complete(db, prompt, max_tokens=4000, temperature=0.8)
+        respuesta = await ai_complete(db, prompt, max_tokens=4000, temperature=0.65)
         # Extraer JSON
         respuesta = respuesta.strip()
         if "```json" in respuesta:

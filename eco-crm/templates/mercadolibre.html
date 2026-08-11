@@ -3301,6 +3301,7 @@ function borNuevaPub() {
   document.getElementById('mp-tipo-precio').value = 'completo';
   document.getElementById('mp-ficha-modelo').value = '';
   document.getElementById('mp-ficha-msg').textContent = '';
+  _fichasCache = null; // resetear caché para forzar recarga fresca
   document.getElementById('mp-atributos').textContent = 'Tocá "Cargar requeridos" para ver qué pide la categoría.';
   document.getElementById('mp-ia-msg').textContent = '';
   document.getElementById('mp-catalogo-sel').value = '';
@@ -3363,6 +3364,7 @@ function borEditar(id_o_obj) {
   document.getElementById('mp-tipo-precio').value = b.tipo_precio || 'completo';
   document.getElementById('mp-ficha-modelo').value = '';
   document.getElementById('mp-ficha-msg').textContent = b.modelo_nombre ? `Modelo guardado: ${b.modelo_nombre}` : '';
+  _fichasCache = null; // resetear caché para forzar recarga fresca
   document.getElementById('mp-catalogo-sel').value = '';
   document.getElementById('mp-precio-ref-box').style.display = 'none';
   document.getElementById('mp-pc-warn').style.display = 'none';
@@ -3456,7 +3458,7 @@ async function borCargarFichasDropdown(modeloActual) {
   const TIPOS_MODULO  = ['MODULO', 'MODULO_HABITACIONAL', 'VIVIENDA_MODULAR',
                          'MODULO_DEPOSITO', 'COMBO', 'QUINCHO', 'PERGOLA'];
   try {
-    if (!_fichasCache) _fichasCache = await API.get('/api/ml/fichas');
+    if (!_fichasCache) _fichasCache = await API.get('/api/ml/fichas?_nc=' + Date.now());
     const piscinas      = (_fichasCache.piscinas      || []);
     const modulos       = (_fichasCache.modulos       || []);
     const hidromasajes  = (_fichasCache.hidromasajes  || []);

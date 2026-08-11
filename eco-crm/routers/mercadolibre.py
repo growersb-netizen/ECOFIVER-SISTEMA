@@ -1477,7 +1477,8 @@ async def put_config_descripcion(
 async def listar_fichas_ml(
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
-    """Lista todos los modelos disponibles con ficha pre-escrita."""
+    """Lista todos los modelos disponibles con ficha pre-escrita. Sin caché."""
+    from fastapi.responses import JSONResponse
     try:
         from utils.ml_fichas_content import (
             FICHAS_PISCINAS, FICHAS_MODULOS,
@@ -1485,20 +1486,26 @@ async def listar_fichas_ml(
             FICHAS_REPOSERAS, FICHAS_CUCHAS, FICHAS_BANIO_QUIMICO, FICHAS_GARITA_SEGURIDAD,
         )
     except ImportError:
-        return {"piscinas": [], "modulos": [], "hidromasajes": [], "baneras": [], "receptaculos": [],
-                "reposeras": [], "cuchas": [], "banio_quimico": [], "garita_seguridad": []}
+        return JSONResponse(
+            content={"piscinas": [], "modulos": [], "hidromasajes": [], "baneras": [], "receptaculos": [],
+                     "reposeras": [], "cuchas": [], "banio_quimico": [], "garita_seguridad": []},
+            headers={"Cache-Control": "no-store"},
+        )
 
-    return {
-        "piscinas":         list(FICHAS_PISCINAS.keys()),
-        "modulos":          [f"{k}m2" for k in FICHAS_MODULOS.keys()],
-        "hidromasajes":     list(FICHAS_HIDROMASAJES.keys()),
-        "baneras":          list(FICHAS_BANERAS.keys()),
-        "receptaculos":     list(FICHAS_RECEPTACULOS.keys()),
-        "reposeras":        list(FICHAS_REPOSERAS.keys()),
-        "cuchas":           list(FICHAS_CUCHAS.keys()),
-        "banio_quimico":    list(FICHAS_BANIO_QUIMICO.keys()),
-        "garita_seguridad": list(FICHAS_GARITA_SEGURIDAD.keys()),
-    }
+    return JSONResponse(
+        content={
+            "piscinas":         list(FICHAS_PISCINAS.keys()),
+            "modulos":          [f"{k}m2" for k in FICHAS_MODULOS.keys()],
+            "hidromasajes":     list(FICHAS_HIDROMASAJES.keys()),
+            "baneras":          list(FICHAS_BANERAS.keys()),
+            "receptaculos":     list(FICHAS_RECEPTACULOS.keys()),
+            "reposeras":        list(FICHAS_REPOSERAS.keys()),
+            "cuchas":           list(FICHAS_CUCHAS.keys()),
+            "banio_quimico":    list(FICHAS_BANIO_QUIMICO.keys()),
+            "garita_seguridad": list(FICHAS_GARITA_SEGURIDAD.keys()),
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/api/ml/ficha/{modelo:path}")

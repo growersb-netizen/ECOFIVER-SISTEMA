@@ -938,6 +938,7 @@ CATEGORIAS_FIJAS: dict = {
     # unidad sanitaria portátil sin conexión a cloacas, venta y alquiler.
     # No existe categoría específica en ML Argentina para "baño químico".
     "BANO_QUIMICO":       ("MLA416584", "Cubículos de Oficina"),
+    "BANIO_QUIMICO":      ("MLA416584", "Cubículos de Oficina"),  # alias compat. frontend legacy
     # ── Reposeras PRFV ───────────────────────────────────────────────────────
     # MLA11044 = Reposeras y Camastros (verificado vía domain_discovery 2026-08)
     "REPOSERA_FIBRA":     ("MLA11044",  "Reposeras y Camastros"),
@@ -985,6 +986,7 @@ _TITULO_KEYWORDS_MINIMAS: dict = {
     "REPOSERA_FIBRA":     (["reposera", "camastro", "tumbona"],             "Reposera"),
     "CUCHA":              (["cucha", "casita", "casa para perro"],          "Cucha"),
     "BANO_QUIMICO":       (["baño", "sanitario", "químico", "quimico"],    "Baño Químico Portátil"),
+    "BANIO_QUIMICO":      (["baño", "sanitario", "químico", "quimico"],    "Baño Químico Portátil"),
     "RECEPTACULO":        (["receptáculo", "receptaculo", "ducha", "plato de ducha"], "Receptáculo Ducha"),
     "EQUIPO_PISCINA":     (["pileta", "piscina", "bomba", "filtro"],       "Equipo Piscina"),
     "REPUESTO_PISCINA":   (["repuesto", "recambio", "pileta", "piscina"],  "Repuesto Piscina"),
@@ -1027,6 +1029,7 @@ _FALLBACK_TITULO_POR_TIPO: dict = {
     "REPOSERA_FIBRA":       "Reposera camastro jardín piscina",
     "CUCHA":                "Cucha casita para perro fibra de vidrio",
     "BANO_QUIMICO":         "Baño químico portátil sanitario sin obra",
+    "BANIO_QUIMICO":        "Baño químico portátil sanitario sin obra",
     "RECEPTACULO":          "Receptáculo plato de ducha acrílico",
     "EQUIPO_PISCINA":       "Equipo filtro bomba para piscina pileta",
     "REPUESTO_PISCINA":     "Repuesto accesorio para piscina pileta",
@@ -3016,7 +3019,7 @@ async def completar_atributos_ml(
     }
     _defaults_tipo: dict = {
         k: _mla416 for k in ("MODULO","MODULO_HABITACIONAL","MODULO_DEPOSITO","GARITA_SEGURIDAD",
-                              "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO")
+                              "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO","BANIO_QUIMICO")
     }
     _defaults_tipo.update({
         t: [("BRAND","EcoFiver"),("IS_INFLATABLE","No"),("COLOR","Blanco")]
@@ -3136,7 +3139,7 @@ async def bulk_completar_atributos(
             _tipo_map = {
                 k: _mla416_defaults for k in (
                     "MODULO","MODULO_HABITACIONAL","MODULO_DEPOSITO","GARITA_SEGURIDAD",
-                    "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO"
+                    "VIVIENDA_MODULAR","QUINCHO","PERGOLA","COMBO","BANO_QUIMICO","BANIO_QUIMICO"
                 )
             }
             _tipo_map.update({

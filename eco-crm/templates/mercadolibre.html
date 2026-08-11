@@ -534,7 +534,7 @@
               <option value="COMBO">Combo piscina + módulo</option>
             </optgroup>
             <optgroup label="Prefabricados varios">
-              <option value="BANIO_QUIMICO">Baño químico portátil</option>
+              <option value="BANO_QUIMICO">Baño químico portátil</option>
               <option value="GARITA_SEGURIDAD">Garita de seguridad</option>
               <option value="DEPOSITO_JARDIN">Depósito de jardín</option>
             </optgroup>
@@ -3297,7 +3297,7 @@ function borNuevaPub() {
   document.getElementById('mp-ganancia').textContent = '';
   document.getElementById('mp-cuotas').value = '0';
   document.getElementById('mp-cuota-val').textContent = '';
-  document.getElementById('mp-producto').value = 'MODULO';
+  document.getElementById('mp-producto').value = 'MODULO_HABITACIONAL';
   document.getElementById('mp-tipo-precio').value = 'completo';
   document.getElementById('mp-ficha-modelo').value = '';
   document.getElementById('mp-ficha-msg').textContent = '';
@@ -3329,7 +3329,7 @@ function borNuevaPub() {
   borCargarCatalogoSelect();
   borCargarFichasDropdown();
   borOnProductoChange();
-  borCargarSets('MODULO');  // tipo por defecto en nueva publicación
+  borCargarSets('MODULO_HABITACIONAL');  // tipo por defecto en nueva publicación
   document.getElementById('mp-foto-msg').textContent = '';
   document.getElementById('mp-checklist-calidad').innerHTML = '';
   openModal('modal-bor');
@@ -3488,9 +3488,9 @@ async function borCargarFichasDropdown(modeloActual) {
     if (tipo === 'RECEPTACULO')          addOG('🚿 Receptáculos',     receptaculos);
     if (tipo === 'REPOSERA_FIBRA')       addOG('🛋 Reposeras PRFV',  reposeras);
     if (['CUCHA','CUCHA_PERRO'].includes(tipo)) addOG('🐾 Cuchas',   cuchas);
-    if (tipo === 'BANIO_QUIMICO')        addOG('🚻 Baños Químicos',   banio_quimico);
+    if (tipo === 'BANO_QUIMICO')         addOG('🚻 Baños Químicos',   banio_quimico);
     if (tipo === 'GARITA_SEGURIDAD')     addOG('🏠 Garitas',          garita);
-  } catch(e) { /* silent */ }
+  } catch(e) { console.error('[fichas]', e); _fichasCache = null; }
 }
 
 async function borCargarFicha() {
@@ -5044,18 +5044,30 @@ function borChequearPrecioBajoContado() {
 
 // Categorías fijas por tipo de producto — espejo del dict CATEGORIAS_FIJAS en ml_publicaciones.py
 const CATEGORIAS_FIJAS_JS = {
+  // Piscinas
   PISCINA:             { id: 'MLA373513', nombre: 'Piletas de Fibra de Vidrio' },
   MINIPISCINA:         { id: 'MLA373513', nombre: 'Piletas de Fibra de Vidrio' },
-  MODULO:              { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  MODULO_HABITACIONAL: { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  MODULO_DEPOSITO:     { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  VIVIENDA_MODULAR:    { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  QUINCHO:             { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  PERGOLA:             { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  COMBO:               { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
-  GARITA_SEGURIDAD:    { id: 'MLA413502', nombre: 'Cabañas y Casas Prefabricadas' },
+  // Módulos y prefabricados → Cubículos de Oficina (buy_it_now, sin costo de publicación)
+  MODULO:              { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  MODULO_HABITACIONAL: { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  MODULO_DEPOSITO:     { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  VIVIENDA_MODULAR:    { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  QUINCHO:             { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  PERGOLA:             { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  COMBO:               { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  GARITA_SEGURIDAD:    { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  BANO_QUIMICO:        { id: 'MLA416584', nombre: 'Cubículos de Oficina' },
+  // Hidromasajes y bañeras
   HIDROMASAJE:         { id: 'MLA88471',  nombre: 'Jacuzzis e Hidromasajes' },
   BANERA:              { id: 'MLA88471',  nombre: 'Jacuzzis e Hidromasajes' },
+  // Reposeras PRFV
+  REPOSERA_FIBRA:      { id: 'MLA11044',  nombre: 'Reposeras y Camastros' },
+  // Cuchas PRFV
+  CUCHA:               { id: 'MLA32271',  nombre: 'Cuchas' },
+  // Receptáculos de ducha
+  RECEPTACULO:         { id: 'MLA414062', nombre: 'Receptáculos de Ducha' },
+  // Iluminación para piscinas
+  ILUMINACION_PISCINA: { id: 'MLA412691', nombre: 'Luces para Piletas' },
 };
 
 function borOnProductoChange() {

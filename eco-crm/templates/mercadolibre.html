@@ -3492,7 +3492,15 @@ async function borCargarFichasDropdown(modeloActual) {
     if (['CUCHA','CUCHA_PERRO'].includes(tipo)) addOG('🐾 Cuchas',   cuchas);
     if (tipo === 'BANIO_QUIMICO')        addOG('🚻 Baños Químicos',   banio_quimico);
     if (tipo === 'GARITA_SEGURIDAD')     addOG('🏠 Garitas',          garita);
-  } catch(e) { console.error('[fichas]', e); _fichasCache = null; }
+    // debug temporal
+    const fichaMsg = document.getElementById('mp-ficha-msg');
+    if (fichaMsg) fichaMsg.textContent = `[debug] tipo="${tipo}" reposeras=${reposeras.length} cache=${!!_fichasCache}`;
+  } catch(e) {
+    console.error('[fichas]', e);
+    _fichasCache = null;
+    const fichaMsg = document.getElementById('mp-ficha-msg');
+    if (fichaMsg) fichaMsg.textContent = '[error] ' + e.message;
+  }
 }
 
 async function borCargarFicha() {

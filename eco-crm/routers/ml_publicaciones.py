@@ -1392,6 +1392,20 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                 #   gold   → FUNCIONA, cobra más visibilidad (402 con item creado)
                 #   free   → AGOTADO para esta cuenta (cause_id 175)
                 #   gold_special, classic, platinum → listing_type.invalid para MLA413502
+                #
+                # IMPORTANTE: 402 + body con "id" = item publicado y ML cobró créditos.
+                # El body del 402 contiene el objeto item completo igual que un 200/201.
+                # Tratar como éxito para no seguir creando items duplicados.
+                def _cl_ok(resp) -> bool:
+                    if resp.status_code in (200, 201):
+                        return True
+                    if resp.status_code == 402:
+                        try:
+                            return bool(resp.json().get("id"))
+                        except Exception:
+                            return False
+                    return False
+
                 _bit_now_err = r.text[:300]   # guardamos el error buy_it_now para diagnóstico
                 _first_error: str = ""
                 _last_error: str = ""
@@ -1401,14 +1415,14 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                         # Auto-strip campos root deprecated antes de cada intento classified
                         for _cl_dep in range(4):
                             r = await hc.post(f"{ML_BASE}/items", json=payload_cl, headers=_ml_headers(tok))
-                            if r.status_code in (200, 201):
+                            if _cl_ok(r):
                                 break
                             if "deprecated" in r.text.lower():
                                 payload_cl, _cl_rem = _ml_strip_deprecated_root_field(payload_cl, r.text)
                                 if _cl_rem:
                                     continue
                             break
-                        if r.status_code in (200, 201):
+                        if _cl_ok(r):
                             break
                         if not _first_error:
                             _first_error = f"[{lt_cl}] {r.status_code}: {r.text[:200]}"
@@ -1427,10 +1441,10 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                             await asyncio.sleep(10)
                         else:
                             break  # otro error — no reintentar con este lt_cl
-                    if r.status_code in (200, 201):
-                        break  # publicado → salir del loop de listing types
+                    if _cl_ok(r):
+                        break  # publicado (200/201) o cobrado (402+id) → salir del loop
                 # Si ningún listing type funcionó, mostrar primer Y último error para diagnóstico
-                if r.status_code not in (200, 201):
+                if not _cl_ok(r):
                     if _first_error:
                         _err_msg = f"Classified listing falló. {_first_error}"
                         if _last_error and _last_error != _first_error:
@@ -1477,7 +1491,9 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
                                 break
                             await asyncio.sleep(0.3)
 
-            if r.status_code not in (200, 201):
+            # 402 + body con "id" = item publicado vía classified (ML cobró créditos)
+            _r_402_ok = r.status_code == 402 and '"id"' in r.text and r.text.strip().startswith("{")
+            if r.status_code not in (200, 201) and not _r_402_ok:
                 return {"ok": False, "error": _error_ml(r)}
         item = r.json()
         try:

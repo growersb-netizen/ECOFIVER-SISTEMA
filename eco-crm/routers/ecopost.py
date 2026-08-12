@@ -375,6 +375,65 @@ async def api_calendario(
     }
 
 
+@router.get("/api/ecopost/programados")
+async def api_programados(
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Lista los contenidos con publicación programada pendiente."""
+    ahora = datetime.now()
+    items = (
+        db.query(ContenidoEcopost)
+        .filter(
+            ContenidoEcopost.publish_at.isnot(None),
+            ContenidoEcopost.publish_at > ahora,
+            ContenidoEcopost.estado.in_(["borrador", "aprobado"]),
+        )
+        .order_by(ContenidoEcopost.publish_at)
+        .all()
+    )
+    return [_content_dict(c) for c in items]
+
+
+@router.get("/api/ecopost/ml-fotos")
+async def api_ml_fotos(
+    producto: Optional[str] = None,
+    limit: int = 40,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Expone las fotos de la biblioteca ML para usarlas en Ecopost sin resubir."""
+    try:
+        from database.models import BorradorML
+        q = db.query(BorradorML).filter(BorradorML.fotos_json.isnot(None))
+        if producto:
+            q = q.filter(BorradorML.producto.ilike(f"%{producto}%"))
+        borradores = q.order_by(BorradorML.updated_at.desc()).limit(limit).all()
+
+        fotos_list = []
+        seen: set = set()
+        for b in borradores:
+            try:
+                fotos = json.loads(b.fotos_json or "[]")
+                for f in fotos:
+                    url = (f.get("url") or f.get("secure_url") or f.get("imagen_url") or "").strip()
+                    if url and url not in seen:
+                        seen.add(url)
+                        fotos_list.append({
+                            "url": url,
+                            "titulo": b.titulo or "",
+                            "producto": b.producto or "",
+                            "borrador_id": b.id,
+                        })
+            except Exception:
+                pass
+
+        return {"ok": True, "total": len(fotos_list), "fotos": fotos_list}
+    except Exception as e:
+        logger.warning(f"[ecopost] api_ml_fotos error: {e}")
+        return {"ok": True, "total": 0, "fotos": [], "nota": "Sin fotos ML disponibles"}
+
+
 @router.get("/api/ecopost/{item_id}")
 async def api_get(
     item_id: int,
@@ -1672,26 +1731,6 @@ async def api_bulk_publicar(
 
 # ─── CONTENIDO PROGRAMADO ─────────────────────────────────────────────────────
 
-@router.get("/api/ecopost/programados")
-async def api_programados(
-    user: Usuario = Depends(_require_access),
-    db: Session = Depends(get_db),
-):
-    """Lista los contenidos con publicación programada pendiente."""
-    ahora = datetime.now()
-    items = (
-        db.query(ContenidoEcopost)
-        .filter(
-            ContenidoEcopost.publish_at.isnot(None),
-            ContenidoEcopost.publish_at > ahora,
-            ContenidoEcopost.estado.in_(["borrador", "aprobado"]),
-        )
-        .order_by(ContenidoEcopost.publish_at)
-        .all()
-    )
-    return [_content_dict(c) for c in items]
-
-
 async def _auto_publicar_programados():
     """Scheduler job: publica en Facebook los contenidos 'aprobados' cuya hora ya pasó."""
     try:
@@ -1750,47 +1789,6 @@ async def _auto_publicar_programados():
         db.close()
     except Exception as e:
         logger.error(f"[scheduler] _auto_publicar_programados: {e}")
-
-
-# ─── FOTOS ML EN ECOPOST ─────────────────────────────────────────────────────
-
-@router.get("/api/ecopost/ml-fotos")
-async def api_ml_fotos(
-    producto: Optional[str] = None,
-    limit: int = 40,
-    user: Usuario = Depends(_require_access),
-    db: Session = Depends(get_db),
-):
-    """Expone las fotos de la biblioteca ML para usarlas en Ecopost sin resubir."""
-    try:
-        from database.models import BorradorML
-        q = db.query(BorradorML).filter(BorradorML.fotos_json.isnot(None))
-        if producto:
-            q = q.filter(BorradorML.producto.ilike(f"%{producto}%"))
-        borradores = q.order_by(BorradorML.updated_at.desc()).limit(limit).all()
-
-        fotos_list = []
-        seen: set = set()
-        for b in borradores:
-            try:
-                fotos = json.loads(b.fotos_json or "[]")
-                for f in fotos:
-                    url = (f.get("url") or f.get("secure_url") or f.get("imagen_url") or "").strip()
-                    if url and url not in seen:
-                        seen.add(url)
-                        fotos_list.append({
-                            "url": url,
-                            "titulo": b.titulo or "",
-                            "producto": b.producto or "",
-                            "borrador_id": b.id,
-                        })
-            except Exception:
-                pass
-
-        return {"ok": True, "total": len(fotos_list), "fotos": fotos_list}
-    except Exception as e:
-        logger.warning(f"[ecopost] api_ml_fotos error: {e}")
-        return {"ok": True, "total": 0, "fotos": [], "nota": "Sin fotos ML disponibles"}
 
 
 # ─── SCRIPT PARA VIDEO (TikTok / YouTube) ────────────────────────────────────

@@ -699,6 +699,30 @@ let editingId = null;      // ID del contenido en edición
 let _bulkMode = false;     // modo selección múltiple
 let _bulkSel = new Set();  // IDs seleccionados en bulk
 
+// ─── Nombres legibles + contexto de dimensiones por producto ─────────────────
+const _PRODUCTO_NOMBRES = {
+  PISCINA:          'piscina de fibra de vidrio',
+  MODULO:           'módulo habitacional prefabricado',
+  COMBO:            'combo piscina + módulo habitacional',
+  HIDROMASAJE:      'hidromasaje de fibra de vidrio',
+  REPOSERA_FIBRA:   'reposera de fibra de vidrio',
+  CUCHA:            'cucha para perros de polietileno',
+  BANIO_QUIMICO:    'baño químico portátil',
+  GARITA_SEGURIDAD: 'garita de seguridad prefabricada',
+};
+
+// Descripción corta de dimensiones reales para el prompt de imagen
+const _PRODUCTO_CTX = {
+  PISCINA:          'dimensiones entre 5×2.5m y 10×4m, profundidad 1.35-1.70m, color azul cielo o verde agua, instalada en jardín',
+  MODULO:           'módulo de 15 a 30m², techo a dos aguas, ventanas amplias, terminación exterior chapa prepintada, listo para habitar',
+  COMBO:            'piscina de fibra junto a módulo habitacional de 15-25m², espacio recreativo completo en jardín',
+  HIDROMASAJE:      'jacuzzi de 2 a 6 personas (1.5m×1.5m a 2.2m×2.2m), jets de agua, iluminación LED, instalado en exterior',
+  REPOSERA_FIBRA:   'reposera ergonómica 180cm×65cm, colores azul, blanco o verde, al borde de piscina o jardín',
+  CUCHA:            'cucha para perros tamaño mediano o grande, 60-90cm de ancho, colores brillantes, en jardín o patio',
+  BANIO_QUIMICO:    'baño portátil 1.2m×1.2m×2.4m, color azul o verde, en obra o evento al aire libre',
+  GARITA_SEGURIDAD: 'garita 1.5m×1.5m o 2m×2m, ventana lateral, puerta con cerradura, en acceso de empresa o barrio privado',
+};
+
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 const TABS_EP = ['biblioteca', 'calendario', 'crear', 'planificador', 'programados', 'referencias'];
 function showMainTab(name, el) {
@@ -1278,13 +1302,22 @@ async function generarCopy() {
       if (data.hashtags) {
         document.getElementById('c-hashtags').value = data.hashtags;
       }
-      // Sugerir prompt de imagen
+      // Sugerir prompt de imagen con nombre legible + dimensiones reales
       if (!document.getElementById('c-img-prompt').value) {
-        const tipoStr = document.getElementById('c-tipo').value === 'story' ? 'vertical 9:16' : 'cuadrada';
-        document.getElementById('c-img-prompt').value =
-          `Fotografía profesional de ${producto.toLowerCase()}, ${document.getElementById('c-modelo').value || ''}, ` +
-          `ambientación moderna argentina, iluminación natural, composición ${tipoStr}, ` +
-          `colores verdes y blancos, branding EcoFiver`;
+        const tipoStr = document.getElementById('c-tipo').value === 'story' ? 'vertical 9:16 Instagram Story'
+                      : document.getElementById('c-tipo').value === 'reel' ? 'vertical 9:16 Reel dinámico'
+                      : 'cuadrada 1:1 Instagram';
+        const modelo = document.getElementById('c-modelo').value.trim();
+        const productoNombre = _PRODUCTO_NOMBRES[producto] || producto;
+        const productoCtx = _PRODUCTO_CTX[producto] || '';
+        const partes = [
+          `${productoNombre} de EcoFiver`,
+          modelo || null,
+          productoCtx || null,
+          `ambientación moderna argentina al aire libre, luz natural, colores vibrantes`,
+          `fotografía profesional de producto, composición ${tipoStr}`,
+        ].filter(Boolean);
+        document.getElementById('c-img-prompt').value = partes.join('. ');
       }
       showToast('Copy generado ✨', 'success');
     }

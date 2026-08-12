@@ -682,6 +682,16 @@ class ContenidoEcopost(Base):
     imagen_base64 = Column(Text, nullable=True)         # base64 PNG (preview / descarga)
     imagen_url = Column(String(500), nullable=True)     # URL pública si se sube a Drive/CDN
     public_token = Column(String(64), nullable=True, index=True)  # token para URL pública sin auth
+    # ── Video ─────────────────────────────────────────────────────────────────
+    media_type = Column(String(20), default="photo")    # photo | video | carousel | story | reel
+    video_token = Column(String(64), nullable=True, index=True)   # token para servir video públicamente
+    subtitulos = Column(Text, default="")               # script / descripción / subtítulos del video
+    duracion_seg = Column(Integer, nullable=True)       # duración del video en segundos
+    # ── Publicación avanzada ──────────────────────────────────────────────────
+    publish_at = Column(DateTime, nullable=True)        # fecha/hora programada de publicación
+    redes_publicadas = Column(Text, default="{}")       # JSON: {fb_pageid: "post_id", ig: "media_id"}
+    carousel_urls = Column(Text, default="[]")          # JSON array de URLs para carrusel
+    # ── Estado ────────────────────────────────────────────────────────────────
     estado = Column(String(20), default="borrador")     # borrador | aprobado | publicado | archivado
     notas = Column(Text, default="")
     creado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)

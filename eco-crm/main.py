@@ -40,6 +40,7 @@ run_migrations()
 Path("data/contratos").mkdir(parents=True, exist_ok=True)  # persistente (/app/data)
 Path("data").mkdir(parents=True, exist_ok=True)
 Path("data/backups").mkdir(parents=True, exist_ok=True)
+Path("data/ecopost_videos").mkdir(parents=True, exist_ok=True)   # videos Ecopost (Reels/TikTok/YouTube)
 
 # Seed initial data
 seed_database()
@@ -279,8 +280,17 @@ async def startup_event():
         replace_existing=True,
         misfire_grace_time=600,
     )
+    # Ecopost: publicar contenidos programados → cada 5 minutos
+    scheduler.add_job(
+        ecopost._auto_publicar_programados,
+        trigger=CronTrigger(minute="*/5", timezone="America/Argentina/Buenos_Aires"),
+        id="ecopost_programados",
+        name="Ecopost — Publicar contenido programado",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
     scheduler.start()
-    log.info("[SCHEDULER] Backup 03:00 + Leads + Resumen 08:00 + ML Renovación 02:15 + Auto-responder /20min — activos")
+    log.info("[SCHEDULER] Backup 03:00 + Leads + Resumen 08:00 + ML Renovación 02:15 + Auto-responder /20min + Ecopost /5min — activos")
 
 
 @app.on_event("shutdown")
@@ -307,6 +317,7 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/api/produccion/ordenes/", # operario registra etapas sin login
         "/api/health",              # Railway / Docker healthcheck
         "/pub/img/",                # imágenes Ecopost vía token público (Instagram/Meta las necesita sin auth)
+        "/pub/video/",              # videos Ecopost vía token público (Reels/TikTok/YouTube)
         "/mercadolibre/notifications",  # webhook de MercadoLibre (sin sesión) — si falla, ML revoca la app
         "/api/integraciones/melanie/confirmacion",  # Melanie envía Bearer propio, sin cookie de sesión
         "/webhook/melanie",  # Webhook de Meta para la WABA de Melanie (verificación + mensajes)

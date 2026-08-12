@@ -6,15 +6,20 @@ Acceso: ADMIN y COORDINADOR_OPERATIVO
 import json
 import base64
 import logging
+import secrets
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+VIDEO_DIR = Path("data/ecopost_videos")
+VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 from database.database import get_db
 from database.models import ContenidoEcopost, EcopostReferencia, Usuario, MetaPagina
@@ -53,19 +58,24 @@ class GenerarCopyReq(BaseModel):
 
 class GenerarImagenReq(BaseModel):
     prompt: str
-    tipo: Optional[str] = "flyer"       # flyer (1:1) | story (9:16)
+    tipo: Optional[str] = "flyer"       # flyer (1:1) | story (9:16) | carrusel | reel
+    producto: Optional[str] = ""        # para contextualizar dimensiones reales
 
 
 class GuardarContenidoReq(BaseModel):
     titulo: Optional[str] = ""
     tipo: Optional[str] = "flyer"
+    media_type: Optional[str] = "photo"   # photo | video | carousel | story | reel
     producto: Optional[str] = None
     modelo_especifico: Optional[str] = None
     copy_texto: Optional[str] = ""
     copy_hashtags: Optional[str] = ""
+    subtitulos: Optional[str] = ""
     imagen_prompt: Optional[str] = ""
     imagen_base64: Optional[str] = None
     imagen_url: Optional[str] = None
+    carousel_urls: Optional[List[str]] = []
+    publish_at: Optional[str] = None      # ISO datetime string para programar
     notas: Optional[str] = ""
 
 
@@ -76,17 +86,29 @@ class CambiarEstadoReq(BaseModel):
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 def _content_dict(c: ContenidoEcopost) -> dict:
+    crm_host = "https://eco-crm-production.up.railway.app"
+    video_url = None
+    if getattr(c, 'video_token', None):
+        video_url = f"{crm_host}/pub/video/{c.video_token}"
     return {
         "id": c.id,
         "titulo": c.titulo,
         "tipo": c.tipo,
+        "media_type": getattr(c, 'media_type', 'photo') or 'photo',
         "producto": c.producto,
         "modelo_especifico": c.modelo_especifico,
         "copy_texto": c.copy_texto,
         "copy_hashtags": c.copy_hashtags,
+        "subtitulos": getattr(c, 'subtitulos', '') or '',
         "imagen_prompt": c.imagen_prompt,
         "imagen_url": c.imagen_url,
+        "video_url": video_url,
+        "carousel_urls": json.loads(getattr(c, 'carousel_urls', None) or '[]'),
         "tiene_imagen": bool(c.imagen_base64 or c.imagen_url),
+        "tiene_video": bool(getattr(c, 'video_token', None)),
+        "duracion_seg": getattr(c, 'duracion_seg', None),
+        "publish_at": c.publish_at.isoformat() if getattr(c, 'publish_at', None) else None,
+        "redes_publicadas": json.loads(getattr(c, 'redes_publicadas', None) or '{}'),
         "estado": c.estado,
         "notas": c.notas,
         "creado_por": c.creado_por.nombre if c.creado_por else None,
@@ -190,15 +212,64 @@ _ECOFIVER_IMG_CTX = (
     "ambiente familiar argentino, entorno al aire libre soleado. "
 )
 
+# Dimensiones reales de los productos para dar contexto preciso a la IA
+_DIMENSIONES_PRODUCTO = {
+    "PISCINA": (
+        "Las piscinas de fibra de vidrio EcoFiver miden entre 5m×2.5m (pequeña) y 10m×4m (grande), "
+        "con profundidad de 1.35m a 1.70m. Son autoportantes, van sobre tierra o losa. "
+        "Colores disponibles: azul cielo, verde agua, blanco perla, arena. "
+        "Instalación superficial, sin excavación profunda."
+    ),
+    "MODULO": (
+        "Los módulos habitacionales EcoFiver son construcciones prefabricadas de celulosa estructural "
+        "de 15m², 20m², 25m², 30m² o mayor. Techo a dos aguas o plano, ventanas amplias, "
+        "puerta de entrada. Se instalan en un día. Terminación exterior: chapa prepintada o revestimiento vinílico. "
+        "Interior: paredes lisas, piso flotante. Pueden usarse como oficina, habitación, local comercial."
+    ),
+    "COMBO": (
+        "Combo piscina + módulo habitacional EcoFiver: piscina de fibra de vidrio instalada junto a "
+        "un módulo de 15-25m². Todo en un solo día de instalación. Espacio exterior recreativo completo."
+    ),
+    "HIDROMASAJE": (
+        "Hidromasajes y jacuzzis EcoFiver de fibra de vidrio: modelos de 2 personas (1.5m×1.5m) "
+        "hasta 6 personas (2.2m×2.2m). Jets de agua, iluminación LED, cubierta opcional. "
+        "Para uso interior o exterior."
+    ),
+    "REPOSERA_FIBRA": (
+        "Reposeras de fibra de vidrio EcoFiver: resistentes, impermeables, diseño ergonómico, "
+        "colores vibrantes (azul, blanco, verde). Ideales para bordes de piscina y jardines. "
+        "Tamaño estándar 180cm×65cm."
+    ),
+    "CUCHA": (
+        "Cuchas para perros de polietileno reciclado EcoFiver: impermeables, resistentes al sol, "
+        "fáciles de limpiar. Tamaños pequeño (40×50cm), mediano (60×70cm), grande (80×90cm)."
+    ),
+    "BANIO_QUIMICO": (
+        "Baños químicos portátiles EcoFiver de polietileno rotomoldeado: 1.2m×1.2m×2.4m, "
+        "capacidad 250 litros. Colores: azul, verde, gris. Para obras y eventos."
+    ),
+    "GARITA_SEGURIDAD": (
+        "Garitas de seguridad EcoFiver prefabricadas: 1.5m×1.5m o 2m×2m, "
+        "con ventana lateral, puerta con cerradura. Instalación rápida en cualquier terreno."
+    ),
+}
 
-def _enriquecer_prompt_imagen(prompt: str, tipo: str) -> str:
-    """Agrega contexto de marca EcoFiver al prompt para evitar imágenes genéricas o incorrectas."""
-    formato = (
-        "Composición cuadrada 1:1, estilo publicación de Instagram."
-        if tipo != "story"
-        else "Composición vertical 9:16, estilo Instagram Story."
-    )
-    return f"{_ECOFIVER_IMG_CTX}{prompt}. {formato}"
+
+def _enriquecer_prompt_imagen(prompt: str, tipo: str, producto: str = "") -> str:
+    """Agrega contexto de marca EcoFiver + dimensiones reales al prompt para imágenes más precisas."""
+    formato_map = {
+        "story":     "Composición vertical 9:16, estilo Instagram Story, texto grande arriba.",
+        "carrusel":  "Composición cuadrada 1:1, primer slide de carrusel Instagram.",
+        "reel":      "Frame de video vertical 9:16, escena dinámica con movimiento implícito.",
+    }
+    formato = formato_map.get(tipo, "Composición cuadrada 1:1, estilo publicación de Instagram.")
+    dim_ctx = ""
+    prod_key = producto.upper() if producto else ""
+    for key, desc in _DIMENSIONES_PRODUCTO.items():
+        if key in prod_key or prod_key in key:
+            dim_ctx = f" Dimensiones y características del producto: {desc}"
+            break
+    return f"{_ECOFIVER_IMG_CTX}{dim_ctx} {prompt}. {formato}"
 
 
 async def _generate_image(db: Session, prompt: str, tipo: str) -> Optional[str]:
@@ -452,7 +523,7 @@ async def api_generar_imagen(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    prompt_final = _enriquecer_prompt_imagen(body.prompt, body.tipo)
+    prompt_final = _enriquecer_prompt_imagen(body.prompt, body.tipo, body.producto or "")
     b64 = await _generate_image(db, prompt_final, body.tipo)
     if not b64:
         raise HTTPException(502, "No se pudo generar la imagen. Verificá que haya una API key de OpenRouter configurada en Configuración → API Keys.")
@@ -468,16 +539,26 @@ async def api_crear(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
+    publish_at_dt = None
+    if body.publish_at:
+        try:
+            publish_at_dt = datetime.fromisoformat(body.publish_at.replace("Z", "+00:00"))
+        except ValueError:
+            pass
     c = ContenidoEcopost(
         titulo=body.titulo,
         tipo=body.tipo,
+        media_type=body.media_type or "photo",
         producto=body.producto,
         modelo_especifico=body.modelo_especifico,
         copy_texto=body.copy_texto,
         copy_hashtags=body.copy_hashtags,
+        subtitulos=body.subtitulos or "",
         imagen_prompt=body.imagen_prompt,
         imagen_base64=body.imagen_base64,
         imagen_url=body.imagen_url,
+        carousel_urls=json.dumps(body.carousel_urls or []),
+        publish_at=publish_at_dt,
         notas=body.notas,
         estado="borrador",
         creado_por_id=user.id,
@@ -499,7 +580,16 @@ async def api_actualizar(
     if not c:
         raise HTTPException(404, "Contenido no encontrado")
 
-    for field, val in body.dict(exclude_none=True).items():
+    data = body.dict(exclude_none=True)
+    # Serialize special fields before storing
+    if "carousel_urls" in data:
+        data["carousel_urls"] = json.dumps(data["carousel_urls"] or [])
+    if "publish_at" in data and data["publish_at"]:
+        try:
+            data["publish_at"] = datetime.fromisoformat(data["publish_at"].replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            data.pop("publish_at", None)
+    for field, val in data.items():
         setattr(c, field, val)
 
     db.commit()
@@ -813,27 +903,18 @@ async def api_publicar_redes(
 
     message = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
 
-    # Auto-subir imagen base64 → URL pública (necesario para Instagram)
+    # Auto-generar URL pública usando el endpoint propio del CRM (Instagram la necesita)
     img_url = c.imagen_url
     if not img_url and c.imagen_base64:
         try:
-            img_bytes = base64.b64decode(c.imagen_base64)
-            filename = f"ecopost_{c.id}_{c.tipo}.png"
-            async with httpx.AsyncClient(timeout=10) as hc:
-                r = await hc.post(
-                    "https://www.ecomodulosypiscinas.com.ar/api/admin/upload",
-                    headers={"x-api-key": "eco-crm-api-key-2024"},
-                    files={"file": (filename, img_bytes, "image/png")},
-                )
-            if r.status_code in (200, 201):
-                url = r.json().get("url") or r.json().get("imagen_url") or r.json().get("path")
-                if url:
-                    img_url = url
-                    c.imagen_url = url
-                    c.imagen_base64 = None
-                    db.flush()
+            token_pub = _ensure_public_token(c, db)
+            crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+            img_url = f"{crm_host.rstrip('/')}/pub/img/{token_pub}"
+            c.imagen_url = img_url
+            db.flush()
+            logger.info(f"[ecopost] URL pública generada para publicar-redes: {img_url}")
         except Exception as e:
-            logger.warning(f"[ecopost] Auto-subida R2 falló: {e}")
+            logger.warning(f"[ecopost] No se pudo generar URL pública: {e}")
 
     resultados = []
 
@@ -1104,3 +1185,799 @@ async def api_planificador_guardar(
 
     db.commit()
     return {"ok": True, "guardados": len(guardados), "ids": guardados}
+
+
+# ─── VIDEO UPLOAD & SERVING ──────────────────────────────────────────────────
+
+ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/x-msvideo", "video/webm"}
+MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500 MB
+
+
+@router.post("/api/ecopost/{item_id}/upload-video")
+async def api_upload_video(
+    item_id: int,
+    video: UploadFile = File(...),
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Sube un video MP4/MOV y genera un token público para servir sin autenticación."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    if video.content_type not in ALLOWED_VIDEO_TYPES:
+        raise HTTPException(400, f"Formato no soportado: {video.content_type}. Usar MP4, MOV, AVI o WEBM.")
+
+    raw = await video.read()
+    if len(raw) > MAX_VIDEO_SIZE:
+        raise HTTPException(400, "El video no puede superar 500 MB")
+
+    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+    token = secrets.token_urlsafe(32)
+    ext = Path(video.filename or "video.mp4").suffix.lower()
+    if ext not in {".mp4", ".mov", ".avi", ".webm"}:
+        ext = ".mp4"
+    filename = f"{token}{ext}"
+    filepath = VIDEO_DIR / filename
+    filepath.write_bytes(raw)
+
+    c.video_token = token
+    if not getattr(c, "media_type", None) or c.media_type == "photo":
+        c.media_type = "video"
+    db.commit()
+
+    crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+    video_url = f"{crm_host.rstrip('/')}/pub/video/{token}"
+    return {
+        "ok": True,
+        "video_token": token,
+        "video_url": video_url,
+        "size_mb": round(len(raw) / 1024 / 1024, 2),
+    }
+
+
+@router.get("/pub/video/{token}")
+async def api_video_publico(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """Endpoint PÚBLICO (sin auth) — sirve videos Ecopost via token para Reels/TikTok/YouTube."""
+    if not token or len(token) < 20:
+        raise HTTPException(404, "Not found")
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.video_token == token).first()
+    if not c:
+        raise HTTPException(404, "Video no encontrado")
+    for ext in (".mp4", ".mov", ".avi", ".webm"):
+        filepath = VIDEO_DIR / f"{token}{ext}"
+        if filepath.exists():
+            media_type = "video/mp4" if ext == ".mp4" else (
+                "video/quicktime" if ext == ".mov" else "video/webm"
+            )
+            return FileResponse(
+                str(filepath),
+                media_type=media_type,
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+    raise HTTPException(404, "Archivo de video no encontrado en disco")
+
+
+# ─── INSTAGRAM REELS ─────────────────────────────────────────────────────────
+
+@router.post("/api/ecopost/{item_id}/publicar-ig-reel")
+async def api_publicar_ig_reel(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Publica el video como Reel en Instagram Business via Meta Graph API."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    page_token = get_config_value("meta_page_access_token", db)
+    ig_user_id = get_config_value("meta_ig_user_id", db)
+    if not page_token or not ig_user_id:
+        raise HTTPException(400, "Configurar Meta Page Access Token e IG User ID en Configuración → Meta")
+
+    if not getattr(c, "video_token", None):
+        raise HTTPException(400, "Sin video. Subí un MP4/MOV primero usando 'Subir Video'.")
+
+    crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+    video_url = f"{crm_host.rstrip('/')}/pub/video/{c.video_token}"
+    caption = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
+
+    try:
+        import asyncio
+        async with httpx.AsyncClient(timeout=120) as hc:
+            # Paso 1: crear media container
+            r1 = await hc.post(
+                f"{META_GRAPH_URL}/{ig_user_id}/media",
+                data={
+                    "media_type": "REELS",
+                    "video_url": video_url,
+                    "caption": caption,
+                    "share_to_feed": "true",
+                    "access_token": page_token,
+                },
+            )
+            if r1.status_code != 200:
+                err = r1.json()
+                raise HTTPException(400, f"Error container Reel: {err.get('error', {}).get('message', r1.text[:200])}")
+
+            creation_id = r1.json().get("id")
+            if not creation_id:
+                raise HTTPException(502, "Meta no devolvió creation_id para el Reel")
+
+            # Paso 2: esperar procesamiento de video (máx 60s)
+            for _ in range(12):
+                await asyncio.sleep(5)
+                r_st = await hc.get(
+                    f"{META_GRAPH_URL}/{creation_id}",
+                    params={"fields": "status_code", "access_token": page_token},
+                )
+                if r_st.status_code == 200:
+                    status = r_st.json().get("status_code", "")
+                    if status == "FINISHED":
+                        break
+                    elif status == "ERROR":
+                        raise HTTPException(502, "Error procesando video en Meta. Verificar formato (H.264 / AAC).")
+
+            # Paso 3: publicar
+            r2 = await hc.post(
+                f"{META_GRAPH_URL}/{ig_user_id}/media_publish",
+                data={"creation_id": creation_id, "access_token": page_token},
+            )
+            if r2.status_code != 200:
+                err = r2.json()
+                raise HTTPException(400, f"Error publicando Reel: {err.get('error', {}).get('message', r2.text[:200])}")
+
+        ig_media_id = r2.json().get("id")
+        c.estado = "publicado"
+        if not c.aprobado_por_id:
+            c.aprobado_por_id = user.id
+        redes_pub = json.loads(getattr(c, "redes_publicadas", None) or "{}")
+        redes_pub["instagram_reel"] = datetime.now().isoformat()
+        c.redes_publicadas = json.dumps(redes_pub)
+        db.commit()
+        return {"ok": True, "red": "instagram_reel", "ig_media_id": ig_media_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Error publicando Reel: {str(e)[:150]}")
+
+
+# ─── INSTAGRAM STORIES ────────────────────────────────────────────────────────
+
+@router.post("/api/ecopost/{item_id}/publicar-ig-story")
+async def api_publicar_ig_story(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Publica como Story en Instagram. Soporta imagen o video."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    page_token = get_config_value("meta_page_access_token", db)
+    ig_user_id = get_config_value("meta_ig_user_id", db)
+    if not page_token or not ig_user_id:
+        raise HTTPException(400, "Configurar Meta Page Access Token e IG User ID en Configuración → Meta")
+
+    crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+    has_video = bool(getattr(c, "video_token", None))
+    img_url = c.imagen_url
+    if not img_url and c.imagen_base64:
+        tok = _ensure_public_token(c, db)
+        img_url = f"{crm_host.rstrip('/')}/pub/img/{tok}"
+
+    if not has_video and not img_url:
+        raise HTTPException(400, "Story requiere imagen o video. Generá una imagen o subí un video.")
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as hc:
+            if has_video:
+                payload = {
+                    "media_type": "STORIES",
+                    "video_url": f"{crm_host.rstrip('/')}/pub/video/{c.video_token}",
+                    "access_token": page_token,
+                }
+            else:
+                payload = {
+                    "media_type": "STORIES",
+                    "image_url": img_url,
+                    "access_token": page_token,
+                }
+            r1 = await hc.post(f"{META_GRAPH_URL}/{ig_user_id}/media", data=payload)
+            if r1.status_code != 200:
+                err = r1.json()
+                raise HTTPException(400, f"Error creando Story: {err.get('error', {}).get('message', r1.text[:200])}")
+
+            creation_id = r1.json().get("id")
+            r2 = await hc.post(
+                f"{META_GRAPH_URL}/{ig_user_id}/media_publish",
+                data={"creation_id": creation_id, "access_token": page_token},
+            )
+            if r2.status_code != 200:
+                err = r2.json()
+                raise HTTPException(400, f"Error publicando Story: {err.get('error', {}).get('message', r2.text[:200])}")
+
+        ig_media_id = r2.json().get("id")
+        redes_pub = json.loads(getattr(c, "redes_publicadas", None) or "{}")
+        redes_pub["instagram_story"] = datetime.now().isoformat()
+        c.redes_publicadas = json.dumps(redes_pub)
+        db.commit()
+        return {"ok": True, "red": "instagram_story", "ig_media_id": ig_media_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Error publicando Story: {str(e)[:150]}")
+
+
+# ─── FACEBOOK VIDEO ───────────────────────────────────────────────────────────
+
+@router.post("/api/ecopost/{item_id}/publicar-fb-video")
+async def api_publicar_fb_video(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Publica un video en la página de Facebook via file_url."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    page_token = get_config_value("meta_page_access_token", db)
+    page_id    = get_config_value("meta_page_id", db)
+    if not page_token or not page_id:
+        raise HTTPException(400, "Configurar Meta Page Access Token y Page ID en Configuración → Meta")
+
+    page_obj = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if page_obj and page_obj.page_token:
+        page_token = page_obj.page_token
+
+    if not getattr(c, "video_token", None):
+        raise HTTPException(400, "Sin video. Subí un MP4/MOV primero.")
+
+    crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+    video_url = f"{crm_host.rstrip('/')}/pub/video/{c.video_token}"
+    description = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
+    title = c.titulo or "Video EcoFiver"
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as hc:
+            r = await hc.post(
+                f"{META_GRAPH_URL}/{page_id}/videos",
+                data={
+                    "file_url": video_url,
+                    "title": title[:100],
+                    "description": description,
+                    "access_token": page_token,
+                },
+            )
+            if r.status_code != 200:
+                err = r.json()
+                raise HTTPException(400, f"Error Facebook Video: {err.get('error', {}).get('message', r.text[:200])}")
+
+        post_id = r.json().get("id")
+        redes_pub = json.loads(getattr(c, "redes_publicadas", None) or "{}")
+        redes_pub["facebook_video"] = datetime.now().isoformat()
+        c.redes_publicadas = json.dumps(redes_pub)
+        c.estado = "publicado"
+        if not c.aprobado_por_id:
+            c.aprobado_por_id = user.id
+        db.commit()
+        return {"ok": True, "red": "facebook_video", "post_id": post_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Error publicando video en Facebook: {str(e)[:150]}")
+
+
+# ─── INSTAGRAM CAROUSEL ───────────────────────────────────────────────────────
+
+class CarouselUrlsReq(BaseModel):
+    urls: Optional[List[str]] = []    # URLs públicas de las imágenes (2-10)
+    caption: Optional[str] = ""
+
+
+@router.post("/api/ecopost/{item_id}/publicar-ig-carousel")
+async def api_publicar_ig_carousel(
+    item_id: int,
+    body: CarouselUrlsReq,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Publica un carrusel de imágenes en Instagram Business (2-10 imágenes)."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    page_token = get_config_value("meta_page_access_token", db)
+    ig_user_id = get_config_value("meta_ig_user_id", db)
+    if not page_token or not ig_user_id:
+        raise HTTPException(400, "Configurar Meta Page Access Token e IG User ID en Configuración → Meta")
+
+    urls = body.urls or []
+    if not urls:
+        # Intentar usar las carousel_urls guardadas en el contenido
+        urls = json.loads(getattr(c, "carousel_urls", None) or "[]")
+    if len(urls) < 2:
+        raise HTTPException(400, "El carrusel necesita al menos 2 URLs de imágenes")
+    urls = urls[:10]
+
+    caption = body.caption or "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as hc:
+            # Paso 1: crear container para cada imagen
+            child_ids = []
+            for img_url in urls:
+                r_child = await hc.post(
+                    f"{META_GRAPH_URL}/{ig_user_id}/media",
+                    data={
+                        "image_url": img_url,
+                        "is_carousel_item": "true",
+                        "access_token": page_token,
+                    },
+                )
+                if r_child.status_code != 200:
+                    err = r_child.json()
+                    raise HTTPException(400, f"Error item carrusel: {err.get('error', {}).get('message', r_child.text[:150])}")
+                child_ids.append(r_child.json().get("id"))
+
+            # Paso 2: container del carrusel
+            r_car = await hc.post(
+                f"{META_GRAPH_URL}/{ig_user_id}/media",
+                data={
+                    "media_type": "CAROUSEL",
+                    "children": ",".join(child_ids),
+                    "caption": caption,
+                    "access_token": page_token,
+                },
+            )
+            if r_car.status_code != 200:
+                err = r_car.json()
+                raise HTTPException(400, f"Error carrusel container: {err.get('error', {}).get('message', r_car.text[:200])}")
+
+            carousel_id = r_car.json().get("id")
+
+            # Paso 3: publicar
+            r_pub = await hc.post(
+                f"{META_GRAPH_URL}/{ig_user_id}/media_publish",
+                data={"creation_id": carousel_id, "access_token": page_token},
+            )
+            if r_pub.status_code != 200:
+                err = r_pub.json()
+                raise HTTPException(400, f"Error publicando carrusel: {err.get('error', {}).get('message', r_pub.text[:200])}")
+
+        ig_media_id = r_pub.json().get("id")
+        redes_pub = json.loads(getattr(c, "redes_publicadas", None) or "{}")
+        redes_pub["instagram_carousel"] = datetime.now().isoformat()
+        c.redes_publicadas = json.dumps(redes_pub)
+        c.estado = "publicado"
+        if not c.aprobado_por_id:
+            c.aprobado_por_id = user.id
+        db.commit()
+        return {"ok": True, "red": "instagram_carousel", "ig_media_id": ig_media_id, "items": len(child_ids)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Error publicando carrusel: {str(e)[:150]}")
+
+
+# ─── BULK PUBLICAR ────────────────────────────────────────────────────────────
+
+class BulkPublicarReq(BaseModel):
+    ids: List[int]
+    redes: List[str]   # "facebook" | "instagram"
+
+
+@router.post("/api/ecopost/bulk-publicar")
+async def api_bulk_publicar(
+    body: BulkPublicarReq,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Publica múltiples contenidos en simultáneo a las redes seleccionadas."""
+    if not body.ids:
+        raise HTTPException(400, "No hay IDs seleccionados")
+
+    page_token = get_config_value("meta_page_access_token", db)
+    page_id    = get_config_value("meta_page_id", db)
+    ig_user_id = get_config_value("meta_ig_user_id", db)
+    crm_host   = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+
+    resultados = []
+    for cid in body.ids:
+        c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == cid).first()
+        if not c:
+            resultados.append({"id": cid, "ok": False, "error": "No encontrado"})
+            continue
+
+        message = "\n\n".join(filter(None, [c.copy_texto or "", c.copy_hashtags or ""]))
+        img_url = c.imagen_url
+        if not img_url and c.imagen_base64:
+            try:
+                tok = _ensure_public_token(c, db)
+                img_url = f"{crm_host.rstrip('/')}/pub/img/{tok}"
+                c.imagen_url = img_url
+                db.flush()
+            except Exception:
+                pass
+
+        item_res: dict = {"id": cid, "titulo": c.titulo or "(sin título)", "redes": {}}
+
+        async with httpx.AsyncClient(timeout=20) as hc:
+            for red in body.redes:
+                try:
+                    if red == "facebook" and page_token and page_id:
+                        page_obj = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+                        pt = (page_obj.page_token if page_obj and page_obj.page_token else None) or page_token
+                        if img_url:
+                            r = await hc.post(
+                                f"{META_GRAPH_URL}/{page_id}/photos",
+                                data={"url": img_url, "caption": message, "access_token": pt},
+                            )
+                        else:
+                            r = await hc.post(
+                                f"{META_GRAPH_URL}/{page_id}/feed",
+                                data={"message": message, "access_token": pt},
+                            )
+                        ok = r.status_code == 200
+                        item_res["redes"]["facebook"] = {
+                            "ok": ok,
+                            **({"post_id": r.json().get("id")} if ok else
+                               {"error": r.json().get("error", {}).get("message", r.text[:100])}),
+                        }
+
+                    elif red == "instagram" and page_token and ig_user_id and img_url:
+                        r1 = await hc.post(
+                            f"{META_GRAPH_URL}/{ig_user_id}/media",
+                            data={"image_url": img_url, "caption": message, "access_token": page_token},
+                        )
+                        if r1.status_code == 200:
+                            r2 = await hc.post(
+                                f"{META_GRAPH_URL}/{ig_user_id}/media_publish",
+                                data={"creation_id": r1.json().get("id"), "access_token": page_token},
+                            )
+                            ok2 = r2.status_code == 200
+                            item_res["redes"]["instagram"] = {
+                                "ok": ok2,
+                                **({"ig_media_id": r2.json().get("id")} if ok2 else
+                                   {"error": r2.json().get("error", {}).get("message", r2.text[:100])}),
+                            }
+                        else:
+                            item_res["redes"]["instagram"] = {"ok": False, "error": r1.json().get("error", {}).get("message", r1.text[:100])}
+                    else:
+                        item_res["redes"][red] = {"ok": False, "error": "Config incompleta o sin imagen"}
+                except Exception as e:
+                    item_res["redes"][red] = {"ok": False, "error": str(e)[:100]}
+
+        any_ok = any(v.get("ok") for v in item_res["redes"].values())
+        if any_ok:
+            c.estado = "publicado"
+            if not c.aprobado_por_id:
+                c.aprobado_por_id = user.id
+            db.commit()
+        item_res["ok"] = any_ok
+        resultados.append(item_res)
+
+    return {"ok": True, "resultados": resultados, "total": len(resultados)}
+
+
+# ─── CONTENIDO PROGRAMADO ─────────────────────────────────────────────────────
+
+@router.get("/api/ecopost/programados")
+async def api_programados(
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Lista los contenidos con publicación programada pendiente."""
+    ahora = datetime.now()
+    items = (
+        db.query(ContenidoEcopost)
+        .filter(
+            ContenidoEcopost.publish_at.isnot(None),
+            ContenidoEcopost.publish_at > ahora,
+            ContenidoEcopost.estado.in_(["borrador", "aprobado"]),
+        )
+        .order_by(ContenidoEcopost.publish_at)
+        .all()
+    )
+    return [_content_dict(c) for c in items]
+
+
+async def _auto_publicar_programados():
+    """Scheduler job: publica en Facebook los contenidos 'aprobados' cuya hora ya pasó."""
+    try:
+        from database.database import SessionLocal
+        db = SessionLocal()
+        ahora = datetime.now()
+        pendientes = (
+            db.query(ContenidoEcopost)
+            .filter(
+                ContenidoEcopost.publish_at.isnot(None),
+                ContenidoEcopost.publish_at <= ahora,
+                ContenidoEcopost.estado == "aprobado",
+            )
+            .all()
+        )
+        if not pendientes:
+            db.close()
+            return
+
+        page_token = get_config_value("meta_page_access_token", db)
+        page_id    = get_config_value("meta_page_id", db)
+        crm_host   = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+
+        for c in pendientes:
+            try:
+                message = "\n\n".join(filter(None, [c.copy_texto or "", c.copy_hashtags or ""]))
+                img_url = c.imagen_url
+                if not img_url and c.imagen_base64:
+                    tok = _ensure_public_token(c, db)
+                    img_url = f"{crm_host.rstrip('/')}/pub/img/{tok}"
+                    c.imagen_url = img_url
+                    db.flush()
+
+                if page_token and page_id:
+                    async with httpx.AsyncClient(timeout=20) as hc:
+                        if img_url:
+                            r = await hc.post(
+                                f"{META_GRAPH_URL}/{page_id}/photos",
+                                data={"url": img_url, "caption": message, "access_token": page_token},
+                            )
+                        else:
+                            r = await hc.post(
+                                f"{META_GRAPH_URL}/{page_id}/feed",
+                                data={"message": message, "access_token": page_token},
+                            )
+                        if r.status_code == 200:
+                            c.estado = "publicado"
+                            c.publish_at = None
+                            db.commit()
+                            logger.info(f"[scheduler] Ecopost #{c.id} publicado automáticamente")
+                        else:
+                            logger.warning(f"[scheduler] Ecopost #{c.id} falló: {r.text[:150]}")
+            except Exception as e:
+                logger.error(f"[scheduler] Error publicando Ecopost #{c.id}: {e}")
+
+        db.close()
+    except Exception as e:
+        logger.error(f"[scheduler] _auto_publicar_programados: {e}")
+
+
+# ─── FOTOS ML EN ECOPOST ─────────────────────────────────────────────────────
+
+@router.get("/api/ecopost/ml-fotos")
+async def api_ml_fotos(
+    producto: Optional[str] = None,
+    limit: int = 40,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Expone las fotos de la biblioteca ML para usarlas en Ecopost sin resubir."""
+    try:
+        from database.models import BorradorML
+        q = db.query(BorradorML).filter(BorradorML.fotos_json.isnot(None))
+        if producto:
+            q = q.filter(BorradorML.producto.ilike(f"%{producto}%"))
+        borradores = q.order_by(BorradorML.updated_at.desc()).limit(limit).all()
+
+        fotos_list = []
+        seen: set = set()
+        for b in borradores:
+            try:
+                fotos = json.loads(b.fotos_json or "[]")
+                for f in fotos:
+                    url = (f.get("url") or f.get("secure_url") or f.get("imagen_url") or "").strip()
+                    if url and url not in seen:
+                        seen.add(url)
+                        fotos_list.append({
+                            "url": url,
+                            "titulo": b.titulo or "",
+                            "producto": b.producto or "",
+                            "borrador_id": b.id,
+                        })
+            except Exception:
+                pass
+
+        return {"ok": True, "total": len(fotos_list), "fotos": fotos_list}
+    except Exception as e:
+        logger.warning(f"[ecopost] api_ml_fotos error: {e}")
+        return {"ok": True, "total": 0, "fotos": [], "nota": "Sin fotos ML disponibles"}
+
+
+# ─── SCRIPT PARA VIDEO (TikTok / YouTube) ────────────────────────────────────
+
+class GenerarScriptReq(BaseModel):
+    plataforma: str = "tiktok"     # tiktok | youtube | youtube_shorts
+    duracion_seg: int = 30          # 15 | 30 | 60 | 180 | 600
+    formato: Optional[str] = "tutorial"   # tutorial | testimonial | demo | educativo
+
+
+@router.post("/api/ecopost/{item_id}/generar-script")
+async def api_generar_script(
+    item_id: int,
+    body: GenerarScriptReq,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Genera un guión de video con IA, adaptado a TikTok o YouTube."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    plat_desc = {
+        "tiktok":          "TikTok — vertical 9:16, hook en los primeros 3 segundos, ritmo rápido, lenguaje joven",
+        "youtube":         "YouTube — horizontal 16:9, intro con hook, desarrollo, CTA al final",
+        "youtube_shorts":  "YouTube Shorts — vertical 9:16, menos de 60 segundos",
+    }
+    plat = plat_desc.get(body.plataforma, body.plataforma)
+    producto = c.producto or "piscinas de fibra de vidrio EcoFiver"
+    copy_base = c.copy_texto or ""
+
+    dim_ctx = ""
+    for key, desc in _DIMENSIONES_PRODUCTO.items():
+        if key in producto.upper():
+            dim_ctx = desc
+            break
+
+    prompt = f"""{ctx_empresa()}
+
+════════════════════════════════════════════
+GUIÓN DE VIDEO — {body.plataforma.upper()}
+════════════════════════════════════════════
+Plataforma: {plat}
+Producto: {producto}
+{f"Características: {dim_ctx}" if dim_ctx else ""}
+Duración: {body.duracion_seg} segundos
+Formato: {body.formato}
+Copy disponible: {copy_base[:200] if copy_base else "ninguno"}
+
+Escribí en castellano argentino rioplatense. Responder con este formato exacto:
+
+TITULO_VIDEO: [título, max 70 chars]
+DESCRIPCION_YT: [descripción YouTube con SEO, 150 palabras — solo para youtube]
+TAGS: [10 tags separados por coma]
+GUION:
+[00:00] Hook: texto que dice el presentador
+[00:05] escena, texto en pantalla y descripción visual
+...
+[FIN] CTA: llamada a la acción
+NOTAS_PRODUCCION: indicaciones técnicas (luz, música, transiciones)"""
+
+    try:
+        respuesta = await ai_complete(db, prompt, max_tokens=2000, temperature=0.7)
+        # Parsear respuesta
+        titulo_video, descripcion_yt, tags, guion, notas = "", "", "", "", ""
+        section = None
+        for line in respuesta.split("\n"):
+            s = line.strip()
+            if s.startswith("TITULO_VIDEO:"):
+                titulo_video = s[13:].strip(); section = None
+            elif s.startswith("DESCRIPCION_YT:"):
+                descripcion_yt = s[15:].strip(); section = "desc"
+            elif s.startswith("TAGS:"):
+                tags = s[5:].strip(); section = None
+            elif s.startswith("GUION:"):
+                section = "guion"
+            elif s.startswith("NOTAS_PRODUCCION:"):
+                notas = s[17:].strip(); section = "notas"
+            elif section == "guion":
+                guion += line + "\n"
+            elif section == "desc":
+                descripcion_yt += "\n" + line
+            elif section == "notas":
+                notas += "\n" + line
+
+        c.subtitulos = guion.strip()
+        db.commit()
+
+        return {
+            "ok": True,
+            "plataforma": body.plataforma,
+            "titulo_video": titulo_video,
+            "descripcion_yt": descripcion_yt.strip(),
+            "tags": tags,
+            "guion": guion.strip(),
+            "notas_produccion": notas.strip(),
+        }
+    except Exception as e:
+        raise HTTPException(502, f"Error generando guión: {str(e)[:150]}")
+
+
+# ─── VARIACIONES A/B DE COPY ─────────────────────────────────────────────────
+
+@router.post("/api/ecopost/{item_id}/variaciones-copy")
+async def api_variaciones_copy(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Genera 3 variaciones A/B del copy con enfoques diferentes para testear conversión."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    copy_original = c.copy_texto or ""
+    producto = c.producto or "EcoFiver"
+    tipo = c.tipo or "flyer"
+
+    prompt = f"""{ctx_redes_sociales(tipo_contenido=tipo, producto=producto)}
+
+════════════════════════════════════════════
+VARIACIONES A/B DE COPY
+════════════════════════════════════════════
+Copy original: {copy_original}
+Producto: {producto}
+Tipo: {tipo}
+Hashtags actuales: {c.copy_hashtags or ""}
+
+Generá 3 variaciones con enfoque diferente:
+- A: BENEFICIO EMOCIONAL (la vida que tendrías con el producto)
+- B: URGENCIA (cupos limitados, temporada, última unidad)
+- C: PRUEBA SOCIAL (resultado real, dato concreto, cliente satisfecho)
+
+Respondé SOLO con este JSON válido:
+{{"variaciones": [
+  {{"id": "A", "enfoque": "Beneficio emocional", "copy": "...", "hashtags": "..."}},
+  {{"id": "B", "enfoque": "Urgencia", "copy": "...", "hashtags": "..."}},
+  {{"id": "C", "enfoque": "Prueba social", "copy": "...", "hashtags": "..."}}
+]}}"""
+
+    try:
+        respuesta = await ai_complete(db, prompt, max_tokens=1500, temperature=0.75)
+        respuesta = respuesta.strip()
+        if "```json" in respuesta:
+            respuesta = respuesta.split("```json")[1].split("```")[0].strip()
+        elif "```" in respuesta:
+            respuesta = respuesta.split("```")[1].split("```")[0].strip()
+        data = json.loads(respuesta)
+        return {"ok": True, "variaciones": data.get("variaciones", []), "copy_original": copy_original}
+    except json.JSONDecodeError:
+        raise HTTPException(502, "IA devolvió formato inválido. Intentá de nuevo.")
+    except Exception as e:
+        raise HTTPException(502, f"Error generando variaciones: {str(e)[:150]}")
+
+
+# ─── DUPLICAR CONTENIDO ───────────────────────────────────────────────────────
+
+@router.post("/api/ecopost/{item_id}/duplicar")
+async def api_duplicar(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Crea una copia de un contenido como nuevo borrador."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+
+    nuevo = ContenidoEcopost(
+        titulo=f"[COPIA] {c.titulo or ''}",
+        tipo=c.tipo,
+        media_type=getattr(c, "media_type", "photo") or "photo",
+        producto=c.producto,
+        modelo_especifico=c.modelo_especifico,
+        copy_texto=c.copy_texto,
+        copy_hashtags=c.copy_hashtags,
+        subtitulos=getattr(c, "subtitulos", "") or "",
+        imagen_prompt=c.imagen_prompt,
+        imagen_base64=c.imagen_base64,
+        imagen_url=c.imagen_url,
+        carousel_urls=getattr(c, "carousel_urls", "[]") or "[]",
+        notas=c.notas,
+        estado="borrador",
+        creado_por_id=user.id,
+        # No copiar: video_token, public_token, publish_at — el clon empieza fresco
+    )
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return {"ok": True, "id": nuevo.id, "item": _content_dict(nuevo)}

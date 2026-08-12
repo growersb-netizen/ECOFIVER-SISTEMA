@@ -156,6 +156,14 @@ def run_migrations():
             "ALTER TABLE borradores_ml ADD COLUMN costo_flete REAL",
             # ── Ecopost: token público para URL de imagen sin autenticación ────────
             "ALTER TABLE contenido_ecopost ADD COLUMN public_token TEXT",
+            # ── Ecopost: soporte de video, carrusel, programación ─────────────────
+            "ALTER TABLE contenido_ecopost ADD COLUMN media_type TEXT DEFAULT 'photo'",
+            "ALTER TABLE contenido_ecopost ADD COLUMN video_token TEXT",
+            "ALTER TABLE contenido_ecopost ADD COLUMN subtitulos TEXT DEFAULT ''",
+            "ALTER TABLE contenido_ecopost ADD COLUMN duracion_seg INTEGER",
+            "ALTER TABLE contenido_ecopost ADD COLUMN publish_at DATETIME",
+            "ALTER TABLE contenido_ecopost ADD COLUMN redes_publicadas TEXT DEFAULT '{}'",
+            "ALTER TABLE contenido_ecopost ADD COLUMN carousel_urls TEXT DEFAULT '[]'",
         ]
         for stmt in migrations:
             try:

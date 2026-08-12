@@ -637,7 +637,7 @@ async def ml_page(
         "user": current_user,
         "roles": roles,
         "catalogo": catalogo_data,
-    })
+    }, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 # ─── API — ESTADO ─────────────────────────────────────────────────────────────

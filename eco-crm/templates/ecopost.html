@@ -1440,14 +1440,16 @@ async function openDetalle(id) {
       .map(e => `<button class="btn ${e.cls}" onclick="cambiarEstado(${id},'${e.key}')">${e.label}</button>`)
       .join('');
 
-    const puedePublicar = item.estado === 'aprobado' || item.estado === 'publicado';
+    // Borradores también pueden publicar — publicarDirecto los aprueba silenciosamente antes
+    const puedePublicar = item.estado !== 'archivado';
     const hasVideo = item.tiene_video;
     footer.innerHTML = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;width:100%">
         <div style="display:flex;gap:6px;flex-wrap:wrap">${btnsCambioEstado}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           ${puedePublicar ? `
-            <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:12px" onclick="abrirModalPublicar(${id}, ${escHtml(JSON.stringify({hasVideo, hasImg: item.tiene_imagen}))})">📢 Publicar</button>
+            <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:12px"
+              onclick="publicarDirecto(${id}, ${escHtml(JSON.stringify({hasVideo, hasImg: item.tiene_imagen}))})">📢 Publicar</button>
           ` : ''}
           <button class="btn btn-ghost btn-sm" onclick="duplicarContenido(${id})">📋 Duplicar</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirGuionModal(${id})">🎬 Guión</button>

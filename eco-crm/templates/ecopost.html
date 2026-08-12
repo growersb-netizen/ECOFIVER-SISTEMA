@@ -1719,8 +1719,13 @@ async function generarPlan() {
     _planData = res.plan || [];
     _planSeleccionados = new Set(_planData.map((_, i) => i));
 
+    // Contar por tipo para el header
+    const nPosts  = res.plan.filter(p => p.tipo !== 'story').length;
+    const nStories = res.plan.filter(p => p.tipo === 'story').length;
+    let desglose = `${res.total} piezas`;
+    if (nStories > 0) desglose = `${nPosts} posts + ${nStories} stories`;
     document.getElementById('plan-titulo-resultado').textContent =
-      `Plan de ${res.total} posts para ${_planDias} días`;
+      `Plan ${_planDias} días — ${desglose}`;
     const tipoLabels = { comercial:'💰 Comercial', organico:'🌱 Orgánico', mixto:'⚖️ Mixto' };
     document.getElementById('plan-tipo-badge').innerHTML =
       `<span style="background:var(--bg-secondary);padding:2px 10px;border-radius:10px;font-size:12px">${tipoLabels[_planTipoContenido]||''}</span>`;

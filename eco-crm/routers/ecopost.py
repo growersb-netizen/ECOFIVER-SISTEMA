@@ -1243,41 +1243,69 @@ async def api_planificador_generar(
 - Al menos 1 post de mantenimiento o consejo
 - Variedad de tipos: flyer, story, carrusel, reel (distribuidos naturalmente)"""
 
+    # Cada día tiene: 1 post de feed + 1 story = 2 piezas por día
+    piezas_por_dia = 2
+    total_items = body.dias * piezas_por_dia
+
+    # Armar el esquema del calendario día a día para que la IA no se confunda
+    calendario_guia = []
+    for d in range(1, body.dias + 1):
+        # Feed post: alterna entre redes
+        red_feed = body.redes[(d - 1) % len(body.redes)]
+        # Story: preferir instagram, si no está usar la primera red disponible
+        red_story = "instagram" if "instagram" in body.redes else body.redes[0]
+        # Producto del día (rota entre los productos seleccionados)
+        prod_dia = body.productos[(d - 1) % len(body.productos)]
+        # Tipo de feed post (rota)
+        tipos_feed = ["flyer", "carrusel", "reel", "flyer", "carrusel", "flyer", "reel"]
+        tipo_feed = tipos_feed[(d - 1) % len(tipos_feed)]
+        calendario_guia.append(
+            f"Día {d}: POST [{tipo_feed}] en {red_feed} sobre {prod_dia}  +  STORY en {red_story}"
+        )
+
+    calendario_str = "\n".join(calendario_guia)
+
     prompt = f"""{ctx}
 
-════════════════════════════════════════════════════════
-TAREA: Plan de contenido {body.tipo_contenido.upper()} — {body.dias} posts
-════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════
+TAREA: Generá EXACTAMENTE {total_items} piezas de contenido ({body.dias} días × 2 por día)
+════════════════════════════════════════════════════════════════
 
-Redes: {redes_str}
-Productos: {prods_str}
+ESTRUCTURA DEL CALENDARIO ({body.dias} días × 2 piezas = {total_items} items en total):
+{calendario_str}
+
+Productos disponibles: {prods_str}
 Tono: {body.tono}
-Tipo de contenido: {body.tipo_contenido}
+Tipo de plan: {body.tipo_contenido}
 
 DISTRIBUCIÓN DE FORMATOS:
 {tipos_dist}
 
-REGLAS ESPECÍFICAS PARA ESTE PLAN:
+REGLAS ESPECÍFICAS:
 {reglas_especificas}
 
-REGLAS GENERALES:
-- Día 1 empezá con impacto visual fuerte (producto instalado, ambientación real)
-- Variá los productos y tipos de contenido a lo largo del plan
-- Repartí proporcionalmente entre las redes seleccionadas
-- Cada copy en castellano argentino rioplatense (vos, tu, acá, pileta)
-- prompt_imagen SIEMPRE en inglés, mínimo 40 palabras, ultra-detallado y cinematográfico
-  · Describir: tipo de escena, hora del día, iluminación, ángulo de cámara, ambiente, detalles del producto
-  · Incluir dimensiones reales cuando se conocen (piscina 6x3m, módulo 25m², etc.)
-  · SIEMPRE terminar con: "hyperrealistic, 8K ultra-detailed, professional advertising photography, sharp focus, vibrant saturated colors, no text, no watermarks"
-  · Ejemplo flyer piscina: "Aerial drone view of a turquoise EcoFiver fiberglass swimming pool 6x3m installed in a lush Argentine suburban backyard, crystal clear water, family relaxing at poolside, warm golden afternoon light, modern house in background, green lawn, wooden deck chairs, hibiscus flowers, hyperrealistic, 8K ultra-detailed, professional advertising photography, sharp focus, vibrant saturated colors, no text, no watermarks"
+REGLAS PARA TODOS LOS ITEMS:
+- copy: 2-3 frases en castellano argentino rioplatense, con emojis (vos, tu, acá, pileta)
+- hashtags: 6-8 hashtags relevantes separados por espacio
+- prompt_imagen: descripción de escena en inglés, 15-25 palabras, solo la ESCENA (sin palabras de calidad, esas se agregan automáticamente)
+  · Flyer piscina ejemplo: "Argentine family enjoying a turquoise fiberglass pool 6x3m in sunny suburban backyard"
+  · Story módulo ejemplo: "Prefab modular home 25m2 being installed in one day, workers and crane, Argentine suburb"
+  · Story tipo CTA ejemplo: "Close-up of family couple smiling next to their new EcoFiver pool, golden hour light"
+- titulo: máx 80 caracteres, impactante
 
-Respondé SOLO con un JSON válido, sin texto adicional:
+IMPORTANTE: el array "plan" debe tener EXACTAMENTE {total_items} objetos, numerados del día 1 al {body.dias}.
+Cada día aparece DOS veces: primero el post de feed, luego la story.
+
+Respondé SOLO con JSON válido. Sin texto antes ni después. Sin comentarios:
 {{"plan": [
-  {{"dia": 1, "red": "instagram", "tipo": "flyer", "producto": "PISCINA", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "..."}}
+  {{"dia": 1, "red": "{body.redes[0] if body.redes else 'instagram'}", "tipo": "flyer", "producto": "{body.productos[0] if body.productos else 'PISCINA'}", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "..."}},
+  {{"dia": 1, "red": "instagram", "tipo": "story", "producto": "{body.productos[0] if body.productos else 'PISCINA'}", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "..."}},
+  {{"dia": 2, "red": "...", "tipo": "...", "producto": "...", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "..."}},
+  ...continuar hasta día {body.dias} (2 items por día, {total_items} items en total)
 ]}}"""
 
     try:
-        respuesta = await ai_complete(db, prompt, max_tokens=5000, temperature=0.7)
+        respuesta = await ai_complete(db, prompt, max_tokens=8000, temperature=0.7)
         respuesta = respuesta.strip()
         if "```json" in respuesta:
             respuesta = respuesta.split("```json")[1].split("```")[0].strip()
@@ -1286,7 +1314,8 @@ Respondé SOLO con un JSON válido, sin texto adicional:
 
         data = json.loads(respuesta)
         plan = data.get("plan", [])
-        plan = plan[:body.dias]
+        # No capear por dias — el plan puede tener hasta dias*4 items legítimamente
+        plan = plan[: body.dias * 4]
 
         return {"ok": True, "dias": body.dias, "tipo_contenido": body.tipo_contenido,
                 "total": len(plan), "plan": plan}

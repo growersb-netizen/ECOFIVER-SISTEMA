@@ -7,13 +7,120 @@
 {% endblock %}
 
 {% block content %}
-<div class="tabs" id="tabs-main">
+<div class="tabs" id="tabs-main" style="flex-wrap:wrap">
+  <button class="tab" onclick="showMainTab('inicio', this)">🏠 Inicio</button>
   <button class="tab active" onclick="showMainTab('biblioteca', this)">📚 Biblioteca</button>
   <button class="tab" onclick="showMainTab('calendario', this)">📅 Calendario</button>
   <button class="tab" onclick="showMainTab('crear', this)">✨ Crear</button>
   <button class="tab" onclick="showMainTab('planificador', this)">🗓 Planificador</button>
   <button class="tab" onclick="showMainTab('programados', this)">⏰ Programados</button>
   <button class="tab" onclick="showMainTab('referencias', this)">🖼 Referencias</button>
+</div>
+
+<!-- ═══════════════════ TAB: INICIO ═══════════════════ -->
+<div id="tab-inicio" style="display:none">
+  <div style="max-width:900px;margin:0 auto">
+
+    <!-- Hero -->
+    <div style="text-align:center;padding:32px 16px 24px">
+      <div style="font-size:48px;margin-bottom:8px">📸</div>
+      <h2 style="font-size:22px;font-weight:800;margin:0 0 6px">Ecopost — Centro de Contenido</h2>
+      <p style="font-size:14px;color:var(--text-muted);margin:0">Creá, planificá y publicá contenido en todas las redes sociales desde un solo lugar.</p>
+    </div>
+
+    <!-- Acciones rápidas -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:32px">
+
+      <div class="inicio-card" onclick="showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[3])">
+        <div class="inicio-card-icon">✨</div>
+        <div class="inicio-card-title">Crear contenido</div>
+        <div class="inicio-card-desc">Generá copy e imagen con IA para un post puntual. Elegís producto, tono y formato.</div>
+      </div>
+
+      <div class="inicio-card inicio-card-featured" onclick="showMainTab('planificador', document.querySelectorAll('#tabs-main .tab')[4])">
+        <div class="inicio-card-icon">🗓</div>
+        <div class="inicio-card-title">Planificador IA</div>
+        <div class="inicio-card-desc">Generá un plan completo de 7, 14, 21 o 28 días. Comercial o Educativo. Con imágenes.</div>
+        <div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--color-primary);text-transform:uppercase;letter-spacing:.5px">⭐ Función principal</div>
+      </div>
+
+      <div class="inicio-card" onclick="showMainTab('biblioteca', document.querySelectorAll('#tabs-main .tab')[1])">
+        <div class="inicio-card-icon">📚</div>
+        <div class="inicio-card-title">Biblioteca</div>
+        <div class="inicio-card-desc">Todos tus contenidos guardados. Filtrá, aprobá y publicá en redes con un clic.</div>
+      </div>
+
+      <div class="inicio-card" onclick="showMainTab('programados', document.querySelectorAll('#tabs-main .tab')[5])">
+        <div class="inicio-card-icon">⏰</div>
+        <div class="inicio-card-title">Programados</div>
+        <div class="inicio-card-desc">Publicaciones agendadas. El sistema las publica automáticamente cada 5 minutos.</div>
+      </div>
+
+      <div class="inicio-card" onclick="showMainTab('calendario', document.querySelectorAll('#tabs-main .tab')[2])">
+        <div class="inicio-card-icon">📅</div>
+        <div class="inicio-card-title">Calendario</div>
+        <div class="inicio-card-desc">Vista mensual de todo el contenido planificado y publicado.</div>
+      </div>
+
+      <div class="inicio-card" onclick="showMainTab('referencias', document.querySelectorAll('#tabs-main .tab')[6])">
+        <div class="inicio-card-icon">🖼</div>
+        <div class="inicio-card-title">Fotos ML</div>
+        <div class="inicio-card-desc">Importá fotos de tus publicaciones de MercadoLibre directamente al creador de contenido.</div>
+      </div>
+
+    </div>
+
+    <!-- Flujo de trabajo -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>📋 Flujo de trabajo recomendado</strong></div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">1</div>
+            <div>
+              <div style="font-weight:600;font-size:13px">Planificador IA — generá el plan completo</div>
+              <div style="font-size:12px;color:var(--text-muted)">Elegí Comercial u Orgánico, el período (7-28 días) y los productos. La IA genera todos los posts y sugiere prompts de imagen.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">2</div>
+            <div>
+              <div style="font-weight:600;font-size:13px">Revisá y guardá como borradores</div>
+              <div style="font-size:12px;color:var(--text-muted)">Seleccioná los posts que te gustan y guardalos. Podés editarlos uno a uno en la Biblioteca antes de publicar.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">3</div>
+            <div>
+              <div style="font-weight:600;font-size:13px">Generá imágenes con IA o importá desde ML</div>
+              <div style="font-size:12px;color:var(--text-muted)">Usá el generador de imágenes IA en el editor, o importá fotos de tus publicaciones de MercadoLibre desde la sección Referencias.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">4</div>
+            <div>
+              <div style="font-weight:600;font-size:13px">Publicá en Instagram y Facebook</div>
+              <div style="font-size:12px;color:var(--text-muted)">Desde la Biblioteca, aprobá el contenido y publicá directamente con el botón 📢. Seleccioná dónde publicar: Feed, Reel, Story, Facebook.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">5</div>
+            <div>
+              <div style="font-weight:600;font-size:13px">Programá publicaciones automáticas</div>
+              <div style="font-size:12px;color:var(--text-muted)">Asigná fecha y hora a cualquier borrador aprobado. El sistema lo publica automáticamente cada 5 minutos.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px">
+      <button class="btn btn-primary" onclick="showMainTab('planificador', document.querySelectorAll('#tabs-main .tab')[4])">🗓 Generar plan ahora</button>
+      <button class="btn btn-secondary" onclick="openCrear()">✨ Crear post individual</button>
+      <button class="btn btn-ghost" onclick="showMainTab('referencias', document.querySelectorAll('#tabs-main .tab')[6]);setTimeout(loadMLFotos,300)">📦 Ver fotos ML</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════════ TAB: BIBLIOTECA ═══════════════════ -->
@@ -248,15 +355,45 @@
   <div class="card mb-3">
     <div class="card-header"><strong>🗓 Generar plan de contenido con IA</strong></div>
     <div class="card-body">
+
+      <!-- TIPO DE CONTENIDO — selector prominente -->
+      <div style="margin-bottom:20px">
+        <label class="label" style="font-size:13px;font-weight:700;margin-bottom:8px">Tipo de contenido</label>
+        <div style="display:flex;gap:0;border:1px solid var(--border-color);border-radius:10px;overflow:hidden;max-width:480px">
+          <button id="plan-tipo-comercial" class="btn plan-tipo-btn active-plan-tipo"
+            onclick="selPlanTipo('comercial')"
+            style="flex:1;border-radius:0;border:none;padding:10px 12px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <span style="font-size:20px">💰</span>
+            <span style="font-weight:700">Comercial</span>
+            <span style="font-size:10px;opacity:.75">Precio · Instalación · CTA</span>
+          </button>
+          <button id="plan-tipo-mixto" class="btn plan-tipo-btn"
+            onclick="selPlanTipo('mixto')"
+            style="flex:1;border-radius:0;border-left:1px solid var(--border-color);border-right:1px solid var(--border-color);border-top:none;border-bottom:none;padding:10px 12px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <span style="font-size:20px">⚖️</span>
+            <span style="font-weight:700">Mixto</span>
+            <span style="font-size:10px;opacity:.75">Mitad y mitad</span>
+          </button>
+          <button id="plan-tipo-organico" class="btn plan-tipo-btn"
+            onclick="selPlanTipo('organico')"
+            style="flex:1;border-radius:0;border:none;padding:10px 12px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <span style="font-size:20px">🌱</span>
+            <span style="font-weight:700">Orgánico</span>
+            <span style="font-size:10px;opacity:.75">Educativo · Tips · Carruseles</span>
+          </button>
+        </div>
+        <div id="plan-tipo-desc" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+      </div>
+
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:16px">
 
         <div>
           <label class="label">Días a planificar</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap" id="plan-dias-btns">
             <button class="btn btn-ghost plan-dias-btn active-plan" data-dias="7" onclick="selPlanDias(7,this)">7 días</button>
-            <button class="btn btn-ghost plan-dias-btn" data-dias="15" onclick="selPlanDias(15,this)">15 días</button>
+            <button class="btn btn-ghost plan-dias-btn" data-dias="14" onclick="selPlanDias(14,this)">14 días</button>
             <button class="btn btn-ghost plan-dias-btn" data-dias="21" onclick="selPlanDias(21,this)">21 días</button>
-            <button class="btn btn-ghost plan-dias-btn" data-dias="31" onclick="selPlanDias(31,this)">31 días</button>
+            <button class="btn btn-ghost plan-dias-btn" data-dias="28" onclick="selPlanDias(28,this)">28 días</button>
           </div>
         </div>
 
@@ -276,6 +413,8 @@
             <button class="btn btn-ghost plan-toggle active-plan" data-val="PISCINA" onclick="togglePlanProd(this)">🏊 Piscinas</button>
             <button class="btn btn-ghost plan-toggle active-plan" data-val="MODULO" onclick="togglePlanProd(this)">🏠 Módulos</button>
             <button class="btn btn-ghost plan-toggle" data-val="COMBO" onclick="togglePlanProd(this)">✨ Combos</button>
+            <button class="btn btn-ghost plan-toggle" data-val="HIDROMASAJE" onclick="togglePlanProd(this)">💧 Spa/Jacuzzi</button>
+            <button class="btn btn-ghost plan-toggle" data-val="REPOSERA_FIBRA" onclick="togglePlanProd(this)">🛋 Reposeras</button>
           </div>
         </div>
 
@@ -290,6 +429,14 @@
         </div>
       </div>
 
+      <!-- Opciones adicionales -->
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="plan-gen-imgs" style="width:16px;height:16px">
+          <span>🎨 Generar imagen por post (puede tardar varios minutos)</span>
+        </label>
+      </div>
+
       <button class="btn btn-primary" id="btn-generar-plan" onclick="generarPlan()">
         ✨ Generar plan con IA
       </button>
@@ -299,19 +446,23 @@
   <!-- Resultado -->
   <div id="plan-resultado" style="display:none">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <div style="font-weight:700;font-size:15px" id="plan-titulo-resultado"></div>
-      <div style="display:flex;gap:8px">
+      <div>
+        <div style="font-weight:700;font-size:15px" id="plan-titulo-resultado"></div>
+        <div id="plan-tipo-badge" style="font-size:12px;margin-top:3px"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="seleccionarTodoPlan(true)">Seleccionar todo</button>
         <button class="btn btn-ghost btn-sm" onclick="seleccionarTodoPlan(false)">Deseleccionar</button>
-        <button class="btn btn-primary btn-sm" id="btn-guardar-plan" onclick="guardarPlanSeleccionado()">💾 Guardar seleccionados como borradores</button>
+        <button class="btn btn-secondary btn-sm" id="btn-gen-imgs-plan" onclick="generarImagenesPlan()" style="display:none">🎨 Generar imágenes</button>
+        <button class="btn btn-primary btn-sm" id="btn-guardar-plan" onclick="guardarPlanSeleccionado()">💾 Guardar seleccionados</button>
       </div>
     </div>
-    <div id="plan-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
+    <div id="plan-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px"></div>
   </div>
 
   <div id="plan-loading" style="display:none;text-align:center;padding:40px;color:var(--text-secondary)">
     <div style="font-size:32px;margin-bottom:12px">⏳</div>
-    <div style="font-size:14px" id="plan-loading-txt">Generando plan con IA… puede tardar hasta 30 segundos</div>
+    <div style="font-size:14px" id="plan-loading-txt">Generando plan con IA…</div>
   </div>
 </div>
 
@@ -629,8 +780,30 @@
   .ecopost-grid { grid-template-columns: 1fr; }
 }
 
+/* Inicio cards */
+.inicio-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 20px 18px;
+  cursor: pointer;
+  transition: border-color .15s, transform .1s, box-shadow .15s;
+}
+.inicio-card:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,200,190,.15); }
+.inicio-card-featured { border-color: var(--teal); background: rgba(0,200,190,.04); }
+.inicio-card-icon { font-size: 32px; margin-bottom: 8px; }
+.inicio-card-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+.inicio-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
 /* Planificador */
 .active-plan { background: var(--primary) !important; color: #fff !important; border-color: var(--primary) !important; }
+/* Tipo de contenido selector */
+.plan-tipo-btn { background: transparent; color: var(--text-secondary); transition: background .15s, color .15s; }
+.plan-tipo-btn.active-plan-tipo { background: var(--teal) !important; color: #fff !important; }
+.plan-tipo-btn:hover:not(.active-plan-tipo) { background: var(--bg-secondary) !important; }
+/* Plan card — modo comercial/orgánico */
+.plan-card-comercial.selected { border-color: #f59e0b; background: rgba(245,158,11,.06); }
+.plan-card-organico.selected  { border-color: #4caf50; background: rgba(76,175,80,.06); }
 .plan-card {
   background: var(--card-bg);
   border: 2px solid var(--border-color);
@@ -728,18 +901,22 @@ const _PRODUCTO_CTX = {
 };
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-const TABS_EP = ['biblioteca', 'calendario', 'crear', 'planificador', 'programados', 'referencias'];
+const TABS_EP = ['inicio', 'biblioteca', 'calendario', 'crear', 'planificador', 'programados', 'referencias'];
 function showMainTab(name, el) {
   TABS_EP.forEach(t => {
     document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
   });
   document.querySelectorAll('#tabs-main .tab').forEach(b => b.classList.remove('active'));
+  // Auto-find the button if not explicitly passed
+  if (!el) el = [...document.querySelectorAll('#tabs-main .tab')].find(b => (b.getAttribute('onclick') || '').includes(`'${name}'`));
   if (el) el.classList.add('active');
   if (name === 'biblioteca') loadBiblioteca();
   if (name === 'calendario') calRender();
   if (name === 'referencias') loadReferencias();
   if (name === 'programados') loadProgramados();
 }
+// Navegación nombrada — no depende de índices de posición
+function gotoTab(name) { showMainTab(name); }
 
 // ─── Catálogo de productos ───────────────────────────────────────────────────
 let _catalogoEP = null;
@@ -937,7 +1114,7 @@ async function subirR2(id, btn) {
 function openCrear() {
   resetCrear();
   editingId = null;
-  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[2]);
+  gotoTab('crear');
 }
 
 // ─── Biblioteca ──────────────────────────────────────────────────────────────
@@ -1244,7 +1421,7 @@ function descargarImagen(id) {
 // ─── Crear / editar ───────────────────────────────────────────────────────────
 async function editarContenido(id) {
   editingId = id;
-  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[2]);
+  gotoTab('crear');
   try {
     const item = await API.get(`/api/ecopost/${id}`);
     document.getElementById('c-tipo').value = item.tipo || 'flyer';
@@ -1409,7 +1586,7 @@ async function guardarContenido() {
       showToast('Contenido guardado como borrador ✅', 'success');
     }
     resetCrear();
-    showMainTab('biblioteca', document.querySelectorAll('#tabs-main .tab')[0]);
+    gotoTab('biblioteca');
   } catch(e) {
     showToast(`Error guardando: ${e.message}`, 'error');
   } finally {
@@ -1456,8 +1633,23 @@ document.addEventListener('DOMContentLoaded', () => {
 let _planDias = 7;
 let _planRedes = new Set(['instagram', 'facebook']);
 let _planProds = new Set(['PISCINA', 'MODULO']);
+let _planTipoContenido = 'comercial';   // 'comercial' | 'organico' | 'mixto'
 let _planData = [];
 let _planSeleccionados = new Set();
+
+const _PLAN_TIPO_DESC = {
+  comercial: '💰 Posts con precio, instalación en el día, pago contra entrega y CTA directo. Ideal para generar consultas y ventas.',
+  mixto:     '⚖️ Mezcla equilibrada: posts comerciales con CTA + contenido educativo e inspiracional para construir comunidad.',
+  organico:  '🌱 Contenido educativo, técnico e inspiracional. Ideal para ganar seguidores, autoridad de marca y engagement orgánico.',
+};
+
+function selPlanTipo(tipo) {
+  _planTipoContenido = tipo;
+  ['comercial','mixto','organico'].forEach(t => {
+    document.getElementById(`plan-tipo-${t}`).classList.toggle('active-plan-tipo', t === tipo);
+  });
+  document.getElementById('plan-tipo-desc').textContent = _PLAN_TIPO_DESC[tipo] || '';
+}
 
 function selPlanDias(dias, btn) {
   _planDias = dias;
@@ -1468,7 +1660,7 @@ function selPlanDias(dias, btn) {
 function togglePlanRed(btn) {
   const val = btn.dataset.val;
   if (_planRedes.has(val)) {
-    if (_planRedes.size <= 1) return; // mínimo 1
+    if (_planRedes.size <= 1) return;
     _planRedes.delete(val);
     btn.classList.remove('active-plan');
   } else {
@@ -1499,13 +1691,13 @@ async function generarPlan() {
   loading.style.display = 'block';
   resultado.style.display = 'none';
 
-  // Animación de carga
+  const tipoDesc = { comercial:'comercial', organico:'orgánico', mixto:'mixto' }[_planTipoContenido] || _planTipoContenido;
   const msgs = [
-    'Generando plan con IA… puede tardar hasta 30 segundos',
-    'Planificando tipos de contenido…',
+    `Generando plan ${tipoDesc} de ${_planDias} días…`,
+    'Planificando distribución de contenidos…',
     'Redactando copys para cada red…',
     'Definiendo prompts de imágenes…',
-    'Casi listo…'
+    'Finalizando…'
   ];
   let mi = 0;
   const loadingTxt = document.getElementById('plan-loading-txt');
@@ -1513,6 +1705,7 @@ async function generarPlan() {
     mi = (mi + 1) % msgs.length;
     loadingTxt.textContent = msgs[mi];
   }, 5000);
+  loadingTxt.textContent = msgs[0];
 
   try {
     const res = await API.post('/api/ecopost/planificador/generar', {
@@ -1520,16 +1713,31 @@ async function generarPlan() {
       redes: [..._planRedes],
       productos: [..._planProds],
       tono: document.getElementById('plan-tono').value,
+      tipo_contenido: _planTipoContenido,
     });
 
     _planData = res.plan || [];
-    _planSeleccionados = new Set(_planData.map((_, i) => i)); // todos seleccionados por defecto
+    _planSeleccionados = new Set(_planData.map((_, i) => i));
 
     document.getElementById('plan-titulo-resultado').textContent =
       `Plan de ${res.total} posts para ${_planDias} días`;
+    const tipoLabels = { comercial:'💰 Comercial', organico:'🌱 Orgánico', mixto:'⚖️ Mixto' };
+    document.getElementById('plan-tipo-badge').innerHTML =
+      `<span style="background:var(--bg-secondary);padding:2px 10px;border-radius:10px;font-size:12px">${tipoLabels[_planTipoContenido]||''}</span>`;
+
+    // Mostrar botón de generar imágenes si está marcado el checkbox
+    const wantsImgs = document.getElementById('plan-gen-imgs').checked;
+    document.getElementById('btn-gen-imgs-plan').style.display = 'inline-flex';
+
     renderPlanGrid();
     resultado.style.display = 'block';
-    showToast(`Plan generado: ${res.total} posts ✨`, 'success');
+    window.scrollTo({ top: document.getElementById('plan-resultado').offsetTop - 80, behavior: 'smooth' });
+    showToast(`✨ Plan generado: ${res.total} posts ${tipoDesc}`, 'success');
+
+    // Auto-generar imágenes si el checkbox está marcado
+    if (wantsImgs) {
+      setTimeout(() => generarImagenesPlan(), 800);
+    }
   } catch(e) {
     showToast('Error generando plan: ' + e.message, 'error');
   } finally {
@@ -1546,35 +1754,45 @@ function renderPlanGrid() {
     grid.innerHTML = '<div style="color:var(--text-secondary);grid-column:1/-1">Sin posts generados</div>';
     return;
   }
+  const prodMap = {
+    PISCINA:'🏊 Piscina', MODULO:'🏠 Módulo', COMBO:'✨ Combo',
+    HIDROMASAJE:'💧 Spa', REPOSERA_FIBRA:'🛋 Reposera',
+    CUCHA:'🐕 Cucha', BANIO_QUIMICO:'🚽 Baño', GARITA_SEGURIDAD:'🏠 Garita',
+  };
   grid.innerHTML = _planData.map((p, i) => {
     const sel = _planSeleccionados.has(i);
     const redCls = (p.red || '').toLowerCase();
-    const redIcon = { instagram: '📸', facebook: '📘', tiktok: '🎵', youtube: '▶️' }[redCls] || '📱';
+    const redIcon = { instagram:'📸', facebook:'📘', tiktok:'🎵', youtube:'▶️' }[redCls] || '📱';
     const tipoIcon = { flyer:'🖼', story:'📱', carrusel:'🗂', reel:'🎬' }[p.tipo] || '📄';
-    const prodLbl = { PISCINA:'🏊 Piscina', MODULO:'🏠 Módulo', COMBO:'✨ Combo' }[p.producto] || p.producto;
+    const prodLbl = prodMap[p.producto] || (p.producto || '');
+    const imgId = `plan-img-${i}`;
+    const hasImg = p._imagen_b64;
     return `
-    <div class="plan-card ${sel ? 'selected' : ''}" onclick="togglePlanCard(${i})" id="plan-card-${i}">
+    <div class="plan-card ${sel ? 'selected' : ''}" id="plan-card-${i}" onclick="togglePlanCard(${i})">
       <div class="plan-card-check">${sel ? '✓' : ''}</div>
+      ${hasImg ? `<img src="data:image/png;base64,${p._imagen_b64}" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;margin-bottom:8px">` : `<div id="${imgId}" style="height:4px"></div>`}
       <div class="plan-card-dia">Día ${p.dia}</div>
       <div class="plan-card-titulo">${escHtml(p.titulo || '')}</div>
       <div class="plan-card-copy">${escHtml(p.copy || '')}</div>
-      <div class="plan-card-meta">
+      <div class="plan-card-meta" style="margin-bottom:6px">
         <span class="plan-chip ${redCls}">${redIcon} ${p.red || ''}</span>
         <span class="plan-chip">${tipoIcon} ${p.tipo || ''}</span>
         <span class="plan-chip">${prodLbl}</span>
       </div>
-      ${p.hashtags ? `<div style="font-size:10px;color:#42a5f5;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.hashtags)}</div>` : ''}
+      ${p.hashtags ? `<div style="font-size:10px;color:#42a5f5;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.hashtags)}</div>` : ''}
+      ${p.prompt_imagen ? `<div style="font-size:10px;color:var(--text-muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:8px">🎨 ${escHtml(p.prompt_imagen)}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:auto" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="usarPostEnCrear(${i})">✏️ Editar</button>
+        ${!hasImg && p.prompt_imagen ? `<button class="btn btn-ghost btn-sm" id="btn-img-${i}" style="font-size:11px" onclick="generarImgPost(${i})">🎨 Imagen</button>` : ''}
+      </div>
     </div>`;
   }).join('');
   actualizarContadorPlan();
 }
 
 function togglePlanCard(i) {
-  if (_planSeleccionados.has(i)) {
-    _planSeleccionados.delete(i);
-  } else {
-    _planSeleccionados.add(i);
-  }
+  if (_planSeleccionados.has(i)) _planSeleccionados.delete(i);
+  else _planSeleccionados.add(i);
   const card = document.getElementById(`plan-card-${i}`);
   card.classList.toggle('selected', _planSeleccionados.has(i));
   card.querySelector('.plan-card-check').textContent = _planSeleccionados.has(i) ? '✓' : '';
@@ -1582,17 +1800,89 @@ function togglePlanCard(i) {
 }
 
 function seleccionarTodoPlan(sel) {
-  if (sel) {
-    _planSeleccionados = new Set(_planData.map((_, i) => i));
-  } else {
-    _planSeleccionados = new Set();
-  }
+  _planSeleccionados = sel ? new Set(_planData.map((_, i) => i)) : new Set();
   renderPlanGrid();
 }
 
 function actualizarContadorPlan() {
   const btn = document.getElementById('btn-guardar-plan');
-  btn.textContent = `💾 Guardar ${_planSeleccionados.size} post${_planSeleccionados.size !== 1 ? 's' : ''} como borradores`;
+  btn.textContent = `💾 Guardar ${_planSeleccionados.size} post${_planSeleccionados.size !== 1 ? 's' : ''}`;
+}
+
+/** Pre-carga un post del plan en el formulario Crear para editarlo */
+function usarPostEnCrear(i) {
+  const p = _planData[i];
+  if (!p) return;
+  resetCrear();
+  const toTipo = { flyer:'flyer', story:'story', carrusel:'carrusel', reel:'reel' };
+  const el = document.getElementById('c-tipo');
+  if (el && toTipo[p.tipo]) el.value = toTipo[p.tipo];
+  const prod = document.getElementById('c-producto');
+  if (prod && p.producto) { prod.value = p.producto; actualizarModelos(); }
+  document.getElementById('c-titulo').value = p.titulo || '';
+  document.getElementById('c-copy').value = p.copy || '';
+  document.getElementById('c-hashtags').value = p.hashtags || '';
+  if (p.prompt_imagen) document.getElementById('c-img-prompt').value = p.prompt_imagen;
+  if (p._imagen_b64) {
+    generatedB64 = p._imagen_b64;
+    document.getElementById('img-preview').innerHTML =
+      `<img src="data:image/png;base64,${p._imagen_b64}" style="max-width:100%;max-height:300px;border-radius:6px">`;
+  }
+  gotoTab('crear');
+  showToast('Post cargado en el editor ✨', 'success');
+}
+
+/** Genera imagen IA para un post individual del plan */
+async function generarImgPost(i) {
+  const p = _planData[i];
+  if (!p || !p.prompt_imagen) return;
+  const btn = document.getElementById(`btn-img-${i}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const data = await API.post('/api/ecopost/generar-imagen', {
+      prompt: p.prompt_imagen,
+      tipo: p.tipo || 'flyer',
+      producto: p.producto || '',
+    });
+    if (data.ok && data.image_base64) {
+      _planData[i]._imagen_b64 = data.image_base64;
+      renderPlanGrid();
+      showToast(`✅ Imagen generada para día ${p.dia}`, 'success');
+    }
+  } catch(e) {
+    showToast(`Error imagen día ${p.dia}: ${e.message}`, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🎨 Imagen'; }
+  }
+}
+
+/** Genera imágenes para TODOS los posts seleccionados que tengan prompt_imagen */
+async function generarImagenesPlan() {
+  const btn = document.getElementById('btn-gen-imgs-plan');
+  const indices = [..._planSeleccionados].filter(i => _planData[i]?.prompt_imagen && !_planData[i]?._imagen_b64);
+  if (!indices.length) { showToast('Todos los posts seleccionados ya tienen imagen o no tienen prompt', 'info'); return; }
+
+  btn.disabled = true;
+  btn.textContent = `⏳ 0/${indices.length}`;
+  let ok = 0;
+  for (const i of indices) {
+    try {
+      const p = _planData[i];
+      const data = await API.post('/api/ecopost/generar-imagen', {
+        prompt: p.prompt_imagen,
+        tipo: p.tipo || 'flyer',
+        producto: p.producto || '',
+      });
+      if (data.ok && data.image_base64) {
+        _planData[i]._imagen_b64 = data.image_base64;
+        ok++;
+        btn.textContent = `⏳ ${ok}/${indices.length}`;
+      }
+    } catch(e) { /* continúa con el siguiente */ }
+  }
+  renderPlanGrid();
+  showToast(`✅ ${ok} imágenes generadas`, 'success');
+  btn.disabled = false;
+  btn.textContent = '🎨 Generar imágenes';
 }
 
 async function guardarPlanSeleccionado() {
@@ -1603,8 +1893,7 @@ async function guardarPlanSeleccionado() {
   try {
     const res = await API.post('/api/ecopost/planificador/guardar', { posts });
     showToast(`✅ ${res.guardados} posts guardados como borradores`, 'success');
-    // Ir a la biblioteca
-    showMainTab('biblioteca', document.querySelector('#tabs-main .tab'));
+    gotoTab('biblioteca');
   } catch(e) {
     showToast('Error guardando: ' + e.message, 'error');
   } finally {
@@ -1612,6 +1901,12 @@ async function guardarPlanSeleccionado() {
     actualizarContadorPlan();
   }
 }
+
+// Inicializar descripción del tipo al cargar
+document.addEventListener('DOMContentLoaded', () => {
+  const desc = document.getElementById('plan-tipo-desc');
+  if (desc) desc.textContent = _PLAN_TIPO_DESC[_planTipoContenido] || '';
+});
 
 // ─── Referencias ──────────────────────────────────────────────────────────────
 let _refFileB64 = null;
@@ -2048,7 +2343,7 @@ function usarFotoEnEcopost(url, productoRaw) {
   generatedB64 = null;
 
   // 2. Ir al tab Crear
-  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[2]);
+  gotoTab('crear');
 
   // 3. Mostrar la imagen en el preview
   const preview = document.getElementById('img-preview');

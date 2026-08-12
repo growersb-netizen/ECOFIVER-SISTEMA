@@ -1170,10 +1170,11 @@ async def api_refs_eliminar(
 # ─── PLANIFICADOR DE CONTENIDO ────────────────────────────────────────────────
 
 class PlanificadorReq(BaseModel):
-    dias: int = 7          # 7 | 15 | 21 | 31
-    redes: List[str] = ["instagram", "facebook"]  # instagram | facebook | tiktok | youtube
-    productos: List[str] = ["PISCINA", "MODULO"]  # PISCINA | MODULO | COMBO
+    dias: int = 7                                  # 7 | 14 | 21 | 28
+    redes: List[str] = ["instagram", "facebook"]   # instagram | facebook | tiktok | youtube
+    productos: List[str] = ["PISCINA", "MODULO"]   # PISCINA | MODULO | COMBO | HIDROMASAJE | ...
     tono: Optional[str] = "profesional y cercano"
+    tipo_contenido: str = "comercial"              # "comercial" | "organico" | "mixto"
 
 
 @router.post("/api/ecopost/planificador/generar")
@@ -1182,50 +1183,89 @@ async def api_planificador_generar(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    """Genera un plan de contenido para N días con IA. Devuelve lista de posts a revisar antes de guardar."""
-    if body.dias not in (7, 15, 21, 31):
-        raise HTTPException(400, "Días válidos: 7, 15, 21, 31")
+    """Genera un plan de contenido para N días con IA (comercial, orgánico o mixto)."""
+    if body.dias not in (7, 14, 21, 28):
+        raise HTTPException(400, "Días válidos: 7, 14, 21, 28")
+
+    from utils.contexto_ecofiver import ctx_redes_comercial, ctx_redes_organico
 
     redes_str = ", ".join(body.redes)
     prods_str = ", ".join(body.productos)
-    tipos = ["flyer", "story", "carrusel", "reel"]
 
-    prompt = f"""{ctx_redes_sociales(tipo_contenido="plan de contenido para redes sociales")}
+    # ── Seleccionar contexto y reglas según tipo_contenido ────────────────────
+    if body.tipo_contenido == "comercial":
+        ctx = ctx_redes_comercial()
+        tipos_dist = (
+            "60% flyres y stories (precio, instalación, pago contra entrega, CTA directo), "
+            "30% carrusel (beneficios, comparativas, proceso de compra), "
+            "10% reel (instalación en tiempo real, testimonial)"
+        )
+        reglas_especificas = """
+- Destacar PAGO CONTRA ENTREGA como ventaja única en al menos 2 posts ("Pagás cuando tu piscina ya está instalada")
+- Mencionar instalación en el día, garantía 10 años y retiro CABA/Zona Oeste donde corresponda
+- CTA comercial en CADA post (WhatsApp, cotización, ver precio en ML)
+- Al menos 1 post sobre financiación o cuotas propias (piscinas y módulos)
+- Al menos 1 post mostrando el proceso de instalación (antes y después)
+- NUNCA prometer precios exactos — redirigir a WhatsApp o MercadoLibre"""
+    elif body.tipo_contenido == "organico":
+        ctx = ctx_redes_organico()
+        tipos_dist = (
+            "40% carrusel educativo (método constructivo, specs, comparativas), "
+            "30% reel o video (proceso de fabricación/instalación, método constructivo), "
+            "30% flyer/story inspiracional (lifestyle, antes/después, tips)"
+        )
+        reglas_especificas = """
+- Al menos 2 posts puramente educativos (fibra vs hormigón, módulo vs construcción tradicional, etc.)
+- Al menos 1 carrusel técnico con dimensiones, materiales o proceso de fabricación
+- Al menos 1 post con consejo de mantenimiento o tip de uso
+- Al menos 1 post tipo "¿Sabías que...?" con dato técnico sorprendente
+- Evitar CTAs agresivos de venta — preferir "guardá este post", "seguinos para más tips"
+- Generar contenido que invite a compartir (valor real para el usuario)"""
+    else:  # mixto
+        ctx = ctx_redes_sociales(tipo_contenido="plan mixto de contenido para redes sociales")
+        tipos_dist = (
+            "50% comercial (flyer/story con CTA, precio, instalación), "
+            "50% orgánico (carrusel educativo, reel de proceso, tips)"
+        )
+        reglas_especificas = """
+- Alternar posts comerciales con orgánicos (nunca 2 comerciales seguidos)
+- Al menos 1 post de pago contra entrega
+- Al menos 1 carrusel educativo (fibra vs hormigón u otro comparativo)
+- Al menos 1 post de mantenimiento o consejo
+- Variedad de tipos: flyer, story, carrusel, reel (distribuidos naturalmente)"""
 
-════════════════════════════════════════════
-TAREA: Plan de contenido — {body.dias} posts
-════════════════════════════════════════════
+    prompt = f"""{ctx}
+
+════════════════════════════════════════════════════════
+TAREA: Plan de contenido {body.tipo_contenido.upper()} — {body.dias} posts
+════════════════════════════════════════════════════════
 
 Redes: {redes_str}
-Productos a promocionar: {prods_str}
+Productos: {prods_str}
 Tono: {body.tono}
+Tipo de contenido: {body.tipo_contenido}
 
-Para cada post incluí:
-- dia: número del día (1 a {body.dias})
-- red: la red social (una de: {redes_str})
-- tipo: flyer, story, carrusel o reel
-- producto: PISCINA, MODULO, HIDROMASAJE o COMBO
-- titulo: título del post (máx 80 caracteres, castellano argentino)
-- copy: texto del post con emojis (2-3 frases, castellano argentino rioplatense)
-- hashtags: 5-8 hashtags separados por espacio
-- prompt_imagen: descripción para generar la imagen con IA (en inglés, detallado, fotorrealista, mostrando el producto real)
+DISTRIBUCIÓN DE FORMATOS:
+{tipos_dist}
 
-Reglas de distribución:
-- Día 1 empezá con alto impacto visual (piscina instalada, módulo terminado)
-- Variá los tipos de contenido y los productos a lo largo del plan
-- Incluí al menos 1 post educativo (comparar fibra vs hormigón, autoportante vs enterrada, etc.)
-- Incluí al menos 1 post de prueba social (cliente, resultado de instalación)
-- Repartí proporcionalmente entre las redes
-- Nunca prometás precios ni plazos exactos en el copy
+REGLAS ESPECÍFICAS PARA ESTE PLAN:
+{reglas_especificas}
+
+REGLAS GENERALES:
+- Día 1 empezá con impacto visual fuerte (producto instalado, ambientación real)
+- Variá los productos y tipos de contenido a lo largo del plan
+- Repartí proporcionalmente entre las redes seleccionadas
+- Cada copy en castellano argentino rioplatense (vos, tu, acá, pileta)
+- prompt_imagen siempre en inglés, fotorrealista, mostrando el producto real con contexto
+- Incluir dimensiones aproximadas en el prompt_imagen cuando se conocen
 
 Respondé SOLO con un JSON válido, sin texto adicional:
 {{"plan": [
-  {{"dia": 1, "red": "instagram", "tipo": "flyer", "producto": "PISCINA", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "..."}}
+  {{"dia": 1, "red": "instagram", "tipo": "flyer", "producto": "PISCINA", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "professional product photo, EcoFiver fiber glass swimming pool 6x3m installed in Argentine garden, blue water, sunny day, modern suburban home background, photorealistic, vibrant colors, square format 1:1"}}
 ]}}"""
 
     try:
-        respuesta = await ai_complete(db, prompt, max_tokens=4000, temperature=0.65)
-        # Extraer JSON
+        respuesta = await ai_complete(db, prompt, max_tokens=5000, temperature=0.7)
         respuesta = respuesta.strip()
         if "```json" in respuesta:
             respuesta = respuesta.split("```json")[1].split("```")[0].strip()
@@ -1234,13 +1274,12 @@ Respondé SOLO con un JSON válido, sin texto adicional:
 
         data = json.loads(respuesta)
         plan = data.get("plan", [])
-
-        # Asegurar que no supere los días pedidos
         plan = plan[:body.dias]
 
-        return {"ok": True, "dias": body.dias, "total": len(plan), "plan": plan}
-    except json.JSONDecodeError as e:
-        raise HTTPException(502, f"IA devolvió formato inválido. Intentá de nuevo.")
+        return {"ok": True, "dias": body.dias, "tipo_contenido": body.tipo_contenido,
+                "total": len(plan), "plan": plan}
+    except json.JSONDecodeError:
+        raise HTTPException(502, "IA devolvió formato inválido. Intentá de nuevo.")
     except Exception as e:
         raise HTTPException(502, f"Error generando plan: {str(e)[:120]}")
 

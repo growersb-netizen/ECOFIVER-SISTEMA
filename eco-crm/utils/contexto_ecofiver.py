@@ -583,6 +583,118 @@ PRECISIÓN OBLIGATORIA EN TODOS LOS POSTS:
 - No mencionar la marca "EcoFiver" en hashtags (usar #ecomodulos o #ecofiver solo si es un post institucional)"""
 
 
+# ─── CONTEXTOS ESPECIALIZADOS COMERCIAL / ORGÁNICO ───────────────────────────
+
+def ctx_redes_comercial(producto: str = "", modelo: str = "") -> str:
+    """
+    Contexto COMERCIAL para redes sociales.
+    Posts con intención de venta directa: precio, instalación, pago contra entrega, CTA fuerte.
+    """
+    base = ctx_redes_sociales(tipo_contenido="post comercial de venta directa",
+                              producto=producto, modelo=modelo)
+    return base + """
+
+══════════════════════════════════════
+MODO COMERCIAL — DETALLES CLAVE DE VENTA
+══════════════════════════════════════
+
+INSTALACIÓN (ventaja diferencial — mencionarla siempre):
+- Instalamos con equipo propio EN EL DÍA (piscinas, módulos, hidromasajes, garitas)
+- El precio publicado INCLUYE: fabricación + transporte + instalación completa
+- Sin costos ocultos ni adicionales por mano de obra
+
+PAGO Y FINANCIACIÓN — REGLAS:
+- PISCINAS y MÓDULOS: cuotas propias directas con EcoFiver (sin banco, sin tarjeta)
+- Todos los productos: cuotas con tarjeta a través de MercadoLibre
+- Contado con descuento (valor a consultar por WhatsApp)
+- PAGO CONTRA ENTREGA: pagás cuando la piscina/módulo ya está instalada y funcionando
+  → VENTAJA ÚNICA — muy pocos fabricantes la ofrecen; destacarla con fuerza
+  → Frase modelo: "Pagás cuando tu piscina ya está instalada y funcionando en tu jardín"
+
+ENTREGA Y LOGÍSTICA:
+- RETIRO SIN CARGO: CABA (zona San Telmo) · Zona Oeste (Paso del Rey) · Zárate (planta)
+- Envío a domicilio + instalación: cotizar según zona (sur GBA y Gran Buenos Aires cubiertos)
+- Coordinamos fecha y horario a conveniencia del cliente
+
+GARANTÍA:
+- 10 AÑOS con certificado de calidad premium incluido
+- Somos fabricantes directos en Zárate — sin intermediarios, sin revendedores
+
+CALLS TO ACTION COMERCIALES (variar por post):
+"Consultá por WhatsApp" · "Pedí precio con instalación incluida" ·
+"Cotización gratis sin compromiso" · "Instalamos esta semana" ·
+"Pagás cuando esté instalada" · "Ver precio en MercadoLibre"
+
+IMPORTANTE: NUNCA mencionar precios exactos en redes (fluctúan). Redirigir a WhatsApp o ML.
+IMPORTANTE: NUNCA usar frases genéricas de cierre como "quedamos a disposición"."""
+
+
+def ctx_redes_organico(producto: str = "", modelo: str = "") -> str:
+    """
+    Contexto ORGÁNICO para redes sociales.
+    Posts educativos, técnicos, inspiracionales — sin intención de venta directa inmediata.
+    Objetivo: engagement, autoridad de marca, comunidad.
+    """
+    base = ctx_redes_sociales(tipo_contenido="post orgánico educativo e inspiracional",
+                              producto=producto, modelo=modelo)
+    return base + """
+
+══════════════════════════════════════
+MODO ORGÁNICO — CONTENIDO EDUCATIVO
+══════════════════════════════════════
+
+MÉTODO CONSTRUCTIVO — DATOS TÉCNICOS REALES PARA POSTS:
+
+PISCINAS DE FIBRA DE VIDRIO (PRFV):
+- Moldeadas en UNA SOLA PIEZA (sin costuras ni juntas que puedan filtrar)
+- No requieren pintura ni revestimiento periódico (el gel-coat es la terminación final)
+- Superficie lisa inhibe algas → menor consumo de cloro vs. hormigón
+- Resistentes a presión del terreno gracias a la geometría estructural del PRFV
+- Proceso real: molde → laminado de fibra → gel-coat → extracción → control calidad → transporte → instalación en el día
+- Instalación sin obra de albañilería: se baja al pozo preparado, se nivelan, se plomean, se llenan
+
+MÓDULOS HABITACIONALES / VIVIENDAS MODULARES:
+- Estructura de CELULOSA ESTRUCTURAL (tableros multilaminados de alta densidad)
+- Aislación: poliestireno expandido (EPS) en paredes y cubierta
+- Terminación exterior: chapa prepintada (galvanizada + pintura epoxi al horno)
+- Terminación interior: placas de fenólico pintado (resistente a humedad)
+- Módulos habitacionales: 6 m², 12 m², 18 m² (no son viviendas completas)
+- Viviendas modulares: 24, 25, 36, 48, 60 m² (con baño, cocina, dormitorios)
+- No requieren plano de obra hasta 35 m² en muchos municipios
+- Se instalan sobre tierra nivelada, losa, semisótano, o columnas
+
+HIDROMASAJES / SPAS DE FIBRA:
+- Cuerpo en PRFV + estructura metálica galvanizada interior
+- Sistema de jets: aire (blower) + agua a presión → efecto hidromasaje real
+- Calefacción eléctrica integrada regulable
+- LED de iluminación incluido en modelos estándar
+
+COMPARATIVAS EDUCATIVAS (ideales para carruseles de 3-6 slides):
+- Fibra vs. Hormigón armado: sin revestimiento periódico / instalación 1 día vs. semanas / menor mantenimiento
+- Módulo vs. Construcción tradicional: 4× más rápido / sin obra sucia / puede trasladarse / sin plano en muchos casos
+- Contado vs. Cuotas propias: ejemplificar beneficio de cada modalidad
+- PRFV vs. Polipropileno (plástico): mayor durabilidad / mejor terminación / sin deformaciones por temperatura
+
+CONSEJOS DE MANTENIMIENTO (para posts de valor):
+- Piscinas: pH 7.2-7.6 · cloro libre 0.5-1.5 ppm · pasada de aspiradora de fondo semanal
+- Módulos: ventilar 10 min/día en invierno · no apoyar objetos pesados en cubierta
+- Hidromasajes: limpiar filtro 1×/mes · tratar el agua 1×/semana · vaciar y limpiar 1×/año
+
+IDEAS CREATIVAS PROBADAS:
+"¿Sabías que…?" → dato técnico sorprendente
+"Antes y después" → proceso de instalación en fotos o video
+"Mito vs. Realidad" → desmitificar creencias sobre piscinas/módulos
+"5 razones para elegir fibra de vidrio sobre hormigón"
+"Así se fabrica tu piscina — desde el molde hasta tu jardín"
+"¿Cómo mantenés tu piscina de fibra? Guía rápida"
+"Carrusel: colores y modelos disponibles"
+
+HASHTAGS ORGÁNICOS (integrar con los del producto):
+#piscinadefibra #piscinaprfv #fibradvidrio #viviendamodular #casaprefabricada
+#construccionmodular #arquitecturamodular #sustentable #hogar #jardín
+#lifestyle #bienestar #relax #pileta #ecologico"""
+
+
 def ctx_hidromasajes_ml(modelo: str = "", pregunta: str = "", descripcion_pub: str = "") -> str:
     """
     Contexto específico para responder preguntas sobre hidromasajes/jacuzzis/spas en ML.

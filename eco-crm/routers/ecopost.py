@@ -494,16 +494,22 @@ async def api_imagen(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    """Sirve la imagen PNG generada directamente (requiere sesión)."""
+    """Sirve la imagen del contenido: base64 PNG o redirect a imagen_url (foto ML)."""
+    from fastapi.responses import RedirectResponse
     c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
-    if not c or not c.imagen_base64:
-        raise HTTPException(404, "Sin imagen")
-    try:
-        img_bytes = base64.b64decode(c.imagen_base64)
-        return Response(content=img_bytes, media_type="image/png",
-                        headers={"Cache-Control": "private, max-age=3600"})
-    except Exception:
-        raise HTTPException(500, "Error decodificando imagen")
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+    # Prioridad: base64 generada por IA → URL de foto real (ML)
+    if c.imagen_base64:
+        try:
+            img_bytes = base64.b64decode(c.imagen_base64)
+            return Response(content=img_bytes, media_type="image/png",
+                            headers={"Cache-Control": "private, max-age=3600"})
+        except Exception:
+            pass   # si falla el base64, caemos a imagen_url
+    if c.imagen_url:
+        return RedirectResponse(url=c.imagen_url, status_code=302)
+    raise HTTPException(404, "Sin imagen")
 
 
 @router.get("/pub/img/{token}")
@@ -1435,6 +1441,13 @@ async def api_planificador_guardar(
 
     guardados = []
     for p in posts:
+        # imagen_url: foto real de ML   |   imagen_base64: imagen IA generada
+        img_url  = p.get("imagen_url")  or p.get("_imagen_url")  or None
+        img_b64  = p.get("imagen_base64") or p.get("_imagen_b64") or None
+        # Truncar base64 muy largo si viene del frontend (seguridad / tamaño)
+        if img_b64 and len(img_b64) > 5_000_000:
+            img_b64 = None   # demasiado grande, descartamos
+
         c = ContenidoEcopost(
             titulo=p.get("titulo", "")[:200],
             tipo=p.get("tipo", "flyer"),
@@ -1442,6 +1455,8 @@ async def api_planificador_guardar(
             copy_texto=p.get("copy", ""),
             copy_hashtags=p.get("hashtags", ""),
             imagen_prompt=p.get("prompt_imagen", ""),
+            imagen_url=img_url,
+            imagen_base64=img_b64,
             notas=f"Red: {p.get('red','')} · Día {p.get('dia','')} del plan",
             estado="borrador",
             creado_por_id=user.id,

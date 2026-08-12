@@ -398,37 +398,68 @@ async def api_programados(
 @router.get("/api/ecopost/ml-fotos")
 async def api_ml_fotos(
     producto: Optional[str] = None,
-    limit: int = 40,
+    limit: int = 60,
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    """Expone las fotos de la biblioteca ML para usarlas en Ecopost sin resubir."""
+    """Expone las fotos de la biblioteca ML para usarlas en Ecopost sin resubir.
+
+    Combina dos fuentes:
+    1. FotoML — biblioteca permanente de fotos ML (tiene URL pública estable).
+    2. BorradorML.fotos_json — fotos de fichas ML publicadas.
+    """
     try:
-        from database.models import BorradorML
-        q = db.query(BorradorML).filter(BorradorML.fotos_json.isnot(None))
-        if producto:
-            q = q.filter(BorradorML.producto.ilike(f"%{producto}%"))
-        borradores = q.order_by(BorradorML.updated_at.desc()).limit(limit).all()
-
-        fotos_list = []
+        from database.models import BorradorML, FotoML
+        fotos_list: list = []
         seen: set = set()
-        for b in borradores:
-            try:
-                fotos = json.loads(b.fotos_json or "[]")
-                for f in fotos:
-                    url = (f.get("url") or f.get("secure_url") or f.get("imagen_url") or "").strip()
-                    if url and url not in seen:
-                        seen.add(url)
-                        fotos_list.append({
-                            "url": url,
-                            "titulo": b.titulo or "",
-                            "producto": b.producto or "",
-                            "borrador_id": b.id,
-                        })
-            except Exception:
-                pass
 
-        return {"ok": True, "total": len(fotos_list), "fotos": fotos_list}
+        # ── Fuente 1: biblioteca de fotos ML (FotoML) ─────────────────────────
+        try:
+            qf = db.query(FotoML).filter(FotoML.url.isnot(None))
+            if producto:
+                qf = qf.filter(FotoML.tipo_producto.ilike(f"%{producto}%"))
+            fotos_ml = qf.order_by(FotoML.id.desc()).limit(limit).all()
+            for foto in fotos_ml:
+                url = (foto.url or "").strip()
+                if url and url not in seen:
+                    seen.add(url)
+                    fotos_list.append({
+                        "url": url,
+                        "titulo": foto.nombre or foto.modelo or "",
+                        "producto": foto.tipo_producto or "",
+                        "fuente": "biblioteca",
+                    })
+        except Exception as e_f:
+            logger.debug(f"[ecopost] FotoML query error: {e_f}")
+
+        # ── Fuente 2: fotos embebidas en borradores ML ─────────────────────────
+        try:
+            qb = db.query(BorradorML).filter(BorradorML.fotos_json.isnot(None))
+            if producto:
+                qb = qb.filter(BorradorML.producto.ilike(f"%{producto}%"))
+            borradores = qb.order_by(BorradorML.updated_at.desc()).limit(limit).all()
+            for b in borradores:
+                try:
+                    fotos = json.loads(b.fotos_json or "[]")
+                    for f in fotos:
+                        url = (
+                            f.get("url") or f.get("secure_url") or f.get("imagen_url") or ""
+                        ).strip()
+                        if url and url not in seen:
+                            seen.add(url)
+                            fotos_list.append({
+                                "url": url,
+                                "titulo": b.titulo or "",
+                                "producto": b.producto or "",
+                                "fuente": "borrador_ml",
+                                "borrador_id": b.id,
+                            })
+                except Exception:
+                    pass
+        except Exception as e_b:
+            logger.debug(f"[ecopost] BorradorML query error: {e_b}")
+
+        return {"ok": True, "total": len(fotos_list), "fotos": fotos_list[:limit]}
     except Exception as e:
         logger.warning(f"[ecopost] api_ml_fotos error: {e}")
         return {"ok": True, "total": 0, "fotos": [], "nota": "Sin fotos ML disponibles"}

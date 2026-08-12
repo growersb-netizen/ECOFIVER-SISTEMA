@@ -387,21 +387,24 @@
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div style="font-weight:700;font-size:14px">📦 Fotos de la biblioteca MercadoLibre</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <select id="ml-fotos-producto" class="input" style="width:160px;font-size:13px">
+        <select id="ml-fotos-producto" class="input" style="width:180px;font-size:13px">
           <option value="">Todos los productos</option>
-          <option value="piscina">Piscinas</option>
-          <option value="modulo">Módulos</option>
-          <option value="combo">Combos</option>
-          <option value="hidromasaje">Hidromasajes</option>
-          <option value="reposera">Reposeras</option>
+          <option value="PISCINA">Piscinas</option>
+          <option value="MODULO">Módulos</option>
+          <option value="COMBO">Combos</option>
+          <option value="HIDROMASAJE">Hidromasajes</option>
+          <option value="REPOSERA_FIBRA">Reposeras</option>
+          <option value="CUCHA">Cuchas</option>
+          <option value="BANIO_QUIMICO">Baños Químicos</option>
+          <option value="GARITA_SEGURIDAD">Garitas</option>
         </select>
         <button class="btn btn-ghost btn-sm" onclick="loadMLFotos()">🔄 Cargar</button>
       </div>
     </div>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
-      Estas imágenes están en la biblioteca de MercadoLibre. Hacé clic en una para copiar su URL y usarla en Ecopost sin resubir.
+      Imágenes de tus publicaciones de MercadoLibre. Hacé clic en <strong>✨ Usar</strong> para abrirla en el formulario Crear y generar el copy con IA. También podés copiar la URL con 📋.
     </p>
-    <div id="ml-fotos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
+    <div id="ml-fotos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
       <div style="color:var(--text-muted);font-size:13px;grid-column:span 4">Hacé clic en "Cargar" para ver las fotos.</div>
     </div>
   </div>
@@ -694,7 +697,8 @@
 
 <script>
 // ─── Estado local ────────────────────────────────────────────────────────────
-let generatedB64 = null;   // imagen generada en crear
+let generatedB64 = null;   // imagen generada con IA (base64)
+let mlImageUrl   = null;   // imagen importada desde biblioteca ML (URL externa)
 let editingId = null;      // ID del contenido en edición
 let _bulkMode = false;     // modo selección múltiple
 let _bulkSel = new Set();  // IDs seleccionados en bulk
@@ -1390,6 +1394,7 @@ async function guardarContenido() {
     copy_hashtags: document.getElementById('c-hashtags').value,
     imagen_prompt: document.getElementById('c-img-prompt').value,
     imagen_base64: generatedB64 || null,
+    imagen_url: (!generatedB64 && mlImageUrl) ? mlImageUrl : null,
     carousel_urls: getCarouselUrls(),
     publish_at: publishAt || null,
   };
@@ -1417,6 +1422,7 @@ async function guardarContenido() {
 function resetCrear() {
   editingId = null;
   generatedB64 = null;
+  mlImageUrl = null;
   ['c-tipo','c-producto','c-tono','c-media-type'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = el.options[0]?.value || '';
@@ -1973,40 +1979,110 @@ async function loadProgramados() {
 }
 
 // ─── Fotos ML ─────────────────────────────────────────────────────────────────
+// Mapeo: clave de filtro del select → valor de c-producto
+const _ML_PRODUCTO_MAP = {
+  piscina:     'PISCINA',
+  modulo:      'MODULO',
+  combo:       'COMBO',
+  hidromasaje: 'HIDROMASAJE',
+  reposera:    'REPOSERA_FIBRA',
+  cucha:       'CUCHA',
+  banio:       'BANIO_QUIMICO',
+  garita:      'GARITA_SEGURIDAD',
+};
+
 async function loadMLFotos() {
   const grid = document.getElementById('ml-fotos-grid');
-  grid.innerHTML = '<div class="loading">Cargando fotos ML…</div>';
+  grid.innerHTML = '<div class="loading" style="grid-column:span 4">Cargando fotos ML…</div>';
   try {
-    const producto = document.getElementById('ml-fotos-producto').value;
-    let url = '/api/ecopost/ml-fotos?limit=40';
-    if (producto) url += `&producto=${encodeURIComponent(producto)}`;
+    const filtro = document.getElementById('ml-fotos-producto').value;
+    let url = '/api/ecopost/ml-fotos?limit=60';
+    if (filtro) url += `&producto=${encodeURIComponent(filtro)}`;
     const res = await API.get(url);
     if (!res.total) {
-      grid.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;grid-column:span 4">Sin fotos en la biblioteca ML. Cargá fotos en las publicaciones de MercadoLibre primero.</div>';
+      grid.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;grid-column:span 4;padding:16px 0">Sin fotos en la biblioteca ML. Cargá fotos en las publicaciones de MercadoLibre primero.</div>';
       return;
     }
-    grid.innerHTML = res.fotos.map(f => `
-      <div style="position:relative;cursor:pointer" onclick="copiarUrlMLFoto('${escHtml(f.url)}')" title="Clic para copiar URL">
-        <img src="${escHtml(f.url)}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border-color)"
-             onerror="this.parentElement.innerHTML='<div style=background:var(--bg-secondary);aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px>📦</div>'">
-        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.titulo||f.producto||'')}</div>
-        <div style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;padding:2px 5px;border-radius:8px;opacity:0;transition:opacity .2s" class="ml-copy-badge">📋</div>
-      </div>`).join('');
-    // Mostrar badge al hover
-    grid.querySelectorAll('div[onclick]').forEach(el => {
-      el.addEventListener('mouseenter', () => el.querySelector('.ml-copy-badge').style.opacity = '1');
-      el.addEventListener('mouseleave', () => el.querySelector('.ml-copy-badge').style.opacity = '0');
+    grid.innerHTML = res.fotos.map(f => {
+      const safeUrl  = f.url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeProd = (f.producto || '').replace(/'/g,"\\'");
+      const safeTit  = escHtml(f.titulo || f.producto || '');
+      return `
+      <div style="border-radius:10px;border:1px solid var(--border-color);overflow:hidden;background:var(--card-bg);display:flex;flex-direction:column">
+        <div style="position:relative;cursor:pointer" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')" title="Clic para usar en Ecopost">
+          <img src="${escHtml(f.url)}" loading="lazy"
+               style="width:100%;aspect-ratio:1;object-fit:cover;display:block"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div style="display:none;width:100%;aspect-ratio:1;align-items:center;justify-content:center;background:var(--bg-secondary);font-size:28px">📦</div>
+          <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);opacity:0;transition:.2s;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:600" class="ml-hover-overlay">
+            ✨ Usar en Ecopost
+          </div>
+        </div>
+        <div style="padding:5px 8px;font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${safeTit}</div>
+        <div style="display:flex;gap:4px;padding:0 8px 8px">
+          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px;padding:4px 6px" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')">✨ Usar</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="copiarUrlMLFoto('${safeUrl}')" title="Copiar URL">📋</button>
+        </div>
+      </div>`;
+    }).join('');
+    // Hover overlay
+    grid.querySelectorAll('.ml-hover-overlay').forEach(overlay => {
+      const wrapper = overlay.parentElement;
+      wrapper.addEventListener('mouseenter', () => overlay.style.opacity = '1');
+      wrapper.addEventListener('mouseleave', () => overlay.style.opacity = '0');
     });
   } catch(e) {
     grid.innerHTML = `<div style="color:#f44;font-size:13px;grid-column:span 4">Error: ${escHtml(e.message)}</div>`;
   }
 }
 
+/**
+ * Importa una foto de ML a la sección Crear de Ecopost:
+ * - muestra la imagen en el preview
+ * - pre-selecciona el producto si se reconoce
+ * - cambia al tab Crear listo para generar copy
+ */
+function usarFotoEnEcopost(url, productoRaw) {
+  // 1. Guardar la URL como imagen de la publicación
+  mlImageUrl  = url;
+  generatedB64 = null;
+
+  // 2. Ir al tab Crear
+  showMainTab('crear', document.querySelectorAll('#tabs-main .tab')[2]);
+
+  // 3. Mostrar la imagen en el preview
+  const preview = document.getElementById('img-preview');
+  preview.innerHTML = `<img src="${escHtml(url)}"
+      style="max-width:100%;max-height:280px;border-radius:6px;object-fit:contain"
+      onerror="this.outerHTML='<div style=padding:24px;color:#888;font-size:13px>No se pudo cargar la imagen ML — la URL puede requerir sesión de ML</div>'">`;
+  document.getElementById('img-status').innerHTML =
+    '<span style="color:#4caf50">✅ Imagen importada desde MercadoLibre</span>';
+
+  // 4. Pre-seleccionar producto (busca coincidencia parcial en el nombre del borrador)
+  const raw = (productoRaw || '').toLowerCase();
+  const matchKey = Object.keys(_ML_PRODUCTO_MAP).find(k => raw.includes(k));
+  const productoVal = matchKey ? _ML_PRODUCTO_MAP[matchKey] : '';
+  const selProd = document.getElementById('c-producto');
+  if (productoVal && selProd) {
+    selProd.value = productoVal;
+    actualizarModelos();
+  }
+
+  // 5. Limpiar copy previo para que el usuario genere uno nuevo relacionado con la imagen
+  ['c-titulo','c-copy','c-hashtags','c-img-prompt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // 6. Scroll al top + aviso
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast('📸 Foto cargada desde ML. Completá el producto y generá el copy con IA ✨', 'success');
+}
+
 function copiarUrlMLFoto(url) {
   navigator.clipboard.writeText(url).then(() => {
-    showToast('✅ URL copiada al portapapeles', 'success');
+    showToast('📋 URL copiada al portapapeles', 'success');
   }).catch(() => {
-    // Fallback: mostrar la URL para que el usuario la copie manualmente
     prompt('Copiá esta URL:', url);
   });
 }

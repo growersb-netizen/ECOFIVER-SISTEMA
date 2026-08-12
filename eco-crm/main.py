@@ -306,6 +306,7 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/operario/",               # panel operario por token (sin login)
         "/api/produccion/ordenes/", # operario registra etapas sin login
         "/api/health",              # Railway / Docker healthcheck
+        "/pub/img/",                # imágenes Ecopost vía token público (Instagram/Meta las necesita sin auth)
         "/mercadolibre/notifications",  # webhook de MercadoLibre (sin sesión) — si falla, ML revoca la app
         "/api/integraciones/melanie/confirmacion",  # Melanie envía Bearer propio, sin cookie de sesión
         "/webhook/melanie",  # Webhook de Meta para la WABA de Melanie (verificación + mensajes)

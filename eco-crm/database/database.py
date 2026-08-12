@@ -154,6 +154,8 @@ def run_migrations():
             "ALTER TABLE borradores_ml ADD COLUMN precio_contado REAL",
             "ALTER TABLE borradores_ml ADD COLUMN incluir_envio INTEGER DEFAULT 0",
             "ALTER TABLE borradores_ml ADD COLUMN costo_flete REAL",
+            # ── Ecopost: token público para URL de imagen sin autenticación ────────
+            "ALTER TABLE contenido_ecopost ADD COLUMN public_token TEXT",
         ]
         for stmt in migrations:
             try:

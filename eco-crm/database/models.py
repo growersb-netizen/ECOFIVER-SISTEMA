@@ -681,6 +681,7 @@ class ContenidoEcopost(Base):
     imagen_prompt = Column(Text, default="")            # prompt usado para generar la imagen
     imagen_base64 = Column(Text, nullable=True)         # base64 PNG (preview / descarga)
     imagen_url = Column(String(500), nullable=True)     # URL pública si se sube a Drive/CDN
+    public_token = Column(String(64), nullable=True, index=True)  # token para URL pública sin auth
     estado = Column(String(20), default="borrador")     # borrador | aprobado | publicado | archivado
     notas = Column(Text, default="")
     creado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)

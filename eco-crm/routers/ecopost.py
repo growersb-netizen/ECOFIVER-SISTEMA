@@ -324,15 +324,48 @@ async def api_imagen(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    """Sirve la imagen PNG generada directamente."""
+    """Sirve la imagen PNG generada directamente (requiere sesión)."""
     c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
     if not c or not c.imagen_base64:
         raise HTTPException(404, "Sin imagen")
     try:
         img_bytes = base64.b64decode(c.imagen_base64)
-        return Response(content=img_bytes, media_type="image/png")
+        return Response(content=img_bytes, media_type="image/png",
+                        headers={"Cache-Control": "private, max-age=3600"})
     except Exception:
         raise HTTPException(500, "Error decodificando imagen")
+
+
+@router.get("/pub/img/{token}")
+async def api_imagen_publica(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """Endpoint PÚBLICO (sin auth) para servir imágenes Ecopost via token UUID.
+    Usado para publicar en Instagram/Meta que necesitan URL accesible sin cookies."""
+    if not token or len(token) < 20:
+        raise HTTPException(404, "Not found")
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.public_token == token).first()
+    if not c or not c.imagen_base64:
+        raise HTTPException(404, "Imagen no encontrada")
+    try:
+        img_bytes = base64.b64decode(c.imagen_base64)
+        return Response(
+            content=img_bytes,
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    except Exception:
+        raise HTTPException(500, "Error decodificando imagen")
+
+
+def _ensure_public_token(c: ContenidoEcopost, db: Session) -> str:
+    """Asegura que el contenido tenga un public_token. Genera uno si no tiene."""
+    if not c.public_token:
+        import secrets
+        c.public_token = secrets.token_urlsafe(32)
+        db.commit()
+    return c.public_token
 
 
 # ─── API GENERAR COPY ────────────────────────────────────────────────────────
@@ -507,47 +540,20 @@ async def subir_imagen_r2(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    """Sube la imagen base64 del contenido a R2 (Cloudflare) y actualiza imagen_url."""
-    import io
+    """Genera URL pública para la imagen usando el endpoint propio del CRM (no depende de R2 externo)."""
     c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
     if not c:
         raise HTTPException(404, "Contenido no encontrado")
     if not c.imagen_base64:
         raise HTTPException(400, "El contenido no tiene imagen generada")
 
-    try:
-        img_bytes = base64.b64decode(c.imagen_base64)
-    except Exception:
-        raise HTTPException(400, "Imagen base64 inválida")
-
-    filename = f"ecopost_{item_id}_{c.tipo}.png"
-    web_base_url = "https://www.ecomodulosypiscinas.com.ar"
-    web_api_key  = "eco-crm-api-key-2024"
-
-    import io as _io
-    form_data = _io.BytesIO(img_bytes)
-    try:
-        async with httpx.AsyncClient(timeout=30) as hc:
-            r = await hc.post(
-                f"{web_base_url}/api/admin/upload",
-                headers={"x-api-key": web_api_key},
-                files={"file": (filename, form_data, "image/png")},
-            )
-        if r.status_code not in (200, 201):
-            raise HTTPException(r.status_code, f"Error subiendo a R2: {r.text[:200]}")
-        data = r.json()
-        url = data.get("url") or data.get("imagen_url") or data.get("path")
-        if not url:
-            raise HTTPException(500, "R2 no devolvió URL")
-
-        c.imagen_url  = url
-        c.imagen_base64 = None   # limpiar base64 del DB
-        db.commit()
-        return {"ok": True, "imagen_url": url}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(502, f"Error de conexión con R2: {str(e)[:100]}")
+    token = _ensure_public_token(c, db)
+    crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+    url = f"{crm_host.rstrip('/')}/pub/img/{token}"
+    # Actualizar imagen_url para que quede registrado en el contenido
+    c.imagen_url = url
+    db.commit()
+    return {"ok": True, "imagen_url": url}
 
 
 @router.delete("/api/ecopost/{item_id}")
@@ -657,28 +663,14 @@ async def api_publicar_instagram(
 
     img_url = c.imagen_url
     if not img_url and c.imagen_base64:
-        # Auto-subir a R2 para obtener URL pública
-        try:
-            img_bytes = base64.b64decode(c.imagen_base64)
-            filename  = f"ecopost_{c.id}_{c.tipo}.png"
-            async with httpx.AsyncClient(timeout=30) as hc:
-                r = await hc.post(
-                    "https://www.ecomodulosypiscinas.com.ar/api/admin/upload",
-                    headers={"x-api-key": "eco-crm-api-key-2024"},
-                    files={"file": (filename, img_bytes, "image/png")},
-                )
-            if r.status_code in (200, 201):
-                url = r.json().get("url") or r.json().get("imagen_url") or r.json().get("path")
-                if url:
-                    img_url = url
-                    c.imagen_url    = url
-                    c.imagen_base64 = None
-                    db.flush()
-        except Exception as e:
-            logger.warning(f"[ecopost] Auto-subida R2 para IG falló: {e}")
+        # Generar URL pública usando el endpoint propio del CRM (no depende de sitio externo)
+        token = _ensure_public_token(c, db)
+        crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+        img_url = f"{crm_host.rstrip('/')}/pub/img/{token}"
+        logger.info(f"[ecopost] Usando URL pública propia para IG: {img_url}")
 
     if not img_url:
-        raise HTTPException(400, "Instagram requiere imagen con URL pública. Usá 'Subir imagen' primero.")
+        raise HTTPException(400, "Instagram requiere imagen. Generá una imagen primero.")
 
     caption = "\n\n".join(filter(None, [c.copy_texto, c.copy_hashtags]))
 

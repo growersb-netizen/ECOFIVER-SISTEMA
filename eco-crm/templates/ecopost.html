@@ -1370,7 +1370,7 @@ function renderCard(item) {
         <button class="btn btn-ghost btn-sm" onclick="editarContenido(${item.id})" title="Editar">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="openDetalle(${item.id})" title="Ver detalle">👁</button>
         <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:11px;padding:4px 9px"
-          onclick="event.stopPropagation();publicarDirecto(${item.id}, ${JSON.stringify({hasImg: item.tiene_imagen, hasVideo: item.tiene_video})})"
+          onclick="event.stopPropagation();publicarDirecto(${item.id}, ${escHtml(JSON.stringify({hasImg: item.tiene_imagen, hasVideo: item.tiene_video}))})"
           title="Publicar en Facebook / Instagram">📢</button>
       </div>
     </div>
@@ -1447,7 +1447,7 @@ async function openDetalle(id) {
         <div style="display:flex;gap:6px;flex-wrap:wrap">${btnsCambioEstado}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           ${puedePublicar ? `
-            <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:12px" onclick="abrirModalPublicar(${id}, ${JSON.stringify({hasVideo, hasImg: item.tiene_imagen})})">📢 Publicar</button>
+            <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:12px" onclick="abrirModalPublicar(${id}, ${escHtml(JSON.stringify({hasVideo, hasImg: item.tiene_imagen}))})">📢 Publicar</button>
           ` : ''}
           <button class="btn btn-ghost btn-sm" onclick="duplicarContenido(${id})">📋 Duplicar</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirGuionModal(${id})">🎬 Guión</button>
@@ -2842,7 +2842,7 @@ async function abrirAbModal(id) {
         </div>
         <div style="font-size:13px;white-space:pre-wrap;margin-bottom:8px">${escHtml(v.copy)}</div>
         <div style="font-size:11px;color:#42a5f5;margin-bottom:8px">${escHtml(v.hashtags)}</div>
-        <button class="btn btn-ghost btn-sm" onclick="usarVariacion(${id}, ${JSON.stringify(v.copy).replace(/'/g,"\\'")} , ${JSON.stringify(v.hashtags).replace(/'/g,"\\'")})">
+        <button class="btn btn-ghost btn-sm" onclick="usarVariacion(${id}, ${escHtml(JSON.stringify(v.copy))}, ${escHtml(JSON.stringify(v.hashtags))})">
           ✓ Usar esta variación
         </button>
       </div>`).join('');

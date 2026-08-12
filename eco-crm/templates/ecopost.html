@@ -611,26 +611,148 @@
 
 <!-- ═══════════════════ MODAL: PUBLICAR EN REDES ═══════════════════ -->
 <div id="modal-publicar" class="modal-overlay" style="display:none" onclick="if(event.target===this)cerrarModalPublicar()">
-  <div class="modal" style="max-width:540px;width:95vw">
+  <div class="modal" style="max-width:560px;width:95vw">
     <div class="modal-header">
       <h3>📢 Publicar en redes</h3>
       <button class="btn btn-icon" onclick="cerrarModalPublicar()">✕</button>
     </div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
-        Seleccioná en qué páginas y redes publicar. Podés desmarcar las que no querés.
-      </p>
-      <div id="pub-paginas-lista"></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
 
-      <!-- Botones de formato especial -->
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color)">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Formatos especiales</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap" id="pub-formatos-especiales"></div>
+      <!-- 1. Páginas destino -->
+      <div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">📡 Dónde publicar</div>
+        <div id="pub-paginas-lista"><div style="color:var(--text-muted);font-size:13px">Cargando páginas…</div></div>
       </div>
+
+      <!-- 2. Tipo de publicación -->
+      <div style="border-top:1px solid var(--border-color);padding-top:14px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">📝 Tipo de publicación</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-secondary)">
+            <input type="radio" name="pub-tipo" value="post" checked onchange="actualizarBtnPublicar()"> 📰 Post (feed)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-secondary)">
+            <input type="radio" name="pub-tipo" value="historia" onchange="actualizarBtnPublicar()"> 📱 Historia (9:16)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-secondary)">
+            <input type="radio" name="pub-tipo" value="reel" onchange="actualizarBtnPublicar()"> 🎬 Reel
+          </label>
+        </div>
+        <div id="pub-tipo-nota" style="font-size:11px;color:var(--text-muted);margin-top:6px"></div>
+      </div>
+
+      <!-- 3. Cuándo publicar -->
+      <div style="border-top:1px solid var(--border-color);padding-top:14px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">⏰ Cuándo publicar</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-secondary)">
+            <input type="radio" name="pub-cuando" value="ahora" checked onchange="toggleScheduleInput()"> ⚡ Ahora
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-secondary)">
+            <input type="radio" name="pub-cuando" value="programar" onchange="toggleScheduleInput()"> 🗓 Programar fecha y hora
+          </label>
+        </div>
+        <div id="pub-schedule-box" style="display:none;margin-top:10px">
+          <input type="datetime-local" id="pub-scheduled-at" class="input" style="font-size:13px">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">El servidor publicará automáticamente a la hora indicada (hora de Argentina).</div>
+        </div>
+      </div>
+
+      <!-- Formatos especiales (reel, carrusel) — aparecen cuando se elige Reel -->
+      <div id="pub-formatos-especiales" style="display:none;border-top:1px solid var(--border-color);padding-top:14px;flex-wrap:wrap;gap:8px"></div>
     </div>
     <div class="modal-footer" style="justify-content:flex-end;gap:8px">
       <button class="btn btn-ghost" onclick="cerrarModalPublicar()">Cancelar</button>
-      <button class="btn btn-primary" id="btn-confirmar-publicar" onclick="confirmarPublicarRedes()">📢 Publicar como foto/texto</button>
+      <button class="btn btn-primary" id="btn-confirmar-publicar" onclick="confirmarPublicarRedes()">📢 Publicar ahora</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: BULK PUBLICAR ═══════════════════ -->
+<div id="modal-bulk-publicar" class="modal-overlay" style="display:none" onclick="if(event.target===this)cerrarModalBulk()">
+  <div class="modal" style="max-width:620px;width:95vw;max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
+      <h3>📢 Publicar seleccionados</h3>
+      <button class="btn btn-icon" onclick="cerrarModalBulk()">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:16px">
+
+      <!-- 1. Destino -->
+      <div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">📡 Dónde publicar</div>
+        <div id="bulk-paginas-lista"><div style="color:var(--text-muted);font-size:13px">Cargando…</div></div>
+      </div>
+
+      <!-- 2. Tipo -->
+      <div style="border-top:1px solid var(--border-color);padding-top:14px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">📝 Tipo de publicación</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 12px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-secondary)">
+            <input type="radio" name="bulk-tipo" value="post" checked onchange="actualizarResumenBulk()"> 📰 Post (feed)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 12px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-secondary)">
+            <input type="radio" name="bulk-tipo" value="historia" onchange="actualizarResumenBulk()"> 📱 Historia (9:16)
+          </label>
+        </div>
+      </div>
+
+      <!-- 3. Distribución temporal -->
+      <div style="border-top:1px solid var(--border-color);padding-top:14px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">⏰ Cuándo publicar</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="radio" name="bulk-cuando" value="ahora" checked onchange="actualizarResumenBulk()"> ⚡ Publicar todo ahora
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="radio" name="bulk-cuando" value="misma" onchange="actualizarResumenBulk()"> 🕐 Todos en la misma fecha/hora
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="radio" name="bulk-cuando" value="distribuir" onchange="actualizarResumenBulk()"> 📅 Distribuir — uno por día a partir de una fecha
+          </label>
+        </div>
+
+        <!-- Misma fecha/hora -->
+        <div id="bulk-misma-box" style="display:none;margin-top:10px;padding:10px;background:var(--bg-secondary);border-radius:8px">
+          <label class="label" style="font-size:12px">Fecha y hora</label>
+          <input type="datetime-local" id="bulk-misma-datetime" class="input" style="font-size:13px" oninput="actualizarResumenBulk()">
+        </div>
+
+        <!-- Distribuir -->
+        <div id="bulk-distribuir-box" style="display:none;margin-top:10px;padding:10px;background:var(--bg-secondary);border-radius:8px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px">
+              <label class="label" style="font-size:12px">Fecha inicio</label>
+              <input type="date" id="bulk-dist-fecha" class="input" style="font-size:13px" oninput="actualizarResumenBulk()">
+            </div>
+            <div style="flex:1;min-width:120px">
+              <label class="label" style="font-size:12px">Hora</label>
+              <input type="time" id="bulk-dist-hora" class="input" value="10:00" style="font-size:13px" oninput="actualizarResumenBulk()">
+            </div>
+            <div style="flex:1;min-width:120px">
+              <label class="label" style="font-size:12px">Intervalo</label>
+              <select id="bulk-dist-intervalo" class="input" style="font-size:13px" onchange="actualizarResumenBulk()">
+                <option value="24">1 por día</option>
+                <option value="48">1 cada 2 días</option>
+                <option value="12">2 por día</option>
+                <option value="168">1 por semana</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Preview / resumen -->
+      <div id="bulk-preview" style="border-top:1px solid var(--border-color);padding-top:14px;display:none">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">📋 Resumen de publicaciones</div>
+        <div id="bulk-preview-tabla" style="font-size:12px;max-height:220px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="flex-shrink:0;justify-content:space-between;gap:8px">
+      <span id="bulk-modal-count" style="font-size:13px;color:var(--text-secondary)"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="cerrarModalBulk()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-confirmar-bulk" onclick="confirmarBulkPublicar()">📢 Publicar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1377,8 +1499,21 @@ async function abrirModalPublicar(id, meta = {}) {
   _publicarItemMeta = meta || {};
   const modal = document.getElementById('modal-publicar');
   const lista = document.getElementById('pub-paginas-lista');
-  lista.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Cargando páginas...</div>';
+  lista.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Cargando páginas…</div>';
   modal.style.display = 'flex';
+
+  // Reset tipo + cuando
+  document.querySelectorAll('[name="pub-tipo"]').forEach(r => r.checked = r.value === 'post');
+  document.querySelectorAll('[name="pub-cuando"]').forEach(r => r.checked = r.value === 'ahora');
+  toggleScheduleInput();
+  actualizarBtnPublicar();
+
+  // Preset datetime-local to "now + 1h"
+  const dt = new Date(Date.now() + 3600000);
+  dt.setSeconds(0, 0);
+  const iso = dt.toISOString().slice(0, 16);
+  const dtInput = document.getElementById('pub-scheduled-at');
+  if (dtInput) dtInput.value = iso;
 
   try {
     const pages = await API.get('/api/meta/paginas');
@@ -1388,35 +1523,67 @@ async function abrirModalPublicar(id, meta = {}) {
       return;
     }
     lista.innerHTML = activas.map(p => `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <div style="flex:1;font-size:14px;font-weight:500">${escHtml(p.nombre)}</div>
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-color)">
+        <img src="${p.foto_url || ''}" onerror="this.style.display='none'"
+             style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        <div style="flex:1;font-size:13px;font-weight:500">${escHtml(p.nombre)}</div>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:5px;background:rgba(24,119,242,.1)">
           <input type="checkbox" class="pub-chk-fb" data-pid="${p.page_id}" checked style="cursor:pointer">
           📘 FB
         </label>
         ${p.ig_user_id ? `
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:5px;background:rgba(131,58,180,.1)">
           <input type="checkbox" class="pub-chk-ig" data-pid="${p.page_id}" checked style="cursor:pointer">
           📸 IG
-        </label>` : `<span style="font-size:11px;color:var(--text-muted)">Sin IG</span>`}
+        </label>` : `<span style="font-size:11px;color:var(--text-muted)">Sin IG vinculado</span>`}
       </div>`).join('');
 
-    // Botones de formato especial
+    // Formatos especiales (reel / carrusel) solo si eligió Reel
     const fmts = document.getElementById('pub-formatos-especiales');
     const m = _publicarItemMeta;
-    fmts.innerHTML = `
-      ${m.hasVideo ? `
+    if (m.hasVideo) {
+      fmts.innerHTML = `
         <button class="btn btn-ghost btn-sm" onclick="publicarIgReel(_publicarItemId);cerrarModalPublicar()">🎬 IG Reel</button>
-        <button class="btn btn-ghost btn-sm" onclick="publicarIgStory(_publicarItemId);cerrarModalPublicar()">📱 IG Story (video)</button>
-        <button class="btn btn-ghost btn-sm" onclick="publicarFbVideo(_publicarItemId);cerrarModalPublicar()">📹 FB Video</button>
-      ` : ''}
-      ${m.hasImg ? `
-        <button class="btn btn-ghost btn-sm" onclick="publicarIgStory(_publicarItemId);cerrarModalPublicar()">📱 IG Story (foto)</button>
-        <button class="btn btn-ghost btn-sm" onclick="publicarIgCarousel(_publicarItemId);cerrarModalPublicar()">🔄 IG Carrusel</button>
-      ` : ''}
-    `;
+        <button class="btn btn-ghost btn-sm" onclick="publicarFbVideo(_publicarItemId);cerrarModalPublicar()">📹 FB Video</button>`;
+    } else if (m.hasImg) {
+      fmts.innerHTML = `
+        <button class="btn btn-ghost btn-sm" onclick="publicarIgCarousel(_publicarItemId);cerrarModalPublicar()">🔄 IG Carrusel</button>`;
+    } else {
+      fmts.innerHTML = '';
+    }
   } catch(e) {
     lista.innerHTML = `<div class="alert alert-error">Error cargando páginas: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function toggleScheduleInput() {
+  const cuando = document.querySelector('[name="pub-cuando"]:checked')?.value || 'ahora';
+  const box = document.getElementById('pub-schedule-box');
+  if (box) box.style.display = cuando === 'programar' ? 'block' : 'none';
+  actualizarBtnPublicar();
+}
+
+function actualizarBtnPublicar() {
+  const btn = document.getElementById('btn-confirmar-publicar');
+  if (!btn) return;
+  const tipo = document.querySelector('[name="pub-tipo"]:checked')?.value || 'post';
+  const cuando = document.querySelector('[name="pub-cuando"]:checked')?.value || 'ahora';
+  const tipoLabel = { post: 'Post', historia: 'Historia 9:16', reel: 'Reel' }[tipo] || tipo;
+  const nota = document.getElementById('pub-tipo-nota');
+  if (nota) {
+    nota.textContent = tipo === 'historia'
+      ? '⚠ Instagram Story: se recomienda imagen en formato 9:16 (1080×1920 px). Sin caption visible.'
+      : tipo === 'reel' ? '📹 Para Reel es necesario tener un video cargado en el contenido.'
+      : '';
+  }
+  // Show/hide formatos especiales for reel
+  const fmts = document.getElementById('pub-formatos-especiales');
+  if (fmts) fmts.style.display = tipo === 'reel' ? 'flex' : 'none';
+
+  if (cuando === 'programar') {
+    btn.textContent = `🗓 Programar ${tipoLabel}`;
+  } else {
+    btn.textContent = `📢 Publicar como ${tipoLabel}`;
   }
 }
 
@@ -1431,7 +1598,6 @@ async function confirmarPublicarRedes() {
 
   const fbChecks = document.querySelectorAll('.pub-chk-fb');
   const igChecks = document.querySelectorAll('.pub-chk-ig');
-
   const pagesMap = {};
   fbChecks.forEach(chk => {
     if (!pagesMap[chk.dataset.pid]) pagesMap[chk.dataset.pid] = { page_id: chk.dataset.pid, facebook: false, instagram: false };
@@ -1441,15 +1607,25 @@ async function confirmarPublicarRedes() {
     if (!pagesMap[chk.dataset.pid]) pagesMap[chk.dataset.pid] = { page_id: chk.dataset.pid, facebook: false, instagram: false };
     pagesMap[chk.dataset.pid].instagram = chk.checked;
   });
-
   const pages = Object.values(pagesMap).filter(p => p.facebook || p.instagram);
-  if (!pages.length) { showToast('Seleccioná al menos una opción', 'error'); return; }
+  if (!pages.length) { showToast('Seleccioná al menos una página/red', 'error'); return; }
+
+  const tipo = document.querySelector('[name="pub-tipo"]:checked')?.value || 'post';
+  const cuando = document.querySelector('[name="pub-cuando"]:checked')?.value || 'ahora';
+  const scheduled_at = cuando === 'programar'
+    ? (document.getElementById('pub-scheduled-at')?.value || null)
+    : null;
+
+  if (cuando === 'programar' && !scheduled_at) {
+    showToast('Ingresá la fecha y hora de publicación', 'error');
+    return;
+  }
 
   const btn = document.getElementById('btn-confirmar-publicar');
   btn.disabled = true;
-  btn.textContent = '⏳ Publicando...';
+  const origText = btn.textContent;
+  btn.textContent = scheduled_at ? '⏳ Guardando…' : '⏳ Publicando…';
 
-  // Timeout de 30s para no dejar el modal colgado si el servidor no responde
   const ctrl = new AbortController();
   const timeoutId = setTimeout(() => ctrl.abort(), 30000);
 
@@ -1458,7 +1634,7 @@ async function confirmarPublicarRedes() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ pages }),
+      body: JSON.stringify({ pages, tipo, scheduled_at }),
       signal: ctrl.signal,
     });
     clearTimeout(timeoutId);
@@ -1469,18 +1645,22 @@ async function confirmarPublicarRedes() {
     const json = await fetchRes.json().catch(() => ({}));
 
     if (!fetchRes.ok) {
-      showToast('Error al publicar: ' + (json.detail || fetchRes.status), 'error');
+      showToast('Error: ' + (json.detail || fetchRes.status), 'error');
       loadBiblioteca();
       return;
     }
 
-    const resultados = json.resultados || [];
-    const oks  = resultados.filter(r => r.ok);
-    const errs = resultados.filter(r => !r.ok);
-
-    if (oks.length)  showToast(`✅ Publicado en ${oks.length} destino${oks.length > 1 ? 's' : ''}`, 'success');
-    if (errs.length) errs.forEach(e => showToast(`❌ ${e.page_id} / ${e.red}: ${e.error}`, 'error'));
-    if (!oks.length && !errs.length) showToast('Sin resultados del servidor', 'warning');
+    if (json.scheduled) {
+      const dt = new Date(json.publish_at);
+      showToast(`🗓 Programado para ${dt.toLocaleString('es-AR')} como ${tipo}`, 'success');
+    } else {
+      const resultados = json.resultados || [];
+      const oks  = resultados.filter(r => r.ok);
+      const errs = resultados.filter(r => !r.ok);
+      if (oks.length)  showToast(`✅ Publicado en ${oks.length} destino${oks.length > 1 ? 's' : ''}`, 'success');
+      if (errs.length) errs.forEach(e => showToast(`❌ ${e.page_id} / ${e.red}: ${e.error}`, 'error'));
+      if (!oks.length && !errs.length) showToast('Sin resultados del servidor', 'warning');
+    }
 
     loadBiblioteca();
   } catch(e) {
@@ -1488,7 +1668,7 @@ async function confirmarPublicarRedes() {
     cerrarModalPublicar();
     closeDetalle();
     if (e.name === 'AbortError') {
-      showToast('⏱ Tiempo de espera agotado — verificá si el contenido fue publicado', 'warning');
+      showToast('⏱ Tiempo agotado — verificá si el contenido fue publicado', 'warning');
     } else {
       showToast('Error publicando: ' + e.message, 'error');
     }
@@ -2346,20 +2526,189 @@ function bulkDeselectAll() {
   document.getElementById('bulk-count').textContent = '0 seleccionados';
 }
 
+// ── Cache de páginas para el modal bulk ──────────────────────────────────────
+let _bulkPagesCache = [];
+
 async function openBulkPublicar() {
+  abrirModalBulkPublicar();
+}
+
+async function abrirModalBulkPublicar() {
   if (!_bulkSel.size) { showToast('Seleccioná al menos un contenido', 'error'); return; }
-  const redes = ['facebook', 'instagram'];
-  if (!confirm(`¿Publicar ${_bulkSel.size} contenidos en Facebook e Instagram?`)) return;
+  const modal = document.getElementById('modal-bulk-publicar');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  // Reset opciones
+  document.querySelectorAll('[name="bulk-tipo"]').forEach(r => r.checked = r.value === 'post');
+  document.querySelectorAll('[name="bulk-cuando"]').forEach(r => r.checked = r.value === 'ahora');
+  document.getElementById('bulk-misma-box').style.display = 'none';
+  document.getElementById('bulk-distribuir-box').style.display = 'none';
+  document.getElementById('bulk-preview').style.display = 'none';
+
+  // Pre-fill start date = tomorrow at 10:00
+  const tomorrow = new Date(Date.now() + 86400000);
+  const ymd = tomorrow.toISOString().slice(0, 10);
+  const distFecha = document.getElementById('bulk-dist-fecha');
+  if (distFecha && !distFecha.value) distFecha.value = ymd;
+  const mismaDt = document.getElementById('bulk-misma-datetime');
+  if (mismaDt && !mismaDt.value) {
+    tomorrow.setHours(10, 0, 0, 0);
+    mismaDt.value = tomorrow.toISOString().slice(0, 16);
+  }
+
+  // Count badge
+  const countEl = document.getElementById('bulk-modal-count');
+  if (countEl) countEl.textContent = `${_bulkSel.size} ítem${_bulkSel.size > 1 ? 's' : ''} seleccionado${_bulkSel.size > 1 ? 's' : ''}`;
+
+  // Load pages
+  const pLista = document.getElementById('bulk-paginas-lista');
+  pLista.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Cargando páginas…</div>';
   try {
-    showToast('⏳ Publicando en lote…', 'info');
-    const res = await API.post('/api/ecopost/bulk-publicar', { ids: [..._bulkSel], redes });
-    const oks  = res.resultados.filter(r => r.ok);
-    const errs = res.resultados.filter(r => !r.ok);
-    if (oks.length)  showToast(`✅ ${oks.length} publicados`, 'success');
-    if (errs.length) showToast(`❌ ${errs.length} con errores`, 'error');
+    const pages = await API.get('/api/meta/paginas');
+    _bulkPagesCache = pages.filter(p => p.activa);
+    if (!_bulkPagesCache.length) {
+      pLista.innerHTML = `<div class="alert alert-error">Sin páginas configuradas. <a href="/configuracion" style="color:inherit;text-decoration:underline">Ir a Configuración → Meta.</a></div>`;
+      return;
+    }
+    pLista.innerHTML = _bulkPagesCache.map(p => `
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-color)">
+        <img src="${p.foto_url || ''}" onerror="this.style.display='none'"
+             style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        <div style="flex:1;font-size:13px;font-weight:500">${escHtml(p.nombre)}</div>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:2px 7px;border-radius:5px;background:rgba(24,119,242,.1)">
+          <input type="checkbox" class="bulk-chk-fb" data-pid="${p.page_id}" checked> 📘 FB
+        </label>
+        ${p.ig_user_id ? `
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:2px 7px;border-radius:5px;background:rgba(131,58,180,.1)">
+          <input type="checkbox" class="bulk-chk-ig" data-pid="${p.page_id}" checked> 📸 IG
+        </label>` : `<span style="font-size:11px;color:var(--text-muted)">Sin IG</span>`}
+      </div>`).join('');
+  } catch(e) {
+    pLista.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function cerrarModalBulk() {
+  const modal = document.getElementById('modal-bulk-publicar');
+  if (modal) modal.style.display = 'none';
+}
+
+function actualizarResumenBulk() {
+  const cuando = document.querySelector('[name="bulk-cuando"]:checked')?.value || 'ahora';
+  const mismaBox = document.getElementById('bulk-misma-box');
+  const distribBox = document.getElementById('bulk-distribuir-box');
+  const preview = document.getElementById('bulk-preview');
+  const btn = document.getElementById('btn-confirmar-bulk');
+
+  if (mismaBox) mismaBox.style.display = cuando === 'misma' ? 'block' : 'none';
+  if (distribBox) distribBox.style.display = cuando === 'distribuir' ? 'block' : 'none';
+
+  if (cuando === 'ahora') {
+    if (preview) preview.style.display = 'none';
+    if (btn) btn.textContent = `📢 Publicar ${_bulkSel.size} ahora`;
+    return;
+  }
+
+  // Build preview table
+  const ids = [..._bulkSel];
+  let dates = [];
+
+  if (cuando === 'misma') {
+    const dtVal = document.getElementById('bulk-misma-datetime')?.value;
+    if (!dtVal) { if (preview) preview.style.display = 'none'; return; }
+    dates = ids.map(() => dtVal);
+  } else if (cuando === 'distribuir') {
+    const fechaVal = document.getElementById('bulk-dist-fecha')?.value;
+    const horaVal  = document.getElementById('bulk-dist-hora')?.value || '10:00';
+    const interval = parseInt(document.getElementById('bulk-dist-intervalo')?.value || '24');
+    if (!fechaVal) { if (preview) preview.style.display = 'none'; return; }
+    dates = ids.map((_, i) => {
+      const dt = new Date(`${fechaVal}T${horaVal}:00`);
+      dt.setTime(dt.getTime() + i * interval * 3600000);
+      return dt.toISOString().slice(0, 16);
+    });
+  }
+
+  // Get titles from _bibliotecaData
+  const rows = ids.map((id, i) => {
+    const item = _bibliotecaData.find(x => x.id === id);
+    const titulo = item ? escHtml((item.titulo || '').slice(0, 40)) : `#${id}`;
+    const dt = dates[i] ? new Date(dates[i]).toLocaleString('es-AR', {
+      day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'
+    }) : '—';
+    return `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:5px 10px;border-bottom:1px solid var(--border-color)">
+      <span style="color:var(--text-primary)">${titulo || '(sin título)'}</span>
+      <span style="color:var(--text-muted);font-size:11px;white-space:nowrap;padding-left:10px">📅 ${dt}</span>
+    </div>`;
+  }).join('');
+
+  const tabla = document.getElementById('bulk-preview-tabla');
+  if (tabla) tabla.innerHTML = rows;
+  if (preview) preview.style.display = 'block';
+  if (btn) btn.textContent = cuando === 'ahora'
+    ? `📢 Publicar ${ids.length}`
+    : `🗓 Programar ${ids.length} publicaciones`;
+}
+
+async function confirmarBulkPublicar() {
+  const cuando = document.querySelector('[name="bulk-cuando"]:checked')?.value || 'ahora';
+  const tipo = document.querySelector('[name="bulk-tipo"]:checked')?.value || 'post';
+
+  // Build pages array
+  const pagesMap = {};
+  document.querySelectorAll('.bulk-chk-fb').forEach(chk => {
+    if (!pagesMap[chk.dataset.pid]) pagesMap[chk.dataset.pid] = { page_id: chk.dataset.pid, facebook: false, instagram: false };
+    pagesMap[chk.dataset.pid].facebook = chk.checked;
+  });
+  document.querySelectorAll('.bulk-chk-ig').forEach(chk => {
+    if (!pagesMap[chk.dataset.pid]) pagesMap[chk.dataset.pid] = { page_id: chk.dataset.pid, facebook: false, instagram: false };
+    pagesMap[chk.dataset.pid].instagram = chk.checked;
+  });
+  const pages = Object.values(pagesMap).filter(p => p.facebook || p.instagram);
+  if (!pages.length) { showToast('Seleccioná al menos una página/red', 'error'); return; }
+
+  const ids = [..._bulkSel];
+
+  // Build items array with scheduled_at
+  let items = [];
+  if (cuando === 'ahora') {
+    items = ids.map(id => ({ id, scheduled_at: null }));
+  } else if (cuando === 'misma') {
+    const dtVal = document.getElementById('bulk-misma-datetime')?.value;
+    if (!dtVal) { showToast('Ingresá la fecha y hora', 'error'); return; }
+    items = ids.map(id => ({ id, scheduled_at: dtVal }));
+  } else if (cuando === 'distribuir') {
+    const fechaVal = document.getElementById('bulk-dist-fecha')?.value;
+    const horaVal  = document.getElementById('bulk-dist-hora')?.value || '10:00';
+    const interval = parseInt(document.getElementById('bulk-dist-intervalo')?.value || '24');
+    if (!fechaVal) { showToast('Ingresá la fecha de inicio', 'error'); return; }
+    items = ids.map((id, i) => {
+      const dt = new Date(`${fechaVal}T${horaVal}:00`);
+      dt.setTime(dt.getTime() + i * interval * 3600000);
+      return { id, scheduled_at: dt.toISOString().slice(0, 16) };
+    });
+  }
+
+  const btn = document.getElementById('btn-confirmar-bulk');
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = cuando === 'ahora' ? '⏳ Publicando…' : '⏳ Guardando…';
+
+  try {
+    const res = await API.post('/api/ecopost/bulk-programar', { items, pages, tipo });
+    cerrarModalBulk();
     toggleBulkMode();
+
+    if (res.programados > 0) showToast(`🗓 ${res.programados} publicaciones programadas`, 'success');
+    if (res.publicados  > 0) showToast(`✅ ${res.publicados} publicados ahora`, 'success');
+    if (res.errores     > 0) showToast(`❌ ${res.errores} con errores`, 'error');
+
+    loadBiblioteca();
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = origText;
   }
 }
 

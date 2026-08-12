@@ -691,6 +691,9 @@ class ContenidoEcopost(Base):
     publish_at = Column(DateTime, nullable=True)        # fecha/hora programada de publicación
     redes_publicadas = Column(Text, default="{}")       # JSON: {fb_pageid: "post_id", ig: "media_id"}
     carousel_urls = Column(Text, default="[]")          # JSON array de URLs para carrusel
+    # ── Publicación programada avanzada ──────────────────────────────────────
+    publish_pages_json = Column(Text, nullable=True)    # JSON: [{page_id, facebook, instagram}]
+    publish_tipo = Column(String(20), nullable=True, default="post")  # post | historia | reel
     # ── Estado ────────────────────────────────────────────────────────────────
     estado = Column(String(20), default="borrador")     # borrador | aprobado | publicado | archivado
     notas = Column(Text, default="")

@@ -164,6 +164,9 @@ def run_migrations():
             "ALTER TABLE contenido_ecopost ADD COLUMN publish_at DATETIME",
             "ALTER TABLE contenido_ecopost ADD COLUMN redes_publicadas TEXT DEFAULT '{}'",
             "ALTER TABLE contenido_ecopost ADD COLUMN carousel_urls TEXT DEFAULT '[]'",
+            # ── Ecopost: publicación programada multi-página + tipo ────────────────
+            "ALTER TABLE contenido_ecopost ADD COLUMN publish_pages_json TEXT DEFAULT '[]'",
+            "ALTER TABLE contenido_ecopost ADD COLUMN publish_tipo TEXT DEFAULT 'post'",
         ]
         for stmt in migrations:
             try:

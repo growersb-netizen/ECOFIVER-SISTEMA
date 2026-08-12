@@ -987,7 +987,9 @@ async def api_meta_paginas_update(
 
 
 class PublicarRedesReq(BaseModel):
-    pages: List[dict]  # [{page_id, facebook, instagram}]
+    pages: List[dict]         # [{page_id, facebook, instagram}]
+    tipo: str = "post"        # post | historia | reel
+    scheduled_at: Optional[str] = None  # ISO-8601 naive datetime, tz Argentina
 
 
 @router.post("/api/ecopost/{item_id}/publicar-redes")
@@ -997,10 +999,32 @@ async def api_publicar_redes(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    """Publica en múltiples páginas de Facebook e Instagram simultáneamente."""
+    """Publica (o programa) en múltiples páginas de Facebook e Instagram."""
     c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
     if not c:
         raise HTTPException(404, "Contenido no encontrado")
+
+    # ── PROGRAMAR (no publicar ahora) ────────────────────────────────────────
+    if req.scheduled_at:
+        try:
+            from datetime import datetime as _dt
+            publish_dt = _dt.fromisoformat(req.scheduled_at)
+        except ValueError:
+            raise HTTPException(400, f"Fecha inválida: {req.scheduled_at}")
+        c.publish_at = publish_dt
+        c.publish_pages_json = json.dumps(req.pages)
+        c.publish_tipo = req.tipo
+        c.estado = "aprobado"
+        if not c.aprobado_por_id:
+            c.aprobado_por_id = user.id
+        db.commit()
+        return {
+            "ok": True,
+            "scheduled": True,
+            "publish_at": publish_dt.isoformat(),
+            "tipo": req.tipo,
+            "resultados": [],
+        }
 
     token = get_config_value("meta_page_access_token", db)
     if not token:
@@ -1069,9 +1093,16 @@ async def api_publicar_redes(
                     resultados.append({"page_id": pid, "red": "instagram", "ok": False, "error": "Instagram requiere imagen con URL pública"})
                 else:
                     try:
+                        # Historia (9:16): usar media_type=STORIES, sin caption
+                        es_historia = req.tipo == "historia"
+                        ig_payload: dict = {"image_url": img_url, "access_token": page_token_to_use}
+                        if es_historia:
+                            ig_payload["media_type"] = "STORIES"
+                        else:
+                            ig_payload["caption"] = message
                         r1 = await hc.post(
                             f"{META_GRAPH_URL}/{ig_uid}/media",
-                            data={"image_url": img_url, "caption": message, "access_token": page_token_to_use},
+                            data=ig_payload,
                         )
                         if r1.status_code != 200:
                             err_msg = r1.json().get("error", {}).get("message", r1.text[:150])
@@ -1859,6 +1890,134 @@ class BulkPublicarReq(BaseModel):
     redes: List[str]   # "facebook" | "instagram"
 
 
+class BulkProgramarReq(BaseModel):
+    """Programar o publicar múltiples contenidos con página, tipo y horario."""
+    items: List[dict]  # [{id, scheduled_at?}] — scheduled_at ISO string o null (ahora)
+    pages: List[dict]  # [{page_id, facebook, instagram}]
+    tipo: str = "post"  # post | historia
+
+
+@router.post("/api/ecopost/bulk-programar")
+async def api_bulk_programar(
+    body: BulkProgramarReq,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Programa (o publica inmediatamente) múltiples contenidos con control
+    de páginas, tipo de publicación y horario individual por ítem."""
+    if not body.items:
+        raise HTTPException(400, "No hay ítems en el request")
+    if not body.pages:
+        raise HTTPException(400, "Seleccioná al menos una página/red de destino")
+
+    crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+    resultados = []
+
+    for item in body.items:
+        cid = item.get("id")
+        scheduled_at_str = item.get("scheduled_at")  # None → publicar ahora
+        c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == cid).first()
+        if not c:
+            resultados.append({"id": cid, "ok": False, "error": "No encontrado"})
+            continue
+
+        # ── Programado para más tarde ─────────────────────────────────────────
+        if scheduled_at_str:
+            try:
+                from datetime import datetime as _dt
+                publish_dt = _dt.fromisoformat(scheduled_at_str)
+            except ValueError:
+                resultados.append({"id": cid, "ok": False, "error": f"Fecha inválida: {scheduled_at_str}"})
+                continue
+            c.publish_at = publish_dt
+            c.publish_pages_json = json.dumps(body.pages)
+            c.publish_tipo = body.tipo
+            c.estado = "aprobado"
+            if not c.aprobado_por_id:
+                c.aprobado_por_id = user.id
+            db.commit()
+            resultados.append({"id": cid, "ok": True, "scheduled": True, "publish_at": scheduled_at_str})
+            continue
+
+        # ── Publicar ahora ────────────────────────────────────────────────────
+        message = "\n\n".join(filter(None, [c.copy_texto or "", c.copy_hashtags or ""]))
+        img_url = c.imagen_url
+        if not img_url and c.imagen_base64:
+            try:
+                tok = _ensure_public_token(c, db)
+                img_url = f"{crm_host.rstrip('/')}/pub/img/{tok}"
+                c.imagen_url = img_url
+                db.flush()
+            except Exception:
+                pass
+
+        es_historia = (body.tipo == "historia")
+        item_res: dict = {"id": cid, "titulo": c.titulo or "", "redes": {}}
+        any_ok = False
+
+        async with httpx.AsyncClient(timeout=20) as hc:
+            for pg in body.pages:
+                pid = pg.get("page_id")
+                do_fb = pg.get("facebook", False)
+                do_ig = pg.get("instagram", False)
+                page_obj = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first() if pid else None
+                ig_uid = page_obj.ig_user_id if page_obj else None
+                page_token_to_use = (page_obj.page_token if page_obj and page_obj.page_token else None) or \
+                                    get_config_value("meta_page_access_token", db)
+
+                if do_fb and page_token_to_use and pid:
+                    try:
+                        if img_url:
+                            r = await hc.post(f"{META_GRAPH_URL}/{pid}/photos",
+                                              data={"url": img_url, "caption": message, "access_token": page_token_to_use})
+                        else:
+                            r = await hc.post(f"{META_GRAPH_URL}/{pid}/feed",
+                                              data={"message": message, "access_token": page_token_to_use})
+                        ok = r.status_code == 200
+                        any_ok = any_ok or ok
+                        item_res["redes"][f"facebook_{pid}"] = {"ok": ok, **(
+                            {"post_id": r.json().get("id")} if ok else
+                            {"error": r.json().get("error", {}).get("message", r.text[:80])})}
+                    except Exception as e:
+                        item_res["redes"][f"facebook_{pid}"] = {"ok": False, "error": str(e)[:80]}
+
+                if do_ig and page_token_to_use and ig_uid and img_url:
+                    try:
+                        ig_payload: dict = {"image_url": img_url, "access_token": page_token_to_use}
+                        if es_historia:
+                            ig_payload["media_type"] = "STORIES"
+                        else:
+                            ig_payload["caption"] = message
+                        r1 = await hc.post(f"{META_GRAPH_URL}/{ig_uid}/media", data=ig_payload)
+                        if r1.status_code == 200:
+                            r2 = await hc.post(f"{META_GRAPH_URL}/{ig_uid}/media_publish",
+                                               data={"creation_id": r1.json().get("id"), "access_token": page_token_to_use})
+                            ok2 = r2.status_code == 200
+                            any_ok = any_ok or ok2
+                            item_res["redes"][f"instagram_{pid}"] = {"ok": ok2, **(
+                                {"ig_media_id": r2.json().get("id")} if ok2 else
+                                {"error": r2.json().get("error", {}).get("message", r2.text[:80])})}
+                        else:
+                            item_res["redes"][f"instagram_{pid}"] = {"ok": False,
+                                "error": r1.json().get("error", {}).get("message", r1.text[:80])}
+                    except Exception as e:
+                        item_res["redes"][f"instagram_{pid}"] = {"ok": False, "error": str(e)[:80]}
+
+        item_res["ok"] = any_ok
+        if any_ok:
+            c.estado = "publicado"
+            if not c.aprobado_por_id:
+                c.aprobado_por_id = user.id
+            db.commit()
+        resultados.append(item_res)
+
+    programados = sum(1 for r in resultados if r.get("scheduled"))
+    publicados  = sum(1 for r in resultados if r.get("ok") and not r.get("scheduled"))
+    errores     = sum(1 for r in resultados if not r.get("ok"))
+    return {"ok": True, "resultados": resultados, "programados": programados,
+            "publicados": publicados, "errores": errores}
+
+
 @router.post("/api/ecopost/bulk-publicar")
 async def api_bulk_publicar(
     body: BulkPublicarReq,
@@ -1955,7 +2114,8 @@ async def api_bulk_publicar(
 # ─── CONTENIDO PROGRAMADO ─────────────────────────────────────────────────────
 
 async def _auto_publicar_programados():
-    """Scheduler job: publica en Facebook los contenidos 'aprobados' cuya hora ya pasó."""
+    """Scheduler job: publica contenidos 'aprobados' con publish_at ya vencido.
+    Soporta multi-página, Instagram y tipo post|historia."""
     try:
         from database.database import SessionLocal
         db = SessionLocal()
@@ -1973,9 +2133,10 @@ async def _auto_publicar_programados():
             db.close()
             return
 
-        page_token = get_config_value("meta_page_access_token", db)
-        page_id    = get_config_value("meta_page_id", db)
-        crm_host   = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+        page_token_global = get_config_value("meta_page_access_token", db)
+        page_id_global    = get_config_value("meta_page_id", db)
+        ig_uid_global     = get_config_value("meta_ig_user_id", db)
+        crm_host          = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
 
         for c in pendientes:
             try:
@@ -1987,25 +2148,71 @@ async def _auto_publicar_programados():
                     c.imagen_url = img_url
                     db.flush()
 
-                if page_token and page_id:
-                    async with httpx.AsyncClient(timeout=20) as hc:
-                        if img_url:
-                            r = await hc.post(
-                                f"{META_GRAPH_URL}/{page_id}/photos",
-                                data={"url": img_url, "caption": message, "access_token": page_token},
-                            )
-                        else:
-                            r = await hc.post(
-                                f"{META_GRAPH_URL}/{page_id}/feed",
-                                data={"message": message, "access_token": page_token},
-                            )
-                        if r.status_code == 200:
-                            c.estado = "publicado"
-                            c.publish_at = None
-                            db.commit()
-                            logger.info(f"[scheduler] Ecopost #{c.id} publicado automáticamente")
-                        else:
-                            logger.warning(f"[scheduler] Ecopost #{c.id} falló: {r.text[:150]}")
+                tipo = getattr(c, "publish_tipo", None) or "post"
+                es_historia = (tipo == "historia")
+
+                # Leer páginas programadas; si no hay, usar config global
+                pages_raw = getattr(c, "publish_pages_json", None) or "[]"
+                try:
+                    pages = json.loads(pages_raw) if pages_raw else []
+                except Exception:
+                    pages = []
+
+                if not pages and page_id_global:
+                    pages = [{"page_id": page_id_global, "facebook": True, "instagram": bool(ig_uid_global)}]
+
+                any_ok = False
+                async with httpx.AsyncClient(timeout=20) as hc:
+                    for pg in pages:
+                        pid = pg.get("page_id")
+                        do_fb = pg.get("facebook", False)
+                        do_ig = pg.get("instagram", False)
+                        page_obj = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first() if pid else None
+                        ig_uid = (page_obj.ig_user_id if page_obj else None) or ig_uid_global
+                        pt = (page_obj.page_token if page_obj and page_obj.page_token else None) or page_token_global
+
+                        if do_fb and pt and pid:
+                            try:
+                                if img_url:
+                                    r = await hc.post(f"{META_GRAPH_URL}/{pid}/photos",
+                                                      data={"url": img_url, "caption": message, "access_token": pt})
+                                else:
+                                    r = await hc.post(f"{META_GRAPH_URL}/{pid}/feed",
+                                                      data={"message": message, "access_token": pt})
+                                if r.status_code == 200:
+                                    any_ok = True
+                                    logger.info(f"[scheduler] Ecopost #{c.id} → FB página {pid} OK")
+                                else:
+                                    logger.warning(f"[scheduler] Ecopost #{c.id} → FB {pid}: {r.text[:100]}")
+                            except Exception as e:
+                                logger.error(f"[scheduler] Ecopost #{c.id} FB {pid}: {e}")
+
+                        if do_ig and pt and ig_uid and img_url:
+                            try:
+                                ig_payload: dict = {"image_url": img_url, "access_token": pt}
+                                if es_historia:
+                                    ig_payload["media_type"] = "STORIES"
+                                else:
+                                    ig_payload["caption"] = message
+                                r1 = await hc.post(f"{META_GRAPH_URL}/{ig_uid}/media", data=ig_payload)
+                                if r1.status_code == 200:
+                                    r2 = await hc.post(f"{META_GRAPH_URL}/{ig_uid}/media_publish",
+                                                       data={"creation_id": r1.json().get("id"), "access_token": pt})
+                                    if r2.status_code == 200:
+                                        any_ok = True
+                                        logger.info(f"[scheduler] Ecopost #{c.id} → IG {'story' if es_historia else 'post'} OK")
+                                    else:
+                                        logger.warning(f"[scheduler] Ecopost #{c.id} → IG publish: {r2.text[:100]}")
+                                else:
+                                    logger.warning(f"[scheduler] Ecopost #{c.id} → IG media: {r1.text[:100]}")
+                            except Exception as e:
+                                logger.error(f"[scheduler] Ecopost #{c.id} IG: {e}")
+
+                if any_ok:
+                    c.estado = "publicado"
+                    c.publish_at = None
+                    db.commit()
+
             except Exception as e:
                 logger.error(f"[scheduler] Error publicando Ecopost #{c.id}: {e}")
 

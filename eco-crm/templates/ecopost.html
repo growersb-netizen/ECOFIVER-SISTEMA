@@ -351,14 +351,39 @@
 <!-- ═══════════════════ TAB: PLANIFICADOR ═══════════════════ -->
 <div id="tab-planificador" style="display:none">
 
-  <!-- Config -->
+  <!-- PASO 1: Seleccionar fotos -->
+  <div class="card mb-3" style="border:2px solid var(--teal)">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+      <strong>📷 Paso 1 — Seleccioná las fotos de tus productos</strong>
+      <span id="plan-fotos-count" style="font-size:12px;color:var(--teal);font-weight:700">0 fotos</span>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">
+        Elegí primero las fotos reales — la IA genera el copy a partir de cada imagen. Podés mezclar piscinas, módulos y otros productos.
+      </p>
+
+      <!-- Strip de fotos seleccionadas -->
+      <div id="plan-fotos-strip" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;min-height:0"></div>
+
+      <!-- Botones para agregar fotos -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="abrirFotoPickerMulti('PISCINA')">🏊 Agregar Piscinas</button>
+        <button class="btn btn-secondary" onclick="abrirFotoPickerMulti('MODULO')">🏠 Agregar Módulos</button>
+        <button class="btn btn-secondary" onclick="abrirFotoPickerMulti('HIDROMASAJE')">💧 Agregar Spas</button>
+        <button class="btn btn-secondary" onclick="abrirFotoPickerMulti('')">📦 Ver todas</button>
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFotosPlan()" id="btn-limpiar-fotos" style="display:none">🗑 Limpiar fotos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PASO 2: Configurar el plan -->
   <div class="card mb-3">
-    <div class="card-header"><strong>🗓 Generar plan de contenido con IA</strong></div>
+    <div class="card-header"><strong>⚙️ Paso 2 — Configurar el plan</strong></div>
     <div class="card-body">
 
-      <!-- TIPO DE CONTENIDO — selector prominente -->
+      <!-- TIPO DE CONTENIDO -->
       <div style="margin-bottom:20px">
-        <label class="label" style="font-size:13px;font-weight:700;margin-bottom:8px">Tipo de contenido</label>
+        <label class="label" style="font-size:13px;font-weight:700;margin-bottom:8px">Tipo de copy</label>
         <div style="display:flex;gap:0;border:1px solid var(--border-color);border-radius:10px;overflow:hidden;max-width:480px">
           <button id="plan-tipo-comercial" class="btn plan-tipo-btn active-plan-tipo"
             onclick="selPlanTipo('comercial')"
@@ -388,7 +413,7 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:16px">
 
         <div>
-          <label class="label">Días a planificar</label>
+          <label class="label">Días a planificar <span style="font-size:10px;color:var(--text-muted)">(para distribuir los posts)</span></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap" id="plan-dias-btns">
             <button class="btn btn-ghost plan-dias-btn active-plan" data-dias="7" onclick="selPlanDias(7,this)">7 días</button>
             <button class="btn btn-ghost plan-dias-btn" data-dias="14" onclick="selPlanDias(14,this)">14 días</button>
@@ -408,17 +433,6 @@
         </div>
 
         <div>
-          <label class="label">Productos</label>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn btn-ghost plan-toggle active-plan" data-val="PISCINA" onclick="togglePlanProd(this)">🏊 Piscinas</button>
-            <button class="btn btn-ghost plan-toggle active-plan" data-val="MODULO" onclick="togglePlanProd(this)">🏠 Módulos</button>
-            <button class="btn btn-ghost plan-toggle" data-val="COMBO" onclick="togglePlanProd(this)">✨ Combos</button>
-            <button class="btn btn-ghost plan-toggle" data-val="HIDROMASAJE" onclick="togglePlanProd(this)">💧 Spa/Jacuzzi</button>
-            <button class="btn btn-ghost plan-toggle" data-val="REPOSERA_FIBRA" onclick="togglePlanProd(this)">🛋 Reposeras</button>
-          </div>
-        </div>
-
-        <div>
           <label class="label">Tono</label>
           <select id="plan-tono" class="input">
             <option value="profesional y cercano">Profesional y cercano</option>
@@ -429,14 +443,8 @@
         </div>
       </div>
 
-      <!-- Opciones adicionales -->
-      <div style="background:var(--bg-secondary);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);display:flex;gap:10px;align-items:flex-start">
-        <span style="font-size:16px;flex-shrink:0">💡</span>
-        <span>El planificador genera <strong style="color:var(--text-primary)">copy y hashtags</strong> para cada post. Para las imágenes, usá tus <strong style="color:var(--teal)">fotos reales de MercadoLibre</strong> — son mucho más efectivas que las generadas por IA porque muestran tu producto real. Podés asignar una foto por post con el botón <strong>📷 Foto</strong>.</span>
-      </div>
-
-      <button class="btn btn-primary" id="btn-generar-plan" onclick="generarPlan()">
-        ✨ Generar plan con IA
+      <button class="btn btn-primary btn-lg" id="btn-generar-plan" onclick="generarPlan()" style="width:100%;font-size:15px">
+        ✨ Generar copy con IA
       </button>
     </div>
   </div>
@@ -577,9 +585,12 @@
     <div id="foto-picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;overflow-y:auto;padding:14px;flex:1">
       <div style="color:var(--text-secondary);grid-column:1/-1;padding:20px;text-align:center">Cargando…</div>
     </div>
-    <div style="padding:12px 16px;flex-shrink:0;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:var(--text-secondary)">💡 Usá las fotos reales de tus productos — mucho más convincentes que IA</span>
-      <button class="btn btn-ghost btn-sm" onclick="cerrarFotoPicker()">Cancelar</button>
+    <div style="padding:12px 16px;flex-shrink:0;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <span style="font-size:12px;color:var(--text-secondary)" id="foto-picker-footer-tip">💡 Tocá una foto para usarla</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="cerrarFotoPicker()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" id="btn-foto-picker-listo" onclick="cerrarFotoPicker()" style="display:none">✓ Listo (<span id="foto-picker-sel-count">0</span>)</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1141,6 +1152,8 @@ function openCrear() {
 }
 
 // ─── Biblioteca ──────────────────────────────────────────────────────────────
+let _bibliotecaData = [];
+
 async function loadBiblioteca() {
   const grid = document.getElementById('biblioteca-grid');
   grid.innerHTML = '<div class="loading">Cargando…</div>';
@@ -1152,6 +1165,7 @@ async function loadBiblioteca() {
     if (producto) url += `&producto=${producto}`;
 
     const items = await API.get(url);
+    _bibliotecaData = items;   // guardamos para publicarDirecto
     if (!items.length) {
       grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1">Sin contenido. Creá tu primer post ✨</div>';
       return;
@@ -1196,9 +1210,12 @@ function renderCard(item) {
     </div>
     <div class="ecopost-card-footer">
       <span class="estado-badge estado-${estado}">${estado.charAt(0).toUpperCase()+estado.slice(1)}</span>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-ghost btn-sm" onclick="editarContenido(${item.id})">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="openDetalle(${item.id})">👁</button>
+      <div style="display:flex;gap:5px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="editarContenido(${item.id})" title="Editar">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="openDetalle(${item.id})" title="Ver detalle">👁</button>
+        <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:11px;padding:4px 9px"
+          onclick="event.stopPropagation();publicarDirecto(${item.id}, ${JSON.stringify({hasImg: item.tiene_imagen, hasVideo: item.tiene_video})})"
+          title="Publicar en Facebook / Instagram">📢</button>
       </div>
     </div>
   </div>`;
@@ -1306,6 +1323,20 @@ async function cambiarEstado(id, estado) {
 
 let _publicarItemId = null;
 let _publicarItemMeta = {};
+
+/** Publica directamente desde la card — aprueba automáticamente si es borrador */
+async function publicarDirecto(id, meta = {}) {
+  // Si es borrador, lo aprobamos primero silenciosamente
+  const items = _bibliotecaData || [];
+  const item = items.find(x => x.id === id);
+  if (item && item.estado === 'borrador') {
+    try {
+      await API.patch(`/api/ecopost/${id}/estado`, { estado: 'aprobado' });
+      if (item) item.estado = 'aprobado';
+    } catch(e) { /* continúa igual — el endpoint igual deja publicar */ }
+  }
+  abrirModalPublicar(id, meta);
+}
 
 async function abrirModalPublicar(id, meta = {}) {
   _publicarItemId = id;
@@ -1655,16 +1686,78 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─── Planificador ─────────────────────────────────────────────────────────────
 let _planDias = 7;
 let _planRedes = new Set(['instagram', 'facebook']);
-let _planProds = new Set(['PISCINA', 'MODULO']);
-let _planTipoContenido = 'comercial';   // 'comercial' | 'organico' | 'mixto'
+let _planTipoContenido = 'comercial';
 let _planData = [];
 let _planSeleccionados = new Set();
+let _planFotos = [];   // [{url, producto, titulo}] — fotos seleccionadas por el usuario
 
 const _PLAN_TIPO_DESC = {
   comercial: '💰 Posts con precio, instalación en el día, pago contra entrega y CTA directo. Ideal para generar consultas y ventas.',
   mixto:     '⚖️ Mezcla equilibrada: posts comerciales con CTA + contenido educativo e inspiracional para construir comunidad.',
   organico:  '🌱 Contenido educativo, técnico e inspiracional. Ideal para ganar seguidores, autoridad de marca y engagement orgánico.',
 };
+
+// ── Fotos seleccionadas para el plan ─────────────────────────────────────────
+function abrirFotoPickerMulti(producto) {
+  _fotoPlanIdx = 'multi';
+  document.getElementById('foto-picker-subtitle').textContent =
+    producto ? `Seleccioná fotos de ${producto} — podés elegir varias` : 'Seleccioná las fotos para el plan — podés elegir varias';
+  document.getElementById('foto-picker-buscar').value = producto;
+  document.getElementById('foto-picker-footer-tip').textContent = '📷 Tocá cada foto que querés agregar — el ✕ quita una ya agregada';
+  document.getElementById('btn-foto-picker-listo').style.display = 'inline-flex';
+  _actualizarContadorPicker();
+  document.getElementById('foto-picker-modal').style.display = 'flex';
+  _cargarFotosPicker(producto);
+}
+
+function _actualizarContadorPicker() {
+  const el = document.getElementById('foto-picker-sel-count');
+  if (el) el.textContent = _planFotos.length;
+}
+
+function agregarFotoAlPlan(url, producto, titulo) {
+  if (_planFotos.find(f => f.url === url)) {
+    showToast('Esa foto ya está en el plan', 'info');
+    return;
+  }
+  _planFotos.push({ url, producto: producto || '', titulo: titulo || '' });
+  renderFotosPlanStrip();
+  _actualizarContadorPicker();
+  showToast(`✅ Foto agregada (${_planFotos.length} en total)`, 'success');
+}
+
+function quitarFotoDelPlan(i) {
+  _planFotos.splice(i, 1);
+  renderFotosPlanStrip();
+}
+
+function limpiarFotosPlan() {
+  _planFotos = [];
+  renderFotosPlanStrip();
+}
+
+function renderFotosPlanStrip() {
+  const strip = document.getElementById('plan-fotos-strip');
+  const count = document.getElementById('plan-fotos-count');
+  const btnLimpiar = document.getElementById('btn-limpiar-fotos');
+  count.textContent = `${_planFotos.length} foto${_planFotos.length !== 1 ? 's' : ''}`;
+  btnLimpiar.style.display = _planFotos.length ? 'inline-flex' : 'none';
+  if (!_planFotos.length) {
+    strip.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:8px 0">Aún no seleccionaste fotos — usá los botones de abajo para agregar</div>`;
+    return;
+  }
+  strip.innerHTML = _planFotos.map((f, i) => `
+    <div style="position:relative;flex-shrink:0;border-radius:8px;overflow:hidden;border:2px solid var(--teal)">
+      <img src="${escHtml(f.url)}" style="width:80px;height:80px;object-fit:cover;display:block"
+           onerror="this.parentElement.style.display='none'">
+      <div style="position:absolute;top:0;right:0">
+        <button onclick="quitarFotoDelPlan(${i})" title="Quitar" style="background:rgba(0,0,0,.6);border:none;color:#fff;font-size:12px;cursor:pointer;padding:2px 5px;border-radius:0 0 0 6px">✕</button>
+      </div>
+      <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);font-size:9px;color:#fff;padding:2px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
+        ${escHtml(f.producto || '')}
+      </div>
+    </div>`).join('');
+}
 
 function selPlanTipo(tipo) {
   _planTipoContenido = tipo;
@@ -1692,63 +1785,62 @@ function togglePlanRed(btn) {
   }
 }
 
-function togglePlanProd(btn) {
-  const val = btn.dataset.val;
-  if (_planProds.has(val)) {
-    if (_planProds.size <= 1) return;
-    _planProds.delete(val);
-    btn.classList.remove('active-plan');
-  } else {
-    _planProds.add(val);
-    btn.classList.add('active-plan');
-  }
-}
-
 async function generarPlan() {
+  if (!_planFotos.length) {
+    showToast('Primero seleccioná al menos una foto en el Paso 1 📷', 'error');
+    document.getElementById('plan-fotos-strip').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
   const btn = document.getElementById('btn-generar-plan');
   const loading = document.getElementById('plan-loading');
   const resultado = document.getElementById('plan-resultado');
 
   btn.disabled = true;
-  btn.textContent = '⏳ Generando…';
+  btn.textContent = '⏳ Generando copy…';
   loading.style.display = 'block';
   resultado.style.display = 'none';
 
   const tipoDesc = { comercial:'comercial', organico:'orgánico', mixto:'mixto' }[_planTipoContenido] || _planTipoContenido;
   const msgs = [
-    `Generando plan ${tipoDesc} de ${_planDias} días…`,
-    'Planificando distribución de contenidos…',
-    'Redactando copys para cada red…',
-    'Definiendo prompts de imágenes…',
+    `Analizando las ${_planFotos.length} fotos seleccionadas…`,
+    'Generando copy para cada imagen…',
+    'Redactando hashtags y títulos…',
+    'Distribuyendo en el calendario…',
     'Finalizando…'
   ];
   let mi = 0;
   const loadingTxt = document.getElementById('plan-loading-txt');
-  const msgInt = setInterval(() => {
-    mi = (mi + 1) % msgs.length;
-    loadingTxt.textContent = msgs[mi];
-  }, 5000);
+  const msgInt = setInterval(() => { mi = (mi+1) % msgs.length; loadingTxt.textContent = msgs[mi]; }, 4000);
   loadingTxt.textContent = msgs[0];
+
+  // Derivar productos únicos de las fotos seleccionadas
+  const prodsUnicos = [...new Set(_planFotos.map(f => f.producto).filter(Boolean))];
+  if (!prodsUnicos.length) prodsUnicos.push('PISCINA');
 
   try {
     const res = await API.post('/api/ecopost/planificador/generar', {
       dias: _planDias,
       redes: [..._planRedes],
-      productos: [..._planProds],
+      productos: prodsUnicos,
       tono: document.getElementById('plan-tono').value,
       tipo_contenido: _planTipoContenido,
+      fotos: _planFotos,   // ← fotos preseleccionadas con sus productos
     });
 
-    _planData = res.plan || [];
+    // Asignar fotos reales a cada post del plan (circulando por la lista)
+    _planData = (res.plan || []).map((p, i) => ({
+      ...p,
+      _imagen_url: _planFotos[i % _planFotos.length]?.url || null,
+    }));
     _planSeleccionados = new Set(_planData.map((_, i) => i));
 
-    // Contar por tipo para el header
-    const nPosts  = res.plan.filter(p => p.tipo !== 'story').length;
-    const nStories = res.plan.filter(p => p.tipo === 'story').length;
-    let desglose = `${res.total} piezas`;
+    const nPosts   = _planData.filter(p => p.tipo !== 'story').length;
+    const nStories = _planData.filter(p => p.tipo === 'story').length;
+    let desglose = `${_planData.length} piezas`;
     if (nStories > 0) desglose = `${nPosts} posts + ${nStories} stories`;
     document.getElementById('plan-titulo-resultado').textContent =
-      `Plan ${_planDias} días — ${desglose}`;
+      `Plan ${_planDias} días — ${desglose} — ${_planFotos.length} fotos reales`;
     const tipoLabels = { comercial:'💰 Comercial', organico:'🌱 Orgánico', mixto:'⚖️ Mixto' };
     document.getElementById('plan-tipo-badge').innerHTML =
       `<span style="background:var(--bg-secondary);padding:2px 10px;border-radius:10px;font-size:12px">${tipoLabels[_planTipoContenido]||''}</span>`;
@@ -1756,7 +1848,7 @@ async function generarPlan() {
     renderPlanGrid();
     resultado.style.display = 'block';
     window.scrollTo({ top: document.getElementById('plan-resultado').offsetTop - 80, behavior: 'smooth' });
-    showToast(`✨ Plan generado: ${res.total} piezas ${tipoDesc}. Asigná fotos reales con el botón 📷`, 'success');
+    showToast(`✅ Copy generado para ${_planFotos.length} fotos — ${_planData.length} piezas listas`, 'success');
   } catch(e) {
     showToast('Error generando plan: ' + e.message, 'error');
   } finally {
@@ -1914,6 +2006,16 @@ function _renderFotosPicker(fotos) {
 
 function seleccionarFotoPlan(url) {
   if (_fotoPlanIdx === null) return;
+
+  if (_fotoPlanIdx === 'multi') {
+    // Modo multi-select: agregar al strip del planificador
+    const fotoObj = _fotosPickerCache.find(f => f.url === url);
+    agregarFotoAlPlan(url, fotoObj?.producto || '', fotoObj?.titulo || '');
+    // NO cerramos el modal — el usuario puede seguir eligiendo fotos
+    return;
+  }
+
+  // Modo single: asignar a un post específico del plan
   _planData[_fotoPlanIdx]._imagen_url = url;
   _planData[_fotoPlanIdx]._imagen_b64 = null;
   cerrarFotoPicker();

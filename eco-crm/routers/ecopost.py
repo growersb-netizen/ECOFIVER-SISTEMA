@@ -1178,12 +1178,105 @@ async def api_refs_eliminar(
 
 # ─── PLANIFICADOR DE CONTENIDO ────────────────────────────────────────────────
 
+class FotoPlanItem(BaseModel):
+    url: str
+    producto: Optional[str] = ""
+    titulo: Optional[str] = ""
+
 class PlanificadorReq(BaseModel):
     dias: int = 7                                  # 7 | 14 | 21 | 28
     redes: List[str] = ["instagram", "facebook"]   # instagram | facebook | tiktok | youtube
     productos: List[str] = ["PISCINA", "MODULO"]   # PISCINA | MODULO | COMBO | HIDROMASAJE | ...
     tono: Optional[str] = "profesional y cercano"
     tipo_contenido: str = "comercial"              # "comercial" | "organico" | "mixto"
+    fotos: Optional[List[FotoPlanItem]] = None     # fotos preseleccionadas (flujo imagen-primero)
+
+
+async def _generar_plan_desde_fotos(body: "PlanificadorReq", db) -> dict:
+    """Genera copy específico para cada foto preseleccionada por el usuario."""
+    from utils.contexto_ecofiver import ctx_redes_comercial, ctx_redes_organico
+
+    fotos = body.fotos  # List[FotoPlanItem]
+    n = len(fotos)
+    redes_str = ", ".join(body.redes)
+
+    if body.tipo_contenido == "comercial":
+        ctx = ctx_redes_comercial()
+    elif body.tipo_contenido == "organico":
+        ctx = ctx_redes_organico()
+    else:
+        ctx = ctx_redes_sociales(tipo_contenido="plan mixto de contenido")
+
+    # Armar la lista de fotos con su contexto para el prompt
+    fotos_desc = []
+    for i, f in enumerate(fotos, 1):
+        prod = f.producto.upper() if f.producto else "PRODUCTO"
+        titulo = f.titulo or prod
+        fotos_desc.append(f"Foto {i}: producto={prod}, descripción=\"{titulo}\"")
+    fotos_lista = "\n".join(fotos_desc)
+
+    # Distribuir días y redes entre las fotos
+    redes_list = body.redes if body.redes else ["instagram"]
+    tipos_feed = ["flyer", "carrusel", "reel", "flyer", "carrusel", "flyer", "reel"]
+    slots = []
+    for i, f in enumerate(fotos):
+        dia = (i // 2) + 1   # 2 fotos por día
+        red_feed = redes_list[i % len(redes_list)]
+        red_story = "instagram" if "instagram" in redes_list else redes_list[0]
+        tipo_feed = tipos_feed[i % len(tipos_feed)]
+        slots.append(f"Item {i+1}: día {dia}, red={red_feed}, tipo={tipo_feed}, foto={i+1}")
+        # story para cada foto
+        slots.append(f"Item {i+1}b: día {dia}, red={red_story}, tipo=story, foto={i+1}")
+    slots_str = "\n".join(slots)
+
+    prompt = f"""{ctx}
+
+════════════════════════════════════════════════════════════
+TAREA: Generá copy para {n * 2} piezas basadas en {n} fotos reales de EcoFiver
+════════════════════════════════════════════════════════════
+
+FOTOS DISPONIBLES (el usuario ya las eligió — el copy debe reflejar exactamente ese producto):
+{fotos_lista}
+
+DISTRIBUCIÓN SUGERIDA:
+{slots_str}
+
+Redes: {redes_str}
+Tono: {body.tono}
+Tipo: {body.tipo_contenido}
+
+Para CADA item generá:
+- dia: número del día
+- red: red social (de la distribución arriba)
+- tipo: flyer, carrusel, reel o story (de la distribución arriba)
+- producto: el producto de la foto correspondiente
+- foto_idx: índice de la foto (1 a {n}) — qué foto se usa para este post
+- titulo: máx 80 chars, impactante, en castellano argentino
+- copy: 2-3 frases con emojis, castellano rioplatense (vos, tu, acá, pileta)
+  Para el tipo "{body.tipo_contenido}": {'incluí precio contra entrega, instalación en el día, CTA a WhatsApp/ML' if body.tipo_contenido == 'comercial' else 'contenido educativo, técnico o inspiracional sin CTA agresivo' if body.tipo_contenido == 'organico' else 'alternancia comercial y educativo'}
+- hashtags: 6-8 hashtags relevantes separados por espacio
+
+IMPORTANTE: el copy de cada post debe ser coherente con el PRODUCTO de esa foto.
+Respondé SOLO con JSON válido, sin texto antes ni después:
+{{"plan": [
+  {{"dia": 1, "red": "{redes_list[0]}", "tipo": "flyer", "producto": "{fotos[0].producto.upper() if fotos[0].producto else 'PISCINA'}", "foto_idx": 1, "titulo": "...", "copy": "...", "hashtags": "..."}}
+]}}"""
+
+    try:
+        respuesta = await ai_complete(db, prompt, max_tokens=8000, temperature=0.7)
+        respuesta = respuesta.strip()
+        if "```json" in respuesta:
+            respuesta = respuesta.split("```json")[1].split("```")[0].strip()
+        elif "```" in respuesta:
+            respuesta = respuesta.split("```")[1].split("```")[0].strip()
+        data = json.loads(respuesta)
+        plan = data.get("plan", [])[:n * 4]
+        return {"ok": True, "dias": body.dias, "tipo_contenido": body.tipo_contenido,
+                "total": len(plan), "plan": plan, "desde_fotos": True}
+    except json.JSONDecodeError:
+        raise HTTPException(502, "IA devolvió formato inválido. Intentá de nuevo.")
+    except Exception as e:
+        raise HTTPException(502, f"Error generando copy: {str(e)[:120]}")
 
 
 @router.post("/api/ecopost/planificador/generar")
@@ -1192,11 +1285,15 @@ async def api_planificador_generar(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    """Genera un plan de contenido para N días con IA (comercial, orgánico o mixto)."""
+    """Genera copy para un plan de contenido. Si llegan 'fotos', genera copy específico por imagen."""
     if body.dias not in (7, 14, 21, 28):
         raise HTTPException(400, "Días válidos: 7, 14, 21, 28")
 
     from utils.contexto_ecofiver import ctx_redes_comercial, ctx_redes_organico
+
+    # ── Modo imagen-primero: fotos preseleccionadas por el usuario ────────────
+    if body.fotos:
+        return await _generar_plan_desde_fotos(body, db)
 
     redes_str = ", ".join(body.redes)
     prods_str = ", ".join(body.productos)

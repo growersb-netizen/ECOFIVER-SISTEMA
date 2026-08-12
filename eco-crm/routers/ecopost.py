@@ -180,8 +180,8 @@ async def _generate_image_openrouter(api_key: str, prompt: str, tipo: str) -> Op
     """
     import os
     model = os.getenv("OPENROUTER_IMAGE_MODEL", "openai/gpt-5-image-mini")
-    aspecto = "cuadrada 1:1 estilo publicación de Instagram" if tipo != "story" else "vertical 9:16 estilo Instagram Story"
-    prompt_final = f"{prompt}. Formato de imagen {aspecto}, alta calidad, fotografía profesional."
+    aspecto = "square 1:1 Instagram post format" if tipo != "story" else "vertical 9:16 Instagram Story format"
+    prompt_final = f"{prompt} {aspecto}."
     try:
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(
@@ -206,10 +206,12 @@ async def _generate_image_openrouter(api_key: str, prompt: str, tipo: str) -> Op
 
 
 _ECOFIVER_IMG_CTX = (
-    "Imagen publicitaria profesional para EcoFiver, empresa argentina fabricante de piscinas de fibra "
-    "de vidrio y módulos habitacionales de celulosa estructural, ubicada en Zárate, Buenos Aires. "
-    "Estilo fotográfico moderno y aspiracional, colores vibrantes, alta resolución, "
-    "ambiente familiar argentino, entorno al aire libre soleado. "
+    "Hyperrealistic professional advertising photograph for EcoFiver, Argentine manufacturer of fiberglass "
+    "swimming pools and prefabricated modular homes, located in Zárate, Buenos Aires. "
+    "Ultra-detailed product photography, 8K resolution, sharp focus, studio-quality lighting, "
+    "vibrant and saturated colors, aspirational lifestyle aesthetic, "
+    "sunny outdoor Argentine suburban environment, families enjoying the product, "
+    "photorealistic rendering, no text overlays, no watermarks, magazine-quality composition. "
 )
 
 # Dimensiones reales de los productos para dar contexto preciso a la IA
@@ -256,20 +258,27 @@ _DIMENSIONES_PRODUCTO = {
 
 
 def _enriquecer_prompt_imagen(prompt: str, tipo: str, producto: str = "") -> str:
-    """Agrega contexto de marca EcoFiver + dimensiones reales al prompt para imágenes más precisas."""
+    """Agrega contexto de marca EcoFiver + dimensiones reales + términos de calidad al prompt."""
     formato_map = {
-        "story":     "Composición vertical 9:16, estilo Instagram Story, texto grande arriba.",
-        "carrusel":  "Composición cuadrada 1:1, primer slide de carrusel Instagram.",
-        "reel":      "Frame de video vertical 9:16, escena dinámica con movimiento implícito.",
+        "story":    "Vertical 9:16 aspect ratio, Instagram Story composition, dynamic layout, strong visual impact.",
+        "carrusel": "Square 1:1 aspect ratio, Instagram carousel first slide, clean composition, bold visuals.",
+        "reel":     "Vertical 9:16 aspect ratio, cinematic frame, action-oriented scene with implied movement.",
     }
-    formato = formato_map.get(tipo, "Composición cuadrada 1:1, estilo publicación de Instagram.")
+    calidad_map = {
+        "story":    "ultra-detailed, 8K, hyperrealistic, professional Instagram Story photography, no text overlays",
+        "carrusel": "ultra-detailed, 8K, hyperrealistic, professional product photography, 1:1 square format",
+        "reel":     "cinematic, ultra-detailed, 8K, hyperrealistic, dynamic professional photography",
+    }
+    formato   = formato_map.get(tipo, "Square 1:1 aspect ratio, Instagram post composition, centered product.")
+    calidad   = calidad_map.get(tipo, "ultra-detailed, 8K resolution, hyperrealistic, professional advertising photography, 1:1 square format")
     dim_ctx = ""
     prod_key = producto.upper() if producto else ""
     for key, desc in _DIMENSIONES_PRODUCTO.items():
         if key in prod_key or prod_key in key:
-            dim_ctx = f" Dimensiones y características del producto: {desc}"
+            dim_ctx = f" Product specs for accurate representation: {desc}"
             break
-    return f"{_ECOFIVER_IMG_CTX}{dim_ctx} {prompt}. {formato}"
+    # Estructura óptima para modelos de imagen: contexto → producto → escena → formato → calidad
+    return f"{_ECOFIVER_IMG_CTX}{dim_ctx} {prompt}. {formato} {calidad}."
 
 
 async def _generate_image(db: Session, prompt: str, tipo: str) -> Optional[str]:
@@ -1256,12 +1265,15 @@ REGLAS GENERALES:
 - Variá los productos y tipos de contenido a lo largo del plan
 - Repartí proporcionalmente entre las redes seleccionadas
 - Cada copy en castellano argentino rioplatense (vos, tu, acá, pileta)
-- prompt_imagen siempre en inglés, fotorrealista, mostrando el producto real con contexto
-- Incluir dimensiones aproximadas en el prompt_imagen cuando se conocen
+- prompt_imagen SIEMPRE en inglés, mínimo 40 palabras, ultra-detallado y cinematográfico
+  · Describir: tipo de escena, hora del día, iluminación, ángulo de cámara, ambiente, detalles del producto
+  · Incluir dimensiones reales cuando se conocen (piscina 6x3m, módulo 25m², etc.)
+  · SIEMPRE terminar con: "hyperrealistic, 8K ultra-detailed, professional advertising photography, sharp focus, vibrant saturated colors, no text, no watermarks"
+  · Ejemplo flyer piscina: "Aerial drone view of a turquoise EcoFiver fiberglass swimming pool 6x3m installed in a lush Argentine suburban backyard, crystal clear water, family relaxing at poolside, warm golden afternoon light, modern house in background, green lawn, wooden deck chairs, hibiscus flowers, hyperrealistic, 8K ultra-detailed, professional advertising photography, sharp focus, vibrant saturated colors, no text, no watermarks"
 
 Respondé SOLO con un JSON válido, sin texto adicional:
 {{"plan": [
-  {{"dia": 1, "red": "instagram", "tipo": "flyer", "producto": "PISCINA", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "professional product photo, EcoFiver fiber glass swimming pool 6x3m installed in Argentine garden, blue water, sunny day, modern suburban home background, photorealistic, vibrant colors, square format 1:1"}}
+  {{"dia": 1, "red": "instagram", "tipo": "flyer", "producto": "PISCINA", "titulo": "...", "copy": "...", "hashtags": "...", "prompt_imagen": "..."}}
 ]}}"""
 
     try:

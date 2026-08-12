@@ -4868,15 +4868,15 @@ let _borPrecioContadoRef = null;
 
 // Mapeo de nombre de categoría del catálogo → tipo de producto ML
 const _CAT_TIPO_MAP = {
-  hidromasajes: 'HIDROMASAJE',
-  baneras:      'BANERA',
-  receptaculos: 'RECEPTACULO',
-  reposeras:    'ACCESORIO',
-  accesorios_piscinas: 'ACCESORIO',
-  cuchas_perros: 'ACCESORIO',
-  garitas_seguridad: 'ACCESORIO',
-  banios_quimicos: 'ACCESORIO',
-  depositos_jardin: 'ACCESORIO',
+  hidromasajes:      'HIDROMASAJE',
+  baneras:           'BANERA',
+  receptaculos:      'RECEPTACULO',
+  reposeras:         'REPOSERA_FIBRA',
+  accesorios_piscinas: 'ACCESORIO_PISCINA',
+  cuchas_perros:     'CUCHA',
+  garitas_seguridad: 'GARITA_SEGURIDAD',
+  banios_quimicos:   'BANIO_QUIMICO',
+  depositos_jardin:  'DEPOSITO_JARDIN',
 };
 const _CAT_EMOJI_MAP = {
   hidromasajes: '🛁',
@@ -4911,7 +4911,7 @@ async function borCargarCatalogoSelect() {
     };
 
     addGroup('🏊 Piscinas', 'PISCINA', d.piscinas && d.piscinas.precios);
-    addGroup('🏠 Viviendas modulares', 'MODULO', d.modulos && d.modulos.precios);
+    addGroup('🏠 Viviendas modulares', 'MODULO_HABITACIONAL', d.modulos && d.modulos.precios);
     if (d.combos) {
       const combosPrecios = {};
       for (const nombre in d.combos) combosPrecios[nombre] = d.combos[nombre].precio_contado || d.combos[nombre].precio_lista;
@@ -4973,7 +4973,8 @@ async function borOnCatalogoSel() {
     return;
   }
   document.getElementById('mp-producto').value = item.tipo;
-  borCargarFichasDropdown(item.nombre);   // actualiza fichas según el tipo/nombre seleccionado
+  borOnProductoChange();                  // actualiza categoría + fichas + sets según el tipo
+  borCargarFichasDropdown(item.nombre);   // pre-selecciona el modelo que coincide con el nombre
   // Auto-llenar título si está vacío
   if (!document.getElementById('mp-titulo').value.trim()) {
     document.getElementById('mp-titulo').value = item.nombre.substring(0, 60);

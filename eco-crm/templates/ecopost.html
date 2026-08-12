@@ -541,7 +541,7 @@
 
   <!-- ── Fotos desde MercadoLibre ────────────────────────────── -->
   <div style="margin-top:32px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div style="font-weight:700;font-size:14px">📦 Fotos de la biblioteca MercadoLibre</div>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="ml-fotos-producto" class="input" style="width:180px;font-size:13px">
@@ -558,8 +558,22 @@
         <button class="btn btn-ghost btn-sm" onclick="loadMLFotos()">🔄 Cargar</button>
       </div>
     </div>
+
+    <!-- Selector de formato -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;background:var(--bg-secondary);padding:8px 10px;border-radius:8px;border:1px solid var(--border-color)">
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:600;white-space:nowrap">Vista previa:</span>
+      <button class="btn btn-ghost btn-sm ml-formato-btn active" data-fmt="" onclick="setMLFormato('')" style="font-size:11px;padding:3px 8px">🔲 Normal</button>
+      <button class="btn btn-ghost btn-sm ml-formato-btn" data-fmt="1:1" onclick="setMLFormato('1:1')" style="font-size:11px;padding:3px 8px">⬛ 1:1 Post</button>
+      <button class="btn btn-ghost btn-sm ml-formato-btn" data-fmt="4:5" onclick="setMLFormato('4:5')" style="font-size:11px;padding:3px 8px">📷 4:5 Retrato</button>
+      <button class="btn btn-ghost btn-sm ml-formato-btn" data-fmt="9:16" onclick="setMLFormato('9:16')" style="font-size:11px;padding:3px 8px">📱 9:16 Historia</button>
+      <button class="btn btn-ghost btn-sm ml-formato-btn" data-fmt="16:9" onclick="setMLFormato('16:9')" style="font-size:11px;padding:3px 8px">🖥 16:9 Ancho</button>
+      <span id="ml-formato-info" style="font-size:11px;color:var(--text-muted);margin-left:auto;display:none">
+        ✂️ "Adaptar" recorta la imagen al formato seleccionado
+      </span>
+    </div>
+
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
-      Imágenes de tus publicaciones de MercadoLibre. Hacé clic en <strong>✨ Usar</strong> para abrirla en el formulario Crear y generar el copy con IA. También podés copiar la URL con 📋.
+      Imágenes de tus publicaciones de MercadoLibre. Elegí un formato arriba para ver cómo se ve la foto recortada, luego usá <strong>✂️ Adaptar</strong> para recortarla al tamaño correcto o <strong>✨ Usar</strong> para abrirla sin recortar.
     </p>
     <div id="ml-fotos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
       <div style="color:var(--text-muted);font-size:13px;grid-column:span 4">Hacé clic en "Cargar" para ver las fotos.</div>
@@ -1153,6 +1167,17 @@ function openCrear() {
 
 // ─── Biblioteca ──────────────────────────────────────────────────────────────
 let _bibliotecaData = [];
+
+// ─── ML Fotos — selector de formato ─────────────────────────────────────────
+let _mlFormatoActual = '';
+const _ML_FORMATOS = {
+  '':     { label: 'Normal',   w: 1,  h: 1,  ratio: 1      },
+  '1:1':  { label: '1:1',      w: 1,  h: 1,  ratio: 1      },
+  '4:5':  { label: '4:5',      w: 4,  h: 5,  ratio: 4/5    },
+  '9:16': { label: '9:16',     w: 9,  h: 16, ratio: 9/16   },
+  '16:9': { label: '16:9',     w: 16, h: 9,  ratio: 16/9   },
+};
+let _mlFotoDims = {}; // url → {w, h}
 
 async function loadBiblioteca() {
   const grid = document.getElementById('biblioteca-grid');
@@ -2532,6 +2557,7 @@ const _ML_PRODUCTO_MAP = {
 async function loadMLFotos() {
   const grid = document.getElementById('ml-fotos-grid');
   grid.innerHTML = '<div class="loading" style="grid-column:span 4">Cargando fotos ML…</div>';
+  _mlFotoDims = {}; // reset dims cache
   try {
     const filtro = document.getElementById('ml-fotos-producto').value;
     let url = '/api/ecopost/ml-fotos?limit=60';
@@ -2541,36 +2567,261 @@ async function loadMLFotos() {
       grid.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;grid-column:span 4;padding:16px 0">Sin fotos en la biblioteca ML. Cargá fotos en las publicaciones de MercadoLibre primero.</div>';
       return;
     }
-    grid.innerHTML = res.fotos.map(f => {
-      const safeUrl  = f.url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const safeProd = (f.producto || '').replace(/'/g,"\\'");
-      const safeTit  = escHtml(f.titulo || f.producto || '');
-      return `
-      <div style="border-radius:10px;border:1px solid var(--border-color);overflow:hidden;background:var(--card-bg);display:flex;flex-direction:column">
-        <div style="position:relative;cursor:pointer" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')" title="Clic para usar en Ecopost">
-          <img src="${escHtml(f.url)}" loading="lazy"
-               style="width:100%;aspect-ratio:1;object-fit:cover;display:block"
-               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-          <div style="display:none;width:100%;aspect-ratio:1;align-items:center;justify-content:center;background:var(--bg-secondary);font-size:28px">📦</div>
-          <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);opacity:0;transition:.2s;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:600" class="ml-hover-overlay">
-            ✨ Usar en Ecopost
-          </div>
-        </div>
-        <div style="padding:5px 8px;font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${safeTit}</div>
-        <div style="display:flex;gap:4px;padding:0 8px 8px">
-          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px;padding:4px 6px" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')">✨ Usar</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="copiarUrlMLFoto('${safeUrl}')" title="Copiar URL">📋</button>
-        </div>
-      </div>`;
-    }).join('');
-    // Hover overlay
-    grid.querySelectorAll('.ml-hover-overlay').forEach(overlay => {
-      const wrapper = overlay.parentElement;
-      wrapper.addEventListener('mouseenter', () => overlay.style.opacity = '1');
-      wrapper.addEventListener('mouseleave', () => overlay.style.opacity = '0');
-    });
+    _renderMLFotosGrid(grid, res.fotos);
   } catch(e) {
     grid.innerHTML = `<div style="color:#f44;font-size:13px;grid-column:span 4">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function _renderMLFotosGrid(grid, fotos) {
+  const fmt = _mlFormatoActual;
+  const fmtCfg = _ML_FORMATOS[fmt] || _ML_FORMATOS[''];
+  const aspectRatio = fmt ? `${fmtCfg.w}/${fmtCfg.h}` : '1';
+
+  // Adjust grid column width to format
+  if (fmt === '9:16') {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(120px,1fr))';
+  } else if (fmt === '16:9') {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(200px,1fr))';
+  } else {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(160px,1fr))';
+  }
+
+  grid.innerHTML = fotos.map(f => {
+    const safeUrl  = f.url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const safeProd = (f.producto || '').replace(/'/g,"\\'");
+    const safeTit  = escHtml(f.titulo || f.producto || '');
+    const hasFormat = fmt !== '';
+    return `
+    <div class="ml-foto-card" data-foto-url="${escHtml(f.url)}"
+         style="border-radius:10px;border:1px solid var(--border-color);overflow:hidden;background:var(--card-bg);display:flex;flex-direction:column">
+      <div class="ml-foto-img-container" style="position:relative;overflow:hidden">
+        <img src="${escHtml(f.url)}" loading="lazy"
+             style="width:100%;aspect-ratio:${aspectRatio};object-fit:cover;display:block;transition:aspect-ratio .25s"
+             onload="detectMLFotoDims(this,'${safeUrl}')"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div style="display:none;width:100%;aspect-ratio:${aspectRatio};align-items:center;justify-content:center;background:var(--bg-secondary);font-size:28px">📦</div>
+        <!-- dimensiones badge -->
+        <div class="ml-dim-badge" style="position:absolute;top:4px;left:4px;font-size:9px;background:rgba(0,0,0,.6);color:#fff;padding:2px 4px;border-radius:3px;display:none;pointer-events:none"></div>
+        <!-- compatibilidad badge -->
+        <div class="ml-compat-badge" style="position:absolute;bottom:4px;left:4px;font-size:9px;color:#fff;padding:2px 5px;border-radius:3px;display:none;pointer-events:none;font-weight:600"></div>
+        <!-- hover overlay -->
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;transition:.2s;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:600;text-align:center;padding:4px" class="ml-hover-overlay">
+          ${hasFormat ? `✂️ Adaptar ${fmt}` : '✨ Usar en Ecopost'}
+        </div>
+      </div>
+      <div style="padding:5px 8px;font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${safeTit}</div>
+      <div style="display:flex;gap:4px;padding:0 6px 7px">
+        ${hasFormat
+          ? `<button class="btn btn-primary btn-sm" style="flex:1;font-size:10px;padding:3px 4px" onclick="adaptarFotoML('${safeUrl}','${fmt}','${safeProd}',this)">✂️ Adaptar</button>
+             <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 5px" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')" title="Usar sin recortar">✨</button>`
+          : `<button class="btn btn-primary btn-sm" style="flex:1;font-size:11px;padding:4px 6px" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')">✨ Usar</button>`
+        }
+        <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="copiarUrlMLFoto('${safeUrl}')" title="Copiar URL">📋</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Hover overlays
+  grid.querySelectorAll('.ml-hover-overlay').forEach(overlay => {
+    const container = overlay.closest('.ml-foto-img-container');
+    container.style.cursor = 'pointer';
+    const card = overlay.closest('.ml-foto-card');
+    const url  = card.dataset.fotoUrl;
+    const prod = card.querySelector('button')?.getAttribute('onclick')?.match(/'([^']*?)','([^']*?)'\)/)?.[2] || '';
+    container.addEventListener('click', () => {
+      if (_mlFormatoActual) {
+        const btn = card.querySelector('.btn-primary');
+        if (btn) adaptarFotoML(url, _mlFormatoActual, prod, btn);
+      } else {
+        usarFotoEnEcopost(url, prod);
+      }
+    });
+    container.addEventListener('mouseenter', () => overlay.style.opacity = '1');
+    container.addEventListener('mouseleave', () => overlay.style.opacity = '0');
+  });
+}
+
+function setMLFormato(fmt) {
+  _mlFormatoActual = fmt;
+  // Update button states
+  document.querySelectorAll('.ml-formato-btn').forEach(btn => {
+    const active = btn.dataset.fmt === fmt;
+    btn.classList.toggle('active', active);
+    btn.style.fontWeight = active ? '700' : '';
+  });
+  // Show/hide tip
+  const info = document.getElementById('ml-formato-info');
+  if (info) info.style.display = fmt ? 'inline' : 'none';
+  // Re-render if fotos are loaded
+  const grid = document.getElementById('ml-fotos-grid');
+  if (!grid) return;
+  const cards = grid.querySelectorAll('.ml-foto-card');
+  if (!cards.length) return;
+
+  const fmtCfg = _ML_FORMATOS[fmt] || _ML_FORMATOS[''];
+  const aspectRatio = fmt ? `${fmtCfg.w}/${fmtCfg.h}` : '1';
+
+  // Update grid column width
+  if (fmt === '9:16') {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(120px,1fr))';
+  } else if (fmt === '16:9') {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(200px,1fr))';
+  } else {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(160px,1fr))';
+  }
+
+  // Update each card
+  cards.forEach(card => {
+    // Update image aspect-ratio
+    const img = card.querySelector('img');
+    if (img) img.style.aspectRatio = aspectRatio;
+    const fallback = card.querySelector('.ml-foto-img-container > div[style*="display:none"]');
+    if (fallback) fallback.style.aspectRatio = aspectRatio;
+
+    // Update hover overlay text
+    const overlay = card.querySelector('.ml-hover-overlay');
+    if (overlay) overlay.textContent = fmt ? `✂️ Adaptar ${fmt}` : '✨ Usar en Ecopost';
+
+    // Update compat badge from cached dims
+    const url = card.dataset.fotoUrl;
+    if (url && _mlFotoDims[url]) {
+      const { w, h } = _mlFotoDims[url];
+      _updateCompatBadge(card, w, h, fmt);
+    }
+
+    // Update action buttons
+    const btnRow = card.querySelector('[style*="display:flex"][style*="padding:0"]');
+    if (btnRow) {
+      const safeUrl = url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      // extract prod from existing primary button
+      const existingPrimary = btnRow.querySelector('.btn-primary');
+      const prodMatch = existingPrimary?.getAttribute('onclick')?.match(/'([^']*?)','([^']*?)'\)/);
+      const safeProd = prodMatch?.[2] || '';
+      if (fmt) {
+        btnRow.innerHTML = `
+          <button class="btn btn-primary btn-sm" style="flex:1;font-size:10px;padding:3px 4px" onclick="adaptarFotoML('${safeUrl}','${fmt}','${safeProd}',this)">✂️ Adaptar</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 5px" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')" title="Usar sin recortar">✨</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="copiarUrlMLFoto('${safeUrl}')" title="Copiar URL">📋</button>`;
+      } else {
+        btnRow.innerHTML = `
+          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px;padding:4px 6px" onclick="usarFotoEnEcopost('${safeUrl}','${safeProd}')">✨ Usar</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="copiarUrlMLFoto('${safeUrl}')" title="Copiar URL">📋</button>`;
+      }
+    }
+  });
+}
+
+function detectMLFotoDims(img, url) {
+  const W = img.naturalWidth;
+  const H = img.naturalHeight;
+  if (!W || !H) return;
+  _mlFotoDims[url] = { w: W, h: H };
+
+  const container = img.parentElement;
+  const dimBadge = container?.querySelector('.ml-dim-badge');
+  if (dimBadge) {
+    dimBadge.textContent = `${W}×${H}`;
+    dimBadge.style.display = 'block';
+  }
+
+  const card = img.closest('.ml-foto-card');
+  if (card && _mlFormatoActual) {
+    _updateCompatBadge(card, W, H, _mlFormatoActual);
+  }
+}
+
+function _updateCompatBadge(card, W, H, fmt) {
+  const compatBadge = card.querySelector('.ml-compat-badge');
+  if (!compatBadge) return;
+  if (!fmt) { compatBadge.style.display = 'none'; return; }
+
+  const fmtCfg = _ML_FORMATOS[fmt];
+  if (!fmtCfg) return;
+  const targetRatio = fmtCfg.ratio;
+  const imgRatio = W / H;
+  const diff = Math.abs(imgRatio - targetRatio) / targetRatio;
+
+  if (diff < 0.08) {
+    compatBadge.style.background = 'rgba(76,175,80,.85)';
+    compatBadge.textContent = '✓ Ideal';
+  } else if (diff < 0.35) {
+    compatBadge.style.background = 'rgba(255,152,0,.85)';
+    compatBadge.textContent = '~ Recorte leve';
+  } else {
+    compatBadge.style.background = 'rgba(244,67,54,.78)';
+    compatBadge.textContent = '✂️ Recortar';
+  }
+  compatBadge.style.display = 'block';
+}
+
+async function adaptarFotoML(url, formato, productoRaw, btnEl) {
+  if (!formato) { usarFotoEnEcopost(url, productoRaw); return; }
+  const fmt = _ML_FORMATOS[formato];
+  if (!fmt) { usarFotoEnEcopost(url, productoRaw); return; }
+
+  const btn = btnEl || event?.target;
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+  try {
+    // Load image via canvas (center-crop)
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    });
+
+    const targetW = 1080;
+    const targetH = Math.round(targetW * fmt.h / fmt.w);
+    const canvas = document.createElement('canvas');
+    canvas.width  = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+
+    // Center-crop calculation
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const tgtRatio = targetW / targetH;
+    let sx, sy, sw, sh;
+    if (imgRatio > tgtRatio) {
+      sh = img.naturalHeight; sw = sh * tgtRatio;
+      sx = (img.naturalWidth - sw) / 2; sy = 0;
+    } else {
+      sw = img.naturalWidth; sh = sw / tgtRatio;
+      sx = 0; sy = (img.naturalHeight - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+
+    const b64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+
+    // Apply to Ecopost creator
+    generatedB64 = b64;
+    mlImageUrl = null;
+    gotoTab('crear');
+
+    const preview = document.getElementById('img-preview');
+    if (preview) preview.innerHTML = `<img src="data:image/jpeg;base64,${b64}"
+        style="max-width:100%;max-height:280px;border-radius:6px;object-fit:contain">`;
+    const status = document.getElementById('img-status');
+    if (status) status.innerHTML =
+      `<span style="color:#4caf50">✅ Imagen adaptada a formato ${formato} (${targetW}×${targetH}px) — lista para usar</span>`;
+
+    // Pre-select product
+    const raw = (productoRaw || '').toLowerCase();
+    const matchKey = Object.keys(_ML_PRODUCTO_MAP || {}).find(k => raw.includes(k));
+    const productoVal = matchKey ? _ML_PRODUCTO_MAP[matchKey] : '';
+    const selProd = document.getElementById('c-producto');
+    if (productoVal && selProd) { selProd.value = productoVal; actualizarModelos?.(); }
+
+  } catch(e) {
+    console.warn('Canvas crop falló (CORS?):', e.message);
+    // Fallback: usar la URL directamente sin recortar
+    usarFotoEnEcopost(url, productoRaw);
+    showToast('No se pudo recortar (imagen externa). Se abrió sin recortar.', 'warning');
+  } finally {
+    if (btn) { btn.textContent = origText; btn.disabled = false; }
   }
 }
 

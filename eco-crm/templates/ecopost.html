@@ -1370,7 +1370,8 @@ function renderCard(item) {
         <button class="btn btn-ghost btn-sm" onclick="editarContenido(${item.id})" title="Editar">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="openDetalle(${item.id})" title="Ver detalle">👁</button>
         <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:11px;padding:4px 9px"
-          onclick="event.stopPropagation();publicarDirecto(${item.id}, ${escHtml(JSON.stringify({hasImg: item.tiene_imagen, hasVideo: item.tiene_video}))})"
+          data-pub-id="${item.id}"
+          onclick="event.stopPropagation();_pubDesdeCard(this)"
           title="Publicar en Facebook / Instagram">📢</button>
       </div>
     </div>
@@ -1449,7 +1450,8 @@ async function openDetalle(id) {
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           ${puedePublicar ? `
             <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:12px"
-              onclick="publicarDirecto(${id}, ${escHtml(JSON.stringify({hasVideo, hasImg: item.tiene_imagen}))})">📢 Publicar</button>
+              data-pub-id="${id}" data-has-img="${item.tiene_imagen ? '1' : '0'}" data-has-video="${hasVideo ? '1' : '0'}"
+              onclick="_pubDesdeDetalle(this)">📢 Publicar</button>
           ` : ''}
           <button class="btn btn-ghost btn-sm" onclick="duplicarContenido(${id})">📋 Duplicar</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirGuionModal(${id})">🎬 Guión</button>
@@ -1481,6 +1483,21 @@ async function cambiarEstado(id, estado) {
 
 let _publicarItemId = null;
 let _publicarItemMeta = {};
+
+/** Wrapper para el botón 📢 en la card: lee el id del data-attribute y
+    busca la metadata en _bibliotecaData — evita pasar JSON en onclick */
+function _pubDesdeCard(btn) {
+  const id = parseInt(btn.dataset.pubId);
+  const item = _bibliotecaData.find(x => x.id === id) || {};
+  publicarDirecto(id, { hasImg: !!item.tiene_imagen, hasVideo: !!item.tiene_video });
+}
+
+/** Wrapper para el botón 📢 en el modal de detalle */
+function _pubDesdeDetalle(btn) {
+  const id   = parseInt(btn.dataset.pubId);
+  const meta = { hasImg: btn.dataset.hasImg === '1', hasVideo: btn.dataset.hasVideo === '1' };
+  publicarDirecto(id, meta);
+}
 
 /** Publica directamente desde la card — aprueba automáticamente si es borrador */
 async function publicarDirecto(id, meta = {}) {

@@ -54,6 +54,9 @@ class GenerarCopyReq(BaseModel):
     tipo: Optional[str] = "flyer"       # flyer | story | carrusel | reel
     tono: Optional[str] = "profesional y cercano"
     descripcion_extra: Optional[str] = ""
+    imagen_url: Optional[str] = None    # URL de foto real de ML o CDN
+    imagen_base64: Optional[str] = None # base64 de imagen generada con IA (ignorado si hay URL)
+    desde_imagen: bool = False          # True → generar copy en base a la imagen cargada
 
 
 class GenerarImagenReq(BaseModel):
@@ -584,6 +587,28 @@ async def api_generar_copy(
     }
     tipo_str = tipos_desc.get(body.tipo, body.tipo)
 
+    # Contexto de imagen cuando el usuario la cargó primero
+    img_ctx = ""
+    if body.desde_imagen:
+        if body.imagen_url:
+            img_ctx = f"""
+📸 IMAGEN CARGADA: El usuario seleccionó una foto real del producto desde su catálogo de MercadoLibre.
+URL de referencia: {body.imagen_url}
+→ El copy DEBE describir y destacar lo que se ve en esa imagen real:
+  el producto, su estética, sus características visuales, el ambiente.
+  No inventes características — basate en lo que normalmente muestra esa foto de producto."""
+        elif body.imagen_base64:
+            img_ctx = f"""
+📸 IMAGEN GENERADA CON IA: El usuario generó una imagen del producto con inteligencia artificial.
+→ El copy debe complementar esa imagen visual: destacar el producto,
+  su diseño, sus beneficios estéticos y funcionales, creando coherencia
+  entre imagen y texto."""
+        else:
+            img_ctx = """
+📸 IMAGEN LISTA: El usuario tiene una imagen cargada del producto.
+→ El copy debe complementar esa imagen describiendo el producto,
+  sus características y beneficios de forma coherente con lo visual."""
+
     prompt = f"""{ctx_redes_sociales(tipo_contenido=tipo_str, producto=body.producto, modelo=body.modelo or "")}
 
 ════════════════════════════════════════════
@@ -594,6 +619,7 @@ TAREA: Escribí copy para redes sociales — formato {tipo_str}
 - Modelo / variante: {body.modelo or "genérico"}
 - Info adicional: {body.descripcion_extra or "ninguna"}
 - Tono pedido: {body.tono}
+{img_ctx}
 
 Respondé SOLO con este formato exacto, sin texto adicional:
 TITULO: [título llamativo, max 10 palabras, en castellano argentino]

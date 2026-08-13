@@ -170,12 +170,87 @@
 
 <!-- ═══════════════════ TAB: CREAR ═══════════════════ -->
 <div id="tab-crear" style="display:none">
+
+  <!-- ── PASO 1: Imagen (arriba, full width) ── -->
+  <div class="card mb-3">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+      <strong>📸 Paso 1 — Imagen del post</strong>
+      <span id="img-status-badge" style="font-size:11px;color:var(--text-muted)">Sin imagen</span>
+    </div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="img-paso-grid">
+
+        <!-- Preview de imagen -->
+        <div>
+          <!-- Sección imagen (visible cuando NO es video) -->
+          <div id="img-section">
+            <div id="img-preview"
+                 style="min-height:200px;display:flex;align-items:center;justify-content:center;
+                        background:var(--bg-secondary);border-radius:10px;overflow:hidden;
+                        border:2px dashed var(--border-color);cursor:pointer;position:relative"
+                 onclick="abrirFotoPickerCrear()" title="Tocá para elegir foto de ML">
+              <div id="img-preview-inner" style="display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--text-muted);padding:20px;text-align:center">
+                <span style="font-size:40px">🖼</span>
+                <span style="font-size:13px">Tocá para elegir foto</span>
+                <span style="font-size:11px">o generá una con IA →</span>
+              </div>
+            </div>
+            <div id="img-status" style="font-size:12px;color:var(--text-muted);margin-top:6px;text-align:center"></div>
+          </div>
+
+          <!-- Sección video (visible cuando media_type = reel / video) -->
+          <div id="video-section" style="display:none">
+            <label id="video-dropzone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                border:2px dashed var(--border-color);border-radius:10px;padding:24px;cursor:pointer;
+                background:var(--bg-secondary);gap:8px;text-align:center;min-height:200px" for="video-file-input">
+              <span style="font-size:36px">🎬</span>
+              <span style="font-size:13px;color:var(--text-secondary)">Tocá para elegir un video</span>
+              <span style="font-size:11px;color:var(--text-muted)">MP4, MOV, AVI · máx 500 MB</span>
+              <input id="video-file-input" type="file" accept="video/*" style="display:none" onchange="previewVideo(this)">
+            </label>
+            <div id="video-preview-info" style="font-size:12px;color:var(--text-secondary);margin-top:8px"></div>
+          </div>
+        </div>
+
+        <!-- Opciones para agregar imagen -->
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <!-- Opción A: foto real de ML -->
+          <div style="border:1px solid var(--border-color);border-radius:10px;padding:14px;background:var(--bg-secondary)">
+            <div style="font-weight:600;font-size:13px;margin-bottom:6px">📦 Foto real de MercadoLibre</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Elegí una foto de tus publicaciones reales. La IA generará el copy describiendo exactamente ese producto.</div>
+            <button class="btn btn-primary w-full" onclick="abrirFotoPickerCrear()">
+              📦 Elegir foto de ML
+            </button>
+          </div>
+
+          <!-- Opción B: generar con IA -->
+          <div style="border:1px solid var(--border-color);border-radius:10px;padding:14px;background:var(--bg-secondary)">
+            <div style="font-weight:600;font-size:13px;margin-bottom:6px">🎨 Generar imagen con IA</div>
+            <textarea id="c-img-prompt" class="input mb-2" rows="2"
+              placeholder="Describe lo que querés: producto, ambiente, colores…"
+              style="font-size:12px;resize:vertical"></textarea>
+            <button class="btn btn-ghost w-full" onclick="generarImagen()" id="btn-gen-img" style="font-size:12px">
+              🎨 Generar con IA
+            </button>
+          </div>
+
+          <!-- Acción: limpiar imagen -->
+          <div id="btn-limpiar-img-wrap" style="display:none">
+            <button class="btn btn-ghost btn-sm w-full" onclick="limpiarImagenCrear()" style="font-size:12px;color:var(--text-muted)">
+              🗑 Quitar imagen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px" class="crear-grid">
 
-    <!-- Columna izquierda: formulario -->
+    <!-- Columna izquierda: configuración -->
     <div>
       <div class="card mb-3">
-        <div class="card-header"><strong>📝 Datos del contenido</strong></div>
+        <div class="card-header"><strong>📝 Paso 2 — Configuración</strong></div>
         <div class="card-body">
           <label class="label">Tipo de contenido</label>
           <select id="c-tipo" class="input mb-2">
@@ -244,21 +319,25 @@
           <div class="mt-2 mb-3">
             <label class="label">Programar publicación (opcional)</label>
             <input id="c-publish-at" type="datetime-local" class="input mb-1">
-            <div style="font-size:11px;color:var(--text-muted)">Si se deja vacío, se publica manualmente. El contenido debe estar en estado <b>Aprobado</b> para publicarse automáticamente.</div>
+            <div style="font-size:11px;color:var(--text-muted)">Si se deja vacío, se publica manualmente.</div>
           </div>
 
-          <button class="btn btn-primary w-full" onclick="generarCopy()" id="btn-gen-copy">
+          <!-- Botón principal -->
+          <button class="btn btn-primary w-full" onclick="generarCopy()" id="btn-gen-copy" style="font-size:14px;padding:10px">
             ✨ Generar copy con IA
           </button>
+          <div id="btn-gen-copy-nota" style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:6px;display:none">
+            📸 Copy generado en base a la imagen cargada
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Columna derecha: resultado -->
+    <!-- Columna derecha: copy generado -->
     <div>
       <div class="card mb-3">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-          <strong>📄 Copy generado</strong>
+          <strong>📄 Paso 3 — Copy generado</strong>
           <button class="btn btn-ghost btn-sm" onclick="generarCopy()" style="font-size:12px">↺ Regenerar</button>
         </div>
         <div class="card-body">
@@ -266,46 +345,10 @@
           <input id="c-titulo" type="text" class="input mb-2" placeholder="Título del contenido">
 
           <label class="label">Copy / Texto</label>
-          <textarea id="c-copy" class="input mb-2" rows="5" placeholder="El copy aparecerá aquí…"></textarea>
+          <textarea id="c-copy" class="input mb-2" rows="6" placeholder="El copy aparecerá aquí…"></textarea>
 
           <label class="label">Hashtags</label>
           <input id="c-hashtags" type="text" class="input mb-3" placeholder="#piscinas #modulos #ecomodulos">
-        </div>
-      </div>
-
-      <!-- Imagen -->
-      <div class="card mb-3">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-          <strong>🖼 Imagen</strong>
-          <button class="btn btn-ghost btn-sm" onclick="generarImagen()" id="btn-gen-img" style="font-size:12px">🎨 Generar con IA</button>
-        </div>
-        <div class="card-body">
-          <!-- Sección imagen (visible cuando NO es video) -->
-          <div id="img-section">
-            <label class="label">Prompt de imagen</label>
-            <textarea id="c-img-prompt" class="input mb-2" rows="2" placeholder="Describe la imagen que querés generar…"></textarea>
-            <div id="img-preview" style="text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center;background:#1a1a1a;border-radius:8px;overflow:hidden">
-              <span style="color:#666;font-size:13px">Sin imagen generada</span>
-            </div>
-            <div id="img-status" style="font-size:12px;color:#888;margin-top:6px;text-align:center"></div>
-          </div>
-
-          <!-- Sección video (visible cuando media_type = reel / video) -->
-          <div id="video-section" style="display:none">
-            <label class="label">Subir video (MP4 / MOV · máx 500 MB)</label>
-            <label id="video-dropzone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-                border:2px dashed var(--border-color);border-radius:10px;padding:24px;cursor:pointer;
-                background:var(--bg-secondary);gap:8px;text-align:center" for="video-file-input">
-              <span style="font-size:36px">🎬</span>
-              <span style="font-size:13px;color:var(--text-secondary)">Tocá para elegir un video</span>
-              <span style="font-size:11px;color:var(--text-muted)">MP4, MOV, AVI · máx 500 MB</span>
-              <input id="video-file-input" type="file" accept="video/*" style="display:none" onchange="previewVideo(this)">
-            </label>
-            <div id="video-preview-info" style="font-size:12px;color:var(--text-secondary);margin-top:8px"></div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
-              💡 <b>TikTok / YouTube:</b> subí el video aquí, luego generá el guión con IA y descargá el archivo para subir manualmente en esas apps.
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1724,7 +1767,12 @@ async function editarContenido(id) {
 
     if (item.imagen_base64) {
       generatedB64 = item.imagen_base64;
-      document.getElementById('img-preview').innerHTML = `<img src="data:image/png;base64,${item.imagen_base64}" style="max-width:100%;max-height:300px;border-radius:6px">`;
+      mlImageUrl = null;
+      _setCrearImagen(`data:image/png;base64,${item.imagen_base64}`, 'b64');
+    } else if (item.imagen_url) {
+      mlImageUrl = item.imagen_url;
+      generatedB64 = null;
+      _setCrearImagen(item.imagen_url, 'url');
     }
     // Cargar carousel URLs si existen
     if (item.carousel_urls && item.carousel_urls.length) {
@@ -1741,25 +1789,108 @@ async function editarContenido(id) {
   }
 }
 
+// ─── Helpers imagen en tab Crear ─────────────────────────────────────────────
+
+/** Muestra una imagen en el preview del tab Crear y actualiza badges/estado */
+function _setCrearImagen(src, tipo = 'url') {
+  // tipo: 'url' (foto ML) | 'b64' (IA) | 'adapted' (recortada)
+  const preview = document.getElementById('img-preview');
+  if (preview) {
+    preview.style.border = '2px solid var(--teal)';
+    preview.style.cursor = 'default';
+    preview.onclick = null;
+    preview.innerHTML = `<img src="${src}"
+      style="width:100%;height:100%;object-fit:contain;border-radius:8px;max-height:260px"
+      onerror="this.parentElement.innerHTML='<div style=padding:20px;color:#f44>Error cargando imagen</div>'">`;
+  }
+  const badge = document.getElementById('img-status-badge');
+  if (badge) {
+    badge.style.color = 'var(--teal)';
+    badge.textContent = tipo === 'url' ? '✅ Foto real de ML' : tipo === 'adapted' ? '✅ Foto adaptada' : '✅ Imagen IA generada';
+  }
+  const wrap = document.getElementById('btn-limpiar-img-wrap');
+  if (wrap) wrap.style.display = 'block';
+  // Actualizar texto del botón generar copy
+  _actualizarBtnGenCopy();
+}
+
+/** Limpia la imagen del tab Crear */
+function limpiarImagenCrear() {
+  generatedB64 = null;
+  mlImageUrl   = null;
+  const preview = document.getElementById('img-preview');
+  if (preview) {
+    preview.style.border = '2px dashed var(--border-color)';
+    preview.style.cursor = 'pointer';
+    preview.onclick = () => abrirFotoPickerCrear();
+    preview.innerHTML = `<div id="img-preview-inner" style="display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--text-muted);padding:20px;text-align:center">
+      <span style="font-size:40px">🖼</span>
+      <span style="font-size:13px">Tocá para elegir foto</span>
+      <span style="font-size:11px">o generá una con IA →</span>
+    </div>`;
+  }
+  const status = document.getElementById('img-status');
+  if (status) status.textContent = '';
+  const badge = document.getElementById('img-status-badge');
+  if (badge) { badge.style.color = 'var(--text-muted)'; badge.textContent = 'Sin imagen'; }
+  const wrap = document.getElementById('btn-limpiar-img-wrap');
+  if (wrap) wrap.style.display = 'none';
+  _actualizarBtnGenCopy();
+}
+
+/** Actualiza el texto del botón "Generar copy" según si hay imagen cargada */
+function _actualizarBtnGenCopy() {
+  const btn  = document.getElementById('btn-gen-copy');
+  const nota = document.getElementById('btn-gen-copy-nota');
+  const tieneImg = !!(mlImageUrl || generatedB64);
+  if (btn) {
+    btn.textContent = tieneImg ? '✨ Generar copy desde la imagen' : '✨ Generar copy con IA';
+  }
+  if (nota) nota.style.display = tieneImg ? 'block' : 'none';
+}
+
+/** Abre el foto picker de ML en modo single-select para el tab Crear */
+async function abrirFotoPickerCrear() {
+  _fotoPlanIdx = 'crear';   // señal para seleccionarFotoPlan
+  const subtitle = document.getElementById('foto-picker-subtitle');
+  if (subtitle) subtitle.textContent = 'Elegí la foto de tu producto — la IA generará el copy a partir de ella';
+  const buscar = document.getElementById('foto-picker-buscar');
+  if (buscar) buscar.value = '';
+  // En modo crear: botón "Listo" oculto (se selecciona de a una)
+  const btnListo = document.getElementById('btn-foto-picker-listo');
+  if (btnListo) btnListo.style.display = 'none';
+  const tip = document.getElementById('foto-picker-footer-tip');
+  if (tip) tip.textContent = '📸 Tocá la foto que querés usar como base para el copy';
+  document.getElementById('foto-picker-modal').style.display = 'flex';
+  await _cargarFotosPicker('');
+}
+
 // ─── Generar copy ─────────────────────────────────────────────────────────────
 async function generarCopy() {
   const producto = document.getElementById('c-producto').value;
   if (!producto) { showToast('Seleccioná un producto primero', 'error'); return; }
 
   const btn = document.getElementById('btn-gen-copy');
-  btn.disabled = true; btn.textContent = '✨ Generando…';
+  btn.disabled = true; btn.textContent = '⏳ Generando copy…';
+
+  const tieneImg  = !!(mlImageUrl || generatedB64);
+  // Solo enviamos base64 si no hay URL (y si no es demasiado grande)
+  const sendB64   = (!mlImageUrl && generatedB64 && generatedB64.length < 2_000_000)
+                    ? generatedB64 : null;
 
   try {
     const data = await API.post('/api/ecopost/generar-copy', {
       producto,
-      modelo: document.getElementById('c-modelo').value,
-      tipo: document.getElementById('c-tipo').value,
-      tono: document.getElementById('c-tono').value,
+      modelo:           document.getElementById('c-modelo').value,
+      tipo:             document.getElementById('c-tipo').value,
+      tono:             document.getElementById('c-tono').value,
       descripcion_extra: document.getElementById('c-extra').value,
+      imagen_url:       mlImageUrl   || null,
+      imagen_base64:    sendB64,
+      desde_imagen:     tieneImg,
     });
 
     if (data.ok) {
-      // Separar título del copy si viene junto
       const lines = (data.copy || '').split('\n').filter(l => l.trim());
       if (lines.length >= 1 && !document.getElementById('c-titulo').value) {
         document.getElementById('c-titulo').value = lines[0];
@@ -1767,32 +1898,29 @@ async function generarCopy() {
       } else {
         document.getElementById('c-copy').value = data.copy || '';
       }
-      if (data.hashtags) {
-        document.getElementById('c-hashtags').value = data.hashtags;
-      }
-      // Sugerir prompt de imagen con nombre legible + dimensiones reales
-      if (!document.getElementById('c-img-prompt').value) {
-        const tipoStr = document.getElementById('c-tipo').value === 'story' ? 'vertical 9:16 Instagram Story'
-                      : document.getElementById('c-tipo').value === 'reel' ? 'vertical 9:16 Reel dinámico'
-                      : 'cuadrada 1:1 Instagram';
+      if (data.hashtags) document.getElementById('c-hashtags').value = data.hashtags;
+
+      // Solo sugerimos prompt IA si no hay imagen ya cargada
+      if (!tieneImg && !document.getElementById('c-img-prompt').value) {
+        const tipoStr = { story: 'vertical 9:16 Instagram Story', reel: 'vertical 9:16 Reel dinámico' }
+                        [document.getElementById('c-tipo').value] || 'cuadrada 1:1 Instagram';
         const modelo = document.getElementById('c-modelo').value.trim();
-        const productoNombre = _PRODUCTO_NOMBRES[producto] || producto;
-        const productoCtx = _PRODUCTO_CTX[producto] || '';
-        const partes = [
-          `${productoNombre} de EcoFiver`,
+        document.getElementById('c-img-prompt').value = [
+          `${_PRODUCTO_NOMBRES[producto] || producto} de EcoFiver`,
           modelo || null,
-          productoCtx || null,
-          `ambientación moderna argentina al aire libre, luz natural, colores vibrantes`,
+          _PRODUCTO_CTX[producto] || null,
+          'ambientación moderna argentina al aire libre, luz natural, colores vibrantes',
           `fotografía profesional de producto, composición ${tipoStr}`,
-        ].filter(Boolean);
-        document.getElementById('c-img-prompt').value = partes.join('. ');
+        ].filter(Boolean).join('. ');
       }
-      showToast('Copy generado ✨', 'success');
+
+      showToast(tieneImg ? '✨ Copy generado desde tu imagen' : 'Copy generado ✨', 'success');
     }
   } catch(e) {
     showToast(`Error: ${e.message}`, 'error');
   } finally {
-    btn.disabled = false; btn.textContent = '✨ Generar copy con IA';
+    btn.disabled = false;
+    _actualizarBtnGenCopy();
   }
 }
 
@@ -1818,14 +1946,15 @@ async function generarImagen() {
 
     if (data.ok && data.image_base64) {
       generatedB64 = data.image_base64;
-      preview.innerHTML = `<img src="data:image/png;base64,${data.image_base64}" style="max-width:100%;max-height:300px;border-radius:6px">`;
-      status.textContent = '✅ Imagen generada';
-      showToast('Imagen generada ✨', 'success');
+      mlImageUrl = null;
+      _setCrearImagen(`data:image/png;base64,${data.image_base64}`, 'b64');
+      status.textContent = '';
+      showToast('Imagen generada ✨ Ahora generá el copy desde ella', 'success');
     } else {
       throw new Error(data.error || 'Sin imagen');
     }
   } catch(e) {
-    preview.innerHTML = `<div style="color:#f44;font-size:13px">Error: ${escHtml(e.message)}</div>`;
+    if (preview) preview.innerHTML = `<div style="color:#f44;font-size:13px;padding:16px">Error: ${escHtml(e.message)}</div>`;
     status.textContent = '';
     showToast(`Error generando imagen: ${e.message}`, 'error');
   } finally {
@@ -1885,8 +2014,7 @@ async function guardarContenido() {
 // ─── Reset form ───────────────────────────────────────────────────────────────
 function resetCrear() {
   editingId = null;
-  generatedB64 = null;
-  mlImageUrl = null;
+  limpiarImagenCrear();   // resetea imagen + badges + botones
   ['c-tipo','c-producto','c-tono','c-media-type'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = el.options[0]?.value || '';
@@ -1895,8 +2023,8 @@ function resetCrear() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  document.getElementById('img-preview').innerHTML = '<span style="color:#666;font-size:13px">Sin imagen generada</span>';
-  document.getElementById('img-status').textContent = '';
+  const status = document.getElementById('img-status');
+  if (status) status.textContent = '';
   document.getElementById('btn-guardar').textContent = '💾 Guardar borrador';
   // Reset carousel
   const cont = document.getElementById('carousel-urls-container');
@@ -2248,6 +2376,25 @@ function seleccionarFotoPlan(url) {
     return;
   }
 
+  if (_fotoPlanIdx === 'crear') {
+    // Modo single para tab Crear
+    mlImageUrl  = url;
+    generatedB64 = null;
+    cerrarFotoPicker();
+    gotoTab('crear');
+    _setCrearImagen(url, 'url');
+    // Pre-seleccionar producto si podemos
+    const fotoObj = _fotosPickerCache.find(f => f.url === url);
+    if (fotoObj?.producto) {
+      const raw = (fotoObj.producto || '').toLowerCase();
+      const matchKey = Object.keys(_ML_PRODUCTO_MAP || {}).find(k => raw.includes(k));
+      const selProd = document.getElementById('c-producto');
+      if (matchKey && selProd) { selProd.value = _ML_PRODUCTO_MAP[matchKey]; actualizarModelos?.(); }
+    }
+    showToast('📸 Foto cargada. Ahora generá el copy con IA ✨', 'success');
+    return;
+  }
+
   // Modo single: asignar a un post específico del plan
   _planData[_fotoPlanIdx]._imagen_url = url;
   _planData[_fotoPlanIdx]._imagen_b64 = null;
@@ -2279,13 +2426,11 @@ function usarPostEnCrear(i) {
   if (p._imagen_url) {
     mlImageUrl = p._imagen_url;
     generatedB64 = null;
-    document.getElementById('img-preview').innerHTML =
-      `<img src="${escHtml(p._imagen_url)}" style="max-width:100%;max-height:300px;border-radius:6px">`;
+    _setCrearImagen(p._imagen_url, 'url');
   } else if (p._imagen_b64) {
     generatedB64 = p._imagen_b64;
     mlImageUrl = null;
-    document.getElementById('img-preview').innerHTML =
-      `<img src="data:image/png;base64,${p._imagen_b64}" style="max-width:100%;max-height:300px;border-radius:6px">`;
+    _setCrearImagen(`data:image/png;base64,${p._imagen_b64}`, 'b64');
   }
   gotoTab('crear');
   showToast('Post cargado en el editor ✨', 'success');
@@ -3168,13 +3313,9 @@ async function adaptarFotoML(url, formato, productoRaw, btnEl) {
     generatedB64 = b64;
     mlImageUrl = null;
     gotoTab('crear');
-
-    const preview = document.getElementById('img-preview');
-    if (preview) preview.innerHTML = `<img src="data:image/jpeg;base64,${b64}"
-        style="max-width:100%;max-height:280px;border-radius:6px;object-fit:contain">`;
+    _setCrearImagen(`data:image/jpeg;base64,${b64}`, 'adapted');
     const status = document.getElementById('img-status');
-    if (status) status.innerHTML =
-      `<span style="color:#4caf50">✅ Imagen adaptada a formato ${formato} (${targetW}×${targetH}px) — lista para usar</span>`;
+    if (status) status.textContent = `✅ Imagen adaptada ${formato} (${targetW}×${targetH}px)`;
 
     // Pre-select product
     const raw = (productoRaw || '').toLowerCase();
@@ -3201,21 +3342,14 @@ async function adaptarFotoML(url, formato, productoRaw, btnEl) {
  */
 function usarFotoEnEcopost(url, productoRaw) {
   // 1. Guardar la URL como imagen de la publicación
-  mlImageUrl  = url;
+  mlImageUrl   = url;
   generatedB64 = null;
 
-  // 2. Ir al tab Crear
+  // 2. Ir al tab Crear y mostrar imagen con badge
   gotoTab('crear');
+  _setCrearImagen(url, 'url');
 
-  // 3. Mostrar la imagen en el preview
-  const preview = document.getElementById('img-preview');
-  preview.innerHTML = `<img src="${escHtml(url)}"
-      style="max-width:100%;max-height:280px;border-radius:6px;object-fit:contain"
-      onerror="this.outerHTML='<div style=padding:24px;color:#888;font-size:13px>No se pudo cargar la imagen ML — la URL puede requerir sesión de ML</div>'">`;
-  document.getElementById('img-status').innerHTML =
-    '<span style="color:#4caf50">✅ Imagen importada desde MercadoLibre</span>';
-
-  // 4. Pre-seleccionar producto (busca coincidencia parcial en el nombre del borrador)
+  // 3. Pre-seleccionar producto (busca coincidencia parcial en el nombre del borrador)
   const raw = (productoRaw || '').toLowerCase();
   const matchKey = Object.keys(_ML_PRODUCTO_MAP).find(k => raw.includes(k));
   const productoVal = matchKey ? _ML_PRODUCTO_MAP[matchKey] : '';
@@ -3225,15 +3359,15 @@ function usarFotoEnEcopost(url, productoRaw) {
     actualizarModelos();
   }
 
-  // 5. Limpiar copy previo para que el usuario genere uno nuevo relacionado con la imagen
+  // 4. Limpiar copy previo para que el usuario genere uno nuevo relacionado con la imagen
   ['c-titulo','c-copy','c-hashtags','c-img-prompt'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
 
-  // 6. Scroll al top + aviso
+  // 5. Scroll al top + aviso
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  showToast('📸 Foto cargada desde ML. Completá el producto y generá el copy con IA ✨', 'success');
+  showToast('📸 Foto cargada desde ML. Ahora generá el copy con IA ✨', 'success');
 }
 
 function copiarUrlMLFoto(url) {

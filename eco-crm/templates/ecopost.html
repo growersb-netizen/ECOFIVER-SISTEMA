@@ -164,6 +164,7 @@
       <button class="btn btn-ghost btn-sm" onclick="bulkDeselectAll()">Deseleccionar</button>
       <button class="btn btn-secondary btn-sm" onclick="bulkAprobar()">✅ Aprobar sel.</button>
       <button class="btn btn-primary btn-sm" onclick="openBulkPublicar()">📢 Publicar seleccionados</button>
+      <button class="btn btn-ghost btn-sm" style="color:#f44336" onclick="bulkEliminar()">🗑 Eliminar sel.</button>
     </div>
   </div>
 
@@ -1444,6 +1445,7 @@ function renderCard(item) {
       <div style="display:flex;gap:5px;align-items:center">
         <button class="btn btn-ghost btn-sm" onclick="editarContenido(${item.id})" title="Editar">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="openDetalle(${item.id})" title="Ver detalle">👁</button>
+        <button class="btn btn-ghost btn-sm" style="color:#f44336" onclick="event.stopPropagation();eliminarContenido(${item.id})" title="Eliminar">🗑</button>
         <button class="btn btn-sm" style="background:linear-gradient(90deg,#1877f2,#833ab4);border:none;color:#fff;font-size:11px;padding:4px 9px"
           data-pub-id="${item.id}"
           onclick="event.stopPropagation();_pubDesdeCard(this)"
@@ -1536,6 +1538,7 @@ async function openDetalle(id) {
           <button class="btn btn-ghost btn-sm" onclick="abrirGuionModal(${id})">🎬 Guión</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirAbModal(${id})">🔀 A/B</button>
           <button class="btn btn-ghost" onclick="editarContenido(${id});closeDetalle()">✏️ Editar</button>
+          <button class="btn btn-ghost btn-sm" style="color:#f44336" onclick="eliminarContenido(${id},true)">🗑 Eliminar</button>
           ${item.imagen_base64 ? `<button class="btn btn-ghost" onclick="descargarImagen('${id}')">⬇️ Imagen</button>` : ''}
           ${hasVideo ? `<button class="btn btn-ghost btn-sm" onclick="descargarVideo(${id}, '${item.video_url || ''}')">⬇️ Video</button>` : ''}
         </div>
@@ -2724,6 +2727,34 @@ function bulkDeselectAll() {
   _bulkSel.clear();
   document.querySelectorAll('[data-bulk-id]').forEach(chk => { chk.checked = false; });
   document.getElementById('bulk-count').textContent = '0 seleccionados';
+}
+
+// Eliminar un contenido (individual)
+async function eliminarContenido(id, cerrarModal = false) {
+  if (!confirm('¿Eliminar este contenido? Esta acción no se puede deshacer.')) return;
+  try {
+    await API.del(`/api/ecopost/${id}`);
+    if (cerrarModal) closeDetalle();
+    showToast('🗑 Contenido eliminado', 'success');
+    loadBiblioteca();
+  } catch(e) {
+    showToast('Error al eliminar: ' + (e.message || 'error desconocido'), 'error');
+  }
+}
+
+// Eliminar en lote los ítems seleccionados
+async function bulkEliminar() {
+  const ids = [..._bulkSel];
+  if (!ids.length) { showToast('Seleccioná al menos un contenido', 'error'); return; }
+  if (!confirm(`¿Eliminar ${ids.length} contenido${ids.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return;
+  let ok = 0;
+  for (const id of ids) {
+    try { await API.del(`/api/ecopost/${id}`); ok++; }
+    catch(e) { /* ignorar errores individuales */ }
+  }
+  showToast(`🗑 ${ok} contenido${ok !== 1 ? 's' : ''} eliminado${ok !== 1 ? 's' : ''}`, 'success');
+  _bulkSel.clear();
+  loadBiblioteca();
 }
 
 // Aprobar en lote los ítems seleccionados

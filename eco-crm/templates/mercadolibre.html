@@ -1844,22 +1844,36 @@ function togglePubSelAll(el) {
 }
 async function eliminarPubLote() {
   if (!PUB_SEL.size) return;
-  const ok = await showConfirm(`Esto va a cerrar ${PUB_SEL.size} publicación(es) en MercadoLibre (dejan de estar activas). ¿Confirmás?`, 'Eliminar publicaciones');
+  const ok = await showConfirm(
+    `¿Cerrar y eliminar ${PUB_SEL.size} publicación(es) en MercadoLibre?\n\nDejarán de estar activas y se quitarán del CRM.`,
+    'Eliminar publicaciones'
+  );
   if (!ok) return;
+  let ok2 = 0, err = 0;
   for (const id of [...PUB_SEL]) {
-    try { await API.post('/api/ml/publicaciones/' + id + '/estado', { accion: 'close' }); } catch(e) {}
+    try { await API.delete('/api/ml/publicaciones/' + id); ok2++; }
+    catch(e) { err++; }
   }
-  showToast('✓ Publicaciones eliminadas', 'success');
+  showToast(`✓ ${ok2} publicacion${ok2 !== 1 ? 'es' : ''} eliminada${ok2 !== 1 ? 's' : ''}` + (err ? ` · ❌ ${err} con error` : ''), ok2 > 0 ? 'success' : 'error');
   loadPublicaciones();
 }
 async function eliminarPub(itemId) {
   if (!itemId) return;
-  const ok = await showConfirm('Esto va a cerrar la publicación en MercadoLibre (deja de estar activa). ¿Confirmás?', 'Eliminar publicación');
+  const ok = await showConfirm(
+    `¿Cerrar la publicación ${itemId} en MercadoLibre y quitarla del CRM?\n\nDejará de estar activa.`,
+    'Eliminar publicación'
+  );
   if (!ok) return;
   try {
-    await API.post('/api/ml/publicaciones/' + itemId + '/estado', { accion: 'close' });
+    const r = await API.delete('/api/ml/publicaciones/' + itemId);
     closeModal('modal-pub-accion');
-    showToast('✓ Publicación eliminada', 'success');
+    if (r.ml_cerrada) {
+      showToast('✓ Publicación cerrada en ML y eliminada del CRM', 'success');
+    } else if (r.ml_error) {
+      showToast(`⚠️ Eliminada del CRM pero no se pudo cerrar en ML: ${r.ml_error}`, 'info');
+    } else {
+      showToast('✓ Publicación eliminada del CRM', 'success');
+    }
     loadPublicaciones();
   } catch(e) {
     showToast('Error: ' + e.message, 'error');

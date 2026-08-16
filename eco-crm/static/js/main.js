@@ -74,8 +74,15 @@ const API = {
   },
   async delete(url) {
     const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
-    if (!res.ok) throw new Error('Error al eliminar');
-    return res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const det = data.detail;
+      const msg = typeof det === 'string' ? det
+                : Array.isArray(det) ? det.map(d => d.msg || JSON.stringify(d)).join('; ')
+                : 'Error al eliminar';
+      throw new Error(msg);
+    }
+    return data;
   },
   async postForm(url, formData) {
     const res = await fetch(url, {

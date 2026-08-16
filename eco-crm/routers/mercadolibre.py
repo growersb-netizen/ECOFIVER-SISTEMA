@@ -824,6 +824,8 @@ async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, li
         except Exception:
             pass
 
+    # Filtrar publicaciones cerradas: el CRM solo muestra activas y pausadas
+    items_visibles = [body for body in items if body.get("status") not in ("closed", "under_review", "not_yet_active")]
     return [{
         "item_id":      body.get("id"),
         "titulo":       body.get("title"),
@@ -837,7 +839,7 @@ async def _fetch_publicaciones_activas(db: Session, token: str, user_id: str, li
         "fecha_vencimiento": body.get("stop_time"),
         "categoria_id": body.get("category_id"),
         "categoria_nombre": categoria_nombres.get(body.get("category_id"), body.get("category_id")),
-    } for body in items]
+    } for body in items_visibles]
 
 
 @router.get("/api/ml/publicaciones")
@@ -914,6 +916,50 @@ async def cambiar_estado_publicacion(
         db.commit()
 
     return {"ok": True, "item_id": item_id, "accion": accion}
+
+
+@router.delete("/api/ml/publicaciones/{item_id}")
+async def eliminar_publicacion(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """
+    Cierra la publicación en MercadoLibre Y la elimina del registro local del CRM.
+    Si ML no está conectado o falla, igual elimina el registro local.
+    """
+    ml_cerrada = False
+    ml_error: str | None = None
+
+    # Intentar cerrar en ML
+    try:
+        token = await _get_token(db)
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.put(
+                f"{ML_BASE}/items/{item_id}",
+                json={"status": "closed"},
+                headers=_ml_headers(token),
+            )
+        if r.status_code in (200, 204):
+            ml_cerrada = True
+        else:
+            ml_error = f"ML {r.status_code}: {r.text[:200]}"
+    except Exception as ex:
+        ml_error = str(ex)[:200]
+
+    # Eliminar registro local del CRM (siempre, aunque ML falle)
+    pub = db.query(PublicacionML).filter(PublicacionML.item_id == item_id).first()
+    if pub:
+        db.delete(pub)
+        db.commit()
+
+    # También limpiar el borrador asociado si existe
+    bor = db.query(BorradorML).filter(BorradorML.item_id == item_id).first()
+    if bor:
+        bor.estado = "cerrada"
+        db.commit()
+
+    return {"ok": True, "item_id": item_id, "ml_cerrada": ml_cerrada, "ml_error": ml_error}
 
 
 @router.put("/api/ml/publicaciones/{item_id}")

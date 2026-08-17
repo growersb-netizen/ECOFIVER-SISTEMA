@@ -29,6 +29,7 @@ from routers import (
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
     integraciones, redes_sociales, imagenes, ml_biblioteca,
 )
+from routers import ml_audit
 
 log = logging.getLogger(__name__)
 
@@ -291,6 +292,11 @@ async def startup_event():
     )
     scheduler.start()
     log.info("[SCHEDULER] Backup 03:00 + Leads + Resumen 08:00 + ML Renovación 02:15 + Auto-responder /20min + Ecopost /5min — activos")
+
+    # Auditoría y optimización de publicaciones ML (corre una vez por versión).
+    # Espera 5 min para que el app termine de inicializar y el token ML esté listo.
+    import asyncio as _asyncio
+    _asyncio.create_task(ml_audit._delayed_audit_job())
 
 
 @app.on_event("shutdown")

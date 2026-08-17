@@ -636,23 +636,29 @@ async def _auto_responder_preguntas_job():
             if not texto or not qid:
                 continue
 
-            # Obtener descripción local para contexto enriquecido
+            # Obtener descripción y precio local para contexto enriquecido
             pub_local = local_pubs.get(item_id_p)
             descripcion_pub = ""
+            precio_pub: float = 0.0
             if pub_local:
                 descripcion_pub = pub_local.descripcion or ""
                 if not item_titulo and pub_local.titulo:
                     item_titulo = pub_local.titulo
+                try:
+                    precio_pub = float(pub_local.precio or 0)
+                except (TypeError, ValueError):
+                    precio_pub = 0.0
 
             prompt = ctx_preguntas_ml(
                 item_titulo=item_titulo or "producto EcoFiver",
                 pregunta=texto,
                 descripcion_pub=descripcion_pub,
                 comprador=comprador_nick,
+                precio_pub=precio_pub,
             )
 
             try:
-                respuesta = await ai_complete(db, prompt, max_tokens=400, temperature=0.6)
+                respuesta = await ai_complete(db, prompt, max_tokens=400, temperature=0.4)
                 respuesta = " ".join(respuesta.split())
             except Exception as e:
                 log.warning(f"[AUTO-RESP] Error IA para pregunta {qid}: {e}")

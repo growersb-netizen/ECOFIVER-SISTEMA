@@ -56,8 +56,10 @@ PROVIDERS = {
 # OpenRouter es el predeterminado (mismo motor que los agentes del multiagente)
 PROVIDER_PRIORITY = ["openrouter", "grok", "gemini", "claude"]
 
-# Modelo gratuito de fallback cuando OpenRouter devuelve 402 (sin créditos)
-OPENROUTER_FREE_FALLBACK = os.getenv("OPENROUTER_FREE_MODEL", "meta-llama/llama-3.2-3b-instruct:free")
+# Modelo gratuito de fallback cuando OpenRouter devuelve 402 (sin créditos).
+# Se elige uno con cuota gratuita generosa. Si el entorno define OPENROUTER_FREE_MODEL
+# se usa ese en su lugar (permite override sin redeploy).
+OPENROUTER_FREE_FALLBACK = os.getenv("OPENROUTER_FREE_MODEL", "google/gemini-2.0-flash-exp:free")
 
 
 def _resolver_modelo(pconf: dict) -> str:

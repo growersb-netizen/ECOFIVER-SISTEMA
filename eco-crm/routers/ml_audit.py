@@ -472,6 +472,7 @@ async def auditar_y_optimizar_publicaciones():
         ok      = 0
         parcial = 0
         err     = 0
+        err_ia_consecutivos = 0   # corte anticipado si la IA no responde
 
         log.info(f"[AUDIT-ML] {total} publicaciones a procesar.")
 
@@ -491,9 +492,22 @@ async def auditar_y_optimizar_publicaciones():
                 if not contenido:
                     log.warning(f"[AUDIT-ML]   → IA no generó contenido válido — skip")
                     err += 1
+                    err_ia_consecutivos += 1
+                    # Corte anticipado: si los primeros 3 ítems consecutivos fallan por IA,
+                    # es probable que el proveedor esté caído o sin créditos → abortar
+                    # y no marcar como completo (reintentará en el próximo arranque).
+                    if err_ia_consecutivos >= 3 and ok == 0:
+                        log.error(
+                            "[AUDIT-ML] ✗ 3 fallos de IA consecutivos sin ningún éxito — "
+                            "proveedor de IA no disponible o sin créditos. "
+                            "La auditoría se reintentará en el próximo arranque. "
+                            "Configurá una API key válida en el panel de Configuración."
+                        )
+                        return   # <-- sale sin marcar el flag; reintentará al reiniciar
                     await asyncio.sleep(_PAUSA_ENTRE_ITEMS)
                     continue
 
+                err_ia_consecutivos = 0   # reset: la IA respondió bien
                 titulo_nuevo = contenido["titulo"]
                 desc_nueva   = contenido["descripcion"]
 
@@ -545,8 +559,16 @@ async def auditar_y_optimizar_publicaciones():
             # Rate limit entre items
             await asyncio.sleep(_PAUSA_ENTRE_ITEMS)
 
-        # Marcar como completado
-        _set_audit_flag(db, AUDIT_VERSION)
+        # Solo marcar como completado si al menos un ítem fue actualizado.
+        # Si nada pudo actualizarse (ej: sin IA, sin token ML), el flag queda sin setear
+        # y la auditoría reintentará automáticamente en el próximo arranque del servidor.
+        if ok > 0 or parcial > 0:
+            _set_audit_flag(db, AUDIT_VERSION)
+        else:
+            log.warning(
+                f"[AUDIT-ML] Sin actualizaciones exitosas — flag {AUDIT_VERSION!r} NO guardado. "
+                "La auditoría reintentará al próximo arranque."
+            )
 
         log.info(f"[AUDIT-ML] ═══════════════════════════════════════════")
         log.info(f"[AUDIT-ML] Auditoría {AUDIT_VERSION} COMPLETADA")

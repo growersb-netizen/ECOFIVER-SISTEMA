@@ -111,6 +111,8 @@ def _content_dict(c: ContenidoEcopost) -> dict:
         "tiene_video": bool(getattr(c, 'video_token', None)),
         "duracion_seg": getattr(c, 'duracion_seg', None),
         "publish_at": c.publish_at.isoformat() if getattr(c, 'publish_at', None) else None,
+        "publish_tipo": getattr(c, 'publish_tipo', None) or 'post',
+        "publish_pages": json.loads(getattr(c, 'publish_pages_json', None) or '[]'),
         "redes_publicadas": json.loads(getattr(c, 'redes_publicadas', None) or '{}'),
         "estado": c.estado,
         "notas": c.notas,
@@ -352,30 +354,55 @@ async def api_calendario(
     primer_dia = datetime(y, m, 1)
     ultimo_dia = datetime(y, m, monthrange(y, m)[1], 23, 59, 59)
 
+    from sqlalchemy import or_ as _or, and_ as _and
     items = (
         db.query(ContenidoEcopost)
         .filter(
-            ContenidoEcopost.created_at >= primer_dia,
-            ContenidoEcopost.created_at <= ultimo_dia,
+            _or(
+                # Creados en este mes
+                _and(
+                    ContenidoEcopost.created_at >= primer_dia,
+                    ContenidoEcopost.created_at <= ultimo_dia,
+                ),
+                # O programados para publicar en este mes
+                _and(
+                    ContenidoEcopost.publish_at.isnot(None),
+                    ContenidoEcopost.publish_at >= primer_dia,
+                    ContenidoEcopost.publish_at <= ultimo_dia,
+                ),
+            )
         )
         .order_by(ContenidoEcopost.created_at)
         .all()
     )
 
     por_dia: dict = {}
+    seen: set = set()   # evitar duplicados si created_at y publish_at caen en el mismo día
+
+    def _add_dia(dia_key: str, it):
+        dedup_key = f"{dia_key}:{it.id}"
+        if dedup_key in seen:
+            return
+        seen.add(dedup_key)
+        if dia_key not in por_dia:
+            por_dia[dia_key] = []
+        por_dia[dia_key].append({
+            "id": it.id,
+            "titulo": it.titulo or "(sin título)",
+            "tipo": it.tipo,
+            "producto": it.producto or "",
+            "estado": it.estado,
+            "tiene_imagen": bool(it.imagen_base64 or it.imagen_url),
+            "publish_at": it.publish_at.isoformat() if it.publish_at else None,
+        })
+
     for it in items:
-        if it.created_at:
-            dia_key = str(it.created_at.day)
-            if dia_key not in por_dia:
-                por_dia[dia_key] = []
-            por_dia[dia_key].append({
-                "id": it.id,
-                "titulo": it.titulo or "(sin título)",
-                "tipo": it.tipo,
-                "producto": it.producto or "",
-                "estado": it.estado,
-                "tiene_imagen": bool(it.imagen_base64 or it.imagen_url),
-            })
+        # Mostrar en la fecha de creación (día en que se generó el contenido)
+        if it.created_at and primer_dia <= it.created_at <= ultimo_dia:
+            _add_dia(str(it.created_at.day), it)
+        # Mostrar TAMBIÉN en la fecha de publicación programada (si cae en este mes)
+        if it.publish_at and primer_dia <= it.publish_at <= ultimo_dia:
+            _add_dia(str(it.publish_at.day), it)
 
     return {
         "year": y,
@@ -405,6 +432,24 @@ async def api_programados(
         .all()
     )
     return [_content_dict(c) for c in items]
+
+
+@router.post("/api/ecopost/{item_id}/cancelar-programacion")
+async def api_cancelar_programacion(
+    item_id: int,
+    user: Usuario = Depends(_require_access),
+    db: Session = Depends(get_db),
+):
+    """Cancela la programación de un contenido (borra publish_at y deja en borrador)."""
+    c = db.query(ContenidoEcopost).filter(ContenidoEcopost.id == item_id).first()
+    if not c:
+        raise HTTPException(404, "Contenido no encontrado")
+    c.publish_at = None
+    c.publish_pages_json = None
+    c.publish_tipo = None
+    c.estado = "borrador"
+    db.commit()
+    return {"ok": True, "estado": c.estado}
 
 
 @router.get("/api/ecopost/ml-fotos")
@@ -555,24 +600,26 @@ async def api_generar_copy(
     user: Usuario = Depends(_require_access),
     db: Session = Depends(get_db),
 ):
-    # Intentar via worker primero
-    try:
-        async with httpx.AsyncClient(timeout=30) as c:
-            r = await c.post(
-                f"{CLOUDFLARE_WORKER_URL}/generar-copy",
-                json={
-                    "producto": body.producto,
-                    "modelo": body.modelo,
-                    "descripcion": body.descripcion_extra,
-                    "tono": body.tono,
-                },
-            )
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("ok"):
-                    return {"ok": True, "copy": data["copy"]}
-    except Exception as e:
-        logger.warning(f"[ecopost] Worker /generar-copy falló: {e}")
+    # Intentar via worker primero — solo si NO hay contexto de imagen
+    # (el worker no soporta imagen_url/desde_imagen, así que lo saltamos en ese caso)
+    if not body.desde_imagen:
+        try:
+            async with httpx.AsyncClient(timeout=30) as c:
+                r = await c.post(
+                    f"{CLOUDFLARE_WORKER_URL}/generar-copy",
+                    json={
+                        "producto": body.producto,
+                        "modelo": body.modelo,
+                        "descripcion": body.descripcion_extra,
+                        "tono": body.tono,
+                    },
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    if data.get("ok"):
+                        return {"ok": True, "copy": data["copy"]}
+        except Exception as e:
+            logger.warning(f"[ecopost] Worker /generar-copy falló: {e}")
 
     # Fallback: IA unificada (Grok → Gemini → Claude según lo configurado)
     pname, api_key = get_active_provider(db)
@@ -939,7 +986,14 @@ async def api_meta_paginas_list(
 ):
     pages = db.query(MetaPagina).order_by(MetaPagina.nombre).all()
     return [
-        {"page_id": p.page_id, "nombre": p.nombre, "ig_user_id": p.ig_user_id, "activa": p.activa}
+        {
+            "page_id": p.page_id,
+            "nombre": p.nombre,
+            "ig_user_id": p.ig_user_id,
+            "activa": p.activa,
+            # Construimos la URL de foto de perfil desde el Graph API (pública, sin token)
+            "foto_url": f"https://graph.facebook.com/{p.page_id}/picture?type=square" if p.page_id else None,
+        }
         for p in pages
     ]
 

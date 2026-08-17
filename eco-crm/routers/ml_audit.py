@@ -29,8 +29,8 @@ from utils.contexto_ecofiver import ctx_seo_ml
 
 log = logging.getLogger(__name__)
 
-# Incrementar para forzar re-ejecución (ej: "v6")
-AUDIT_VERSION = "v5"
+# Incrementar para forzar re-ejecución (ej: "v7")
+AUDIT_VERSION = "v6"
 AUDIT_FLAG_KEY = "ml_audit_version"
 
 # Pausa entre publicaciones (segundos) — respetar rate limit ML

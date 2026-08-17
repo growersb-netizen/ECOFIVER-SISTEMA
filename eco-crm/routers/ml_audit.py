@@ -29,12 +29,14 @@ from utils.contexto_ecofiver import ctx_seo_ml
 
 log = logging.getLogger(__name__)
 
-# Incrementar para forzar re-ejecución (ej: "v3")
-AUDIT_VERSION = "v2"
+# Incrementar para forzar re-ejecución (ej: "v4")
+AUDIT_VERSION = "v3"
 AUDIT_FLAG_KEY = "ml_audit_version"
 
 # Pausa entre publicaciones (segundos) — respetar rate limit ML
-_PAUSA_ENTRE_ITEMS = 3.0
+# Con 5000 items en el catálogo, los activos reales pueden ser 50-200.
+# A 1.5s cada uno: 200 items × 1.5s = 5 minutos de procesamiento puro.
+_PAUSA_ENTRE_ITEMS = 1.5
 
 # ML bloquea cambiar títulos de publicaciones que ya tuvieron interacciones.
 # Se trata como limitación conocida (no como error), y la descripción igual se actualiza.
@@ -146,21 +148,32 @@ def _sanear_titulo(titulo: str) -> str:
 # ─── Fetch publicaciones desde ML ────────────────────────────────────────────
 
 async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
-    """Trae todos los items activos y pausados del vendedor, con detalles."""
+    """
+    Trae todos los items activos y pausados del vendedor, con detalles.
+
+    Estrategia eficiente para catálogos grandes (5000+ ítems históricos):
+    1. Pagina todos los IDs sin límite artificial.
+    2. Hace el fetch de detalles en PARALELO (semáforo de 8 concurrentes)
+       para convertir 250 llamadas secuenciales en ~30 segundos vs. 4 minutos.
+    3. Filtra a activos/pausados al momento de recibir cada lote.
+    """
     from routers.mercadolibre import ML_BASE, _ml_headers
 
-    # 1. Listar IDs — solo activos y pausados (evita iterar historial cerrado)
+    # ── 1. Listar TODOS los IDs históricos (paginado, sin límite) ────────────
     item_ids: list[str] = []
     offset = 0
     while True:
-        async with httpx.AsyncClient(timeout=15) as c:
+        async with httpx.AsyncClient(timeout=20) as c:
             r = await c.get(
                 f"{ML_BASE}/users/{user_id}/items/search",
                 headers=_ml_headers(token),
                 params={"limit": 50, "offset": offset},
             )
         if r.status_code != 200:
-            log.warning(f"[AUDIT-ML] Paginación detuvo en offset={offset}: {r.status_code} — continuando con lo obtenido")
+            log.warning(
+                f"[AUDIT-ML] Paginación detuvo en offset={offset}: "
+                f"{r.status_code} — continuando con los {len(item_ids)} IDs obtenidos"
+            )
             break
         data = r.json()
         pagina = data.get("results", [])
@@ -169,34 +182,54 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
         offset += 50
         if not pagina or len(item_ids) >= total_ml:
             break
-        # ML limita a ~1000 ítems por la API — seguridad contra loops infinitos
-        if offset > 1000:
-            log.warning(f"[AUDIT-ML] Límite de paginación alcanzado — procesando {len(item_ids)} IDs")
-            break
+        # Log de progreso cada 500 IDs para que se vea avance en logs
+        if len(item_ids) % 500 == 0:
+            log.info(f"[AUDIT-ML] Paginando... {len(item_ids)}/{total_ml} IDs obtenidos")
 
     if not item_ids:
         return []
 
-    log.info(f"[AUDIT-ML] {len(item_ids)} IDs de items obtenidos de ML.")
+    log.info(f"[AUDIT-ML] {len(item_ids)} IDs totales en la cuenta ML. Filtrando activos/pausados...")
 
-    # 2. Traer detalles en lotes de 20
+    # ── 2. Fetch de detalles en PARALELO (semáforo de 8 concurrentes) ────────
+    # Con 5000 IDs → 250 lotes de 20 → 8 paralelos → ~30 grupos de 8
+    # → ~30s de fetch en vez de ~4 minutos secuencial
+    ESTADOS_EDITABLES = {"active", "paused", "payment_required"}  # payment_req siempre falla, pero lo intentamos
+    ESTADOS_EXCLUIDOS = {"closed", "under_review", "not_yet_active"}
+
+    semaforo = asyncio.Semaphore(8)
+
+    async def _fetch_lote(ids_lote: list[str]) -> list[dict]:
+        async with semaforo:
+            try:
+                async with httpx.AsyncClient(timeout=15) as c:
+                    r2 = await c.get(
+                        f"{ML_BASE}/items",
+                        headers=_ml_headers(token),
+                        params={"ids": ",".join(ids_lote)},
+                    )
+                if r2.status_code != 200:
+                    return []
+                resultado = []
+                for entry in r2.json():
+                    body = entry.get("body", {})
+                    if body and body.get("status") not in ESTADOS_EXCLUIDOS:
+                        resultado.append(body)
+                return resultado
+            except Exception as e:
+                log.debug(f"[AUDIT-ML] Lote falló: {e}")
+                return []
+
+    lotes = [item_ids[i : i + 20] for i in range(0, len(item_ids), 20)]
+    log.info(f"[AUDIT-ML] Fetching detalles en paralelo: {len(lotes)} lotes × 20 = hasta {len(item_ids)} items...")
+
+    resultados = await asyncio.gather(*[_fetch_lote(lote) for lote in lotes])
+
     items: list[dict] = []
-    for i in range(0, len(item_ids), 20):
-        batch = ",".join(item_ids[i : i + 20])
-        async with httpx.AsyncClient(timeout=15) as c:
-            r2 = await c.get(
-                f"{ML_BASE}/items",
-                headers=_ml_headers(token),
-                params={"ids": batch},
-            )
-        if r2.status_code != 200:
-            log.warning(f"[AUDIT-ML] Lote items falló: {r2.status_code}")
-            continue
-        for entry in r2.json():
-            body = entry.get("body", {})
-            if body and body.get("status") not in ("closed", "under_review", "not_yet_active"):
-                items.append(body)
+    for grupo in resultados:
+        items.extend(grupo)
 
+    log.info(f"[AUDIT-ML] {len(items)} publicaciones activas/pausadas encontradas de {len(item_ids)} totales.")
     return items
 
 

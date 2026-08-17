@@ -29,8 +29,8 @@ from utils.contexto_ecofiver import ctx_seo_ml
 
 log = logging.getLogger(__name__)
 
-# Incrementar para forzar re-ejecución (ej: "v4")
-AUDIT_VERSION = "v3"
+# Incrementar para forzar re-ejecución (ej: "v5")
+AUDIT_VERSION = "v4"
 AUDIT_FLAG_KEY = "ml_audit_version"
 
 # Pausa entre publicaciones (segundos) — respetar rate limit ML
@@ -159,32 +159,38 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
     """
     from routers.mercadolibre import ML_BASE, _ml_headers
 
-    # ── 1. Listar TODOS los IDs históricos (paginado, sin límite) ────────────
+    # ── 1. Listar IDs filtrando por status desde la API ──────────────────────
+    # ML limita la paginación sin filtro a ~1050 items históricos.
+    # Filtrando por status=active y status=paused obtenemos SOLO los editables
+    # y sin ese límite, pudiendo paginar todos aunque sean miles.
     item_ids: list[str] = []
-    offset = 0
-    while True:
-        async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(
-                f"{ML_BASE}/users/{user_id}/items/search",
-                headers=_ml_headers(token),
-                params={"limit": 50, "offset": offset},
-            )
-        if r.status_code != 200:
-            log.warning(
-                f"[AUDIT-ML] Paginación detuvo en offset={offset}: "
-                f"{r.status_code} — continuando con los {len(item_ids)} IDs obtenidos"
-            )
-            break
-        data = r.json()
-        pagina = data.get("results", [])
-        item_ids.extend(pagina)
-        total_ml = data.get("paging", {}).get("total", len(item_ids))
-        offset += 50
-        if not pagina or len(item_ids) >= total_ml:
-            break
-        # Log de progreso cada 500 IDs para que se vea avance en logs
-        if len(item_ids) % 500 == 0:
-            log.info(f"[AUDIT-ML] Paginando... {len(item_ids)}/{total_ml} IDs obtenidos")
+
+    async def _paginar_por_status(status: str) -> list[str]:
+        ids: list[str] = []
+        off = 0
+        while True:
+            async with httpx.AsyncClient(timeout=20) as c:
+                r = await c.get(
+                    f"{ML_BASE}/users/{user_id}/items/search",
+                    headers=_ml_headers(token),
+                    params={"limit": 50, "offset": off, "status": status},
+                )
+            if r.status_code != 200:
+                log.warning(f"[AUDIT-ML] Paginación status={status} detuvo en offset={off}: {r.status_code}")
+                break
+            data = r.json()
+            pagina = data.get("results", [])
+            ids.extend(pagina)
+            total = data.get("paging", {}).get("total", len(ids))
+            off += 50
+            if not pagina or len(ids) >= total:
+                break
+        log.info(f"[AUDIT-ML] status={status}: {len(ids)} items encontrados")
+        return ids
+
+    ids_active = await _paginar_por_status("active")
+    ids_paused = await _paginar_por_status("paused")
+    item_ids = list(dict.fromkeys(ids_active + ids_paused))  # dedup preservando orden
 
     if not item_ids:
         return []
@@ -194,8 +200,9 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
     # ── 2. Fetch de detalles en PARALELO (semáforo de 8 concurrentes) ────────
     # Con 5000 IDs → 250 lotes de 20 → 8 paralelos → ~30 grupos de 8
     # → ~30s de fetch en vez de ~4 minutos secuencial
-    ESTADOS_EDITABLES = {"active", "paused", "payment_required"}  # payment_req siempre falla, pero lo intentamos
-    ESTADOS_EXCLUIDOS = {"closed", "under_review", "not_yet_active"}
+    # Con el filtro de status en la query, los bodies deberían ser solo activos/pausados.
+    # Igual filtramos por si acaso ML devuelve alguno en otro estado.
+    ESTADOS_EXCLUIDOS = {"closed", "under_review", "not_yet_active", "payment_required"}
 
     semaforo = asyncio.Semaphore(8)
 

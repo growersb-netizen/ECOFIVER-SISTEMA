@@ -29,8 +29,8 @@ from utils.contexto_ecofiver import ctx_seo_ml
 
 log = logging.getLogger(__name__)
 
-# Incrementar para forzar re-ejecución (ej: "v5")
-AUDIT_VERSION = "v4"
+# Incrementar para forzar re-ejecución (ej: "v6")
+AUDIT_VERSION = "v5"
 AUDIT_FLAG_KEY = "ml_audit_version"
 
 # Pausa entre publicaciones (segundos) — respetar rate limit ML
@@ -220,8 +220,14 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
                 resultado = []
                 for entry in r2.json():
                     body = entry.get("body", {})
-                    if body and body.get("status") not in ESTADOS_EXCLUIDOS:
-                        resultado.append(body)
+                    if not body:
+                        continue
+                    if body.get("status") in ESTADOS_EXCLUIDOS:
+                        continue
+                    # Las publicaciones de catálogo ML no son editables por el vendedor
+                    if body.get("catalog_listing"):
+                        continue
+                    resultado.append(body)
                 return resultado
             except Exception as e:
                 log.debug(f"[AUDIT-ML] Lote falló: {e}")
@@ -230,13 +236,23 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
     lotes = [item_ids[i : i + 20] for i in range(0, len(item_ids), 20)]
     log.info(f"[AUDIT-ML] Fetching detalles en paralelo: {len(lotes)} lotes × 20 = hasta {len(item_ids)} items...")
 
-    resultados = await asyncio.gather(*[_fetch_lote(lote) for lote in lotes])
+    resultados_raw = await asyncio.gather(*[_fetch_lote(lote) for lote in lotes])
 
     items: list[dict] = []
-    for grupo in resultados:
+    for grupo in resultados_raw:
         items.extend(grupo)
 
-    log.info(f"[AUDIT-ML] {len(items)} publicaciones activas/pausadas encontradas de {len(item_ids)} totales.")
+    # Contar cuántos active/paused quedaron fuera por ser de catálogo
+    # (el _fetch_lote ya los filtró; estimamos comparando con los IDs pedidos)
+    log.info(
+        f"[AUDIT-ML] De los {len(item_ids)} items activos/pausados: "
+        f"{len(items)} son editables (no-catálogo) y serán optimizados."
+    )
+    if len(item_ids) - len(items) > 0:
+        log.info(
+            f"[AUDIT-ML] {len(item_ids) - len(items)} items saltados "
+            f"(catálogo ML, bajo revisión, u otro estado no editable)."
+        )
     return items
 
 
@@ -350,7 +366,7 @@ Respondé EXCLUSIVAMENTE con JSON válido, sin texto extra ni markdown:
 
 async def _actualizar_en_ml(
     item_id: str, token: str, titulo: str, descripcion: str
-) -> tuple[bool, bool, str]:
+) -> tuple[bool, bool, bool, str]:
     """
     Actualiza título y descripción en MercadoLibre.
     Retorna (titulo_ok, desc_ok, mensaje_error).

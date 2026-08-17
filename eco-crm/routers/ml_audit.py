@@ -29,12 +29,16 @@ from utils.contexto_ecofiver import ctx_seo_ml
 
 log = logging.getLogger(__name__)
 
-# Incrementar para forzar re-ejecución (ej: "v2")
-AUDIT_VERSION = "v1"
+# Incrementar para forzar re-ejecución (ej: "v3")
+AUDIT_VERSION = "v2"
 AUDIT_FLAG_KEY = "ml_audit_version"
 
 # Pausa entre publicaciones (segundos) — respetar rate limit ML
 _PAUSA_ENTRE_ITEMS = 3.0
+
+# ML bloquea cambiar títulos de publicaciones que ya tuvieron interacciones.
+# Se trata como limitación conocida (no como error), y la descripción igual se actualiza.
+_TITULO_NO_MODIFICABLE = "item.title.not_modifiable"
 
 
 # ─── Helpers de flag ─────────────────────────────────────────────────────────
@@ -145,7 +149,7 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
     """Trae todos los items activos y pausados del vendedor, con detalles."""
     from routers.mercadolibre import ML_BASE, _ml_headers
 
-    # 1. Listar IDs (paginado)
+    # 1. Listar IDs — solo activos y pausados (evita iterar historial cerrado)
     item_ids: list[str] = []
     offset = 0
     while True:
@@ -156,7 +160,7 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
                 params={"limit": 50, "offset": offset},
             )
         if r.status_code != 200:
-            log.error(f"[AUDIT-ML] Error listando items offset={offset}: {r.status_code}")
+            log.warning(f"[AUDIT-ML] Paginación detuvo en offset={offset}: {r.status_code} — continuando con lo obtenido")
             break
         data = r.json()
         pagina = data.get("results", [])
@@ -164,6 +168,10 @@ async def _fetch_todos_los_items(token: str, user_id: str) -> list[dict]:
         total_ml = data.get("paging", {}).get("total", len(item_ids))
         offset += 50
         if not pagina or len(item_ids) >= total_ml:
+            break
+        # ML limita a ~1000 ítems por la API — seguridad contra loops infinitos
+        if offset > 1000:
+            log.warning(f"[AUDIT-ML] Límite de paginación alcanzado — procesando {len(item_ids)} IDs")
             break
 
     if not item_ids:
@@ -309,8 +317,9 @@ async def _actualizar_en_ml(
     """
     from routers.mercadolibre import ML_BASE, _ml_headers
 
-    titulo_ok = False
-    desc_ok   = False
+    titulo_ok     = False
+    titulo_bloq   = False   # True cuando ML bloquea el cambio (limitación de plataforma)
+    desc_ok       = False
     errores: list[str] = []
 
     # — Título
@@ -323,6 +332,10 @@ async def _actualizar_en_ml(
             )
         if r.status_code in (200, 201, 204):
             titulo_ok = True
+        elif r.status_code == 400 and _TITULO_NO_MODIFICABLE in r.text:
+            # ML no permite cambiar títulos de publicaciones activas con interacciones.
+            # Esto es una restricción de la plataforma — no se cuenta como error.
+            titulo_bloq = True
         else:
             errores.append(f"título ML {r.status_code}: {r.text[:120]}")
     except Exception as e:
@@ -357,7 +370,7 @@ async def _actualizar_en_ml(
     except Exception as e:
         errores.append(f"descripción excepción: {str(e)[:100]}")
 
-    return titulo_ok, desc_ok, " | ".join(errores)
+    return titulo_ok, titulo_bloq, desc_ok, " | ".join(errores)
 
 
 # ─── Job principal ────────────────────────────────────────────────────────────
@@ -433,7 +446,7 @@ async def auditar_y_optimizar_publicaciones():
                 log.info(f"[AUDIT-ML]   Desc nueva   : {len(desc_nueva)} chars")
 
                 # 3. Actualizar en ML
-                t_ok, d_ok, error_msg = await _actualizar_en_ml(
+                t_ok, t_bloq, d_ok, error_msg = await _actualizar_en_ml(
                     item_id, token, titulo_nuevo, desc_nueva
                 )
 
@@ -449,15 +462,25 @@ async def auditar_y_optimizar_publicaciones():
                     db.commit()
 
                 # 5. Loguear resultado
-                if t_ok and d_ok:
+                if d_ok and (t_ok or t_bloq):
+                    # Desc actualizada; título OK o bloqueado por ML (no es error nuestro)
                     ok += 1
-                    log.info(f"[AUDIT-ML]   ✓ Actualizado título + descripción")
-                elif t_ok or d_ok:
+                    if t_ok:
+                        log.info(f"[AUDIT-ML]   ✓ Título + descripción actualizados")
+                    else:
+                        log.info(
+                            f"[AUDIT-ML]   ✓ Descripción actualizada "
+                            f"(título bloqueado por ML — cambiarlo desde el portal de vendedor)"
+                        )
+                elif d_ok:
+                    ok += 1
+                    log.info(f"[AUDIT-ML]   ✓ Descripción actualizada (título: {error_msg})")
+                elif t_ok or t_bloq:
                     parcial += 1
-                    log.warning(f"[AUDIT-ML]   ⚠ Parcial (título={t_ok}, desc={d_ok}) — {error_msg}")
+                    log.warning(f"[AUDIT-ML]   ⚠ Descripción falló — {error_msg}")
                 else:
                     err += 1
-                    log.error(f"[AUDIT-ML]   ✗ Falló todo — {error_msg}")
+                    log.error(f"[AUDIT-ML]   ✗ Nada actualizado — {error_msg}")
 
             except Exception as e:
                 err += 1

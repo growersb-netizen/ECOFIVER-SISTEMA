@@ -1718,12 +1718,14 @@ async def auditar_y_optimizar_publicaciones():
             if scoring["issues"]:
                 log.info(f"[AUDIT-ML]   Problemas: {' · '.join(scoring['issues'][:4])}")
 
-            # Publicaciones con desc ya larga: aún así actualizamos para v8 templates
-            # Solo saltamos si score muy alto Y desc ya cumple todo
-            if score >= 90 and len(desc_actual) >= 1800:
-                sin_cambios += 1
-                log.info(f"[AUDIT-ML]   ✓ Calidad excelente ({score}/100) — skip")
-                continue
+            # v8.3: NO saltamos nada — todos los items necesitan los nuevos atributos
+            # de dimensiones (LONG/WIDTH/HEIGHT/JETS/CAPACITY/WEIGHT). En versiones
+            # anteriores (v8.x) la lógica de skip impedía actualizar esos atributos
+            # en items que ya tenían score alto. A partir de v8.4 se puede re-habilitar
+            # el skip una vez que todos los items tengan la ficha técnica completa.
+            # if score >= 90 and len(desc_actual) >= 1800:
+            #     sin_cambios += 1
+            #     continue
 
             try:
                 # ── Generar contenido (sin IA) ─────────────────────────────

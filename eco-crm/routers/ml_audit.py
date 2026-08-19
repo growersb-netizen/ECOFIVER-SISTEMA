@@ -1,12 +1,26 @@
 """
-Auditoría COMPLETA v8.1 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+Auditoría COMPLETA v8.2 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+
+CAMBIOS v8.2 (respecto a v8.1)
+────────────────────────────────
+• Fix CRÍTICO #2: _detectar_tipo() ahora usa SOLO el título — NO la descripción.
+  En v8.1 la detección usaba titulo+descripcion, lo que causaba que reposeras cuyas
+  descripciones mencionaban "spa" o "jacuzzi" (ej: "ideal junto al spa o piscina")
+  fueran clasificadas como "spa jacuzzi hidromasaje" y luego cerradas incorrectamente.
+  La descripción nunca debe usarse para detectar el tipo de producto — puede mencionar
+  cualquier categoría en contexto sin que eso cambie el producto.
+• Recuperación dinámica: en Fase 0 se consultan todos los items cerrados en ML y se
+  reactivan automáticamente los que tienen "reposera" o "tumbona" en el título
+  (cubre tanto los cerrados en v8 como los cerrados incorrectamente en v8.1).
+• Fase 6 eliminada: se ELIMINÓ el cierre automático de publicaciones por categoría.
+  El audit ahora SOLO actualiza contenido (título, descripción, atributos).
+  Los mismatches de categoría se loguean como WARNING para revisión manual.
+  Razón: la detección de tipo basada en keywords no es 100% confiable para tomar
+  decisiones destructivas (cerrar publicaciones). Mejor ser conservadores.
 
 CAMBIOS v8.1 (respecto a v8)
 ─────────────────────────────
 • Fix CRÍTICO: detección de tipo reordenada — spa/jacuzzi se detecta ANTES que piscina.
-  En v8, "prfv" y "fibra de vidrio" estaban en keywords de piscina, causando que jacuzzis
-  PRFV fueran clasificados como piscinas y luego cerrados en categoría "bañeras".
-  Ahora "prfv" y "fibra de vidrio" ya NO son keywords exclusivas de piscina.
 • Recuperación automática: reactiva los 12 items cerrados incorrectamente en v8.
 • Categorías aceptadas para spa: "bañera", "hidromasaje", "spa" y similares.
 
@@ -68,14 +82,11 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v8.1"
+AUDIT_VERSION    = "v8.2"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
-# Items cerrados INCORRECTAMENTE en v8 (clasificación de tipo errónea):
-# Spas/jacuzzis con "prfv" en el nombre que fueron clasificados como piscinas.
-# El fix en _detectar_tipo los clasifica correctamente ahora.
-# Estos items se reactivan al inicio de la auditoría v8.1.
+# Items cerrados INCORRECTAMENTE en v8 (clasificación de tipo errónea — spas como piscinas):
 _ITEMS_CERRADOS_INCORRECTAMENTE_V8 = [
     "MLA3752835918",  # Bañera Spa Amplio 197 Cm Prfv (bañeras > sin hidromasajes)
     "MLA3752834692",  # Jacuzzi Amplio 197x142 Prfv (bañeras > con hidromasajes)
@@ -90,6 +101,34 @@ _ITEMS_CERRADOS_INCORRECTAMENTE_V8 = [
     "MLA3752436826",  # Jacuzzi Angular 110 Cm Prfv (bañeras > con hidromasajes)
     "MLA3752437004",  # Spa Cuadrado 110 Cm Acrílico (bañeras > sin hidromasajes)
     # MLA3752449638 NO se reactiva — estaba en "repisas esquineras", categoría incorrecta real
+]
+
+# Items cerrados INCORRECTAMENTE en v8.1 (reposeras mal clasificadas como spa):
+# La detección usaba descripcion, donde las reposeras mencionaban "spa" o "jacuzzi".
+_ITEMS_CERRADOS_INCORRECTAMENTE_V8_1 = [
+    "MLA3791104260",  # Reposera De Fibra De Vidrio 172 Cm Para Uso E
+    "MLA3791091388",  # Reposeras De Fibra De Vidrio 172 Cm Para Solárium
+    "MLA3791091058",  # Juego 2 Reposeras Prfv 172 Cm Para Sol Y Jard
+    "MLA3791090648",  # Juego De 2 Reposeras Prfv 172 Cm Para Piscina
+    "MLA3791090810",  # Juego 2 Reposeras Prfv 172 Cm Para Bordes De Pileta
+    "MLA3791091510",  # Reposeras Prfv 2 Unidades 172 Cm Para Solárium
+    "MLA3791091264",  # Juego 2 Reposeras Prfv 172 Cm Para Espacio Exterior
+    "MLA3791090630",  # Juego 2 Reposeras Prfv 172 Cm Para Espacios Al Aire Libre
+    "MLA3791091444",  # Reposeras De Prfv 172 Cm Para Bordes De Pileta
+    "MLA3791090846",  # Reposera Blanca De Prfv 172 Cm Para Terraza
+    "MLA3791091316",  # Juego 2 Reposeras Blancas 172 Cm Para Jardín
+    "MLA3791091468",  # Reposeras Prfv 2 Unidades 172 Cm Para Terraza
+    "MLA3791091522",  # Juego 2 Reposeras Fibra De Vidrio 172 Cm Blancas
+    "MLA3791067432",  # Reposeras Prfv 2 Unidades 172 Cm Para Bordes de Pileta
+    "MLA3791090490",  # Juego 2 Reposeras Prfv 172 Cm Para Espacios Exteriores
+    "MLA3791067028",  # Reposera Prfv 2 Unidades 172 Cm Para Solárium
+    "MLA3791090444",  # Reposera De Prfv Blanca 172 Cm Para Uso En Pileta
+    "MLA3791067324",  # Juego De 2 Reposeras Prfv 172x52 Cm Para Terraza
+    "MLA3791090602",  # Juego De 2 Reposeras De Fibra De Vidrio 172 Cm
+    "MLA3791090554",  # Juego De 2 Reposeras 172 Cm De Prfv Para Uso Exterior
+    "MLA3791090542",  # Reposera Blanca 172 Cm De Fibra De Vidrio Para Exterior
+    "MLA3791090572",  # Reposera Blanca De Fibra De Vidrio 172 Cm Exterior
+    "MLA3791090328",  # Reposera Blanca 172 Cm De Prfv Para Terraza Y Jardín
 ]
 
 # ── Umbrales de calidad ────────────────────────────────────────────────────────
@@ -263,7 +302,11 @@ def _score_titulo(titulo: str) -> int:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _detectar_tipo(titulo: str, descripcion: str = "") -> str:
-    texto = (titulo + " " + descripcion).lower()
+    # v8.2: Se usa SOLO el título para detectar el tipo de producto.
+    # La descripción queda como parámetro por compatibilidad pero se ignora.
+    # Motivo: las descripciones pueden mencionar cualquier tipo de producto en contexto
+    # (ej: "reposera ideal junto al spa") sin que eso cambie lo que el item es.
+    texto = titulo.lower()
 
     # ── SPA / JACUZZI — va PRIMERO porque sus keywords son más específicas.
     # PRFV y "fibra de vidrio" son materiales usados también en spas y bañeras,
@@ -1299,7 +1342,7 @@ async def _reactivar_item(item_id: str, token: str) -> bool:
                 json={"status": "active"},
             )
         if r.status_code in (200, 201, 204):
-            log.info(f"[AUDIT-ML]   ✓ REACTIVADO {item_id} (cerrado incorrectamente en v8)")
+            log.info(f"[AUDIT-ML]   ✓ REACTIVADO {item_id}")
             return True
         else:
             log.error(f"[AUDIT-ML]   ✗ No se pudo reactivar {item_id}: {r.status_code} {r.text[:80]}")
@@ -1377,16 +1420,92 @@ async def auditar_y_optimizar_publicaciones():
 
         log.info(f"[AUDIT-ML] Autenticado ML — user_id={user_id}")
 
-        # ── FASE 0: Recuperación de cierres incorrectos de v8 ─────────────────
-        if _ITEMS_CERRADOS_INCORRECTAMENTE_V8:
-            log.info(
-                f"[AUDIT-ML] Recuperando {len(_ITEMS_CERRADOS_INCORRECTAMENTE_V8)} items "
-                f"cerrados incorrectamente en v8..."
+        # ── FASE 0: Recuperación de cierres incorrectos de v8 y v8.1 ────────────
+        # v8: spas/jacuzzis mal clasificados como piscinas → cerrados en bañeras
+        # v8.1: reposeras mal clasificadas como spa → cerradas por mismatch de categoría
+        # v8.2: recuperación dinámica adicional — busca en ML todos los items cerrados
+        #       y reactiva los que tienen "reposera" o "tumbona" en el título.
+
+        lista_recuperar = list(
+            dict.fromkeys(
+                _ITEMS_CERRADOS_INCORRECTAMENTE_V8 + _ITEMS_CERRADOS_INCORRECTAMENTE_V8_1
             )
-            for iid in _ITEMS_CERRADOS_INCORRECTAMENTE_V8:
-                await _reactivar_item(iid, token)
-                await asyncio.sleep(0.5)
-            log.info("[AUDIT-ML] Recuperación v8 completada.")
+        )
+        log.info(
+            f"[AUDIT-ML] FASE 0 — Recuperando {len(lista_recuperar)} items "
+            f"cerrados incorrectamente en v8/v8.1..."
+        )
+        recuperados_ok = 0
+        for iid in lista_recuperar:
+            ok_r = await _reactivar_item(iid, token)
+            if ok_r:
+                recuperados_ok += 1
+            await asyncio.sleep(0.5)
+        log.info(f"[AUDIT-ML] Recuperación lista fija: {recuperados_ok}/{len(lista_recuperar)} ok.")
+
+        # Recuperación dinámica: buscar en ML items cerrados con "reposera" en el título
+        # (captura los que el log no alcanzó a registrar en v8.1)
+        log.info("[AUDIT-ML] FASE 0b — Buscando reposeras cerradas dinámicamente en ML...")
+        try:
+            ids_closed: list[str] = []
+            off = 0
+            from routers.mercadolibre import ML_BASE, _ml_headers
+            while True:
+                async with httpx.AsyncClient(timeout=20) as c:
+                    r_closed = await c.get(
+                        f"{ML_BASE}/users/{user_id}/items/search",
+                        headers=_ml_headers(token),
+                        params={"limit": 50, "offset": off, "status": "closed"},
+                    )
+                if r_closed.status_code != 200:
+                    break
+                data_c = r_closed.json()
+                pagina_c = data_c.get("results", [])
+                ids_closed.extend(pagina_c)
+                total_c = data_c.get("paging", {}).get("total", len(ids_closed))
+                off += 50
+                if not pagina_c or len(ids_closed) >= total_c or len(ids_closed) >= 500:
+                    break
+                await asyncio.sleep(0.3)
+
+            log.info(f"[AUDIT-ML] {len(ids_closed)} items cerrados encontrados en ML.")
+
+            # Obtener detalles de los cerrados en lotes
+            keywords_reactivar = ["reposera", "tumbona"]
+            lotes_c = [ids_closed[i : i + 20] for i in range(0, len(ids_closed), 20)]
+            reactivados_din = 0
+            for lote_c in lotes_c:
+                try:
+                    async with httpx.AsyncClient(timeout=15) as c2:
+                        r2 = await c2.get(
+                            f"{ML_BASE}/items",
+                            headers=_ml_headers(token),
+                            params={"ids": ",".join(lote_c)},
+                        )
+                    if r2.status_code != 200:
+                        continue
+                    for entry in r2.json():
+                        body = entry.get("body", {})
+                        if not body:
+                            continue
+                        iid_c  = body.get("id", "")
+                        tit_c  = body.get("title", "").lower()
+                        # Solo reactivar si está cerrado Y tiene keywords de reposera/tumbona
+                        if body.get("status") == "closed" and any(kw in tit_c for kw in keywords_reactivar):
+                            if iid_c not in lista_recuperar:  # no duplicar los de la lista fija
+                                log.info(f"[AUDIT-ML] FASE 0b — Reposera cerrada detectada: {iid_c} «{body.get('title', '')}»")
+                                ok_d = await _reactivar_item(iid_c, token)
+                                if ok_d:
+                                    reactivados_din += 1
+                                await asyncio.sleep(0.5)
+                except Exception as e:
+                    log.debug(f"[AUDIT-ML] FASE 0b lote falló: {e}")
+                await asyncio.sleep(0.3)
+
+            log.info(f"[AUDIT-ML] FASE 0b completada — {reactivados_din} reposeras reactivadas dinámicamente.")
+        except Exception as e:
+            log.error(f"[AUDIT-ML] FASE 0b error: {e}", exc_info=True)
+            log.warning("[AUDIT-ML] La recuperación dinámica falló, pero el audit continúa.")
 
         # ── FASE 2: Fetch de items ────────────────────────────────────────────
         items = await _fetch_todos_los_items(token, user_id)
@@ -1448,9 +1567,13 @@ async def auditar_y_optimizar_publicaciones():
 
         log.info(f"[AUDIT-ML] Nombres de {len(cat_nombres)} categorías obtenidos")
 
-        # ── FASE 6: Cerrar publicaciones en categoría incorrecta ──────────────
-        items_cerrados: list[dict] = []
+        # ── FASE 6: Validación de categoría — SOLO LOGUEAR, sin cerrar ──────────
+        # v8.2: se elimina el cierre automático. La detección de tipo por keywords
+        # no es lo suficientemente confiable para cerrar publicaciones automáticamente.
+        # Los mismatches se loguean como WARNING para revisión manual.
+        items_cerrados: list[dict] = []  # siempre vacío en v8.2
         items_a_procesar: list[tuple[dict, str, dict]] = []
+        mismatches_detectados: list[dict] = []
 
         for item, desc_actual, scoring in items_con_score:
             item_id  = item.get("id", "")
@@ -1459,39 +1582,31 @@ async def auditar_y_optimizar_publicaciones():
             titulo   = item.get("title", "—")
             cat_name = cat_nombres.get(cat_id, "")
 
-            # Solo validamos si detectamos el tipo y tenemos nombre de categoría
-            if tipo == "producto EcoFiver" or not cat_name:
-                items_a_procesar.append((item, desc_actual, scoring))
-                continue
+            # Solo verificamos si detectamos el tipo y tenemos nombre de categoría
+            if tipo != "producto EcoFiver" and cat_name:
+                expected = _CATEGORIA_KEYWORDS.get(tipo, [])
+                categoria_ok = any(kw in cat_name for kw in expected)
+                if not categoria_ok:
+                    log.warning(
+                        f"[AUDIT-ML] ⚠ MISMATCH CATEGORÍA (solo log, no se cierra): "
+                        f"{item_id} «{titulo[:45]}» — "
+                        f"tipo='{tipo}' pero categoría='{cat_name}'"
+                    )
+                    mismatches_detectados.append({
+                        "item_id": item_id,
+                        "titulo": titulo,
+                        "tipo": tipo,
+                        "categoria_nombre": cat_name,
+                    })
 
-            # Verificar si la categoría tiene keywords esperadas
-            expected = _CATEGORIA_KEYWORDS.get(tipo, [])
-            categoria_ok = any(kw in cat_name for kw in expected)
+            # En v8.2 todos los items pasan a la fase de actualización de contenido
+            items_a_procesar.append((item, desc_actual, scoring))
 
-            if not categoria_ok:
-                log.warning(
-                    f"[AUDIT-ML] CATEGORÍA INCORRECTA: {item_id} «{titulo[:45]}» — "
-                    f"tipo='{tipo}' pero categoría='{cat_name}'"
-                )
-                # Cerrar publicación — está en categoría incorrecta
-                cerrado = await _cerrar_item(
-                    item_id, token,
-                    f"tipo='{tipo}' en categoría incorrecta '{cat_name}'"
-                )
-                items_cerrados.append({
-                    "item_id": item_id,
-                    "titulo": titulo,
-                    "tipo": tipo,
-                    "categoria_id": cat_id,
-                    "categoria_nombre": cat_name,
-                    "cerrado": cerrado,
-                })
-                await asyncio.sleep(0.5)
-            else:
-                items_a_procesar.append((item, desc_actual, scoring))
-
-        if items_cerrados:
-            log.info(f"[AUDIT-ML] {len(items_cerrados)} publicaciones cerradas por categoría incorrecta.")
+        if mismatches_detectados:
+            log.info(
+                f"[AUDIT-ML] {len(mismatches_detectados)} mismatches de categoría detectados "
+                f"(requieren revisión manual — no se cerraron automáticamente)."
+            )
 
         # ── FASE 7: Actualización de contenido ────────────────────────────────
         total_proc = len(items_a_procesar)
@@ -1593,16 +1708,17 @@ async def auditar_y_optimizar_publicaciones():
             )
 
         reporte = {
-            "version":              AUDIT_VERSION,
-            "total_evaluadas":      total,
-            "total_cerradas":       len(items_cerrados),
-            "total_actualizadas":   ok,
-            "total_parciales":      parcial,
-            "total_sin_cambios":    sin_cambios,
-            "total_errores":        err,
-            "calidad_inicial":      round(promedio_antes, 1),
-            "items_cerrados":       items_cerrados,
-            "titulos_bloqueados":   titulos_bloqueados,
+            "version":                  AUDIT_VERSION,
+            "total_evaluadas":          total,
+            "total_cerradas":           0,   # v8.2: cierre automático eliminado
+            "total_actualizadas":       ok,
+            "total_parciales":          parcial,
+            "total_sin_cambios":        sin_cambios,
+            "total_errores":            err,
+            "calidad_inicial":          round(promedio_antes, 1),
+            "items_cerrados":           [],  # v8.2: siempre vacío
+            "mismatches_categoria":     mismatches_detectados,
+            "titulos_bloqueados":       titulos_bloqueados,
         }
         _set_reporte(db, reporte)
 
@@ -1610,20 +1726,20 @@ async def auditar_y_optimizar_publicaciones():
         log.info("═" * 60)
         log.info(f"[AUDIT-ML] AUDITORÍA {AUDIT_VERSION} — COMPLETADA")
         log.info(f"[AUDIT-ML]   Total publicaciones evaluadas       : {total}")
-        log.info(f"[AUDIT-ML]   ⛔ Cerradas por categoría incorrecta: {len(items_cerrados)}")
         log.info(f"[AUDIT-ML]   ✓ Actualizadas completamente        : {ok}")
         log.info(f"[AUDIT-ML]   ⚠ Actualizadas parcialmente         : {parcial}")
         log.info(f"[AUDIT-ML]   ─ Ya estaban con calidad excelente  : {sin_cambios}")
         log.info(f"[AUDIT-ML]   ✗ Con errores                      : {err}")
+        log.info(f"[AUDIT-ML]   ⚠ Mismatches categoría (revisar)   : {len(mismatches_detectados)}")
         log.info(f"[AUDIT-ML]   Calidad inicial promedio             : {promedio_antes:.0f}/100")
         log.info("─" * 60)
 
-        if items_cerrados:
-            log.info("[AUDIT-ML] PUBLICACIONES CERRADAS (categoría incorrecta):")
-            for ic in items_cerrados:
+        if mismatches_detectados:
+            log.info(f"[AUDIT-ML] MISMATCHES DE CATEGORÍA (revisar manualmente — NO cerrados):")
+            for mm in mismatches_detectados:
                 log.info(
-                    f"[AUDIT-ML]   • {ic['item_id']} «{ic['titulo'][:40]}» — "
-                    f"tipo='{ic['tipo']}' cat='{ic['categoria_nombre']}'"
+                    f"[AUDIT-ML]   ⚠ {mm['item_id']} «{mm['titulo'][:40]}» — "
+                    f"tipo='{mm['tipo']}' cat='{mm['categoria_nombre']}'"
                 )
 
         if titulos_bloqueados:

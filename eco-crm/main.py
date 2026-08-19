@@ -5,6 +5,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Asegurar que los logs de módulos custom (audit ML, agentes, etc.) aparezcan
+# en stdout de Railway. uvicorn no configura el root logger con handler por defecto.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s: %(message)s",
+    handlers=[logging.StreamHandler()],
+    force=True,  # reemplaza cualquier config previa (uvicorn, etc.)
+)
+
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates

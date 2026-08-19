@@ -1768,6 +1768,6 @@ async def _delayed_audit_job():
     Wrapper para asyncio.create_task: espera 5 minutos después del arranque
     para dar tiempo al app a terminar de inicializar y tener el token ML listo.
     """
-    log.info("[AUDIT-ML] Auditoría ML v8.1 programada — arrancará en 5 minutos.")
+    log.info(f"[AUDIT-ML] Auditoría ML {AUDIT_VERSION} programada — arrancará en 5 minutos.")
     await asyncio.sleep(5 * 60)
     await auditar_y_optimizar_publicaciones()

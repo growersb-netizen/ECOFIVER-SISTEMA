@@ -308,7 +308,12 @@ def _detectar_tipo(titulo: str, descripcion: str = "") -> str:
     # (ej: "reposera ideal junto al spa") sin que eso cambie lo que el item es.
     texto = titulo.lower()
 
-    # ── SPA / JACUZZI — va PRIMERO porque sus keywords son más específicas.
+    # ── REPOSERA — va PRIMERO porque puede contener "piscina" en el título
+    # (ej: "Reposera De Piscina 172 Cm") y no debe confundirse con una piscina.
+    if any(k in texto for k in ["reposera", "tumbona", "deck chair"]):
+        return "reposera de fibra de vidrio"
+
+    # ── SPA / JACUZZI — va antes que piscina porque sus keywords son más específicas.
     # PRFV y "fibra de vidrio" son materiales usados también en spas y bañeras,
     # no son exclusivos de piscinas, por eso NO van en el bloque de piscina.
     if any(k in texto for k in [
@@ -352,9 +357,6 @@ def _detectar_tipo(titulo: str, descripcion: str = "") -> str:
 
     if any(k in texto for k in ["garita", "seguridad", "vigilancia", "caseta"]):
         return "garita de seguridad prefabricada"
-
-    if any(k in texto for k in ["reposera", "tumbona", "deck chair"]):
-        return "reposera de fibra de vidrio"
 
     if any(k in texto for k in ["cucha", "casilla para perro", "casita perro"]):
         return "cucha para perros"

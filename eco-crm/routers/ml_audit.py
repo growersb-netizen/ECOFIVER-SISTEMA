@@ -1,5 +1,5 @@
 """
-Auditoría COMPLETA v8.3 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+Auditoría COMPLETA v8.4 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
 
 CAMBIOS v8.3 (respecto a v8.2)
 ────────────────────────────────
@@ -92,7 +92,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v8.3"
+AUDIT_VERSION    = "v8.4"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 

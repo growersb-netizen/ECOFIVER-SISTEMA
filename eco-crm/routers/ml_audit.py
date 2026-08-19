@@ -1,5 +1,15 @@
 """
-Auditoría COMPLETA v8.2 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+Auditoría COMPLETA v8.3 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+
+CAMBIOS v8.3 (respecto a v8.2)
+────────────────────────────────
+• _atributos_para_tipo() ahora recibe el título y agrega atributos de dimensiones
+  por modelo específico: LONG, WIDTH, HEIGHT para bañeras y receptáculos; WEIGHT,
+  COLOR para reposeras; NUMBER_OF_JETS y CAPACITY para spas; AREA para módulos.
+  Estos atributos son los que ML usa en los filtros de búsqueda ("largo", "ancho", etc.)
+  y son el gap principal para subir de 70→100 en el score de ficha técnica.
+• Todos los modelos ya teníamos sus medidas en las descripciones — ahora se mapean
+  también a los atributos de ML para completar la ficha técnica.
 
 CAMBIOS v8.2 (respecto a v8.1)
 ────────────────────────────────
@@ -82,7 +92,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v8.2"
+AUDIT_VERSION    = "v8.3"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
@@ -511,56 +521,135 @@ def _generar_titulo_template(tipo: str, titulo_actual: str) -> str:
 #  ATRIBUTOS (ficha técnica ML) — crítico para posición en filtros
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _atributos_para_tipo(tipo: str) -> list[dict]:
+def _atributos_para_tipo(tipo: str, titulo: str = "") -> list[dict]:
     """
-    Retorna la lista de atributos universales + específicos por tipo.
+    Retorna la lista de atributos universales + específicos por tipo y modelo.
+
+    v8.3: ahora recibe el título de la publicación para detectar el modelo
+    específico y agregar dimensiones (LONG/WIDTH/HEIGHT), peso (WEIGHT),
+    número de jets (NUMBER_OF_JETS) y capacidad (CAPACITY) — atributos que
+    ML usa en filtros de búsqueda y que suben el score de la ficha técnica.
+
     Usa los IDs de atributo estándar de ML (válidos en todas las categorías).
-    Solo incluimos atributos con altísima probabilidad de ser aceptados.
-    La estrategia es: BRAND + WARRANTY siempre, más específicos por tipo.
+    Si ML rechaza un atributo específico de categoría, lo ignora silenciosamente.
     """
     # Atributos universales — válidos en todas las categorías ML
     base = [
-        {"id": "BRAND",             "value_name": "EcoFiver"},
-        {"id": "ITEM_CONDITION",    "value_name": "new"},
-        {"id": "WARRANTY_TYPE",     "value_name": "Garantía del vendedor"},
-        {"id": "WARRANTY_TIME",     "value_name": "10 años"},
+        {"id": "BRAND",          "value_name": "EcoFiver"},
+        {"id": "ITEM_CONDITION", "value_name": "new"},
+        {"id": "WARRANTY_TYPE",  "value_name": "Garantía del vendedor"},
+        {"id": "WARRANTY_TIME",  "value_name": "10 años"},
     ]
 
-    # Atributos específicos por tipo
-    extra: dict[str, list[dict]] = {
-        "piscina de fibra de vidrio": [
-            {"id": "MAIN_MATERIAL", "value_name": "Fibra de vidrio"},
-        ],
-        "spa jacuzzi hidromasaje": [
-            {"id": "MAIN_MATERIAL", "value_name": "Acrílico"},
-        ],
-        "módulo habitacional": [
-            {"id": "MAIN_MATERIAL", "value_name": "Celulosa estructural"},
-        ],
-        "vivienda modular prefabricada": [
-            {"id": "MAIN_MATERIAL", "value_name": "Celulosa estructural"},
-        ],
-        "bañera de acrílico sanitario": [
-            {"id": "MAIN_MATERIAL", "value_name": "Acrílico"},
-        ],
-        "receptáculo de ducha acrílico": [
-            {"id": "MAIN_MATERIAL", "value_name": "Acrílico"},
-        ],
-        "baño químico portátil": [
-            {"id": "MAIN_MATERIAL", "value_name": "Polipropileno"},
-        ],
-        "garita de seguridad prefabricada": [
-            {"id": "MAIN_MATERIAL", "value_name": "Fibra de vidrio"},
-        ],
-        "reposera de fibra de vidrio": [
-            {"id": "MAIN_MATERIAL", "value_name": "Fibra de vidrio"},
-        ],
-        "cucha para perros": [
-            {"id": "MAIN_MATERIAL", "value_name": "Madera"},
-        ],
-    }
+    tl = titulo.lower()
+    extra: list[dict] = []
 
-    return base + extra.get(tipo, [])
+    if tipo == "piscina de fibra de vidrio":
+        extra = [
+            {"id": "MAIN_MATERIAL", "value_name": "Fibra de vidrio"},
+            {"id": "COLOR",         "value_name": "Blanco"},
+        ]
+
+    elif tipo == "spa jacuzzi hidromasaje":
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Acrílico"}]
+        if "quadra" in tl:
+            extra += [
+                {"id": "NUMBER_OF_JETS", "value_name": "4"},
+                {"id": "CAPACITY",       "value_name": "2 personas"},
+                {"id": "LONG",           "value_name": "110 cm"},
+                {"id": "WIDTH",          "value_name": "110 cm"},
+            ]
+        elif "orbis" in tl:
+            extra += [
+                {"id": "NUMBER_OF_JETS", "value_name": "6"},
+                {"id": "CAPACITY",       "value_name": "3 personas"},
+            ]
+        elif "delta" in tl:
+            extra += [
+                {"id": "NUMBER_OF_JETS", "value_name": "8"},
+                {"id": "CAPACITY",       "value_name": "3 personas"},
+            ]
+        elif "recta" in tl:
+            extra += [
+                {"id": "NUMBER_OF_JETS", "value_name": "6"},
+                {"id": "CAPACITY",       "value_name": "3 personas"},
+            ]
+
+    elif tipo == "módulo habitacional":
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Celulosa estructural"}]
+        if any(s in tl for s in ["6 m²", "6m2", "6m²", " 6 m"]):
+            extra.append({"id": "AREA", "value_name": "6 m²"})
+        elif any(s in tl for s in ["12 m²", "12m2", "12m²", " 12 m"]):
+            extra.append({"id": "AREA", "value_name": "12 m²"})
+        elif any(s in tl for s in ["18 m²", "18m2", "18m²", " 18 m"]):
+            extra.append({"id": "AREA", "value_name": "18 m²"})
+
+    elif tipo == "vivienda modular prefabricada":
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Celulosa estructural"}]
+
+    elif tipo == "bañera de acrílico sanitario":
+        # Dimensiones exactas por modelo (largo×ancho×alto en cm)
+        _MODELOS_BANERA = {
+            "lumina": ("190", "90",  "50"),
+            "sensa":  ("170", "118", "45"),
+            "vento":  ("140", "77",  "49"),
+            "aqua":   ("165", "140", "50"),
+            "curve":  ("140", "140", "55"),
+            "pure":   ("184", "96",  "45"),
+            "vita":   ("180", "90",  "50"),
+        }
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Acrílico"}]
+        for mod, (l, w, h) in _MODELOS_BANERA.items():
+            if mod in tl:
+                extra += [
+                    {"id": "LONG",   "value_name": f"{l} cm"},
+                    {"id": "WIDTH",  "value_name": f"{w} cm"},
+                    {"id": "HEIGHT", "value_name": f"{h} cm"},
+                ]
+                break
+
+    elif tipo == "receptáculo de ducha acrílico":
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Acrílico"}]
+        if "esquinero" in tl:
+            extra += [
+                {"id": "LONG",   "value_name": "99 cm"},
+                {"id": "WIDTH",  "value_name": "75 cm"},
+                {"id": "HEIGHT", "value_name": "10 cm"},
+            ]
+        elif any(s in tl for s in ["pequeño", "chico", "90x90", "90 x 90"]):
+            extra += [
+                {"id": "LONG",   "value_name": "90 cm"},
+                {"id": "WIDTH",  "value_name": "90 cm"},
+                {"id": "HEIGHT", "value_name": "9 cm"},
+            ]
+        else:
+            # Clásico 110×110 cm (default)
+            extra += [
+                {"id": "LONG",   "value_name": "110 cm"},
+                {"id": "WIDTH",  "value_name": "110 cm"},
+                {"id": "HEIGHT", "value_name": "10 cm"},
+            ]
+
+    elif tipo == "baño químico portátil":
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Polipropileno"}]
+
+    elif tipo == "garita de seguridad prefabricada":
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Fibra de vidrio"}]
+
+    elif tipo == "reposera de fibra de vidrio":
+        # TODAS las reposeras EcoFiver son 172×52 cm, 4.5 kg
+        extra = [
+            {"id": "MAIN_MATERIAL", "value_name": "Fibra de vidrio"},
+            {"id": "LONG",          "value_name": "172 cm"},
+            {"id": "WIDTH",         "value_name": "52 cm"},
+            {"id": "WEIGHT",        "value_name": "4.5 kg"},
+            {"id": "COLOR",         "value_name": "Blanco"},
+        ]
+
+    elif tipo == "cucha para perros":
+        extra = [{"id": "MAIN_MATERIAL", "value_name": "Madera"}]
+
+    return base + extra
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1641,7 +1730,7 @@ async def auditar_y_optimizar_publicaciones():
                 contenido    = _generar_contenido(item, desc_actual, tipo)
                 titulo_nuevo = contenido["titulo"]
                 desc_nueva   = contenido["descripcion"]
-                atributos    = _atributos_para_tipo(tipo)
+                atributos    = _atributos_para_tipo(tipo, titulo_act)
 
                 log.info(
                     f"[AUDIT-ML]   Título: «{titulo_nuevo}» ({len(titulo_nuevo)} chars) | "

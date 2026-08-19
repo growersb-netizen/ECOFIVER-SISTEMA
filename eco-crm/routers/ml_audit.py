@@ -1,5 +1,14 @@
 """
-Auditoría COMPLETA v8 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+Auditoría COMPLETA v8.1 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+
+CAMBIOS v8.1 (respecto a v8)
+─────────────────────────────
+• Fix CRÍTICO: detección de tipo reordenada — spa/jacuzzi se detecta ANTES que piscina.
+  En v8, "prfv" y "fibra de vidrio" estaban en keywords de piscina, causando que jacuzzis
+  PRFV fueran clasificados como piscinas y luego cerrados en categoría "bañeras".
+  Ahora "prfv" y "fibra de vidrio" ya NO son keywords exclusivas de piscina.
+• Recuperación automática: reactiva los 12 items cerrados incorrectamente en v8.
+• Categorías aceptadas para spa: "bañera", "hidromasaje", "spa" y similares.
 
 CAMBIOS v8 (respecto a v7)
 ──────────────────────────
@@ -59,9 +68,29 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v8"
+AUDIT_VERSION    = "v8.1"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
+
+# Items cerrados INCORRECTAMENTE en v8 (clasificación de tipo errónea):
+# Spas/jacuzzis con "prfv" en el nombre que fueron clasificados como piscinas.
+# El fix en _detectar_tipo los clasifica correctamente ahora.
+# Estos items se reactivan al inicio de la auditoría v8.1.
+_ITEMS_CERRADOS_INCORRECTAMENTE_V8 = [
+    "MLA3752835918",  # Bañera Spa Amplio 197 Cm Prfv (bañeras > sin hidromasajes)
+    "MLA3752834692",  # Jacuzzi Amplio 197x142 Prfv (bañeras > con hidromasajes)
+    "MLA3752823596",  # Tina Spa Amplio 197 Cm Prfv (bañeras > sin hidromasajes)
+    "MLA3752823542",  # Tina Spa Amplio 197x142 Prfv (bañeras > sin hidromasajes)
+    "MLA3752796258",  # Jacuzzi Amplio 197 Cm Prfv (bañeras > con hidromasajes)
+    "MLA3752454096",  # Tina Spa Compacto 110x110 Prfv (bañeras > con hidromasajes)
+    "MLA3752450554",  # Tina Spa Cuadrado 110 Cm Prfv (bañeras > sin hidromasajes)
+    "MLA3752449654",  # Spa Cuadrado 110x110 Acrílico (bañeras > sin hidromasajes)
+    "MLA3752449312",  # Jacuzzi Cuadrado 110x110 Prfv (bañeras > con hidromasajes)
+    "MLA3752437940",  # Tina Spa Angular 110x110 Prfv (bañeras > sin hidromasajes)
+    "MLA3752436826",  # Jacuzzi Angular 110 Cm Prfv (bañeras > con hidromasajes)
+    "MLA3752437004",  # Spa Cuadrado 110 Cm Acrílico (bañeras > sin hidromasajes)
+    # MLA3752449638 NO se reactiva — estaba en "repisas esquineras", categoría incorrecta real
+]
 
 # ── Umbrales de calidad ────────────────────────────────────────────────────────
 THRESHOLD_OPTIMIZAR = 80   # publicaciones por debajo de esto se reescriben
@@ -74,7 +103,7 @@ _TITULO_NO_MODIFICABLE = "item.title.not_modifiable"
 # ── Keywords esperadas por categoría de ML (para validar coherencia) ──────────
 _CATEGORIA_KEYWORDS: dict[str, list[str]] = {
     "piscina de fibra de vidrio":     ["pileta", "piscina", "natatorio", "spa", "agua"],
-    "spa jacuzzi hidromasaje":        ["spa", "jacuzzi", "hidromasaje", "pileta", "agua"],
+    "spa jacuzzi hidromasaje":        ["spa", "jacuzzi", "hidromasaje", "bañera", "pileta"],
     "módulo habitacional":            ["modulo", "habitacional", "construccion", "prefabricad"],
     "vivienda modular prefabricada":  ["vivienda", "casa", "modular", "prefabricad"],
     "bañera de acrílico sanitario":   ["baño", "bañera", "sanitario", "ducha"],
@@ -236,18 +265,22 @@ def _score_titulo(titulo: str) -> int:
 def _detectar_tipo(titulo: str, descripcion: str = "") -> str:
     texto = (titulo + " " + descripcion).lower()
 
-    if any(k in texto for k in [
-        "piscin", "pileta", "natatorio", "fibra de vidrio", "minideck",
-        "miniportante", "autoportante", "arco romano", "wave", "bali",
-        "prfv", "monoblock",
-    ]):
-        return "piscina de fibra de vidrio"
-
+    # ── SPA / JACUZZI — va PRIMERO porque sus keywords son más específicas.
+    # PRFV y "fibra de vidrio" son materiales usados también en spas y bañeras,
+    # no son exclusivos de piscinas, por eso NO van en el bloque de piscina.
     if any(k in texto for k in [
         "spa", "jacuzzi", "hidromasaje", "jets", "blower",
-        "quadra", "orbis", "delta", "spa recta",
+        "quadra", "orbis", "delta", "spa recta", "tina spa",
     ]):
         return "spa jacuzzi hidromasaje"
+
+    # ── PISCINA — keywords exclusivas (no incluye "prfv" ni "fibra de vidrio")
+    if any(k in texto for k in [
+        "piscin", "pileta", "natatorio", "minideck",
+        "miniportante", "autoportante", "arco romano",
+        "monoblock", "wave", "bali",
+    ]):
+        return "piscina de fibra de vidrio"
 
     if any(k in texto for k in [
         "vivienda modular", "casa prefabricada", "casa modular", "vivienda prefabricada",
@@ -1252,6 +1285,30 @@ async def _actualizar_en_ml(
     return titulo_ok, titulo_bloq, desc_ok, attrs_ok, " | ".join(errores)
 
 
+async def _reactivar_item(item_id: str, token: str) -> bool:
+    """
+    Reactiva un item cerrado incorrectamente (lo vuelve a 'active').
+    Usado en v8.1 para corregir cierres erróneos de v8.
+    """
+    from routers.mercadolibre import ML_BASE, _ml_headers
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.put(
+                f"{ML_BASE}/items/{item_id}",
+                headers=_ml_headers(token),
+                json={"status": "active"},
+            )
+        if r.status_code in (200, 201, 204):
+            log.info(f"[AUDIT-ML]   ✓ REACTIVADO {item_id} (cerrado incorrectamente en v8)")
+            return True
+        else:
+            log.error(f"[AUDIT-ML]   ✗ No se pudo reactivar {item_id}: {r.status_code} {r.text[:80]}")
+            return False
+    except Exception as e:
+        log.error(f"[AUDIT-ML]   ✗ Error al reactivar {item_id}: {e}")
+        return False
+
+
 async def _cerrar_item(item_id: str, token: str, motivo: str) -> bool:
     """
     Cierra (pausa/elimina) un item en ML por estar en categoría incorrecta.
@@ -1319,6 +1376,17 @@ async def auditar_y_optimizar_publicaciones():
             return
 
         log.info(f"[AUDIT-ML] Autenticado ML — user_id={user_id}")
+
+        # ── FASE 0: Recuperación de cierres incorrectos de v8 ─────────────────
+        if _ITEMS_CERRADOS_INCORRECTAMENTE_V8:
+            log.info(
+                f"[AUDIT-ML] Recuperando {len(_ITEMS_CERRADOS_INCORRECTAMENTE_V8)} items "
+                f"cerrados incorrectamente en v8..."
+            )
+            for iid in _ITEMS_CERRADOS_INCORRECTAMENTE_V8:
+                await _reactivar_item(iid, token)
+                await asyncio.sleep(0.5)
+            log.info("[AUDIT-ML] Recuperación v8 completada.")
 
         # ── FASE 2: Fetch de items ────────────────────────────────────────────
         items = await _fetch_todos_los_items(token, user_id)
@@ -1582,6 +1650,6 @@ async def _delayed_audit_job():
     Wrapper para asyncio.create_task: espera 5 minutos después del arranque
     para dar tiempo al app a terminar de inicializar y tener el token ML listo.
     """
-    log.info("[AUDIT-ML] Auditoría ML v8 programada — arrancará en 5 minutos.")
+    log.info("[AUDIT-ML] Auditoría ML v8.1 programada — arrancará en 5 minutos.")
     await asyncio.sleep(5 * 60)
     await auditar_y_optimizar_publicaciones()

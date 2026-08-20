@@ -145,7 +145,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v11"
+AUDIT_VERSION    = "v12"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
@@ -789,9 +789,10 @@ Esta piscina de fibra de vidrio, también conocida como pileta de fibra, natator
 Qué incluye el precio de {precio_str}
 
 Fabricación completa del casco en planta propia EcoFiver.
-Traslado desde Zárate, Buenos Aires, hasta el lugar de instalación.
 Instalación profesional completa con equipo propio: nivelación, conexión hidráulica y puesta en marcha del sistema de filtrado.
 El sistema se entrega probado y funcionando al finalizar la jornada de instalación.
+
+Importante: el traslado NO está incluido en el precio. Se cotiza por separado a $3.500 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires. Si nos compartís tu localidad calculamos el costo sin compromiso antes de confirmar la compra.
 
 No se terceriza ninguna parte del proceso. EcoFiver fabrica, transporta e instala con su propio equipo.
 
@@ -823,7 +824,7 @@ Retiro y envío
 
 Retiro SIN CARGO en dos puntos: CABA zona San Telmo (subte Línea C estación San Juan / Línea A estación Piedras, colectivos por Av. San Juan y Paseo Colón) y Zona Oeste Paso del Rey (Autopista del Oeste Ruta 7, Tren Sarmiento estación Paso del Rey).
 
-Para envío e instalación en tu domicilio: el flete se cotiza a $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si nos compartís tu código postal o localidad, calculamos el costo exacto sin compromiso. Ejemplos orientativos: CABA unos 90 km, GBA Oeste/Norte unos 70-80 km.""",
+Para envío e instalación en tu domicilio: el traslado se cotiza a $3.500 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si nos compartís tu código postal o localidad, calculamos el costo exacto sin compromiso. Ejemplos orientativos: CABA unos 90 km, GBA Oeste/Norte unos 70-80 km.""",
 
         "spa jacuzzi hidromasaje": f"""Spa de hidromasaje de acrílico sanitario fabricado por EcoFiver
 
@@ -866,7 +867,7 @@ Logística y puntos de retiro
 
 Retiro SIN CARGO en CABA zona San Telmo (subte Línea C estación San Juan / Línea A estación Piedras) y Zona Oeste Paso del Rey (Ruta 7 y Tren Sarmiento). También coordinando desde la planta en Zárate, Buenos Aires.
 
-Para envío e instalación en tu domicilio: el flete se cotiza a $4.000 por kilómetro desde Zárate. Si compartís tu localidad, calculamos el costo exacto sin compromiso.""",
+Importante: el traslado NO está incluido en el precio. Se cotiza a $3.500 por kilómetro desde nuestra fábrica en Zárate. Si compartís tu localidad, calculamos el costo exacto sin compromiso.""",
 
         "módulo habitacional": f"""Módulo habitacional prefabricado EcoFiver — Espacio listo en el mismo día
 
@@ -908,7 +909,9 @@ El pago se procesa 100% a través de MercadoLibre, con toda la protección de la
 
 Retiro y logística
 
-Retiro SIN CARGO desde los puntos de entrega en CABA (zona San Telmo, subte Línea C/A) y Zona Oeste (Paso del Rey, Ruta 7 y Tren Sarmiento). Para instalación en tu domicilio, el flete se cotiza a $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires.""",
+Importante: el traslado NO está incluido en el precio. Se cotiza a $3.500 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires.
+
+Retiro SIN CARGO desde los puntos de entrega en CABA (zona San Telmo, subte Línea C/A) y Zona Oeste (Paso del Rey, Ruta 7 y Tren Sarmiento). Para instalación en tu domicilio, el traslado se cotiza a $3.500 por kilómetro desde la fábrica en Zárate, Buenos Aires.""",
 
         "vivienda modular prefabricada": f"""Vivienda modular prefabricada EcoFiver — Construcción en seco con entrega rápida
 
@@ -922,10 +925,11 @@ Precio publicado: {precio_str}
 
 El precio publicado es orientativo según el metraje base. El precio final depende del metraje exacto, las terminaciones elegidas y la zona de instalación. Una vez coordinado, el precio incluye:
 Fabricación completa en planta propia de EcoFiver.
-Traslado hasta el lugar de instalación.
 Montaje completo por el equipo de EcoFiver.
 Terminaciones exteriores e interiores según el plan elegido.
 Aberturas, piso y pintura interior.
+
+Importante: el traslado NO está incluido en el precio. Se cotiza a $3.500 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires.
 
 Tiempo de fabricación: 45 a 60 días hábiles según metraje y acabado. No es instalación en el día (se diferencia del módulo auxiliar).
 
@@ -941,7 +945,7 @@ Escribinos por el chat de MercadoLibre para coordinar el presupuesto final segú
 
 Logística y puntos de contacto
 
-Fabricamos en Zárate, Buenos Aires. Instalamos en toda la Provincia de Buenos Aires, GBA y el interior del país. El flete y la instalación se cotizan según la distancia desde la fábrica. Retiro coordinado desde la planta de Zárate o desde los puntos de entrega en CABA (San Telmo) y Zona Oeste (Paso del Rey).""",
+Fabricamos en Zárate, Buenos Aires. Instalamos en toda la Provincia de Buenos Aires, GBA y el interior del país. El traslado y la instalación se cotizan según la distancia desde la fábrica. Retiro coordinado desde la planta de Zárate o desde los puntos de entrega en CABA (San Telmo) y Zona Oeste (Paso del Rey).""",
 
         "bañera de acrílico sanitario": f"""Bañera de acrílico sanitario reforzado con PRFV — EcoFiver
 
@@ -1090,7 +1094,9 @@ El pago se procesa 100% a través de MercadoLibre, con toda la protección de la
 
 Logística y retiro
 
-Retiro SIN CARGO en CABA zona San Telmo y Zona Oeste Paso del Rey. Para instalación en tu domicilio, el flete se cotiza según la localidad.""",
+Importante: el traslado NO está incluido en el precio. Se cotiza a $3.500 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires.
+
+Retiro SIN CARGO en CABA zona San Telmo y Zona Oeste Paso del Rey. Para instalación en tu domicilio, el traslado se cotiza a $3.500 por kilómetro desde la fábrica en Zárate, Buenos Aires.""",
 
         "reposera de fibra de vidrio": f"""Reposera de fibra de vidrio PRFV EcoFiver — Calidad de piscina, durabilidad de décadas
 

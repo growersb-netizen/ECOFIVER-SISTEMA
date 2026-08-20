@@ -666,6 +666,30 @@ async def ml_status(
         return {"conectado": False, "msg": str(e)[:80]}
 
 
+@router.get("/api/ml/audit/reporte")
+async def ml_audit_reporte(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_config_access),
+):
+    """Devuelve el reporte JSON del último audit de publicaciones ML."""
+    import json as _json
+    row_flag = db.query(ConfiguracionSistema).filter(
+        ConfiguracionSistema.clave == "ml_audit_version"
+    ).first()
+    row_rep  = db.query(ConfiguracionSistema).filter(
+        ConfiguracionSistema.clave == "ml_audit_v8_reporte"
+    ).first()
+    version  = row_flag.valor if row_flag else "—"
+    if row_rep and row_rep.valor:
+        try:
+            reporte = _json.loads(row_rep.valor)
+        except Exception:
+            reporte = {"raw": row_rep.valor[:500]}
+    else:
+        reporte = None
+    return {"audit_version": version, "reporte": reporte}
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

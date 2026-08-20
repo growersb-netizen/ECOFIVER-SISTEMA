@@ -1,5 +1,19 @@
 """
-Auditoría COMPLETA v9 — Calidad 100% + reactivación de publicaciones pausadas.
+Auditoría COMPLETA v10 — Títulos SEO-optimizados por tipo de producto.
+
+CAMBIOS v10 (respecto a v9)
+──────────────────────────────
+• _score_titulo() ahora es type-aware: piscinas/spas/bañeras que no tienen
+  keywords de material (fibra de vidrio / PRFV / acrílico) y/o dimensiones
+  quedan por debajo del umbral 20/25 y se reemplazan con el template.
+  Antes: "Piscina minimalista ideal para el aire libre" = 25/25 (conservado).
+  Ahora: esa misma frase = 13/25 (reemplazado por "Piscina fibra de vidrio PRFV...").
+• La Fase 8 (reactivación) sigue activa pero las 204 ya están activas — no
+  vuelve a tocarlas (ya tienen status=active).
+• Skip sigue en ≥95/100.
+
+CAMBIOS v9 (respecto a v8.5)
+──────────────────────────────
 
 CAMBIOS v9 (respecto a v8.5)
 ──────────────────────────────
@@ -115,7 +129,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v9"
+AUDIT_VERSION    = "v10"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
@@ -315,19 +329,78 @@ def _score_item(item: dict, desc_actual: str) -> dict:
     }
 
 
-def _score_titulo(titulo: str) -> int:
-    """Puntaje del título solo (0-25), para decidir si reemplazar."""
+def _score_titulo(titulo: str, tipo: str = "") -> int:
+    """
+    Puntaje del título (0-25) para decidir si reemplazar.
+
+    v10: ahora es type-aware. Para piscinas y spas exige keywords de material
+    (fibra de vidrio / PRFV / acrílico) y/o dimensiones. Un título como
+    "Piscina minimalista ideal para el aire libre" tiene "piscin" y largo ok,
+    pero carece de material y dimensiones → queda < 20 → se reemplaza con template.
+
+    Distribución de puntos:
+      8 pts  — largo (40-60 es óptimo)
+      5 pts  — tipo reconocible por _detectar_tipo()
+      6 pts  — material explícito (fibra de vidrio / prfv / acrílico / sanitario)
+      6 pts  — dimensiones o modelo específico en el título
+    Total máx: 25 pts — umbral de reemplazo: 20.
+    """
+    import re
     score = 0
+    tl    = titulo.lower()
     tlen  = len(titulo)
+
+    # ── Largo ────────────────────────────────────────────────────────────────
     if 40 <= tlen <= 60:
-        score += 15
-    elif 30 <= tlen < 40:
         score += 8
+    elif 30 <= tlen < 40:
+        score += 4
     elif tlen > 60:
-        score += 5
+        score += 3
+
+    # ── Tipo reconocible ─────────────────────────────────────────────────────
     if _detectar_tipo(titulo) != "producto EcoFiver":
-        score += 10
-    return score
+        score += 5
+
+    # ── Palabras clave de calidad SEO (por tipo) ──────────────────────────────
+    _tipo = tipo or _detectar_tipo(titulo)
+
+    if _tipo == "piscina de fibra de vidrio":
+        # Material: el comprador busca "fibra de vidrio" o "PRFV"
+        if any(k in tl for k in ["fibra", "prfv", "poliéster", "poliester"]):
+            score += 6
+        # Dimensiones/modelo: diferenciador clave en búsqueda
+        if re.search(r'\d+[\.,x]\s*\d+', tl) or any(k in tl for k in [
+            "wave", "bali", "arco romano", "monoblock", "minideck",
+            "miniportante", "autoportante",
+        ]):
+            score += 6
+
+    elif _tipo == "spa jacuzzi hidromasaje":
+        if any(k in tl for k in ["acrílico", "acrilico", "prfv", "fibra"]):
+            score += 6
+        if re.search(r'\d+[\.,x]\s*\d+', tl) or "jets" in tl:
+            score += 6
+
+    elif _tipo in ("bañera de acrílico sanitario", "receptáculo de ducha acrílico"):
+        if any(k in tl for k in ["acrílico", "acrilico", "sanitario", "prfv"]):
+            score += 6
+        if re.search(r'\d+[\.,x]\s*\d+', tl) or any(k in tl for k in [
+            "lumina", "sensa", "vento", "aqua", "curve", "pure", "vita"
+        ]):
+            score += 6
+
+    elif _tipo in ("módulo habitacional", "vivienda modular prefabricada", "garita de seguridad prefabricada"):
+        if any(k in tl for k in ["prefabricado", "prefabricada", "celulosa", "modular"]):
+            score += 6
+        if re.search(r'\d+\s*m[²2]?', tl) or any(k in tl for k in ["instalacion", "habitable"]):
+            score += 6
+
+    else:
+        # Otros tipos: bonus genérico para no penalizarlos
+        score += 12
+
+    return min(score, 25)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1213,7 +1286,7 @@ def _generar_contenido(item: dict, desc_actual: str, tipo: str) -> dict:
     precio     = item.get("price", 0) or 0
 
     # ── Título ────────────────────────────────────────────────────────────────
-    ts = _score_titulo(titulo_act)
+    ts = _score_titulo(titulo_act, tipo)
     if ts < THRESHOLD_TITULO:
         titulo_nuevo = _generar_titulo_template(tipo, titulo_act)
         log.info(f"[AUDIT-ML]   Título reemplazado (score {ts}/25 < {THRESHOLD_TITULO}): «{titulo_nuevo}»")
@@ -1847,7 +1920,7 @@ async def auditar_y_optimizar_publicaciones():
                         "item_id":   item_id,
                         "titulo_actual": titulo_act,
                         "titulo_sugerido": titulo_nuevo,
-                        "score_titulo": _score_titulo(titulo_act),
+                        "score_titulo": _score_titulo(titulo_act, tipo),
                         "permalink": item.get("permalink", ""),
                     })
 

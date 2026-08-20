@@ -145,7 +145,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v12"
+AUDIT_VERSION    = "v13"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
@@ -1183,7 +1183,7 @@ Qué incluye el combo
 
 PISCINA DE FIBRA DE VIDRIO:
 Casco monobloque de PRFV (sin juntas ni soldaduras).
-Fabricación, traslado e instalación profesional completa.
+Fabricación e instalación profesional completa.
 Puesta en marcha del sistema de filtrado.
 El sistema se entrega probado y funcionando al finalizar el día.
 
@@ -1209,7 +1209,9 @@ El pago se procesa 100% a través de MercadoLibre, con toda la protección de la
 
 Logística
 
-Retiro SIN CARGO en CABA zona San Telmo y Zona Oeste Paso del Rey. Para instalación a domicilio, el flete se cotiza según la localidad ($4.000 por km desde Zárate).""",
+Importante: el traslado NO está incluido en el precio. Se cotiza a $3.500 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires.
+
+Retiro SIN CARGO en CABA zona San Telmo y Zona Oeste Paso del Rey. Para instalación a domicilio, el traslado se cotiza a $3.500 por kilómetro desde la fábrica en Zárate, Buenos Aires.""",
 
         "quincho o pérgola prefabricada": f"""Quincho o pérgola prefabricada EcoFiver — Espacio de reunión listo para usar
 
@@ -1247,7 +1249,9 @@ El pago es 100% a través de MercadoLibre, con toda la protección de la platafo
 
 Logística y retiro
 
-Retiro SIN CARGO en CABA zona San Telmo y Zona Oeste Paso del Rey. Para instalación en tu domicilio, el flete se cotiza según la localidad.""",
+Importante: el traslado NO está incluido en el precio. Se cotiza a $3.500 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires.
+
+Retiro SIN CARGO en CABA zona San Telmo y Zona Oeste Paso del Rey. Para instalación en tu domicilio, el traslado se cotiza a $3.500 por kilómetro desde la fábrica en Zárate, Buenos Aires.""",
     }
 
     # Fallback genérico
@@ -1280,7 +1284,9 @@ Logística y retiro
 
 Retiro SIN CARGO en dos puntos: CABA zona San Telmo (subte Líneas C y A, colectivos por Av. San Juan y Paseo Colón) y Zona Oeste Paso del Rey (Autopista del Oeste Ruta 7, Tren Sarmiento estación Paso del Rey). También desde la planta de Zárate coordinando previamente.
 
-Para envío e instalación en tu domicilio: el flete se cotiza a $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires."""
+Importante: el traslado NO está incluido en el precio. Se cotiza a $3.500 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires.
+
+Para envío e instalación en tu domicilio: el traslado se cotiza a $3.500 por kilómetro desde la fábrica en Zárate, Buenos Aires."""
 
     cuerpo = cuerpos.get(tipo, cuerpo_generico)
     return f"{DESC_ENCABEZADO}\n\n{cuerpo}\n\n{DESC_PIE}"

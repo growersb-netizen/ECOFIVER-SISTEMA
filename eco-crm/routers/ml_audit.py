@@ -1,5 +1,16 @@
 """
-Auditoría COMPLETA v8.5 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+Auditoría COMPLETA v9 — Calidad 100% + reactivación de publicaciones pausadas.
+
+CAMBIOS v9 (respecto a v8.5)
+──────────────────────────────
+• FASE 8 nueva: después del loop de optimización de contenido, intenta reactivar
+  TODAS las publicaciones que estaban en estado 'paused'. Primero intenta PUT
+  status=active directo; si falla (ej: stock=0), fija available_quantity=1 y reintenta.
+  Los que no se puedan reactivar (ML los rechaza por otra razón) quedan en el reporte.
+• El reporte incluye total_reactivadas + fallidos_reactivacion para seguimiento.
+
+CAMBIOS v8.5 (respecto a v8.4)
+────────────────────────────────
 
 CAMBIOS v8.5 (respecto a v8.4)
 ────────────────────────────────
@@ -104,7 +115,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v8.5"
+AUDIT_VERSION    = "v9"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
@@ -1877,8 +1888,57 @@ async def auditar_y_optimizar_publicaciones():
 
             await asyncio.sleep(_PAUSA_ENTRE_ITEMS)
 
+        # ── FASE 8: Reactivar publicaciones pausadas ───────────────────────────
+        # Ahora que el contenido está al 100%, intentamos poner 'active' a todas
+        # las que estaban en estado 'paused' para que sean visibles a compradores.
+        items_pausados = [it for it in items if it.get("status") == "paused"]
+        reactivadas = 0
+        fallidos_reactivacion: list[dict] = []
+
+        if items_pausados:
+            log.info("─" * 60)
+            log.info(f"[AUDIT-ML] FASE 8 — Reactivando {len(items_pausados)} publicaciones pausadas...")
+            for it_p in items_pausados:
+                iid_p = it_p.get("id", "")
+                tit_p = it_p.get("title", "")
+                try:
+                    ok_react = await _reactivar_item(iid_p, token)
+                    if ok_react:
+                        reactivadas += 1
+                    else:
+                        # Puede fallar por stock=0; fijar available_quantity=1 y reintentar
+                        async with httpx.AsyncClient(timeout=15) as c_q:
+                            r_q = await c_q.put(
+                                f"{ML_BASE}/items/{iid_p}",
+                                headers=_ml_headers(token),
+                                json={"available_quantity": 1},
+                            )
+                        if r_q.status_code in (200, 201, 204):
+                            ok_react2 = await _reactivar_item(iid_p, token)
+                            if ok_react2:
+                                reactivadas += 1
+                            else:
+                                motivo = f"ML rechazó reactivación (status {r_q.status_code})"
+                                log.warning(f"[AUDIT-ML]   ✗ No se pudo reactivar {iid_p}: {motivo}")
+                                fallidos_reactivacion.append({"item_id": iid_p, "titulo": tit_p[:50], "motivo": motivo})
+                        else:
+                            motivo = f"stock update falló ({r_q.status_code}): {r_q.text[:60]}"
+                            log.warning(f"[AUDIT-ML]   ✗ No se pudo reactivar {iid_p}: {motivo}")
+                            fallidos_reactivacion.append({"item_id": iid_p, "titulo": tit_p[:50], "motivo": motivo})
+                except Exception as e_react:
+                    motivo = str(e_react)[:80]
+                    log.error(f"[AUDIT-ML]   ✗ Error al reactivar {iid_p}: {motivo}")
+                    fallidos_reactivacion.append({"item_id": iid_p, "titulo": tit_p[:50], "motivo": motivo})
+                await asyncio.sleep(0.5)
+
+            log.info(f"[AUDIT-ML]   ✓ Reactivadas exitosamente: {reactivadas}/{len(items_pausados)}")
+            if fallidos_reactivacion:
+                log.warning(f"[AUDIT-ML]   ✗ No se pudieron reactivar: {len(fallidos_reactivacion)} (ver reporte)")
+        else:
+            log.info("[AUDIT-ML] FASE 8 — No hay publicaciones pausadas para reactivar")
+
         # ── Guardar flag y reporte ─────────────────────────────────────────────
-        if ok > 0 or parcial > 0 or sin_cambios == total_proc:
+        if ok > 0 or parcial > 0 or sin_cambios == total_proc or reactivadas > 0:
             _set_audit_flag(db, AUDIT_VERSION)
         else:
             log.warning(
@@ -1895,6 +1955,9 @@ async def auditar_y_optimizar_publicaciones():
             "total_sin_cambios":        sin_cambios,
             "total_errores":            err,
             "calidad_inicial":          round(promedio_antes, 1),
+            "total_pausadas_encontradas": len(items_pausados),
+            "total_reactivadas":        reactivadas,
+            "fallidos_reactivacion":    fallidos_reactivacion,
             "items_cerrados":           items_cerrados,
             "mismatches_categoria":     mismatches_detectados,
             "titulos_bloqueados":       titulos_bloqueados,
@@ -1910,6 +1973,9 @@ async def auditar_y_optimizar_publicaciones():
         log.info(f"[AUDIT-ML]   ─ Ya estaban con calidad excelente  : {sin_cambios}")
         log.info(f"[AUDIT-ML]   🔴 Cerradas por categoría incorrecta  : {len(items_cerrados)}")
         log.info(f"[AUDIT-ML]   ✗ Con errores                      : {err}")
+        log.info(f"[AUDIT-ML]   📢 Pausadas encontradas             : {len(items_pausados)}")
+        log.info(f"[AUDIT-ML]   ✅ Publicaciones reactivadas         : {reactivadas}")
+        log.info(f"[AUDIT-ML]   ✗ No pudieron reactivarse           : {len(fallidos_reactivacion)}")
         log.info(f"[AUDIT-ML]   ⚠ Mismatches detectados total       : {len(mismatches_detectados)}")
         log.info(f"[AUDIT-ML]   Calidad inicial promedio             : {promedio_antes:.0f}/100")
         log.info("─" * 60)
@@ -1939,6 +2005,15 @@ async def auditar_y_optimizar_publicaciones():
                     f"[AUDIT-ML]   • {tb['item_id']} "
                     f"ACTUAL: «{tb['titulo_actual'][:40]}» "
                     f"→ SUGERIDO: «{tb['titulo_sugerido']}»"
+                )
+
+        if fallidos_reactivacion:
+            log.info("─" * 60)
+            log.info(f"[AUDIT-ML] NO SE PUDIERON REACTIVAR ({len(fallidos_reactivacion)} items):")
+            log.info("[AUDIT-ML] → Revisar manualmente en ML Seller Central:")
+            for fr in fallidos_reactivacion:
+                log.info(
+                    f"[AUDIT-ML]   • {fr['item_id']} «{fr['titulo'][:45]}» — {fr['motivo']}"
                 )
 
         log.info("═" * 60)

@@ -1,5 +1,21 @@
 """
-Auditoría COMPLETA v10 — Títulos SEO-optimizados por tipo de producto.
+Auditoría COMPLETA v11 — Fix PUT título/atributos + reporte correcto de bloqueados.
+
+CAMBIOS v11 (respecto a v10)
+──────────────────────────────
+• _actualizar_en_ml() reescrita con lógica de 3 pasos:
+  1. PUT título + atributos juntos (camino ideal).
+  2. Si falla con 400: reintento con SOLO el título para aislar la causa.
+     - Si pasa → título actualizado, el 400 era por atributos inválidos.
+     - Si falla → título genuinamente bloqueado → va a titulos_bloqueados.
+  3. Siempre intenta PUT de atributos solos si aún no están ok.
+  Antes: cualquier 400 que no fuera "item.title.not_modifiable" se descartaba
+  silenciosamente; titulos_bloqueados quedaba vacío aunque los títulos fallaran.
+  Ahora: titulos_bloqueados lista correctamente todos los que ML no permite cambiar
+  (= lista para corregir manualmente en el panel de ML).
+
+CAMBIOS v10 (respecto a v9)
+──────────────────────────────
 
 CAMBIOS v10 (respecto a v9)
 ──────────────────────────────
@@ -129,7 +145,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v10"
+AUDIT_VERSION    = "v11"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
@@ -1435,6 +1451,15 @@ async def _actualizar_en_ml(
     """
     Actualiza título, descripción y atributos en MercadoLibre.
     Retorna (titulo_ok, titulo_bloqueado, desc_ok, attrs_ok, mensaje_error).
+
+    v11: lógica de reintento en 3 pasos para separar errores de atributos
+    de errores de título.
+
+    Paso 1: PUT título + atributos juntos (camino rápido).
+    Paso 2: si falla con 400 → PUT solo título (sin atributos) para aislar la causa.
+      - Si el PUT solo-título pasa → título ok; luego PUT atributos solos.
+      - Si el PUT solo-título falla → título bloqueado (registrar en reporte).
+    Paso 3: siempre intentar PUT atributos solos si aún no están ok.
     """
     from routers.mercadolibre import ML_BASE, _ml_headers
 
@@ -1444,45 +1469,64 @@ async def _actualizar_en_ml(
     attrs_ok    = False
     errores: list[str] = []
 
-    # — Título + condition + atributos (en un solo PUT)
-    payload_put: dict = {
-        "title":     titulo,
-        "condition": "new",
-    }
-    if atributos:
-        payload_put["attributes"] = atributos
+    async def _put_item(payload: dict) -> "httpx.Response | None":
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                return await c.put(
+                    f"{ML_BASE}/items/{item_id}",
+                    headers=_ml_headers(token),
+                    json=payload,
+                )
+        except Exception as e:
+            errores.append(f"PUT excepción: {str(e)[:80]}")
+            return None
 
-    try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.put(
-                f"{ML_BASE}/items/{item_id}",
-                headers=_ml_headers(token),
-                json=payload_put,
-            )
-        if r.status_code in (200, 201, 204):
+    async def _put_attrs_solos() -> bool:
+        if not atributos:
+            return False
+        r = await _put_item({"condition": "new", "attributes": atributos})
+        return r is not None and r.status_code in (200, 201, 204)
+
+    # ── Paso 1: PUT título + atributos (camino ideal) ─────────────────────────
+    payload_completo: dict = {"title": titulo, "condition": "new"}
+    if atributos:
+        payload_completo["attributes"] = atributos
+
+    r1 = await _put_item(payload_completo)
+
+    if r1 is not None:
+        if r1.status_code in (200, 201, 204):
+            # Todo ok en un solo request
             titulo_ok = True
             attrs_ok  = True
-        elif r.status_code == 400 and _TITULO_NO_MODIFICABLE in r.text:
-            titulo_bloq = True
-            # Reintentar sin el título para que al menos se actualicen atributos
-            payload_sin_titulo = {
-                "condition":  "new",
-                "attributes": atributos,
-            } if atributos else {"condition": "new"}
-            try:
-                async with httpx.AsyncClient(timeout=15) as c2:
-                    r2 = await c2.put(
-                        f"{ML_BASE}/items/{item_id}",
-                        headers=_ml_headers(token),
-                        json=payload_sin_titulo,
-                    )
-                attrs_ok = r2.status_code in (200, 201, 204)
-            except Exception:
-                pass
+
+        elif r1.status_code == 400:
+            # ── Paso 2: aislar causa — reintentar solo con el título ──────────
+            await asyncio.sleep(0.3)
+            r2 = await _put_item({"title": titulo, "condition": "new"})
+
+            if r2 is not None and r2.status_code in (200, 201, 204):
+                # El título se actualizó solo → el fallo anterior era por atributos
+                titulo_ok = True
+                log.info(f"[AUDIT-ML]   ✓ Título ok en reintento (atributos causaban el 400)")
+                # ── Paso 3: atributos solos ───────────────────────────────────
+                await asyncio.sleep(0.3)
+                attrs_ok = await _put_attrs_solos()
+
+            else:
+                # Título también falla → está bloqueado por ML
+                titulo_bloq = True
+                if r2 is not None and _TITULO_NO_MODIFICABLE in r2.text:
+                    errores.append("título no modificable por ML")
+                else:
+                    motivo = (r2.text[:80] if r2 is not None else "sin respuesta")
+                    errores.append(f"título bloqueado ({motivo})")
+                # ── Paso 3: atributos solos aunque el título falle ────────────
+                await asyncio.sleep(0.3)
+                attrs_ok = await _put_attrs_solos()
+
         else:
-            errores.append(f"PUT título {r.status_code}: {r.text[:120]}")
-    except Exception as e:
-        errores.append(f"PUT excepción: {str(e)[:100]}")
+            errores.append(f"PUT {r1.status_code}: {r1.text[:100]}")
 
     await asyncio.sleep(0.5)
 

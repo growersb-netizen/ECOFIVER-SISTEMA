@@ -690,6 +690,34 @@ async def ml_audit_reporte(
     return {"audit_version": version, "reporte": reporte}
 
 
+@router.get("/api/ml/audit/status-pub")
+async def ml_audit_status_pub(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Endpoint temporal sin auth — solo acepta token secreto de consulta."""
+    import json as _json, os as _os
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Forbidden")
+    row_flag = db.query(ConfiguracionSistema).filter(
+        ConfiguracionSistema.clave == "ml_audit_version"
+    ).first()
+    row_rep  = db.query(ConfiguracionSistema).filter(
+        ConfiguracionSistema.clave == "ml_audit_v8_reporte"
+    ).first()
+    version  = row_flag.valor if row_flag else "—"
+    if row_rep and row_rep.valor:
+        try:
+            reporte = _json.loads(row_rep.valor)
+        except Exception:
+            reporte = {"raw": row_rep.valor[:500]}
+    else:
+        reporte = None
+    return {"audit_version": version, "reporte": reporte}
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

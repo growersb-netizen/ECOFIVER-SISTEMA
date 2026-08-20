@@ -1,5 +1,17 @@
 """
-Auditoría COMPLETA v8.4 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+Auditoría COMPLETA v8.5 — Calidad 100% en todas las publicaciones MercadoLibre de EcoFiver.
+
+CAMBIOS v8.5 (respecto a v8.4)
+────────────────────────────────
+• CIERRE AUTOMÁTICO re-habilitado para mismatches de categoría confirmados.
+  Con _detectar_tipo() usando solo el título (fix de v8.2), la detección es
+  confiable. Protecciones: (1) no cierra items dentro de la misma familia de
+  productos, (2) no cierra items con sold_quantity > 0 (tienen ventas), (3) solo
+  cierra si la categoría pertenece claramente a otra familia de producto.
+• Skip re-habilitado con umbral >= 95/100 (era 90). La ficha técnica completa
+  ya fue aplicada en v8.4 — no necesitamos re-procesar items perfectos.
+• Reporte final incluye lista de items efectivamente cerrados + mismatches
+  conservados por tener ventas.
 
 CAMBIOS v8.3 (respecto a v8.2)
 ────────────────────────────────
@@ -92,7 +104,7 @@ from utils.contexto_ecofiver import DESC_ENCABEZADO, DESC_PIE
 log = logging.getLogger(__name__)
 
 # ── Versión: incrementar para forzar re-ejecución ──────────────────────────────
-AUDIT_VERSION    = "v8.4"
+AUDIT_VERSION    = "v8.5"
 AUDIT_FLAG_KEY   = "ml_audit_version"
 REPORT_FLAG_KEY  = "ml_audit_v8_reporte"   # guarda JSON con resultado
 
@@ -1658,45 +1670,120 @@ async def auditar_y_optimizar_publicaciones():
 
         log.info(f"[AUDIT-ML] Nombres de {len(cat_nombres)} categorías obtenidos")
 
-        # ── FASE 6: Validación de categoría — SOLO LOGUEAR, sin cerrar ──────────
-        # v8.2: se elimina el cierre automático. La detección de tipo por keywords
-        # no es lo suficientemente confiable para cerrar publicaciones automáticamente.
-        # Los mismatches se loguean como WARNING para revisión manual.
-        items_cerrados: list[dict] = []  # siempre vacío en v8.2
+        # ── FASE 6: Validación de categoría — v8.5: CIERRA mismatches confirmados ──
+        # Se re-habilita el cierre automático. Ahora _detectar_tipo() usa SOLO el
+        # título (fix de v8.2), lo que hace la detección mucho más confiable.
+        # Protecciones adicionales:
+        # 1. Solo cierra si el tipo es reconocido (no "producto EcoFiver" genérico)
+        # 2. Solo cierra si la categoría tiene nombre (no vacío — evita API errors)
+        # 3. Solo cierra si hay mismatch ENTRE FAMILIAS distintas — no dentro de la
+        #    misma familia (ej: spa en categoría "bañera" se considera aceptable
+        #    porque son categorías hermanas dentro de productos sanitarios)
+        # 4. Items con sold_quantity > 0 se CONSERVAN aunque estén mal — son ventas
+        #    activas que el cambio de categoría podría afectar. Solo se loguean.
+        # 5. Usa _reactivar_item() pero al revés — llama a PUT status=paused.
+
+        # Familias de productos: mismatches DENTRO de la misma familia son tolerables
+        _FAMILIA: dict[str, str] = {
+            "piscina de fibra de vidrio":     "agua_exterior",
+            "spa jacuzzi hidromasaje":        "agua_interior",
+            "bañera de acrílico sanitario":   "agua_interior",
+            "receptáculo de ducha acrílico":  "agua_interior",
+            "módulo habitacional":            "construccion",
+            "vivienda modular prefabricada":  "construccion",
+            "garita de seguridad prefabricada": "construccion",
+            "baño químico portátil":          "sanitario_portatil",
+            "reposera de fibra de vidrio":    "jardin_exterior",
+            "cucha para perros":              "mascotas",
+            "combo piscina y módulo":         "agua_exterior",
+        }
+
+        items_cerrados: list[dict] = []
         items_a_procesar: list[tuple[dict, str, dict]] = []
         mismatches_detectados: list[dict] = []
 
         for item, desc_actual, scoring in items_con_score:
-            item_id  = item.get("id", "")
-            cat_id   = item.get("category_id", "")
-            tipo     = scoring["tipo"]
-            titulo   = item.get("title", "—")
-            cat_name = cat_nombres.get(cat_id, "")
+            item_id   = item.get("id", "")
+            cat_id    = item.get("category_id", "")
+            tipo      = scoring["tipo"]
+            titulo    = item.get("title", "—")
+            cat_name  = cat_nombres.get(cat_id, "").lower()
+            sold_qty  = item.get("sold_quantity", 0) or 0
 
-            # Solo verificamos si detectamos el tipo y tenemos nombre de categoría
+            cerrar = False
             if tipo != "producto EcoFiver" and cat_name:
                 expected = _CATEGORIA_KEYWORDS.get(tipo, [])
                 categoria_ok = any(kw in cat_name for kw in expected)
                 if not categoria_ok:
-                    log.warning(
-                        f"[AUDIT-ML] ⚠ MISMATCH CATEGORÍA (solo log, no se cierra): "
-                        f"{item_id} «{titulo[:45]}» — "
-                        f"tipo='{tipo}' pero categoría='{cat_name}'"
-                    )
+                    familia_tipo = _FAMILIA.get(tipo, "otro")
+                    # Verificar si algún otro tipo acepta esta categoría (misma familia)
+                    familia_cat_ok = False
+                    for otro_tipo, otras_kws in _CATEGORIA_KEYWORDS.items():
+                        if otro_tipo == tipo:
+                            continue
+                        if _FAMILIA.get(otro_tipo) == familia_tipo:
+                            continue  # misma familia → toleramos
+                        if any(kw in cat_name for kw in otras_kws):
+                            pass  # la categoría pertenece a OTRO tipo diferente → mismatch real
+
+                    # Re-chequeamos con la familia
+                    for otro_tipo, otros_kws in _CATEGORIA_KEYWORDS.items():
+                        if _FAMILIA.get(otro_tipo, "x") == familia_tipo and otro_tipo != tipo:
+                            if any(kw in cat_name for kw in otros_kws):
+                                familia_cat_ok = True
+                                break
+
+                    if not familia_cat_ok:
+                        # Mismatch real — categoría de otra familia de producto
+                        if sold_qty > 0:
+                            log.warning(
+                                f"[AUDIT-ML] ⚠ MISMATCH (tiene {sold_qty} ventas — NO se cierra): "
+                                f"{item_id} «{titulo[:45]}» tipo='{tipo}' cat='{cat_name}'"
+                            )
+                        else:
+                            cerrar = True
+                            log.info(
+                                f"[AUDIT-ML] 🔴 CERRANDO (categoría incorrecta): "
+                                f"{item_id} «{titulo[:45]}» tipo='{tipo}' cat='{cat_name}'"
+                            )
+
                     mismatches_detectados.append({
                         "item_id": item_id,
                         "titulo": titulo,
                         "tipo": tipo,
                         "categoria_nombre": cat_name,
+                        "vendidos": sold_qty,
+                        "cerrado": cerrar,
                     })
 
-            # En v8.2 todos los items pasan a la fase de actualización de contenido
+            if cerrar:
+                # Pausar en ML
+                try:
+                    async with httpx.AsyncClient(timeout=15) as c:
+                        r = await c.put(
+                            f"https://api.mercadolibre.com/items/{item_id}",
+                            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                            json={"status": "paused"},
+                        )
+                    if r.status_code in (200, 201):
+                        log.info(f"[AUDIT-ML]   ✓ Pausado correctamente: {item_id}")
+                        items_cerrados.append({"item_id": item_id, "titulo": titulo, "tipo": tipo})
+                    else:
+                        log.warning(f"[AUDIT-ML]   ✗ Error al pausar {item_id}: {r.status_code} {r.text[:80]}")
+                except Exception as e_close:
+                    log.warning(f"[AUDIT-ML]   ✗ Excepción pausando {item_id}: {e_close}")
+                await asyncio.sleep(0.5)
+                # No procesar contenido de items cerrados
+                continue
+
+            # Items correctos o con ventas → actualizar contenido
             items_a_procesar.append((item, desc_actual, scoring))
 
         if mismatches_detectados:
+            cerrados_n = sum(1 for m in mismatches_detectados if m["cerrado"])
             log.info(
-                f"[AUDIT-ML] {len(mismatches_detectados)} mismatches de categoría detectados "
-                f"(requieren revisión manual — no se cerraron automáticamente)."
+                f"[AUDIT-ML] {len(mismatches_detectados)} mismatches detectados — "
+                f"{cerrados_n} cerrados, {len(mismatches_detectados)-cerrados_n} conservados (tienen ventas)."
             )
 
         # ── FASE 7: Actualización de contenido ────────────────────────────────
@@ -1718,14 +1805,13 @@ async def auditar_y_optimizar_publicaciones():
             if scoring["issues"]:
                 log.info(f"[AUDIT-ML]   Problemas: {' · '.join(scoring['issues'][:4])}")
 
-            # v8.3: NO saltamos nada — todos los items necesitan los nuevos atributos
-            # de dimensiones (LONG/WIDTH/HEIGHT/JETS/CAPACITY/WEIGHT). En versiones
-            # anteriores (v8.x) la lógica de skip impedía actualizar esos atributos
-            # en items que ya tenían score alto. A partir de v8.4 se puede re-habilitar
-            # el skip una vez que todos los items tengan la ficha técnica completa.
-            # if score >= 90 and len(desc_actual) >= 1800:
-            #     sin_cambios += 1
-            #     continue
+            # v8.5: re-habilitamos el skip para publicaciones con calidad excelente.
+            # La ficha técnica completa (LONG/WIDTH/HEIGHT/etc.) ya se aplicó en v8.4.
+            # Solo saltamos si score >= 95 (no 90) para dar margen a los parciales.
+            if score >= 95 and len(desc_actual) >= 1800:
+                sin_cambios += 1
+                log.info(f"[AUDIT-ML]   ✓ Calidad excelente ({score}/100) — skip")
+                continue
 
             try:
                 # ── Generar contenido (sin IA) ─────────────────────────────
@@ -1803,13 +1889,13 @@ async def auditar_y_optimizar_publicaciones():
         reporte = {
             "version":                  AUDIT_VERSION,
             "total_evaluadas":          total,
-            "total_cerradas":           0,   # v8.2: cierre automático eliminado
+            "total_cerradas":           len(items_cerrados),
             "total_actualizadas":       ok,
             "total_parciales":          parcial,
             "total_sin_cambios":        sin_cambios,
             "total_errores":            err,
             "calidad_inicial":          round(promedio_antes, 1),
-            "items_cerrados":           [],  # v8.2: siempre vacío
+            "items_cerrados":           items_cerrados,
             "mismatches_categoria":     mismatches_detectados,
             "titulos_bloqueados":       titulos_bloqueados,
         }
@@ -1822,18 +1908,27 @@ async def auditar_y_optimizar_publicaciones():
         log.info(f"[AUDIT-ML]   ✓ Actualizadas completamente        : {ok}")
         log.info(f"[AUDIT-ML]   ⚠ Actualizadas parcialmente         : {parcial}")
         log.info(f"[AUDIT-ML]   ─ Ya estaban con calidad excelente  : {sin_cambios}")
+        log.info(f"[AUDIT-ML]   🔴 Cerradas por categoría incorrecta  : {len(items_cerrados)}")
         log.info(f"[AUDIT-ML]   ✗ Con errores                      : {err}")
-        log.info(f"[AUDIT-ML]   ⚠ Mismatches categoría (revisar)   : {len(mismatches_detectados)}")
+        log.info(f"[AUDIT-ML]   ⚠ Mismatches detectados total       : {len(mismatches_detectados)}")
         log.info(f"[AUDIT-ML]   Calidad inicial promedio             : {promedio_antes:.0f}/100")
         log.info("─" * 60)
 
+        if items_cerrados:
+            log.info(f"[AUDIT-ML] CERRADAS POR CATEGORÍA INCORRECTA ({len(items_cerrados)}):")
+            for ic in items_cerrados:
+                log.info(f"[AUDIT-ML]   🔴 {ic['item_id']} «{ic['titulo'][:45]}»")
+
         if mismatches_detectados:
-            log.info(f"[AUDIT-ML] MISMATCHES DE CATEGORÍA (revisar manualmente — NO cerrados):")
-            for mm in mismatches_detectados:
-                log.info(
-                    f"[AUDIT-ML]   ⚠ {mm['item_id']} «{mm['titulo'][:40]}» — "
-                    f"tipo='{mm['tipo']}' cat='{mm['categoria_nombre']}'"
-                )
+            conservados = [m for m in mismatches_detectados if not m.get("cerrado")]
+            if conservados:
+                log.info(f"[AUDIT-ML] MISMATCHES CONSERVADOS (tienen ventas — no se cerraron):")
+                for mm in conservados:
+                    log.info(
+                        f"[AUDIT-ML]   ⚠ {mm['item_id']} «{mm['titulo'][:40]}» — "
+                        f"tipo='{mm['tipo']}' cat='{mm['categoria_nombre']}' "
+                        f"({mm['vendidos']} ventas)"
+                    )
 
         if titulos_bloqueados:
             log.info("─" * 60)

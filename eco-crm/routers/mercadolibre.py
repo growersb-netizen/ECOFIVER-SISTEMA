@@ -920,7 +920,8 @@ async def publicar_faltantes(
 
     # listing_types válidos para MLA413502: [gold_premium, silver, gold, bronze]
     # "free" y "gold_special" no aplican en esta categoría de servicios clasificados
-    listing_type_id = "gold_premium"
+    # bronze = tier básico, sin pago requerido (los gold_premium quedan en payment_required)
+    listing_type_id = "bronze"
 
     for pub in PUBS:
         try:

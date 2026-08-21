@@ -951,13 +951,13 @@ async def publicar_faltantes(
                     "precio_ml": pub["precio"],
                     "item_id":   item.get("id"),
                     "permalink": item.get("permalink"),
-                    "categoria_id": cat_id,
+                    "categoria_id": CAT_PREFAB,
                     "categoria": cat_nombre,
                 })
             else:
                 errores.append({
                     "titulo": pub["titulo"],
-                    "categoria_id": cat_id,
+                    "categoria_id": CAT_PREFAB,
                     "status": r.status_code,
                     "detalle": r.text[:800],  # más contexto para debug
                 })

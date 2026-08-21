@@ -880,6 +880,91 @@ async def ml_cobertura_modelos(
     }
 
 
+@router.post("/api/ml/audit/publicar-faltantes")
+async def publicar_faltantes(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Crea en ML las publicaciones faltantes: módulos ECO/FULL 6/12/18 m² + viviendas modulares."""
+    import os as _os, asyncio as _asyncio
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+
+    # ── Lista de publicaciones a crear ────────────────────────────────────────
+    PUBS = [
+        # Módulos habitacionales ECO/FULL
+        {"titulo": "Módulo habitacional ECO 6 m² prefabricado celulosa",  "precio": 3160000, "tipo_desc": "módulo habitacional"},
+        {"titulo": "Módulo habitacional FULL 6 m² prefabricado celulosa", "precio": 3900000, "tipo_desc": "módulo habitacional"},
+        {"titulo": "Módulo habitacional ECO 12 m² prefabricado celulosa", "precio": 5280000, "tipo_desc": "módulo habitacional"},
+        {"titulo": "Módulo habitacional FULL 12 m² prefabricado celulosa","precio": 6340000, "tipo_desc": "módulo habitacional"},
+        {"titulo": "Módulo habitacional ECO 18 m² prefabricado celulosa", "precio": 7920000, "tipo_desc": "módulo habitacional"},
+        {"titulo": "Módulo habitacional FULL 18 m² prefabricado celulosa","precio": 9510000, "tipo_desc": "módulo habitacional"},
+        # Viviendas modulares (tamaños faltantes)
+        {"titulo": "Vivienda modular prefabricada 24 m² celulosa llave en mano", "precio": 17520000, "tipo_desc": "vivienda modular prefabricada"},
+        {"titulo": "Vivienda modular prefabricada 42 m² celulosa llave en mano", "precio": 30660000, "tipo_desc": "vivienda modular prefabricada"},
+        {"titulo": "Vivienda modular prefabricada 48 m² celulosa llave en mano", "precio": 35040000, "tipo_desc": "vivienda modular prefabricada"},
+        {"titulo": "Vivienda modular prefabricada 54 m² celulosa llave en mano", "precio": 39420000, "tipo_desc": "vivienda modular prefabricada"},
+        {"titulo": "Vivienda modular prefabricada 66 m² celulosa llave en mano", "precio": 48180000, "tipo_desc": "vivienda modular prefabricada"},
+    ]
+
+    from routers.ml_audit import _descripcion_template  # lazy — sin circular import en load time
+
+    creadas, errores = [], []
+
+    for pub in PUBS:
+        try:
+            cat_info = await _resolver_categoria_publicacion(db, token, "MODULO", pub["titulo"])
+            descripcion = _descripcion_template(pub["tipo_desc"], pub["titulo"], pub["precio"])
+
+            payload = {
+                "title":              pub["titulo"],
+                "category_id":        cat_info["category_id"],
+                "price":              float(pub["precio"]),
+                "currency_id":        "ARS",
+                "available_quantity": 1,
+                "buying_mode":        "buy_it_now",
+                "item_condition":     "new",
+                "listing_type_id":    "gold_special",
+                "description":        {"plain_text": descripcion},
+                "pictures":           [],
+                "attributes":         [{"id": "BRAND", "value_name": "EcoFiver"}],
+                "shipping":           {"mode": "not_specified", "free_shipping": False},
+            }
+
+            async with httpx.AsyncClient(timeout=20) as c:
+                r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
+
+            if r.status_code in (200, 201):
+                item = r.json()
+                creadas.append({
+                    "titulo":    pub["titulo"],
+                    "precio_ml": pub["precio"],
+                    "item_id":   item.get("id"),
+                    "permalink": item.get("permalink"),
+                    "categoria": cat_info.get("category_name"),
+                })
+            else:
+                errores.append({
+                    "titulo": pub["titulo"],
+                    "status": r.status_code,
+                    "detalle": r.text[:300],
+                })
+        except Exception as ex:
+            errores.append({"titulo": pub["titulo"], "error": str(ex)[:200]})
+
+        await _asyncio.sleep(1.2)  # respetar rate limit ML
+
+    return {
+        "total_creadas": len(creadas),
+        "total_errores": len(errores),
+        "creadas":  creadas,
+        "errores":  errores,
+    }
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

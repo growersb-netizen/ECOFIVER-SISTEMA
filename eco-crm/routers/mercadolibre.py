@@ -914,48 +914,29 @@ async def publicar_faltantes(
 
     creadas, errores = [], []
 
-    # ── DEBUG: resolver categoría y probar payload mínimo (solo 1er item) ──────
-    # Si el primer item funciona, procesamos todos. Si no, retornamos el debug.
-    pub0 = PUBS[0]
-    cat_id_0 = "MLA390787"
+    # Predecir categorías usando títulos de referencia descriptivos (no los títulos
+    # reales que incluyen "m²" y confunden al predictor → Baldosas de Cemento).
+    CAT_MODULO = "MLA12047"   # fallback conocido para módulos prefabricados marketplace
+    CAT_VIVIENDA = "MLA12047"
     try:
-        preds0 = await _ml_predecir_categoria(pub0["titulo"], token=token, limit=3)
-        if preds0:
-            cat_id_0 = preds0[0]["category_id"]
+        pred_mod = await _ml_predecir_categoria("Casa Modulo Habitacional Industrializado Prefabricado", token=token, limit=1)
+        if pred_mod:
+            CAT_MODULO = pred_mod[0]["category_id"]
     except Exception:
-        preds0 = []
-
-    # Payload mínimo (sin desc, sin attrs, sin shipping) para aislar el error
-    payload_min = {
-        "title":              pub0["titulo"],
-        "category_id":        cat_id_0,
-        "price":              float(pub0["precio"]),
-        "currency_id":        "ARS",
-        "available_quantity": 1,
-        "buying_mode":        "buy_it_now",
-        "item_condition":     "new",
-        "listing_type_id":    "gold_special",
-    }
-    async with httpx.AsyncClient(timeout=20) as c:
-        r_min = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload_min)
-
-    if r_min.status_code not in (200, 201):
-        return {
-            "debug_mode": True,
-            "categoria_predicha": cat_id_0,
-            "todas_predicciones": preds0[:3] if preds0 else [],
-            "payload_minimo": payload_min,
-            "status_minimo": r_min.status_code,
-            "error_minimo": r_min.text[:1000],
-            "total_creadas": 0,
-            "total_errores": 0,
-            "mensaje": "Payload mínimo también falla. Ver debug_mode para diagnóstico.",
-        }
+        pass
+    try:
+        pred_viv = await _ml_predecir_categoria("Vivienda Modular Prefabricada Llave en Mano Steel Frame", token=token, limit=1)
+        if pred_viv:
+            CAT_VIVIENDA = pred_viv[0]["category_id"]
+    except Exception:
+        pass
 
     for pub in PUBS:
         try:
-            cat_id = cat_id_0
-            cat_nombre = ""
+            # Categoría según tipo de publicación
+            es_vivienda = pub["tipo_desc"] == "vivienda modular prefabricada"
+            cat_id = CAT_VIVIENDA if es_vivienda else CAT_MODULO
+            cat_nombre = pub["tipo_desc"]
             descripcion = _descripcion_template(pub["tipo_desc"], pub["titulo"], pub["precio"])
 
             payload = {
@@ -968,11 +949,6 @@ async def publicar_faltantes(
                 "item_condition":     "new",
                 "listing_type_id":    "gold_special",
                 "description":        {"plain_text": descripcion},
-                "attributes": [
-                    {"id": "MANUFACTURER",        "value_name": "EcoFiver"},
-                    {"id": "SALES_UNIT",           "value_name": "Unidad"},
-                    {"id": "YIELD_OF_SALES_UNIT",  "value_name": "1"},
-                ],
                 "shipping":           {"mode": "not_specified", "free_shipping": False},
             }
             async with httpx.AsyncClient(timeout=20) as c:

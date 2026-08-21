@@ -1186,7 +1186,7 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
 
     PRODUCTOS = [
         {
-            "titulo": "Cabina de Seguridad Prefabricada PRFV 1,15x1,15 m Garita Vigilancia",
+            "titulo": "Cabina Seguridad Prefabricada PRFV 1,15x1,15 Garita",
             "precio": 2106000,  # precio lista (contado $1.990.000 × 1.058)
             "categoria_intentos": [
                 "MLA373483",   # Armarios para Exterior / Casetas (producto, buy_it_now)

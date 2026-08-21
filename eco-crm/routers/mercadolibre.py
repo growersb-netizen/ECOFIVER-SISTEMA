@@ -914,19 +914,48 @@ async def publicar_faltantes(
 
     creadas, errores = [], []
 
+    # ── DEBUG: resolver categoría y probar payload mínimo (solo 1er item) ──────
+    # Si el primer item funciona, procesamos todos. Si no, retornamos el debug.
+    pub0 = PUBS[0]
+    cat_id_0 = "MLA390787"
+    try:
+        preds0 = await _ml_predecir_categoria(pub0["titulo"], token=token, limit=3)
+        if preds0:
+            cat_id_0 = preds0[0]["category_id"]
+    except Exception:
+        preds0 = []
+
+    # Payload mínimo (sin desc, sin attrs, sin shipping) para aislar el error
+    payload_min = {
+        "title":              pub0["titulo"],
+        "category_id":        cat_id_0,
+        "price":              float(pub0["precio"]),
+        "currency_id":        "ARS",
+        "available_quantity": 1,
+        "buying_mode":        "buy_it_now",
+        "item_condition":     "new",
+        "listing_type_id":    "gold_special",
+    }
+    async with httpx.AsyncClient(timeout=20) as c:
+        r_min = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload_min)
+
+    if r_min.status_code not in (200, 201):
+        return {
+            "debug_mode": True,
+            "categoria_predicha": cat_id_0,
+            "todas_predicciones": preds0[:3] if preds0 else [],
+            "payload_minimo": payload_min,
+            "status_minimo": r_min.status_code,
+            "error_minimo": r_min.text[:1000],
+            "total_creadas": 0,
+            "total_errores": 0,
+            "mensaje": "Payload mínimo también falla. Ver debug_mode para diagnóstico.",
+        }
+
     for pub in PUBS:
         try:
-            # Predecir categoría en vivo para cada título (sin usar cache MODULO que puede ser classified)
-            cat_id = "MLA12047"  # fallback: módulos prefabricados marketplace
-            cat_nombre = "Módulos prefabricados"
-            try:
-                predicciones = await _ml_predecir_categoria(pub["titulo"], token=token, limit=1)
-                if predicciones:
-                    cat_id = predicciones[0]["category_id"]
-                    cat_nombre = predicciones[0].get("category_name", "")
-            except Exception:
-                pass
-
+            cat_id = cat_id_0
+            cat_nombre = ""
             descripcion = _descripcion_template(pub["tipo_desc"], pub["titulo"], pub["precio"])
 
             payload = {
@@ -946,26 +975,8 @@ async def publicar_faltantes(
                 ],
                 "shipping":           {"mode": "not_specified", "free_shipping": False},
             }
-            # ── Primero: gold_special; si falla, reintentar con gold ───────────
             async with httpx.AsyncClient(timeout=20) as c:
                 r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
-            if r.status_code not in (200, 201):
-                payload2 = {**payload, "listing_type_id": "gold"}
-                async with httpx.AsyncClient(timeout=20) as c:
-                    r2 = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload2)
-                if r2.status_code in (200, 201):
-                    r = r2
-                    cat_nombre = cat_nombre + " [gold]"
-                else:
-                    combined = f"gold_special: {r.text[:300]} | gold: {r2.text[:300]}"
-                    errores.append({
-                        "titulo": pub["titulo"],
-                        "categoria_id": cat_id,
-                        "status": r2.status_code,
-                        "detalle": combined,
-                    })
-                    await _asyncio.sleep(1.2)
-                    continue
 
             if r.status_code in (200, 201):
                 item = r.json()

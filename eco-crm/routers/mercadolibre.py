@@ -1248,7 +1248,7 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
                     "attributes": [
                         {"id": "BRAND", "value_name": "EcoFiver"},
                         {"id": "MODEL", "value_name": "Estándar 1.15x1.15"},
-                        {"id": "WEIGHT", "value_name": "150", "value_struct": {"number": 150, "unit": "kg"}},
+                        {"id": "WEIGHT", "value_struct": {"number": 150, "unit": "kg"}},
                         {"id": "INCLUDES_INSTALLATION_KIT", "value_name": "No"},
                         {"id": "MATERIAL", "value_name": "PRFV"},
                         {"id": "COLOR", "value_name": "Blanco"},

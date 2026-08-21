@@ -946,9 +946,26 @@ async def publicar_faltantes(
                 ],
                 "shipping":           {"mode": "not_specified", "free_shipping": False},
             }
-
+            # ── Primero: gold_special; si falla, reintentar con gold ───────────
             async with httpx.AsyncClient(timeout=20) as c:
                 r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
+            if r.status_code not in (200, 201):
+                payload2 = {**payload, "listing_type_id": "gold"}
+                async with httpx.AsyncClient(timeout=20) as c:
+                    r2 = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload2)
+                if r2.status_code in (200, 201):
+                    r = r2
+                    cat_nombre = cat_nombre + " [gold]"
+                else:
+                    combined = f"gold_special: {r.text[:300]} | gold: {r2.text[:300]}"
+                    errores.append({
+                        "titulo": pub["titulo"],
+                        "categoria_id": cat_id,
+                        "status": r2.status_code,
+                        "detalle": combined,
+                    })
+                    await _asyncio.sleep(1.2)
+                    continue
 
             if r.status_code in (200, 201):
                 item = r.json()

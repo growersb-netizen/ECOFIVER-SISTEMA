@@ -939,14 +939,13 @@ async def publicar_faltantes(
             cat_nombre = pub["tipo_desc"]
             descripcion = _descripcion_template(pub["tipo_desc"], pub["titulo"], pub["precio"])
 
+            # Payload sin item_condition ni buying_mode — ML debe decir qué falta
             payload = {
                 "title":              pub["titulo"],
                 "category_id":        cat_id,
                 "price":              float(pub["precio"]),
                 "currency_id":        "ARS",
                 "available_quantity": 1,
-                "buying_mode":        "buy_it_now",
-                "item_condition":     "not_specified",
                 "listing_type_id":    "gold_special",
                 "description":        {"plain_text": descripcion},
                 "shipping":           {"mode": "not_specified", "free_shipping": False},

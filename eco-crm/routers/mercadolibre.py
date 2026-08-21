@@ -1120,6 +1120,50 @@ async def activar_bronze(t: str = "", db: Session = Depends(get_db)):
     }
 
 
+@router.get("/api/ml/audit/check-items")
+async def check_items(t: str = "", ids: str = "", db: Session = Depends(get_db)):
+    """
+    Chequea el estado de items específicos en ML usando sus IDs (separados por coma).
+    Útil para verificar items en estado payment_pending que no aparecen en búsquedas.
+    """
+    import os as _os, asyncio as _asyncio
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not ids:
+        # Usar IDs conocidos de la sesión anterior (módulos creados con 402)
+        ids = "MLA3840370662,MLA3840370670,MLA3840370678,MLA3840370686,MLA3840370694,MLA3840370702,MLA3840370710,MLA3840370718,MLA3840370726,MLA3840370734,MLA3840370742"
+
+    token = await _ml_valid_token(db)
+    item_ids = [i.strip() for i in ids.split(",") if i.strip()]
+    resultados = []
+
+    for iid in item_ids:
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.get(f"{ML_BASE}/items/{iid}", headers=_ml_headers(token))
+            if r.status_code == 200:
+                d = r.json()
+                resultados.append({
+                    "id": iid,
+                    "http": 200,
+                    "titulo": d.get("title"),
+                    "status": d.get("status"),
+                    "listing_type": d.get("listing_type_id"),
+                    "categoria": d.get("category_id"),
+                    "precio": d.get("price"),
+                    "permalink": d.get("permalink"),
+                })
+            else:
+                resultados.append({"id": iid, "http": r.status_code, "detalle": r.text[:300]})
+        except Exception as ex:
+            resultados.append({"id": iid, "error": str(ex)[:200]})
+        await _asyncio.sleep(0.3)
+
+    return {"total": len(resultados), "resultados": resultados}
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

@@ -1240,7 +1240,7 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
                     "category_id": cat_id,
                     "price": float(prod["precio"]),
                     "currency_id": "ARS",
-                    "available_quantity": 10,
+                    "available_quantity": 1,   # free listings: max 1 unidad
                     "buying_mode": buying_mode,
                     "listing_type_id": listing_type_id,
                     "condition": "new",

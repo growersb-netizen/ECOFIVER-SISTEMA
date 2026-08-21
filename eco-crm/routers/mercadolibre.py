@@ -939,17 +939,25 @@ async def publicar_faltantes(
             cat_nombre = pub["tipo_desc"]
             descripcion = _descripcion_template(pub["tipo_desc"], pub["titulo"], pub["precio"])
 
-            # Payload sin item_condition ni buying_mode — ML debe decir qué falta
+            # Derivar nombre del modelo del título para el atributo MODEL
+            model_name = pub["titulo"].replace("prefabricado celulosa", "").replace("llave en mano", "").strip()
             payload = {
                 "title":              pub["titulo"],
                 "category_id":        cat_id,
                 "price":              float(pub["precio"]),
                 "currency_id":        "ARS",
                 "available_quantity": 1,
+                "item_condition":     "new",
                 "listing_type_id":    "gold_special",
                 "description":        {"plain_text": descripcion},
+                "attributes": [
+                    {"id": "BRAND",                  "value_name": "EcoFiver"},
+                    {"id": "MODEL",                  "value_name": model_name},
+                    {"id": "INCLUDES_ASSEMBLY_MANUAL","value_name": "Sí"},
+                ],
                 "shipping":           {"mode": "not_specified", "free_shipping": False},
             }
+            # Nota: buying_mode NO incluido — combinarlo con item_condition causa error genérico en MLA12047
             async with httpx.AsyncClient(timeout=20) as c:
                 r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
 

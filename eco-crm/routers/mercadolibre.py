@@ -718,6 +718,43 @@ async def ml_audit_status_pub(
     return {"audit_version": version, "reporte": reporte}
 
 
+@router.get("/api/ml/audit/items-por-estado")
+async def ml_items_por_estado(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Diagnóstico: cuenta cuántos items hay en ML para cada estado."""
+    import os as _os
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        token   = await _ml_valid_token(db)
+        user_id = await _get_user_id(token, db)
+    except Exception as e:
+        return {"error": str(e)}
+
+    statuses = ["active", "paused", "closed", "inactive", "under_review", "not_yet_active"]
+    resultado = {}
+    import httpx
+    for st in statuses:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get(
+                    f"{ML_BASE}/users/{user_id}/items/search",
+                    headers=_ml_headers(token),
+                    params={"status": st, "limit": 1, "offset": 0},
+                )
+            if r.status_code == 200:
+                resultado[st] = r.json().get("paging", {}).get("total", 0)
+            else:
+                resultado[st] = f"error {r.status_code}"
+        except Exception as ex:
+            resultado[st] = f"excepción: {str(ex)[:60]}"
+    return {"user_id": user_id, "totales": resultado}
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

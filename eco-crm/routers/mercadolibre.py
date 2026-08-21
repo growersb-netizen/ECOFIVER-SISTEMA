@@ -1234,7 +1234,7 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
 
             if "buy_it_now" in (buying_modes or []):
                 buying_mode = "buy_it_now"
-                listing_type_id = "gold_special"
+                listing_type_id = "free"   # no requiere fotos; más visibilidad con gold_special luego
                 payload = {
                     "title": prod["titulo"],
                     "category_id": cat_id,

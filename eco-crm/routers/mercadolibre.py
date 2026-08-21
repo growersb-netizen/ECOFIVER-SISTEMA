@@ -916,8 +916,29 @@ async def publicar_faltantes(
 
     # MLA413502 = "Cabañas y Casas Prefabricadas" (Servicios > Hogar y Construcción)
     # Settings verificados: buying_mode=classified, item_condition=not_allowed, price=optional
-    # No usar el predictor — devuelve categorías incorrectas para títulos con "m²" o "modulo".
     CAT_PREFAB = "MLA413502"
+
+    # Resolver listing_type válido para esta categoría usando el token del vendedor
+    listing_type_id = "free"  # fallback
+    try:
+        # GET /users/me para obtener user_id
+        async with httpx.AsyncClient(timeout=10) as c:
+            r_me = await c.get(f"{ML_BASE}/users/me", headers=_ml_headers(token))
+        if r_me.status_code == 200:
+            user_id = r_me.json().get("id")
+            # GET /users/{user_id}/available_listing_types?category_id=MLA413502
+            async with httpx.AsyncClient(timeout=10) as c:
+                r_lt = await c.get(
+                    f"{ML_BASE}/users/{user_id}/available_listing_types",
+                    headers=_ml_headers(token),
+                    params={"category_id": CAT_PREFAB},
+                )
+            if r_lt.status_code == 200:
+                lt_list = r_lt.json()
+                if lt_list:
+                    listing_type_id = lt_list[0].get("id", "free")
+    except Exception:
+        pass
 
     for pub in PUBS:
         try:
@@ -931,7 +952,7 @@ async def publicar_faltantes(
                 "currency_id":        "ARS",
                 "available_quantity": 1,
                 "buying_mode":        "classified",   # único modo válido para esta categoría
-                "listing_type_id":    "gold_special",
+                "listing_type_id":    listing_type_id,
                 "description":        {"plain_text": descripcion},
                 # item_condition: NO incluir — MLA413502 tiene item_conditions=not_allowed
                 # attributes opcionales relevantes:
@@ -958,8 +979,9 @@ async def publicar_faltantes(
                 errores.append({
                     "titulo": pub["titulo"],
                     "categoria_id": CAT_PREFAB,
+                    "listing_type_usado": listing_type_id,
                     "status": r.status_code,
-                    "detalle": r.text[:800],  # más contexto para debug
+                    "detalle": r.text[:800],
                 })
         except Exception as ex:
             errores.append({"titulo": pub["titulo"], "error": str(ex)[:300]})

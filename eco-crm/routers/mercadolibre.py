@@ -1165,6 +1165,161 @@ async def check_items(t: str = "", ids: str = "", db: Session = Depends(get_db))
     return {"total": len(resultados), "resultados": resultados}
 
 
+@router.post("/api/ml/audit/publicar-productos-fisicos")
+async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db)):
+    """
+    Publica productos físicos (buy_it_now) que no van en Servicios clasificados.
+    - Cabina de seguridad prefabricada PRFV 1.15x1.15
+    Usa buying_mode=buy_it_now y gold_special (mismo esquema que piscinas activas).
+    """
+    import os as _os, asyncio as _asyncio
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+
+    # Primero probar la categoría con el predictor para ajustar si es necesario
+    # Usamos la misma categoría base de construcción prefabricada que funciona en ML
+    # MLA373483 = Armarios para Exterior / Casetas (producto, buy_it_now)
+    # MLA413502 = Cabañas y Casas Prefabricadas (servicio clasificado, requiere pago)
+
+    PRODUCTOS = [
+        {
+            "titulo": "Cabina de Seguridad Prefabricada PRFV 1,15x1,15 m Garita Vigilancia",
+            "precio": 2106000,  # precio lista (contado $1.990.000 × 1.058)
+            "categoria_intentos": [
+                "MLA373483",   # Armarios para Exterior / Casetas (producto, buy_it_now)
+                "MLA413502",   # Cabañas y Casas Prefabricadas (servicio clasificado — fallback)
+            ],
+            "descripcion": (
+                "CABINA DE SEGURIDAD PREFABRICADA PRFV\n\n"
+                "Dimensiones: 1,15 m largo × 1,15 m ancho × 2,26 m de alto\n"
+                "Material: PRFV (Poliéster Reforzado en Fibra de Vidrio) color blanco\n\n"
+                "EQUIPAMIENTO COMPLETO INCLUIDO:\n"
+                "▸ Mesa interna con cajón\n"
+                "▸ Instalación eléctrica completa con llave de punto y toma con neutro\n"
+                "▸ Artefacto de iluminación metálico con luz LED\n"
+                "▸ Llave termomagnética\n"
+                "▸ Puerta con cerradura de doble paleta\n"
+                "▸ 4 lados vidriados: 3 vidrios fijos sellados con adhesivo automotriz y marco externo\n"
+                "▸ 1 ventana guillotina con marco de aluminio\n"
+                "▸ Piso multilaminado fenólico 19 mm — misma terminación interna de la cabina\n\n"
+                "USOS IDEALES:\n"
+                "Control de acceso a edificios, countries, barrios cerrados, plantas industriales, "
+                "estacionamientos, peajes y eventos.\n\n"
+                "EMPRESA: EcoFiver · Desde 2015 · Garantía estructural 10 años\n"
+                "ENTREGA: San Telmo (CABA) · Zárate (Buenos Aires)\n"
+                "ENVÍO A DOMICILIO disponible — cotizar según zona\n"
+                "PAGO: Contado o tarjeta de crédito/débito\n\n"
+                "Precio contado: $1.990.000\n"
+                "Precio lista (tarjeta): $2.106.000\n"
+            ),
+            "tipo_compra": "buy_it_now",
+        },
+    ]
+
+    creadas, errores = [], []
+
+    for prod in PRODUCTOS:
+        exito = False
+        for cat_id in prod["categoria_intentos"]:
+            # Determinar parámetros según tipo de categoría
+            async with httpx.AsyncClient(timeout=10) as c:
+                rc = await c.get(f"{ML_BASE}/categories/{cat_id}")
+            cat_info = rc.json() if rc.status_code == 200 else {}
+            cat_settings = cat_info.get("settings", {})
+            buying_modes = cat_settings.get("buying_modes", [])
+            item_conditions = cat_settings.get("item_conditions", [])
+
+            if "buy_it_now" in (buying_modes or []):
+                buying_mode = "buy_it_now"
+                listing_type_id = "gold_special"
+                payload = {
+                    "title": prod["titulo"],
+                    "category_id": cat_id,
+                    "price": float(prod["precio"]),
+                    "currency_id": "ARS",
+                    "available_quantity": 10,
+                    "buying_mode": buying_mode,
+                    "listing_type_id": listing_type_id,
+                    "condition": "new",
+                    "description": {"plain_text": prod["descripcion"]},
+                }
+            else:
+                # Categoría clasificada (Servicios) — mismo esquema que módulos
+                buying_mode = "classified"
+                listing_type_id = "bronze"
+                payload = {
+                    "title": prod["titulo"],
+                    "category_id": cat_id,
+                    "price": float(prod["precio"]),
+                    "currency_id": "ARS",
+                    "available_quantity": 1,
+                    "buying_mode": buying_mode,
+                    "listing_type_id": listing_type_id,
+                    "description": {"plain_text": prod["descripcion"]},
+                    "location": {
+                        "state": {"id": "AR-B"},
+                        "city": {"id": "TUxBQ1pBUjQ1OTM"},
+                        "zip_code": "2800",
+                    },
+                }
+
+            try:
+                async with httpx.AsyncClient(timeout=20) as c:
+                    r = await c.post(
+                        f"{ML_BASE}/items",
+                        headers=_ml_headers(token),
+                        json=payload,
+                    )
+
+                if r.status_code in (200, 201):
+                    item = r.json()
+                    creadas.append({
+                        "titulo": prod["titulo"],
+                        "precio": prod["precio"],
+                        "item_id": item.get("id"),
+                        "permalink": item.get("permalink"),
+                        "status_ml": item.get("status"),
+                        "categoria_id": cat_id,
+                        "buying_mode": buying_mode,
+                        "listing_type": listing_type_id,
+                    })
+                    exito = True
+                    break
+                elif r.status_code == 402:
+                    errores.append({
+                        "titulo": prod["titulo"],
+                        "categoria_id": cat_id,
+                        "status": 402,
+                        "detalle": "payment_required — requiere pago en ML",
+                    })
+                    # Seguir intentando con siguiente categoría
+                else:
+                    errores.append({
+                        "titulo": prod["titulo"],
+                        "categoria_id": cat_id,
+                        "status": r.status_code,
+                        "detalle": r.text[:500],
+                    })
+                    # Seguir intentando con siguiente categoría
+            except Exception as ex:
+                errores.append({"titulo": prod["titulo"], "error": str(ex)[:200]})
+
+            await _asyncio.sleep(1.0)
+
+        if not exito and not any(e.get("titulo") == prod["titulo"] for e in errores):
+            errores.append({"titulo": prod["titulo"], "detalle": "Ninguna categoría funcionó"})
+
+    return {
+        "total_creadas": len(creadas),
+        "total_errores": len(errores),
+        "creadas": creadas,
+        "errores": errores,
+    }
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

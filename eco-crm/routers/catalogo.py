@@ -402,16 +402,33 @@ DEFAULT_CATALOGO = {
     },
     # ── Garitas de seguridad ──────────────────────────────────────────────────
     "garitas_seguridad": {
-        "material": "Estructura metálica con paredes de PRFV / chapa. Aislación interior.",
+        "material": "PRFV (Poliéster Reforzado en Fibra de Vidrio) color blanco. Resistente a la intemperie.",
         "usos": "Control de acceso a edificios, countries, barrios cerrados, plantas industriales, peajes.",
         "pago": "Contado o tarjeta.",
         "puntos_entrega": ["San Telmo (CABA)", "Zárate (Buenos Aires)"],
         "envio": "Disponible a domicilio, cotizar según zona.",
         "modelos": {
-            "Básica": {
-                "descripcion_corta": "Garita individual prefabricada. Ventana corrediza, puerta, aislación básica.",
-                "medidas": {"largo_m": None, "ancho_m": None, "alto_m": None},
-                "precio_contado": None,
+            "Estándar 1.15x1.15": {
+                "descripcion_corta": (
+                    "Cabina de seguridad prefabricada PRFV color blanca. 1,15 x 1,15 x 2,26 m de alto. "
+                    "Mesa interna con cajón. Instalación eléctrica completa con llave de punto, toma con neutro, "
+                    "artefacto LED y llave termomagnética. Puerta con cerradura doble paleta. "
+                    "4 lados vidriados: 3 vidrios fijos sellados con adhesivo automotriz y 1 ventana guillotina con marco de aluminio. "
+                    "Piso de multilaminado fenólico 19 mm."
+                ),
+                "medidas": {"largo_m": 1.15, "ancho_m": 1.15, "alto_m": 2.26},
+                "equipamiento": [
+                    "Mesa interna con cajón",
+                    "Instalación eléctrica completa (llave de punto + toma con neutro)",
+                    "Artefacto de iluminación metálico con luz LED",
+                    "Llave termomagnética",
+                    "Puerta con cerradura doble paleta",
+                    "3 vidrios fijos sellados con adhesivo automotriz + marco externo",
+                    "1 ventana guillotina con marco de aluminio",
+                    "Piso multilaminado fenólico 19 mm",
+                ],
+                "precio_contado": 1990000,
+                "precio_lista":   2106000,   # × 1.058 redondeado a $1.000
                 "fotos": [],
             },
             "Con Baño": {

@@ -755,6 +755,122 @@ async def ml_items_por_estado(
     return {"user_id": user_id, "totales": resultado}
 
 
+@router.get("/api/ml/audit/cobertura-modelos")
+async def ml_cobertura_modelos(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Diagnóstico: descarga todos los títulos activos y analiza cobertura por modelo."""
+    import os as _os, re as _re
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        token   = await _ml_valid_token(db)
+        user_id = await _get_user_id(token, db)
+    except Exception as e:
+        return {"error": str(e)}
+
+    # --- Paso 1: traer todos los IDs activos ---
+    import httpx
+    all_ids: list[str] = []
+    off = 0
+    while True:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(
+                f"{ML_BASE}/users/{user_id}/items/search",
+                headers=_ml_headers(token),
+                params={"status": "active", "limit": 50, "offset": off},
+            )
+        if r.status_code != 200:
+            break
+        data = r.json()
+        page = data.get("results", [])
+        all_ids.extend(page)
+        total = data.get("paging", {}).get("total", len(all_ids))
+        off += 50
+        if not page or len(all_ids) >= total:
+            break
+        import asyncio; await asyncio.sleep(0.2)
+
+    # --- Paso 2: traer títulos en lotes de 20 ---
+    titulos: list[str] = []
+    lotes = [all_ids[i:i+20] for i in range(0, len(all_ids), 20)]
+    for lote in lotes:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r2 = await c.get(
+                f"{ML_BASE}/items",
+                headers=_ml_headers(token),
+                params={"ids": ",".join(lote), "attributes": "id,title,status"},
+            )
+        if r2.status_code == 200:
+            for entry in r2.json():
+                body = entry.get("body", {})
+                if body and body.get("status") == "active":
+                    titulos.append(body.get("title", ""))
+        import asyncio; await asyncio.sleep(0.2)
+
+    # --- Paso 3: analizar cobertura ---
+    tls = [t2.lower() for t2 in titulos]
+
+    # Piscinas — keywords de modelo / dimensión
+    piscinas_kw = {
+        "wave":             any("wave"            in t2 for t2 in tls),
+        "bali":             any("bali"            in t2 for t2 in tls),
+        "arco romano":      any("arco romano"     in t2 for t2 in tls),
+        "monoblock":        any("monoblock"       in t2 for t2 in tls),
+        "minideck":         any("minideck"        in t2 for t2 in tls),
+        "miniportante":     any("miniportante"    in t2 for t2 in tls),
+        "autoportante":     any("autoportante"    in t2 for t2 in tls),
+        "3x6 / 3.00x6":    any(_re.search(r'3[\.,]?0*\s*[x×]\s*6', t2) for t2 in tls),
+        "3.5x7 / 3.50x7":  any(_re.search(r'3[\.,]5\s*[x×]\s*7', t2) for t2 in tls),
+        "4x8":              any(_re.search(r'4\s*[x×]\s*8', t2)         for t2 in tls),
+        "5x10":             any(_re.search(r'5\s*[x×]\s*10', t2)        for t2 in tls),
+        "6x3 / 6.40x3":    any(_re.search(r'6[\.,]?4?0?\s*[x×]\s*3', t2) for t2 in tls),
+        "piscina genérica": any(("piscina" in t2 or "pileta" in t2) and "fibra" in t2 for t2 in tls),
+    }
+
+    # Spas / jacuzzis / hidromasajes
+    spas_kw = {
+        "spa":              any("spa"             in t2 for t2 in tls),
+        "jacuzzi":          any("jacuzzi"         in t2 for t2 in tls),
+        "hidromasaje":      any("hidromasaje"     in t2 for t2 in tls),
+        "1.17x1.68":        any(_re.search(r'1[\.,]1[67]\s*[x×]\s*1[\.,]6[78]', t2) for t2 in tls),
+        "jets":             any("jets"            in t2 for t2 in tls),
+    }
+
+    # Módulos habitacionales
+    modulos_kw = {
+        "módulo 6 m²":  any(_re.search(r'\b6\s*m', t2) and ("módulo" in t2 or "modulo" in t2) for t2 in tls),
+        "módulo 12 m²": any(_re.search(r'\b12\s*m', t2) and ("módulo" in t2 or "modulo" in t2) for t2 in tls),
+        "módulo 18 m²": any(_re.search(r'\b18\s*m', t2) and ("módulo" in t2 or "modulo" in t2) for t2 in tls),
+        "módulo genérico": any("módulo" in t2 or "modulo" in t2 for t2 in tls),
+    }
+
+    # Conteos generales por tipo
+    conteos = {
+        "piscinas_total":   sum(1 for t2 in tls if "piscina" in t2 or "pileta" in t2),
+        "spas_total":       sum(1 for t2 in tls if "spa" in t2 or "jacuzzi" in t2 or "hidromasaje" in t2),
+        "modulos_total":    sum(1 for t2 in tls if "módulo" in t2 or "modulo" in t2),
+        "viviendas_total":  sum(1 for t2 in tls if "vivienda" in t2 or "prefabricad" in t2),
+        "bañeras_total":    sum(1 for t2 in tls if "bañera" in t2 or "tina" in t2),
+        "garitas_total":    sum(1 for t2 in tls if "garita" in t2),
+        "quinchos_total":   sum(1 for t2 in tls if "quincho" in t2 or "pérgola" in t2 or "pergola" in t2),
+        "reposeras_total":  sum(1 for t2 in tls if "reposera" in t2 or "tumbona" in t2),
+        "receptaculo_total":sum(1 for t2 in tls if "receptáculo" in t2 or "ducha" in t2),
+        "bano_quimico_total":sum(1 for t2 in tls if "baño químico" in t2 or "quimico" in t2),
+    }
+
+    return {
+        "total_titulos_analizados": len(titulos),
+        "conteos_por_tipo": conteos,
+        "piscinas_modelos": piscinas_kw,
+        "spas_modelos": spas_kw,
+        "modulos_tamaños": modulos_kw,
+    }
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

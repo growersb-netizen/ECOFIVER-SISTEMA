@@ -918,27 +918,9 @@ async def publicar_faltantes(
     # Settings verificados: buying_mode=classified, item_condition=not_allowed, price=optional
     CAT_PREFAB = "MLA413502"
 
-    # Resolver listing_type válido para esta categoría usando el token del vendedor
-    listing_type_id = "free"  # fallback
-    try:
-        # GET /users/me para obtener user_id
-        async with httpx.AsyncClient(timeout=10) as c:
-            r_me = await c.get(f"{ML_BASE}/users/me", headers=_ml_headers(token))
-        if r_me.status_code == 200:
-            user_id = r_me.json().get("id")
-            # GET /users/{user_id}/available_listing_types?category_id=MLA413502
-            async with httpx.AsyncClient(timeout=10) as c:
-                r_lt = await c.get(
-                    f"{ML_BASE}/users/{user_id}/available_listing_types",
-                    headers=_ml_headers(token),
-                    params={"category_id": CAT_PREFAB},
-                )
-            if r_lt.status_code == 200:
-                lt_list = r_lt.json()
-                if lt_list:
-                    listing_type_id = lt_list[0].get("id", "free")
-    except Exception:
-        pass
+    # listing_types válidos para MLA413502: [gold_premium, silver, gold, bronze]
+    # "free" y "gold_special" no aplican en esta categoría de servicios clasificados
+    listing_type_id = "gold_premium"
 
     for pub in PUBS:
         try:
@@ -955,6 +937,11 @@ async def publicar_faltantes(
                 "listing_type_id":    listing_type_id,
                 "description":        {"plain_text": descripcion},
                 # item_condition: NO incluir — MLA413502 tiene item_conditions=not_allowed
+                # Ubicación requerida para clasificados de servicios
+                "location": {
+                    "address_line": "Zárate, Buenos Aires",
+                    "zip_code":     "2800",
+                },
                 # attributes opcionales relevantes:
                 "attributes": [
                     {"id": "DOES_PREFABRICATED_HOUSES", "value_name": "Sí"},

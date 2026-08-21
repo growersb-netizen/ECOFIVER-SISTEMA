@@ -862,12 +862,21 @@ async def ml_cobertura_modelos(
         "bano_quimico_total":sum(1 for t2 in tls if "baño químico" in t2 or "quimico" in t2),
     }
 
+    # Muestra de títulos que NO son piscinas/spas/reposeras/bañeras
+    otros = [
+        t2_orig for t2_orig, t2_low in zip(titulos, tls)
+        if not any(k in t2_low for k in ["piscina", "pileta", "spa", "jacuzzi",
+                   "hidromasaje", "reposera", "tumbona", "bañera", "bañadera"])
+    ]
+
     return {
         "total_titulos_analizados": len(titulos),
         "conteos_por_tipo": conteos,
         "piscinas_modelos": piscinas_kw,
         "spas_modelos": spas_kw,
         "modulos_tamaños": modulos_kw,
+        "otros_titulos_muestra": sorted(set(otros))[:120],
+        "otros_total": len(otros),
     }
 
 

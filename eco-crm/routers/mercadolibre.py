@@ -926,7 +926,6 @@ async def publicar_faltantes(
                 "currency_id":        "ARS",
                 "available_quantity": 1,
                 "buying_mode":        "buy_it_now",
-                "item_condition":     "new",
                 "listing_type_id":    "gold_special",
                 "description":        {"plain_text": descripcion},
                 "pictures":           [],

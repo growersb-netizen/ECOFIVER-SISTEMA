@@ -1245,6 +1245,11 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
                     "listing_type_id": listing_type_id,
                     "condition": "new",
                     "description": {"plain_text": prod["descripcion"]},
+                    "attributes": [
+                        {"id": "MODEL", "value_name": "Estándar 1.15x1.15"},
+                        {"id": "WEIGHT", "value_name": "150", "value_struct": {"number": 150, "unit": "kg"}},
+                        {"id": "INCLUDES_INSTALLATION_KIT", "value_name": "No"},
+                    ],
                 }
             else:
                 # Categoría clasificada (Servicios) — mismo esquema que módulos

@@ -96,8 +96,48 @@ DEFAULT_CATALOGO = {
             "placas cementicias y terminación interior en Durlock. Llave en mano, con terminaciones incluidas."
         ),
         "modelos_custom": [],
-        "precios": {},          # precio CONTADO
-        "precios_lista": {},    # precio LISTA (base para financiación/cuotas)
+        # precio CONTADO (lo que se cobra al cliente de contado)
+        "precios": {
+            # ── Módulos habitacionales 6 / 12 / 18 m² ─────────────────────────
+            "Módulo ECO 6m²":   2990000,
+            "Módulo FULL 6m²":  3690000,
+            "Módulo ECO 12m²":  4990000,
+            "Módulo FULL 12m²": 5990000,
+            "Módulo ECO 18m²":  7490000,
+            "Módulo FULL 18m²": 8990000,
+            # ── Viviendas modulares (24 m²+) a $690.000/m² ────────────────────
+            "Módulo 24m²":  16560000,
+            "Módulo 30m²":  20700000,
+            "Módulo 36m²":  24840000,
+            "Módulo 42m²":  28980000,
+            "Módulo 45m²":  31050000,
+            "Módulo 48m²":  33120000,
+            "Módulo 54m²":  37260000,
+            "Módulo 60m²":  41400000,
+            "Módulo 66m²":  45540000,
+            "Módulo 72m²":  49680000,
+        },
+        # precio LISTA — precio ML (contado × 1.058, redondeado a $10.000)
+        "precios_lista": {
+            # ── Módulos habitacionales ─────────────────────────────────────────
+            "Módulo ECO 6m²":   3160000,
+            "Módulo FULL 6m²":  3900000,
+            "Módulo ECO 12m²":  5280000,
+            "Módulo FULL 12m²": 6340000,
+            "Módulo ECO 18m²":  7920000,
+            "Módulo FULL 18m²": 9510000,
+            # ── Viviendas modulares ────────────────────────────────────────────
+            "Módulo 24m²":  17520000,
+            "Módulo 30m²":  21900000,
+            "Módulo 36m²":  26280000,
+            "Módulo 42m²":  30660000,
+            "Módulo 45m²":  32850000,
+            "Módulo 48m²":  35040000,
+            "Módulo 54m²":  39420000,
+            "Módulo 60m²":  43800000,
+            "Módulo 66m²":  48180000,
+            "Módulo 72m²":  52560000,
+        },
         "fotos": {},            # superficie (str) o modelo_custom -> [urls]
         "cuotas_max": 60,       # plazo más largo ofrecido — usado para publicar en ML al valor de la cuota
     },
@@ -519,6 +559,14 @@ def load_catalogo() -> dict:
                             modelos_cat[nombre] = datos
                             cambiado = True
             # Actualizar fotos de hidromasajes si el modelo tiene fotos vacías
+            # Fusionar precios de módulos nuevos (ECO/FULL + viviendas faltantes)
+            for campo_precio in ("precios", "precios_lista"):
+                defaults_p = DEFAULT_CATALOGO["modulos"].get(campo_precio, {})
+                current_p  = cat["modulos"].setdefault(campo_precio, {})
+                for pk, pv in defaults_p.items():
+                    if pk not in current_p:
+                        current_p[pk] = pv
+                        cambiado = True
             if "hidromasajes" in cat:
                 for modelo, datos in DEFAULT_CATALOGO["hidromasajes"]["modelos"].items():
                     m = cat["hidromasajes"].get("modelos", {}).get(modelo)

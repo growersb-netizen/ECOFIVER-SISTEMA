@@ -938,9 +938,11 @@ async def publicar_faltantes(
                 "description":        {"plain_text": descripcion},
                 # item_condition: NO incluir — MLA413502 tiene item_conditions=not_allowed
                 # Ubicación requerida para clasificados de servicios
+                # IDs verificados: AR-B=Buenos Aires, TUxBQ1pBUjQ1OTM=Zárate
                 "location": {
-                    "address_line": "Zárate, Buenos Aires",
-                    "zip_code":     "2800",
+                    "state":   {"id": "AR-B"},
+                    "city":    {"id": "TUxBQ1pBUjQ1OTM"},
+                    "zip_code": "2800",
                 },
                 # attributes opcionales relevantes:
                 "attributes": [

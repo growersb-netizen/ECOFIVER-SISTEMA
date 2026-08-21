@@ -916,12 +916,22 @@ async def publicar_faltantes(
 
     for pub in PUBS:
         try:
-            cat_info = await _resolver_categoria_publicacion(db, token, "MODULO", pub["titulo"])
+            # Predecir categoría en vivo para cada título (sin usar cache MODULO que puede ser classified)
+            cat_id = "MLA12047"  # fallback: módulos prefabricados marketplace
+            cat_nombre = "Módulos prefabricados"
+            try:
+                predicciones = await _ml_predecir_categoria(pub["titulo"], token=token, limit=1)
+                if predicciones:
+                    cat_id = predicciones[0]["category_id"]
+                    cat_nombre = predicciones[0].get("category_name", "")
+            except Exception:
+                pass
+
             descripcion = _descripcion_template(pub["tipo_desc"], pub["titulo"], pub["precio"])
 
             payload = {
                 "title":              pub["titulo"],
-                "category_id":        cat_info["category_id"],
+                "category_id":        cat_id,
                 "price":              float(pub["precio"]),
                 "currency_id":        "ARS",
                 "available_quantity": 1,
@@ -929,8 +939,6 @@ async def publicar_faltantes(
                 "item_condition":     "not_specified",
                 "listing_type_id":    "gold_special",
                 "description":        {"plain_text": descripcion},
-                "pictures":           [],
-                "attributes":         [{"id": "BRAND", "value_name": "EcoFiver"}],
                 "shipping":           {"mode": "not_specified", "free_shipping": False},
             }
 
@@ -944,16 +952,18 @@ async def publicar_faltantes(
                     "precio_ml": pub["precio"],
                     "item_id":   item.get("id"),
                     "permalink": item.get("permalink"),
-                    "categoria": cat_info.get("category_name"),
+                    "categoria_id": cat_id,
+                    "categoria": cat_nombre,
                 })
             else:
                 errores.append({
                     "titulo": pub["titulo"],
+                    "categoria_id": cat_id,
                     "status": r.status_code,
-                    "detalle": r.text[:300],
+                    "detalle": r.text[:800],  # más contexto para debug
                 })
         except Exception as ex:
-            errores.append({"titulo": pub["titulo"], "error": str(ex)[:200]})
+            errores.append({"titulo": pub["titulo"], "error": str(ex)[:300]})
 
         await _asyncio.sleep(1.2)  # respetar rate limit ML
 

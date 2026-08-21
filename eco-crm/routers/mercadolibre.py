@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -1326,6 +1326,110 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
         "creadas": creadas,
         "errores": errores,
     }
+
+
+@router.post("/api/ml/audit/publicar-garita-imagen")
+async def publicar_garita_imagen(
+    t: str = "",
+    imagen: UploadFile = File(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Sube la foto de la cabina de seguridad a ML y publica el ítem en MLA373483.
+    Acepta multipart/form-data con el campo 'imagen'.
+    """
+    import os as _os
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+    picture_id = None
+
+    # Subir imagen a ML pictures
+    if imagen:
+        img_bytes = await imagen.read()
+        async with httpx.AsyncClient(timeout=60) as c:
+            rp = await c.post(
+                f"{ML_BASE}/pictures",
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                files={"file": (imagen.filename or "garita.jpg", img_bytes, imagen.content_type or "image/jpeg")},
+            )
+        if rp.status_code in (200, 201):
+            picture_id = rp.json().get("id")
+        else:
+            return {
+                "ok": False,
+                "error": f"No se pudo subir imagen a ML: HTTP {rp.status_code}",
+                "detalle": rp.text[:300],
+            }
+    else:
+        return {"ok": False, "error": "Se requiere el campo 'imagen' (multipart)"}
+
+    descripcion = (
+        "CABINA DE SEGURIDAD PREFABRICADA PRFV\n\n"
+        "Dimensiones: 1,15 m largo × 1,15 m ancho × 2,26 m de alto\n"
+        "Material: PRFV (Poliéster Reforzado en Fibra de Vidrio) color blanco\n\n"
+        "EQUIPAMIENTO COMPLETO INCLUIDO:\n"
+        "▸ Mesa interna con cajón\n"
+        "▸ Instalación eléctrica completa con llave de punto y toma con neutro\n"
+        "▸ Artefacto de iluminación metálico con luz LED\n"
+        "▸ Llave termomagnética\n"
+        "▸ Puerta con cerradura de doble paleta\n"
+        "▸ 4 lados vidriados: 3 vidrios fijos sellados con adhesivo automotriz y marco externo\n"
+        "▸ 1 ventana guillotina con marco de aluminio\n"
+        "▸ Piso multilaminado fenólico 19 mm — misma terminación interna de la cabina\n\n"
+        "USOS IDEALES:\n"
+        "Control de acceso a edificios, countries, barrios cerrados, plantas industriales, "
+        "estacionamientos, peajes y eventos.\n\n"
+        "EMPRESA: EcoFiver · Desde 2015 · Garantía estructural 10 años\n"
+        "ENTREGA: San Telmo (CABA) · Zárate (Buenos Aires)\n"
+        "ENVÍO A DOMICILIO disponible — cotizar según zona\n"
+        "PAGO: Contado o tarjeta de crédito/débito\n\n"
+        "Precio contado: $1.990.000\n"
+        "Precio lista (tarjeta): $2.106.000\n"
+    )
+
+    payload = {
+        "title": "Cabina Seguridad Prefabricada PRFV 1,15x1,15 Garita",
+        "category_id": "MLA373483",
+        "price": 2106000.0,
+        "currency_id": "ARS",
+        "available_quantity": 1,
+        "buying_mode": "buy_it_now",
+        "listing_type_id": "free",
+        "condition": "new",
+        "description": {"plain_text": descripcion},
+        "pictures": [{"id": picture_id}],
+        "attributes": [
+            {"id": "BRAND", "value_name": "EcoFiver"},
+            {"id": "MODEL", "value_name": "Estándar 1.15x1.15"},
+            {"id": "WEIGHT", "value_name": "150 kg"},
+            {"id": "INCLUDES_INSTALLATION_KIT", "value_name": "No"},
+            {"id": "MATERIAL", "value_name": "PRFV"},
+            {"id": "COLOR", "value_name": "Blanco"},
+        ],
+    }
+
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
+
+    if r.status_code in (200, 201):
+        item = r.json()
+        return {
+            "ok": True,
+            "item_id": item["id"],
+            "picture_id": picture_id,
+            "status": item.get("status"),
+            "permalink": item.get("permalink"),
+        }
+    else:
+        return {
+            "ok": False,
+            "picture_id": picture_id,  # la imagen sí se subió
+            "error": f"HTTP {r.status_code}",
+            "detalle": r.text[:500],
+        }
 
 
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────

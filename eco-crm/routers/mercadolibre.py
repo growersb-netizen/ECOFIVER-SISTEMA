@@ -914,50 +914,33 @@ async def publicar_faltantes(
 
     creadas, errores = [], []
 
-    # Predecir categorías usando títulos de referencia descriptivos (no los títulos
-    # reales que incluyen "m²" y confunden al predictor → Baldosas de Cemento).
-    CAT_MODULO = "MLA12047"   # fallback conocido para módulos prefabricados marketplace
-    CAT_VIVIENDA = "MLA12047"
-    try:
-        pred_mod = await _ml_predecir_categoria("Casa Modulo Habitacional Industrializado Prefabricado", token=token, limit=1)
-        if pred_mod:
-            CAT_MODULO = pred_mod[0]["category_id"]
-    except Exception:
-        pass
-    try:
-        pred_viv = await _ml_predecir_categoria("Vivienda Modular Prefabricada Llave en Mano Steel Frame", token=token, limit=1)
-        if pred_viv:
-            CAT_VIVIENDA = pred_viv[0]["category_id"]
-    except Exception:
-        pass
+    # MLA413502 = "Cabañas y Casas Prefabricadas" (Servicios > Hogar y Construcción)
+    # Settings verificados: buying_mode=classified, item_condition=not_allowed, price=optional
+    # No usar el predictor — devuelve categorías incorrectas para títulos con "m²" o "modulo".
+    CAT_PREFAB = "MLA413502"
 
     for pub in PUBS:
         try:
-            # Categoría según tipo de publicación
-            es_vivienda = pub["tipo_desc"] == "vivienda modular prefabricada"
-            cat_id = CAT_VIVIENDA if es_vivienda else CAT_MODULO
             cat_nombre = pub["tipo_desc"]
             descripcion = _descripcion_template(pub["tipo_desc"], pub["titulo"], pub["precio"])
 
-            # Derivar nombre del modelo del título para el atributo MODEL
-            model_name = pub["titulo"].replace("prefabricado celulosa", "").replace("llave en mano", "").strip()
             payload = {
                 "title":              pub["titulo"],
-                "category_id":        cat_id,
+                "category_id":        CAT_PREFAB,
                 "price":              float(pub["precio"]),
                 "currency_id":        "ARS",
                 "available_quantity": 1,
-                "item_condition":     "new",
+                "buying_mode":        "classified",   # único modo válido para esta categoría
                 "listing_type_id":    "gold_special",
                 "description":        {"plain_text": descripcion},
+                # item_condition: NO incluir — MLA413502 tiene item_conditions=not_allowed
+                # attributes opcionales relevantes:
                 "attributes": [
-                    {"id": "BRAND",                  "value_name": "EcoFiver"},
-                    {"id": "MODEL",                  "value_name": model_name},
-                    {"id": "INCLUDES_ASSEMBLY_MANUAL","value_name": "Sí"},
+                    {"id": "DOES_PREFABRICATED_HOUSES", "value_name": "Sí"},
+                    {"id": "INCLUDES_GUARANTEE",         "value_name": "Sí"},
+                    {"id": "YEARS_EXPERIENCE",            "value_name": "10"},
                 ],
-                "shipping":           {"mode": "not_specified", "free_shipping": False},
             }
-            # Nota: buying_mode NO incluido — combinarlo con item_condition causa error genérico en MLA12047
             async with httpx.AsyncClient(timeout=20) as c:
                 r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
 

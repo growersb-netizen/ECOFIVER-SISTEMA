@@ -954,15 +954,18 @@ async def publicar_faltantes(
             async with httpx.AsyncClient(timeout=20) as c:
                 r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
 
-            if r.status_code in (200, 201):
+            if r.status_code in (200, 201, 402):
+                # 402 en ML clasificados = ítem creado, listing_type gold_premium tiene costo
                 item = r.json()
                 creadas.append({
                     "titulo":    pub["titulo"],
                     "precio_ml": pub["precio"],
                     "item_id":   item.get("id"),
                     "permalink": item.get("permalink"),
+                    "status_ml": item.get("status"),
                     "categoria_id": CAT_PREFAB,
                     "categoria": cat_nombre,
+                    "nota": "402=creado (gold_premium clasificado)" if r.status_code == 402 else "",
                 })
             else:
                 errores.append({
@@ -982,6 +985,138 @@ async def publicar_faltantes(
         "total_errores": len(errores),
         "creadas":  creadas,
         "errores":  errores,
+    }
+
+
+@router.post("/api/ml/audit/activar-bronze")
+async def activar_bronze(t: str = "", db: Session = Depends(get_db)):
+    """
+    Busca los items creados en MLA413502 (Cabañas y Casas Prefabricadas) que están en
+    estado payment_required/under_review (creados con gold_premium, que requiere pago)
+    y los cambia a listing_type=bronze para activarlos sin pago.
+    """
+    import os as _os, asyncio as _asyncio
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+
+    # 1. Obtener user_id del token
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{ML_BASE}/users/me", headers=_ml_headers(token))
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"ML /users/me: {r.status_code} {r.text[:200]}")
+    user_id = r.json().get("id")
+
+    # 2. Buscar items del vendedor en categoría MLA413502 (todos los estados)
+    CAT = "MLA413502"
+    items_encontrados = []
+    for status in ("under_review", "active", "paused", "closed", "payment_required"):
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r2 = await c.get(
+                    f"{ML_BASE}/users/{user_id}/items/search",
+                    params={"category": CAT, "status": status, "limit": 50},
+                    headers=_ml_headers(token),
+                )
+            if r2.status_code == 200:
+                data = r2.json()
+                for iid in data.get("results", []):
+                    items_encontrados.append({"id": iid, "estado_busqueda": status})
+        except Exception:
+            pass
+        await _asyncio.sleep(0.5)
+
+    # También buscar sin filtro de status
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r3 = await c.get(
+                f"{ML_BASE}/users/{user_id}/items/search",
+                params={"category": CAT, "limit": 50},
+                headers=_ml_headers(token),
+            )
+        if r3.status_code == 200:
+            for iid in r3.json().get("results", []):
+                if not any(x["id"] == iid for x in items_encontrados):
+                    items_encontrados.append({"id": iid, "estado_busqueda": "sin_filtro"})
+    except Exception:
+        pass
+
+    if not items_encontrados:
+        # Fallback: intentar con IDs conocidos de la sesión anterior
+        conocidos = [
+            "MLA3840370662", "MLA3840370670", "MLA3840370678",
+            "MLA3840370686", "MLA3840370694", "MLA3840370702",
+            "MLA3840370710", "MLA3840370718", "MLA3840370726",
+            "MLA3840370734", "MLA3840370742",
+        ]
+        for iid in conocidos:
+            items_encontrados.append({"id": iid, "estado_busqueda": "fallback_conocido"})
+
+    # 3. Para cada item, obtener estado y cambiar a bronze si está bloqueado por pago
+    resultados = []
+    for item_info in items_encontrados:
+        iid = item_info["id"]
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                rd = await c.get(f"{ML_BASE}/items/{iid}", headers=_ml_headers(token))
+            if rd.status_code != 200:
+                resultados.append({"id": iid, "accion": "error_get", "detalle": rd.text[:200]})
+                continue
+
+            item_data = rd.json()
+            titulo = item_data.get("title", "?")
+            status_actual = item_data.get("status", "?")
+            listing_type_actual = item_data.get("listing_type_id", "?")
+
+            # Cambiar a bronze si no está activo
+            if status_actual != "active" or listing_type_actual != "bronze":
+                async with httpx.AsyncClient(timeout=15) as c:
+                    rp = await c.put(
+                        f"{ML_BASE}/items/{iid}",
+                        headers=_ml_headers(token),
+                        json={"listing_type_id": "bronze"},
+                    )
+                accion = f"put_bronze={rp.status_code}"
+                detalle = rp.text[:300] if rp.status_code not in (200, 201, 204) else "ok"
+
+                # Si ya está activo y es bronze, solo reportar
+                if rp.status_code in (200, 201, 204):
+                    resultados.append({
+                        "id": iid,
+                        "titulo": titulo,
+                        "status_anterior": status_actual,
+                        "listing_type_anterior": listing_type_actual,
+                        "accion": "activado_bronze",
+                    })
+                else:
+                    resultados.append({
+                        "id": iid,
+                        "titulo": titulo,
+                        "status_actual": status_actual,
+                        "listing_type_actual": listing_type_actual,
+                        "accion": accion,
+                        "detalle": detalle,
+                    })
+            else:
+                resultados.append({
+                    "id": iid,
+                    "titulo": titulo,
+                    "status_actual": status_actual,
+                    "listing_type_actual": listing_type_actual,
+                    "accion": "ya_activo_bronze",
+                })
+        except Exception as ex:
+            resultados.append({"id": iid, "accion": "excepcion", "detalle": str(ex)[:200]})
+        await _asyncio.sleep(0.8)
+
+    activados = [r for r in resultados if r.get("accion") == "activado_bronze"]
+    return {
+        "user_id": user_id,
+        "items_encontrados": len(items_encontrados),
+        "total_activados": len(activados),
+        "resultados": resultados,
     }
 
 

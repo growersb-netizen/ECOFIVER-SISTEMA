@@ -936,11 +936,11 @@ async def publicar_faltantes(
                 "currency_id":        "ARS",
                 "available_quantity": 1,
                 "buying_mode":        "buy_it_now",
-                "item_condition":     "not_specified",
                 "listing_type_id":    "gold_special",
                 "description":        {"plain_text": descripcion},
                 "shipping":           {"mode": "not_specified", "free_shipping": False},
             }
+            # MLA390787 (módulos prefabricados) no acepta item_condition — no incluir
 
             async with httpx.AsyncClient(timeout=20) as c:
                 r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)

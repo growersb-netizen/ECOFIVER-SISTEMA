@@ -1328,6 +1328,50 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
     }
 
 
+@router.post("/api/ml/audit/actualizar-foto-item")
+async def actualizar_foto_item(
+    item_id: str,
+    t: str = "",
+    imagen: UploadFile = File(None),
+    db: Session = Depends(get_db),
+):
+    """Reemplaza la foto de un item existente en ML subiendo una nueva imagen."""
+    import os as _os
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if not imagen:
+        return {"ok": False, "error": "Falta campo 'imagen' (multipart)"}
+
+    token = await _ml_valid_token(db)
+    img_bytes = await imagen.read()
+
+    async with httpx.AsyncClient(timeout=60) as c:
+        rp = await c.post(
+            f"{ML_BASE}/pictures",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            files={"file": (imagen.filename or "foto.jpg", img_bytes, imagen.content_type or "image/jpeg")},
+        )
+    if rp.status_code not in (200, 201):
+        return {"ok": False, "error": f"ML pictures HTTP {rp.status_code}", "detalle": rp.text[:300]}
+
+    picture_id = rp.json().get("id")
+
+    async with httpx.AsyncClient(timeout=20) as c:
+        ru = await c.put(
+            f"{ML_BASE}/items/{item_id}",
+            headers=_ml_headers(token),
+            json={"pictures": [{"id": picture_id}]},
+        )
+    return {
+        "ok": ru.status_code in (200, 201),
+        "http": ru.status_code,
+        "picture_id": picture_id,
+        "item_id": item_id,
+        "detalle": ru.text[:300] if ru.status_code not in (200, 201) else None,
+    }
+
+
 @router.post("/api/ml/audit/publicar-garita-imagen")
 async def publicar_garita_imagen(
     t: str = "",

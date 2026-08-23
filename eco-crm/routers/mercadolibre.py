@@ -1767,6 +1767,10 @@ async def crear_garita_v3(
             "mode": "not_specified",
             "local_pick_up": True,
         },
+        "attributes": [
+            {"id": "BRAND", "value_name": "EcoFiver"},
+            {"id": "MODEL", "value_name": "Garita 1.15x1.15"},
+        ],
     }
 
     async with httpx.AsyncClient(timeout=30) as c:

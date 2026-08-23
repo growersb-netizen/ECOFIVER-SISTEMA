@@ -22,8 +22,8 @@ venv/
 .venv/
 env/
 
-# Alembic
-backend/alembic/versions/*.py
+# Alembic — NO ignorar las migraciones versionadas
+# backend/alembic/versions/*.py  ← removido para trackear migraciones
 
 # Node
 node_modules/

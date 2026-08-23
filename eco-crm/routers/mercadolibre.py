@@ -1328,6 +1328,90 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
     }
 
 
+@router.post("/api/ml/audit/arreglar-garita")
+async def arreglar_garita(
+    item_id: str = "MLA2029025317",
+    t: str = "",
+    imagen: UploadFile = File(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Arregla la publicación de la garita: actualiza descripción (vía /description)
+    y opcionalmente reemplaza la foto.
+    """
+    import os as _os
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+    resultados = {}
+
+    # 1. Actualizar descripción vía endpoint dedicado de ML
+    descripcion = (
+        "CABINA DE SEGURIDAD PREFABRICADA PRFV\n\n"
+        "Dimensiones: 1,15 m largo × 1,15 m ancho × 2,26 m de alto\n"
+        "Material: PRFV (Poliéster Reforzado en Fibra de Vidrio) color blanco\n\n"
+        "EQUIPAMIENTO COMPLETO INCLUIDO:\n"
+        "▸ Mesa interna con cajón\n"
+        "▸ Instalación eléctrica completa con llave de punto y toma con neutro\n"
+        "▸ Artefacto de iluminación metálico con luz LED\n"
+        "▸ Llave termomagnética\n"
+        "▸ Puerta con cerradura de doble paleta\n"
+        "▸ 4 lados vidriados: 3 vidrios fijos sellados con adhesivo automotriz y marco externo\n"
+        "▸ 1 ventana guillotina con marco de aluminio\n"
+        "▸ Piso multilaminado fenólico 19 mm — misma terminación interna de la cabina\n\n"
+        "USOS IDEALES:\n"
+        "Control de acceso a edificios, countries, barrios cerrados, plantas industriales, "
+        "estacionamientos, peajes y eventos.\n\n"
+        "EMPRESA: EcoFiver · Desde 2015 · Garantía estructural 10 años\n"
+        "ENTREGA: San Telmo (CABA) · Zárate (Buenos Aires)\n"
+        "ENVÍO A DOMICILIO disponible — cotizar según zona\n"
+        "PAGO: Contado o tarjeta de crédito/débito\n\n"
+        "Precio contado: $1.990.000\n"
+        "Precio lista (tarjeta): $2.106.000\n"
+    )
+    async with httpx.AsyncClient(timeout=20) as c:
+        rd = await c.put(
+            f"{ML_BASE}/items/{item_id}/description",
+            headers=_ml_headers(token),
+            json={"plain_text": descripcion},
+        )
+    resultados["descripcion"] = {
+        "ok": rd.status_code in (200, 201),
+        "http": rd.status_code,
+        "detalle": rd.text[:200] if rd.status_code not in (200, 201) else "✓",
+    }
+
+    # 2. Si se pasó imagen, reemplazar foto
+    if imagen:
+        img_bytes = await imagen.read()
+        async with httpx.AsyncClient(timeout=60) as c:
+            rp = await c.post(
+                f"{ML_BASE}/pictures",
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                files={"file": (imagen.filename or "garita.jpg", img_bytes, imagen.content_type or "image/jpeg")},
+            )
+        if rp.status_code in (200, 201):
+            picture_id = rp.json().get("id")
+            async with httpx.AsyncClient(timeout=20) as c:
+                ru = await c.put(
+                    f"{ML_BASE}/items/{item_id}",
+                    headers=_ml_headers(token),
+                    json={"pictures": [{"id": picture_id}]},
+                )
+            resultados["foto"] = {
+                "ok": ru.status_code in (200, 201),
+                "http": ru.status_code,
+                "picture_id": picture_id,
+                "detalle": ru.text[:200] if ru.status_code not in (200, 201) else "✓",
+            }
+        else:
+            resultados["foto"] = {"ok": False, "error": rp.text[:200]}
+
+    return {"item_id": item_id, "resultados": resultados}
+
+
 @router.post("/api/ml/audit/actualizar-foto-item")
 async def actualizar_foto_item(
     item_id: str,

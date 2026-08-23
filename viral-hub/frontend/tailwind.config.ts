@@ -43,7 +43,14 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Colores de plataformas sociales
+        // ─── Brand Viral Hub ─────────────────────────────
+        "vh-orange": "#FF6800",
+        "vh-pink":   "#FF2D95",
+        "vh-violet": "#7C3AED",
+        "vh-cyan":   "#00D4FF",
+        "vh-dark":   "#00D4FF",
+
+        // ─── Plataformas sociales ─────────────────────────
         instagram: "#E1306C",
         tiktok: "#000000",
         youtube: "#FF0000",

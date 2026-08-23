@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80" fill="none">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#FF6800"/>
+      <stop offset="33%"  stop-color="#FF2D95"/>
+      <stop offset="66%"  stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#00D4FF"/>
+    </linearGradient>
+  </defs>
+  <!-- V shape -->
+  <path d="M4 8 L20 52 L36 8" stroke="url(#g1)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- H shape -->
+  <path d="M44 8 L44 52" stroke="url(#g1)" stroke-width="11" stroke-linecap="round" fill="none"/>
+  <path d="M44 30 L62 30" stroke="url(#g1)" stroke-width="11" stroke-linecap="round" fill="none"/>
+  <path d="M62 8 L62 52" stroke="url(#g1)" stroke-width="11" stroke-linecap="round" fill="none"/>
+  <!-- Speed lines -->
+  <line x1="70" y1="40" x2="90" y2="40" stroke="url(#g1)" stroke-width="4" stroke-linecap="round"/>
+  <line x1="70" y1="49" x2="84" y2="49" stroke="url(#g1)" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="94" cy="49" r="3" fill="#FF2D95"/>
+  <!-- VIRAL text -->
+  <text x="100" y="34" font-family="Poppins,system-ui,sans-serif" font-weight="700" font-size="18" fill="#00D4FF">VIRAL</text>
+  <!-- HUB text -->
+  <text x="100" y="56" font-family="Poppins,system-ui,sans-serif" font-weight="700" font-size="18" fill="#FF6800">HUB</text>
+</svg>

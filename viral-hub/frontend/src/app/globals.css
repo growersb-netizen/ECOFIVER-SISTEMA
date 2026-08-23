@@ -2,50 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Fuentes ──────────────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71.4% 4.1%;
+    /* Viral Hub Brand Colors */
+    --vh-orange: 25 100% 50%;      /* #FF6800 */
+    --vh-pink:   331 100% 57%;     /* #FF2D95 */
+    --vh-violet: 262 83% 58%;      /* #7C3AED */
+    --vh-cyan:   193 100% 50%;     /* #00D4FF */
+    --vh-dark:   215 28% 17%;      /* #00D4FF */
+
+    /* shadcn/ui tokens — mapeados al brand */
+    --background: 210 40% 98%;      /* #F8FAFC */
+    --foreground: 222 47% 11%;      /* #0F172A */
     --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
-    --primary: 262.1 83.3% 57.8%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 262 83% 58%;         /* Violeta VH */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 9% 46%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 25 100% 50%;          /* Naranja VH */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 262.1 83.3% 57.8%;
-    --radius: 0.5rem;
+    --ring: 262 83% 58%;
+    --radius: 0.625rem;
   }
 
   .dark {
-    --background: 224 71.4% 4.1%;
-    --foreground: 210 20% 98%;
-    --card: 224 71.4% 4.1%;
-    --card-foreground: 210 20% 98%;
-    --popover: 224 71.4% 4.1%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 263.4 70% 50.4%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 215 27.9% 16.9%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 27.9% 16.9%;
-    --muted-foreground: 217.9 10.6% 64.9%;
-    --accent: 215 27.9% 16.9%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 215 27.9% 16.9%;
-    --input: 215 27.9% 16.9%;
-    --ring: 263.4 70% 50.4%;
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 262 83% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 217 11% 65%;
+    --accent: 25 100% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 28% 20%;
+    --input: 215 28% 20%;
+    --ring: 262 83% 65%;
   }
 }
 
@@ -55,5 +64,29 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-poppins), var(--font-inter), system-ui, sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-poppins), system-ui, sans-serif;
+    @apply font-semibold;
+  }
+}
+
+/* ─── Gradientes del brand ─────────────────────────────────────────────────── */
+@layer utilities {
+  .gradient-brand {
+    background: linear-gradient(135deg, #FF6800 0%, #FF2D95 35%, #7C3AED 65%, #00D4FF 100%);
+  }
+  .gradient-brand-text {
+    background: linear-gradient(135deg, #FF6800 0%, #FF2D95 40%, #7C3AED 70%, #00D4FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .gradient-orange-pink {
+    background: linear-gradient(135deg, #FF6800 0%, #FF2D95 100%);
+  }
+  .gradient-violet-cyan {
+    background: linear-gradient(135deg, #7C3AED 0%, #00D4FF 100%);
   }
 }

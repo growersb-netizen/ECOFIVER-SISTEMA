@@ -17,10 +17,10 @@ import {
   History,
   BarChart2,
   Settings,
-  Zap,
   LogOut,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store/auth";
+import { Logo } from "@/components/Logo";
 
 const NAV_ITEMS = [
   { href: "/dashboard",     label: "Dashboard",    icon: LayoutDashboard },
@@ -49,8 +49,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className="w-56 flex-shrink-0 border-r flex flex-col bg-card">
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b">
-          <Zap className="h-5 w-5 text-primary mr-2 shrink-0" />
-          <span className="font-bold text-lg tracking-tight">Viral Hub</span>
+          <Logo size={28} className="text-lg" />
         </div>
 
         {/* Navegación */}

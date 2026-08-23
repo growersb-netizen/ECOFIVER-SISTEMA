@@ -3,11 +3,12 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/store/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Logo } from "@/components/Logo";
 
 function LoginForm() {
   const router = useRouter();
@@ -80,7 +81,12 @@ function LoginForm() {
           </div>
         </div>
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button
+          type="submit"
+          className="w-full text-white font-semibold"
+          style={{ background: "linear-gradient(135deg, #FF6800, #FF2D95, #7C3AED)" }}
+          disabled={isLoading}
+        >
           {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -107,15 +113,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="bg-primary rounded-lg p-2">
-              <Zap className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="text-2xl font-bold">Viral Hub</span>
+        <div className="text-center space-y-3">
+          <div className="flex items-center justify-center">
+            <Logo size={44} className="text-2xl font-bold" />
           </div>
-          <p className="text-muted-foreground text-sm">
-            Tu contenido. Todos tus canales. Un solo lugar.
+          <p className="text-muted-foreground text-sm font-medium tracking-wide uppercase" style={{ letterSpacing: "0.12em" }}>
+            Tu contenido. Todos tus canales. Un solo clic.
           </p>
         </div>
 

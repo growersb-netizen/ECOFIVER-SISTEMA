@@ -1371,25 +1371,45 @@ async def arreglar_garita(
         "Precio contado: $1.990.000\n"
         "Precio lista (tarjeta): $2.106.000\n"
     )
-    # Intento 1: endpoint /description con plain_text
-    async with httpx.AsyncClient(timeout=20) as c:
-        rd = await c.put(
-            f"{ML_BASE}/items/{item_id}/description",
-            headers=_ml_headers(token),
-            json={"plain_text": descripcion},
-        )
-    if rd.status_code not in (200, 201):
-        # Intento 2: PUT al item con description inline
+    # Leer descripción actual
+    async with httpx.AsyncClient(timeout=15) as c:
+        rg = await c.get(f"{ML_BASE}/items/{item_id}/description", headers=_ml_headers(token))
+    desc_actual = rg.json().get("plain_text", "") if rg.status_code == 200 else ""
+    if desc_actual and len(desc_actual) > 50:
+        resultados["descripcion"] = {"ok": True, "http": 200, "detalle": f"Ya existe ({len(desc_actual)} chars)"}
+    else:
+        # Intento 1: endpoint /description
         async with httpx.AsyncClient(timeout=20) as c:
             rd = await c.put(
-                f"{ML_BASE}/items/{item_id}",
+                f"{ML_BASE}/items/{item_id}/description",
                 headers=_ml_headers(token),
-                json={"description": {"plain_text": descripcion}},
+                json={"plain_text": descripcion},
             )
-    resultados["descripcion"] = {
-        "ok": rd.status_code in (200, 201),
-        "http": rd.status_code,
-        "detalle": rd.text[:300] if rd.status_code not in (200, 201) else "✓",
+        if rd.status_code not in (200, 201):
+            # Intento 2: inline via PUT item
+            async with httpx.AsyncClient(timeout=20) as c:
+                rd = await c.put(
+                    f"{ML_BASE}/items/{item_id}",
+                    headers=_ml_headers(token),
+                    json={"description": {"plain_text": descripcion}},
+                )
+        resultados["descripcion"] = {
+            "ok": rd.status_code in (200, 201),
+            "http": rd.status_code,
+            "detalle": rd.text[:300] if rd.status_code not in (200, 201) else "✓",
+        }
+
+    # Actualizar envío: "a coordinar con el vendedor" (mode=not_specified)
+    async with httpx.AsyncClient(timeout=20) as c:
+        rs = await c.put(
+            f"{ML_BASE}/items/{item_id}",
+            headers=_ml_headers(token),
+            json={"shipping": {"mode": "not_specified", "local_pick_up": True}},
+        )
+    resultados["envio"] = {
+        "ok": rs.status_code in (200, 201),
+        "http": rs.status_code,
+        "detalle": rs.text[:200] if rs.status_code not in (200, 201) else "✓",
     }
 
     # 2. Si se pasó imagen, reemplazar foto

@@ -11,7 +11,12 @@ from alembic import context
 
 # Importar Base y todos los modelos para que Alembic los detecte
 from app.core.database import Base
-import app.models  # noqa: F401 — registra todos los modelos en Base.metadata
+# Importar todos los modelos explícitamente para que Alembic los detecte
+import app.models.user          # noqa: F401
+import app.models.workspace     # noqa: F401
+import app.models.channel       # noqa: F401
+import app.models.media         # noqa: F401
+import app.models.publication   # noqa: F401
 
 from app.core.config import get_settings
 

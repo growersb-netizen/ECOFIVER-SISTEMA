@@ -121,8 +121,8 @@ export default function PublicarPage() {
         caption,
         per_platform_captions: Object.keys(perPlatformCaptions).length > 0 ? perPlatformCaptions : undefined,
         asset_id: selectedAsset ?? undefined,
-        channel_ids: selectedChannels.size > 0 ? [...selectedChannels] : undefined,
-        group_ids: selectedGroups.size > 0 ? [...selectedGroups] : undefined,
+        channel_ids: selectedChannels.size > 0 ? Array.from(selectedChannels) : undefined,
+        group_ids: selectedGroups.size > 0 ? Array.from(selectedGroups) : undefined,
         scheduled_at: scheduledAt || undefined,
       });
       router.push("/cola");

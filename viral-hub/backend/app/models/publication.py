@@ -48,7 +48,7 @@ class Publication(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), nullable=False, index=True)
-    media_asset_id: Mapped[int] = mapped_column(ForeignKey("media_assets.id"), nullable=False)
+    media_asset_id: Mapped[int | None] = mapped_column(ForeignKey("media_assets.id"), nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     # Captions/títulos por plataforma (JSON: {instagram: "...", tiktok: "...", ...})

@@ -1,0 +1,173 @@
+version: "3.9"
+
+services:
+  # ─── Base de datos ───────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: viralhub_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: viralhub
+      POSTGRES_PASSWORD: viralpass
+      POSTGRES_DB: viralhub
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U viralhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis (Queue + Cache) ────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: viralhub_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend API ──────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralhub_api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ─── Worker Instagram ─────────────────────────
+  worker_instagram:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralhub_worker_instagram
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.workers.celery_app worker -Q instagram -c 4 -l info --hostname=worker_instagram@%h
+
+  # ─── Worker TikTok ────────────────────────────
+  worker_tiktok:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralhub_worker_tiktok
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.workers.celery_app worker -Q tiktok -c 4 -l info --hostname=worker_tiktok@%h
+
+  # ─── Worker YouTube ───────────────────────────
+  worker_youtube:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralhub_worker_youtube
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.workers.celery_app worker -Q youtube -c 4 -l info --hostname=worker_youtube@%h
+
+  # ─── Worker Facebook ──────────────────────────
+  worker_facebook:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralhub_worker_facebook
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.workers.celery_app worker -Q facebook -c 4 -l info --hostname=worker_facebook@%h
+
+  # ─── Worker métricas (bajo volumen) ──────────
+  worker_metrics:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralhub_worker_metrics
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.workers.celery_app worker -Q metrics -c 2 -l info --hostname=worker_metrics@%h
+
+  # ─── Flower (monitoreo de workers) ───────────
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralhub_flower
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    command: celery -A app.workers.celery_app flower --port=5555
+
+  # ─── Frontend Next.js ─────────────────────────
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: viralhub_web
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -32,7 +32,7 @@ out/
 .turbo/
 frontend/.env
 frontend/.env.local
-frontend/.env.production
+# frontend/.env.production — trackeado para que Vercel lo lea en build
 
 # Editor
 .idea/

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 220" fill="none">
+  <defs>
+    <linearGradient id="rocket-g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6800"/>
+      <stop offset="100%" stop-color="#FF2D95"/>
+    </linearGradient>
+    <linearGradient id="check-g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E"/>
+      <stop offset="100%" stop-color="#16A34A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Cohete -->
+  <!-- Cuerpo -->
+  <ellipse cx="140" cy="95" rx="28" ry="48" fill="url(#rocket-g)"/>
+  <!-- Nariz -->
+  <path d="M112 75 Q140 20 168 75 Z" fill="#FF2D95"/>
+  <!-- Ventana -->
+  <circle cx="140" cy="85" r="12" fill="white" opacity="0.9"/>
+  <circle cx="140" cy="85" r="8"  fill="rgba(255,104,0,0.2)"/>
+  <!-- Aleta izq -->
+  <path d="M112 118 L95 145 L112 138 Z" fill="#CC4400"/>
+  <!-- Aleta der -->
+  <path d="M168 118 L185 145 L168 138 Z" fill="#CC4400"/>
+  <!-- Llama -->
+  <ellipse cx="132" cy="148" rx="8" ry="14" fill="#FFB300" opacity="0.9"/>
+  <ellipse cx="148" cy="148" rx="8" ry="14" fill="#FFB300" opacity="0.9"/>
+  <ellipse cx="140" cy="155" rx="10" ry="18" fill="#FF6800"/>
+
+  <!-- Íconos sociales flotando alrededor -->
+  <!-- TikTok -->
+  <circle cx="62" cy="70" r="22" fill="#000000" opacity="0.85"/>
+  <text x="62" y="77" text-anchor="middle" font-size="18">♪</text>
+
+  <!-- Instagram -->
+  <circle cx="218" cy="80" r="22" fill="url(#rocket-g)"/>
+  <rect x="208" y="70" width="20" height="20" rx="6" fill="none" stroke="white" stroke-width="2.5"/>
+  <circle cx="218" cy="80" r="5" fill="none" stroke="white" stroke-width="2"/>
+  <circle cx="224" cy="74" r="2" fill="white"/>
+
+  <!-- YouTube -->
+  <circle cx="68" cy="145" r="20" fill="#FF0000"/>
+  <polygon points="62,138 62,152 76,145" fill="white"/>
+
+  <!-- Facebook -->
+  <circle cx="212" cy="150" r="20" fill="#1877F2"/>
+  <text x="212" y="157" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="20" fill="white">f</text>
+
+  <!-- Check de éxito -->
+  <circle cx="140" cy="173" r="16" fill="url(#check-g)"/>
+  <path d="M131 173 L138 180 L150 165" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Texto -->
+  <text x="140" y="200" text-anchor="middle"
+    font-family="Poppins, system-ui" font-weight="700" font-size="15" fill="#0F172A">
+    ¡Listo! Tu contenido se está publicando
+  </text>
+  <text x="140" y="216" text-anchor="middle"
+    font-family="Poppins, system-ui" font-weight="400" font-size="11" fill="#64748B">
+    en todas tus cuentas.
+  </text>
+</svg>

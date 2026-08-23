@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 220" fill="none">
+  <defs>
+    <linearGradient id="box-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFB300"/>
+      <stop offset="100%" stop-color="#FF6800"/>
+    </linearGradient>
+    <linearGradient id="vh-g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6800"/>
+      <stop offset="50%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#00D4FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sombra suave de la caja -->
+  <ellipse cx="140" cy="188" rx="70" ry="12" fill="#E2E8F0"/>
+
+  <!-- Caja abierta — frente -->
+  <path d="M80 140 L80 185 L200 185 L200 140 Z" fill="url(#box-grad)" opacity="0.9"/>
+  <!-- Caja — lateral izq -->
+  <path d="M60 130 L80 140 L80 185 L60 175 Z" fill="#E65C00"/>
+  <!-- Caja — lateral der -->
+  <path d="M200 140 L220 130 L220 175 L200 185 Z" fill="#CC5200"/>
+  <!-- Caja — tapa izquierda abierta -->
+  <path d="M60 130 L80 140 L140 125 L120 115 Z" fill="#FFB300" opacity="0.95"/>
+  <!-- Caja — tapa derecha abierta -->
+  <path d="M140 125 L200 140 L220 130 L160 115 Z" fill="#FFA000" opacity="0.95"/>
+
+  <!-- Isotipo VH flotando sobre la caja -->
+  <g transform="translate(110, 62) scale(0.55)">
+    <defs>
+      <linearGradient id="vhi-w" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#FFB300"/>
+        <stop offset="50%" stop-color="#FF6800"/>
+        <stop offset="100%" stop-color="#FF2D95"/>
+      </linearGradient>
+      <linearGradient id="vhi-c" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#7C3AED"/>
+        <stop offset="100%" stop-color="#00D4FF"/>
+      </linearGradient>
+    </defs>
+    <line x1="8"  y1="8"  x2="28" y2="66" stroke="url(#vhi-w)" stroke-width="13" stroke-linecap="round"/>
+    <line x1="28" y1="66" x2="48" y2="8"  stroke="url(#vhi-c)" stroke-width="13" stroke-linecap="round"/>
+    <line x1="48" y1="8"  x2="48" y2="66" stroke="url(#vhi-c)" stroke-width="13" stroke-linecap="round"/>
+    <line x1="48" y1="37" x2="67" y2="37" stroke="url(#vhi-c)" stroke-width="13" stroke-linecap="round"/>
+    <line x1="67" y1="8"  x2="67" y2="66" stroke="url(#vhi-c)" stroke-width="13" stroke-linecap="round"/>
+  </g>
+
+  <!-- Texto -->
+  <text x="140" y="206" text-anchor="middle"
+    font-family="Poppins, system-ui" font-weight="600" font-size="14" fill="#334155">
+    Tu contenido empieza acá
+  </text>
+  <text x="140" y="220" text-anchor="middle"
+    font-family="Poppins, system-ui" font-weight="400" font-size="11" fill="#64748B">
+    Subí tu primer video y comenzá a viralizar.
+  </text>
+</svg>

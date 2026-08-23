@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9333EA"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#7C3AED" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="96" height="96" rx="24" fill="url(#bg)" filter="url(#shadow)"/>
+  <!-- Layers / Stack -->
+  <!-- Capa inferior -->
+  <rect x="16" y="62" width="64" height="12" rx="6" fill="white" opacity="0.3"/>
+  <!-- Capa media -->
+  <rect x="20" y="48" width="56" height="12" rx="6" fill="white" opacity="0.6"/>
+  <!-- Capa superior -->
+  <rect x="24" y="34" width="48" height="14" rx="7" fill="white" opacity="0.95"/>
+  <!-- Flechas de distribución -->
+  <path d="M48 24 L48 16 M44 20 L48 16 L52 20" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

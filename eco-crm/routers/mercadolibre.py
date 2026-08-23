@@ -1589,6 +1589,113 @@ async def publicar_garita_imagen(
         }
 
 
+@router.post("/api/ml/audit/crear-garita-v2")
+async def crear_garita_v2(
+    t: str = "",
+    picture_id: str = "847557-MLA116620316429_082026",
+    pausar_anterior: str = "MLA2029025317",
+    db: Session = Depends(get_db),
+):
+    """
+    Crea una nueva publicación de la garita de seguridad con descripción completa,
+    foto correcta y envío 'a coordinar con el vendedor'.
+    Reutiliza la imagen ya subida a ML (no requiere subir archivo).
+    Pausa la publicación anterior indicada en pausar_anterior.
+    """
+    import os as _os
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+
+    descripcion = (
+        "CABINA DE SEGURIDAD PREFABRICADA PRFV\n\n"
+        "Dimensiones: 1,15 m largo × 1,15 m ancho × 2,26 m de alto\n"
+        "Material: PRFV (Poliéster Reforzado en Fibra de Vidrio) color blanco\n\n"
+        "EQUIPAMIENTO COMPLETO INCLUIDO:\n"
+        "▸ Mesa interna con cajón\n"
+        "▸ Instalación eléctrica completa con llave de punto y toma con neutro\n"
+        "▸ Artefacto de iluminación metálico con luz LED\n"
+        "▸ Llave termomagnética\n"
+        "▸ Puerta con cerradura de doble paleta\n"
+        "▸ 4 lados vidriados: 3 vidrios fijos sellados con adhesivo automotriz y marco externo\n"
+        "▸ 1 ventana guillotina con marco de aluminio\n"
+        "▸ Piso multilaminado fenólico 19 mm — misma terminación interna de la cabina\n\n"
+        "USOS IDEALES:\n"
+        "Control de acceso a edificios, countries, barrios cerrados, plantas industriales, "
+        "estacionamientos, peajes y eventos.\n\n"
+        "EMPRESA: EcoFiver · Desde 2015 · Garantía estructural 10 años\n"
+        "RETIRO: San Telmo (CABA) · Paso del Rey (Zona Oeste)\n"
+        "ENVÍO: A coordinar con el vendedor\n"
+        "PAGO: Contado o tarjeta de crédito/débito\n\n"
+        "Precio contado: $1.990.000\n"
+        "Precio lista (tarjeta): $2.106.000\n"
+    )
+
+    payload = {
+        "title": "Cabina Seguridad Prefabricada PRFV 1,15x1,15 Garita",
+        "category_id": "MLA373483",
+        "price": 2106000.0,
+        "currency_id": "ARS",
+        "available_quantity": 1,
+        "buying_mode": "buy_it_now",
+        "listing_type_id": "free",
+        "condition": "new",
+        "description": {"plain_text": descripcion},
+        "pictures": [{"id": picture_id}],
+        "shipping": {
+            "mode": "not_specified",
+            "local_pick_up": True,
+        },
+        "attributes": [
+            {"id": "BRAND", "value_name": "EcoFiver"},
+            {"id": "MODEL", "value_name": "Estándar 1.15x1.15"},
+            {"id": "WEIGHT", "value_name": "150 kg"},
+            {"id": "INCLUDES_INSTALLATION_KIT", "value_name": "No"},
+            {"id": "MATERIAL", "value_name": "PRFV"},
+            {"id": "COLOR", "value_name": "Blanco"},
+        ],
+    }
+
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(f"{ML_BASE}/items", headers=_ml_headers(token), json=payload)
+
+    if r.status_code not in (200, 201):
+        return {
+            "ok": False,
+            "error": f"No se pudo crear el ítem: HTTP {r.status_code}",
+            "detalle": r.text[:500],
+        }
+
+    item = r.json()
+    new_id = item["id"]
+
+    # Pausar publicación anterior
+    pausar_resultado = None
+    if pausar_anterior:
+        async with httpx.AsyncClient(timeout=15) as c:
+            rp = await c.put(
+                f"{ML_BASE}/items/{pausar_anterior}",
+                headers=_ml_headers(token),
+                json={"status": "paused"},
+            )
+        pausar_resultado = {
+            "ok": rp.status_code in (200, 201),
+            "http": rp.status_code,
+            "detalle": rp.text[:200] if rp.status_code not in (200, 201) else "✓ pausada",
+        }
+
+    return {
+        "ok": True,
+        "nuevo_item_id": new_id,
+        "status": item.get("status"),
+        "permalink": item.get("permalink"),
+        "picture_id": picture_id,
+        "anterior_pausada": pausar_resultado,
+    }
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

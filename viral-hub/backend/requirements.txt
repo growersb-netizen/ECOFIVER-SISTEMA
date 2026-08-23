@@ -1,0 +1,47 @@
+# ─── Framework ───────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.12
+
+# ─── Base de datos ────────────────────────────
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.30.0
+alembic==1.13.3
+psycopg2-binary==2.9.9
+
+# ─── Validación y configuración ──────────────
+pydantic==2.9.2
+pydantic-settings==2.5.2
+email-validator==2.2.0
+
+# ─── Auth ────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==43.0.1
+
+# ─── Queue / Workers ──────────────────────────
+celery==5.4.0
+redis==5.1.1
+kombu==5.3.4
+flower==2.0.1
+
+# ─── HTTP client (para APIs sociales) ────────
+httpx==0.27.2
+aiohttp==3.10.8
+
+# ─── Storage S3/R2 ───────────────────────────
+boto3==1.35.28
+aioboto3==13.2.0
+
+# ─── OAuth ────────────────────────────────────
+authlib==1.3.2
+
+# ─── Observabilidad ───────────────────────────
+sentry-sdk[fastapi]==2.15.0
+structlog==24.4.0
+
+# ─── Utils ────────────────────────────────────
+python-dotenv==1.0.1
+pytz==2024.2
+pillow==10.4.0
+aiofiles==24.1.0

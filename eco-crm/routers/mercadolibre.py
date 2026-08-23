@@ -1328,6 +1328,21 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
     }
 
 
+@router.get("/api/ml/audit/ver-item")
+async def ver_item(item_id: str, t: str = "", db: Session = Depends(get_db)):
+    import os as _os
+    if t != _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    token = await _ml_valid_token(db)
+    async with httpx.AsyncClient(timeout=15) as c:
+        ri = await c.get(f"{ML_BASE}/items/{item_id}", headers=_ml_headers(token))
+        rd = await c.get(f"{ML_BASE}/items/{item_id}/description", headers=_ml_headers(token))
+    return {
+        "item": ri.json() if ri.status_code == 200 else {"http": ri.status_code, "error": ri.text[:300]},
+        "descripcion": rd.json() if rd.status_code == 200 else {"http": rd.status_code, "error": rd.text[:300]},
+    }
+
+
 @router.post("/api/ml/audit/arreglar-garita")
 async def arreglar_garita(
     item_id: str = "MLA2029025317",

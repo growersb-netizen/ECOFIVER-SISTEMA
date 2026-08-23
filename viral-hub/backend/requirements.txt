@@ -17,6 +17,7 @@ email-validator==2.2.0
 # ─── Auth ────────────────────────────────────
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
 cryptography==43.0.1
 
 # ─── Queue / Workers ──────────────────────────

@@ -1,23 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
+    <!-- Fondo del icono: gradiente diagonal naranja-rosa-violeta -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"   stop-color="#FF6800"/>
-      <stop offset="50%"  stop-color="#7C3AED"/>
-      <stop offset="100%" stop-color="#00D4FF"/>
+      <stop offset="0%"   stop-color="#FFB300"/>
+      <stop offset="30%"  stop-color="#FF6800"/>
+      <stop offset="60%"  stop-color="#FF2D95"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
     </linearGradient>
-    <linearGradient id="fg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Brillo de la V (capa luminosa) -->
+    <linearGradient id="fg-warm" x1="0%" y1="0%" x2="60%" y2="100%">
       <stop offset="0%"   stop-color="#ffffff" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.85"/>
+    </linearGradient>
+    <!-- Brillo de la H -->
+    <linearGradient id="fg-cool" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#00D4FF" stop-opacity="0.95"/>
     </linearGradient>
   </defs>
-  <!-- Background rounded rect -->
-  <rect width="100" height="100" rx="22" fill="url(#bg)"/>
-  <!-- V -->
-  <path d="M12 18 L30 72 L48 18" stroke="white" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <!-- H -->
-  <path d="M56 18 L56 72" stroke="white" stroke-width="13" stroke-linecap="round" fill="none"/>
-  <path d="M56 45 L78 45" stroke="white" stroke-width="13" stroke-linecap="round" fill="none"/>
-  <path d="M78 18 L78 72" stroke="white" stroke-width="13" stroke-linecap="round" fill="none"/>
-  <!-- Speed dots -->
-  <circle cx="88" cy="70" r="4" fill="#FF2D95"/>
+
+  <!-- Fondo redondeado -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Sombra suave interior -->
+  <rect width="512" height="512" rx="112" fill="rgba(0,0,0,0.08)"/>
+
+  <!-- V — pierna izquierda -->
+  <line x1="60"  y1="80"  x2="160" y2="380"
+        stroke="url(#fg-warm)" stroke-width="68" stroke-linecap="round"/>
+
+  <!-- V — pierna derecha -->
+  <line x1="160" y1="380" x2="258" y2="80"
+        stroke="url(#fg-cool)" stroke-width="68" stroke-linecap="round"/>
+
+  <!-- H — vertical izquierda -->
+  <line x1="258" y1="80"  x2="258" y2="380"
+        stroke="url(#fg-cool)" stroke-width="68" stroke-linecap="round"/>
+
+  <!-- H — travesaño -->
+  <line x1="258" y1="225" x2="365" y2="225"
+        stroke="url(#fg-cool)" stroke-width="68" stroke-linecap="round"/>
+
+  <!-- H — vertical derecha -->
+  <line x1="365" y1="80"  x2="365" y2="380"
+        stroke="url(#fg-cool)" stroke-width="68" stroke-linecap="round"/>
+
+  <!-- Líneas de velocidad -->
+  <line x1="398" y1="295" x2="460" y2="295" stroke="white" stroke-width="26" stroke-linecap="round" stroke-opacity="0.9"/>
+  <line x1="398" y1="345" x2="445" y2="345" stroke="white" stroke-width="20" stroke-linecap="round" stroke-opacity="0.75"/>
+  <circle cx="468" cy="345" r="18" fill="white" fill-opacity="0.85"/>
 </svg>

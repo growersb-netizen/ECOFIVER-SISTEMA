@@ -1,78 +1,84 @@
 /**
- * Logo Viral Hub — VH con gradiente naranja→rosa→violeta→cian + "VIRAL HUB"
+ * Logo Viral Hub
+ * Variantes: horizontal (logo + texto), solo ícono, dark background.
  * Basado en el brand kit oficial.
  */
+import Image from "next/image";
 
 interface LogoProps {
-  /** Muestra solo el isotipo VH sin el texto */
+  /** Solo muestra el isotipo VH sin texto */
   iconOnly?: boolean;
-  /** Tamaño en px del icono (default 32) */
-  size?: number;
+  /** Variante para fondo oscuro (texto blanco) */
+  dark?: boolean;
+  /** Altura en px (default: 36) */
+  height?: number;
   className?: string;
 }
 
-export function Logo({ iconOnly = false, size = 32, className = "" }: LogoProps) {
-  return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {/* Isotipo VH */}
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 100 100"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-      >
-        <defs>
-          <linearGradient id="vh-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%"   stopColor="#FF6800"/>
-            <stop offset="33%"  stopColor="#FF2D95"/>
-            <stop offset="66%"  stopColor="#7C3AED"/>
-            <stop offset="100%" stopColor="#00D4FF"/>
-          </linearGradient>
-        </defs>
-        {/* V */}
-        <path
-          d="M10 15 L28 70 L46 15"
-          stroke="url(#vh-grad)"
-          strokeWidth="12"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* H vertical left */}
-        <path
-          d="M54 15 L54 70"
-          stroke="url(#vh-grad)"
-          strokeWidth="12"
-          strokeLinecap="round"
-        />
-        {/* H crossbar */}
-        <path
-          d="M54 42 L76 42"
-          stroke="url(#vh-grad)"
-          strokeWidth="12"
-          strokeLinecap="round"
-        />
-        {/* H vertical right */}
-        <path
-          d="M76 15 L76 70"
-          stroke="url(#vh-grad)"
-          strokeWidth="12"
-          strokeLinecap="round"
-        />
-        {/* Speed lines */}
-        <line x1="83" y1="61" x2="96" y2="61" stroke="#FF2D95" strokeWidth="5" strokeLinecap="round"/>
-        <line x1="83" y1="71" x2="93" y2="71" stroke="#7C3AED" strokeWidth="4" strokeLinecap="round"/>
-        <circle cx="97" cy="71" r="4" fill="#00D4FF"/>
-      </svg>
+export function Logo({ iconOnly = false, dark = false, height = 36, className = "" }: LogoProps) {
+  if (iconOnly) {
+    return (
+      <Image
+        src="/logo-icon.svg"
+        alt="Viral Hub"
+        height={height}
+        width={height}
+        priority
+        className={className}
+      />
+    );
+  }
 
-      {/* Logotipo texto */}
-      {!iconOnly && (
-        <span className="font-bold leading-none" style={{ fontFamily: "var(--font-poppins), system-ui" }}>
-          <span style={{ color: "#00D4FF" }}>VIRAL</span>
-          <span style={{ color: "#FF6800" }}>HUB</span>
-        </span>
-      )}
-    </div>
+  const src = dark ? "/logo-dark.svg" : "/logo.svg";
+  // Relación de aspecto del viewBox 280×90 ≈ 3.11
+  const width = Math.round(height * 3.11);
+
+  return (
+    <Image
+      src={src}
+      alt="Viral Hub — Tu contenido. Todos tus canales. Un solo clic."
+      height={height}
+      width={width}
+      priority
+      className={className}
+    />
+  );
+}
+
+/**
+ * Isotipo inline (SVG puro) — útil cuando no se puede usar next/image
+ * o cuando se necesita el gradiente directamente (ej: favicon dinámico).
+ */
+export function LogoIcon({ size = 40, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 80"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      className={className}
+    >
+      <defs>
+        <linearGradient id="lgi-warm" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"   stopColor="#FFB300"/>
+          <stop offset="50%"  stopColor="#FF6800"/>
+          <stop offset="100%" stopColor="#FF2D95"/>
+        </linearGradient>
+        <linearGradient id="lgi-cool" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"   stopColor="#7C3AED"/>
+          <stop offset="100%" stopColor="#00D4FF"/>
+        </linearGradient>
+      </defs>
+      <line x1="8"  y1="8"  x2="28" y2="66" stroke="url(#lgi-warm)" strokeWidth="13" strokeLinecap="round"/>
+      <line x1="28" y1="66" x2="48" y2="8"  stroke="url(#lgi-cool)" strokeWidth="13" strokeLinecap="round"/>
+      <line x1="48" y1="8"  x2="48" y2="66" stroke="url(#lgi-cool)" strokeWidth="13" strokeLinecap="round"/>
+      <line x1="48" y1="37" x2="67" y2="37" stroke="url(#lgi-cool)" strokeWidth="13" strokeLinecap="round"/>
+      <line x1="67" y1="8"  x2="67" y2="66" stroke="url(#lgi-cool)" strokeWidth="13" strokeLinecap="round"/>
+      <line x1="75" y1="50" x2="88" y2="50" stroke="#FF6800" strokeWidth="5" strokeLinecap="round"/>
+      <line x1="75" y1="59" x2="86" y2="59" stroke="#FF2D95" strokeWidth="4" strokeLinecap="round"/>
+      <circle cx="92" cy="59" r="4" fill="#7C3AED"/>
+    </svg>
   );
 }

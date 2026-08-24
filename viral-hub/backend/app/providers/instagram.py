@@ -61,7 +61,7 @@ class InstagramProvider(SocialProvider):
         params = {
             "client_id": settings.META_APP_ID,
             "redirect_uri": redirect_uri,
-            "scope": "instagram_basic,instagram_content_publish,pages_read_engagement,pages_show_list",
+            "scope": "instagram_basic,instagram_content_publishing,pages_read_engagement,pages_show_list",
             "response_type": "code",
             "state": state,
         }

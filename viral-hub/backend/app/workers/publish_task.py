@@ -258,3 +258,49 @@ async def _retry_failed_jobs_async():
             queue = job.channel.platform.value
             publish_job.apply_async(args=[job.id], queue=queue)
             logger.info(f"Reencolar job {job.id} en queue {queue}")
+
+
+# ─── Modo sin Celery (Railway sin Redis) ──────────────────────────────────────
+
+class _NoRetryTask:
+    """Stub de tarea Celery para cuando no hay broker disponible."""
+
+    class _RetrySignal(Exception):
+        pass
+
+    def retry(self, exc=None, countdown=None, **kwargs):
+        raise self._RetrySignal(str(exc))
+
+
+async def run_job_direct(job_id: int) -> None:
+    """
+    Ejecuta un PublicationJob directamente (sin Celery).
+    Usa FastAPI BackgroundTasks cuando el broker no está disponible.
+    En caso de error retriable, marca el job como 'failed' en vez de reintentar
+    (no hay worker que lo reencole).
+    """
+    stub = _NoRetryTask()
+    try:
+        await _publish_job_async(stub, job_id)
+    except _NoRetryTask._RetrySignal as exc:
+        # El job ya fue marcado 'retrying' en _publish_job_async antes del raise;
+        # sin worker lo ponemos en 'failed' con el mensaje del error original.
+        logger.warning(f"run_job_direct [{job_id}] retry signal (sin Celery) → marking failed: {exc}")
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(PublicationJob).where(PublicationJob.id == job_id))
+            job = result.scalar_one_or_none()
+            if job and job.status not in (PublicationStatus.published, PublicationStatus.cancelled):
+                job.status = PublicationStatus.failed
+                job.last_error = str(exc)
+                job.failed_at = datetime.now(timezone.utc)
+                await db.commit()
+    except Exception as exc:
+        logger.exception(f"run_job_direct [{job_id}] excepción inesperada: {exc}")
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(PublicationJob).where(PublicationJob.id == job_id))
+            job = result.scalar_one_or_none()
+            if job and job.status not in (PublicationStatus.published, PublicationStatus.cancelled):
+                job.status = PublicationStatus.failed
+                job.last_error = str(exc)
+                job.failed_at = datetime.now(timezone.utc)
+                await db.commit()

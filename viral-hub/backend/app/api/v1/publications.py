@@ -23,7 +23,7 @@ from app.models.workspace import Membership
 from app.models.channel import SocialChannel, ChannelGroup
 from app.models.media import MediaAsset
 from app.models.publication import Publication, PublicationJob, PublicationStatus
-from app.workers.publish_task import publish_job
+from app.workers.publish_task import publish_job, run_job_direct
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/publications", tags=["Publications"])
 
@@ -41,6 +41,7 @@ class CreatePublicationPayload(BaseModel):
 async def create_publication(
     workspace_id: int,
     payload: CreatePublicationPayload,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     membership: Membership = Depends(get_current_workspace_member),
@@ -129,20 +130,25 @@ async def create_publication(
     for job in created_jobs:
         await db.refresh(job)
 
-    # Encolar en Celery
+    # Encolar en Celery — con fallback a FastAPI BackgroundTasks si no hay broker
     channel_map = {c.id: c for c in channels}
     for job in created_jobs:
         channel = channel_map.get(job.channel_id)
         if channel:
+            celery_ok = False
             try:
                 publish_job.apply_async(
                     args=[job.id],
                     queue=channel.platform.value,
                     task_id=f"job-{job.id}",
                 )
+                celery_ok = True
             except Exception:
-                # Celery no disponible en dev — el job queda en estado queued
-                pass
+                pass  # broker no disponible
+
+            if not celery_ok:
+                # Fallback: procesar directamente en el proceso FastAPI
+                background_tasks.add_task(run_job_direct, job.id)
 
     return {
         "publication_id": publication.id,
@@ -200,6 +206,7 @@ async def get_publication_jobs(
 async def retry_job(
     workspace_id: int,
     job_id: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     membership: Membership = Depends(get_current_workspace_member),
@@ -232,10 +239,14 @@ async def retry_job(
     await db.commit()
 
     if job.channel:
+        celery_ok = False
         try:
             publish_job.apply_async(args=[job.id], queue=job.channel.platform.value)
+            celery_ok = True
         except Exception:
-            pass
+            pass  # broker no disponible
+        if not celery_ok:
+            background_tasks.add_task(run_job_direct, job.id)
 
     return {"message": "Job reencolado", "job_id": job_id}
 

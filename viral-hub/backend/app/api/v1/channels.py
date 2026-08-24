@@ -4,10 +4,11 @@ La conexión OAuth se inicia desde el frontend (redirect a la plataforma)
 y el callback llega acá para completar el intercambio de tokens.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_current_workspace_member
 from app.core.security import encrypt_token
@@ -17,7 +18,50 @@ from app.models.channel import SocialChannel, OAuthCredential, ChannelStatus
 from app.providers import ProviderRegistry
 from app.providers.base import ProviderAuthError
 
+settings = get_settings()
 router = APIRouter(prefix="/workspaces/{workspace_id}/channels", tags=["Channels"])
+
+# ─── Plataformas soportadas y su redirect URI ──────────────────────────────
+
+PLATFORM_REDIRECT_URIS: dict[str, str] = {
+    "instagram": settings.META_REDIRECT_URI or "",
+    "facebook":  settings.META_REDIRECT_URI or "",   # misma app Meta
+    "tiktok":    settings.TIKTOK_REDIRECT_URI or "",
+    "youtube":   settings.GOOGLE_REDIRECT_URI or "",
+}
+
+
+@router.get("/oauth/{platform}/initiate")
+async def oauth_initiate(
+    workspace_id: int,
+    platform: str,
+    current_user: User = Depends(get_current_user),
+    membership: Membership = Depends(get_current_workspace_member),
+):
+    """
+    Devuelve la URL de autorización OAuth para la plataforma indicada.
+    El frontend redirige al usuario a esa URL.
+    El state codifica 'platform:workspace_id' para recuperarlo en el callback.
+    """
+    if platform not in PLATFORM_REDIRECT_URIS:
+        raise HTTPException(status_code=400, detail=f"Plataforma no soportada: {platform}")
+
+    redirect_uri = PLATFORM_REDIRECT_URIS[platform]
+    if not redirect_uri:
+        raise HTTPException(
+            status_code=503,
+            detail=f"La integración con {platform} aún no está configurada. "
+                   f"El administrador debe configurar las credenciales OAuth.",
+        )
+
+    try:
+        ProviderClass = ProviderRegistry.get(platform)
+        state = f"{platform}:{workspace_id}"
+        auth_url = ProviderClass.get_oauth_url(redirect_uri=redirect_uri, state=state)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"auth_url": auth_url, "platform": platform, "redirect_uri": redirect_uri}
 
 
 @router.get("")

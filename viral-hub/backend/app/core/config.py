@@ -40,21 +40,29 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = ""
 
     # ─── CORS ────────────────────────────────────
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://viral-hub-jet.vercel.app",
+    ]
 
     # ─── Meta (Instagram / Facebook) ─────────────
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
+    # URL de callback registrada en la app de Meta Developers
+    # Ej: https://viral-hub-jet.vercel.app/oauth/callback
     META_REDIRECT_URI: str = ""
 
     # ─── TikTok ───────────────────────────────────
     TIKTOK_CLIENT_KEY: str = ""
     TIKTOK_CLIENT_SECRET: str = ""
+    # URL de callback registrada en TikTok Developers
     TIKTOK_REDIRECT_URI: str = ""
 
     # ─── Google / YouTube ─────────────────────────
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+    # URL de callback registrada en Google Cloud Console
     GOOGLE_REDIRECT_URI: str = ""
 
     # ─── Email ────────────────────────────────────

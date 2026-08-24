@@ -21,22 +21,45 @@ const STATUS_CONFIG = {
   error: { icon: AlertCircle, label: "Error", color: "text-red-600", badge: "destructive" as const },
 };
 
-function ConnectButton({ platform }: { platform: typeof PLATFORMS[0] }) {
-  const handleConnect = () => {
-    // El OAuth redirect se genera en el backend
-    // El frontend redirige al usuario al provider
-    alert(`Para conectar ${platform.name}: el flujo OAuth se configurará cuando completes las credenciales de la app en el .env`);
+function ConnectButton({ platform, workspaceId }: { platform: typeof PLATFORMS[0]; workspaceId: number | undefined }) {
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleConnect = async () => {
+    if (!workspaceId) return;
+    setLoading(true);
+    setErrorMsg("");
+    try {
+      const { auth_url } = await api.channels.getOAuthUrl(workspaceId, platform.id);
+      // Redirigir al usuario a la plataforma para autorizar
+      window.location.href = auth_url;
+    } catch (err: unknown) {
+      const msg = (err as Error).message ?? "Error al iniciar conexión";
+      // Si la integración no está configurada, mostrar mensaje amigable
+      if (msg.includes("no está configurada")) {
+        setErrorMsg("Próximamente disponible — credenciales en configuración.");
+      } else {
+        setErrorMsg(msg);
+      }
+      setLoading(false);
+    }
   };
 
   return (
-    <button
-      onClick={handleConnect}
-      className={`${platform.color} text-white rounded-xl p-4 text-left hover:opacity-90 transition-opacity`}
-    >
-      <div className="text-2xl mb-2">{platform.icon}</div>
-      <p className="font-semibold text-sm">{platform.name}</p>
-      <p className="text-xs opacity-75 mt-0.5">Conectar cuenta</p>
-    </button>
+    <div className="space-y-1">
+      <button
+        onClick={handleConnect}
+        disabled={loading}
+        className={`${platform.color} text-white rounded-xl p-4 text-left hover:opacity-90 transition-opacity w-full disabled:opacity-60`}
+      >
+        <div className="text-2xl mb-2">{loading ? "⏳" : platform.icon}</div>
+        <p className="font-semibold text-sm">{platform.name}</p>
+        <p className="text-xs opacity-75 mt-0.5">{loading ? "Redirigiendo…" : "Conectar cuenta"}</p>
+      </button>
+      {errorMsg && (
+        <p className="text-xs text-destructive px-1">{errorMsg}</p>
+      )}
+    </div>
   );
 }
 
@@ -136,7 +159,7 @@ export default function CanalesPage() {
           {channels.length === 0 ? "Conectá tu primer canal" : "Agregar otro canal"}
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {PLATFORMS.map((p) => <ConnectButton key={p.id} platform={p} />)}
+          {PLATFORMS.map((p) => <ConnectButton key={p.id} platform={p} workspaceId={workspace?.id} />)}
         </div>
         <p className="text-xs text-muted-foreground mt-3">
           💡 Para habilitar la conexión OAuth, configurá las credenciales de cada plataforma en el <code className="bg-muted px-1 rounded">.env</code> del backend y revisá <code>backend/app/providers/</code>

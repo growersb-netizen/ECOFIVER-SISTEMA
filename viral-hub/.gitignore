@@ -16,6 +16,8 @@ develop-eggs/
 .installed.cfg
 lib/
 lib64/
+# Excepción: src/lib es código de la app Next.js (no Python venv)
+!frontend/src/lib/
 .env
 *.env
 venv/

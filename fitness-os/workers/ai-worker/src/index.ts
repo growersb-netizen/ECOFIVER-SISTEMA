@@ -100,18 +100,21 @@ async function processAIJob(job: Job<AIJob>): Promise<void> {
 
       const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        include: {
-          autopilotConfig: {
-            include: { kb: { include: { entries: { where: { active: true }, take: 15 } } } },
-          },
-        },
       });
 
-      if (!conversation || !conversation.autopilotConfig) return;
-      if (conversation.autopilotConfig.mode === "MANUAL") return;
+      if (!conversation) return;
+      if (conversation.autopilotMode === "MANUAL") return;
 
-      const kbContext = conversation.autopilotConfig.kb?.entries
-        .map((e) => `${e.question ? `P: ${e.question}\n` : ""}R: ${e.answer}`)
+      // AutopilotConfig es por tenant+channel, no per-conversation
+      const autopilotConfig = await prisma.autopilotConfig.findUnique({
+        where: { tenantId_channel: { tenantId, channel: conversation.channel } },
+        include: { kb: { include: { entries: { where: { active: true }, take: 15 } } } },
+      });
+
+      if (!autopilotConfig || !autopilotConfig.enabled) return;
+
+      const kbContext = autopilotConfig.kb?.entries
+        .map((e) => `${e.question ? `P: ${e.question}\n` : ""}R: ${e.answer ?? e.content}`)
         .join("\n\n") ?? "";
 
       const attentionConfig = await prisma.aIModelConfig.findUnique({
@@ -136,7 +139,7 @@ Respondé en máximo 3 oraciones, tono cálido, español rioplatense, usando "vo
           type: "TEXT",
           content: response,
           aiGenerated: true,
-          status: conversation.autopilotConfig.mode === "AUTOPILOT" ? "PENDING_SEND" : "DRAFT",
+          status: conversation.autopilotMode === "AUTOPILOT" ? "PENDING_SEND" : "DRAFT",
         },
       });
 

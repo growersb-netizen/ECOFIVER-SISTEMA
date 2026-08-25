@@ -73,7 +73,7 @@ async function processFulfillmentJob(job: Job<FulfillmentJob>): Promise<void> {
   const [product, customer, order] = await Promise.all([
     prisma.product.findUnique({
       where: { id: productId },
-      include: { files: true, packages: true },
+      include: { files: true },
     }),
     prisma.customer.findUnique({ where: { id: customerId } }),
     prisma.order.findUnique({ where: { id: orderId } }),

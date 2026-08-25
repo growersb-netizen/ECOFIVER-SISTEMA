@@ -20,6 +20,7 @@
 
 import { Worker, Queue, Job } from "bullmq";
 import { PrismaClient } from "@prisma/client";
+import { createServer } from "http";
 import pino from "pino";
 import { R2StorageAdapter } from "./adapters/storage.js";
 import { ResendEmailAdapter } from "./adapters/email.js";
@@ -203,5 +204,17 @@ process.on("SIGTERM", async () => {
   await prisma.$disconnect();
   process.exit(0);
 });
+
+// Health endpoint para Railway healthcheck
+const PORT = parseInt(process.env["PORT"] ?? "3000");
+createServer((req, res) => {
+  if (req.url === "/api/v1/health" || req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, worker: "fulfillment" }));
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+}).listen(PORT, () => log.info({ port: PORT }, "Health server listening"));
 
 log.info("🚚 Fulfillment Worker iniciado — escuchando cola 'fulfillment'");

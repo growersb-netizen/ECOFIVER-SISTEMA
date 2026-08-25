@@ -14,6 +14,7 @@
 
 import { Worker, Queue, Job } from "bullmq";
 import { PrismaClient } from "@prisma/client";
+import { createServer } from "http";
 import pino from "pino";
 
 const log = pino({ level: process.env["LOG_LEVEL"] ?? "info" });
@@ -180,6 +181,18 @@ process.on("SIGTERM", async () => {
   await prisma.$disconnect();
   process.exit(0);
 });
+
+// Health endpoint para Railway healthcheck
+const PORT = parseInt(process.env["PORT"] ?? "3000");
+createServer((req, res) => {
+  if (req.url === "/api/v1/health" || req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, worker: "ai" }));
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+}).listen(PORT, () => log.info({ port: PORT }, "Health server listening"));
 
 log.info("🤖 AI Worker iniciado — escuchando cola 'ai'");
 if (!OPENROUTER_KEY) log.warn("⚠️  OPENROUTER_API_KEY no configurada — modo mock");

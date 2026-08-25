@@ -10,6 +10,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { createServer } from "http";
 import pino from "pino";
 
 const log = pino({ level: process.env["LOG_LEVEL"] ?? "info" });
@@ -123,6 +124,19 @@ async function runOnce() {
 }
 
 const INTERVAL_MS = parseInt(process.env["SYNC_INTERVAL_MS"] ?? "30000");
+
+// Health endpoint para Railway healthcheck
+const PORT = parseInt(process.env["PORT"] ?? "3000");
+createServer((req, res) => {
+  if (req.url === "/api/v1/health" || req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, worker: "sync" }));
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+}).listen(PORT, () => log.info({ port: PORT }, "Health server listening"));
+
 log.info({ intervalMs: INTERVAL_MS }, "🔄 Sync Worker iniciado");
 
 // Run immediately, then on interval

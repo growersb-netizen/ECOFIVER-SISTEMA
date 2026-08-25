@@ -1,0 +1,11 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @fitness-os/database db:generate && pnpm --filter @fitness-os/api build"
+watchPatterns = ["apps/api/**", "packages/database/**", "packages/shared/**"]
+
+[deploy]
+startCommand = "pnpm --filter @fitness-os/database db:migrate:deploy && node apps/api/dist/index.js"
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

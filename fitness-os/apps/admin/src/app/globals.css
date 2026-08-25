@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-dm-sans: "DM Sans", system-ui, sans-serif;
+  --font-barlow: "Barlow Condensed", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-[#07080F] text-[#E8EDFF] antialiased;
+  }
+
+  * {
+    @apply border-[#1E2240];
+  }
+}

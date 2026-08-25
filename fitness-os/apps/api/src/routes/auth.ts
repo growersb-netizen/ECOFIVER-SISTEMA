@@ -9,7 +9,7 @@
 
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { hash, compare } from "argon2";
+import { hash, verify } from "argon2";
 
 // ── Schemas ────────────────────────────────────────────────────────
 const RegisterSchema = z.object({
@@ -129,7 +129,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.code(401).send({ error: "Credenciales inválidas" });
     }
 
-    const validPassword = await compare(user.passwordHash ?? "", password);
+    const validPassword = await verify(user.passwordHash ?? "", password);
     if (!validPassword) {
       return reply.code(401).send({ error: "Credenciales inválidas" });
     }
@@ -141,12 +141,12 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
 
     // Guardar sesión
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     await prisma.session.create({
       data: {
         userId: user.id,
-        token: refresh,
-        expiresAt,
+        sessionToken: refresh,
+        expires,
       },
     });
 
@@ -159,7 +159,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         entity: "User",
         entityId: user.id,
         ip: request.ip,
-        userAgent: request.headers["user-agent"] ?? null,
       },
     });
 
@@ -204,8 +203,8 @@ export async function authRoutes(fastify: FastifyInstance) {
     // Verificar que la sesión exista y no esté expirada
     const session = await prisma.session.findFirst({
       where: {
-        token: body.data.refreshToken,
-        expiresAt: { gt: new Date() },
+        sessionToken: body.data.refreshToken,
+        expires: { gt: new Date() },
       },
     });
 
@@ -220,10 +219,10 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
 
     // Rotar refresh token
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     await prisma.session.update({
       where: { id: session.id },
-      data: { token: refresh, expiresAt },
+      data: { sessionToken: refresh, expires },
     });
 
     return reply.send({ accessToken: access, refreshToken: refresh, expiresIn: 900 });
@@ -238,7 +237,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply) => {
       const body = RefreshSchema.safeParse(request.body);
       if (body.success) {
-        await prisma.session.deleteMany({ where: { token: body.data.refreshToken } });
+        await prisma.session.deleteMany({ where: { sessionToken: body.data.refreshToken } });
       }
       return reply.send({ message: "Sesión cerrada" });
     }

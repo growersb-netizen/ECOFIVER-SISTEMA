@@ -57,24 +57,30 @@ const ListProductsQuerySchema = z.object({
 export async function productRoutes(fastify: FastifyInstance) {
   const prisma = fastify.prisma;
 
-  // Todas las rutas de productos requieren autenticación
-  fastify.addHook("preHandler", fastify.authenticate);
-
   /**
-   * GET /products
+   * GET /products — público para PUBLISHED, requiere auth para otros status
    */
-  fastify.get("/", async (request: FastifyRequest, reply) => {
+  fastify.get("/", {
+    preHandler: fastify.authenticateOptional,
+  }, async (request: FastifyRequest, reply) => {
     const query = ListProductsQuerySchema.safeParse(request.query);
     if (!query.success) return reply.code(400).send({ error: "Parámetros inválidos" });
 
     const { page, pageSize, status, type, categoryId, q, sortBy, order } = query.data;
+
+    // Sin auth solo se pueden ver productos PUBLISHED
+    const isAuthenticated = !!request.user?.sub;
+    const effectiveStatus = !isAuthenticated ? "PUBLISHED" : (status ?? undefined);
+
     const safePage = Math.max(1, page);
     const safeSize = Math.min(100, Math.max(1, pageSize));
     const skip = (safePage - 1) * safeSize;
 
+    if (!request.tenantId) return reply.code(400).send({ error: "Tenant requerido (X-Tenant-Slug)" });
+
     const where = {
       tenantId: request.tenantId!,
-      ...(status && { status: status as never }),
+      ...(effectiveStatus && { status: effectiveStatus as never }),
       ...(type && { type: type as never }),
       ...(categoryId && { categoryId }),
       ...(q && {
@@ -117,7 +123,7 @@ export async function productRoutes(fastify: FastifyInstance) {
    */
   fastify.post(
     "/",
-    { preHandler: [requireRole("CONTENT_MANAGER")] },
+    { preHandler: [fastify.authenticate, requireRole("CONTENT_MANAGER")] },
     async (request: FastifyRequest, reply) => {
       const body = CreateProductSchema.safeParse(request.body);
       if (!body.success) {
@@ -225,7 +231,7 @@ export async function productRoutes(fastify: FastifyInstance) {
    */
   fastify.patch(
     "/:id",
-    { preHandler: [requireRole("CONTENT_MANAGER")] },
+    { preHandler: [fastify.authenticate, requireRole("CONTENT_MANAGER")] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       const body = UpdateProductSchema.safeParse(request.body);
       if (!body.success) {
@@ -310,7 +316,7 @@ export async function productRoutes(fastify: FastifyInstance) {
    */
   fastify.post(
     "/:id/publish",
-    { preHandler: [requireRole("MANAGER")] },
+    { preHandler: [fastify.authenticate, requireRole("MANAGER")] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       const tenantId = request.tenantId!;
       const product = await prisma.product.findFirst({
@@ -351,7 +357,7 @@ export async function productRoutes(fastify: FastifyInstance) {
    */
   fastify.post(
     "/:id/unpublish",
-    { preHandler: [requireRole("MANAGER")] },
+    { preHandler: [fastify.authenticate, requireRole("MANAGER")] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       const product = await prisma.product.findFirst({
         where: { id: request.params.id, tenantId: request.tenantId! },
@@ -372,7 +378,7 @@ export async function productRoutes(fastify: FastifyInstance) {
    */
   fastify.delete(
     "/:id",
-    { preHandler: [requireRole("MANAGER")] },
+    { preHandler: [fastify.authenticate, requireRole("MANAGER")] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       const product = await prisma.product.findFirst({
         where: { id: request.params.id, tenantId: request.tenantId! },

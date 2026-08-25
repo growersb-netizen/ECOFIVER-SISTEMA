@@ -4,6 +4,7 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://fitness-api-production-fff4.up.railway.app"
+    "NEXT_PUBLIC_API_URL": "https://fitness-api-production-fff4.up.railway.app",
+    "NEXT_PUBLIC_TENANT_SLUG": "fitness-os"
   }
 }

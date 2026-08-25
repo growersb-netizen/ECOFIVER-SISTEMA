@@ -270,7 +270,8 @@ async function seedCatalog() {
         name: p.name,
         description: p.desc,
         type: "PDF_GUIDE",
-        status: "DRAFT",
+        status: "PUBLISHED",
+        publishedAt: new Date(),
         categoryId,
       },
     });
@@ -288,10 +289,10 @@ async function seedCatalog() {
     await prisma.productContent.create({
       data: {
         productId: product.id,
-        shortDescription: p.desc.substring(0, 150),
-        longDescription: p.desc,
-        benefits: [],
-        whatYouGet: [],
+        channel: "WEB",
+        contentType: "description",
+        content: p.desc,
+        status: "PUBLISHED",
       },
     });
 

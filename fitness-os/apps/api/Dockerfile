@@ -33,4 +33,4 @@ ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 3001
 
-CMD ["sh", "-c", "pnpm --filter @fitness-os/database exec prisma migrate resolve --rolled-back 20260825144522_initial 2>/dev/null || true; pnpm --filter @fitness-os/database exec prisma migrate deploy && node apps/api/dist/index.js"]
+CMD ["sh", "-c", "pnpm --filter @fitness-os/database exec prisma migrate resolve --rolled-back 20260825144522_initial 2>/dev/null || true; pnpm --filter @fitness-os/database exec prisma migrate deploy && pnpm --filter @fitness-os/database run seed && node apps/api/dist/index.js"]

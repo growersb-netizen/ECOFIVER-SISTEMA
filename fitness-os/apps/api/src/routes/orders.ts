@@ -97,10 +97,10 @@ export async function orderRoutes(fastify: FastifyInstance) {
         },
       });
       if (coupon) {
-        if (coupon.type === "PERCENTAGE") {
-          discount = subtotal * (coupon.value.toNumber() / 100);
-        } else {
-          discount = Math.min(coupon.value.toNumber(), subtotal);
+        if (coupon.discountPct) {
+          discount = subtotal * (coupon.discountPct.toNumber() / 100);
+        } else if (coupon.discountAmt) {
+          discount = Math.min(coupon.discountAmt.toNumber(), subtotal);
         }
       }
     }

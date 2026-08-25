@@ -22,10 +22,11 @@ COPY tsconfig.json ./
 # Generate Prisma client for alpine/linux
 RUN pnpm --filter @fitness-os/database exec prisma generate
 
-# Build shared package first (API imports @fitness-os/shared at runtime)
+# Build packages in dependency order (API imports both at runtime)
 RUN pnpm --filter @fitness-os/shared build
+RUN pnpm --filter @fitness-os/database build
 
-# Build TypeScript API (noEmitOnError: false so errors don't block)
+# Build TypeScript API
 RUN pnpm --filter @fitness-os/api build
 
 ENV NODE_ENV=production

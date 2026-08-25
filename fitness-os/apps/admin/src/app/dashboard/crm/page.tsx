@@ -42,7 +42,7 @@ export default function CRMPage() {
     setLoading(true);
     try {
       const data = await apiClient.getLeads({ search, status: filterStatus });
-      setLeads(data.leads ?? data);
+      setLeads((data.leads ?? data) as Lead[]);
     } catch { /* empty */ }
     finally { setLoading(false); }
   }, [search, filterStatus]);

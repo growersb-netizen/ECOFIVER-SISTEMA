@@ -94,8 +94,6 @@ async function processFulfillmentJob(job: Job<FulfillmentJob>): Promise<void> {
       idempotencyKey,
       channel: "EMAIL",
       status: "PROCESSING",
-      attempts: 1,
-      lastAttemptAt: new Date(),
     },
   });
 

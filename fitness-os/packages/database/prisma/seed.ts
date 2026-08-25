@@ -6,7 +6,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import * as crypto from "crypto";
+import { hash } from "argon2";
 
 const prisma = new PrismaClient();
 
@@ -55,11 +55,8 @@ async function main() {
   const adminPassword =
     process.env["SEED_ADMIN_PASSWORD"] ?? "cambiar-en-produccion-12345!";
 
-  // Hash simple con SHA-256 — en Fase 01 se reemplaza por bcrypt/argon2
-  const passwordHash = crypto
-    .createHash("sha256")
-    .update(adminPassword)
-    .digest("hex");
+  // Hash argon2 — mismo algoritmo que usa la ruta /auth/login
+  const passwordHash = await hash(adminPassword);
 
   const adminUser = await prisma.user.upsert({
     where: { tenantId_email: { tenantId: tenant.id, email: adminEmail } },

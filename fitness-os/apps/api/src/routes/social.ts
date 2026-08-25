@@ -212,7 +212,7 @@ export async function socialRoutes(fastify: FastifyInstance) {
           action: "PUBLICATION_PUBLISH",
           entity: "Publication",
           entityId: publication.id,
-          newValue: { platform: publication.platform },
+          after: { platform: publication.platform },
         },
       });
 

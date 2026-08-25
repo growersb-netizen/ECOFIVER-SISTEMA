@@ -96,7 +96,7 @@ export async function productRoutes(fastify: FastifyInstance) {
         include: {
           category: { select: { id: true, name: true } },
           prices: true,
-          _count: { select: { files: true, packages: true } },
+          _count: { select: { files: true, contentPacks: true } },
         },
       }),
     ]);
@@ -141,7 +141,7 @@ export async function productRoutes(fastify: FastifyInstance) {
             slug,
             name,
             description,
-            type,
+            productType: type as never,
             status: "DRAFT",
             ...(categoryId && { categoryId }),
           },
@@ -155,16 +155,15 @@ export async function productRoutes(fastify: FastifyInstance) {
           })),
         });
 
-        // Contenido
+        // Contenido — almacenado como JSON en ProductContent
         if (content) {
           await tx.productContent.create({
             data: {
               productId: p.id,
-              shortDescription: content.shortDescription,
-              longDescription: content.longDescription,
-              benefits: content.benefits ?? [],
-              targetAudience: content.targetAudience,
-              whatYouGet: content.whatYouGet ?? [],
+              channel: "WEB",
+              contentType: "description",
+              content: JSON.stringify(content),
+              status: "DRAFT",
             },
           });
         }
@@ -173,9 +172,9 @@ export async function productRoutes(fastify: FastifyInstance) {
         if (tags?.length) {
           for (const tagName of tags) {
             const tag = await tx.tag.upsert({
-              where: { tenantId_name: { tenantId, name: tagName } },
+              where: { name: tagName },
               update: {},
-              create: { tenantId, name: tagName, slug: slugify(tagName) },
+              create: { name: tagName },
             });
             await tx.productTag.create({ data: { productId: p.id, tagId: tag.id } });
           }
@@ -189,7 +188,7 @@ export async function productRoutes(fastify: FastifyInstance) {
             action: "PRODUCT_CREATE",
             entity: "Product",
             entityId: p.id,
-            newValue: { sku, name, type },
+            after: { sku, name, type },
           },
         });
 
@@ -210,8 +209,8 @@ export async function productRoutes(fastify: FastifyInstance) {
         category: true,
         prices: true,
         files: { select: { id: true, name: true, mimeType: true, sizeBytes: true, createdAt: true } },
-        packages: true,
-        content: true,
+        contentPacks: true,
+        contents: true,
         tags: { include: { tag: true } },
         versions: { orderBy: { version: "desc" }, take: 5 },
       },
@@ -263,11 +262,27 @@ export async function productRoutes(fastify: FastifyInstance) {
         }
 
         if (content) {
-          await tx.productContent.upsert({
-            where: { productId: p.id },
-            update: content,
-            create: { productId: p.id, ...content, benefits: content.benefits ?? [], whatYouGet: content.whatYouGet ?? [] },
+          // ProductContent stores structured content as JSON in the 'content' field
+          // We create/update a record with contentType="description" for the product's main content
+          const existingContent = await tx.productContent.findFirst({
+            where: { productId: p.id, contentType: "description", channel: "WEB" },
           });
+          if (existingContent) {
+            await tx.productContent.update({
+              where: { id: existingContent.id },
+              data: { content: JSON.stringify(content), updatedAt: new Date() },
+            });
+          } else {
+            await tx.productContent.create({
+              data: {
+                productId: p.id,
+                channel: "WEB",
+                contentType: "description",
+                content: JSON.stringify(content),
+                status: "DRAFT",
+              },
+            });
+          }
         }
 
         await tx.auditLog.create({
@@ -277,8 +292,8 @@ export async function productRoutes(fastify: FastifyInstance) {
             action: "PRODUCT_UPDATE",
             entity: "Product",
             entityId: p.id,
-            oldValue: { status: product.status },
-            newValue: productData,
+            before: { status: product.status },
+            after: productData,
           },
         });
 

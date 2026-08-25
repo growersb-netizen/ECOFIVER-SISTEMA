@@ -282,7 +282,7 @@ Respondé en máximo 2-3 oraciones, en tono cálido y profesional, en español r
           action: "AUTOPILOT_CHANGE",
           entity: "AutopilotConfig",
           entityId: config.id,
-          newValue: body.data,
+          after: body.data,
         },
       });
 

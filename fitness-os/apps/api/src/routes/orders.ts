@@ -93,7 +93,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
           tenantId,
           code: couponCode,
           active: true,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
         },
       });
       if (coupon) {
@@ -190,21 +190,24 @@ export async function orderRoutes(fastify: FastifyInstance) {
         tenantId,
         code: body.data.code,
         active: true,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
       },
     });
 
     if (!coupon) return reply.code(404).send({ error: "Cupón no válido o expirado" });
 
-    const discount = coupon.type === "PERCENTAGE"
-      ? body.data.subtotal * (coupon.value.toNumber() / 100)
-      : Math.min(coupon.value.toNumber(), body.data.subtotal);
+    const subtotal = body.data.subtotal;
+    const discount = coupon.discountPct
+      ? subtotal * (coupon.discountPct.toNumber() / 100)
+      : coupon.discountAmt
+        ? Math.min(coupon.discountAmt.toNumber(), subtotal)
+        : 0;
 
     return reply.send({
       valid: true,
       discount,
-      type: coupon.type,
-      value: coupon.value,
+      discountPct: coupon.discountPct,
+      discountAmt: coupon.discountAmt,
       description: coupon.description,
     });
   });
@@ -247,7 +250,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
           status: mpStatus === "approved" ? "APPROVED" : mpStatus === "rejected" ? "REJECTED" : "PENDING",
           amount: order.total,
           currency: order.currency,
-          metadata: mpPayment as never,
+          rawData: mpPayment as never,
         },
       });
 
@@ -264,7 +267,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
             action: "ORDER_PAID",
             entity: "Order",
             entityId: order.id,
-            newValue: { paymentId, amount: order.total.toNumber() },
+            after: { paymentId, amount: order.total.toNumber() },
           },
         });
 
@@ -341,7 +344,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
           items: { include: { product: true } },
           payments: true,
           deliveries: true,
-          coupon: { select: { code: true, type: true, value: true } },
+          coupon: { select: { code: true, discountPct: true, discountAmt: true } },
         },
       });
 

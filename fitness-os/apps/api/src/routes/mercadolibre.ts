@@ -197,7 +197,7 @@ export async function mercadolibreRoutes(fastify: FastifyInstance) {
           action: "ML_LISTING_PUBLISH",
           entity: "MarketplaceListing",
           entityId: listing.id,
-          newValue: { mlItemId: mlItem.id },
+          after: { mlItemId: mlItem.id },
         },
       });
 

@@ -43,6 +43,15 @@ enum ProductType {
   PHYSICAL
   BUNDLE
   MEMBERSHIP
+  PDF_GUIDE
+  VIDEO_COURSE
+  AUDIO_PROGRAM
+  SUBSCRIPTION
+  COACHING_SESSION
+  TEMPLATE
+  EBOOK
+  CHALLENGE
+  COMMUNITY_ACCESS
 }
 
 enum OrderStatus {
@@ -79,6 +88,7 @@ enum PublicationStatus {
   DRAFT
   READY
   APPROVED
+  SCHEDULED
   PUBLISHED
   PAUSED
   ARCHIVED
@@ -99,7 +109,9 @@ enum LeadStatus {
 enum AutopilotMode {
   MANUAL
   ASSISTED
+  COPILOT
   AUTOMATIC
+  AUTOPILOT
 }
 
 enum ChannelType {
@@ -316,6 +328,8 @@ model Product {
   seoKeywords    String[]
   seoCanonical   String?
   ogImageUrl     String?
+  // Publicación
+  publishedAt    DateTime?
   // Revisión profesional
   reviewedBy     String?
   reviewedAt     DateTime?
@@ -539,6 +553,7 @@ model Order {
   customerEmail     String?
   customerWhatsapp  String?
   customerInstagram String?
+  paidAt            DateTime?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 

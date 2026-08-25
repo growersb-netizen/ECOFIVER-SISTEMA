@@ -198,7 +198,7 @@ export async function blogRoutes(fastify: FastifyInstance) {
           action: "EMAIL_CAMPAIGN_SEND",
           entity: "EmailCampaign",
           entityId: campaign.id,
-          newValue: { recipientCount },
+          after: { recipientCount },
         },
       });
 

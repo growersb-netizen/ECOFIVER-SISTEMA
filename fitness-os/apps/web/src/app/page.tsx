@@ -56,7 +56,7 @@ export default async function HomePage() {
         {/* Glow BG */}
         <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${NEON}0A 0%, transparent 60%)`, pointerEvents: "none" }} />
         <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.8rem", fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: CYAN, marginBottom: "1rem" }}>
-          Transformá tu cuerpo con contenido digital premium
+          Contenido digital premium para alcanzar tus metas
         </p>
         <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3.5rem, 8vw, 6.5rem)", fontWeight: 800, lineHeight: 0.9, margin: "0 auto 1.5rem", maxWidth: 900 }}>
           <span style={{ color: NEON, textShadow: `0 0 20px ${NEON}66, 0 0 60px ${NEON}22` }}>PROGRAMAS</span>
@@ -66,7 +66,7 @@ export default async function HomePage() {
           <span style={{ color: CYAN, textShadow: `0 0 20px ${CYAN}66` }}>FITNESS</span>
         </h1>
         <p style={{ color: "#6B7494", fontSize: "1.05rem", maxWidth: 500, margin: "0 auto 2rem", lineHeight: 1.6 }}>
-          Descargá al instante. Programas diseñados por coaches especializadas. Resultados reales.
+          Descargá al instante. Programas creados por especialistas en fitness. Para todos los niveles y objetivos.
         </p>
         <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/tienda" style={{ padding: "0.75rem 2rem", background: NEON, borderRadius: 10, color: "#06080F", textDecoration: "none", fontWeight: 700, fontSize: "1rem" }}>

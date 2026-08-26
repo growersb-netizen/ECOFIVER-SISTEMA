@@ -64,7 +64,7 @@ export async function getPublishedProducts(params?: {
 }
 
 export async function getProductBySlug(slug: string) {
-  return apiFetch<{ product?: StoreProduct } | StoreProduct>(`/api/v1/products/by-slug/${slug}`);
+  return apiFetch<{ data?: StoreProduct; product?: StoreProduct } | StoreProduct>(`/api/v1/products/by-slug/${slug}`);
 }
 
 export async function getCategories() {

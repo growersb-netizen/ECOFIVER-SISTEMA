@@ -206,6 +206,34 @@ export async function productRoutes(fastify: FastifyInstance) {
   );
 
   /**
+   * GET /products/by-slug/:slug — público, para SEO/tienda
+   */
+  fastify.get("/by-slug/:slug", {
+    preHandler: fastify.authenticateOptional,
+  }, async (request: FastifyRequest<{ Params: { slug: string } }>, reply) => {
+    if (!request.tenantId) return reply.code(400).send({ error: "Tenant requerido (X-Tenant-Slug)" });
+
+    const product = await prisma.product.findFirst({
+      where: {
+        slug: request.params.slug,
+        tenantId: request.tenantId,
+        // Sin auth solo productos publicados
+        ...(!request.user?.sub && { status: "PUBLISHED" }),
+      },
+      include: {
+        category: true,
+        prices: true,
+        files: { select: { id: true, name: true, mimeType: true, sizeBytes: true, createdAt: true } },
+        contents: true,
+        tags: { include: { tag: true } },
+      },
+    });
+
+    if (!product) return reply.code(404).send({ error: "Producto no encontrado" });
+    return reply.send({ data: product });
+  });
+
+  /**
    * GET /products/:id
    */
   fastify.get("/:id", async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {

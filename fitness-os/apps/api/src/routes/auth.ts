@@ -257,7 +257,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           email: true,
           name: true,
           role: true,
-          avatar: true,
+          avatarUrl: true,
           active: true,
           createdAt: true,
           tenant: { select: { id: true, slug: true, name: true } },

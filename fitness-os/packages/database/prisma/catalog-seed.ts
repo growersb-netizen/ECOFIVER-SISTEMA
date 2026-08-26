@@ -269,7 +269,7 @@ async function seedCatalog() {
         slug: slugify(p.name),
         name: p.name,
         description: p.desc,
-        type: "PDF_GUIDE",
+        productType: "PDF_GUIDE",
         status: "PUBLISHED",
         publishedAt: new Date(),
         categoryId,

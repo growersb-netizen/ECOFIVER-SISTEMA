@@ -134,12 +134,12 @@ const PRODUCTS: ProductDef[] = [
   },
   // Yoga
   {
-    sku: "YF-001", name: "Yoga para Principiantes", categorySlug: "yoga-flexibilidad",
+    sku: "YF-001", name: "Yoga para Principiantes", categorySlug: "yoga-y-flexibilidad",
     description: "Guía completa de yoga para principiantes. 28 posturas explicadas con instrucciones claras y rutinas semanales.",
     type: "PDF_GUIDE", priceARS: 2900, tags: ["Para Mujeres"], weeks: 4, level: "principiante",
   },
   {
-    sku: "YF-002", name: "Movilidad y Flexibilidad Total", categorySlug: "yoga-flexibilidad",
+    sku: "YF-002", name: "Movilidad y Flexibilidad Total", categorySlug: "yoga-y-flexibilidad",
     description: "Programa de 6 semanas para mejorar la movilidad articular y la flexibilidad de todo el cuerpo.",
     type: "PDF_GUIDE", priceARS: 3500, tags: ["Para Todos"], weeks: 6, level: "principiante",
   },

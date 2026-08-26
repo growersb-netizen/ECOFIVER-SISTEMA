@@ -17,7 +17,7 @@ import { fulfillOrder } from "./fulfillment.js";
 // ── Schemas ────────────────────────────────────────────────────────
 const CheckoutInitSchema = z.object({
   items: z.array(z.object({
-    productId: z.string().uuid(),
+    productId: z.string().min(1),
     quantity: z.number().int().min(1).default(1),
   })).min(1),
   couponCode: z.string().optional(),
@@ -32,7 +32,7 @@ const CheckoutInitSchema = z.object({
 
 const ApplyCouponSchema = z.object({
   code: z.string().min(1),
-  productIds: z.array(z.string().uuid()),
+  productIds: z.array(z.string().min(1)),
   subtotal: z.number().min(0),
 });
 

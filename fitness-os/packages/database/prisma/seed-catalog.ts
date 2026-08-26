@@ -45,18 +45,32 @@ async function get(path: string) {
   return res.json() as Promise<Record<string, unknown>>;
 }
 
-// ── Categorías ─────────────────────────────────────────────────────
+// ── Categorías — slugs reales generados por el servidor ────────────
+// (obtenidos de GET /api/v1/categories el 2026-08-26)
+const CATEGORY_SLUG_MAP: Record<string, string> = {
+  // slugs del seed definidos en este archivo → slug real en BD
+  "gluteos-piernas":  "gluteos-y-piernas",
+  "core-abdomen":     "core-y-abdomen",
+  "tren-superior":    "tren-superior",
+  "nutricion-recetas":"nutricion-y-recetas",
+  "yoga-flexibilidad":"yoga-y-flexibilidad",
+  "postparto":        "postparto",
+  "desafios-30-dias": "desafios-30-dias",
+  "mindset-bienestar":"mindset-y-bienestar",
+  "packs-bundles":    "packs-y-bundles",
+  "hombres":          "hombres",
+};
 
 const CATEGORIES = [
-  { name: "Glúteos y Piernas", slug: "gluteos-piernas", description: "Programas enfocados en tren inferior, glúteos y piernas" },
-  { name: "Core y Abdomen", slug: "core-abdomen", description: "Trabajo de abdomen, core y zona lumbar" },
+  { name: "Glúteos y Piernas", slug: "gluteos-y-piernas", description: "Programas enfocados en tren inferior, glúteos y piernas" },
+  { name: "Core y Abdomen", slug: "core-y-abdomen", description: "Trabajo de abdomen, core y zona lumbar" },
   { name: "Tren Superior", slug: "tren-superior", description: "Brazos, pecho, espalda y hombros" },
-  { name: "Nutrición y Recetas", slug: "nutricion-recetas", description: "Planes nutricionales y recetarios saludables" },
-  { name: "Yoga y Flexibilidad", slug: "yoga-flexibilidad", description: "Yoga, stretching y movilidad" },
+  { name: "Nutrición y Recetas", slug: "nutricion-y-recetas", description: "Planes nutricionales y recetarios saludables" },
+  { name: "Yoga y Flexibilidad", slug: "yoga-y-flexibilidad", description: "Yoga, stretching y movilidad" },
   { name: "Postparto", slug: "postparto", description: "Recuperación y fitness después del parto" },
   { name: "Desafíos 30 Días", slug: "desafios-30-dias", description: "Retos de transformación de 30 días" },
-  { name: "Mindset y Bienestar", slug: "mindset-bienestar", description: "Mentalidad, motivación y bienestar integral" },
-  { name: "Packs y Bundles", slug: "packs-bundles", description: "Combos y paquetes completos a precio especial" },
+  { name: "Mindset y Bienestar", slug: "mindset-y-bienestar", description: "Mentalidad, motivación y bienestar integral" },
+  { name: "Packs y Bundles", slug: "packs-y-bundles", description: "Combos y paquetes completos a precio especial" },
   { name: "Hombres", slug: "hombres", description: "Programas diseñados especialmente para hombres" },
 ];
 
@@ -77,44 +91,44 @@ interface ProductDef {
 const PRODUCTS: ProductDef[] = [
   // Glúteos
   {
-    sku: "GT-001", name: "Plan Glúteos Perfectos 8 Semanas", categorySlug: "gluteos-piernas",
+    sku: "GT-001", name: "Plan Glúteos Perfectos 8 Semanas", categorySlug: "gluteos-y-piernas",
     description: "Plan intensivo de 8 semanas para levantar, tonificar y dar forma a tus glúteos. Incluye plan de entrenamiento, guía nutricional y tracking semanal.",
     type: "PDF_GUIDE", priceARS: 4900, tags: ["Para Mujeres"], weeks: 8, level: "intermedio",
   },
   {
-    sku: "GT-002", name: "Glúteos desde Cero — 4 Semanas", categorySlug: "gluteos-piernas",
+    sku: "GT-002", name: "Glúteos desde Cero — 4 Semanas", categorySlug: "gluteos-y-piernas",
     description: "El programa ideal para principiantes. 4 semanas de entrenamiento progresivo sin necesidad de equipo especial.",
     type: "PDF_GUIDE", priceARS: 2900, tags: ["Para Mujeres"], weeks: 4, level: "principiante",
   },
   {
-    sku: "GP-001", name: "Piernas de Fuego 6 Semanas", categorySlug: "gluteos-piernas",
+    sku: "GP-001", name: "Piernas de Fuego 6 Semanas", categorySlug: "gluteos-y-piernas",
     description: "Trabajo completo de tren inferior: cuádriceps, isquiotibiales, glúteos y pantorrillas. Con bandas elásticas.",
     type: "PDF_GUIDE", priceARS: 3900, tags: ["Para Mujeres"], weeks: 6, level: "intermedio",
   },
   // Core
   {
-    sku: "AC-001", name: "Abdomen Plano 30 Días", categorySlug: "core-abdomen",
+    sku: "AC-001", name: "Abdomen Plano 30 Días", categorySlug: "core-y-abdomen",
     description: "Plan de 30 días de trabajo de core para tonificar el abdomen y fortalecer la zona lumbar. Sin equipamiento.",
     type: "PDF_GUIDE", priceARS: 2900, tags: ["Para Todos"], weeks: 4, level: "principiante",
   },
   {
-    sku: "AC-002", name: "Core Funcional Avanzado", categorySlug: "core-abdomen",
+    sku: "AC-002", name: "Core Funcional Avanzado", categorySlug: "core-y-abdomen",
     description: "Entrenamiento funcional de core para nivel avanzado. Incluye ejercicios de estabilización y fuerza.",
     type: "PDF_GUIDE", priceARS: 4500, tags: ["Para Todos"], weeks: 8, level: "avanzado",
   },
   // Nutrición
   {
-    sku: "PN-001", name: "Plan Nutricional Semana Santa Fit", categorySlug: "nutricion-recetas",
+    sku: "PN-001", name: "Plan Nutricional Semana Santa Fit", categorySlug: "nutricion-y-recetas",
     description: "Guía nutricional de 4 semanas con recetario de 50 recetas saludables, lista de compras y macros.",
     type: "PDF_GUIDE", priceARS: 3900, tags: ["Para Mujeres"], level: "principiante",
   },
   {
-    sku: "PN-002", name: "Recetario Fit 100 Recetas", categorySlug: "nutricion-recetas",
+    sku: "PN-002", name: "Recetario Fit 100 Recetas", categorySlug: "nutricion-y-recetas",
     description: "100 recetas saludables organizadas por desayuno, almuerzo, cena y snacks. Incluye valores nutricionales.",
     type: "EBOOK", priceARS: 2500, tags: ["Para Todos"], level: "principiante",
   },
   {
-    sku: "PN-003", name: "Plan Definición 12 Semanas", categorySlug: "nutricion-recetas",
+    sku: "PN-003", name: "Plan Definición 12 Semanas", categorySlug: "nutricion-y-recetas",
     description: "Plan nutricional de definición para 12 semanas con seguimiento de macros y estrategias avanzadas.",
     type: "PDF_GUIDE", priceARS: 5900, tags: ["Para Mujeres"], weeks: 12, level: "avanzado",
   },
@@ -153,7 +167,7 @@ const PRODUCTS: ProductDef[] = [
   },
   // Mindset
   {
-    sku: "MH-001", name: "Diario de Bienestar y Hábitos", categorySlug: "mindset-bienestar",
+    sku: "MH-001", name: "Diario de Bienestar y Hábitos", categorySlug: "mindset-y-bienestar",
     description: "Diario digital de 90 días para construir hábitos saludables, mejorar el mindset y mantener la motivación.",
     type: "TEMPLATE", priceARS: 1900, tags: ["Para Todos"], level: "principiante",
   },
@@ -170,17 +184,17 @@ const PRODUCTS: ProductDef[] = [
   },
   // Bundles
   {
-    sku: "VIP-001", name: "Pack VIP Transformación Total", categorySlug: "packs-bundles",
+    sku: "VIP-001", name: "Pack VIP Transformación Total", categorySlug: "packs-y-bundles",
     description: "El pack más completo: Plan de entrenamiento 12 sem + Nutrición + Recetario + Mentalidad + Diario de hábitos. TODO lo que necesitás para tu transformación.",
     type: "BUNDLE", priceARS: 14900, tags: ["Para Mujeres"], weeks: 12, level: "intermedio",
   },
   {
-    sku: "VIP-002", name: "Pack Principiante Completo", categorySlug: "packs-bundles",
+    sku: "VIP-002", name: "Pack Principiante Completo", categorySlug: "packs-y-bundles",
     description: "Todo para empezar: Programa 4 semanas + Nutrición básica + Guía de inicio. El pack ideal para dar el primer paso.",
     type: "BUNDLE", priceARS: 5900, tags: ["Para Todos"], weeks: 4, level: "principiante",
   },
   {
-    sku: "FM-001", name: "Plan Femenino 360° — 8 Semanas", categorySlug: "gluteos-piernas",
+    sku: "FM-001", name: "Plan Femenino 360° — 8 Semanas", categorySlug: "gluteos-y-piernas",
     description: "El programa femenino más completo: Entrenamiento, nutrición, mentalidad y tracking integrado. Una experiencia de transformación 360°.",
     type: "PDF_GUIDE", priceARS: 8900, tags: ["Para Mujeres"], weeks: 8, level: "intermedio",
   },
@@ -194,22 +208,26 @@ async function main() {
   // 1. Crear categorías
   console.log("📁 Creando categorías...");
   const catMap: Record<string, string> = {};
+  // Primero traer todas las categorías existentes
+  const existingCats = await get("/api/v1/categories") as { data?: Array<{ id: string; slug: string; name: string }> };
+  const catBySlug = new Map<string, string>();
+  for (const c of existingCats.data ?? []) catBySlug.set(c.slug, c.id);
+
   for (const cat of CATEGORIES) {
+    if (catBySlug.has(cat.slug)) {
+      catMap[cat.slug] = catBySlug.get(cat.slug)!;
+      console.log(`  ⚠️  ${cat.name} ya existe → ${catMap[cat.slug]}`);
+      continue;
+    }
     try {
-      const res = await post("/api/v1/categories", cat) as { data?: { id: string }; id?: string };
+      const res = await post("/api/v1/categories", { name: cat.name, description: cat.description }) as { data?: { id: string; slug: string }; id?: string; slug?: string };
       const id = (res.data?.id ?? res.id) as string;
-      catMap[cat.slug] = id;
+      const slug = (res.data?.slug ?? res.slug ?? cat.slug) as string;
+      catMap[slug] = id;
+      catMap[cat.slug] = id; // map both ways
       console.log(`  ✅ ${cat.name} → ${id}`);
     } catch (e) {
-      // Puede que ya exista — buscar
-      const existing = await get(`/api/v1/categories?slug=${cat.slug}`) as { data?: Array<{ id: string; slug: string }> };
-      const found = existing.data?.find((c) => c.slug === cat.slug);
-      if (found) {
-        catMap[cat.slug] = found.id;
-        console.log(`  ⚠️  ${cat.name} ya existe → ${found.id}`);
-      } else {
-        console.log(`  ❌ ${cat.name}: ${(e as Error).message}`);
-      }
+      console.log(`  ❌ ${cat.name}: ${(e as Error).message}`);
     }
   }
 

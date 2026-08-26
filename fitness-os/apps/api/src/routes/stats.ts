@@ -46,7 +46,7 @@ export async function statsRoutes(fastify: FastifyInstance) {
           select: {
             id: true,
             status: true,
-            totalAmount: true,
+            total: true,
             currency: true,
             createdAt: true,
             customer: { select: { name: true, email: true } },

@@ -38,11 +38,31 @@ const tenantCache = new Map<string, string>(); // slug → id
 export async function tenantMiddleware(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
   if (isPublicPath(request.url)) return;
 
-  // 1. Si el JWT ya fue verificado y tiene tenantId, usarlo
+  // 1. Si el JWT ya fue verificado y tiene tenantId, usarlo (rutas que ya procesaron auth)
   if (request.user?.tenantId) {
     request.tenantId = request.user.tenantId;
     request.userId = request.user.sub;
     return;
+  }
+
+  // 1b. Intentar verificar JWT manualmente si hay Bearer token (para rutas autenticadas
+  //     donde el middleware corre antes que el preHandler authenticate)
+  const authHeader = request.headers["authorization"];
+  if (authHeader?.startsWith("Bearer ")) {
+    try {
+      const token = authHeader.slice(7);
+      const jwt = (request.server as { jwt?: { verify: (t: string) => { sub: string; tenantId: string } } }).jwt;
+      if (jwt) {
+        const payload = jwt.verify(token) as { sub: string; tenantId: string };
+        if (payload?.tenantId) {
+          request.tenantId = payload.tenantId;
+          request.userId = payload.sub;
+          return;
+        }
+      }
+    } catch {
+      // Token inválido — el preHandler authenticate lo rechazará después
+    }
   }
 
   // 2. Header X-Tenant-Slug

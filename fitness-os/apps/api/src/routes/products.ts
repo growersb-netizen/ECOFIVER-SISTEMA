@@ -20,8 +20,12 @@ const CreateProductSchema = z.object({
   name: z.string().min(2).max(500),
   description: z.string().optional(),
   type: z.enum(["PDF_GUIDE", "VIDEO_COURSE", "AUDIO_PROGRAM", "BUNDLE", "SUBSCRIPTION", "COACHING_SESSION", "TEMPLATE", "EBOOK", "CHALLENGE", "COMMUNITY_ACCESS"]),
-  categoryId: z.string().uuid().optional(),
+  categoryId: z.string().min(1).optional(), // cuid2, no UUID
   tags: z.array(z.string()).optional(),
+  level: z.string().optional(),         // principiante, intermedio, avanzado
+  durationWeeks: z.number().int().optional(),
+  objective: z.string().optional(),
+  coverImageUrl: z.string().optional(),
   prices: z.array(z.object({
     basePrice: z.number().min(0),
     promoPrice: z.number().min(0).optional(),
@@ -141,7 +145,7 @@ export async function productRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: "Datos inválidos", details: body.error.flatten() });
       }
 
-      const { sku, name, description, type, categoryId, tags, prices, content } = body.data;
+      const { sku, name, description, type, categoryId, tags, prices, content, level, durationWeeks, objective, coverImageUrl } = body.data;
       const tenantId = request.tenantId!;
 
       // Verificar SKU único dentro del tenant
@@ -161,6 +165,10 @@ export async function productRoutes(fastify: FastifyInstance) {
             productType: type as never,
             status: "DRAFT",
             ...(categoryId && { categoryId }),
+            ...(level && { level }),
+            ...(durationWeeks && { durationWeeks }),
+            ...(objective && { objective }),
+            ...(coverImageUrl && { coverImageUrl }),
           },
         });
 

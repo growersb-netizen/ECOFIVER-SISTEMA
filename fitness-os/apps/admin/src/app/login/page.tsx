@@ -22,7 +22,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await api.login(email, password, tenantSlug || undefined);
-      router.push("/dashboard");
+      // window.location.href es más confiable que router.push en Next.js App Router
+      // especialmente después de guardar tokens en localStorage
+      window.location.href = "/dashboard";
     } catch (err) {
       setError((err as Error).message || "Credenciales inválidas");
     } finally {

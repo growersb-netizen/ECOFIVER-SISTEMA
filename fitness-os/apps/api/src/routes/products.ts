@@ -48,6 +48,8 @@ const ListProductsQuerySchema = z.object({
   status: z.string().optional(),
   type: z.string().optional(),
   categoryId: z.string().optional(),
+  categorySlug: z.string().optional(),
+  tag: z.string().optional(), // e.g. "Para Mujeres", "Para Hombres", "Para Todos"
   q: z.string().optional(),
   sortBy: z.enum(["name", "createdAt", "updatedAt", "price"]).default("createdAt"),
   order: z.enum(["asc", "desc"]).default("desc"),
@@ -66,7 +68,7 @@ export async function productRoutes(fastify: FastifyInstance) {
     const query = ListProductsQuerySchema.safeParse(request.query);
     if (!query.success) return reply.code(400).send({ error: "Parámetros inválidos" });
 
-    const { page, pageSize, status, type, categoryId, q, sortBy, order } = query.data;
+    const { page, pageSize, status, type, categoryId, categorySlug, tag, q, sortBy, order } = query.data;
 
     // Sin auth solo se pueden ver productos PUBLISHED
     const isAuthenticated = !!request.user?.sub;
@@ -78,11 +80,19 @@ export async function productRoutes(fastify: FastifyInstance) {
 
     if (!request.tenantId) return reply.code(400).send({ error: "Tenant requerido (X-Tenant-Slug)" });
 
+    // Resolve categorySlug to categoryId if provided
+    let resolvedCategoryId = categoryId;
+    if (categorySlug && !categoryId) {
+      const cat = await prisma.category.findFirst({ where: { tenantId: request.tenantId!, slug: categorySlug } });
+      resolvedCategoryId = cat?.id;
+    }
+
     const where = {
       tenantId: request.tenantId!,
       ...(effectiveStatus && { status: effectiveStatus as never }),
       ...(type && { type: type as never }),
-      ...(categoryId && { categoryId }),
+      ...(resolvedCategoryId && { categoryId: resolvedCategoryId }),
+      ...(tag && { tags: { some: { tag: { name: { equals: tag, mode: "insensitive" as const } } } } }),
       ...(q && {
         OR: [
           { name: { contains: q, mode: "insensitive" as const } },
@@ -100,8 +110,9 @@ export async function productRoutes(fastify: FastifyInstance) {
         take: safeSize,
         orderBy: { [sortBy]: order },
         include: {
-          category: { select: { id: true, name: true } },
+          category: { select: { id: true, name: true, slug: true } },
           prices: true,
+          tags: { include: { tag: { select: { name: true } } } },
           _count: { select: { files: true, contentPacks: true } },
         },
       }),

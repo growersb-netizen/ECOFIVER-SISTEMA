@@ -4,7 +4,7 @@
  */
 import { Suspense } from "react";
 import Link from "next/link";
-import { getPublishedProducts, getCategories, StoreProduct } from "@/lib/store-api";
+import { getPublishedProducts, getCategories, StoreProduct, getAudienceTag } from "@/lib/store-api";
 
 const NEON = "#00FF87";
 const CYAN = "#00F5FF";
@@ -12,9 +12,26 @@ const PINK = "#FF2D9C";
 
 interface SearchParams {
   categoria?: string;
+  audiencia?: string; // "Para Mujeres" | "Para Hombres" | "Para Todos"
   q?: string;
   page?: string;
 }
+
+function buildUrl(params: SearchParams) {
+  const qs = new URLSearchParams();
+  if (params.categoria) qs.set("categoria", params.categoria);
+  if (params.audiencia) qs.set("audiencia", params.audiencia);
+  if (params.q) qs.set("q", params.q);
+  if (params.page && params.page !== "1") qs.set("page", params.page);
+  const s = qs.toString();
+  return `/tienda${s ? `?${s}` : ""}`;
+}
+
+const AUDIENCE_FILTERS = [
+  { label: "🌟 Para Todos", value: "", color: NEON },
+  { label: "♀ Para Mujeres", value: "Para Mujeres", color: PINK },
+  { label: "♂ Para Hombres", value: "Para Hombres", color: CYAN },
+];
 
 export const revalidate = 60;
 
@@ -22,13 +39,14 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
   const page = Number(searchParams.page ?? 1);
   const data = await getPublishedProducts({
     categorySlug: searchParams.categoria,
+    tag: searchParams.audiencia,
     q: searchParams.q,
     page,
     pageSize: 24,
-  }).catch(() => ({ products: [] as StoreProduct[], pagination: { total: 0, page: 1, pageSize: 24 } }));
+  }).catch(() => ({ data: [] as StoreProduct[], pagination: { total: 0, page: 1, pageSize: 24 } }));
 
-  const products = data.products ?? (data as { data?: StoreProduct[] }).data ?? [];
-  const pagination = (data as { pagination?: { total: number; page: number; pageSize: number } }).pagination;
+  const products = data.data ?? [];
+  const pagination = data.pagination;
 
   if (products.length === 0) {
     return (
@@ -49,7 +67,7 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
       {pagination && pagination.total > pagination.pageSize && (
         <div style={{ marginTop: "2rem", display: "flex", justifyContent: "center", gap: "0.5rem", flexWrap: "wrap" }}>
           {page > 1 && (
-            <Link href={`/tienda?page=${page - 1}${searchParams.categoria ? `&categoria=${searchParams.categoria}` : ""}`}
+            <Link href={buildUrl({ ...searchParams, page: String(page - 1) })}
               style={{ padding: "0.5rem 1rem", background: "#0D0F1A", border: "1px solid #1A1F35", borderRadius: 8, color: "#A0AAC8", textDecoration: "none", fontSize: "0.85rem" }}>
               ← Anterior
             </Link>
@@ -58,7 +76,7 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
             {page} / {Math.ceil(pagination.total / pagination.pageSize)}
           </span>
           {page * pagination.pageSize < pagination.total && (
-            <Link href={`/tienda?page=${page + 1}${searchParams.categoria ? `&categoria=${searchParams.categoria}` : ""}`}
+            <Link href={buildUrl({ ...searchParams, page: String(page + 1) })}
               style={{ padding: "0.5rem 1rem", background: "#0D0F1A", border: "1px solid #1A1F35", borderRadius: 8, color: "#A0AAC8", textDecoration: "none", fontSize: "0.85rem" }}>
               Siguiente →
             </Link>
@@ -72,6 +90,8 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
 function StoreCard({ product }: { product: StoreProduct }) {
   const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
   const levelColor = product.level === "principiante" ? NEON : product.level === "intermedio" ? CYAN : PINK;
+  const audience = getAudienceTag(product);
+  const audienceColor = audience === "Para Hombres" ? CYAN : audience === "Para Mujeres" ? PINK : NEON;
 
   const emoji =
     product.category?.slug?.includes("glut") || product.category?.slug?.includes("pierna") ? "🍑" :
@@ -124,6 +144,13 @@ function StoreCard({ product }: { product: StoreProduct }) {
             )}
             {product.durationWeeks && <span style={{ fontSize: "0.7rem", color: "#4A5070" }}>{product.durationWeeks} sem.</span>}
           </div>
+          {audience && (
+            <div style={{ marginTop: "0.55rem", display: "inline-flex" }}>
+              <span style={{ fontSize: "0.65rem", fontWeight: 700, color: audienceColor, background: `${audienceColor}15`, border: `1px solid ${audienceColor}33`, borderRadius: 4, padding: "1px 7px", letterSpacing: "0.06em" }}>
+                {audience}
+              </span>
+            </div>
+          )}
         </div>
       </article>
     </Link>
@@ -154,14 +181,24 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
         <span style={{ color: "#6B7494", fontSize: "0.82rem" }}>Tienda</span>
       </nav>
 
-      {/* Mobile category strip */}
+      {/* Mobile: audience + category strip */}
       <div className="mobile-cat-strip" style={{ borderBottom: "1px solid #1A1F35", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
-        <div style={{ display: "flex", gap: "0.5rem", padding: "0.65rem 1rem", width: "max-content" }}>
-          <Link href="/tienda" style={{ padding: "0.3rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.8rem", fontWeight: 600, whiteSpace: "nowrap", background: !searchParams.categoria ? `${NEON}18` : "transparent", color: !searchParams.categoria ? NEON : "#6B7494", border: `1px solid ${!searchParams.categoria ? `${NEON}44` : "#1A1F35"}` }}>
-            Todos
+        <div style={{ display: "flex", gap: "0.5rem", padding: "0.55rem 1rem", width: "max-content" }}>
+          {AUDIENCE_FILTERS.map(f => {
+            const isActive = (searchParams.audiencia ?? "") === f.value;
+            return (
+              <Link key={f.value || "todos-aud"} href={buildUrl({ ...searchParams, audiencia: f.value || undefined, page: undefined })}
+                style={{ padding: "0.28rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 700, whiteSpace: "nowrap", background: isActive ? `${f.color}20` : "transparent", color: isActive ? f.color : "#6B7494", border: `1px solid ${isActive ? `${f.color}55` : "#1A1F35"}` }}>
+                {f.label}
+              </Link>
+            );
+          })}
+          <span style={{ width: "1px", background: "#2A2F45", margin: "0 0.25rem", flexShrink: 0 }} />
+          <Link href={buildUrl({ ...searchParams, categoria: undefined, page: undefined })} style={{ padding: "0.28rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap", background: !searchParams.categoria ? `${NEON}18` : "transparent", color: !searchParams.categoria ? NEON : "#6B7494", border: `1px solid ${!searchParams.categoria ? `${NEON}44` : "#1A1F35"}` }}>
+            Todas las categorías
           </Link>
-          {categories.map((cat: { id: string; name: string; slug: string; _count?: { products: number } }) => (
-            <Link key={cat.id} href={`/tienda?categoria=${cat.slug}`} style={{ padding: "0.3rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.8rem", fontWeight: 600, whiteSpace: "nowrap", background: searchParams.categoria === cat.slug ? `${NEON}18` : "transparent", color: searchParams.categoria === cat.slug ? NEON : "#6B7494", border: `1px solid ${searchParams.categoria === cat.slug ? `${NEON}44` : "#1A1F35"}` }}>
+          {categories.map((cat: { id: string; name: string; slug: string }) => (
+            <Link key={cat.id} href={buildUrl({ ...searchParams, categoria: cat.slug, page: undefined })} style={{ padding: "0.28rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap", background: searchParams.categoria === cat.slug ? `${NEON}18` : "transparent", color: searchParams.categoria === cat.slug ? NEON : "#6B7494", border: `1px solid ${searchParams.categoria === cat.slug ? `${NEON}44` : "#1A1F35"}` }}>
               {cat.name}
             </Link>
           ))}
@@ -173,14 +210,31 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
 
           {/* Sidebar — hidden on mobile, shown on desktop via CSS */}
           <aside className="tienda-sidebar" style={{ width: 210, flexShrink: 0, position: "sticky", top: 68 }}>
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.85rem", fontWeight: 700, color: "#4A5070", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "0.65rem", marginTop: 0 }}>
+            {/* Audience */}
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.85rem", fontWeight: 700, color: "#4A5070", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "0.55rem", marginTop: 0 }}>
+              Para quién
+            </h3>
+            {AUDIENCE_FILTERS.map(f => {
+              const isActive = (searchParams.audiencia ?? "") === f.value;
+              return (
+                <Link key={f.value || "todos-s"} href={buildUrl({ ...searchParams, audiencia: f.value || undefined, page: undefined })}
+                  style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: isActive ? f.color : "#6B7494", background: isActive ? `${f.color}12` : "transparent", marginBottom: "0.18rem", fontWeight: isActive ? 700 : 400 }}>
+                  {f.label}
+                </Link>
+              );
+            })}
+
+            <div style={{ height: 1, background: "#1A1F35", margin: "0.85rem 0" }} />
+
+            {/* Categories */}
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.85rem", fontWeight: 700, color: "#4A5070", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "0.55rem", marginTop: 0 }}>
               Categorías
             </h3>
-            <Link href="/tienda" style={{ display: "block", padding: "0.4rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: !searchParams.categoria ? NEON : "#6B7494", background: !searchParams.categoria ? `${NEON}12` : "transparent", marginBottom: "0.2rem" }}>
-              Todos
+            <Link href={buildUrl({ ...searchParams, categoria: undefined, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: !searchParams.categoria ? NEON : "#6B7494", background: !searchParams.categoria ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
+              Todas
             </Link>
             {categories.map((cat: { id: string; name: string; slug: string }) => (
-              <Link key={cat.id} href={`/tienda?categoria=${cat.slug}`} style={{ display: "block", padding: "0.4rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: searchParams.categoria === cat.slug ? NEON : "#6B7494", background: searchParams.categoria === cat.slug ? `${NEON}12` : "transparent", marginBottom: "0.2rem" }}>
+              <Link key={cat.id} href={buildUrl({ ...searchParams, categoria: cat.slug, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: searchParams.categoria === cat.slug ? NEON : "#6B7494", background: searchParams.categoria === cat.slug ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
                 {cat.name}
               </Link>
             ))}
@@ -189,10 +243,25 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
           {/* Main content */}
           <main style={{ flex: 1, minWidth: 0 }}>
             {/* Header row */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
               <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(1.5rem, 5vw, 2rem)", fontWeight: 800, color: "#E8EDFF", margin: 0, lineHeight: 1 }}>
-                {searchParams.categoria ? (categories.find((c: { slug: string; name: string }) => c.slug === searchParams.categoria)?.name ?? "Categoría") : "Todos los programas"}
+                {searchParams.audiencia ? searchParams.audiencia :
+                  searchParams.categoria ? (categories.find((c: { slug: string; name: string }) => c.slug === searchParams.categoria)?.name ?? "Categoría") :
+                  "Todos los programas"}
               </h1>
+            </div>
+
+            {/* Audience filter pills (desktop, within main) */}
+            <div className="desktop-aud-pills" style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
+              {AUDIENCE_FILTERS.map(f => {
+                const isActive = (searchParams.audiencia ?? "") === f.value;
+                return (
+                  <Link key={f.value || "all"} href={buildUrl({ ...searchParams, audiencia: f.value || undefined, page: undefined })}
+                    style={{ padding: "0.25rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 700, background: isActive ? `${f.color}20` : "transparent", color: isActive ? f.color : "#4A5070", border: `1px solid ${isActive ? `${f.color}55` : "#1A1F35"}` }}>
+                    {f.label}
+                  </Link>
+                );
+              })}
             </div>
 
             {/* Search */}
@@ -204,6 +273,7 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
                 style={{ flex: 1, background: "#0D0F1A", border: "1px solid #1A1F35", borderRadius: 8, color: "#E8EDFF", padding: "0.6rem 0.9rem", fontSize: "0.9rem", outline: "none", minWidth: 0 }}
               />
               {searchParams.categoria && <input type="hidden" name="categoria" value={searchParams.categoria} />}
+              {searchParams.audiencia && <input type="hidden" name="audiencia" value={searchParams.audiencia} />}
               <button type="submit" style={{ padding: "0.6rem 1.1rem", background: NEON, border: "none", borderRadius: 8, color: "#06080F", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
                 Buscar
               </button>
@@ -220,11 +290,13 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
         /* Mobile: hide sidebar, show category strip */
         .mobile-cat-strip { display: block; }
         .tienda-sidebar { display: none !important; }
+        .desktop-aud-pills { display: none !important; }
 
         /* Desktop: show sidebar, hide strip */
         @media (min-width: 768px) {
           .mobile-cat-strip { display: none; }
           .tienda-sidebar { display: block !important; }
+          .desktop-aud-pills { display: flex !important; }
         }
 
         /* Card hover */

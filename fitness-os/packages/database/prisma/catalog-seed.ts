@@ -1,6 +1,6 @@
 /**
- * Fase 11 — Catálogo de 200 productos digitales de fitness.
- * Sin placeholders — nombres y descripciones reales del nicho fitness femenino.
+ * Fase 11 — Catálogo de 200+ productos digitales de fitness.
+ * Audiencias: Para Todos (neutro) | Para Mujeres | Para Hombres
  *
  * Ejecutar: pnpm --filter @fitness-os/database run catalog:seed
  */
@@ -23,6 +23,10 @@ const CATEGORIES = [
   { name: "Desafíos 30 Días", slug: "desafios-30-dias" },
   { name: "Recetas Fit", slug: "recetas-fit" },
   { name: "Programas VIP", slug: "programas-vip" },
+  // Nuevas categorías inclusivas
+  { name: "Para Hombres", slug: "para-hombres" },
+  { name: "Fuerza y Musculación", slug: "fuerza-musculacion" },
+  { name: "Rendimiento Deportivo", slug: "rendimiento-deportivo" },
 ];
 
 // 200 productos reales para el nicho fitness femenino argentino
@@ -210,10 +214,72 @@ const PRODUCTS = [
   { sku: "VIP-003", name: "Membresía Anual — Acceso Total a la Biblioteca", cat: "programas-vip", price: 34900, desc: "Acceso ilimitado por 12 meses a toda la biblioteca de productos. Incluye todas las actualizaciones y lanzamientos del año." },
   { sku: "VIP-004", name: "Pack Body Completo — Entrenamiento + Nutrición", cat: "programas-vip", price: 14900, desc: "La combinación perfecta: el programa de entrenamiento de 12 semanas más completo junto al plan nutricional premium." },
   { sku: "VIP-005", name: "Pack Postparto Completo — Todo lo que Necesitás", cat: "programas-vip", price: 16900, desc: "El pack más completo para el período postparto: recuperación, suelo pélvico, alimentación, mindset y vuelta al ejercicio." },
+
+  // ── Para Hombres (20) ─────────────────────────────────────────
+  { sku: "MASC-001", name: "Hipertrofia para Hombres — Programa 12 Semanas", cat: "para-hombres", price: 9900, desc: "El programa de ganancia muscular más completo. 12 semanas de entrenamiento con progresión de cargas, técnica y nutrición para maximizar la hipertrofia." },
+  { sku: "MASC-002", name: "Fuerza Máxima Masculina — Powerlifting Base", cat: "para-hombres", price: 8900, desc: "Sentadilla, peso muerto y press de banca trabajados con metodología powerlifting. Progresión lineal y técnica perfecta en 10 semanas." },
+  { sku: "MASC-003", name: "Pecho y Espalda en V — Definición Masculina", cat: "para-hombres", price: 6900, desc: "El clásico objetivo masculino: pecho desarrollado y espalda ancha en forma de V. 8 semanas de trabajo específico con técnica detallada." },
+  { sku: "MASC-004", name: "Brazos de Acero — Bíceps y Tríceps para Hombres", cat: "para-hombres", price: 5900, desc: "6 semanas de trabajo específico de brazos con foco en volumen y definición. Bíceps, tríceps y braquial trabajados en todos los ángulos." },
+  { sku: "MASC-005", name: "Hombros en V — Deltoides para Hombres", cat: "para-hombres", price: 5500, desc: "Los hombros son la clave del físico masculino. 8 semanas de programa específico para desarrollar los tres cabezas del deltoides." },
+  { sku: "MASC-006", name: "Piernas Fuertes — No Saltees el Día de Piernas", cat: "para-hombres", price: 6900, desc: "La guía definitiva para el día de piernas masculino. Cuádriceps, isquiotibiales, glúteos y gemelos en un programa de 8 semanas." },
+  { sku: "MASC-007", name: "Abdominales Definidos — Guía para Hombres", cat: "para-hombres", price: 5500, desc: "Lo que se necesita realmente para ver el sixpack: porcentaje de grasa, trabajo de core y nutrición. Sin mitos, con resultados." },
+  { sku: "MASC-008", name: "Bulk y Cut — Ganar Músculo y Luego Definir", cat: "para-hombres", price: 11900, desc: "Los dos procesos del físico masculino explicados en detalle. Cómo hacer volumen limpio y cómo definir sin perder masa muscular." },
+  { sku: "MASC-009", name: "Calistenia para Hombres — De 0 a Dominadas y Fondos", cat: "para-hombres", price: 7900, desc: "Construí un cuerpo atlético solo con tu peso corporal. Dominadas, fondos, muscle up y más en un programa progresivo de 12 semanas." },
+  { sku: "MASC-010", name: "Plan de Nutrición para Masa Muscular — Hombres", cat: "para-hombres", price: 7900, desc: "Alimentación calculada para máxima ganancia muscular. Calorías, macros, timing de nutrientes y ejemplos de menús semanales." },
+  { sku: "MASC-011", name: "Definición Masculina 10 Semanas — Perder Grasa sin Perder Músculo", cat: "para-hombres", price: 9900, desc: "El proceso de definición más temido, simplificado. Protocolo de nutrición y entrenamiento para llegar a un físico definido y atlético." },
+  { sku: "MASC-012", name: "Postura Masculina — Corregí la Espalda Encorvada", cat: "para-hombres", price: 5900, desc: "La postura encorvada por horas frente al escritorio. Programa de corrección postural con ejercicios de movilidad y fortalecimiento." },
+  { sku: "MASC-013", name: "Core para Hombres — Más que Abdominales", cat: "para-hombres", price: 5500, desc: "Un core fuerte mejora el rendimiento en todos los ejercicios. Programa completo que trabaja el núcleo desde todos los ángulos." },
+  { sku: "MASC-014", name: "Running Progresivo para Hombres — De 0 a 10K", cat: "para-hombres", price: 6500, desc: "Plan de carrera de 12 semanas para ir de no correr nada a completar 10 kilómetros. Con rutinas de apoyo y nutrición para corredores." },
+  { sku: "MASC-015", name: "Optimización Hormonal Natural — Guía para Hombres", cat: "para-hombres", price: 7500, desc: "Cómo el entrenamiento, el sueño, la alimentación y el estrés afectan los niveles hormonales masculinos. Optimizá tus resultados de forma natural." },
+  { sku: "MASC-016", name: "Entrenamiento de Espalda Ancha — 8 Semanas", cat: "para-hombres", price: 6500, desc: "Jalones, remos, dominadas y más. 8 semanas de programa específico para desarrollar una espalda ancha y musculosa." },
+  { sku: "MASC-017", name: "Físico Atlético — Fuerza + Estética en Equilibrio", cat: "para-hombres", price: 10900, desc: "Para quienes quieren ser fuertes y verse bien. Programa de 12 semanas que combina levantamiento de pesas y trabajo atlético funcional." },
+  { sku: "MASC-018", name: "Suplementación para Hombres — Qué Funciona y Qué No", cat: "para-hombres", price: 5500, desc: "Proteínas, creatina, pre-workouts y más. Revisión basada en evidencia de los suplementos más usados en el mundo masculino del fitness." },
+  { sku: "MASC-019", name: "Pack Transformación Masculina — 16 Semanas", cat: "para-hombres", price: 19900, desc: "El programa completo para hombres: entrenamiento de 16 semanas, plan de nutrición, guía de suplementación y seguimiento de progreso." },
+  { sku: "MASC-020", name: "Entrenamiento en Casa para Hombres — 8 Semanas", cat: "para-hombres", price: 7500, desc: "Construí músculo sin salir de casa. 8 semanas de programa con mancuernas o bandas, diseñado específicamente para el físico masculino." },
+
+  // ── Fuerza y Musculación (para todos) (15) ────────────────────
+  { sku: "FM-001", name: "Introducción al Levantamiento de Pesas", cat: "fuerza-musculacion", price: 5900, desc: "La guía perfecta para comenzar con las pesas. Técnica de los ejercicios básicos, cómo diseñar una rutina y cómo progresar de forma segura. Para cualquier persona." },
+  { sku: "FM-002", name: "Los 5 Grandes Movimientos — Técnica Perfecta", cat: "fuerza-musculacion", price: 6900, desc: "Sentadilla, peso muerto, press de banca, press militar y dominadas. Los movimientos fundamentales explicados en profundidad para máxima eficiencia." },
+  { sku: "FM-003", name: "Fuerza desde Cero — Programa de 8 Semanas", cat: "fuerza-musculacion", price: 7900, desc: "Si nunca entrenaste con pesas, este es tu punto de partida. 8 semanas con técnica, progresión y todo lo necesario para comenzar bien." },
+  { sku: "FM-004", name: "Progresión de Cargas — Cómo Seguir Mejorando Siempre", cat: "fuerza-musculacion", price: 5500, desc: "El secreto del progreso: entender cómo y cuándo aumentar las cargas. Métodos de progresión para todos los niveles." },
+  { sku: "FM-005", name: "Nutrición para Fuerza y Musculación", cat: "fuerza-musculacion", price: 7900, desc: "Qué comer para ganar fuerza y músculo. Proteínas, carbohidratos, grasas y timing nutricional explicados con ejemplos prácticos." },
+  { sku: "FM-006", name: "Entrenamiento de Pareja — Gym para Dos", cat: "fuerza-musculacion", price: 6500, desc: "Rutinas diseñadas para entrenar con tu pareja, amigo o familiar. Motivación mutua, ejercicios en dúo y programas adaptativos para dos niveles." },
+  { sku: "FM-007", name: "CrossFit y Funcional — Introducción Completa", cat: "fuerza-musculacion", price: 6900, desc: "Qué es el CrossFit, cómo funciona y cómo empezar. Movimientos olímpicos básicos, WODs iniciales y cómo escalar para tu nivel." },
+  { sku: "FM-008", name: "Kettlebell — Entrenamiento Completo", cat: "fuerza-musculacion", price: 5900, desc: "La kettlebell como herramienta de entrenamiento total. Swing, press, snatch y Turkish get-up explicados con progresiones para todos los niveles." },
+  { sku: "FM-009", name: "Hipertrofia para Todos — Manual Científico", cat: "fuerza-musculacion", price: 8900, desc: "La ciencia de ganar músculo sin importar el sexo ni la edad. Principios de hipertrofia, volumen de entrenamiento, frecuencia y recuperación." },
+  { sku: "FM-010", name: "Guía Anti-Lesiones para el Gym", cat: "fuerza-musculacion", price: 5500, desc: "Cómo entrenar durante años sin lastimarte. Calentamiento, técnica, señales de alarma y qué hacer cuando algo duele." },
+  { sku: "FM-011", name: "Split de Entrenamiento — Cómo Organizar la Semana", cat: "fuerza-musculacion", price: 4900, desc: "Push/Pull/Legs, Upper/Lower, Full Body: cuál es el mejor split para vos. Guía para diseñar la semana de entrenamiento perfecta." },
+  { sku: "FM-012", name: "Periodización del Entrenamiento — Nivel Avanzado", cat: "fuerza-musculacion", price: 8900, desc: "Más allá de las rutinas básicas. Periodización lineal, ondulante y por bloques para seguir progresando después del nivel intermedio." },
+  { sku: "FM-013", name: "Recuperación Activa y Deload — Cuándo Descansar", cat: "fuerza-musculacion", price: 4500, desc: "El descanso es parte del progreso. Cómo diseñar semanas de deload, métodos de recuperación activa y señales del sobreentrenamiento." },
+  { sku: "FM-014", name: "Entrenamiento Para Adultos Mayores — Activos y Fuertes", cat: "fuerza-musculacion", price: 7900, desc: "El músculo y la fuerza son esenciales después de los 50. Programa adaptado a las necesidades y limitaciones del adulto mayor activo." },
+  { sku: "FM-015", name: "De Principiante a Intermedio — El Gran Salto", cat: "fuerza-musculacion", price: 6900, desc: "Cómo saber cuándo dejaste de ser principiante y qué cambiar en tu entrenamiento. La transición más importante de tu proceso." },
+
+  // ── Rendimiento Deportivo (para todos) (10) ────────────────────
+  { sku: "RD-001", name: "Velocidad y Explosividad — Entrenamiento Pliométrico", cat: "rendimiento-deportivo", price: 6900, desc: "Saltos, sprints y movimientos explosivos para mejorar el rendimiento deportivo en cualquier disciplina. Para atletas de todos los niveles." },
+  { sku: "RD-002", name: "Resistencia Total — Cardio para Deportistas", cat: "rendimiento-deportivo", price: 5900, desc: "Cómo mejorar la capacidad aeróbica y anaeróbica para rendir más en tu deporte. Métodos de entrenamiento cardiovascular con evidencia." },
+  { sku: "RD-003", name: "Fútbol Fitness — Preparación Física para Jugadores", cat: "rendimiento-deportivo", price: 7900, desc: "Preparación física específica para fútbol: potencia, velocidad, resistencia y prevención de lesiones. Para jugadores amateurs y semi-profesionales." },
+  { sku: "RD-004", name: "Tenis y Padel — Acondicionamiento Físico Específico", cat: "rendimiento-deportivo", price: 6900, desc: "El entrenamiento físico diseñado para mejorar en tenis y padel: potencia de golpe, velocidad de reacción y resistencia en cancha." },
+  { sku: "RD-005", name: "Natación — Entrenamiento Complementario en Seco", cat: "rendimiento-deportivo", price: 6500, desc: "Cómo entrenar fuera del agua para mejorar dentro. Fuerza, flexibilidad y movilidad específicas para nadadores." },
+  { sku: "RD-006", name: "Ciclismo y Triatlón — Preparación Integral", cat: "rendimiento-deportivo", price: 7500, desc: "Entrenamiento de fuerza y acondicionamiento para ciclistas y triatletas. Cómo complementar las horas de bici con trabajo de gimnasio." },
+  { sku: "RD-007", name: "Artes Marciales y Deportes de Contacto — Base Física", cat: "rendimiento-deportivo", price: 7500, desc: "Preparación física para boxeo, MMA, judo y artes marciales. Potencia, agilidad, resistencia y fortalecimiento específico." },
+  { sku: "RD-008", name: "Prevención de Lesiones Deportivas — Guía Completa", cat: "rendimiento-deportivo", price: 6500, desc: "Las lesiones más frecuentes en el deporte y cómo prevenirlas. Trabajo preventivo de caderas, rodillas, hombros y tobillo." },
+  { sku: "RD-009", name: "Nutrición para el Rendimiento Deportivo", cat: "rendimiento-deportivo", price: 7900, desc: "Qué comer antes, durante y después de competir o entrenar intensamente. Guía de nutrición deportiva aplicada para atletas." },
+  { sku: "RD-010", name: "Warm Up y Cool Down para Deportistas", cat: "rendimiento-deportivo", price: 4500, desc: "El calentamiento y el enfriamiento específicos para deportistas. Protocolos profesionales de activación previa y recuperación posterior al ejercicio." },
+];
+
+// Productos originales que tienen enfoque femenino: actualizar descripción para aclarar la audiencia
+// (se aplica solo si el producto existe y tiene la descripción original)
+const FEMALE_AUDIENCE_SKUS = [
+  "GT-003", "GT-005", "GT-007", "GT-009", "GT-016", "GT-019", "GT-020",
+  "PN-002", "PN-004", "PN-005", "PN-007", "PN-012", "PN-017", "PN-019",
+  "AC-003", "AC-007", "AC-010",
+  "PT-006", "PT-007", "PT-008", "PT-013",
+  "PR-001", "PR-002", "PR-003", "PR-004", "PR-005", "PR-006", "PR-007", "PR-008", "PR-009", "PR-010",
+  "RF-008", // "fanáticas" → actualizar
 ];
 
 async function seedCatalog() {
-  console.log("📦 Iniciando seed del catálogo de 200 productos...");
+  console.log("📦 Iniciando seed del catálogo inclusivo (todos + mujeres + hombres)...");
 
   // Obtener el primer tenant activo
   const tenant = await prisma.tenant.findFirst({ where: { active: true } });
@@ -303,10 +369,67 @@ async function seedCatalog() {
     }
   }
 
+  // ── Aplicar tags de audiencia ────────────────────────────────
+  // Tags: "para-mujeres", "para-hombres", "para-todos"
+  const audienceTags = [
+    { name: "Para Mujeres" },
+    { name: "Para Hombres" },
+    { name: "Para Todos" },
+  ];
+  for (const t of audienceTags) {
+    await prisma.tag.upsert({ where: { name: t.name }, update: {}, create: { name: t.name } });
+  }
+
+  // Productos masculinos → tag "Para Hombres"
+  const hombresTag = await prisma.tag.findUnique({ where: { name: "Para Hombres" } });
+  if (hombresTag) {
+    for (const p of PRODUCTS.filter(p => p.sku.startsWith("MASC-"))) {
+      const product = await prisma.product.findUnique({ where: { tenantId_sku: { tenantId: tenant.id, sku: p.sku } } });
+      if (product) {
+        await prisma.productTag.upsert({
+          where: { productId_tagId: { productId: product.id, tagId: hombresTag.id } },
+          update: {},
+          create: { productId: product.id, tagId: hombresTag.id },
+        });
+      }
+    }
+  }
+
+  // Productos de postparto, ciclo, menopausia → tag "Para Mujeres"
+  const mujeresTag = await prisma.tag.findUnique({ where: { name: "Para Mujeres" } });
+  if (mujeresTag) {
+    for (const sku of FEMALE_AUDIENCE_SKUS) {
+      const product = await prisma.product.findUnique({ where: { tenantId_sku: { tenantId: tenant.id, sku } } });
+      if (product) {
+        await prisma.productTag.upsert({
+          where: { productId_tagId: { productId: product.id, tagId: mujeresTag.id } },
+          update: {},
+          create: { productId: product.id, tagId: mujeresTag.id },
+        });
+      }
+    }
+  }
+
+  // Productos neutros (Fuerza y Musculación + Rendimiento Deportivo) → tag "Para Todos"
+  const todosTag = await prisma.tag.findUnique({ where: { name: "Para Todos" } });
+  if (todosTag) {
+    for (const p of PRODUCTS.filter(p => p.sku.startsWith("FM-") || p.sku.startsWith("RD-"))) {
+      const product = await prisma.product.findUnique({ where: { tenantId_sku: { tenantId: tenant.id, sku: p.sku } } });
+      if (product) {
+        await prisma.productTag.upsert({
+          where: { productId_tagId: { productId: product.id, tagId: todosTag.id } },
+          update: {},
+          create: { productId: product.id, tagId: todosTag.id },
+        });
+      }
+    }
+  }
+
   console.log(`\n🎉 Catálogo completado:`);
   console.log(`   Productos creados: ${created}`);
   console.log(`   Productos existentes (skipped): ${skipped}`);
   console.log(`   Total en catálogo: ${PRODUCTS.length}`);
+  console.log(`   Tags de audiencia aplicados: Para Mujeres / Para Hombres / Para Todos`);
 }
 
 seedCatalog()

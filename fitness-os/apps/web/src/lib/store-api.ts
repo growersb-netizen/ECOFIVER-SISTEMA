@@ -36,6 +36,16 @@ export interface StoreProduct {
   files?: Array<{ fileType: string; isPrimary: boolean; isCover: boolean }>;
   category?: { name: string; slug: string };
   coverImageUrl?: string;
+  tags?: Array<{ tag: { name: string } }>;
+}
+
+/** Returns the audience tag name if present */
+export function getAudienceTag(product: StoreProduct): "Para Mujeres" | "Para Hombres" | "Para Todos" | null {
+  const names = product.tags?.map(t => t.tag.name) ?? [];
+  if (names.includes("Para Hombres")) return "Para Hombres";
+  if (names.includes("Para Mujeres")) return "Para Mujeres";
+  if (names.includes("Para Todos")) return "Para Todos";
+  return null;
 }
 
 export interface StoreCategory {
@@ -50,6 +60,7 @@ export interface StoreCategory {
 
 export async function getPublishedProducts(params?: {
   categorySlug?: string;
+  tag?: string;
   q?: string;
   page?: number;
   pageSize?: number;
@@ -60,7 +71,7 @@ export async function getPublishedProducts(params?: {
       return acc;
     }, {} as Record<string, string>)
   ).toString();
-  return apiFetch<{ products?: StoreProduct[]; data?: StoreProduct[]; pagination?: { total: number; page: number; pageSize: number } }>(`/api/v1/products?${qs}`);
+  return apiFetch<{ data?: StoreProduct[]; pagination?: { total: number; page: number; pageSize: number } }>(`/api/v1/products?${qs}`);
 }
 
 export async function getProductBySlug(slug: string) {

@@ -6,14 +6,129 @@
   --font-dm-sans: "DM Sans", system-ui, sans-serif;
   --font-barlow: "Barlow Condensed", sans-serif;
 
-  /* Paleta de marca */
-  --color-neon:   #00FF87;   /* verde neón — precios, datos */
-  --color-cyan:   #00F5FF;   /* cyan      — etiquetas, info */
-  --color-cereza: #DE3163;   /* cereza    — CTA, femenino, premium */
-  --color-bg:     #06080F;
-  --color-surface:#0D0F1A;
-  --color-border: #1A1F35;
-  --color-text:   #E8EDFF;
-  --color-muted:  #6B7494;
-  --color-dim:    #4A5070;
+  /* ── Paleta de marca ───────────────────────────────────────────── */
+  --color-neon:    #00FF87;   /* verde neón  — precios, datos numéricos */
+  --color-cyan:    #00F5FF;   /* cyan        — info, hombres, etiquetas */
+  --color-cereza:  #DE3163;   /* cereza      — CTA, femenino, premium   */
+  --color-cereza2: #B82050;   /* cereza dark — degradados               */
+
+  /* ── Fondo y superficie ────────────────────────────────────────── */
+  --color-bg:      #06080F;
+  --color-surface: #0D0F1A;
+  --color-border:  #1A1F35;
+
+  /* ── Jerarquía tipográfica ─────────────────────────────────────── */
+  /* text-bright  → títulos de sección, nombres de producto */
+  --color-text:    #F0F4FF;   /* ligeramente más brillante que antes */
+  /* text-body    → descripciones, párrafos de cuerpo */
+  --color-body:    #B8C4E0;
+  /* text-muted   → metadatos, labels secundarios */
+  --color-muted:   #7A87A8;
+  /* text-dim     → hints, pie de página, placeholders */
+  --color-dim:     #4A5570;
+  /* text-ghost   → separadores, texto muy secundario */
+  --color-ghost:   #2E3450;
+}
+
+/* ── Reset tipográfico ─────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-dm-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Utilidades globales para tipografía de marca ─────────────────── */
+
+/* Eyebrow / labels de sección → CEREZA */
+.label-cereza {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-cereza);
+}
+
+/* Precio / dato principal → NEON */
+.price-neon {
+  font-family: var(--font-barlow);
+  font-weight: 800;
+  color: var(--color-neon);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tag de categoría → CEREZA suave */
+.category-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(222, 49, 99, 0.12);
+  color: var(--color-cereza);
+  border: 1px solid rgba(222, 49, 99, 0.3);
+}
+
+/* Info tag → CYAN */
+.info-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(0, 245, 255, 0.10);
+  color: var(--color-cyan);
+  border: 1px solid rgba(0, 245, 255, 0.25);
+}
+
+/* Hero heading condensado */
+.hero-heading {
+  font-family: var(--font-barlow);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.01em;
+}
+
+/* Descripción de cuerpo (más visible que antes) */
+.body-description {
+  color: var(--color-body);
+  line-height: 1.7;
+}
+
+/* ── Product cards ─────────────────────────────────────────────────── */
+.product-card:hover {
+  border-color: rgba(222, 49, 99, 0.45) !important;
+  box-shadow: 0 4px 20px rgba(222, 49, 99, 0.10);
+}
+
+/* ── Store cards (tienda) ──────────────────────────────────────────── */
+.store-card:hover {
+  border-color: rgba(222, 49, 99, 0.5) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(222, 49, 99, 0.10);
+}
+
+/* ── Scrollbar custom ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* ── Focus visible ─────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-cereza);
+  outline-offset: 2px;
+}
+
+/* ── Selection ─────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(222, 49, 99, 0.3);
+  color: #fff;
 }

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "FITNESS BUSINESS OS";
+
 export const metadata: Metadata = {
   title: {
-    default: "Tienda Fitness",
-    template: "%s | Fitness Store",
+    default: STORE_NAME,
+    template: `%s | ${STORE_NAME}`,
   },
   description: "Guías, programas y planes digitales de fitness para mujeres",
 };
@@ -31,7 +33,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body style={{ margin: 0, fontFamily: "'DM Sans', system-ui, sans-serif", background: "#06080F", color: "#E8EDFF" }}>
+      <body style={{ margin: 0, fontFamily: "'DM Sans', system-ui, sans-serif", background: "#06080F", color: "#F0F4FF" }}>
         {children}
       </body>
     </html>

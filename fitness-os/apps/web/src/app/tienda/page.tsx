@@ -6,9 +6,16 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getPublishedProducts, getCategories, StoreProduct, getAudienceTag } from "@/lib/store-api";
 
-const NEON   = "#00FF87";
-const CYAN   = "#00F5FF";
-const CEREZA = "#DE3163";
+const NEON    = "#00FF87";
+const CYAN    = "#00F5FF";
+const CEREZA  = "#DE3163";
+const CEREZA2 = "#B82050";
+const TEXT    = "#F0F4FF";
+const BODY    = "#B8C4E0";
+const MUTED   = "#7A87A8";
+const DIM     = "#4A5570";
+
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "FITNESS OS";
 
 interface SearchParams {
   categoria?: string;
@@ -50,10 +57,10 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
 
   if (products.length === 0) {
     return (
-      <div style={{ padding: "4rem 1rem", textAlign: "center", color: "#4A5070" }}>
+      <div style={{ padding: "4rem 1rem", textAlign: "center", color: MUTED }}>
         <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🔍</div>
-        <p style={{ fontSize: "1rem" }}>No encontramos productos con esos filtros.</p>
-        <Link href="/tienda" style={{ color: NEON, marginTop: "0.75rem", display: "inline-block" }}>Limpiar filtros →</Link>
+        <p style={{ fontSize: "1rem", color: BODY }}>No encontramos productos con esos filtros.</p>
+        <Link href="/tienda" style={{ color: CEREZA, marginTop: "0.75rem", display: "inline-block" }}>Limpiar filtros →</Link>
       </div>
     );
   }
@@ -133,16 +140,16 @@ function StoreCard({ product }: { product: StoreProduct }) {
               {product.category.name}
             </div>
           )}
-          <h3 style={{ color: "#E8EDFF", fontSize: "0.9rem", fontWeight: 600, margin: "0 0 auto", lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+          <h3 style={{ color: TEXT, fontSize: "0.9rem", fontWeight: 700, margin: "0 0 auto", lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             {product.name}
           </h3>
           <div style={{ marginTop: "0.7rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             {price && (
-              <div style={{ color: NEON, fontWeight: 700, fontSize: "1.05rem", fontVariantNumeric: "tabular-nums" }}>
-                ${Number(price.basePrice).toLocaleString("es-AR")} <span style={{ fontSize: "0.68rem", color: "#4A5070", fontWeight: 400 }}>{price.currency}</span>
+              <div style={{ color: NEON, fontWeight: 800, fontSize: "1.05rem", fontVariantNumeric: "tabular-nums", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                ${Number(price.basePrice).toLocaleString("es-AR")} <span style={{ fontSize: "0.68rem", color: MUTED, fontWeight: 400 }}>{price.currency}</span>
               </div>
             )}
-            {product.durationWeeks && <span style={{ fontSize: "0.7rem", color: "#4A5070" }}>{product.durationWeeks} sem.</span>}
+            {product.durationWeeks && <span style={{ fontSize: "0.7rem", color: MUTED }}>{product.durationWeeks} sem.</span>}
           </div>
           {audience && (
             <div style={{ marginTop: "0.55rem", display: "inline-flex" }}>
@@ -175,10 +182,10 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
         display: "flex", alignItems: "center", gap: "1rem",
       }}>
         <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none", whiteSpace: "nowrap" }}>
-          FITNESS OS
+          {STORE_NAME}
         </Link>
         <div style={{ flex: 1 }} />
-        <span style={{ color: "#6B7494", fontSize: "0.82rem" }}>Tienda</span>
+        <span style={{ color: CEREZA, fontSize: "0.82rem", fontWeight: 600 }}>Tienda</span>
       </nav>
 
       {/* Mobile: audience + category strip */}
@@ -211,14 +218,14 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
           {/* Sidebar — hidden on mobile, shown on desktop via CSS */}
           <aside className="tienda-sidebar" style={{ width: 210, flexShrink: 0, position: "sticky", top: 68 }}>
             {/* Audience */}
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.85rem", fontWeight: 700, color: "#4A5070", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "0.55rem", marginTop: 0 }}>
-              Para quién
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.75rem", fontWeight: 700, color: CEREZA, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "0.65rem", marginTop: 0 }}>
+              ✦ Para quién
             </h3>
             {AUDIENCE_FILTERS.map(f => {
               const isActive = (searchParams.audiencia ?? "") === f.value;
               return (
                 <Link key={f.value || "todos-s"} href={buildUrl({ ...searchParams, audiencia: f.value || undefined, page: undefined })}
-                  style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: isActive ? f.color : "#6B7494", background: isActive ? `${f.color}12` : "transparent", marginBottom: "0.18rem", fontWeight: isActive ? 700 : 400 }}>
+                  style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: isActive ? f.color : MUTED, background: isActive ? `${f.color}12` : "transparent", marginBottom: "0.18rem", fontWeight: isActive ? 700 : 400 }}>
                   {f.label}
                 </Link>
               );
@@ -227,14 +234,14 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
             <div style={{ height: 1, background: "#1A1F35", margin: "0.85rem 0" }} />
 
             {/* Categories */}
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.85rem", fontWeight: 700, color: "#4A5070", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "0.55rem", marginTop: 0 }}>
-              Categorías
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.75rem", fontWeight: 700, color: CEREZA, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "0.65rem", marginTop: 0 }}>
+              ✦ Categorías
             </h3>
-            <Link href={buildUrl({ ...searchParams, categoria: undefined, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: !searchParams.categoria ? NEON : "#6B7494", background: !searchParams.categoria ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
+            <Link href={buildUrl({ ...searchParams, categoria: undefined, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: !searchParams.categoria ? NEON : MUTED, background: !searchParams.categoria ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
               Todas
             </Link>
             {categories.map((cat: { id: string; name: string; slug: string }) => (
-              <Link key={cat.id} href={buildUrl({ ...searchParams, categoria: cat.slug, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: searchParams.categoria === cat.slug ? NEON : "#6B7494", background: searchParams.categoria === cat.slug ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
+              <Link key={cat.id} href={buildUrl({ ...searchParams, categoria: cat.slug, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: searchParams.categoria === cat.slug ? NEON : MUTED, background: searchParams.categoria === cat.slug ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
                 {cat.name}
               </Link>
             ))}
@@ -244,7 +251,7 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
           <main style={{ flex: 1, minWidth: 0 }}>
             {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(1.5rem, 5vw, 2rem)", fontWeight: 800, color: "#E8EDFF", margin: 0, lineHeight: 1 }}>
+              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(1.5rem, 5vw, 2rem)", fontWeight: 800, color: TEXT, margin: 0, lineHeight: 1 }}>
                 {searchParams.audiencia ? searchParams.audiencia :
                   searchParams.categoria ? (categories.find((c: { slug: string; name: string }) => c.slug === searchParams.categoria)?.name ?? "Categoría") :
                   "Todos los programas"}

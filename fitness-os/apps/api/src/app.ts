@@ -26,6 +26,7 @@ import { coachRoutes } from "./routes/coaches.js";
 import { blogRoutes } from "./routes/blog.js";
 import { statsRoutes } from "./routes/stats.js";
 import { fulfillmentRoutes } from "./routes/fulfillment.js";
+import { couponRoutes } from "./routes/coupons.js";
 import { tenantMiddleware } from "./middleware/tenant.js";
 
 const ADMIN_URL = process.env["APP_ADMIN_URL"] ?? "http://localhost:3000";
@@ -160,6 +161,12 @@ export async function buildApp() {
   // Fulfillment & Delivery download
   await app.register(
     async (fastify) => { await fastify.register(fulfillmentRoutes); },
+    { prefix: "/api/v1" }
+  );
+
+  // Cupones — administración (CRUD)
+  await app.register(
+    async (fastify) => { await fastify.register(couponRoutes); },
     { prefix: "/api/v1" }
   );
 

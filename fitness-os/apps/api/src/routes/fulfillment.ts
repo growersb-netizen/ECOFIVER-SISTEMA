@@ -12,6 +12,7 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { PrismaClient } from "@prisma/client";
 import { R2StorageAdapter } from "../adapters/storage.js";
+import { sendEmail, buildDeliveryEmail } from "../adapters/email.js";
 import { createHash, randomBytes } from "crypto";
 
 const DOWNLOAD_TTL_HOURS = 72;
@@ -131,6 +132,46 @@ export async function fulfillOrder(orderId: string, prisma: PrismaClient): Promi
     where: { id: orderId },
     data: { status: "DELIVERED" },
   });
+
+  // ── Enviar email de entrega ────────────────────────────────────────
+  // Se hace al final, después de commitear todos los Delivery records.
+  // No falla silenciosamente — logea el error pero no reversa el fulfillment.
+  try {
+    const refreshed = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: true,
+        items: { include: { product: { select: { id: true, name: true } } } },
+        deliveries: { select: { productId: true, downloadUrl: true, downloadExpiresAt: true } },
+      },
+    });
+
+    if (refreshed?.customer?.email) {
+      const emailData = buildDeliveryEmail({
+        customerName: refreshed.customer.name ?? "Cliente",
+        customerEmail: refreshed.customer.email,
+        orderId: refreshed.id,
+        items: refreshed.items.map((item) => {
+          const delivery = refreshed.deliveries.find((d) => d.productId === item.productId);
+          return {
+            productName: item.product.name,
+            downloadUrl: delivery?.downloadUrl ?? "#",
+            expiresAt: delivery?.downloadExpiresAt ?? new Date(Date.now() + 72 * 60 * 60 * 1000),
+          };
+        }),
+      });
+
+      await sendEmail({
+        to: refreshed.customer.email,
+        subject: emailData.subject,
+        html: emailData.html,
+        text: emailData.text,
+      });
+    }
+  } catch (emailErr) {
+    // El email falla sin afectar el fulfillment
+    console.error("[fulfillment] Error enviando email de entrega:", emailErr);
+  }
 }
 
 // ── Routes ─────────────────────────────────────────────────────────

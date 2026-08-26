@@ -6,9 +6,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductBySlug, StoreProduct } from "@/lib/store-api";
 
-const NEON   = "#00FF87";
-const CYAN   = "#00F5FF";
-const CEREZA = "#DE3163";
+const NEON    = "#00FF87";
+const CYAN    = "#00F5FF";
+const CEREZA  = "#DE3163";
+const CEREZA2 = "#B82050";
+const TEXT    = "#F0F4FF";
+const BODY    = "#B8C4E0";
+const MUTED   = "#7A87A8";
+const DIM     = "#4A5570";
+
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "FITNESS OS";
 
 export const revalidate = 300;
 
@@ -108,7 +115,7 @@ export default async function ProductPage({ params }: Props) {
         display: "flex", alignItems: "center", gap: "1rem",
       }}>
         <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none", whiteSpace: "nowrap" }}>
-          FITNESS OS
+          {STORE_NAME}
         </Link>
         <div style={{ flex: 1 }} />
         <Link href="/tienda" style={{ color: "#A0AAC8", textDecoration: "none", fontSize: "0.82rem", whiteSpace: "nowrap" }}>← Tienda</Link>
@@ -117,11 +124,11 @@ export default async function ProductPage({ params }: Props) {
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1.5rem 1rem 3rem" }}>
 
         {/* Breadcrumb */}
-        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", marginBottom: "1.25rem", fontSize: "0.75rem", color: "#4A5070", flexWrap: "wrap" }}>
-          <Link href="/tienda" style={{ color: "#4A5070", textDecoration: "none" }}>Tienda</Link>
-          {product.category && <><span>›</span><Link href={`/tienda?categoria=${product.category.slug}`} style={{ color: "#4A5070", textDecoration: "none" }}>{product.category.name}</Link></>}
+        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", marginBottom: "1.25rem", fontSize: "0.75rem", color: MUTED, flexWrap: "wrap" }}>
+          <Link href="/tienda" style={{ color: MUTED, textDecoration: "none" }}>Tienda</Link>
+          {product.category && <><span>›</span><Link href={`/tienda?categoria=${product.category.slug}`} style={{ color: CEREZA, textDecoration: "none" }}>{product.category.name}</Link></>}
           <span>›</span>
-          <span style={{ color: "#6B7494", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "40vw" }}>{product.name}</span>
+          <span style={{ color: BODY, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "40vw" }}>{product.name}</span>
         </div>
 
         {/* Hero cover — mobile visible */}
@@ -146,7 +153,7 @@ export default async function ProductPage({ params }: Props) {
         <h1 style={{
           fontFamily: "'Barlow Condensed', sans-serif",
           fontSize: "clamp(1.75rem, 6vw, 3rem)", fontWeight: 800, lineHeight: 1.05,
-          margin: "0 0 1rem", color: "#E8EDFF",
+          margin: "0 0 1rem", color: TEXT,
         }}>
           {product.name}
         </h1>
@@ -201,7 +208,7 @@ export default async function ProductPage({ params }: Props) {
                   ["📱", "Compatible con cualquier dispositivo"],
                   ["♾️", "Acceso de por vida"],
                 ].map(([icon, text]) => (
-                  <div key={text} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", fontSize: "0.78rem", color: "#6B7494" }}>
+                  <div key={text} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", fontSize: "0.78rem", color: BODY }}>
                     <span>{icon}</span><span>{text}</span>
                   </div>
                 ))}
@@ -212,7 +219,7 @@ export default async function ProductPage({ params }: Props) {
           {/* DESCRIPTION */}
           <div>
             {product.description && (
-              <div style={{ lineHeight: 1.75, color: "#A0AAC8", fontSize: "0.95rem", marginBottom: "1.75rem" }}>
+              <div style={{ lineHeight: 1.75, color: BODY, fontSize: "0.95rem", marginBottom: "1.75rem" }}>
                 {product.description.split("\n").map((line, i) => (
                   <p key={i} style={{ margin: "0 0 0.75rem" }}>{line}</p>
                 ))}
@@ -233,7 +240,7 @@ export default async function ProductPage({ params }: Props) {
                   "Acceso de por vida, sin vencimiento",
                   "Compatible con cualquier dispositivo",
                 ].map((item, i) => (
-                  <li key={i} style={{ display: "flex", gap: "0.55rem", alignItems: "flex-start", fontSize: "0.88rem", color: "#A0AAC8" }}>
+                  <li key={i} style={{ display: "flex", gap: "0.55rem", alignItems: "flex-start", fontSize: "0.88rem", color: BODY }}>
                     <span style={{ color: NEON, flexShrink: 0, marginTop: "0.1rem" }}>✓</span>
                     {item}
                   </li>
@@ -256,7 +263,7 @@ export default async function ProductPage({ params }: Props) {
                   <summary style={{ cursor: "pointer", color: "#E8EDFF", fontSize: "0.88rem", fontWeight: 600, listStyle: "none", userSelect: "none", paddingTop: "0.1rem" }}>
                     {q}
                   </summary>
-                  <p style={{ color: "#6B7494", fontSize: "0.85rem", lineHeight: 1.6, margin: "0.5rem 0 0" }}>{a}</p>
+                  <p style={{ color: BODY, fontSize: "0.85rem", lineHeight: 1.6, margin: "0.5rem 0 0" }}>{a}</p>
                 </details>
               ))}
             </div>

@@ -144,6 +144,7 @@ export default function DashboardPage() {
           <NavItem label="📊 Dashboard" href="/dashboard" active />
           <NavItem label="📦 Productos" href="/dashboard/products" />
           <NavItem label="🛒 Órdenes" href="/dashboard/orders" />
+          <NavItem label="🎟 Cupones" href="/dashboard/coupons" />
           <NavItem label="👥 CRM / Leads" href="/dashboard/crm" />
           <NavItem label="💬 WhatsApp" href="/dashboard/whatsapp" />
           <NavItem label="🤖 IA" href="/dashboard/ai" />

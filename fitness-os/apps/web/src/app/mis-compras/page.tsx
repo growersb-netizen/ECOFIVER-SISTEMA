@@ -7,10 +7,15 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 
-const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+const API_URL     = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
 const TENANT_SLUG = process.env["NEXT_PUBLIC_TENANT_SLUG"] ?? "";
-const NEON = "#00FF87";
-const CYAN = "#00F5FF";
+const STORE_NAME  = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "FITNESS BUSINESS OS";
+const NEON   = "#00FF87";
+const CYAN   = "#00F5FF";
+const CEREZA = "#DE3163";
+const BODY   = "#B8C4E0";
+const MUTED  = "#7A87A8";
+const DIM    = "#4A5570";
 
 interface Purchase {
   id: string;
@@ -93,19 +98,27 @@ export default function MisComprasPage() {
       flexDirection: "column",
     }}>
       {/* Nav */}
-      <nav style={{ background: "#0A0C18", borderBottom: "1px solid #1A1F35", padding: "0 1.5rem", height: 60, display: "flex", alignItems: "center", gap: "1.5rem" }}>
-        <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1.1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none" }}>
-          FITNESS BUSINESS OS
+      <nav style={{ background: "#0A0C18", borderBottom: `1px solid ${CEREZA}22`, padding: "0 1.5rem", height: 60, display: "flex", alignItems: "center", gap: "1.5rem" }}>
+        <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1.1rem", letterSpacing: "0.06em", color: "#F0F4FF", textDecoration: "none" }}>
+          {STORE_NAME}
         </Link>
-        <Link href="/tienda" style={{ color: "#4A5070", fontSize: "0.85rem", textDecoration: "none" }}>Tienda</Link>
+        <div style={{ flex: 1 }} />
+        <Link href="/tienda" style={{ color: MUTED, fontSize: "0.85rem", textDecoration: "none" }}>Tienda</Link>
       </nav>
 
       <main style={{ flex: 1, maxWidth: 680, width: "100%", margin: "0 auto", padding: "3rem 1.5rem" }}>
-        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "2.25rem", fontWeight: 800, margin: "0 0 0.5rem" }}>
+        {/* Label Cereza */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+          <div style={{ width: 24, height: 3, background: CEREZA, borderRadius: 2 }} />
+          <span style={{ color: CEREZA, fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+            Portal del cliente
+          </span>
+        </div>
+        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "2.25rem", fontWeight: 800, margin: "0 0 0.5rem", color: "#F0F4FF" }}>
           MIS COMPRAS
         </h1>
-        <p style={{ color: "#4A5070", fontSize: "0.9rem", margin: "0 0 2.5rem" }}>
-          Ingresá tu email para ver y descargar tus productos.
+        <p style={{ color: BODY, fontSize: "0.9rem", margin: "0 0 2.5rem" }}>
+          Ingresá el email con el que compraste para ver y descargar tus productos.
         </p>
 
         {/* Form */}
@@ -150,9 +163,9 @@ export default function MisComprasPage() {
           </div>
           <button type="submit" disabled={loading || !email} style={{
             width: "100%", padding: "0.85rem",
-            background: loading ? "#1A1F35" : `linear-gradient(135deg, ${NEON}, #00D4A0)`,
+            background: loading ? "#1A1F35" : `linear-gradient(135deg, ${CEREZA}, #B82050)`,
             border: "none", borderRadius: 10,
-            color: loading ? "#4A5070" : "#06080F",
+            color: loading ? "#4A5070" : "#fff",
             fontWeight: 800, fontSize: "0.95rem",
             cursor: loading ? "not-allowed" : "pointer",
           }}>
@@ -262,8 +275,8 @@ export default function MisComprasPage() {
         )}
       </main>
 
-      <div style={{ padding: "1.5rem", textAlign: "center", borderTop: "1px solid #1A1F35", color: "#3A3F55", fontSize: "0.78rem" }}>
-        Fitness Business OS · soporte@fitnessbusiness.com
+      <div style={{ padding: "1.5rem", textAlign: "center", borderTop: "1px solid #1A1F35", color: DIM, fontSize: "0.78rem" }}>
+        {STORE_NAME} · <span style={{ color: MUTED }}>soporte@fitnessbusiness.com</span>
       </div>
     </div>
   );

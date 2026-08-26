@@ -6,9 +6,10 @@ import Link from "next/link";
 import { getPublishedProducts, getCategories, StoreProduct, StoreCategory } from "@/lib/store-api";
 import HoverCard from "@/components/HoverCard";
 
-const NEON = "#00FF87";
-const CYAN = "#00F5FF";
-const PINK = "#FF2D9C";
+const NEON    = "#00FF87";
+const CYAN    = "#00F5FF";
+const CEREZA  = "#DE3163";
+// PINK se reserva solo para errores; CEREZA es el tercer color de marca
 
 async function getFeaturedProducts(): Promise<StoreProduct[]> {
   try {
@@ -40,40 +41,42 @@ export default async function HomePage() {
   return (
     <>
       {/* Nav */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(6,8,15,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #1A1F35", padding: "0 1.5rem", height: 60, display: "flex", alignItems: "center", gap: "1.5rem" }}>
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(6,8,15,0.96)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${CEREZA}22`, padding: "0 1.5rem", height: 60, display: "flex", alignItems: "center", gap: "1.5rem" }}>
         <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1.15rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none" }}>
           FITNESS BUSINESS OS
         </Link>
         <div style={{ flex: 1 }} />
         <Link href="/tienda" style={{ color: "#A0AAC8", textDecoration: "none", fontSize: "0.9rem" }}>Tienda</Link>
-        <Link href="/tienda" style={{ padding: "0.4rem 1.1rem", background: NEON, borderRadius: 8, color: "#06080F", textDecoration: "none", fontWeight: 700, fontSize: "0.85rem" }}>
+        <Link href="/tienda" style={{ padding: "0.4rem 1.1rem", background: `linear-gradient(135deg, ${CEREZA}, #B82050)`, borderRadius: 8, color: "#fff", textDecoration: "none", fontWeight: 700, fontSize: "0.85rem" }}>
           Ver todo
         </Link>
       </nav>
 
       {/* Hero */}
       <section style={{ padding: "5rem 1.5rem 4rem", textAlign: "center", position: "relative", overflow: "hidden" }}>
-        {/* Glow BG */}
-        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${NEON}0A 0%, transparent 60%)`, pointerEvents: "none" }} />
-        <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.8rem", fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: CYAN, marginBottom: "1rem" }}>
-          Contenido digital premium para alcanzar tus metas
+        {/* Glow dual: neon top-left + cereza top-right */}
+        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 30% 0%, ${NEON}0D 0%, transparent 55%), radial-gradient(ellipse at 75% 0%, ${CEREZA}12 0%, transparent 55%)`, pointerEvents: "none" }} />
+        {/* Eyebrow — cereza */}
+        <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.82rem", fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: CEREZA, marginBottom: "1rem", position: "relative" }}>
+          ✦ Contenido digital premium para alcanzar tus metas ✦
         </p>
-        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3.5rem, 8vw, 6.5rem)", fontWeight: 800, lineHeight: 0.9, margin: "0 auto 1.5rem", maxWidth: 900 }}>
+        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3.5rem, 8vw, 6.5rem)", fontWeight: 800, lineHeight: 0.9, margin: "0 auto 1.5rem", maxWidth: 900, position: "relative" }}>
           <span style={{ color: NEON, textShadow: `0 0 20px ${NEON}66, 0 0 60px ${NEON}22` }}>PROGRAMAS</span>
           <br />
           <span style={{ color: "#E8EDFF" }}>Y GUÍAS DE</span>
           <br />
-          <span style={{ color: CYAN, textShadow: `0 0 20px ${CYAN}66` }}>FITNESS</span>
+          {/* Cereza en "FITNESS" — la palabra más identitaria */}
+          <span style={{ color: CEREZA, textShadow: `0 0 24px ${CEREZA}66, 0 0 60px ${CEREZA}22` }}>FITNESS</span>
         </h1>
-        <p style={{ color: "#6B7494", fontSize: "1.05rem", maxWidth: 500, margin: "0 auto 2rem", lineHeight: 1.6 }}>
+        <p style={{ color: "#6B7494", fontSize: "1.05rem", maxWidth: 500, margin: "0 auto 2rem", lineHeight: 1.6, position: "relative" }}>
           Descargá al instante. Programas creados por especialistas en fitness. Para todos los niveles y objetivos.
         </p>
-        <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <Link href="/tienda" style={{ padding: "0.75rem 2rem", background: NEON, borderRadius: 10, color: "#06080F", textDecoration: "none", fontWeight: 700, fontSize: "1rem" }}>
+        <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap", position: "relative" }}>
+          <Link href="/tienda" style={{ padding: "0.75rem 2rem", background: `linear-gradient(135deg, ${CEREZA}, #B82050)`, borderRadius: 10, color: "#fff", textDecoration: "none", fontWeight: 700, fontSize: "1rem", boxShadow: `0 4px 24px ${CEREZA}44` }}>
             Ver programas →
           </Link>
-          <Link href="/tienda?categoria=programas-transformacion" style={{ padding: "0.75rem 2rem", background: "transparent", border: `1px solid ${CYAN}55`, borderRadius: 10, color: CYAN, textDecoration: "none", fontWeight: 600, fontSize: "1rem" }}>
-            Transformación total
+          <Link href="/tienda" style={{ padding: "0.75rem 2rem", background: "transparent", border: `1px solid ${NEON}55`, borderRadius: 10, color: NEON, textDecoration: "none", fontWeight: 600, fontSize: "1rem" }}>
+            Explorar catálogo
           </Link>
         </div>
       </section>
@@ -128,14 +131,15 @@ export default async function HomePage() {
 
 function ProductCard({ product }: { product: StoreProduct }) {
   const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
-  const levelColors: Record<string, string> = { principiante: NEON, intermedio: CYAN, avanzado: PINK };
+  const levelColors: Record<string, string> = { principiante: NEON, intermedio: CYAN, avanzado: CEREZA };
   const levelColor = product.level ? (levelColors[product.level] ?? CYAN) : CYAN;
+  const isBundle = product.productType === "BUNDLE";
 
   return (
     <Link href={`/tienda/${product.slug}`} style={{ textDecoration: "none" }}>
-      <HoverCard hoverBorderColor={`${NEON}55`}>
+      <HoverCard hoverBorderColor={`${CEREZA}44`}>
         {/* Cover */}
-        <div style={{ height: 160, background: `linear-gradient(135deg, #0D0F1A 0%, ${NEON}10 50%, ${CYAN}08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+        <div style={{ height: 160, background: `linear-gradient(135deg, #0D0F1A 0%, ${CEREZA}0A 40%, ${NEON}08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
           <span style={{ fontSize: "2.5rem" }}>
             {product.category?.slug?.includes("glut") ? "🍑" :
              product.category?.slug?.includes("yoga") ? "🧘" :
@@ -148,12 +152,17 @@ function ProductCard({ product }: { product: StoreProduct }) {
               {product.level}
             </span>
           )}
+          {isBundle && (
+            <span style={{ position: "absolute", top: 10, left: 10, padding: "2px 8px", borderRadius: 4, fontSize: "0.7rem", fontWeight: 700, background: `${CEREZA}22`, color: CEREZA, border: `1px solid ${CEREZA}55` }}>
+              PACK
+            </span>
+          )}
         </div>
 
         {/* Content */}
         <div style={{ padding: "1rem", flex: 1, display: "flex", flexDirection: "column" }}>
           {product.category && (
-            <div style={{ fontSize: "0.7rem", color: CYAN, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.35rem" }}>
+            <div style={{ fontSize: "0.7rem", color: CEREZA, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.35rem" }}>
               {product.category.name}
             </div>
           )}

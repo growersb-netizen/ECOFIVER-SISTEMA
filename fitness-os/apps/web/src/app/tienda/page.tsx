@@ -6,9 +6,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getPublishedProducts, getCategories, StoreProduct, getAudienceTag } from "@/lib/store-api";
 
-const NEON = "#00FF87";
-const CYAN = "#00F5FF";
-const PINK = "#FF2D9C";
+const NEON   = "#00FF87";
+const CYAN   = "#00F5FF";
+const CEREZA = "#DE3163";
 
 interface SearchParams {
   categoria?: string;
@@ -29,7 +29,7 @@ function buildUrl(params: SearchParams) {
 
 const AUDIENCE_FILTERS = [
   { label: "🌟 Para Todos", value: "", color: NEON },
-  { label: "♀ Para Mujeres", value: "Para Mujeres", color: PINK },
+  { label: "♀ Para Mujeres", value: "Para Mujeres", color: CEREZA },
   { label: "♂ Para Hombres", value: "Para Hombres", color: CYAN },
 ];
 
@@ -89,9 +89,9 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
 
 function StoreCard({ product }: { product: StoreProduct }) {
   const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
-  const levelColor = product.level === "principiante" ? NEON : product.level === "intermedio" ? CYAN : PINK;
+  const levelColor = product.level === "principiante" ? NEON : product.level === "intermedio" ? CYAN : CEREZA;
   const audience = getAudienceTag(product);
-  const audienceColor = audience === "Para Hombres" ? CYAN : audience === "Para Mujeres" ? PINK : NEON;
+  const audienceColor = audience === "Para Hombres" ? CYAN : audience === "Para Mujeres" ? CEREZA : NEON;
 
   const emoji =
     product.category?.slug?.includes("glut") || product.category?.slug?.includes("pierna") ? "🍑" :
@@ -113,7 +113,7 @@ function StoreCard({ product }: { product: StoreProduct }) {
       }}
         className="store-card"
       >
-        <div style={{ height: 140, background: `linear-gradient(135deg, #0A0C18 0%, ${NEON}09 100%)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+        <div style={{ height: 140, background: `linear-gradient(135deg, #0A0C18 0%, ${CEREZA}0B 50%, ${NEON}07 100%)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
           <span style={{ fontSize: "2.25rem" }}>{emoji}</span>
           {product.level && (
             <span style={{ position: "absolute", top: 8, right: 8, padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, background: `${levelColor}22`, color: levelColor, border: `1px solid ${levelColor}44` }}>
@@ -121,7 +121,7 @@ function StoreCard({ product }: { product: StoreProduct }) {
             </span>
           )}
           {product.productType === "BUNDLE" && (
-            <span style={{ position: "absolute", top: 8, left: 8, padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, background: `${PINK}22`, color: PINK, border: `1px solid ${PINK}44` }}>
+            <span style={{ position: "absolute", top: 8, left: 8, padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, background: `${CEREZA}22`, color: CEREZA, border: `1px solid ${CEREZA}55` }}>
               PACK
             </span>
           )}
@@ -129,7 +129,7 @@ function StoreCard({ product }: { product: StoreProduct }) {
 
         <div style={{ padding: "0.85rem 0.95rem", flex: 1, display: "flex", flexDirection: "column" }}>
           {product.category && (
-            <div style={{ fontSize: "0.68rem", color: CYAN, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+            <div style={{ fontSize: "0.68rem", color: CEREZA, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
               {product.category.name}
             </div>
           )}
@@ -274,7 +274,7 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
               />
               {searchParams.categoria && <input type="hidden" name="categoria" value={searchParams.categoria} />}
               {searchParams.audiencia && <input type="hidden" name="audiencia" value={searchParams.audiencia} />}
-              <button type="submit" style={{ padding: "0.6rem 1.1rem", background: NEON, border: "none", borderRadius: 8, color: "#06080F", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+              <button type="submit" style={{ padding: "0.6rem 1.1rem", background: `linear-gradient(135deg, ${CEREZA}, #B82050)`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
                 Buscar
               </button>
             </form>
@@ -301,8 +301,9 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
 
         /* Card hover */
         .store-card:hover {
-          border-color: ${NEON}55 !important;
+          border-color: ${CEREZA}66 !important;
           transform: translateY(-2px);
+          box-shadow: 0 4px 24px ${CEREZA}18;
         }
 
         /* Hide scrollbar in category strip */

@@ -8,9 +8,10 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { initCheckout, validateCoupon, getProductBySlug, StoreProduct } from "@/lib/store-api";
 
-const NEON = "#00FF87";
-const CYAN = "#00F5FF";
-const PINK = "#FF2D9C";
+const NEON   = "#00FF87";
+const CYAN   = "#00F5FF";
+const CEREZA = "#DE3163";
+const PINK   = "#FF2D9C"; // solo errores
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -121,11 +122,11 @@ function CheckoutForm() {
 
       {/* Resumen del producto */}
       {!productLoading && product && (
-        <div style={{ background: "#0D0F1A", borderRadius: 12, border: "1px solid #1A1F35", padding: "1.25rem", marginBottom: "1.25rem" }}>
+        <div style={{ background: "#0D0F1A", borderRadius: 12, border: `1px solid ${CEREZA}33`, padding: "1.25rem", marginBottom: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
             <div>
               {product.category && (
-                <p style={{ margin: "0 0 2px", color: CYAN, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                <p style={{ margin: "0 0 2px", color: CEREZA, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
                   {product.category.name}
                 </p>
               )}
@@ -229,11 +230,12 @@ function CheckoutForm() {
         disabled={loading || !email || !name}
         style={{
           width: "100%", padding: "0.95rem 1rem",
-          background: (loading || !email || !name) ? "#1A1F35" : `linear-gradient(135deg, ${NEON}, #00D4A0)`,
+          background: (loading || !email || !name) ? "#1A1F35" : `linear-gradient(135deg, ${CEREZA}, #B82050)`,
           border: "none", borderRadius: 12,
-          color: (loading || !email || !name) ? "#4A5070" : "#06080F",
+          color: (loading || !email || !name) ? "#4A5070" : "#fff",
           fontWeight: 800, fontSize: "1.05rem",
           cursor: (loading || !email || !name) ? "not-allowed" : "pointer",
+          boxShadow: (loading || !email || !name) ? "none" : `0 4px 20px ${CEREZA}44`,
         }}
       >
         {loading ? "Redirigiendo a MercadoPago…" : "Pagar con MercadoPago →"}

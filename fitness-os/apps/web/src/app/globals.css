@@ -5,4 +5,15 @@
 :root {
   --font-dm-sans: "DM Sans", system-ui, sans-serif;
   --font-barlow: "Barlow Condensed", sans-serif;
+
+  /* Paleta de marca */
+  --color-neon:   #00FF87;   /* verde neón — precios, datos */
+  --color-cyan:   #00F5FF;   /* cyan      — etiquetas, info */
+  --color-cereza: #DE3163;   /* cereza    — CTA, femenino, premium */
+  --color-bg:     #06080F;
+  --color-surface:#0D0F1A;
+  --color-border: #1A1F35;
+  --color-text:   #E8EDFF;
+  --color-muted:  #6B7494;
+  --color-dim:    #4A5070;
 }

@@ -6,9 +6,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductBySlug, StoreProduct } from "@/lib/store-api";
 
-const NEON = "#00FF87";
-const CYAN = "#00F5FF";
-const PINK = "#FF2D9C";
+const NEON   = "#00FF87";
+const CYAN   = "#00F5FF";
+const CEREZA = "#DE3163";
 
 export const revalidate = 300;
 
@@ -127,10 +127,10 @@ export default async function ProductPage({ params }: Props) {
         {/* Hero cover — mobile visible */}
         <div style={{
           height: 200, borderRadius: 14,
-          background: `linear-gradient(135deg, #0D0F1A 0%, ${NEON}12 50%, ${CYAN}08 100%)`,
+          background: `linear-gradient(135deg, #0D0F1A 0%, ${CEREZA}12 45%, ${NEON}07 100%)`,
           display: "flex", alignItems: "center", justifyContent: "center",
           marginBottom: "1.5rem",
-          border: "1px solid #1A1F35",
+          border: `1px solid ${CEREZA}33`,
         }}>
           <span style={{ fontSize: "4rem" }}>{emoji}</span>
         </div>
@@ -138,7 +138,7 @@ export default async function ProductPage({ params }: Props) {
         {/* Category & Title */}
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
           {product.category && (
-            <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: "0.7rem", fontWeight: 700, background: `${CYAN}15`, color: CYAN, border: `1px solid ${CYAN}33`, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: "0.7rem", fontWeight: 700, background: `${CEREZA}18`, color: CEREZA, border: `1px solid ${CEREZA}44`, textTransform: "uppercase", letterSpacing: "0.08em" }}>
               {product.category.name}
             </span>
           )}
@@ -163,8 +163,9 @@ export default async function ProductPage({ params }: Props) {
           <div>
             <div style={{
               background: "#0D0F1A", borderRadius: 16,
-              border: `1px solid ${NEON}33`, padding: "1.5rem",
+              border: `1px solid ${CEREZA}44`, padding: "1.5rem",
               position: "sticky", top: 68,
+              boxShadow: `0 0 40px ${CEREZA}10`,
             }}>
               {price && (
                 <div style={{ marginBottom: "1.25rem" }}>
@@ -183,10 +184,11 @@ export default async function ProductPage({ params }: Props) {
                 href={`/checkout?productId=${product.id}`}
                 style={{
                   display: "block", width: "100%", padding: "0.9rem 1rem",
-                  background: `linear-gradient(135deg, ${NEON}, #00D4A0)`,
-                  borderRadius: 10, color: "#06080F", textAlign: "center",
+                  background: `linear-gradient(135deg, ${CEREZA}, #B82050)`,
+                  borderRadius: 10, color: "#fff", textAlign: "center",
                   fontWeight: 800, fontSize: "1.05rem", textDecoration: "none",
                   letterSpacing: "0.02em", boxSizing: "border-box",
+                  boxShadow: `0 4px 20px ${CEREZA}44`,
                 }}
               >
                 Comprar ahora →
@@ -283,8 +285,8 @@ export default async function ProductPage({ params }: Props) {
           }
         }
         details summary::-webkit-details-marker { display: none; }
-        details summary::before { content: "+ "; color: #00FF87; }
-        details[open] summary::before { content: "− "; }
+        details summary::before { content: "+ "; color: ${CEREZA}; }
+        details[open] summary::before { content: "− "; color: ${CEREZA}; }
       `}</style>
     </>
   );

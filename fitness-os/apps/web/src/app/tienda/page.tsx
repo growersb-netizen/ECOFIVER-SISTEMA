@@ -1,0 +1,321 @@
+/**
+ * Catálogo de productos — Fase 03.
+ * Mobile-first: filtros como strip horizontal en mobile, sidebar en desktop.
+ */
+import { Suspense } from "react";
+import Link from "next/link";
+import { getPublishedProducts, getCategories, StoreProduct, getAudienceTag } from "@/lib/store-api";
+
+const NEON    = "#00FF87";
+const CYAN    = "#00F5FF";
+const CEREZA  = "#DE3163";
+const CEREZA2 = "#B82050";
+const TEXT    = "#F0F4FF";
+const BODY    = "#B8C4E0";
+const MUTED   = "#7A87A8";
+const DIM     = "#4A5570";
+
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "FITNESS OS";
+
+interface SearchParams {
+  categoria?: string;
+  audiencia?: string; // "Para Mujeres" | "Para Hombres" | "Para Todos"
+  q?: string;
+  page?: string;
+}
+
+function buildUrl(params: SearchParams) {
+  const qs = new URLSearchParams();
+  if (params.categoria) qs.set("categoria", params.categoria);
+  if (params.audiencia) qs.set("audiencia", params.audiencia);
+  if (params.q) qs.set("q", params.q);
+  if (params.page && params.page !== "1") qs.set("page", params.page);
+  const s = qs.toString();
+  return `/tienda${s ? `?${s}` : ""}`;
+}
+
+const AUDIENCE_FILTERS = [
+  { label: "🌟 Para Todos", value: "", color: NEON },
+  { label: "♀ Para Mujeres", value: "Para Mujeres", color: CEREZA },
+  { label: "♂ Para Hombres", value: "Para Hombres", color: CYAN },
+];
+
+export const revalidate = 60;
+
+async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
+  const page = Number(searchParams.page ?? 1);
+  const data = await getPublishedProducts({
+    categorySlug: searchParams.categoria,
+    tag: searchParams.audiencia,
+    q: searchParams.q,
+    page,
+    pageSize: 24,
+  }).catch(() => ({ data: [] as StoreProduct[], pagination: { total: 0, page: 1, pageSize: 24 } }));
+
+  const products = data.data ?? [];
+  const pagination = data.pagination;
+
+  if (products.length === 0) {
+    return (
+      <div style={{ padding: "4rem 1rem", textAlign: "center", color: MUTED }}>
+        <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🔍</div>
+        <p style={{ fontSize: "1rem", color: BODY }}>No encontramos productos con esos filtros.</p>
+        <Link href="/tienda" style={{ color: CEREZA, marginTop: "0.75rem", display: "inline-block" }}>Limpiar filtros →</Link>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1.1rem" }}>
+        {products.map(p => <StoreCard key={p.id} product={p} />)}
+      </div>
+
+      {pagination && pagination.total > pagination.pageSize && (
+        <div style={{ marginTop: "2rem", display: "flex", justifyContent: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          {page > 1 && (
+            <Link href={buildUrl({ ...searchParams, page: String(page - 1) })}
+              style={{ padding: "0.5rem 1rem", background: "#0D0F1A", border: "1px solid #1A1F35", borderRadius: 8, color: "#A0AAC8", textDecoration: "none", fontSize: "0.85rem" }}>
+              ← Anterior
+            </Link>
+          )}
+          <span style={{ padding: "0.5rem 1rem", color: "#4A5070", fontSize: "0.85rem", alignSelf: "center" }}>
+            {page} / {Math.ceil(pagination.total / pagination.pageSize)}
+          </span>
+          {page * pagination.pageSize < pagination.total && (
+            <Link href={buildUrl({ ...searchParams, page: String(page + 1) })}
+              style={{ padding: "0.5rem 1rem", background: "#0D0F1A", border: "1px solid #1A1F35", borderRadius: 8, color: "#A0AAC8", textDecoration: "none", fontSize: "0.85rem" }}>
+              Siguiente →
+            </Link>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function StoreCard({ product }: { product: StoreProduct }) {
+  const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
+  const levelColor = product.level === "principiante" ? NEON : product.level === "intermedio" ? CYAN : CEREZA;
+  const audience = getAudienceTag(product);
+  const audienceColor = audience === "Para Hombres" ? CYAN : audience === "Para Mujeres" ? CEREZA : NEON;
+
+  const emoji =
+    product.category?.slug?.includes("glut") || product.category?.slug?.includes("pierna") ? "🍑" :
+    product.category?.slug?.includes("yoga") || product.category?.slug?.includes("flex") ? "🧘" :
+    product.category?.slug?.includes("nutri") || product.category?.slug?.includes("receta") ? "🥗" :
+    product.category?.slug?.includes("abdomen") || product.category?.slug?.includes("core") ? "⚡" :
+    product.category?.slug?.includes("postparto") ? "💪" :
+    product.category?.slug?.includes("mindset") ? "🧠" :
+    product.category?.slug?.includes("desafio") ? "🔥" :
+    product.category?.slug?.includes("casa") ? "🏠" :
+    product.category?.slug?.includes("vip") || product.category?.slug?.includes("bundle") ? "⭐" : "🏋️";
+
+  return (
+    <Link href={`/tienda/${product.slug}`} style={{ textDecoration: "none", display: "block" }}>
+      <article style={{
+        background: "#0D0F1A", borderRadius: 12, border: "1px solid #1A1F35",
+        overflow: "hidden", height: "100%", display: "flex", flexDirection: "column",
+        transition: "border-color 0.2s, transform 0.2s",
+      }}
+        className="store-card"
+      >
+        <div style={{ height: 140, background: `linear-gradient(135deg, #0A0C18 0%, ${CEREZA}0B 50%, ${NEON}07 100%)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+          <span style={{ fontSize: "2.25rem" }}>{emoji}</span>
+          {product.level && (
+            <span style={{ position: "absolute", top: 8, right: 8, padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, background: `${levelColor}22`, color: levelColor, border: `1px solid ${levelColor}44` }}>
+              {product.level}
+            </span>
+          )}
+          {product.productType === "BUNDLE" && (
+            <span style={{ position: "absolute", top: 8, left: 8, padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, background: `${CEREZA}22`, color: CEREZA, border: `1px solid ${CEREZA}55` }}>
+              PACK
+            </span>
+          )}
+        </div>
+
+        <div style={{ padding: "0.85rem 0.95rem", flex: 1, display: "flex", flexDirection: "column" }}>
+          {product.category && (
+            <div style={{ fontSize: "0.68rem", color: CEREZA, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+              {product.category.name}
+            </div>
+          )}
+          <h3 style={{ color: TEXT, fontSize: "0.9rem", fontWeight: 700, margin: "0 0 auto", lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            {product.name}
+          </h3>
+          <div style={{ marginTop: "0.7rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {price && (
+              <div style={{ color: NEON, fontWeight: 800, fontSize: "1.05rem", fontVariantNumeric: "tabular-nums", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                ${Number(price.basePrice).toLocaleString("es-AR")} <span style={{ fontSize: "0.68rem", color: MUTED, fontWeight: 400 }}>{price.currency}</span>
+              </div>
+            )}
+            {product.durationWeeks && <span style={{ fontSize: "0.7rem", color: MUTED }}>{product.durationWeeks} sem.</span>}
+          </div>
+          {audience && (
+            <div style={{ marginTop: "0.55rem", display: "inline-flex" }}>
+              <span style={{ fontSize: "0.65rem", fontWeight: 700, color: audienceColor, background: `${audienceColor}15`, border: `1px solid ${audienceColor}33`, borderRadius: 4, padding: "1px 7px", letterSpacing: "0.06em" }}>
+                {audience}
+              </span>
+            </div>
+          )}
+        </div>
+      </article>
+    </Link>
+  );
+}
+
+export default async function TiendaPage({ searchParams }: { searchParams: SearchParams }) {
+  const catsData = await getCategories().catch(() => ({ categories: [] }));
+  const categories = (
+    (catsData as { categories?: { id: string; name: string; slug: string; _count?: { products: number } }[] }).categories ??
+    (catsData as { data?: { id: string; name: string; slug: string }[] }).data ?? []
+  );
+
+  return (
+    <>
+      {/* Nav */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        background: "rgba(6,8,15,0.97)", backdropFilter: "blur(12px)",
+        borderBottom: "1px solid #1A1F35",
+        padding: "0 1rem", height: 56,
+        display: "flex", alignItems: "center", gap: "1rem",
+      }}>
+        <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none", whiteSpace: "nowrap" }}>
+          {STORE_NAME}
+        </Link>
+        <div style={{ flex: 1 }} />
+        <span style={{ color: CEREZA, fontSize: "0.82rem", fontWeight: 600 }}>Tienda</span>
+      </nav>
+
+      {/* Mobile: audience + category strip */}
+      <div className="mobile-cat-strip" style={{ borderBottom: "1px solid #1A1F35", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+        <div style={{ display: "flex", gap: "0.5rem", padding: "0.55rem 1rem", width: "max-content" }}>
+          {AUDIENCE_FILTERS.map(f => {
+            const isActive = (searchParams.audiencia ?? "") === f.value;
+            return (
+              <Link key={f.value || "todos-aud"} href={buildUrl({ ...searchParams, audiencia: f.value || undefined, page: undefined })}
+                style={{ padding: "0.28rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 700, whiteSpace: "nowrap", background: isActive ? `${f.color}20` : "transparent", color: isActive ? f.color : "#6B7494", border: `1px solid ${isActive ? `${f.color}55` : "#1A1F35"}` }}>
+                {f.label}
+              </Link>
+            );
+          })}
+          <span style={{ width: "1px", background: "#2A2F45", margin: "0 0.25rem", flexShrink: 0 }} />
+          <Link href={buildUrl({ ...searchParams, categoria: undefined, page: undefined })} style={{ padding: "0.28rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap", background: !searchParams.categoria ? `${NEON}18` : "transparent", color: !searchParams.categoria ? NEON : "#6B7494", border: `1px solid ${!searchParams.categoria ? `${NEON}44` : "#1A1F35"}` }}>
+            Todas las categorías
+          </Link>
+          {categories.map((cat: { id: string; name: string; slug: string }) => (
+            <Link key={cat.id} href={buildUrl({ ...searchParams, categoria: cat.slug, page: undefined })} style={{ padding: "0.28rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap", background: searchParams.categoria === cat.slug ? `${NEON}18` : "transparent", color: searchParams.categoria === cat.slug ? NEON : "#6B7494", border: `1px solid ${searchParams.categoria === cat.slug ? `${NEON}44` : "#1A1F35"}` }}>
+              {cat.name}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "1.5rem 1rem 3rem" }}>
+        <div className="tienda-layout" style={{ display: "flex", gap: "2rem", alignItems: "flex-start" }}>
+
+          {/* Sidebar — hidden on mobile, shown on desktop via CSS */}
+          <aside className="tienda-sidebar" style={{ width: 210, flexShrink: 0, position: "sticky", top: 68 }}>
+            {/* Audience */}
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.75rem", fontWeight: 700, color: CEREZA, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "0.65rem", marginTop: 0 }}>
+              ✦ Para quién
+            </h3>
+            {AUDIENCE_FILTERS.map(f => {
+              const isActive = (searchParams.audiencia ?? "") === f.value;
+              return (
+                <Link key={f.value || "todos-s"} href={buildUrl({ ...searchParams, audiencia: f.value || undefined, page: undefined })}
+                  style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: isActive ? f.color : MUTED, background: isActive ? `${f.color}12` : "transparent", marginBottom: "0.18rem", fontWeight: isActive ? 700 : 400 }}>
+                  {f.label}
+                </Link>
+              );
+            })}
+
+            <div style={{ height: 1, background: "#1A1F35", margin: "0.85rem 0" }} />
+
+            {/* Categories */}
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.75rem", fontWeight: 700, color: CEREZA, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "0.65rem", marginTop: 0 }}>
+              ✦ Categorías
+            </h3>
+            <Link href={buildUrl({ ...searchParams, categoria: undefined, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: !searchParams.categoria ? NEON : MUTED, background: !searchParams.categoria ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
+              Todas
+            </Link>
+            {categories.map((cat: { id: string; name: string; slug: string }) => (
+              <Link key={cat.id} href={buildUrl({ ...searchParams, categoria: cat.slug, page: undefined })} style={{ display: "block", padding: "0.35rem 0.75rem", borderRadius: 6, textDecoration: "none", fontSize: "0.85rem", color: searchParams.categoria === cat.slug ? NEON : MUTED, background: searchParams.categoria === cat.slug ? `${NEON}12` : "transparent", marginBottom: "0.18rem" }}>
+                {cat.name}
+              </Link>
+            ))}
+          </aside>
+
+          {/* Main content */}
+          <main style={{ flex: 1, minWidth: 0 }}>
+            {/* Header row */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(1.5rem, 5vw, 2rem)", fontWeight: 800, color: TEXT, margin: 0, lineHeight: 1 }}>
+                {searchParams.audiencia ? searchParams.audiencia :
+                  searchParams.categoria ? (categories.find((c: { slug: string; name: string }) => c.slug === searchParams.categoria)?.name ?? "Categoría") :
+                  "Todos los programas"}
+              </h1>
+            </div>
+
+            {/* Audience filter pills (desktop, within main) */}
+            <div className="desktop-aud-pills" style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
+              {AUDIENCE_FILTERS.map(f => {
+                const isActive = (searchParams.audiencia ?? "") === f.value;
+                return (
+                  <Link key={f.value || "all"} href={buildUrl({ ...searchParams, audiencia: f.value || undefined, page: undefined })}
+                    style={{ padding: "0.25rem 0.85rem", borderRadius: 20, textDecoration: "none", fontSize: "0.78rem", fontWeight: 700, background: isActive ? `${f.color}20` : "transparent", color: isActive ? f.color : "#4A5070", border: `1px solid ${isActive ? `${f.color}55` : "#1A1F35"}` }}>
+                    {f.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Search */}
+            <form method="GET" action="/tienda" style={{ marginBottom: "1.5rem", display: "flex", gap: "0.6rem" }}>
+              <input
+                name="q"
+                defaultValue={searchParams.q ?? ""}
+                placeholder="Buscar programas, guías…"
+                style={{ flex: 1, background: "#0D0F1A", border: "1px solid #1A1F35", borderRadius: 8, color: "#E8EDFF", padding: "0.6rem 0.9rem", fontSize: "0.9rem", outline: "none", minWidth: 0 }}
+              />
+              {searchParams.categoria && <input type="hidden" name="categoria" value={searchParams.categoria} />}
+              {searchParams.audiencia && <input type="hidden" name="audiencia" value={searchParams.audiencia} />}
+              <button type="submit" style={{ padding: "0.6rem 1.1rem", background: `linear-gradient(135deg, ${CEREZA}, #B82050)`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+                Buscar
+              </button>
+            </form>
+
+            <Suspense fallback={<div style={{ padding: "3rem", textAlign: "center", color: "#4A5070" }}>Cargando productos…</div>}>
+              <ProductGrid searchParams={searchParams} />
+            </Suspense>
+          </main>
+        </div>
+      </div>
+
+      <style>{`
+        /* Mobile: hide sidebar, show category strip */
+        .mobile-cat-strip { display: block; }
+        .tienda-sidebar { display: none !important; }
+        .desktop-aud-pills { display: none !important; }
+
+        /* Desktop: show sidebar, hide strip */
+        @media (min-width: 768px) {
+          .mobile-cat-strip { display: none; }
+          .tienda-sidebar { display: block !important; }
+          .desktop-aud-pills { display: flex !important; }
+        }
+
+        /* Card hover */
+        .store-card:hover {
+          border-color: ${CEREZA}66 !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 24px ${CEREZA}18;
+        }
+
+        /* Hide scrollbar in category strip */
+        .mobile-cat-strip::-webkit-scrollbar { display: none; }
+      `}</style>
+    </>
+  );
+}

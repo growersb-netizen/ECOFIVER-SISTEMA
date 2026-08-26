@@ -1,0 +1,8 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @fitness-os/database db:generate && pnpm --filter @fitness-os/fulfillment-worker build"
+
+[deploy]
+startCommand = "node workers/fulfillment-worker/dist/index.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

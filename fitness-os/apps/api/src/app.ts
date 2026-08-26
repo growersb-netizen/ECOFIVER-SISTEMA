@@ -40,6 +40,8 @@ export async function buildApp() {
           ? { target: "pino-pretty", options: { colorize: true } }
           : undefined,
     },
+    // Los tokens de descarga son base64url (~200-250 chars); el default 100 los rechaza
+    maxParamLength: 500,
   });
 
   // ── Seguridad ──────────────────────────────────────────────────

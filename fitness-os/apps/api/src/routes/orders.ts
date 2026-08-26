@@ -135,8 +135,6 @@ export async function orderRoutes(fastify: FastifyInstance) {
         data: lineItems.map((li) => ({
           orderId: o.id,
           productId: li.product.id,
-          productName: li.product.name,
-          productSku: li.product.sku,
           quantity: li.quantity,
           unitPrice: li.unitPrice,
           total: li.unitPrice * li.quantity,
@@ -393,8 +391,8 @@ export async function orderRoutes(fastify: FastifyInstance) {
         const downloadExpired =
           delivery?.downloadExpiresAt && new Date() > new Date(delivery.downloadExpiresAt);
         return {
-          productName: item.productName,
-          productSku: item.productSku,
+          productName: item.product.name,
+          productSku: item.product.sku,
           downloadUrl: delivery && !downloadExpired ? delivery.downloadUrl ?? undefined : undefined,
         };
       }),

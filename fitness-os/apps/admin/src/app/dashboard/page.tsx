@@ -71,27 +71,25 @@ export default function DashboardPage() {
     const token = localStorage.getItem("fitness_access_token");
     if (!token) { router.push("/login"); return; }
 
-    // Cargar usuario y stats básicas
     const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
     Promise.all([
-      fetch(`${apiUrl}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${apiUrl}/api/v1/auth/me`, { headers }),
+      fetch(`${apiUrl}/api/v1/stats/overview`, { headers }),
     ])
-      .then(async ([meRes]) => {
+      .then(async ([meRes, statsRes]) => {
         if (!meRes.ok) { router.push("/login"); return; }
         const meData = await meRes.json() as { user: { name: string; email: string; role: string } };
         setUser(meData.user);
 
-        // Stats mock mientras se conecta la DB real
-        setStats({
-          totalProducts: 0,
-          publishedProducts: 0,
-          totalOrders: 0,
-          pendingOrders: 0,
-          totalRevenue: 0,
-          totalLeads: 0,
-          newLeads: 0,
-          totalCustomers: 0,
-        });
+        if (statsRes.ok) {
+          const statsData = await statsRes.json() as { data: Stats };
+          setStats(statsData.data);
+        } else {
+          // Fallback vacío si el endpoint falla
+          setStats({ totalProducts: 0, publishedProducts: 0, totalOrders: 0, pendingOrders: 0, totalRevenue: 0, totalLeads: 0, newLeads: 0, totalCustomers: 0 });
+        }
       })
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));

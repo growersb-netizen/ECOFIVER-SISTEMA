@@ -331,6 +331,73 @@ export async function orderRoutes(fastify: FastifyInstance) {
   );
 
   /**
+   * GET /orders/my-purchases?email=&orderId=
+   * Pública — usa X-Tenant-Slug para resolver el tenant.
+   * Devuelve órdenes PAID/DELIVERED del cliente con links de descarga.
+   */
+  fastify.get("/orders/my-purchases", async (request: FastifyRequest, reply) => {
+    const { email, orderId } = request.query as { email?: string; orderId?: string };
+
+    if (!email || !email.includes("@")) {
+      return reply.code(400).send({ error: "Email válido requerido" });
+    }
+
+    const tenantId = request.tenantId;
+    if (!tenantId) return reply.code(400).send({ error: "Tenant requerido" });
+
+    // Buscar customer por email en este tenant
+    const customer = await prisma.customer.findFirst({
+      where: { tenantId, email: email.toLowerCase().trim() },
+    });
+
+    if (!customer) return reply.send({ data: [] });
+
+    const where = {
+      tenantId,
+      customerId: customer.id,
+      status: { in: ["PAID", "DELIVERED", "READY_FOR_FULFILLMENT"] as never[] },
+      ...(orderId ? { id: orderId } : {}),
+    };
+
+    const orders = await prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true } },
+          },
+        },
+        deliveries: {
+          select: { id: true, productId: true, downloadUrl: true, downloadExpiresAt: true },
+        },
+      },
+    });
+
+    const result = orders.map((o) => ({
+      id: o.id,
+      status: o.status,
+      totalAmount: o.total.toNumber(),
+      currency: o.currency,
+      createdAt: o.createdAt.toISOString(),
+      items: o.items.map((item) => {
+        // Buscar la entrega correspondiente a este producto
+        const delivery = o.deliveries.find((d) => d.productId === item.productId);
+        const downloadExpired =
+          delivery?.downloadExpiresAt && new Date() > new Date(delivery.downloadExpiresAt);
+        return {
+          productName: item.productName,
+          productSku: item.productSku,
+          downloadUrl: delivery && !downloadExpired ? delivery.downloadUrl ?? undefined : undefined,
+        };
+      }),
+    }));
+
+    return reply.send({ data: result });
+  });
+
+  /**
    * GET /orders/:id
    */
   fastify.get(

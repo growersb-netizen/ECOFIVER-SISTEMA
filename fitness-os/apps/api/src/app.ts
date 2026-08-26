@@ -24,6 +24,7 @@ import { socialRoutes } from "./routes/social.js";
 import { affiliateRoutes } from "./routes/affiliates.js";
 import { coachRoutes } from "./routes/coaches.js";
 import { blogRoutes } from "./routes/blog.js";
+import { statsRoutes } from "./routes/stats.js";
 import { tenantMiddleware } from "./middleware/tenant.js";
 
 const ADMIN_URL = process.env["APP_ADMIN_URL"] ?? "http://localhost:3000";
@@ -145,6 +146,12 @@ export async function buildApp() {
   await app.register(
     async (fastify) => { await fastify.register(blogRoutes); },
     { prefix: "/api/v1" }
+  );
+
+  // Stats del dashboard
+  await app.register(
+    async (fastify) => { await fastify.register(statsRoutes); },
+    { prefix: "/api/v1/stats" }
   );
 
   // ── 404 handler ────────────────────────────────────────────────

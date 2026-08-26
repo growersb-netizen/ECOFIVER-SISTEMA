@@ -1,10 +1,10 @@
 {
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm --filter @fitness-os/database exec prisma generate && cd apps/admin && NEXT_PUBLIC_API_URL=https://fitness-api-production-fff4.up.railway.app NEXT_PUBLIC_TENANT_SLUG=fitness-os next build",
+  "buildCommand": "cd ../.. && pnpm --filter @fitness-os/database exec prisma generate && cd apps/admin && NEXT_PUBLIC_API_URL=https://fitness-api-production-fff4.up.railway.app NEXT_PUBLIC_TENANT_SLUG=fitness-business-os next build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "env": {
     "NEXT_PUBLIC_API_URL": "https://fitness-api-production-fff4.up.railway.app",
-    "NEXT_PUBLIC_TENANT_SLUG": "fitness-os"
+    "NEXT_PUBLIC_TENANT_SLUG": "fitness-business-os"
   }
 }

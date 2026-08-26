@@ -156,13 +156,6 @@ export async function fulfillmentRoutes(fastify: FastifyInstance) {
       // Buscar la entrega
       const delivery = await prisma.delivery.findFirst({
         where: { orderId: payload.orderId, productId: payload.productId },
-        include: {
-          product: {
-            include: {
-              files: { where: { isPrimary: true }, take: 1 },
-            },
-          },
-        },
       });
 
       if (!delivery) {
@@ -178,18 +171,28 @@ export async function fulfillmentRoutes(fastify: FastifyInstance) {
       }
 
       // Si hay storageKey en R2, generar URL fresca
-      const productFile = delivery.product?.files[0];
-      if (r2Available() && (productFile?.storageKey ?? delivery.storageKey)) {
-        const key = productFile?.storageKey ?? delivery.storageKey!;
+      const storageKey = delivery.packageKey;
+      if (r2Available() && storageKey) {
+        // Buscar archivo del producto para obtener storageKey actualizado
+        const productFile = await prisma.productFile.findFirst({
+          where: { productId: delivery.productId, isPrimary: true },
+        });
+        const key = productFile?.storageKey ?? storageKey;
         const r2 = new R2StorageAdapter();
         const freshUrl = await r2.getSignedDownloadUrl(key, 300); // 5 min
         return reply.redirect(302, freshUrl);
       }
 
+      // Sin R2: obtener nombre del producto para el mensaje de error
+      const product = await prisma.product.findUnique({
+        where: { id: delivery.productId },
+        select: { name: true },
+      });
+
       // Sin R2: informar que el archivo está pendiente de configuración
       return reply.code(503).send({
         error: "Archivo pendiente de configuración",
-        product: delivery.product?.name,
+        product: product?.name,
         hint: "El administrador necesita configurar el storage (R2) para habilitar las descargas",
         contact: "soporte@fitnessbusiness.com",
       });

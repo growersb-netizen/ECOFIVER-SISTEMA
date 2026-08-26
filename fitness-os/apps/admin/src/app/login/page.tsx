@@ -151,7 +151,6 @@ export default function LoginPage() {
               />
             </div>
             )}
-            </div>
 
             {error && (
               <p style={{

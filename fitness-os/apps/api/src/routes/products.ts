@@ -440,4 +440,75 @@ export async function productRoutes(fastify: FastifyInstance) {
       return reply.send({ message: "Producto archivado" });
     }
   );
+
+  /**
+   * POST /products/:id/files
+   * Registra (o actualiza) el ProductFile primario asociado a un producto.
+   * Usado por scripts de R2 y por el seed de entrega para pre-registrar la
+   * storageKey del ZIP antes (o después) de que esté disponible en R2.
+   *
+   * Body: { storageKey, filename, mimeType?, isPrimary? }
+   */
+  fastify.post(
+    "/:id/files",
+    { preHandler: [fastify.authenticate, requireRole("MANAGER")] },
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: { storageKey: string; filename: string; mimeType?: string; isPrimary?: boolean };
+      }>,
+      reply
+    ) => {
+      const { storageKey, filename, mimeType, isPrimary } = request.body as {
+        storageKey: string;
+        filename: string;
+        mimeType?: string;
+        isPrimary?: boolean;
+      };
+
+      if (!storageKey || !filename) {
+        return reply.code(400).send({ error: "storageKey y filename son requeridos" });
+      }
+
+      const product = await prisma.product.findFirst({
+        where: { id: request.params.id, tenantId: request.tenantId! },
+      });
+      if (!product) return reply.code(404).send({ error: "Producto no encontrado" });
+
+      const isPrimaryFile = isPrimary !== false; // default true
+
+      // Si ya existe un file primario, actualizar; si no, crear
+      const existing = await prisma.productFile.findFirst({
+        where: { productId: product.id, isPrimary: isPrimaryFile },
+      });
+
+      let file;
+      if (existing) {
+        file = await prisma.productFile.update({
+          where: { id: existing.id },
+          data: {
+            storageKey,
+            name: filename,
+            fileType: filename.split(".").pop() ?? "zip",
+            mimeType: mimeType ?? "application/zip",
+          },
+        });
+        return reply.code(200).send({ data: file });
+      }
+
+      file = await prisma.productFile.create({
+        data: {
+          productId: product.id,
+          name: filename,
+          fileType: filename.split(".").pop() ?? "zip",
+          storageKey,
+          mimeType: mimeType ?? "application/zip",
+          isPrimary: isPrimaryFile,
+          sortOrder: 0,
+        },
+      });
+
+      return reply.code(201).send({ data: file });
+    }
+  );
 }

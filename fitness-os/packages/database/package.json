@@ -23,6 +23,7 @@
     "catalog:seed": "tsx prisma/catalog-seed.ts",
     "generate:products": "tsx prisma/generate/generate.ts",
     "bundle-zips": "tsx prisma/bundle-zips.ts",
+    "seed:product-files": "tsx prisma/seed-product-files.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

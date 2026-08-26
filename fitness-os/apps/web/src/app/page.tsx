@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { getPublishedProducts, getCategories, StoreProduct, StoreCategory } from "@/lib/store-api";
+import HoverCard from "@/components/HoverCard";
 
 const NEON = "#00FF87";
 const CYAN = "#00F5FF";
@@ -132,15 +133,7 @@ function ProductCard({ product }: { product: StoreProduct }) {
 
   return (
     <Link href={`/tienda/${product.slug}`} style={{ textDecoration: "none" }}>
-      <div style={{
-        background: "#0D0F1A", borderRadius: 14, border: "1px solid #1A1F35",
-        overflow: "hidden", transition: "border-color 0.2s, transform 0.2s",
-        display: "flex", flexDirection: "column",
-        cursor: "pointer",
-      }}
-        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = `${NEON}55`; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#1A1F35"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; }}
-      >
+      <HoverCard hoverBorderColor={`${NEON}55`}>
         {/* Cover */}
         <div style={{ height: 160, background: `linear-gradient(135deg, #0D0F1A 0%, ${NEON}10 50%, ${CYAN}08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
           <span style={{ fontSize: "2.5rem" }}>
@@ -186,7 +179,7 @@ function ProductCard({ product }: { product: StoreProduct }) {
             )}
           </div>
         </div>
-      </div>
+      </HoverCard>
     </Link>
   );
 }

@@ -12,7 +12,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tenantSlug, setTenantSlug] = useState("");
+  const [tenantSlug, setTenantSlug] = useState(process.env["NEXT_PUBLIC_TENANT_SLUG"] ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -126,6 +126,8 @@ export default function LoginPage() {
               />
             </div>
 
+            {/* Ocultar campo tenant si ya viene pre-llenado desde env var */}
+            {!process.env["NEXT_PUBLIC_TENANT_SLUG"] && (
             <div style={{ marginBottom: "2rem" }}>
               <label style={{ display: "block", fontSize: "0.8rem", color: "#A0AAC8", marginBottom: "6px", letterSpacing: "0.05em" }}>
                 TENANT <span style={{ color: "#4A5070" }}>(opcional si solo hay uno)</span>
@@ -147,6 +149,8 @@ export default function LoginPage() {
                 }}
                 placeholder="mi-fitness-store"
               />
+            </div>
+            )}
             </div>
 
             {error && (

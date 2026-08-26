@@ -19,6 +19,9 @@ COPY apps/api/src/        ./apps/api/src/
 COPY apps/api/tsconfig.json ./apps/api/
 COPY tsconfig.json ./
 
+# Productos digitales (ZIPs para entrega sin R2)
+COPY generated/zips/ ./generated/zips/
+
 # Generate Prisma client for alpine/linux
 RUN pnpm --filter @fitness-os/database exec prisma generate
 

@@ -14,6 +14,11 @@ import { PrismaClient } from "@prisma/client";
 import { R2StorageAdapter } from "../adapters/storage.js";
 import { sendEmail, buildDeliveryEmail } from "../adapters/email.js";
 import { createHash, randomBytes } from "crypto";
+import fs from "fs";
+import path from "path";
+
+// Directorio de ZIPs embebidos en la imagen Docker
+const LOCAL_ZIPS_DIR = path.resolve(process.cwd(), "generated/zips");
 
 const DOWNLOAD_TTL_HOURS = 72;
 const API_BASE = process.env["API_URL"] ?? "https://fitness-api-production-fff4.up.railway.app";
@@ -224,17 +229,31 @@ export async function fulfillmentRoutes(fastify: FastifyInstance) {
         return reply.redirect(302, freshUrl);
       }
 
-      // Sin R2: obtener nombre del producto para el mensaje de error
+      // Sin R2: servir el ZIP directamente desde el filesystem de Railway
       const product = await prisma.product.findUnique({
         where: { id: delivery.productId },
-        select: { name: true },
+        select: { name: true, sku: true },
       });
 
-      // Sin R2: informar que el archivo está pendiente de configuración
+      if (product?.sku) {
+        const zipPath = path.join(LOCAL_ZIPS_DIR, `${product.sku}.zip`);
+        if (fs.existsSync(zipPath)) {
+          const stat = fs.statSync(zipPath);
+          const filename = `${product.sku}-${product.name.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 40)}.zip`;
+          reply.header("Content-Type", "application/zip");
+          reply.header("Content-Disposition", `attachment; filename="${filename}"`);
+          reply.header("Content-Length", stat.size);
+          reply.header("Cache-Control", "no-store");
+          const stream = fs.createReadStream(zipPath);
+          return reply.send(stream);
+        }
+      }
+
+      // ZIP no encontrado en filesystem
       return reply.code(503).send({
-        error: "Archivo pendiente de configuración",
-        product: product?.name,
-        hint: "El administrador necesita configurar el storage (R2) para habilitar las descargas",
+        error: "Archivo temporalmente no disponible",
+        product: product?.name ?? "Producto",
+        hint: "Contactá soporte para recibir tu producto",
         contact: "soporte@fitnessbusiness.com",
       });
     }

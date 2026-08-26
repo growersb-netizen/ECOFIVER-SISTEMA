@@ -244,6 +244,28 @@ export async function authRoutes(fastify: FastifyInstance) {
   );
 
   /**
+   * POST /reset-admin-password
+   * SOLO para recuperación inicial. Requiere ADMIN_RESET_SECRET en env.
+   * Usar: { tenantSlug, email, newPassword, secret }
+   */
+  fastify.post("/reset-admin-password", async (request: FastifyRequest, reply) => {
+    const secret = process.env["ADMIN_RESET_SECRET"];
+    if (!secret) return reply.code(404).send({ error: "Not found" });
+    const body = request.body as { tenantSlug?: string; email?: string; newPassword?: string; secret?: string };
+    if (body.secret !== secret) return reply.code(403).send({ error: "Forbidden" });
+    if (!body.email || !body.newPassword || !body.tenantSlug) return reply.code(400).send({ error: "Faltan campos" });
+    const tenant = await prisma.tenant.findUnique({ where: { slug: body.tenantSlug } });
+    if (!tenant) return reply.code(404).send({ error: "Tenant no encontrado" });
+    const passwordHash = await hash(body.newPassword);
+    const updated = await prisma.user.updateMany({
+      where: { tenantId: tenant.id, email: body.email },
+      data: { passwordHash },
+    });
+    if (updated.count === 0) return reply.code(404).send({ error: "Usuario no encontrado" });
+    return reply.send({ ok: true, message: "Contraseña actualizada" });
+  });
+
+  /**
    * GET /me
    */
   fastify.get(

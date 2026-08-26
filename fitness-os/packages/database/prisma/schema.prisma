@@ -632,12 +632,15 @@ model Delivery {
   channel         DeliveryChannel?
   recipientEmail  String?
   recipientPhone  String?
-  packageKey      String?         // R2 key del ZIP entregado
-  deliveredAt     DateTime?
-  metadata        Json?
-  error           String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  packageKey          String?         // R2 key del ZIP entregado
+  downloadUrl         String?         @db.Text  // URL firmada de descarga (R2 o token interno)
+  downloadExpiresAt   DateTime?       // Expiración del link de descarga
+  downloadToken       String?         @unique   // Token interno (cuando no hay R2)
+  deliveredAt         DateTime?
+  metadata            Json?
+  error               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
   attempts DeliveryAttempt[]
 

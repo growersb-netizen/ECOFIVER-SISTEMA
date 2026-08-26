@@ -12,6 +12,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireRole } from "../plugins/rbac.js";
 import { MercadoPagoAdapter } from "../adapters/mercadopago.js";
+import { fulfillOrder } from "./fulfillment.js";
 
 // ── Schemas ────────────────────────────────────────────────────────
 const CheckoutInitSchema = z.object({
@@ -271,14 +272,19 @@ export async function orderRoutes(fastify: FastifyInstance) {
           },
         });
 
-        // Encolar fulfillment (la cola real se configura en Fase 04)
-        // Por ahora marcar como READY_FOR_FULFILLMENT
         await tx.order.update({
           where: { id: order.id },
           data: { status: "READY_FOR_FULFILLMENT" },
         });
       }
     });
+
+    // Fulfillment inline — fuera de la transacción para no bloquear el webhook
+    if (mpStatus === "approved") {
+      fulfillOrder(order.id, prisma).catch((err: unknown) => {
+        fastify.log.error({ err, orderId: order.id }, "Error en fulfillment inline");
+      });
+    }
 
     return reply.code(200).send({ ok: true });
   });
@@ -417,6 +423,52 @@ export async function orderRoutes(fastify: FastifyInstance) {
 
       if (!order) return reply.code(404).send({ error: "Orden no encontrada" });
       return reply.send({ data: order });
+    }
+  );
+
+  /**
+   * POST /orders/:id/simulate-payment
+   * SOLO SANDBOX/TESTING — simula un pago aprobado sin MercadoPago.
+   * Solo disponible si NODE_ENV !== "production" OR SANDBOX_MODE=true.
+   */
+  fastify.post(
+    "/orders/:id/simulate-payment",
+    { preHandler: [fastify.authenticate, requireRole("TENANT_ADMIN")] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+      const sandboxEnabled = process.env["SANDBOX_MODE"] === "true" || process.env["NODE_ENV"] !== "production";
+      if (!sandboxEnabled) {
+        return reply.code(403).send({ error: "simulate-payment solo disponible en sandbox" });
+      }
+
+      const order = await prisma.order.findFirst({
+        where: { id: request.params.id, tenantId: request.tenantId! },
+      });
+      if (!order) return reply.code(404).send({ error: "Orden no encontrada" });
+      if (order.status === "DELIVERED") return reply.send({ ok: true, message: "Orden ya entregada" });
+
+      // Simular pago
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.create({
+          data: {
+            orderId: order.id,
+            externalId: `SANDBOX_${Date.now()}`,
+            provider: "MERCADOPAGO",
+            status: "APPROVED",
+            amount: order.total,
+            currency: order.currency,
+            rawData: { simulated: true, ts: new Date().toISOString() } as never,
+          },
+        });
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: "PAID", paidAt: new Date() },
+        });
+      });
+
+      // Fulfillment inline
+      await fulfillOrder(order.id, prisma);
+
+      return reply.send({ ok: true, message: "Pago simulado y producto entregado", orderId: order.id });
     }
   );
 }

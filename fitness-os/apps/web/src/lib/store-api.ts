@@ -86,9 +86,12 @@ export async function getCategories() {
 
 export async function initCheckout(payload: {
   items: Array<{ productId: string; quantity: number }>;
+  customer: { email: string; name: string; phone?: string };
   couponCode?: string;
   affiliateSlug?: string;
   channel?: string;
+  successUrl?: string;
+  failureUrl?: string;
 }) {
   return apiFetch<{ orderId: string; checkoutUrl: string; total: number; currency: string }>(
     "/api/v1/checkout/init",

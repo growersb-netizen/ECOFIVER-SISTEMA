@@ -501,7 +501,8 @@ async function solicitarLicitacion(ventaId){
 async function generarContrato(ventaId){
   try{
     const data = await api(`/api/socio/ventas/${ventaId}/generar-contrato`, {method:'POST'});
-    alert('Contrato generado. Mandale este link al cliente:\n' + data.link_confirmacion);
+    window.open(data.contrato_pdf_url, '_blank');
+    alert('Se descargó el resumen del plan en PDF.\n\nMandale este link al cliente para que confirme:\n' + data.link_confirmacion);
     cargarMisVentas();
   }catch(e){ alert(e.message); }
 }

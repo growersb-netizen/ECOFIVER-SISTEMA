@@ -744,6 +744,31 @@ async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_
         venta.numero_solicitud = siguiente_numero_solicitud(db)
     db.commit()
 
+    from utils.documentos import render_html, html_to_pdf
+
+    def _money(v):
+        return f"{(v or 0):,.0f}".replace(",", ".")
+
+    html = render_html("resumen_plan_socio.html", {
+        "numero_solicitud": venta.numero_solicitud,
+        "fecha": datetime.now().strftime("%d/%m/%Y"),
+        "cliente_nombre": venta.cliente_nombre,
+        "cliente_dni": venta.cliente_dni,
+        "cliente_telefono": venta.cliente_telefono,
+        "cliente_localidad": venta.cliente_localidad,
+        "producto": venta.producto,
+        "modelo": venta.modelo_especifico,
+        "precio_total": _money(venta.precio_total),
+        "cantidad_cuotas": venta.cantidad_cuotas,
+        "valor_cuota": _money(venta.valor_cuota),
+        "monto_inscripcion": _money(venta.monto_inscripcion),
+        "cuota_minima_licitacion": _cuota_minima_licitacion(venta.producto),
+        "socio_codigo": socio.codigo,
+        "socio_nombre": socio.nombre,
+    })
+    pdf_path = Path("data/contratos") / f"plan_{venta.numero_solicitud.replace('/', '-')}_{venta.id}.pdf"
+    await html_to_pdf(html, pdf_path)
+
     base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
     link_confirmacion = f"{base_url}/socio/confirmar/{venta.link_confirmacion_token}"
 
@@ -751,9 +776,22 @@ async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_
         "ok": True,
         "numero_solicitud": venta.numero_solicitud,
         "link_confirmacion": link_confirmacion,
+        "contrato_pdf_url": f"/api/socio/ventas/{venta.id}/contrato-pdf",
         "declaracion_jurada_requerida": venta.declaracion_jurada_requerida,
-        "mensaje": "Mandale este link al cliente para que confirme su adhesión al plan.",
+        "mensaje": "Descargá el resumen del plan y mandale el link al cliente para que confirme su adhesión.",
     }
+
+
+@router.get("/api/socio/ventas/{venta_id}/contrato-pdf")
+async def descargar_contrato_pdf(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
+    if not venta or not venta.numero_solicitud:
+        raise HTTPException(404, "Venta no encontrada")
+    pdf_path = Path("data/contratos") / f"plan_{venta.numero_solicitud.replace('/', '-')}_{venta.id}.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(404, "Todavía no se generó el PDF — volvé a generar el contrato")
+    return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"Plan_{venta.numero_solicitud}.pdf")
 
 
 # ─── Confirmación pública del cliente (sin login) ─────────────────────────────

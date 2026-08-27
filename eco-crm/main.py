@@ -69,6 +69,22 @@ try:
 except Exception:
     log.exception("No se pudo sembrar la biblioteca de socios")
 
+# Sincronizar en DB las claves de configuración que vienen de env vars (WA_TOKEN,
+# WA_PHONE_ID, API keys de IA, etc.). Antes esto solo corría cuando un admin
+# abría /configuracion manualmente, lo que dejaba wa_token/wa_phone_id vacíos en
+# DB (y por lo tanto el envío de WhatsApp roto en silencio, ej: OTP de registro
+# de socios) aunque las env vars estuvieran cargadas en Railway.
+try:
+    from database.database import SessionLocal as _SessionLocalCfg
+    from routers.configuracion import auto_init_config
+    _db_cfg = _SessionLocalCfg()
+    try:
+        auto_init_config(_db_cfg)
+    finally:
+        _db_cfg.close()
+except Exception:
+    log.exception("No se pudo auto-inicializar la configuración desde env vars")
+
 app = FastAPI(
     title="EcoFiver — CRM",
     description="Sistema de gestión comercial y operativo",

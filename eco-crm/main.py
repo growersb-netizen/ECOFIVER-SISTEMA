@@ -80,6 +80,27 @@ try:
     _db_cfg = _SessionLocalCfg()
     try:
         auto_init_config(_db_cfg)
+
+        # WA_TOKEN/WA_PHONE_ID: Railway (env var) es siempre la fuente de verdad.
+        # auto_init_config() de arriba solo llena la clave si está VACÍA en DB, así
+        # que si alguna vez quedó un token viejo/vencido guardado, un WA_TOKEN
+        # nuevo en Railway nunca lo pisaba sin abrir /configuracion a mano. Acá
+        # sí forzamos el overwrite en cada arranque para estas dos claves.
+        import os as _os
+        from database.encryption import encrypt_value as _encrypt_value
+        from database.models import ConfiguracionSistema as _ConfigModel
+        for _clave, _env_var, _es_secreto in (("wa_token", "WA_TOKEN", True), ("wa_phone_id", "WA_PHONE_ID", False)):
+            _val = _os.getenv(_env_var, "")
+            if not _val:
+                continue
+            _stored = _encrypt_value(_val) if _es_secreto else _val
+            _entry = _db_cfg.query(_ConfigModel).filter(_ConfigModel.clave == _clave).first()
+            if _entry:
+                _entry.valor = _stored
+                _entry.estado = "activa"
+            else:
+                _db_cfg.add(_ConfigModel(clave=_clave, valor=_stored, es_secreto=_es_secreto, categoria="whatsapp", estado="activa"))
+        _db_cfg.commit()
     finally:
         _db_cfg.close()
 except Exception:

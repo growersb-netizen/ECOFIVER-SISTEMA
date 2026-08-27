@@ -457,6 +457,11 @@ async def liquidar_comision(
     c.fecha_liquidacion = datetime.now()
     db.commit()
     db.refresh(c)
+
+    socio = db.query(Aliado).filter(Aliado.codigo == c.aliado_codigo).first()
+    if socio and socio.telefono:
+        from utils.whatsapp import send_whatsapp_text
+        send_whatsapp_text(db, socio.telefono, f"💸 Te transferimos tu comisión de ${c.monto:,.0f} (solicitud {c.solicitud_numero or '—'}). ¡Gracias por seguir sumando!".replace(",", "."))
     return {"ok": True, **_comision_dict(c)}
 
 

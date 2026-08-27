@@ -118,6 +118,15 @@ def _normalizar_telefono(tel: str) -> str:
     return re.sub(r"\D", "", tel or "")
 
 
+def _notificar_socio(db: Session, aliado_codigo: Optional[str], mensaje: str):
+    """Notificación automática al socio por WhatsApp ante cambios de estado."""
+    if not aliado_codigo:
+        return
+    socio = db.query(Aliado).filter(Aliado.codigo == aliado_codigo).first()
+    if socio and socio.telefono:
+        send_whatsapp_text(db, socio.telefono, mensaje)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # REGISTRO — reemplaza a la postulación con aprobación
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -406,6 +415,43 @@ def _flete_por_km(tipo: str, modelo_o_m2) -> int:
     return FLETE_KM_ALTO if str(modelo_o_m2) in _MODELOS_FLETE_ALTO_PISCINA else FLETE_KM_BAJO
 
 
+@router.get("/api/socio/ficha-producto")
+async def ficha_producto_pdf(tipo: str, modelo: str, socio: Aliado = Depends(require_socio)):
+    """Genera una ficha de producto en PDF, lista para compartir con un cliente."""
+    from utils.documentos import render_html, html_to_pdf
+
+    def _money(v):
+        return f"{(v or 0):,.0f}".replace(",", ".")
+
+    tipo_norm = "PISCINA" if tipo.upper() == "PISCINA" else "MODULO"
+    cat = load_catalogo()
+    seccion = cat["piscinas"] if tipo_norm == "PISCINA" else cat["modulos"]
+    precio_lista = seccion.get("precios_lista", {}).get(modelo)
+    precio_contado = seccion.get("precios", {}).get(modelo)
+    if not precio_lista:
+        raise HTTPException(404, f"Modelo '{modelo}' no encontrado en el catálogo")
+
+    factor = 2.0
+    filas = ""
+    for n in (12, 24, 36, 48, 60):
+        cuota = precio_lista / (n + factor)
+        ingreso = cuota * factor
+        filas += f"<tr><td>{n}</td><td>$ {_money(cuota)}</td><td>$ {_money(ingreso)}</td><td>$ {_money(ingreso + cuota * n)}</td></tr>"
+
+    titulo = f"{'Piscina de fibra' if tipo_norm=='PISCINA' else 'Módulo Wood Frame'} — {modelo}{'' if tipo_norm=='PISCINA' else ' m²'}"
+    html = render_html("ficha_producto.html", {
+        "titulo": titulo,
+        "precio_lista": _money(precio_lista),
+        "precio_contado": _money(precio_contado) if precio_contado else "Consultar",
+        "tabla_filas": filas,
+    })
+    pdf_path = Path("data/fichas") / f"ficha_{tipo_norm}_{modelo}.pdf".replace(" ", "_")
+    await html_to_pdf(html, pdf_path)
+
+    from fastapi.responses import FileResponse
+    return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"Ficha_{titulo}.pdf")
+
+
 @router.get("/api/socio/flete")
 async def socio_calcular_flete(
     tipo: str, modelo: Optional[str] = None, m2: Optional[float] = None,
@@ -432,6 +478,62 @@ async def socio_calcular_flete(
 # ═══════════════════════════════════════════════════════════════════════════════
 # BIBLIOTECA DE CONTENIDOS
 # ═══════════════════════════════════════════════════════════════════════════════
+
+_GUIAS_SEED = [
+    {
+        "tipo": "guia", "categoria": "ventas", "orden": 1,
+        "titulo": "Cómo empezar a vender tu primera semana",
+        "descripcion": (
+            "1) Armá una lista de 10-15 contactos: familia, vecinos, comercios de tu zona que puedan necesitar "
+            "un módulo o una piscina. 2) Mandales un mensaje corto contando que ahora sos Socio Comercial de "
+            "EcoFiver y podés asesorarlos con precio y financiación directa de fábrica. 3) Usá el catálogo y el "
+            "simulador de tu panel para cotizar en el momento — nunca de memoria. 4) Si preguntan por instalación "
+            "en contado, aclará siempre que no está incluida (la coordinás vos, tu equipo, o un tercero) y que "
+            "nosotros trasladamos a cualquier parte del país. 5) Cuando cierres, cargá la venta el mismo día."
+        ),
+    },
+    {
+        "tipo": "guia", "categoria": "redes", "orden": 2,
+        "titulo": "Ideas para publicar en redes esta semana",
+        "descripcion": (
+            "• Lunes: una foto de un módulo o piscina del catálogo con el precio y la cuota más baja. "
+            "• Miércoles: un video corto de 15-20 segundos mostrando el simulador de cuotas de tu panel. "
+            "• Viernes: una historia con la pregunta \"¿Sabías que podés financiar directo de fábrica, sin banco?\" "
+            "seguida de tu contacto. Etiquetá siempre a @ecomodulosypiscinas si usás material oficial de la Biblioteca."
+        ),
+    },
+    {
+        "tipo": "guia", "categoria": "redes", "orden": 3,
+        "titulo": "Cómo generar contenido con tu celular",
+        "descripcion": (
+            "No necesitás equipo profesional. Grabá en horizontal, con buena luz natural (de día, cerca de una "
+            "ventana o al aire libre). Mostrá el producto real si tenés fotos de entregas de la Biblioteca, o "
+            "mostrate a vos mismo explicando el Plan 18 Pasos con tus palabras — la naturalidad vende más que la "
+            "perfección. Un video corto y genuino funciona mejor que uno largo y armado."
+        ),
+    },
+    {
+        "tipo": "guia", "categoria": "ventas", "orden": 4,
+        "titulo": "Objeciones frecuentes de clientes y cómo responderlas",
+        "descripcion": (
+            "\"¿Y si no me aprueban?\" → No pedimos recibo de sueldo ni garante, la aprobación es simple y directa "
+            "de fábrica. \"¿Por qué no un banco?\" → Sin intermediarios significa cuotas más accesibles y trámite "
+            "más rápido. \"¿Y la instalación?\" → En financiado va incluida; en contado la coordinás vos o un "
+            "tercero, nosotros trasladamos a cualquier parte del país. \"Quiero verlo antes\" → Mostrale el "
+            "catálogo con fotos reales y ofrecele una videollamada con el equipo."
+        ),
+    },
+]
+
+
+def seed_biblioteca_socios(db: Session):
+    """Carga las guías reales una sola vez (idempotente por título)."""
+    for g in _GUIAS_SEED:
+        existe = db.query(MaterialSocio).filter(MaterialSocio.titulo == g["titulo"]).first()
+        if not existe:
+            db.add(MaterialSocio(**g))
+    db.commit()
+
 
 def _material_dict(m: MaterialSocio) -> dict:
     return {
@@ -689,6 +791,7 @@ async def confirmar_48hs_contado(
         raise HTTPException(404, "Venta no encontrada")
     venta.confirmacion_48hs_en = datetime.now()
     db.commit()
+    _notificar_socio(db, venta.aliado_codigo, f"📞 Ya contactamos a {venta.cliente_nombre} para coordinar la entrega. Podés seguir el estado desde tu panel.")
     return {"ok": True}
 
 
@@ -719,6 +822,7 @@ async def marcar_entregada_cobrada(
         )
         db.add(comision)
         db.commit()
+        _notificar_socio(db, venta.aliado_codigo, f"✅ Se entregó y cobró la venta de {venta.cliente_nombre}. Se generó tu comisión de ${comision.monto:,.0f}".replace(",", ".") + " — la vas a ver como pendiente en tu panel hasta que te la transfiramos.")
         return {"ok": True, "comision_generada": comision.monto}
     return {"ok": True, "comision_generada": None}
 
@@ -805,6 +909,7 @@ async def marcar_inscripcion_pagada(
     venta.inscripcion_pagada_en = datetime.now()
     venta.estado_plan = "ACTIVO"
     db.commit()
+    _notificar_socio(db, venta.aliado_codigo, f"✅ Confirmamos el pago de la inscripción de {venta.cliente_nombre}. Ya podés descargar el contrato desde tu panel y mandárselo al cliente para que confirme.")
     return {"ok": True}
 
 
@@ -914,6 +1019,7 @@ async def confirmar_plan_cliente(token: str, db: Session = Depends(get_db)):
         f"→ Falta la llamada de bienvenida (auditoría) para liberar la comisión.\n"
         f"Venta ID: {venta.id}",
     )
+    _notificar_socio(db, venta.aliado_codigo, f"🎉 {venta.cliente_nombre} confirmó su plan. En breve nuestro equipo lo llama para la bienvenida y ahí se libera tu comisión.")
     return {"ok": True}
 
 
@@ -949,6 +1055,7 @@ async def completar_auditoria_bienvenida(
         )
         db.add(comision)
         db.commit()
+        _notificar_socio(db, venta.aliado_codigo, f"✅ Hicimos la bienvenida a {venta.cliente_nombre}. Se liberó tu comisión de ${comision.monto:,.0f}".replace(",", ".") + " — la vas a ver como pendiente en tu panel hasta que te la transfiramos.")
 
     return {"ok": True, "comision_generada": comision.monto if comision else None}
 
@@ -1155,6 +1262,73 @@ async def mis_comisiones(socio: Aliado = Depends(require_socio), db: Session = D
     }
 
 
+@router.get("/api/socio/comisiones/exportar")
+async def exportar_comisiones(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """Exporta las comisiones propias en CSV, para la contabilidad del socio."""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    comisiones = db.query(Comision).filter(Comision.aliado_codigo == socio.codigo).order_by(Comision.id.desc()).all()
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Solicitud", "Tipo", "Monto", "Estado", "Fecha liquidación", "Fecha carga"])
+    for c in comisiones:
+        writer.writerow([
+            c.solicitud_numero or "", c.tipo, c.monto or 0, c.estado,
+            c.fecha_liquidacion.strftime("%d/%m/%Y") if c.fecha_liquidacion else "",
+            c.created_at.strftime("%d/%m/%Y") if c.created_at else "",
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=comisiones_{socio.codigo}.csv"},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHECKLIST DE PROGRESO — motivación para completar el onboarding
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/socio/progreso")
+async def mi_progreso(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    tiene_venta = db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo == socio.codigo).first() is not None \
+        or db.query(VentaContado).filter(VentaContado.aliado_codigo == socio.codigo).first() is not None
+    tiene_comision_liberada = db.query(Comision).filter(Comision.aliado_codigo == socio.codigo).first() is not None
+    pasos = [
+        {"paso": "Registrado", "hecho": True},
+        {"paso": "WhatsApp verificado", "hecho": socio.whatsapp_verificado},
+        {"paso": "Datos de cobro cargados (CBU/alias)", "hecho": bool(socio.cbu_alias)},
+        {"paso": "Documentación cargada (Monotributo o DNI)", "hecho": bool(socio.doc_monotributo_path or socio.doc_dni_path)},
+        {"paso": "Primera venta cargada", "hecho": tiene_venta},
+        {"paso": "Primera comisión generada", "hecho": tiene_comision_liberada},
+    ]
+    completados = sum(1 for p in pasos if p["hecho"])
+    return {"pasos": pasos, "completados": completados, "total": len(pasos)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CENTRO DE AYUDA — preguntas frecuentes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+FAQ_SOCIOS = [
+    {"pregunta": "¿Cómo empiezo a vender?", "respuesta": "Mirá el catálogo y el simulador de cuotas en tu panel para conocer precios y planes. Después, andá a la guía \"Cómo empezar a vender\" en la Biblioteca de contenidos."},
+    {"pregunta": "¿Necesito aprobación para arrancar?", "respuesta": "No. Apenas te registrás y verificás tu WhatsApp, tu cuenta queda activa. No hay ningún paso de aprobación."},
+    {"pregunta": "¿Cómo cargo una venta?", "respuesta": "Desde la sección \"Cargar venta\" de tu panel, elegís contado o financiado y completás los datos del cliente."},
+    {"pregunta": "¿Cuándo cobro mi comisión?", "respuesta": "Financiado: cuando el equipo hace la llamada de bienvenida al cliente. Contado: cuando se entrega y se cobra el producto. En ambos casos vas a ver la comisión como \"pendiente\" hasta que te la transfiramos."},
+    {"pregunta": "¿Puedo vender en cualquier parte del país?", "respuesta": "Sí, el programa es nacional. En contado, fuera de Buenos Aires el precio no incluye instalación — la coordinás vos, tu equipo o un tercero."},
+    {"pregunta": "¿Qué pasa si mi cliente tiene mala situación crediticia (BCRA)?", "respuesta": "Si da situación 5 o 6, no se bloquea la venta — se le pide al cliente una declaración jurada adicional antes de la auditoría."},
+    {"pregunta": "¿Qué es la licitación?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede pedir adelantar la entrega mediante una integración de capital, sin dejar de pagar el resto del plan."},
+    {"pregunta": "¿Necesito Monotributo?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones. Podés cargar la constancia después desde tu perfil."},
+    {"pregunta": "¿Con quién hablo si tengo una duda?", "respuesta": "Escribile a Franco por el WhatsApp del canal de socios — te responde consultas de precio, estado de tus ventas y comisiones."},
+]
+
+
+@router.get("/api/socio/faq")
+async def socio_faq(socio: Aliado = Depends(require_socio)):
+    return {"faq": FAQ_SOCIOS}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # RANKING — solo ventas con plata real ya movida
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1193,9 +1367,11 @@ async def ranking_socios(
             filas[v.aliado_codigo]["monto_facturado"] += (v.precio_final or 0)
 
     ranking = sorted(filas.values(), key=lambda x: x["monto_facturado"], reverse=True)
+    medallas = {1: "🥇", 2: "🥈", 3: "🥉"}
     for i, f in enumerate(ranking, 1):
         f["puesto"] = i
         f["monto_facturado"] = round(f["monto_facturado"], 2)
+        f["medalla"] = medallas.get(i)
     return {"periodo": periodo, "ranking": ranking}
 
 

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #16232F; margin: 0; padding: 36px 44px; font-size: 12.5px; }
+  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #0B2350; padding-bottom: 14px; margin-bottom: 22px; }
+  .brand { font-size: 22px; font-weight: 800; color: #0B2350; }
+  .brand span { color: #4EC3B5; }
+  .tag { background: #0B2350; color: #fff; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 100px; }
+  h1 { font-size: 24px; color: #0B2350; margin: 0 0 4px; }
+  .sub { color: #5C6B7A; font-size: 13px; margin-bottom: 24px; }
+  .precio-box { background: #EAF3FB; border: 1px solid #4EC3B5; border-radius: 10px; padding: 20px 24px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; }
+  .precio-box .valor { font-size: 30px; font-weight: 800; color: #0B2350; }
+  .precio-box .label { font-size: 11px; text-transform: uppercase; color: #5C6B7A; letter-spacing: .4px; }
+  h2 { font-size: 14px; color: #0B2350; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; margin: 20px 0 12px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; color: #5C6B7A; padding: 8px; border-bottom: 2px solid #E2E8F0; }
+  td { padding: 9px 8px; border-bottom: 1px solid #E2E8F0; font-size: 12.5px; }
+  .footer { margin-top: 30px; font-size: 10px; color: #5C6B7A; border-top: 1px solid #E2E8F0; padding-top: 12px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">ECO<span>FIVER</span></div>
+    <div class="tag">Ficha de producto</div>
+  </div>
+
+  <h1>{{titulo}}</h1>
+  <div class="sub">Fabricación directa · Financiación propia · Entrega en todo el país</div>
+
+  <div class="precio-box">
+    <div><div class="label">Precio de lista</div><div class="valor">$ {{precio_lista}}</div></div>
+    <div style="text-align:right"><div class="label">Precio contado</div><div class="valor" style="font-size:22px">$ {{precio_contado}}</div></div>
+  </div>
+
+  <h2>Plan de cuotas (financiado)</h2>
+  <table>
+    <tr><th>Cuotas</th><th>Cuota mensual</th><th>Inscripción</th><th>Total financiado</th></tr>
+    {{tabla_filas}}
+  </table>
+
+  <div class="footer">
+    EcoFiver — Cooperativa de Trabajo Eco Zárate Limitada · CUIT 30-71807393-2 · Fábrica propia en Zárate, Buenos Aires.
+    Cuota ajustada periódicamente según el índice ICC (Índice del Costo de la Construcción).
+  </div>
+</body>
+</html>

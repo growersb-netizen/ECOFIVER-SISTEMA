@@ -44,7 +44,17 @@
   .nav-item.active{background:var(--teal);color:var(--navy)}
   .nav-logout{margin-top:auto;color:#8ea3c4;font-size:12.5px;cursor:pointer}
   main.content{flex:1;padding:32px 40px;max-width:980px}
-  @media (max-width:800px){ .app-shell{flex-direction:column} .sidebar{width:100%;flex-direction:row;flex-wrap:wrap;padding:14px} main.content{padding:20px} .sidebar .brand,.sidebar .socio-info{display:none} }
+  #catalogo-contenido, #tabla-financiado, #tabla-contado, #tabla-comisiones, #tabla-ranking { overflow-x: auto; }
+  #catalogo-contenido table, #tabla-financiado table, #tabla-contado table, #tabla-comisiones table, #tabla-ranking table { min-width: 520px; }
+  @media (max-width:800px){
+    .app-shell{flex-direction:column}
+    .sidebar{width:100%;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;padding:10px;gap:4px;-webkit-overflow-scrolling:touch}
+    .sidebar .brand,.sidebar .socio-info{display:none}
+    .nav-item{flex:0 0 auto;white-space:nowrap;font-size:12.5px;padding:8px 10px}
+    .nav-logout{flex:0 0 auto;white-space:nowrap;margin-top:0;padding:8px 10px}
+    main.content{padding:16px}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
 
   .section{display:none}
   .section.active{display:block}
@@ -162,6 +172,7 @@
     <a class="nav-item" data-section="biblioteca" onclick="nav('biblioteca')">🖼️ Biblioteca de contenidos</a>
     <a class="nav-item" data-section="quiz" onclick="nav('quiz')">✅ Autoevaluación</a>
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
+    <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
     <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
   </div>
 
@@ -182,6 +193,10 @@
       <div class="card">
         <h3 style="margin-top:0;font-size:16px">🏗️ Argumento de venta: entrega anticipada</h3>
         <p style="font-size:14px;line-height:1.6">En <strong>viviendas modulares</strong>, el cliente puede pedir adelantar la entrega desde la <strong>cuota 6</strong> mediante una integración de capital. En <strong>piscinas</strong>, desde la <strong>cuota 3</strong>. Sigue pagando mes a mes hasta terminar el plan — solo se adelanta la entrega, no se cancela el resto. Usalo como argumento de cierre.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:16px">Tu progreso</h3>
+        <div id="progreso-list">Cargando…</div>
       </div>
     </section>
 
@@ -297,6 +312,12 @@
         <div class="msg" id="doc-msg"></div>
       </div>
     </section>
+
+    <!-- AYUDA -->
+    <section class="section" id="sec-ayuda">
+      <h2>Centro de ayuda</h2>
+      <div id="faq-list"></div>
+    </section>
   </main>
 </div>
 
@@ -408,6 +429,7 @@ async function cargarApp(){
   document.getElementById('p-cbu').value = SOCIO.cbu_alias || '';
   cargarComisiones();
   cargarCatalogo();
+  cargarProgreso();
 }
 
 function nav(section){
@@ -419,6 +441,24 @@ function nav(section){
   if(section==='ranking') cargarRanking();
   if(section==='biblioteca') cargarBiblioteca();
   if(section==='quiz') cargarQuiz();
+  if(section==='ayuda') cargarFaq();
+}
+
+async function cargarProgreso(){
+  const data = await api('/api/socio/progreso').catch(()=>null);
+  if(!data) return;
+  document.getElementById('progreso-list').innerHTML =
+    `<p style="font-size:13px;color:var(--text-muted);margin:0 0 10px">${data.completados} de ${data.total} completados</p>` +
+    data.pasos.map(p=>`<div style="padding:4px 0"><span class="pill ${p.hecho?'ok':'warn'}">${p.hecho?'✓':'○'}</span> ${p.paso}</div>`).join('');
+}
+
+async function cargarFaq(){
+  const data = await api('/api/socio/faq').catch(()=>({faq:[]}));
+  document.getElementById('faq-list').innerHTML = data.faq.map(f => `
+    <div class="card" style="cursor:pointer" onclick="this.querySelector('.resp').classList.toggle('hidden')">
+      <strong>${f.pregunta}</strong>
+      <p class="resp hidden" style="margin:8px 0 0;color:var(--text-muted)">${f.respuesta}</p>
+    </div>`).join('');
 }
 
 async function cargarQuiz(){
@@ -437,13 +477,13 @@ async function cargarCatalogo(){
   CATALOGO = await api('/api/socio/catalogo').catch(()=>null);
   if(!CATALOGO) return;
   const el = document.getElementById('catalogo-contenido');
-  let html = '<h3>Piscinas</h3><table><tr><th>Modelo</th><th>Precio lista</th></tr>';
+  let html = '<h3>Piscinas</h3><table><tr><th>Modelo</th><th>Precio lista</th><th></th></tr>';
   for(const m of CATALOGO.piscinas.modelos){
-    html += `<tr><td>${m}</td><td>${fmt(CATALOGO.piscinas.precios_lista[m])}</td></tr>`;
+    html += `<tr><td>${m}</td><td>${fmt(CATALOGO.piscinas.precios_lista[m])}</td><td><a href="/api/socio/ficha-producto?tipo=PISCINA&modelo=${encodeURIComponent(m)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px">📄 Ficha</a></td></tr>`;
   }
-  html += '</table><h3 style="margin-top:20px">Módulos</h3><table><tr><th>m²</th><th>Precio lista</th></tr>';
+  html += '</table><h3 style="margin-top:20px">Módulos</h3><table><tr><th>m²</th><th>Precio lista</th><th></th></tr>';
   for(const m2 of CATALOGO.modulos.superficies_m2){
-    html += `<tr><td>${m2} m²</td><td>${fmt(CATALOGO.modulos.precios_lista[m2])}</td></tr>`;
+    html += `<tr><td>${m2} m²</td><td>${fmt(CATALOGO.modulos.precios_lista[m2])}</td><td><a href="/api/socio/ficha-producto?tipo=MODULO&modelo=${encodeURIComponent(m2)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px">📄 Ficha</a></td></tr>`;
   }
   html += '</table>';
   el.innerHTML = html;
@@ -524,14 +564,16 @@ async function cargarMisVentas(){
   const data = await api('/api/socio/ventas').catch(()=>({financiado:[],contado:[]}));
   document.getElementById('kpi-ventas').textContent = data.financiado.length + data.contado.length;
 
-  let hf = '<table><tr><th>Cliente</th><th>Producto</th><th>Estado</th><th>Contrato</th><th></th></tr>';
+  let hf = '<table><tr><th>Cliente</th><th>Producto</th><th>Línea de tiempo</th><th>Solicitud</th><th></th></tr>';
   for(const v of data.financiado){
-    let estado = 'Pendiente inscripción';
-    let pillClass = 'warn';
-    if(v.auditoria_completada){ estado='Comisión liberada'; pillClass='ok'; }
-    else if(v.cliente_confirmo){ estado='Esperando bienvenida'; pillClass='warn'; }
-    else if(v.contrato_generado){ estado='Esperando confirmación cliente'; pillClass='warn'; }
-    else if(v.inscripcion_pagada){ estado='Lista para generar contrato'; pillClass='ok'; }
+    const pasos = [
+      {l:'Cargada', ok:true},
+      {l:'Inscripción', ok:v.inscripcion_pagada},
+      {l:'Contrato', ok:v.contrato_generado},
+      {l:'Cliente confirmó', ok:v.cliente_confirmo},
+      {l:'Bienvenida', ok:v.auditoria_completada},
+    ];
+    const timeline = pasos.map(p=>`<span class="pill ${p.ok?'ok':'warn'}" style="margin-right:4px">${p.ok?'✓':'○'} ${p.l}</span>`).join('');
     let accion = '';
     if(v.inscripcion_pagada && !v.contrato_generado){
       accion = `<button class="btn-teal" onclick="generarContrato(${v.id})">Generar contrato</button>`;
@@ -543,7 +585,7 @@ async function cargarMisVentas(){
     } else if(v.licitacion_solicitada){
       accion += ' <span class="pill ok">Licitación solicitada</span>';
     }
-    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td><span class="pill ${pillClass}">${estado}</span></td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
+    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td style="white-space:normal">${timeline}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
   }
   hf += '</table>';
   document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
@@ -583,6 +625,7 @@ async function cargarComisiones(){
 async function cargarComisionesTabla(){
   const data = await api('/api/socio/comisiones').catch(()=>({comisiones:[]}));
   let h = `<div class="kpis"><div class="kpi"><div class="v">${fmt(data.monto_pendiente)}</div><div class="l">Pendiente</div></div><div class="kpi"><div class="v">${fmt(data.monto_liquidado)}</div><div class="l">Liquidado</div></div></div>`;
+  h += `<a href="/api/socio/comisiones/exportar" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px;margin-bottom:14px">⬇️ Exportar CSV</a>`;
   h += '<table><tr><th>Solicitud</th><th>Tipo</th><th>Monto</th><th>Estado</th><th>Factura</th></tr>';
   for(const c of data.comisiones){
     h += `<tr><td>${c.solicitud_numero||'—'}</td><td>${c.tipo}</td><td>${fmt(c.monto)}</td><td><span class="pill ${c.estado==='liquidada'?'ok':'warn'}">${c.estado}</span></td>
@@ -604,7 +647,7 @@ async function cargarRanking(){
   const data = await api('/api/socio/ranking?periodo=mes').catch(()=>({ranking:[]}));
   let h = '<table><tr><th>#</th><th>Socio</th><th>Zona</th><th>Facturado (mes)</th></tr>';
   for(const f of data.ranking){
-    h += `<tr><td>${f.puesto}</td><td>${f.nombre}</td><td>${f.zona||'—'}</td><td>${fmt(f.monto_facturado)}</td></tr>`;
+    h += `<tr><td>${f.medalla||f.puesto}</td><td>${f.nombre}</td><td>${f.zona||'—'}</td><td>${fmt(f.monto_facturado)}</td></tr>`;
   }
   h += '</table>';
   document.getElementById('tabla-ranking').innerHTML = h;

@@ -327,6 +327,9 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/api/inbox/modo/",      # multiagente consulta modo de atención
         "/equipo/pedido",           # pública con código de equipo
         "/portal-aliado",           # portal de solo lectura del aliado (login por código+PIN)
+        "/panel-socio",             # Plataforma de Socios Comerciales (login/registro propio, JWT en cookie aparte)
+        "/socio/confirmar/",        # cliente confirma su plan financiado por link, sin sesión
+        "/socio/declaracion-jurada/",  # cliente confirma la declaración jurada por link, sin sesión
         "/api/public",              # endpoints públicos (landing, postulación aliado, portal)
         "/api/materiales/pedidos",  # POST público para pedidos del equipo
         "/operario/",               # panel operario por token (sin login)

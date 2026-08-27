@@ -1,0 +1,1230 @@
+// FITNESS BUSINESS OS — Prisma Schema v1.0
+// Todas las entidades del sistema multi-tenant.
+// NO modificar manualmente — usar migraciones: pnpm db:migrate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ENUMS
+// ══════════════════════════════════════════════════════════════════
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  MANAGER
+  CONTENT_MANAGER
+  SALES
+  SUPPORT
+  COACH
+  AFFILIATE
+  CUSTOMER
+}
+
+enum ProductStatus {
+  DRAFT
+  AI_GENERATED
+  EDITING
+  PROFESSIONAL_REVIEW
+  APPROVED
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+}
+
+enum ProductType {
+  DIGITAL
+  PHYSICAL
+  BUNDLE
+  MEMBERSHIP
+  PDF_GUIDE
+  VIDEO_COURSE
+  AUDIO_PROGRAM
+  SUBSCRIPTION
+  COACHING_SESSION
+  TEMPLATE
+  EBOOK
+  CHALLENGE
+  COMMUNITY_ACCESS
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  AWAITING_CUSTOMER_DATA
+  READY_FOR_FULFILLMENT
+  FULFILLMENT_PROCESSING
+  DELIVERED
+  COMPLETED
+  DELIVERY_FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum DeliveryStatus {
+  PENDING
+  AWAITING_CUSTOMER_DATA
+  READY
+  PROCESSING
+  DELIVERED
+  FAILED
+}
+
+enum DeliveryChannel {
+  EMAIL
+  WHATSAPP
+  DOWNLOAD
+  LIBRARY
+  INSTAGRAM
+}
+
+enum PublicationStatus {
+  DRAFT
+  READY
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+  ERROR
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  PURCHASED
+  CUSTOMER
+  REPEAT_CUSTOMER
+  INACTIVE
+}
+
+enum AutopilotMode {
+  MANUAL
+  ASSISTED
+  COPILOT
+  AUTOMATIC
+  AUTOPILOT
+}
+
+enum ChannelType {
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  YOUTUBE
+  EMAIL
+  WEB
+  MERCADOLIBRE
+}
+
+enum AIFunction {
+  GENERATION
+  ATTENTION
+  REASONING
+  ECONOMIC
+}
+
+enum Currency {
+  ARS
+  UYU
+  USD
+  MXN
+  CLP
+  COP
+  PEN
+  EUR
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TENANT & BRANDING
+// ══════════════════════════════════════════════════════════════════
+
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // MercadoLibre OAuth tokens
+  mlAccessToken    String?
+  mlRefreshToken   String?
+  mlUserId         String?
+  mlTokenExpiresAt DateTime?
+
+  brand            Brand?
+  users            User[]
+  products         Product[]
+  categories       Category[]
+  customers        Customer[]
+  orders           Order[]
+  leads            Lead[]
+  conversations    Conversation[]
+  publications     Publication[]
+  blogPosts        BlogPost[]
+  emailCampaigns   EmailCampaign[]
+  contentPacks     ContentPack[]
+  prompts          PromptTemplate[]
+  aiRequests       AIRequest[]
+  aiModelConfigs   AIModelConfig[]
+  affiliates       Affiliate[]
+  coaches          Coach[]
+  knowledgeBases   KnowledgeBase[]
+  autopilotConfigs AutopilotConfig[]
+  auditLogs        AuditLog[]
+  marketplaceListings MarketplaceListing[]
+}
+
+model Brand {
+  id             String  @id @default(cuid())
+  tenantId       String  @unique
+  tenant         Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name           String
+  logoUrl        String?
+  faviconUrl     String?
+  primaryColor   String?
+  secondaryColor String?
+  accentColor    String?
+  fontPrimary    String?
+  fontSecondary  String?
+  email          String?
+  phone          String?
+  whatsapp       String?
+  instagram      String?
+  facebook       String?
+  tiktok         String?
+  youtube        String?
+  website        String?
+  legalText      String? @db.Text
+  welcomeMessage String? @db.Text
+  thankYouMessage String? @db.Text
+  postSaleMessage String? @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AUTH & USERS
+// ══════════════════════════════════════════════════════════════════
+
+model User {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email         String
+  name          String?
+  passwordHash  String?   // null si es solo OAuth
+  role          UserRole  @default(CUSTOMER)
+  active        Boolean   @default(true)
+  emailVerified DateTime?
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions   Session[]
+  auditLogs  AuditLog[]
+  coach            Coach?         @relation("CoachUsers")
+  affiliate        Affiliate?     @relation("AffiliateUsers")
+  leadAssignments  Lead[]         @relation("LeadAssignments")
+  publications     Publication[]  @relation("PublicationCreators")
+  blogPosts        BlogPost[]     @relation("BlogAuthors")
+  emailCampaigns   EmailCampaign[] @relation("EmailCampaignCreators")
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionToken String   @unique
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String   // CREATE, UPDATE, DELETE, PUBLISH, PRICE_CHANGE, DELIVERY, etc.
+  entity    String   // Product, Order, Delivery, AutopilotConfig, etc.
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entity, entityId])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CATEGORIES & PRODUCTS
+// ══════════════════════════════════════════════════════════════════
+
+model Category {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  slug        String
+  name        String
+  description String?
+  imageUrl    String?
+  sortOrder   Int        @default(0)
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  products Product[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, active])
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  tenantId       String
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  categoryId     String?
+  category       Category?     @relation(fields: [categoryId], references: [id])
+  sku            String
+  name           String
+  slug           String
+  description    String?       @db.Text
+  objective      String?       // hipertrofia, fuerza, pérdida de grasa, etc.
+  level          String?       // principiante, intermedio, avanzado
+  place          String?       // gimnasio, casa, al aire libre
+  equipment      String?
+  durationWeeks  Int?
+  frequency      String?
+  targetAudience String?
+  status         ProductStatus @default(DRAFT)
+  productType    ProductType   @default(DIGITAL)
+  // Físicos (suplementos, equipamiento — preparados pero no activos en MVP)
+  isPhysical     Boolean       @default(false)
+  stock          Int?
+  weight         Float?
+  attributes     Json?         // JSONB para atributos variables
+  // SEO
+  seoTitle       String?
+  seoDescription String?
+  seoKeywords    String[]
+  seoCanonical   String?
+  ogImageUrl     String?
+  // Publicación
+  publishedAt    DateTime?
+  // Revisión profesional
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewNotes    String?       @db.Text
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  versions            ProductVersion[]
+  files               ProductFile[]
+  prices              ProductPrice[]
+  contents            ProductContent[]
+  tags                ProductTag[]
+  relationsFrom       ProductRelation[] @relation("RelationFrom")
+  relationsTo         ProductRelation[] @relation("RelationTo")
+  orderItems          OrderItem[]
+  contentPacks        ContentPack[]
+  publications        Publication[]
+  marketplaceListings MarketplaceListing[]
+  libraryItems        CustomerLibraryItem[]
+  affiliateLinks      AffiliateLink[]
+
+  @@unique([tenantId, sku])
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([tenantId, categoryId])
+}
+
+model ProductVersion {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  version   String   // "1.0", "2.0", "2.1"
+  changelog String?  @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  files      ProductFile[]
+  packages   ProductPackage[]
+  orderItems OrderItem[]
+
+  @@unique([productId, version])
+}
+
+model ProductFile {
+  id          String          @id @default(cuid())
+  productId   String
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  versionId   String?
+  version     ProductVersion? @relation(fields: [versionId], references: [id])
+  name        String
+  fileType    String          // pdf, image, video, zip, etc.
+  storageKey  String          // Cloudflare R2 object key
+  sizeBytes   BigInt?
+  mimeType    String?
+  isPrimary   Boolean         @default(false)
+  isCover     Boolean         @default(false)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+
+  @@index([productId])
+}
+
+model ProductPackage {
+  id          String         @id @default(cuid())
+  versionId   String
+  version     ProductVersion @relation(fields: [versionId], references: [id])
+  name        String
+  storageKey  String         // R2 key del ZIP generado con branding
+  sizeBytes   BigInt?
+  generatedAt DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+
+  @@index([versionId])
+}
+
+model ProductPrice {
+  id            String       @id @default(cuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channel       ChannelType?  // null = precio por defecto
+  currency      Currency     @default(ARS)
+  country       String?      // AR, UY, CL — null = todos
+  basePrice     Decimal      @db.Decimal(12, 2)
+  promoPrice    Decimal?     @db.Decimal(12, 2)
+  promoStartsAt DateTime?
+  promoEndsAt   DateTime?
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([productId, active])
+}
+
+model ProductContent {
+  id          String        @id @default(cuid())
+  productId   String
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channel     ChannelType
+  contentType String        // title, description, benefits, faq, caption, script, etc.
+  content     String        @db.Text
+  status      ProductStatus @default(DRAFT)
+  aiGenerated Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([productId, channel])
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String       @unique
+  products ProductTag[]
+}
+
+model ProductTag {
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id])
+
+  @@id([productId, tagId])
+}
+
+model ProductRelation {
+  fromId   String
+  from     Product @relation("RelationFrom", fields: [fromId], references: [id])
+  toId     String
+  to       Product @relation("RelationTo", fields: [toId], references: [id])
+  relType  String  @default("RELATED") // RELATED, UPSELL, BUNDLE, CROSS_SELL
+
+  @@id([fromId, toId])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ECOMMERCE
+// ══════════════════════════════════════════════════════════════════
+
+model Customer {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  email       String
+  name        String?
+  phone       String?
+  whatsapp    String?
+  instagram   String?
+  country     String?
+  source      String?  // WEB, MERCADOLIBRE, WHATSAPP, INSTAGRAM, MANUAL
+  affiliateId String?
+  coachId     String?
+  tags        String[]
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders        Order[]
+  leads         Lead[]
+  libraryItems  CustomerLibraryItem[]
+  conversations Conversation[]
+  deliveries    Delivery[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model CartSession {
+  id         String   @id @default(cuid())
+  tenantId   String
+  sessionId  String   @unique
+  items      Json     // [{productId, versionId, quantity, unitPrice}]
+  couponCode String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Coupon {
+  id          String    @id @default(cuid())
+  tenantId    String
+  code        String
+  description String?
+  discountPct Decimal?  @db.Decimal(5, 2)
+  discountAmt Decimal?  @db.Decimal(12, 2)
+  currency    Currency  @default(ARS)
+  maxUses     Int?
+  usedCount   Int       @default(0)
+  validFrom   DateTime?
+  validUntil  DateTime?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  orders       Order[]
+  attributions Attribution[]
+
+  @@unique([tenantId, code])
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  tenantId          String
+  tenant            Tenant      @relation(fields: [tenantId], references: [id])
+  customerId        String?
+  customer          Customer?   @relation(fields: [customerId], references: [id])
+  couponId          String?
+  coupon            Coupon?     @relation(fields: [couponId], references: [id])
+  affiliateId       String?
+  coachId           String?
+  status            OrderStatus @default(PENDING_PAYMENT)
+  channel           ChannelType?
+  currency          Currency    @default(ARS)
+  subtotal          Decimal     @db.Decimal(12, 2)
+  discount          Decimal     @default(0) @db.Decimal(12, 2)
+  total             Decimal     @db.Decimal(12, 2)
+  notes             String?     @db.Text
+  isManual          Boolean     @default(false)
+  // Datos post-compra del cliente
+  customerName      String?
+  customerEmail     String?
+  customerWhatsapp  String?
+  customerInstagram String?
+  paidAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  items        OrderItem[]
+  payments     Payment[]
+  deliveries   Delivery[]
+  attributions Attribution[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@index([tenantId, createdAt])
+}
+
+model OrderItem {
+  id        String          @id @default(cuid())
+  orderId   String
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  versionId String?
+  version   ProductVersion? @relation(fields: [versionId], references: [id])
+  quantity  Int             @default(1)
+  unitPrice Decimal         @db.Decimal(12, 2)
+  discount  Decimal         @default(0) @db.Decimal(12, 2)
+  total     Decimal         @db.Decimal(12, 2)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id])
+  externalId String   @unique // MP payment_id — ÚNICO para idempotencia
+  provider   String   @default("mercadopago")
+  amount     Decimal  @db.Decimal(12, 2)
+  currency   Currency @default(ARS)
+  status     String   // approved, pending, rejected, cancelled
+  method     String?  // credit_card, debit_card, pix, etc.
+  rawData    Json?    // payload completo del webhook
+  paidAt     DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+model Refund {
+  id        String   @id @default(cuid())
+  orderId   String
+  amount    Decimal  @db.Decimal(12, 2)
+  reason    String?
+  status    String   @default("pending") // pending, approved, rejected
+  externalId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FULFILLMENT
+// ══════════════════════════════════════════════════════════════════
+
+model Delivery {
+  id              String          @id @default(cuid())
+  tenantId        String
+  orderId         String
+  order           Order           @relation(fields: [orderId], references: [id])
+  orderItemId     String?
+  customerId      String?
+  customer        Customer?       @relation(fields: [customerId], references: [id])
+  // IDEMPOTENCY KEY — el mismo evento no produce dos entregas
+  idempotencyKey  String          @unique // orderId:productId
+  productId       String
+  versionId       String?
+  status          DeliveryStatus  @default(PENDING)
+  channel         DeliveryChannel?
+  recipientEmail  String?
+  recipientPhone  String?
+  packageKey          String?         // R2 key del ZIP entregado
+  downloadUrl         String?         @db.Text  // URL firmada de descarga (R2 o token interno)
+  downloadExpiresAt   DateTime?       // Expiración del link de descarga
+  downloadToken       String?         @unique   // Token interno (cuando no hay R2)
+  deliveredAt         DateTime?
+  metadata            Json?
+  error               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  attempts DeliveryAttempt[]
+
+  @@index([orderId])
+  @@index([customerId])
+  @@index([tenantId])
+}
+
+model DeliveryAttempt {
+  id            String          @id @default(cuid())
+  deliveryId    String
+  delivery      Delivery        @relation(fields: [deliveryId], references: [id])
+  channel       DeliveryChannel?
+  status        String          // success, failed, FAILED
+  error         String?
+  metadata      Json?
+  attemptNumber Int             @default(1)
+  attemptedAt   DateTime        @default(now())
+
+  @@index([deliveryId])
+}
+
+model CustomerLibraryItem {
+  id            String   @id @default(cuid())
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id])
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  orderId       String?
+  versionId     String?
+  downloadCount Int      @default(0)
+  lastAccessed  DateTime?
+  active        Boolean  @default(true)
+  addedAt       DateTime @default(now())
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CRM
+// ══════════════════════════════════════════════════════════════════
+
+model Lead {
+  id              String      @id @default(cuid())
+  tenantId        String
+  tenant          Tenant      @relation(fields: [tenantId], references: [id])
+  customerId      String?
+  customer        Customer?   @relation(fields: [customerId], references: [id])
+  assignedToId    String?
+  assignedTo      User?       @relation("LeadAssignments", fields: [assignedToId], references: [id])
+  email           String?
+  name            String
+  phone           String?
+  instagram       String?
+  source          ChannelType?
+  status          LeadStatus  @default(NEW)
+  notes           String?     @db.Text
+  tags            String[]
+  productInterest String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  conversations Conversation[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+}
+
+model Conversation {
+  id              String        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  customerId      String?
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  leadId          String?
+  lead            Lead?         @relation(fields: [leadId], references: [id])
+  channel         ChannelType
+  externalId      String?       // WA thread id, IG thread id, etc.
+  open            Boolean       @default(true)
+  status          String        @default("open") // open, closed, escalated
+  autopilotMode   AutopilotMode @default(MANUAL)
+  assignedTo      String?
+  lastMessage     String?
+  lastMessageAt   DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  messages Message[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, channel])
+  @@index([tenantId, customerId])
+  @@index([tenantId, externalId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      String       @default("OUTBOUND") // INBOUND, OUTBOUND
+  type           String       @default("TEXT")     // TEXT, IMAGE, DOCUMENT, AUDIO, VIDEO
+  role           String       @default("assistant") // user, assistant, human_agent
+  content        String       @db.Text
+  mediaUrl       String?
+  aiGenerated    Boolean      @default(false)
+  promptVersion  String?
+  externalId     String?      // ID en la plataforma externa
+  status         String       @default("SENT")     // SENT, DELIVERED, READ, FAILED, PENDING_SEND, DRAFT
+  sentBy         String?      // userId si lo envió una humana
+  sentAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+model AutopilotConfig {
+  id          String        @id @default(cuid())
+  tenantId    String
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  channel     ChannelType
+  mode        AutopilotMode @default(MANUAL)
+  enabled     Boolean       @default(false)
+  model       String?       // OpenRouter model ID
+  kbId        String?
+  kb          KnowledgeBase? @relation(fields: [kbId], references: [id])
+  fallbackMsg String?       @db.Text
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([tenantId, channel])
+}
+
+model KnowledgeBase {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  entries          KBEntry[]
+  autopilotConfigs AutopilotConfig[]
+
+  @@index([tenantId])
+}
+
+model KBEntry {
+  id        String        @id @default(cuid())
+  kbId      String
+  kb        KnowledgeBase @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  title     String
+  content   String        @db.Text
+  // Aliases para el AI worker que usa question/answer
+  question  String?
+  answer    String?       @db.Text
+  entryType String?       // product, faq, policy, delivery, pricing, coach
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([kbId, active])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CONTENT & PUBLICATIONS
+// ══════════════════════════════════════════════════════════════════
+
+model ContentPack {
+  id            String            @id @default(cuid())
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  productId     String
+  product       Product           @relation(fields: [productId], references: [id])
+  channel       ChannelType
+  contentType   String            // caption, script, article, email, title, etc.
+  title         String?
+  content       String            @db.Text
+  status        PublicationStatus @default(DRAFT)
+  aiGenerated   Boolean           @default(false)
+  promptVersion String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([tenantId, productId])
+  @@index([tenantId, channel])
+}
+
+model Publication {
+  id            String            @id @default(cuid())
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  productId     String?
+  product       Product?          @relation(fields: [productId], references: [id])
+  createdById   String?
+  createdBy     User?             @relation("PublicationCreators", fields: [createdById], references: [id])
+  platform      ChannelType
+  type          String            @default("POST") // POST, STORY, REEL, VIDEO, CAROUSEL
+  status        PublicationStatus @default(DRAFT)
+  title         String?
+  caption       String?           @db.Text
+  content       String?           @db.Text
+  mediaUrls     String[]
+  externalId    String?           // ID en la plataforma (ML item id, IG post id, etc.)
+  externalUrl   String?
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  error       String?
+  aiGenerated Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([tenantId, platform, status])
+}
+
+model BlogPost {
+  id               String            @id @default(cuid())
+  tenantId         String
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  authorId         String?
+  author           User?             @relation("BlogAuthors", fields: [authorId], references: [id])
+  slug             String
+  title            String
+  excerpt          String?
+  content          String            @db.Text
+  coverImageUrl    String?
+  featuredImageUrl String?
+  status           PublicationStatus @default(DRAFT)
+  seoTitle         String?
+  seoDescription   String?
+  seoKeywords      String[]
+  publishedAt      DateTime?
+  scheduledAt      DateTime?
+  aiGenerated      Boolean           @default(false)
+  wordCount        Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+}
+
+model EmailCampaign {
+  id              String            @id @default(cuid())
+  tenantId        String
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  createdById     String?
+  createdBy       User?             @relation("EmailCampaignCreators", fields: [createdById], references: [id])
+  name            String
+  subject         String
+  preheader       String?
+  previewText     String?
+  content         String            @db.Text  // alias htmlContent
+  htmlContent     String?           @db.Text
+  textContent     String?           @db.Text
+  status          PublicationStatus @default(DRAFT)
+  segment         String            @default("ALL") // ALL, CUSTOMERS, LEADS, VIP
+  recipientCount  Int               @default(0)
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  aiGenerated     Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([tenantId, status])
+}
+
+model MarketplaceListing {
+  id          String            @id @default(cuid())
+  tenantId    String
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id])
+  marketplace  String            @default("MERCADOLIBRE")
+  externalId   String?           // ML item_id
+  status       PublicationStatus @default(DRAFT)
+  title        String
+  description  String            @db.Text
+  mlCategoryId String?           // ID de categoría en ML
+  price        Decimal           @db.Decimal(12, 2) @default(0)
+  currency     String            @default("ARS")
+  externalData Json?             // data adicional de la publicación en ML
+  externalUrl  String?
+  publishedAt  DateTime?
+  lastSync     DateTime?
+  syncStatus   String?           // ok, pending, error
+  error        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([tenantId, productId, marketplace])
+  @@index([tenantId, status])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AI — OPENROUTER ÚNICAMENTE
+// ══════════════════════════════════════════════════════════════════
+
+model AIModelConfig {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  function    AIFunction
+  model       String     // e.g. "openai/gpt-4o-mini", "google/gemini-flash-1.5"
+  temperature Float?
+  maxTokens   Int?
+  active      Boolean    @default(true)
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([tenantId, function])
+}
+
+model PromptTemplate {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  slug        String    // training_guide, instagram_post, mercadolibre_listing, etc.
+  name        String
+  description String?
+  category    String?   // content, attention, product, social, marketplace
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  versions   PromptVersion[]
+  executions PromptExecution[]
+
+  @@unique([tenantId, slug])
+}
+
+model PromptVersion {
+  id         String         @id @default(cuid())
+  templateId String
+  template   PromptTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version    Int
+  content    String         @db.Text
+  variables  Json?          // [{ name, description, required, defaultValue }]
+  active     Boolean        @default(true)
+  createdBy  String?
+  createdAt  DateTime       @default(now())
+
+  executions PromptExecution[]
+  aiRequests AIRequest[]
+
+  @@unique([templateId, version])
+}
+
+model PromptExecution {
+  id         String         @id @default(cuid())
+  templateId String
+  template   PromptTemplate @relation(fields: [templateId], references: [id])
+  versionId  String
+  version    PromptVersion  @relation(fields: [versionId], references: [id])
+  variables  Json?
+  createdAt  DateTime       @default(now())
+
+  aiRequest AIRequest?
+
+  @@index([templateId])
+}
+
+model AIRequest {
+  id               String           @id @default(cuid())
+  tenantId         String
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  userId           String?
+  model            String           // modelo usado en OpenRouter (via OpenRouter)
+  function         AIFunction
+  channel          ChannelType?
+  promptVersionId  String?
+  promptVersion    PromptVersion?   @relation(fields: [promptVersionId], references: [id])
+  executionId      String?          @unique
+  execution        PromptExecution? @relation(fields: [executionId], references: [id])
+  // Tokens — compatibilidad con ambas convenciones de nomenclatura
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  inputTokens      Int?
+  outputTokens     Int?
+  // Timing
+  durationMs       Int?
+  latencyMs        Int?
+  // Costos
+  costUSD          Decimal?         @db.Decimal(10, 6)
+  // Estado
+  success          Boolean          @default(true)
+  status           String           @default("success") // success, error
+  error            String?
+  metadata         Json?
+  createdAt        DateTime         @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, function])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AFFILIATES
+// ══════════════════════════════════════════════════════════════════
+
+model Affiliate {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  userId          String?   @unique
+  user            User?     @relation("AffiliateUsers", fields: [userId], references: [id])
+  name            String
+  email           String
+  commissionRate  Decimal   @default(10) @db.Decimal(5, 2)
+  commissionPct   Decimal   @default(10) @db.Decimal(5, 2)
+  paymentMethod   String?
+  paymentData     Json?
+  active          Boolean   @default(true)
+  status          String    @default("active") // active, suspended, inactive
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  links        AffiliateLink[]
+  codes        AffiliateCode[]
+  commissions  Commission[]
+  payouts      Payout[]
+  attributions Attribution[]
+
+  @@index([tenantId])
+}
+
+model AffiliateLink {
+  id           String    @id @default(cuid())
+  affiliateId  String
+  affiliate    Affiliate @relation(fields: [affiliateId], references: [id])
+  productId    String?
+  product      Product?  @relation(fields: [productId], references: [id])
+  slug         String    @unique
+  url          String    // URL completa del link
+  campaignName String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  clicks       Int       @default(0)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  attributions Attribution[]
+
+  @@index([affiliateId])
+}
+
+model AffiliateCode {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id])
+  code        String    @unique
+  discountPct Decimal?  @db.Decimal(5, 2)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  @@index([affiliateId])
+}
+
+model Attribution {
+  id          String         @id @default(cuid())
+  orderId     String?
+  order       Order?         @relation(fields: [orderId], references: [id])
+  affiliateId String?
+  affiliate   Affiliate?     @relation(fields: [affiliateId], references: [id])
+  linkId      String?
+  link        AffiliateLink? @relation(fields: [linkId], references: [id])
+  couponId    String?
+  coupon      Coupon?        @relation(fields: [couponId], references: [id])
+  ip          String?
+  userAgent   String?
+  clickedAt   DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+
+  commission Commission?
+
+  @@index([affiliateId])
+  @@index([orderId])
+}
+
+model Commission {
+  id            String      @id @default(cuid())
+  affiliateId   String
+  affiliate     Affiliate   @relation(fields: [affiliateId], references: [id])
+  attributionId String      @unique
+  attribution   Attribution @relation(fields: [attributionId], references: [id])
+  amount        Decimal     @db.Decimal(12, 2)
+  currency      Currency    @default(ARS)
+  pct           Decimal     @db.Decimal(5, 2)
+  status        String      @default("pending") // pending, approved, paid
+  payoutId      String?
+  payout        Payout?     @relation(fields: [payoutId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([affiliateId, status])
+}
+
+model Payout {
+  id          String      @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate   @relation(fields: [affiliateId], references: [id])
+  amount      Decimal     @db.Decimal(12, 2)
+  currency    Currency    @default(ARS)
+  method      String?     // transferencia, mercadopago, etc.
+  reference   String?
+  status      String      @default("pending") // pending, processing, paid
+  paidAt      DateTime?
+  createdAt   DateTime    @default(now())
+
+  commissions Commission[]
+
+  @@index([affiliateId])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// COACHES
+// ══════════════════════════════════════════════════════════════════
+
+model Coach {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  userId      String?   @unique
+  user        User?    @relation("CoachUsers", fields: [userId], references: [id])
+  name        String
+  email       String
+  bio         String?
+  specialties String[]
+  avatarUrl   String?
+  instagram   String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profile        CoachProfile?
+  coachCustomers CoachCustomer[]
+  programs       CoachProgram[]
+
+  @@index([tenantId])
+}
+
+model CoachProfile {
+  id             String  @id @default(cuid())
+  coachId        String  @unique
+  coach          Coach   @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  headline       String?
+  longBio        String? @db.Text
+  certifications String[]
+  languages      String[]
+  timezone       String?
+  updatedAt      DateTime @updatedAt
+}
+
+model CoachCustomer {
+  id         String   @id @default(cuid())
+  coachId    String
+  coach      Coach    @relation(fields: [coachId], references: [id])
+  customerId String
+  notes      String?
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+  active     Boolean  @default(true)
+
+  @@unique([coachId, customerId])
+  @@index([coachId])
+}
+
+model CoachProgram {
+  id              String    @id @default(cuid())
+  coachId         String
+  coach           Coach     @relation(fields: [coachId], references: [id])
+  productId       String?
+  name            String
+  description     String?   @db.Text
+  price           Decimal?  @db.Decimal(12, 2)
+  currency        Currency  @default(ARS)
+  productIds      String[]
+  sessionFrequency String?  // semanal, quincenal, mensual
+  durationWeeks   Int?
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([coachId])
+}

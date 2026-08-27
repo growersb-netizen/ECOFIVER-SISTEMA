@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install --no-frozen-lockfile && pnpm --filter @fitness-os/database exec prisma generate && pnpm --filter @fitness-os/api build"
+
+[deploy]
+startCommand = "pnpm --filter @fitness-os/database exec prisma migrate deploy && node apps/api/dist/index.js"
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"

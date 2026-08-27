@@ -36,7 +36,7 @@ from routers import (
     control_agentes, instalacion, panolero, asistencia_rapida, entrega_rapida,
     marketing, simulador, seguimiento, testimonial, inbox, public_landing,
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
-    integraciones, redes_sociales, imagenes, ml_biblioteca,
+    integraciones, redes_sociales, imagenes, ml_biblioteca, socios,
 )
 from routers import ml_audit
 
@@ -124,6 +124,7 @@ app.include_router(testimonial.router)  # público: /testimonial/{token}
 app.include_router(inbox.router)        # bandeja de entrada WhatsApp
 app.include_router(public_landing.router)  # público, sin API key: /api/public/landing-lead
 app.include_router(aliados.router)          # canal Aliados Comerciales (Franco)
+app.include_router(socios.router)           # Plataforma de Socios Comerciales (registro autoservicio)
 app.include_router(cobranza_historica.router)  # Cobranza histórica Construsol — independiente de EcoFiver
 app.include_router(ml_publicaciones.router) # MercadoLibre — cola de publicaciones
 app.include_router(negocio.router)          # Configuración del negocio

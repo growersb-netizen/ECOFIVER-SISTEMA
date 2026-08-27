@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de Socios · EcoFiver</title>
+<style>
+  :root{
+    --navy:#0B2350; --navy-2:#123a6e; --teal:#4EC3B5; --teal-light:#7DD8CC;
+    --bg:#F6F8FB; --surface:#FFFFFF; --border:#E2E8F0; --text:#16232F; --text-muted:#5C6B7A;
+    --good:#1B7A5A; --good-bg:#E7F5EF; --warn:#9A6700; --warn-bg:#FBF3DE; --bad:#B3261E; --bad-bg:#FBEAE8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  h1,h2,h3{font-family:Georgia,serif;font-weight:800;color:var(--navy)}
+  .center-wrap{max-width:420px;margin:0 auto;padding:60px 20px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px}
+  label{display:block;font-size:13px;color:var(--text-muted);margin:12px 0 4px;font-weight:600}
+  input,select,textarea{width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:15px}
+  button{cursor:pointer;border:none;border-radius:9px;font-weight:700;font-size:14.5px;padding:12px 18px}
+  .btn-primary{background:var(--navy);color:#fff;width:100%}
+  .btn-primary:disabled{opacity:.55;cursor:default}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-muted)}
+  .btn-teal{background:var(--teal);color:var(--navy)}
+  .msg{font-size:13.5px;margin-top:10px;min-height:18px}
+  .msg.error{color:var(--bad)}
+  .msg.ok{color:var(--good)}
+  .brand{text-align:center;margin-bottom:24px}
+  .brand .logo{font-family:Georgia,serif;font-weight:800;font-size:24px;color:var(--navy)}
+  .brand .logo span{color:var(--teal)}
+  .hidden{display:none !important}
+  .switch-link{text-align:center;font-size:13.5px;color:var(--text-muted);margin-top:14px}
+  .switch-link a{color:var(--navy-2);font-weight:600;cursor:pointer;text-decoration:none}
+
+  /* ── Panel principal ── */
+  .app-shell{display:flex;min-height:100vh}
+  .sidebar{width:230px;flex-shrink:0;background:var(--navy);color:#fff;padding:24px 14px;display:flex;flex-direction:column;gap:2px}
+  .sidebar .brand{color:#fff;text-align:left;margin-bottom:20px}
+  .sidebar .brand .logo{color:#fff;font-size:20px}
+  .sidebar .brand .logo span{color:var(--teal)}
+  .sidebar .socio-info{font-size:12px;color:#b8cbe0;margin-bottom:18px}
+  .nav-item{padding:10px 12px;border-radius:8px;color:#cfe0f5;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:block}
+  .nav-item:hover{background:rgba(255,255,255,.06)}
+  .nav-item.active{background:var(--teal);color:var(--navy)}
+  .nav-logout{margin-top:auto;color:#8ea3c4;font-size:12.5px;cursor:pointer}
+  main.content{flex:1;padding:32px 40px;max-width:980px}
+  @media (max-width:800px){ .app-shell{flex-direction:column} .sidebar{width:100%;flex-direction:row;flex-wrap:wrap;padding:14px} main.content{padding:20px} .sidebar .brand,.sidebar .socio-info{display:none} }
+
+  .section{display:none}
+  .section.active{display:block}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .kpi .v{font-family:Georgia,serif;font-weight:800;font-size:24px;color:var(--navy)}
+  .kpi .l{font-size:12.5px;color:var(--text-muted)}
+
+  table{width:100%;border-collapse:collapse;font-size:13.8px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);padding:8px;border-bottom:2px solid var(--border)}
+  td{padding:10px 8px;border-bottom:1px solid var(--border)}
+  .pill{display:inline-flex;padding:2px 10px;border-radius:100px;font-size:11.5px;font-weight:700}
+  .pill.ok{background:var(--good-bg);color:var(--good)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .pill.bad{background:var(--bad-bg);color:var(--bad)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:700px){.grid2{grid-template-columns:1fr}}
+  .biblio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+  .biblio-card{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--surface)}
+  .biblio-card h4{margin:0 0 6px;font-size:14px;font-family:inherit;color:var(--text)}
+  .biblio-card p{margin:0 0 10px;font-size:12.5px;color:var(--text-muted)}
+  .tag-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal);font-weight:700}
+  .copyable{font-family:ui-monospace,monospace;font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;word-break:break-all}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ AUTH SCREENS ═══════════════ -->
+<div id="auth-screens" class="center-wrap">
+  <div class="brand"><div class="logo">ECO<span>FIVER</span></div><div style="color:var(--text-muted);font-size:13px;margin-top:4px">Panel de Socios Comerciales</div></div>
+
+  <!-- LOGIN -->
+  <div class="card" id="card-login">
+    <h2 style="margin:0 0 4px;font-size:19px">Ingresá a tu panel</h2>
+    <label>Email o código de socio</label>
+    <input id="login-id" placeholder="tu@email.com o AL-004">
+    <label>Contraseña</label>
+    <input id="login-pass" type="password">
+    <button class="btn-primary" style="margin-top:16px" onclick="doLogin()">Ingresar</button>
+    <div class="msg" id="login-msg"></div>
+    <div class="switch-link">¿Todavía no sos socio? <a onclick="showScreen('registro')">Registrate acá</a></div>
+  </div>
+
+  <!-- REGISTRO -->
+  <div class="card hidden" id="card-registro">
+    <h2 style="margin:0 0 4px;font-size:19px">Registrate y empezá a vender hoy</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Completá tus datos y entrás directo.</p>
+    <label>Nombre y apellido</label>
+    <input id="reg-nombre">
+    <label>DNI</label>
+    <input id="reg-dni" inputmode="numeric">
+    <label>WhatsApp</label>
+    <input id="reg-whatsapp" placeholder="11 0000 0000" inputmode="tel">
+    <label>Email</label>
+    <input id="reg-email" type="email">
+    <label>Zona / localidad</label>
+    <input id="reg-zona">
+    <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional — lo podés cargar después)</span></label>
+    <input id="reg-cuit">
+    <label>Contraseña</label>
+    <input id="reg-pass" type="password">
+    <button class="btn-primary" style="margin-top:16px" onclick="doRegistro()">Crear mi cuenta</button>
+    <div class="msg" id="registro-msg"></div>
+    <div class="switch-link">¿Ya tenés cuenta? <a onclick="showScreen('login')">Ingresá acá</a></div>
+  </div>
+
+  <!-- VERIFICACIÓN -->
+  <div class="card hidden" id="card-verificar">
+    <h2 style="margin:0 0 4px;font-size:19px">Verificá tu WhatsApp</h2>
+    <p style="font-size:13px;color:var(--text-muted)">Te mandamos un código de 6 dígitos a tu WhatsApp. Ingresalo para activar tu panel.</p>
+    <label>Código de verificación</label>
+    <input id="verif-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
+    <button class="btn-primary" style="margin-top:16px" onclick="doVerificar()">Verificar y entrar</button>
+    <div class="msg" id="verif-msg"></div>
+    <div class="switch-link"><a onclick="doReenviar()">Reenviar código</a></div>
+  </div>
+</div>
+
+<!-- ═══════════════ APP (post-login) ═══════════════ -->
+<div id="app-shell" class="app-shell hidden">
+  <div class="sidebar">
+    <div class="brand"><div class="logo">ECO<span>FIVER</span></div></div>
+    <div class="socio-info" id="sidebar-socio-info"></div>
+    <a class="nav-item active" data-section="inicio" onclick="nav('inicio')">🏠 Inicio</a>
+    <a class="nav-item" data-section="catalogo" onclick="nav('catalogo')">📋 Catálogo y precios</a>
+    <a class="nav-item" data-section="simulador" onclick="nav('simulador')">🧮 Simulador de cuotas</a>
+    <a class="nav-item" data-section="ventas" onclick="nav('ventas')">💼 Cargar venta</a>
+    <a class="nav-item" data-section="mis-ventas" onclick="nav('mis-ventas')">📦 Mis ventas</a>
+    <a class="nav-item" data-section="comisiones" onclick="nav('comisiones')">💰 Mis comisiones</a>
+    <a class="nav-item" data-section="ranking" onclick="nav('ranking')">🏆 Ranking</a>
+    <a class="nav-item" data-section="biblioteca" onclick="nav('biblioteca')">🖼️ Biblioteca de contenidos</a>
+    <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
+    <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
+  </div>
+
+  <main class="content">
+    <!-- INICIO -->
+    <section class="section active" id="sec-inicio">
+      <h1 style="font-size:24px">Hola, <span id="saludo-nombre"></span> 👋</h1>
+      <p style="color:var(--text-muted)">Este es tu panel de socio comercial. Todo lo que necesitás para vender está acá, sin tener que consultarnos nada.</p>
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="kpi-pendiente">$0</div><div class="l">Comisión pendiente</div></div>
+        <div class="kpi"><div class="v" id="kpi-liquidado">$0</div><div class="l">Comisión liquidada</div></div>
+        <div class="kpi"><div class="v" id="kpi-ventas">0</div><div class="l">Ventas cargadas</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:16px">Cómo funciona ahora</h3>
+        <p style="font-size:14px;line-height:1.6">Vos hacés la operación completa: captás, cotizás con el catálogo, cerrás y cargás la venta. En financiado, una vez que el cliente paga la seña, descargás el contrato desde acá y le mandamos un link para que confirme — sin papeles. Nuestro equipo hace una sola llamada de bienvenida para confirmar todo, y ahí se libera tu comisión.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:16px">🏗️ Argumento de venta: entrega anticipada</h3>
+        <p style="font-size:14px;line-height:1.6">En <strong>viviendas modulares</strong>, el cliente puede pedir adelantar la entrega desde la <strong>cuota 6</strong> mediante una integración de capital. En <strong>piscinas</strong>, desde la <strong>cuota 3</strong>. Sigue pagando mes a mes hasta terminar el plan — solo se adelanta la entrega, no se cancela el resto. Usalo como argumento de cierre.</p>
+      </div>
+    </section>
+
+    <!-- CATÁLOGO -->
+    <section class="section" id="sec-catalogo">
+      <h2>Catálogo y listas de precios</h2>
+      <div id="catalogo-contenido">Cargando…</div>
+    </section>
+
+    <!-- SIMULADOR -->
+    <section class="section" id="sec-simulador">
+      <h2>Simulador de cuotas</h2>
+      <div class="card grid2">
+        <div>
+          <label>Tipo</label>
+          <select id="sim-tipo"><option value="MODULO">Módulo</option><option value="PISCINA">Piscina</option></select>
+          <label>Modelo</label>
+          <select id="sim-modelo"></select>
+          <label>Cuotas</label>
+          <input id="sim-cuotas" type="number" value="24">
+          <button class="btn-teal" style="margin-top:14px;width:100%" onclick="simular()">Calcular</button>
+        </div>
+        <div>
+          <div id="sim-resultado" style="font-size:14px;color:var(--text-muted)">Elegí un modelo y las cuotas.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARGAR VENTA -->
+    <section class="section" id="sec-ventas">
+      <h2>Cargar una venta</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">Contado</h3>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Sin instalación incluida — la coordinás vos, tu equipo o un tercero. Nosotros trasladamos el producto a cualquier parte del país.</p>
+          <label>Nombre del cliente</label><input id="c-nombre">
+          <label>Teléfono</label><input id="c-tel">
+          <label>Localidad</label><input id="c-loc">
+          <label>Producto</label><select id="c-prod"><option value="MODULO">Módulo</option><option value="PISCINA">Piscina</option></select>
+          <label>Modelo</label><input id="c-modelo">
+          <label>Precio final</label><input id="c-precio" type="number">
+          <button class="btn-primary" style="margin-top:14px" onclick="cargarContado()">Cargar venta de contado</button>
+          <div class="msg" id="c-msg"></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">Financiado</h3>
+          <label>Nombre del cliente</label><input id="f-nombre">
+          <label>DNI</label><input id="f-dni">
+          <label>Teléfono</label><input id="f-tel">
+          <label>Localidad</label><input id="f-loc">
+          <button class="btn-ghost" style="width:100%;margin:6px 0" onclick="correrScoring()">Chequear situación crediticia (BCRA)</button>
+          <div class="msg" id="scoring-msg"></div>
+          <label>Producto</label><select id="f-prod"><option value="MODULO">Módulo</option><option value="PISCINA">Piscina</option></select>
+          <label>Modelo</label><input id="f-modelo">
+          <label>Cuotas</label><input id="f-cuotas" type="number" value="24">
+          <button class="btn-primary" style="margin-top:14px" onclick="cargarFinanciado()">Cargar venta financiada</button>
+          <div class="msg" id="f-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MIS VENTAS -->
+    <section class="section" id="sec-mis-ventas">
+      <h2>Mis ventas</h2>
+      <h3 style="font-size:14px">Financiadas</h3>
+      <div id="tabla-financiado">Cargando…</div>
+      <h3 style="font-size:14px;margin-top:24px">Contado</h3>
+      <div id="tabla-contado"></div>
+    </section>
+
+    <!-- COMISIONES -->
+    <section class="section" id="sec-comisiones">
+      <h2>Mis comisiones</h2>
+      <div id="tabla-comisiones">Cargando…</div>
+    </section>
+
+    <!-- RANKING -->
+    <section class="section" id="sec-ranking">
+      <h2>Ranking nacional</h2>
+      <div id="tabla-ranking">Cargando…</div>
+    </section>
+
+    <!-- BIBLIOTECA -->
+    <section class="section" id="sec-biblioteca">
+      <h2>Biblioteca de contenidos</h2>
+      <div class="biblio-grid" id="biblio-grid">Cargando…</div>
+    </section>
+
+    <!-- PERFIL -->
+    <section class="section" id="sec-perfil">
+      <h2>Mi perfil y documentación</h2>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:15px">Datos para cobrar</h3>
+        <label>CBU o alias</label><input id="p-cbu">
+        <button class="btn-teal" style="margin-top:12px" onclick="guardarPerfil()">Guardar</button>
+        <div class="msg" id="p-msg"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:15px">Documentación</h3>
+        <label>Constancia de Monotributo</label>
+        <input type="file" id="doc-monotributo">
+        <button class="btn-ghost" style="margin-top:8px" onclick="subirDoc('monotributo')">Subir</button>
+        <label style="margin-top:16px">Copia de DNI</label>
+        <input type="file" id="doc-dni">
+        <button class="btn-ghost" style="margin-top:8px" onclick="subirDoc('dni')">Subir</button>
+        <div class="msg" id="doc-msg"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const API = '';
+let SOCIO = null;
+let CATALOGO = null;
+
+function showScreen(name){
+  document.getElementById('card-login').classList.add('hidden');
+  document.getElementById('card-registro').classList.add('hidden');
+  document.getElementById('card-verificar').classList.add('hidden');
+  document.getElementById('card-'+name).classList.remove('hidden');
+}
+
+async function api(path, opts={}){
+  const res = await fetch(API+path, {credentials:'include', headers:{'Content-Type':'application/json'}, ...opts});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || 'Error');
+  return data;
+}
+
+let ultimoCodigoRegistrado = null;
+
+async function doRegistro(){
+  const msg = document.getElementById('registro-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const body = {
+      nombre: document.getElementById('reg-nombre').value.trim(),
+      dni: document.getElementById('reg-dni').value.trim(),
+      whatsapp: document.getElementById('reg-whatsapp').value.trim(),
+      email: document.getElementById('reg-email').value.trim(),
+      zona: document.getElementById('reg-zona').value.trim(),
+      cuit_monotributo: document.getElementById('reg-cuit').value.trim(),
+      password: document.getElementById('reg-pass').value,
+    };
+    const data = await api('/api/public/socio-registro', {method:'POST', body: JSON.stringify(body)});
+    ultimoCodigoRegistrado = data.codigo;
+    msg.className='msg ok'; msg.textContent = 'Cuenta creada: ' + data.codigo;
+    showScreen('verificar');
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doVerificar(){
+  const msg = document.getElementById('verif-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const otp = document.getElementById('verif-otp').value.trim();
+    await api('/api/public/socio-verificar', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado, otp})});
+    await cargarApp();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doReenviar(){
+  if(!ultimoCodigoRegistrado) return;
+  await api('/api/public/socio-reenviar-codigo', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado})}).catch(()=>{});
+  document.getElementById('verif-msg').className='msg ok';
+  document.getElementById('verif-msg').textContent='Te mandamos un código nuevo.';
+}
+
+async function doLogin(){
+  const msg = document.getElementById('login-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const email = document.getElementById('login-id').value.trim();
+    const password = document.getElementById('login-pass').value;
+    const body = email.includes('@') ? {email, password} : {codigo: email, password};
+    await api('/api/public/socio-login', {method:'POST', body: JSON.stringify(body)});
+    await cargarApp();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doLogout(){
+  await api('/api/public/socio-logout', {method:'POST'}).catch(()=>{});
+  location.reload();
+}
+
+async function cargarApp(){
+  try{
+    SOCIO = await api('/api/socio/me');
+  }catch(e){ return; }
+  document.getElementById('auth-screens').classList.add('hidden');
+  document.getElementById('app-shell').classList.remove('hidden');
+  document.getElementById('saludo-nombre').textContent = SOCIO.nombre.split(' ')[0];
+  document.getElementById('sidebar-socio-info').textContent = SOCIO.codigo + ' · ' + (SOCIO.zona || 'sin zona');
+  document.getElementById('p-cbu').value = SOCIO.cbu_alias || '';
+  cargarComisiones();
+  cargarCatalogo();
+}
+
+function nav(section){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.section===section));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+section).classList.add('active');
+  if(section==='mis-ventas') cargarMisVentas();
+  if(section==='comisiones') cargarComisionesTabla();
+  if(section==='ranking') cargarRanking();
+  if(section==='biblioteca') cargarBiblioteca();
+}
+
+function fmt(n){ return '$'+Math.round(n||0).toLocaleString('es-AR'); }
+
+async function cargarCatalogo(){
+  CATALOGO = await api('/api/socio/catalogo').catch(()=>null);
+  if(!CATALOGO) return;
+  const el = document.getElementById('catalogo-contenido');
+  let html = '<h3>Piscinas</h3><table><tr><th>Modelo</th><th>Precio lista</th></tr>';
+  for(const m of CATALOGO.piscinas.modelos){
+    html += `<tr><td>${m}</td><td>${fmt(CATALOGO.piscinas.precios_lista[m])}</td></tr>`;
+  }
+  html += '</table><h3 style="margin-top:20px">Módulos</h3><table><tr><th>m²</th><th>Precio lista</th></tr>';
+  for(const m2 of CATALOGO.modulos.superficies_m2){
+    html += `<tr><td>${m2} m²</td><td>${fmt(CATALOGO.modulos.precios_lista[m2])}</td></tr>`;
+  }
+  html += '</table>';
+  el.innerHTML = html;
+
+  const selModelo = document.getElementById('sim-modelo');
+  function poblarSim(){
+    const tipo = document.getElementById('sim-tipo').value;
+    selModelo.innerHTML = '';
+    const lista = tipo === 'MODULO' ? CATALOGO.modulos.superficies_m2.map(m=>m+' m²') : CATALOGO.piscinas.modelos;
+    lista.forEach(v => selModelo.innerHTML += `<option>${v}</option>`);
+  }
+  document.getElementById('sim-tipo').addEventListener('change', poblarSim);
+  poblarSim();
+}
+
+async function simular(){
+  const tipo = document.getElementById('sim-tipo').value;
+  let modelo = document.getElementById('sim-modelo').value;
+  if(tipo === 'MODULO') modelo = modelo.replace(' m²','');
+  const cuotas = document.getElementById('sim-cuotas').value;
+  const data = await api(`/api/simulador/cuotas?tipo=${tipo}&modelo=${encodeURIComponent(modelo)}&cuotas=${cuotas}`).catch(e=>({error:e.message}));
+  const el = document.getElementById('sim-resultado');
+  if(data.error){ el.textContent = data.error; return; }
+  el.innerHTML = `<div class="kpi"><div class="v">${fmt(data.cuota_mensual)}/mes</div><div class="l">${data.cuotas} cuotas</div></div>
+    <p style="margin-top:12px;font-size:13.5px">Precio de lista: ${fmt(data.precio_lista)}<br>Ingreso inicial: ${fmt(data.ingreso_inicial)}<br>Total financiado: ${fmt(data.total)}</p>`;
+}
+
+async function cargarContado(){
+  const msg = document.getElementById('c-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const body = {
+      cliente_nombre: document.getElementById('c-nombre').value,
+      cliente_telefono: document.getElementById('c-tel').value,
+      cliente_localidad: document.getElementById('c-loc').value,
+      producto: document.getElementById('c-prod').value,
+      modelo_especifico: document.getElementById('c-modelo').value,
+      precio_final: parseFloat(document.getElementById('c-precio').value || 0),
+    };
+    const data = await api('/api/socio/ventas/contado', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent = data.mensaje;
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+let ultimoScoringOk = false;
+
+async function correrScoring(){
+  const msg = document.getElementById('scoring-msg'); msg.className='msg'; msg.textContent='Consultando…';
+  try{
+    const dni = document.getElementById('f-dni').value.trim();
+    const data = await api('/api/socio/scoring', {method:'POST', body: JSON.stringify({dni})});
+    ultimoScoringOk = true;
+    msg.className = data.requiere_declaracion_jurada ? 'msg' : 'msg ok';
+    msg.style.color = data.requiere_declaracion_jurada ? 'var(--warn)' : '';
+    msg.textContent = data.mensaje;
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function cargarFinanciado(){
+  const msg = document.getElementById('f-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    let modelo = document.getElementById('f-modelo').value;
+    const body = {
+      cliente_nombre: document.getElementById('f-nombre').value,
+      cliente_dni: document.getElementById('f-dni').value,
+      cliente_telefono: document.getElementById('f-tel').value,
+      cliente_localidad: document.getElementById('f-loc').value,
+      producto: document.getElementById('f-prod').value,
+      modelo_especifico: modelo,
+      cantidad_cuotas: parseInt(document.getElementById('f-cuotas').value || 0),
+    };
+    const data = await api('/api/socio/ventas/financiado', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok';
+    msg.textContent = `${data.mensaje} Cuota: ${fmt(data.valor_cuota)} — Inscripción: ${fmt(data.monto_inscripcion)}`;
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function cargarMisVentas(){
+  const data = await api('/api/socio/ventas').catch(()=>({financiado:[],contado:[]}));
+  document.getElementById('kpi-ventas').textContent = data.financiado.length + data.contado.length;
+
+  let hf = '<table><tr><th>Cliente</th><th>Producto</th><th>Estado</th><th>Contrato</th><th></th></tr>';
+  for(const v of data.financiado){
+    let estado = 'Pendiente inscripción';
+    let pillClass = 'warn';
+    if(v.auditoria_completada){ estado='Comisión liberada'; pillClass='ok'; }
+    else if(v.cliente_confirmo){ estado='Esperando bienvenida'; pillClass='warn'; }
+    else if(v.contrato_generado){ estado='Esperando confirmación cliente'; pillClass='warn'; }
+    else if(v.inscripcion_pagada){ estado='Lista para generar contrato'; pillClass='ok'; }
+    let accion = '';
+    if(v.inscripcion_pagada && !v.contrato_generado){
+      accion = `<button class="btn-teal" onclick="generarContrato(${v.id})">Generar contrato</button>`;
+    } else if(v.link_confirmacion_token && !v.cliente_confirmo){
+      accion = `<span class="copyable">${location.origin}/socio/confirmar/${v.link_confirmacion_token}</span>`;
+    }
+    if(v.puede_licitar && !v.licitacion_solicitada){
+      accion += ` <button class="btn-ghost" onclick="solicitarLicitacion(${v.id})">🏗️ Solicitar entrega anticipada</button>`;
+    } else if(v.licitacion_solicitada){
+      accion += ' <span class="pill ok">Licitación solicitada</span>';
+    }
+    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td><span class="pill ${pillClass}">${estado}</span></td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
+  }
+  hf += '</table>';
+  document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
+
+  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th></tr>';
+  for(const v of data.contado){
+    const pill = v.cobro_estado==='COBRADO' ? '<span class="pill ok">Entregada y cobrada</span>' : (v.confirmacion_48hs ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
+    hc += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td></tr>`;
+  }
+  hc += '</table>';
+  document.getElementById('tabla-contado').innerHTML = hc;
+}
+
+async function solicitarLicitacion(ventaId){
+  try{
+    await api(`/api/socio/ventas/${ventaId}/solicitar-licitacion`, {method:'POST'});
+    alert('Listo, el equipo ya tiene el pedido de entrega anticipada.');
+    cargarMisVentas();
+  }catch(e){ alert(e.message); }
+}
+
+async function generarContrato(ventaId){
+  try{
+    const data = await api(`/api/socio/ventas/${ventaId}/generar-contrato`, {method:'POST'});
+    alert('Contrato generado. Mandale este link al cliente:\n' + data.link_confirmacion);
+    cargarMisVentas();
+  }catch(e){ alert(e.message); }
+}
+
+async function cargarComisiones(){
+  const data = await api('/api/socio/comisiones').catch(()=>({monto_pendiente:0, monto_liquidado:0}));
+  document.getElementById('kpi-pendiente').textContent = fmt(data.monto_pendiente);
+  document.getElementById('kpi-liquidado').textContent = fmt(data.monto_liquidado);
+}
+
+async function cargarComisionesTabla(){
+  const data = await api('/api/socio/comisiones').catch(()=>({comisiones:[]}));
+  let h = `<div class="kpis"><div class="kpi"><div class="v">${fmt(data.monto_pendiente)}</div><div class="l">Pendiente</div></div><div class="kpi"><div class="v">${fmt(data.monto_liquidado)}</div><div class="l">Liquidado</div></div></div>`;
+  h += '<table><tr><th>Solicitud</th><th>Tipo</th><th>Monto</th><th>Estado</th><th>Factura</th></tr>';
+  for(const c of data.comisiones){
+    h += `<tr><td>${c.solicitud_numero||'—'}</td><td>${c.tipo}</td><td>${fmt(c.monto)}</td><td><span class="pill ${c.estado==='liquidada'?'ok':'warn'}">${c.estado}</span></td>
+      <td>${c.factura_cargada ? '✅' : `<input type="file" id="fact-${c.id}" style="width:120px"><button class="btn-ghost" onclick="subirFactura(${c.id})">Subir</button>`}</td></tr>`;
+  }
+  h += '</table>';
+  document.getElementById('tabla-comisiones').innerHTML = h;
+}
+
+async function subirFactura(comisionId){
+  const input = document.getElementById('fact-'+comisionId);
+  if(!input.files[0]) return;
+  const fd = new FormData(); fd.append('archivo', input.files[0]);
+  await fetch(`/api/socio/comisiones/${comisionId}/factura`, {method:'POST', credentials:'include', body: fd});
+  cargarComisionesTabla();
+}
+
+async function cargarRanking(){
+  const data = await api('/api/socio/ranking?periodo=mes').catch(()=>({ranking:[]}));
+  let h = '<table><tr><th>#</th><th>Socio</th><th>Zona</th><th>Facturado (mes)</th></tr>';
+  for(const f of data.ranking){
+    h += `<tr><td>${f.puesto}</td><td>${f.nombre}</td><td>${f.zona||'—'}</td><td>${fmt(f.monto_facturado)}</td></tr>`;
+  }
+  h += '</table>';
+  document.getElementById('tabla-ranking').innerHTML = h;
+}
+
+async function cargarBiblioteca(){
+  const data = await api('/api/socio/biblioteca').catch(()=>({materiales:[]}));
+  const el = document.getElementById('biblio-grid');
+  el.innerHTML = data.materiales.map(m => `
+    <div class="biblio-card">
+      <div class="tag-cat">${m.categoria}</div>
+      <h4>${m.titulo || m.tipo}</h4>
+      <p>${m.descripcion||''}</p>
+      ${m.url ? `<a href="${m.url}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px">Ver / descargar</a>` : ''}
+    </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay material cargado.</p>';
+}
+
+async function guardarPerfil(){
+  const msg = document.getElementById('p-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    await api('/api/socio/me', {method:'PUT', body: JSON.stringify({cbu_alias: document.getElementById('p-cbu').value})});
+    msg.className='msg ok'; msg.textContent='Guardado.';
+  }catch(e){ msg.className='msg error'; msg.textContent=e.message; }
+}
+
+async function subirDoc(tipo){
+  const msg = document.getElementById('doc-msg'); msg.className='msg'; msg.textContent='';
+  const input = document.getElementById('doc-'+tipo);
+  if(!input.files[0]){ msg.className='msg error'; msg.textContent='Elegí un archivo primero'; return; }
+  const fd = new FormData(); fd.append('archivo', input.files[0]);
+  const r = await fetch(`/api/socio/documentos/${tipo}`, {method:'POST', credentials:'include', body: fd});
+  if(r.ok){ msg.className='msg ok'; msg.textContent='Documento subido.'; }
+  else { msg.className='msg error'; msg.textContent='Error al subir.'; }
+}
+
+// Intento de sesión ya iniciada al cargar la página
+cargarApp();
+</script>
+</body>
+</html>

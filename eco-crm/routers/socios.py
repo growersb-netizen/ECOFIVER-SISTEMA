@@ -1,0 +1,997 @@
+"""
+Plataforma de Socios Comerciales EcoFiver — registro autoservicio, panel,
+carga de ventas, scoring BCRA y liquidación de comisiones.
+
+Reemplaza el modelo de "postulación con aprobación" por registro directo:
+el postulante se registra, verifica su WhatsApp con un código, y entra al
+instante. Sin intervención humana salvo en 3 puntos explícitos (ver spec):
+  1) Llamada de bienvenida (auditoría) — venta financiada
+  2) Confirmación de 48hs — venta de contado
+  3) Transferencia bancaria de la comisión liquidada
+
+Extiende eco-crm; no reemplaza routers/aliados.py (que sigue gestionando
+el panel interno de gestión, comisiones, y el portal de solo lectura legado).
+"""
+import os
+import re
+import json
+import random
+import secrets
+from datetime import datetime, timedelta
+from typing import Optional
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+from pathlib import Path
+
+from database.database import get_db
+from database.models import (
+    Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
+    ScoringBCRA, Usuario,
+)
+from routers.auth import require_auth, get_user_roles, get_current_user
+from routers.catalogo import load_catalogo
+from utils.whatsapp import send_whatsapp_text, notificar_rodrigo
+
+router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+SECRET_KEY = os.getenv("SECRET_KEY", "eco-crm-secret-key-dev-2024")
+ALGORITHM = "HS256"
+SOCIO_TOKEN_COOKIE = "socio_token"
+SOCIO_TOKEN_EXPIRE_HOURS = 24 * 14  # 14 días — es un panel de trabajo diario, no una sesión admin
+
+API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+
+MAX_INTENTOS_LOGIN = 5
+BLOQUEO_MINUTOS = 15
+CODIGO_OTP_EXPIRA_MINUTOS = 10
+
+DATA_DIR = Path("data")
+DOCS_SOCIOS_DIR = DATA_DIR / "documentos_socios"  # /app/data — persistente
+DOCS_SOCIOS_DIR.mkdir(parents=True, exist_ok=True)
+BIBLIOTECA_DIR = DATA_DIR / "biblioteca_socios"
+BIBLIOTECA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTENTICACIÓN DEL SOCIO (independiente de Usuario/auth.py)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _crear_token_socio(aliado_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(hours=SOCIO_TOKEN_EXPIRE_HOURS)
+    return jwt.encode({"sub": str(aliado_id), "typ": "socio", "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def get_current_socio(request: Request, db: Session = Depends(get_db)) -> Optional[Aliado]:
+    token = request.cookies.get(SOCIO_TOKEN_COOKIE)
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("typ") != "socio":
+            return None
+        aliado_id = int(payload.get("sub"))
+    except (JWTError, ValueError, TypeError):
+        return None
+    return db.query(Aliado).filter(Aliado.id == aliado_id, Aliado.estado == "activo").first()
+
+
+def require_socio(request: Request, db: Session = Depends(get_db)) -> Aliado:
+    socio = get_current_socio(request, db)
+    if not socio:
+        raise HTTPException(401, "No autenticado")
+    if not socio.whatsapp_verificado:
+        raise HTTPException(403, "WhatsApp sin verificar")
+    return socio
+
+
+def _require_gestion_interna(x_api_key: Optional[str], current_user: Optional[Usuario]):
+    """Para las acciones que sigue haciendo el equipo interno (los 3 puntos humanos)."""
+    if x_api_key and x_api_key == API_KEY:
+        return
+    if current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "SUPERVISOR_CIERRE", "ADMINISTRACION", "COORDINADOR_OPERATIVO")):
+        return
+    raise HTTPException(403, "Sin permisos para esta operación")
+
+
+def _generar_codigo_aliado(db: Session) -> str:
+    ultimo = db.query(Aliado).order_by(Aliado.id.desc()).first()
+    n = 1
+    if ultimo and ultimo.codigo and ultimo.codigo.upper().startswith("AL-"):
+        try:
+            n = int(ultimo.codigo.split("-")[-1]) + 1
+        except Exception:
+            n = (ultimo.id or 0) + 1
+    elif ultimo:
+        n = (ultimo.id or 0) + 1
+    return f"AL-{n:03d}"
+
+
+def _normalizar_telefono(tel: str) -> str:
+    return re.sub(r"\D", "", tel or "")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGISTRO — reemplaza a la postulación con aprobación
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/public/socio-registro")
+async def socio_registro(request: Request, db: Session = Depends(get_db)):
+    """
+    Registro directo y automático: crea el socio en estado "activo" al instante
+    (no hay aprobación humana) y le manda un código de verificación por WhatsApp.
+    El acceso al panel queda bloqueado hasta que verifique ese código.
+    """
+    data = await request.json()
+
+    nombre = (data.get("nombre") or "").strip()
+    dni = (data.get("dni") or "").strip()
+    telefono = _normalizar_telefono(data.get("whatsapp") or data.get("telefono") or "")
+    email = (data.get("email") or "").strip().lower()
+    zona = (data.get("zona") or data.get("localidad") or "").strip()
+    cuit_monotributo = (data.get("cuit_monotributo") or "").strip()
+    password = data.get("password") or ""
+
+    if not nombre or not dni or not telefono or not email:
+        raise HTTPException(400, "Nombre, DNI, WhatsApp y email son obligatorios")
+    if not re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(400, "Email inválido")
+    if len(password) < 6:
+        raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
+    if len(telefono) < 8:
+        raise HTTPException(400, "WhatsApp inválido")
+
+    if db.query(Aliado).filter(Aliado.dni == dni, Aliado.dni != "").first():
+        raise HTTPException(409, "Ya existe un socio registrado con ese DNI")
+    if db.query(Aliado).filter(Aliado.telefono == telefono, Aliado.telefono != "").first():
+        raise HTTPException(409, "Ya existe un socio registrado con ese WhatsApp")
+    if db.query(Aliado).filter(Aliado.email == email).first():
+        raise HTTPException(409, "Ya existe un socio registrado con ese email")
+
+    codigo_otp = f"{random.randint(0, 999999):06d}"
+
+    socio = Aliado(
+        codigo=_generar_codigo_aliado(db),
+        nombre=nombre,
+        dni=dni,
+        telefono=telefono,
+        email=email,
+        zona=zona,
+        cuit_monotributo=cuit_monotributo,
+        estado="activo",  # registro directo, sin aprobación
+        password_hash=pwd_context.hash(password),
+        whatsapp_verificado=False,
+        codigo_verificacion=codigo_otp,
+        codigo_verificacion_expira=datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS),
+        notas="Registro directo vía plataforma de socios",
+    )
+    db.add(socio)
+    db.commit()
+    db.refresh(socio)
+
+    mensaje = (
+        f"¡Bienvenido a EcoFiver, {nombre.split()[0]}! 🎉\n"
+        f"Tu código de socio es *{socio.codigo}*.\n"
+        f"Para activar tu acceso al panel, ingresá este código de verificación: *{codigo_otp}*\n"
+        f"Vence en {CODIGO_OTP_EXPIRA_MINUTOS} minutos."
+    )
+    send_whatsapp_text(db, telefono, mensaje)
+
+    return {"ok": True, "codigo": socio.codigo, "mensaje": "Te enviamos un código de verificación por WhatsApp"}
+
+
+@router.post("/api/public/socio-verificar")
+async def socio_verificar(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Confirma el código de WhatsApp y deja la sesión iniciada."""
+    data = await request.json()
+    codigo = (data.get("codigo") or "").strip().upper()
+    otp = (data.get("otp") or data.get("codigo_verificacion") or "").strip()
+
+    if not codigo or not otp:
+        raise HTTPException(400, "Faltan datos")
+
+    socio = db.query(Aliado).filter(Aliado.codigo == codigo).first()
+    if not socio:
+        raise HTTPException(404, "Socio no encontrado")
+    if socio.whatsapp_verificado:
+        return {"ok": True, "ya_verificado": True}
+    if not socio.codigo_verificacion or socio.codigo_verificacion != otp:
+        raise HTTPException(400, "Código incorrecto")
+    if socio.codigo_verificacion_expira and socio.codigo_verificacion_expira < datetime.now():
+        raise HTTPException(400, "El código venció — pedí uno nuevo")
+
+    socio.whatsapp_verificado = True
+    socio.codigo_verificacion = None
+    socio.codigo_verificacion_expira = None
+    db.commit()
+
+    token = _crear_token_socio(socio.id)
+    response.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=SOCIO_TOKEN_EXPIRE_HOURS * 3600, samesite="lax")
+    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
+
+
+@router.post("/api/public/socio-reenviar-codigo")
+async def socio_reenviar_codigo(request: Request, db: Session = Depends(get_db)):
+    data = await request.json()
+    codigo = (data.get("codigo") or "").strip().upper()
+    socio = db.query(Aliado).filter(Aliado.codigo == codigo).first()
+    if not socio:
+        raise HTTPException(404, "Socio no encontrado")
+    if socio.whatsapp_verificado:
+        return {"ok": True, "ya_verificado": True}
+
+    otp = f"{random.randint(0, 999999):06d}"
+    socio.codigo_verificacion = otp
+    socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+    db.commit()
+    send_whatsapp_text(db, socio.telefono, f"Tu nuevo código de verificación EcoFiver es *{otp}* (vence en {CODIGO_OTP_EXPIRA_MINUTOS} min).")
+    return {"ok": True}
+
+
+@router.post("/api/public/socio-login")
+async def socio_login(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Login con email o código + contraseña. Con límite de intentos."""
+    data = await request.json()
+    identificador = (data.get("email") or data.get("codigo") or "").strip()
+    password = data.get("password") or ""
+
+    if not identificador or not password:
+        raise HTTPException(400, "Faltan credenciales")
+
+    q = db.query(Aliado)
+    if "@" in identificador:
+        socio = q.filter(Aliado.email == identificador.lower().strip()).first()
+    else:
+        socio = q.filter(Aliado.codigo == identificador.upper().strip()).first()
+
+    if not socio:
+        raise HTTPException(401, "Credenciales incorrectas")
+
+    if socio.bloqueado_hasta and socio.bloqueado_hasta > datetime.now():
+        minutos = max(1, int((socio.bloqueado_hasta - datetime.now()).total_seconds() // 60) + 1)
+        raise HTTPException(429, f"Demasiados intentos fallidos. Probá de nuevo en {minutos} minutos.")
+
+    if not socio.password_hash or not pwd_context.verify(password, socio.password_hash):
+        socio.intentos_fallidos = (socio.intentos_fallidos or 0) + 1
+        if socio.intentos_fallidos >= MAX_INTENTOS_LOGIN:
+            socio.bloqueado_hasta = datetime.now() + timedelta(minutes=BLOQUEO_MINUTOS)
+            socio.intentos_fallidos = 0
+        db.commit()
+        raise HTTPException(401, "Credenciales incorrectas")
+
+    if not socio.whatsapp_verificado:
+        raise HTTPException(403, "Todavía no verificaste tu WhatsApp")
+
+    socio.intentos_fallidos = 0
+    socio.bloqueado_hasta = None
+    db.commit()
+
+    token = _crear_token_socio(socio.id)
+    response.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=SOCIO_TOKEN_EXPIRE_HOURS * 3600, samesite="lax")
+    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
+
+
+@router.post("/api/public/socio-logout")
+async def socio_logout(response: Response):
+    response.delete_cookie(SOCIO_TOKEN_COOKIE)
+    return {"ok": True}
+
+
+@router.get("/api/socio/me")
+async def socio_me(socio: Aliado = Depends(require_socio)):
+    return {
+        "codigo": socio.codigo,
+        "nombre": socio.nombre,
+        "email": socio.email,
+        "zona": socio.zona,
+        "cuit_monotributo": socio.cuit_monotributo or "",
+        "cbu_alias": socio.cbu_alias or "",
+        "doc_monotributo_cargado": bool(socio.doc_monotributo_path),
+        "doc_dni_cargado": bool(socio.doc_dni_path),
+    }
+
+
+@router.put("/api/socio/me")
+async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    data = await request.json()
+    for campo in ("zona", "cbu_alias", "cuit_monotributo"):
+        if campo in data:
+            setattr(socio, campo, (data[campo] or "").strip())
+    db.commit()
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CATÁLOGO Y SIMULADOR (el socio consume lo que el CRM ya calcula)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/socio/catalogo")
+async def socio_catalogo(socio: Aliado = Depends(require_socio)):
+    """Catálogo completo con precios de lista — para cotizar con seguridad."""
+    cat = load_catalogo()
+    return {
+        "piscinas": {
+            "modelos": cat["piscinas"].get("modelos", []),
+            "precios_lista": cat["piscinas"].get("precios_lista", {}),
+            "precios": cat["piscinas"].get("precios", {}),
+        },
+        "modulos": {
+            "superficies_m2": cat["modulos"].get("superficies_m2", []),
+            "precios_lista": cat["modulos"].get("precios_lista", {}),
+            "precios": cat["modulos"].get("precios", {}),
+        },
+    }
+
+
+# ─── Flete — tabla propia del canal de socios ─────────────────────────────────
+# Contado: SIEMPRE se cobra, nunca se bonifica. Financiado: se calcula igual,
+# pero puede ofrecerse bonificado como argumento de cierre (decisión humana al
+# cerrar la operación — el sistema no lo pone en $0 automáticamente).
+FLETE_KM_ALTO = 5500
+FLETE_KM_BAJO = 3500
+_MODELOS_FLETE_ALTO_PISCINA = {"Playa y Abanico", "Arco Romano Grande", "Playa y Abanico Chica", "Playa y Abanico Mediana", "Playa y Abanico Grande", "Arco Romano Grande Recto", "Arco Romano Grande Curvo"}
+
+
+def _flete_por_km(tipo: str, modelo_o_m2) -> int:
+    if tipo.upper() == "MODULO":
+        try:
+            m2 = float(modelo_o_m2)
+        except (TypeError, ValueError):
+            return FLETE_KM_BAJO
+        return FLETE_KM_ALTO if m2 >= 18 else FLETE_KM_BAJO
+    return FLETE_KM_ALTO if str(modelo_o_m2) in _MODELOS_FLETE_ALTO_PISCINA else FLETE_KM_BAJO
+
+
+@router.get("/api/socio/flete")
+async def socio_calcular_flete(
+    tipo: str, modelo: Optional[str] = None, m2: Optional[float] = None,
+    distancia_km: float = 0, financiado: bool = False,
+    socio: Aliado = Depends(require_socio),
+):
+    """
+    Calcula el flete desde la fábrica en Zárate. Siempre devuelve el costo real
+    calculado — en contado se cobra sin excepción; en financiado se marca
+    "bonificable" para que el socio pueda ofrecerlo como argumento de cierre,
+    pero la aplicación de ese descuento es una decisión al cerrar la venta,
+    no algo que el sistema resuelva solo.
+    """
+    valor_km = _flete_por_km(tipo, modelo if tipo.upper() != "MODULO" else m2)
+    flete_total = round(valor_km * distancia_km)
+    return {
+        "tipo": tipo, "distancia_km": distancia_km, "flete_por_km": valor_km,
+        "flete_total": flete_total,
+        "bonificable": bool(financiado),
+        "origen": "Zárate, Buenos Aires",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BIBLIOTECA DE CONTENIDOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _material_dict(m: MaterialSocio) -> dict:
+    return {
+        "id": m.id, "tipo": m.tipo, "categoria": m.categoria, "titulo": m.titulo,
+        "descripcion": m.descripcion,
+        "url": m.url_externa or (f"/api/socio/biblioteca/{m.id}/archivo" if m.archivo_path else None),
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    }
+
+
+@router.get("/api/socio/biblioteca")
+async def socio_biblioteca(tipo: Optional[str] = None, categoria: Optional[str] = None, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    q = db.query(MaterialSocio).filter(MaterialSocio.activo == True)
+    if tipo:
+        q = q.filter(MaterialSocio.tipo == tipo)
+    if categoria:
+        q = q.filter(MaterialSocio.categoria == categoria)
+    items = q.order_by(MaterialSocio.orden, MaterialSocio.id.desc()).all()
+    return {"total": len(items), "materiales": [_material_dict(m) for m in items]}
+
+
+@router.get("/api/socio/biblioteca/{material_id}/archivo")
+async def socio_biblioteca_archivo(material_id: int, db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+    m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
+    if not m or not m.archivo_path or not os.path.exists(m.archivo_path):
+        raise HTTPException(404, "Archivo no encontrado")
+    return FileResponse(m.archivo_path)
+
+
+@router.post("/api/materiales-socio")
+async def crear_material_socio(
+    tipo: str = Form(...), categoria: str = Form("general"), titulo: str = Form(""),
+    descripcion: str = Form(""), url_externa: Optional[str] = Form(None),
+    archivo: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Admin/equipo interno carga material a la biblioteca del panel de socios."""
+    _require_gestion_interna(x_api_key, current_user)
+
+    archivo_path = None
+    if archivo:
+        ext = os.path.splitext(archivo.filename or "")[1] or ".bin"
+        fname = f"{secrets.token_hex(8)}{ext}"
+        archivo_path = str(BIBLIOTECA_DIR / fname)
+        with open(archivo_path, "wb") as f:
+            f.write(await archivo.read())
+
+    m = MaterialSocio(
+        tipo=tipo, categoria=categoria, titulo=titulo, descripcion=descripcion,
+        url_externa=url_externa, archivo_path=archivo_path,
+    )
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return {"ok": True, **_material_dict(m)}
+
+
+@router.delete("/api/materiales-socio/{material_id}")
+async def borrar_material_socio(
+    material_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    _require_gestion_interna(x_api_key, current_user)
+    m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
+    if not m:
+        raise HTTPException(404, "No encontrado")
+    m.activo = False
+    db.commit()
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCUMENTACIÓN PROPIA DEL SOCIO (para poder cobrar)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _guardar_doc_socio(socio_codigo: str, tag: str, archivo: UploadFile) -> str:
+    ext = os.path.splitext(archivo.filename or "")[1] or ".pdf"
+    fname = f"{socio_codigo}_{tag}_{secrets.token_hex(6)}{ext}"
+    path = str(DOCS_SOCIOS_DIR / fname)
+    with open(path, "wb") as f:
+        f.write(await archivo.read())
+    return path
+
+
+@router.post("/api/socio/documentos/monotributo")
+async def subir_doc_monotributo(archivo: UploadFile = File(...), socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    socio.doc_monotributo_path = await _guardar_doc_socio(socio.codigo, "monotributo", archivo)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/socio/documentos/dni")
+async def subir_doc_dni(archivo: UploadFile = File(...), socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    socio.doc_dni_path = await _guardar_doc_socio(socio.codigo, "dni", archivo)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/socio/comisiones/{comision_id}/factura")
+async def subir_factura_comision(comision_id: int, archivo: UploadFile = File(...), socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """No es excluyente ni bloqueante del pago — solo respaldo si el socio tiene monotributo."""
+    c = db.query(Comision).filter(Comision.id == comision_id, Comision.aliado_codigo == socio.codigo).first()
+    if not c:
+        raise HTTPException(404, "Comisión no encontrada")
+    c.factura_path = await _guardar_doc_socio(socio.codigo, f"factura{comision_id}", archivo)
+    db.commit()
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCORING BCRA — Central de Deudores (pública)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+BCRA_API = "https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas"
+
+
+@router.post("/api/socio/scoring")
+async def consultar_scoring(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Consulta la Central de Deudores del BCRA por DNI/CUIT antes de financiar.
+    Situación 5 o 6 no bloquean la venta — disparan pedirle al cliente una
+    declaración jurada (requiere_declaracion_jurada=True).
+    """
+    data = await request.json()
+    identificacion = re.sub(r"\D", "", data.get("dni") or data.get("cuit") or "")
+    if not identificacion:
+        raise HTTPException(400, "Falta DNI o CUIT")
+
+    situacion = None
+    respuesta_raw = ""
+    try:
+        async with httpx.AsyncClient(timeout=15, verify=False) as client:
+            r = await client.get(f"{BCRA_API}/{identificacion}")
+            respuesta_raw = r.text
+            if r.status_code == 200:
+                body = r.json()
+                periodos = (body.get("results") or {}).get("periodos") or []
+                if periodos:
+                    ultimo_periodo = periodos[0]  # la API devuelve el más reciente primero
+                    entidades = ultimo_periodo.get("entidades") or []
+                    situaciones = [e.get("situacion") for e in entidades if e.get("situacion") is not None]
+                    if situaciones:
+                        situacion = max(situaciones)  # la peor situación entre todas las entidades
+            elif r.status_code == 404:
+                situacion = None  # sin antecedentes en el sistema financiero — no es una mala señal
+            else:
+                raise HTTPException(502, "El servicio del BCRA no respondió correctamente, reintentá en un momento")
+    except httpx.HTTPError:
+        raise HTTPException(502, "No se pudo conectar con el BCRA — reintentá en un momento")
+
+    requiere_dj = situacion in (5, 6)
+
+    log = ScoringBCRA(
+        aliado_codigo=socio.codigo, cliente_dni=identificacion, situacion=situacion,
+        requiere_declaracion_jurada=requiere_dj, respuesta_raw=respuesta_raw[:4000],
+    )
+    db.add(log)
+    db.commit()
+
+    mensaje = "Sin antecedentes registrados." if situacion is None else f"Situación {situacion} en el sistema financiero."
+    if requiere_dj:
+        mensaje += " Se le va a pedir al cliente una declaración jurada antes de avanzar — la operación no se bloquea."
+
+    return {"ok": True, "situacion": situacion, "requiere_declaracion_jurada": requiere_dj, "mensaje": mensaje}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CARGA DE VENTAS — el socio hace la operación completa
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/socio/ventas/contado")
+async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Venta de contado cargada por el socio. Requisito excluyente: SIN instalación
+    incluida — la coordina el propio socio (él, su equipo, o tercerizada).
+    El equipo interno se contacta con el cliente dentro de las 48hs.
+    """
+    data = await request.json()
+    cliente_nombre = (data.get("cliente_nombre") or "").strip()
+    if not cliente_nombre:
+        raise HTTPException(400, "Falta el nombre del cliente")
+
+    venta = VentaContado(
+        cliente_nombre=cliente_nombre,
+        cliente_telefono=_normalizar_telefono(data.get("cliente_telefono") or ""),
+        cliente_localidad=(data.get("cliente_localidad") or "").strip(),
+        producto=(data.get("producto") or "").upper(),
+        modelo_especifico=(data.get("modelo_especifico") or "").strip(),
+        superficie_m2=data.get("superficie_m2"),
+        precio_final=float(data.get("precio_final") or 0),
+        forma_pago="CONTADO",
+        estado="COORDINADO",
+        modalidad_cobro="CONTRAENTREGA",  # se cobra contra la entrega en el domicilio
+        cobro_estado="PENDIENTE",
+        notas=f"Venta de socio comercial {socio.codigo}. Instalación NO incluida — la coordina el socio. {data.get('notas', '')}",
+        aliado_codigo=socio.codigo,
+    )
+    db.add(venta)
+    db.commit()
+    db.refresh(venta)
+
+    notificar_rodrigo(
+        db,
+        f"🟣 *Nueva venta de contado — Socio {socio.codigo} ({socio.nombre})*\n"
+        f"Cliente: {cliente_nombre} — {venta.cliente_localidad}\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico}\n"
+        f"Monto: ${venta.precio_final:,.0f}\n"
+        f"⏰ Contactar dentro de las 48hs para confirmar fecha y detalles.\n"
+        f"Venta ID: {venta.id}",
+    )
+
+    return {"ok": True, "venta_id": venta.id, "mensaje": "Venta cargada. El equipo va a contactar al cliente dentro de las 48hs."}
+
+
+@router.post("/api/ventas-contado/{venta_id}/confirmacion-48hs")
+async def confirmar_48hs_contado(
+    venta_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """El equipo confirma que contactó al cliente dentro de las 48hs."""
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaContado).filter(VentaContado.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    venta.confirmacion_48hs_en = datetime.now()
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/ventas-contado/{venta_id}/entregada-cobrada")
+async def marcar_entregada_cobrada(
+    venta_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Entrega + cobro en el domicilio del cliente. Libera la comisión del socio
+    (2% del valor nominal) — cuenta también para el ranking en este momento.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaContado).filter(VentaContado.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    venta.cobro_estado = "COBRADO"
+    venta.cobro_fecha = datetime.now()
+    db.commit()
+
+    if venta.aliado_codigo:
+        comision = Comision(
+            aliado_codigo=venta.aliado_codigo,
+            tipo="contado",
+            monto=round((venta.precio_final or 0) * 0.02, 2),
+            estado="pendiente",
+            venta_contado_id=venta.id,
+        )
+        db.add(comision)
+        db.commit()
+        return {"ok": True, "comision_generada": comision.monto}
+    return {"ok": True, "comision_generada": None}
+
+
+@router.post("/api/socio/ventas/financiado")
+async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Venta financiada cargada por el socio. El precio/cuota se resuelve SIEMPRE
+    contra el catálogo (nunca un número tipeado a mano) para que no haya
+    inconsistencias con las fichas oficiales.
+    """
+    data = await request.json()
+    cliente_nombre = (data.get("cliente_nombre") or "").strip()
+    cliente_dni = (data.get("cliente_dni") or "").strip()
+    producto = (data.get("producto") or "").upper()
+    modelo = (data.get("modelo_especifico") or "").strip()
+    cantidad_cuotas = int(data.get("cantidad_cuotas") or 0)
+
+    if not cliente_nombre or not cliente_dni or not modelo or not cantidad_cuotas:
+        raise HTTPException(400, "Faltan datos obligatorios (cliente, DNI, modelo, cuotas)")
+
+    cat = load_catalogo()
+    tipo_norm = "PISCINA" if producto == "PISCINA" else "MODULO"
+    precios = cat[tipo_norm.lower() + "s"].get("precios_lista", {})
+    precio_lista = precios.get(modelo)
+    if not precio_lista:
+        raise HTTPException(404, f"Modelo '{modelo}' no encontrado en el catálogo")
+
+    factor = 2.0
+    valor_cuota = round(precio_lista / (cantidad_cuotas + factor))
+    monto_inscripcion = round(valor_cuota * factor)
+
+    ultimo_scoring = (
+        db.query(ScoringBCRA)
+        .filter(ScoringBCRA.cliente_dni == cliente_dni, ScoringBCRA.aliado_codigo == socio.codigo)
+        .order_by(ScoringBCRA.id.desc()).first()
+    )
+
+    venta = VentaFinanciada(
+        cliente_nombre=cliente_nombre,
+        cliente_dni=cliente_dni,
+        cliente_telefono=_normalizar_telefono(data.get("cliente_telefono") or ""),
+        cliente_localidad=(data.get("cliente_localidad") or "").strip(),
+        cliente_email=(data.get("cliente_email") or "").strip(),
+        producto=tipo_norm,
+        modelo_especifico=modelo,
+        forma_pago="FINANCIADO",
+        precio_total=precio_lista,
+        monto_inscripcion=monto_inscripcion,
+        cantidad_cuotas=cantidad_cuotas,
+        valor_cuota=valor_cuota,
+        estado_plan="PENDIENTE_INSCRIPCION",
+        notas=f"Venta de socio comercial {socio.codigo}.",
+        aliado_codigo=socio.codigo,
+        scoring_situacion=ultimo_scoring.situacion if ultimo_scoring else None,
+        declaracion_jurada_requerida=bool(ultimo_scoring and ultimo_scoring.requiere_declaracion_jurada),
+    )
+    db.add(venta)
+    db.commit()
+    db.refresh(venta)
+
+    return {
+        "ok": True, "venta_id": venta.id, "precio_lista": precio_lista,
+        "cuotas": cantidad_cuotas, "valor_cuota": valor_cuota, "monto_inscripcion": monto_inscripcion,
+        "declaracion_jurada_requerida": venta.declaracion_jurada_requerida,
+        "mensaje": "Venta cargada. En cuanto el cliente pague la inscripción completa, descargá el contrato desde tu panel.",
+    }
+
+
+@router.post("/api/ventas-financiadas/{venta_id}/inscripcion-pagada")
+async def marcar_inscripcion_pagada(
+    venta_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    El equipo de administración confirma la acreditación bancaria de la
+    inscripción completa (2 cuotas). Acción interna — requiere verificar el
+    extracto bancario real, no puede quedar en manos del propio socio.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    venta.inscripcion_pagada_en = datetime.now()
+    venta.estado_plan = "ACTIVO"
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/socio/ventas/{venta_id}/generar-contrato")
+async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Genera el contrato y el link de confirmación para el cliente. Solo
+    disponible una vez que el equipo confirmó la inscripción pagada.
+    """
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if not venta.inscripcion_pagada_en:
+        raise HTTPException(409, "Todavía no se confirmó el pago de la inscripción")
+
+    if not venta.link_confirmacion_token:
+        venta.link_confirmacion_token = secrets.token_urlsafe(24)
+    venta.contrato_generado_en = datetime.now()
+    if not venta.numero_solicitud:
+        from routers.aliados import siguiente_numero_solicitud
+        venta.numero_solicitud = siguiente_numero_solicitud(db)
+    db.commit()
+
+    base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
+    link_confirmacion = f"{base_url}/socio/confirmar/{venta.link_confirmacion_token}"
+
+    return {
+        "ok": True,
+        "numero_solicitud": venta.numero_solicitud,
+        "link_confirmacion": link_confirmacion,
+        "declaracion_jurada_requerida": venta.declaracion_jurada_requerida,
+        "mensaje": "Mandale este link al cliente para que confirme su adhesión al plan.",
+    }
+
+
+# ─── Confirmación pública del cliente (sin login) ─────────────────────────────
+
+@router.get("/socio/confirmar/{token}", response_class=HTMLResponse)
+async def pagina_confirmacion_cliente(token: str, request: Request, db: Session = Depends(get_db)):
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
+    if not venta:
+        return HTMLResponse("<h1>Link inválido o vencido</h1>", status_code=404)
+    return templates.TemplateResponse("confirmar_plan.html", {"request": request, "venta": venta, "token": token})
+
+
+@router.post("/api/public/confirmar-plan/{token}")
+async def confirmar_plan_cliente(token: str, db: Session = Depends(get_db)):
+    """
+    El cliente confirma: entendió que es un plan y que debe abonar hasta el
+    50% del valor nominal para pedir entrega/instalación. Dispara el aviso
+    al equipo para la llamada de bienvenida (auditoría).
+    """
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
+    if not venta:
+        raise HTTPException(404, "Link inválido")
+    if venta.link_confirmacion_confirmada_en:
+        return {"ok": True, "ya_confirmado": True}
+
+    venta.link_confirmacion_confirmada_en = datetime.now()
+    db.commit()
+
+    notificar_rodrigo(
+        db,
+        f"🟢 *Cliente confirmó su plan — Socio {venta.aliado_codigo}*\n"
+        f"Cliente: {venta.cliente_nombre} (DNI {venta.cliente_dni})\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico} — {venta.cantidad_cuotas} cuotas\n"
+        f"Solicitud N° {venta.numero_solicitud}\n"
+        f"{'⚠️ Requiere declaración jurada (situación BCRA ' + str(venta.scoring_situacion) + ')' if venta.declaracion_jurada_requerida else ''}\n"
+        f"→ Falta la llamada de bienvenida (auditoría) para liberar la comisión.\n"
+        f"Venta ID: {venta.id}",
+    )
+    return {"ok": True}
+
+
+@router.post("/api/ventas-financiadas/{venta_id}/auditoria-completada")
+async def completar_auditoria_bienvenida(
+    venta_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    El equipo confirma que hizo la llamada de bienvenida: el cliente entendió
+    el plan y la condición del 50%. Libera la comisión (75% de una cuota).
+    Si la venta requiere declaración jurada, exige que ya esté confirmada.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.declaracion_jurada_requerida and not venta.declaracion_jurada_confirmada_en:
+        raise HTTPException(409, "Falta la declaración jurada del cliente antes de cerrar la auditoría")
+
+    venta.auditoria_bienvenida_en = datetime.now()
+    db.commit()
+
+    comision = None
+    if venta.aliado_codigo:
+        comision = Comision(
+            aliado_codigo=venta.aliado_codigo,
+            solicitud_numero=venta.numero_solicitud or "",
+            tipo="entrada",
+            monto=round((venta.valor_cuota or 0) * 0.75, 2),
+            estado="pendiente",
+            venta_financiada_id=venta.id,
+        )
+        db.add(comision)
+        db.commit()
+
+    return {"ok": True, "comision_generada": comision.monto if comision else None}
+
+
+# ─── Declaración jurada (situación 5 o 6) ─────────────────────────────────────
+
+DECLARACION_JURADA_TEXTO = (
+    "Declaro bajo juramento que conozco mi situación crediticia actual ante el Banco Central de la "
+    "República Argentina (BCRA) y que, no obstante ello, deseo avanzar con la operación de financiación "
+    "descripta en la presente solicitud. Asumo la responsabilidad íntegra por el cumplimiento de las "
+    "obligaciones de pago asumidas, y reconozco que esta declaración forma parte integrante del contrato "
+    "de financiación suscripto con EcoFiver (Cooperativa de Trabajo Eco Zárate Limitada)."
+)
+
+
+@router.get("/socio/declaracion-jurada/{token}", response_class=HTMLResponse)
+async def pagina_declaracion_jurada(token: str, request: Request, db: Session = Depends(get_db)):
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
+    if not venta or not venta.declaracion_jurada_requerida:
+        return HTMLResponse("<h1>Link inválido</h1>", status_code=404)
+    return templates.TemplateResponse("declaracion_jurada.html", {
+        "request": request, "venta": venta, "token": token, "texto": DECLARACION_JURADA_TEXTO,
+    })
+
+
+@router.post("/api/public/confirmar-declaracion-jurada/{token}")
+async def confirmar_declaracion_jurada(token: str, db: Session = Depends(get_db)):
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
+    if not venta:
+        raise HTTPException(404, "Link inválido")
+    venta.declaracion_jurada_confirmada_en = datetime.now()
+    db.commit()
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LICITACIÓN — entrega anticipada por integración de capital
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vivienda modular: se puede licitar desde la cuota 6. Piscina: desde la cuota 3.
+# El cliente sigue abonando mes a mes hasta terminar el plan — licitar adelanta
+# la entrega, no cancela el resto de las cuotas.
+CUOTA_MINIMA_LICITACION = {"MODULO": 6, "PISCINA": 3}
+
+
+def _cuota_minima_licitacion(producto: str) -> int:
+    return CUOTA_MINIMA_LICITACION.get((producto or "").upper(), 6)
+
+
+@router.post("/api/socio/ventas/{venta_id}/solicitar-licitacion")
+async def solicitar_licitacion(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """El cliente pidió, vía integración de capital, adelantar la entrega de su vivienda/piscina."""
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    umbral = _cuota_minima_licitacion(venta.producto)
+    if (venta.cuotas_pagas or 0) < umbral:
+        raise HTTPException(409, f"Recién se puede licitar desde la cuota {umbral} — este plan lleva {venta.cuotas_pagas or 0} pagas")
+    if venta.licitacion_solicitada_en:
+        return {"ok": True, "ya_solicitada": True}
+
+    venta.licitacion_solicitada_en = datetime.now()
+    db.commit()
+    notificar_rodrigo(
+        db,
+        f"🏗️ *Pedido de licitación — Socio {socio.codigo}*\n"
+        f"Cliente: {venta.cliente_nombre} (DNI {venta.cliente_dni})\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico} — cuota {venta.cuotas_pagas}/{venta.cantidad_cuotas}\n"
+        f"Solicita integración de capital para adelantar la entrega.\n"
+        f"Venta ID: {venta.id}",
+    )
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MIS VENTAS Y MIS COMISIONES (autoservicio)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/socio/ventas")
+async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    contado = db.query(VentaContado).filter(VentaContado.aliado_codigo == socio.codigo).order_by(VentaContado.created_at.desc()).all()
+    financiado = db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo == socio.codigo).order_by(VentaFinanciada.created_at.desc()).all()
+    return {
+        "contado": [{
+            "id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto,
+            "modelo_especifico": v.modelo_especifico, "precio_final": v.precio_final,
+            "cobro_estado": v.cobro_estado,
+            "confirmacion_48hs": bool(v.confirmacion_48hs_en),
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+        } for v in contado],
+        "financiado": [{
+            "id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto,
+            "modelo_especifico": v.modelo_especifico, "cantidad_cuotas": v.cantidad_cuotas,
+            "valor_cuota": v.valor_cuota, "estado_plan": v.estado_plan,
+            "cuotas_pagas": v.cuotas_pagas or 0,
+            "cuota_minima_licitacion": _cuota_minima_licitacion(v.producto),
+            "puede_licitar": (v.cuotas_pagas or 0) >= _cuota_minima_licitacion(v.producto),
+            "licitacion_solicitada": bool(v.licitacion_solicitada_en),
+            "inscripcion_pagada": bool(v.inscripcion_pagada_en),
+            "contrato_generado": bool(v.contrato_generado_en),
+            "link_confirmacion_token": v.link_confirmacion_token,
+            "cliente_confirmo": bool(v.link_confirmacion_confirmada_en),
+            "declaracion_jurada_requerida": v.declaracion_jurada_requerida,
+            "declaracion_jurada_confirmada": bool(v.declaracion_jurada_confirmada_en),
+            "auditoria_completada": bool(v.auditoria_bienvenida_en),
+            "numero_solicitud": v.numero_solicitud,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+        } for v in financiado],
+    }
+
+
+@router.get("/api/socio/comisiones")
+async def mis_comisiones(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    comisiones = db.query(Comision).filter(Comision.aliado_codigo == socio.codigo).order_by(Comision.id.desc()).all()
+    return {
+        "monto_pendiente": round(sum(c.monto or 0 for c in comisiones if c.estado == "pendiente"), 2),
+        "monto_liquidado": round(sum(c.monto or 0 for c in comisiones if c.estado == "liquidada"), 2),
+        "comisiones": [{
+            "id": c.id, "tipo": c.tipo, "monto": c.monto, "estado": c.estado,
+            "solicitud_numero": c.solicitud_numero or "",
+            "factura_cargada": bool(c.factura_path),
+            "fecha_liquidacion": c.fecha_liquidacion.isoformat() if c.fecha_liquidacion else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        } for c in comisiones],
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RANKING — solo ventas con plata real ya movida
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/socio/ranking")
+async def ranking_socios(periodo: str = "mes", db: Session = Depends(get_db)):
+    """
+    Ranking nacional: nombre + inicial de apellido, zona, monto facturado.
+    Cuenta financiado con inscripción ya pagada, y contado ya cobrado —
+    no hace falta esperar la auditoría/48hs para aparecer en el ranking.
+    """
+    dias = {"semana": 7, "mes": 30, "trimestre": 90, "año": 365}.get(periodo, 30)
+    desde = datetime.now() - timedelta(days=dias)
+
+    filas = {}
+    for a in db.query(Aliado).filter(Aliado.estado == "activo").all():
+        partes = a.nombre.strip().split()
+        nombre_mostrado = partes[0] if len(partes) == 1 else f"{partes[0]} {partes[-1][0]}."
+        filas[a.codigo] = {"codigo": a.codigo, "nombre": nombre_mostrado, "zona": a.zona or "", "monto_facturado": 0.0}
+
+    for v in db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo.isnot(None), VentaFinanciada.inscripcion_pagada_en.isnot(None), VentaFinanciada.inscripcion_pagada_en >= desde).all():
+        if v.aliado_codigo in filas:
+            filas[v.aliado_codigo]["monto_facturado"] += (v.precio_total or 0)
+
+    for v in db.query(VentaContado).filter(VentaContado.aliado_codigo.isnot(None), VentaContado.cobro_estado == "COBRADO", VentaContado.cobro_fecha.isnot(None), VentaContado.cobro_fecha >= desde).all():
+        if v.aliado_codigo in filas:
+            filas[v.aliado_codigo]["monto_facturado"] += (v.precio_final or 0)
+
+    ranking = sorted(filas.values(), key=lambda x: x["monto_facturado"], reverse=True)
+    for i, f in enumerate(ranking, 1):
+        f["puesto"] = i
+        f["monto_facturado"] = round(f["monto_facturado"], 2)
+    return {"periodo": periodo, "ranking": ranking}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA DEL PANEL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/panel-socio", response_class=HTMLResponse)
+async def panel_socio_page(request: Request):
+    return templates.TemplateResponse("panel_socio.html", {"request": request})

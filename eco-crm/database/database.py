@@ -167,6 +167,32 @@ def run_migrations():
             # ── Ecopost: publicación programada multi-página + tipo ────────────────
             "ALTER TABLE contenido_ecopost ADD COLUMN publish_pages_json TEXT DEFAULT '[]'",
             "ALTER TABLE contenido_ecopost ADD COLUMN publish_tipo TEXT DEFAULT 'post'",
+            # ── Plataforma de Socios Comerciales — cuenta de acceso propia ──────────
+            "ALTER TABLE aliados ADD COLUMN email TEXT",
+            "ALTER TABLE aliados ADD COLUMN password_hash TEXT",
+            "ALTER TABLE aliados ADD COLUMN whatsapp_verificado BOOLEAN DEFAULT 0",
+            "ALTER TABLE aliados ADD COLUMN codigo_verificacion TEXT",
+            "ALTER TABLE aliados ADD COLUMN codigo_verificacion_expira DATETIME",
+            "ALTER TABLE aliados ADD COLUMN intentos_fallidos INTEGER DEFAULT 0",
+            "ALTER TABLE aliados ADD COLUMN bloqueado_hasta DATETIME",
+            "ALTER TABLE aliados ADD COLUMN doc_monotributo_path TEXT",
+            "ALTER TABLE aliados ADD COLUMN doc_dni_path TEXT",
+            # ── Socios: venta cargada de punta a punta por el socio ─────────────────
+            "ALTER TABLE ventas_financiadas ADD COLUMN aliado_codigo TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN scoring_situacion INTEGER",
+            "ALTER TABLE ventas_financiadas ADD COLUMN declaracion_jurada_requerida BOOLEAN DEFAULT 0",
+            "ALTER TABLE ventas_financiadas ADD COLUMN declaracion_jurada_confirmada_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN inscripcion_pagada_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN contrato_generado_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN link_confirmacion_token TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN link_confirmacion_confirmada_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN auditoria_bienvenida_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN licitacion_solicitada_en DATETIME",
+            "ALTER TABLE ventas_contado ADD COLUMN aliado_codigo TEXT",
+            "ALTER TABLE ventas_contado ADD COLUMN confirmacion_48hs_en DATETIME",
+            "ALTER TABLE comisiones ADD COLUMN venta_financiada_id INTEGER",
+            "ALTER TABLE comisiones ADD COLUMN venta_contado_id INTEGER",
+            "ALTER TABLE comisiones ADD COLUMN factura_path TEXT",
         ]
         for stmt in migrations:
             try:

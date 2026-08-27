@@ -79,7 +79,20 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # OJO: con allow_credentials=True no se puede usar "*" como origen.
+    # Starlette solo refleja el origin exacto (en vez de "*") en preflight
+    # (OPTIONS); en la respuesta real de un POST/GET sin cookie ya seteada
+    # devuelve el "*" literal, y el navegador lo rechaza cuando el fetch
+    # usa credentials:"include" (ver /api/public/socio-registro). Por eso
+    # se lista de forma explícita cada origen habilitado.
+    allow_origins=[
+        "https://landing-aliados-ecofiver.vercel.app",
+        "https://landing-financiacion.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+    ],
+    allow_origin_regex=r"https://landing-aliados-ecofiver.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

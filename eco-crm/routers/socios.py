@@ -397,7 +397,7 @@ async def socio_biblioteca(tipo: Optional[str] = None, categoria: Optional[str] 
 
 
 @router.get("/api/socio/biblioteca/{material_id}/archivo")
-async def socio_biblioteca_archivo(material_id: int, db: Session = Depends(get_db)):
+async def socio_biblioteca_archivo(material_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     from fastapi.responses import FileResponse
     m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
     if not m or not m.archivo_path or not os.path.exists(m.archivo_path):
@@ -958,7 +958,7 @@ async def mis_comisiones(socio: Aliado = Depends(require_socio), db: Session = D
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/socio/ranking")
-async def ranking_socios(periodo: str = "mes", db: Session = Depends(get_db)):
+async def ranking_socios(periodo: str = "mes", socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """
     Ranking nacional: nombre + inicial de apellido, zona, monto facturado.
     Cuenta financiado con inscripción ya pagada, y contado ya cobrado —

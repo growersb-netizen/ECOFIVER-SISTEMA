@@ -278,6 +278,63 @@ async def socio_login(request: Request, response: Response, db: Session = Depend
     return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
 
 
+# ─── Recuperación de contraseña — mismo canal de OTP por WhatsApp ─────────────
+
+@router.post("/api/public/socio-olvide-password")
+async def socio_olvide_password(request: Request, db: Session = Depends(get_db)):
+    """
+    Pide un código por WhatsApp para resetear la contraseña. Responde igual
+    exista o no el socio (no revela si un email/código está registrado).
+    """
+    data = await request.json()
+    identificador = (data.get("email") or data.get("codigo") or "").strip()
+    if not identificador:
+        raise HTTPException(400, "Ingresá tu email o tu código de socio")
+
+    q = db.query(Aliado)
+    socio = q.filter(Aliado.email == identificador.lower().strip()).first() if "@" in identificador \
+        else q.filter(Aliado.codigo == identificador.upper().strip()).first()
+
+    if socio and socio.telefono:
+        otp = f"{random.randint(0, 999999):06d}"
+        socio.codigo_verificacion = otp
+        socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+        db.commit()
+        send_whatsapp_text(db, socio.telefono, f"Tu código para restablecer la contraseña de EcoFiver es *{otp}* (vence en {CODIGO_OTP_EXPIRA_MINUTOS} min). Si no lo pediste vos, ignorá este mensaje.")
+
+    return {"ok": True, "mensaje": "Si el dato coincide con una cuenta, te mandamos un código por WhatsApp."}
+
+
+@router.post("/api/public/socio-resetear-password")
+async def socio_resetear_password(request: Request, db: Session = Depends(get_db)):
+    data = await request.json()
+    identificador = (data.get("email") or data.get("codigo") or "").strip()
+    otp = (data.get("otp") or "").strip()
+    password_nueva = data.get("password_nueva") or ""
+
+    if not identificador or not otp:
+        raise HTTPException(400, "Faltan datos")
+    if len(password_nueva) < 6:
+        raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
+
+    q = db.query(Aliado)
+    socio = q.filter(Aliado.email == identificador.lower().strip()).first() if "@" in identificador \
+        else q.filter(Aliado.codigo == identificador.upper().strip()).first()
+
+    if not socio or not socio.codigo_verificacion or socio.codigo_verificacion != otp:
+        raise HTTPException(400, "Código incorrecto")
+    if socio.codigo_verificacion_expira and socio.codigo_verificacion_expira < datetime.now():
+        raise HTTPException(400, "El código venció — pedí uno nuevo")
+
+    socio.password_hash = pwd_context.hash(password_nueva)
+    socio.codigo_verificacion = None
+    socio.codigo_verificacion_expira = None
+    socio.intentos_fallidos = 0
+    socio.bloqueado_hasta = None
+    db.commit()
+    return {"ok": True, "mensaje": "Contraseña actualizada. Ya podés ingresar."}
+
+
 @router.post("/api/public/socio-logout")
 async def socio_logout(response: Response):
     response.delete_cookie(SOCIO_TOKEN_COOKIE)
@@ -383,6 +440,33 @@ def _material_dict(m: MaterialSocio) -> dict:
         "url": m.url_externa or (f"/api/socio/biblioteca/{m.id}/archivo" if m.archivo_path else None),
         "created_at": m.created_at.isoformat() if m.created_at else None,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTOEVALUACIÓN — el quiz de onboarding, ahora como contenido educativo
+# ═══════════════════════════════════════════════════════════════════════════════
+# No bloquea ni aprueba nada — el registro es directo. Sirve para que el socio
+# se autoevalúe si entendió bien las reglas. Fuente de verdad de las preguntas:
+# eco-multiagente/tools/franco_quiz.py (mantener ambas listas sincronizadas).
+QUIZ_AUTOEVALUACION = [
+    {"pregunta": "¿En qué zona geográfica opera el programa de Socios Comerciales?", "respuesta": "En todo el país."},
+    {"pregunta": "¿Quién cierra una venta, contado o financiada: el Socio o el equipo de EcoFiver?", "respuesta": "El Socio Comercial — hace la operación completa, de punta a punta."},
+    {"pregunta": "¿Con qué herramienta cotizás precios y cuotas?", "respuesta": "Con el catálogo y el simulador de tu panel — nunca de memoria."},
+    {"pregunta": "¿Tenés horario fijo de trabajo?", "respuesta": "No. Es un vínculo comercial, sin obligación de horario ni de asistencia."},
+    {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "75% del valor de una cuota del plan."},
+    {"pregunta": "¿Cuándo se libera tu comisión en una venta financiada?", "respuesta": "Cuando el equipo hace la llamada de bienvenida (auditoría) y confirma que el cliente entendió el plan."},
+    {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "2% del valor nominal del producto — se libera contra entrega y cobro."},
+    {"pregunta": "¿Necesitás Monotributo para operar?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones."},
+    {"pregunta": "¿La instalación está incluida en una venta de contado?", "respuesta": "No. La coordinás vos, tu equipo, o un tercero — EcoFiver solo traslada y entrega."},
+    {"pregunta": "¿Desde qué cuota se puede pedir la entrega anticipada (licitación)?", "respuesta": "Desde la cuota 6 en viviendas, y desde la cuota 3 en piscinas."},
+    {"pregunta": "¿A quién le escribís si tenés dudas sobre una venta en curso?", "respuesta": "A Franco, por el WhatsApp del canal de socios."},
+]
+
+
+@router.get("/api/socio/quiz")
+async def socio_quiz(socio: Aliado = Depends(require_socio)):
+    """Autoevaluación educativa — no bloquea ni aprueba nada."""
+    return {"preguntas": QUIZ_AUTOEVALUACION}
 
 
 @router.get("/api/socio/biblioteca")
@@ -939,6 +1023,86 @@ async def solicitar_licitacion(venta_id: int, socio: Aliado = Depends(require_so
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# COLAS INTERNAS — los 3 puntos humanos, con lista para operar desde el panel
+# (antes solo existían como endpoints de acción, sin ninguna pantalla para verlos)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _venta_fin_dict(v: VentaFinanciada) -> dict:
+    return {
+        "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
+        "cliente_dni": v.cliente_dni, "cliente_telefono": v.cliente_telefono,
+        "producto": v.producto, "modelo_especifico": v.modelo_especifico,
+        "cantidad_cuotas": v.cantidad_cuotas, "valor_cuota": v.valor_cuota,
+        "numero_solicitud": v.numero_solicitud,
+        "declaracion_jurada_requerida": v.declaracion_jurada_requerida,
+        "declaracion_jurada_confirmada": bool(v.declaracion_jurada_confirmada_en),
+        "created_at": v.created_at.isoformat() if v.created_at else None,
+    }
+
+
+def _venta_cont_dict(v: VentaContado) -> dict:
+    return {
+        "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
+        "cliente_telefono": v.cliente_telefono, "cliente_localidad": v.cliente_localidad,
+        "producto": v.producto, "modelo_especifico": v.modelo_especifico,
+        "precio_final": v.precio_final,
+        "created_at": v.created_at.isoformat() if v.created_at else None,
+    }
+
+
+@router.get("/api/ventas-financiadas/pendientes-inscripcion")
+async def pendientes_inscripcion(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Ventas financiadas cargadas por un socio, esperando que se confirme el pago de la seña."""
+    _require_gestion_interna(x_api_key, current_user)
+    ventas = (db.query(VentaFinanciada)
+              .filter(VentaFinanciada.aliado_codigo.isnot(None), VentaFinanciada.inscripcion_pagada_en.is_(None))
+              .order_by(VentaFinanciada.created_at.asc()).all())
+    return {"total": len(ventas), "ventas": [_venta_fin_dict(v) for v in ventas]}
+
+
+@router.get("/api/ventas-financiadas/pendientes-auditoria")
+async def pendientes_auditoria(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Clientes que ya confirmaron su plan por el link — falta la llamada de bienvenida."""
+    _require_gestion_interna(x_api_key, current_user)
+    ventas = (db.query(VentaFinanciada)
+              .filter(VentaFinanciada.link_confirmacion_confirmada_en.isnot(None), VentaFinanciada.auditoria_bienvenida_en.is_(None))
+              .order_by(VentaFinanciada.link_confirmacion_confirmada_en.asc()).all())
+    return {"total": len(ventas), "ventas": [_venta_fin_dict(v) for v in ventas]}
+
+
+@router.get("/api/ventas-contado/pendientes-confirmacion")
+async def pendientes_confirmacion_48hs(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Ventas de contado cargadas por un socio, esperando el contacto de las 48hs."""
+    _require_gestion_interna(x_api_key, current_user)
+    ventas = (db.query(VentaContado)
+              .filter(VentaContado.aliado_codigo.isnot(None), VentaContado.confirmacion_48hs_en.is_(None))
+              .order_by(VentaContado.created_at.asc()).all())
+    return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}
+
+
+@router.get("/api/ventas-contado/pendientes-entrega")
+async def pendientes_entrega_cobro(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Ventas de contado ya confirmadas, esperando registrar entrega + cobro."""
+    _require_gestion_interna(x_api_key, current_user)
+    ventas = (db.query(VentaContado)
+              .filter(VentaContado.aliado_codigo.isnot(None), VentaContado.confirmacion_48hs_en.isnot(None), VentaContado.cobro_estado != "COBRADO")
+              .order_by(VentaContado.confirmacion_48hs_en.asc()).all())
+    return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MIS VENTAS Y MIS COMISIONES (autoservicio)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -996,12 +1160,21 @@ async def mis_comisiones(socio: Aliado = Depends(require_socio), db: Session = D
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/socio/ranking")
-async def ranking_socios(periodo: str = "mes", socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+async def ranking_socios(
+    periodo: str = "mes", db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    socio: Optional[Aliado] = Depends(get_current_socio),
+):
     """
     Ranking nacional: nombre + inicial de apellido, zona, monto facturado.
+    Accesible con sesión de socio (panel) O con la API key (Franco, para el
+    resumen de los viernes) — nunca sin ninguna de las dos.
     Cuenta financiado con inscripción ya pagada, y contado ya cobrado —
     no hace falta esperar la auditoría/48hs para aparecer en el ranking.
     """
+    if not socio and not (x_api_key and x_api_key == API_KEY):
+        raise HTTPException(401, "No autenticado")
+
     dias = {"semana": 7, "mes": 30, "trimestre": 90, "año": 365}.get(periodo, 30)
     desde = datetime.now() - timedelta(days=dias)
 

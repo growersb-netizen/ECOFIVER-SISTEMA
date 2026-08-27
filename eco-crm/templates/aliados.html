@@ -37,6 +37,7 @@
   <button class="al-tab" onclick="alTab('comisiones',this)">💸 Comisiones</button>
   <button class="al-tab" onclick="alTab('verificacion',this)">🔎 Verificación</button>
   <button class="al-tab" onclick="alTab('paquetes',this)">📦 Paquetes</button>
+  <button class="al-tab" onclick="alTab('operacion',this)">🔧 Operación de Socios</button>
 </div>
 
 <!-- ═══ ALIADOS ═══ -->
@@ -106,6 +107,26 @@
   <div id="pq-lista"><div class="al-empty">Cargando...</div></div>
 </div>
 
+<!-- ═══ OPERACIÓN DE SOCIOS — los 3 puntos humanos del flujo nuevo ═══ -->
+<div id="pane-operacion" class="al-pane">
+  <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+    Las ventas las cargan los propios socios desde su panel. Estas 4 colas son las únicas
+    acciones que sigue haciendo el equipo a mano.
+  </p>
+
+  <h3 style="font-size:14px;margin:18px 0 8px">💰 Financiado — confirmar pago de la seña/inscripción</h3>
+  <div id="op-inscripcion"><div class="al-empty">Cargando...</div></div>
+
+  <h3 style="font-size:14px;margin:24px 0 8px">☎️ Financiado — llamada de bienvenida (auditoría)</h3>
+  <div id="op-auditoria"><div class="al-empty">Cargando...</div></div>
+
+  <h3 style="font-size:14px;margin:24px 0 8px">📞 Contado — contacto dentro de las 48hs</h3>
+  <div id="op-confirmacion48"><div class="al-empty">Cargando...</div></div>
+
+  <h3 style="font-size:14px;margin:24px 0 8px">🚚 Contado — registrar entrega y cobro</h3>
+  <div id="op-entrega"><div class="al-empty">Cargando...</div></div>
+</div>
+
 <!-- ═══ MODAL NUEVO ALIADO ═══ -->
 <div class="modal-overlay" id="modal-nuevo-aliado" style="display:none">
   <div class="modal" style="max-width:520px">
@@ -170,6 +191,7 @@ function alTab(name,btn){
   if(name==='ranking') cargarRanking();
   if(name==='verificacion') cargarVerificacion();
   if(name==='paquetes') cargarPaquetes();
+  if(name==='operacion') cargarOperacionSocios();
 }
 
 // ── ALIADOS ──
@@ -290,6 +312,53 @@ async function cargarPaquetes(){
       <td><span class="al-badge b-${p.resultado==='OK'?'verificado':(p.resultado==='RECHAZO'?'rechazado':'pendiente')}">${p.resultado}</span></td>
       <td style="font-size:12px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(p.contenido||'').substring(0,120)}</td></tr>`).join('')+`</tbody></table>`;
 }
+
+// ── OPERACIÓN DE SOCIOS ──
+function fmtMoney(n){return '$'+(n||0).toLocaleString('es-AR');}
+async function cargarOperacionSocios(){
+  const [ins, aud, c48, ent] = await Promise.all([
+    AL.get('/api/ventas-financiadas/pendientes-inscripcion'),
+    AL.get('/api/ventas-financiadas/pendientes-auditoria'),
+    AL.get('/api/ventas-contado/pendientes-confirmacion'),
+    AL.get('/api/ventas-contado/pendientes-entrega'),
+  ]);
+
+  const elIns = document.getElementById('op-inscripcion');
+  elIns.innerHTML = !ins.ventas || !ins.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
+    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Plan</th><th></th></tr></thead><tbody>`+
+    ins.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}</td><td>${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)}</td>
+      <td><button class="btn btn-sm btn-primary" onclick="marcarInscripcion(${v.id})">✓ Pago confirmado</button></td></tr>`).join('')+`</tbody></table>`;
+
+  const elAud = document.getElementById('op-auditoria');
+  elAud.innerHTML = !aud.ventas || !aud.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
+    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>DJ</th><th></th></tr></thead><tbody>`+
+    aud.ventas.map(v=>{
+      const djOk = !v.declaracion_jurada_requerida || v.declaracion_jurada_confirmada;
+      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · Sol. ${v.numero_solicitud||'—'}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}</td>
+      <td>${v.declaracion_jurada_requerida ? (v.declaracion_jurada_confirmada?'<span class="al-badge b-verificado">OK</span>':'<span class="al-badge b-pendiente">Falta</span>') : '—'}</td>
+      <td>${djOk?`<button class="btn btn-sm btn-primary" onclick="marcarAuditoria(${v.id})">✓ Bienvenida hecha</button>`:'<span style="font-size:12px;color:var(--text-muted)">Esperando DJ del cliente</span>'}</td></tr>`;
+    }).join('')+`</tbody></table>`;
+
+  const elC48 = document.getElementById('op-confirmacion48');
+  elC48.innerHTML = !c48.ventas || !c48.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
+    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Cargada</th><th></th></tr></thead><tbody>`+
+    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||''} · ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}</td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
+      <td><button class="btn btn-sm btn-primary" onclick="marcarConfirmacion48(${v.id})">✓ Ya contacté</button></td></tr>`).join('')+`</tbody></table>`;
+
+  const elEnt = document.getElementById('op-entrega');
+  elEnt.innerHTML = !ent.ventas || !ent.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
+    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Monto</th><th></th></tr></thead><tbody>`+
+    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}</td><td>${fmtMoney(v.precio_final)}</td>
+      <td><button class="btn btn-sm btn-primary" onclick="marcarEntrega(${v.id})">✓ Entregada y cobrada</button></td></tr>`).join('')+`</tbody></table>`;
+}
+async function marcarInscripcion(id){if(!confirm('¿Confirmás que se acreditó la inscripción completa?'))return;const r=await AL.send('/api/ventas-financiadas/'+id+'/inscripcion-pagada','POST',{});if(r.ok)cargarOperacionSocios();else alert('Error');}
+async function marcarAuditoria(id){if(!confirm('¿Confirmás que se hizo la llamada de bienvenida? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-financiadas/'+id+'/auditoria-completada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert((await r.json()).detail||'Error');}
+async function marcarConfirmacion48(id){if(!confirm('¿Confirmás que contactaste al cliente?'))return;const r=await AL.send('/api/ventas-contado/'+id+'/confirmacion-48hs','POST',{});if(r.ok)cargarOperacionSocios();else alert('Error');}
+async function marcarEntrega(id){if(!confirm('¿Confirmás que se entregó y se cobró? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-contado/'+id+'/entregada-cobrada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert('Error');}
 
 document.addEventListener('DOMContentLoaded',()=>{cargarAliados();
   const b=document.querySelector('[onclick*="modal-nuevo-aliado"]'); if(b)b.addEventListener('click',nuevoAliado);

@@ -87,6 +87,29 @@
     <button class="btn-primary" style="margin-top:16px" onclick="doLogin()">Ingresar</button>
     <div class="msg" id="login-msg"></div>
     <div class="switch-link">¿Todavía no sos socio? <a onclick="showScreen('registro')">Registrate acá</a></div>
+    <div class="switch-link">¿Olvidaste tu contraseña? <a onclick="showScreen('olvide')">Recuperala acá</a></div>
+  </div>
+
+  <!-- OLVIDÉ MI CONTRASEÑA -->
+  <div class="card hidden" id="card-olvide">
+    <h2 style="margin:0 0 4px;font-size:19px">Recuperar contraseña</h2>
+    <p style="font-size:13px;color:var(--text-muted)">Te mandamos un código por WhatsApp para que puedas elegir una nueva.</p>
+    <label>Email o código de socio</label>
+    <input id="olvide-id">
+    <button class="btn-primary" style="margin-top:16px" onclick="doOlvide()">Mandarme el código</button>
+    <div class="msg" id="olvide-msg"></div>
+    <div class="switch-link"><a onclick="showScreen('login')">Volver a ingresar</a></div>
+  </div>
+
+  <!-- RESETEAR CONTRASEÑA -->
+  <div class="card hidden" id="card-resetear">
+    <h2 style="margin:0 0 4px;font-size:19px">Elegí tu nueva contraseña</h2>
+    <label>Código de verificación (te lo mandamos por WhatsApp)</label>
+    <input id="resetear-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
+    <label>Nueva contraseña</label>
+    <input id="resetear-pass" type="password" minlength="6">
+    <button class="btn-primary" style="margin-top:16px" onclick="doResetear()">Guardar y entrar</button>
+    <div class="msg" id="resetear-msg"></div>
   </div>
 
   <!-- REGISTRO -->
@@ -137,6 +160,7 @@
     <a class="nav-item" data-section="comisiones" onclick="nav('comisiones')">💰 Mis comisiones</a>
     <a class="nav-item" data-section="ranking" onclick="nav('ranking')">🏆 Ranking</a>
     <a class="nav-item" data-section="biblioteca" onclick="nav('biblioteca')">🖼️ Biblioteca de contenidos</a>
+    <a class="nav-item" data-section="quiz" onclick="nav('quiz')">✅ Autoevaluación</a>
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
     <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
   </div>
@@ -246,6 +270,13 @@
       <div class="biblio-grid" id="biblio-grid">Cargando…</div>
     </section>
 
+    <!-- QUIZ / AUTOEVALUACIÓN -->
+    <section class="section" id="sec-quiz">
+      <h2>Autoevaluación</h2>
+      <p style="color:var(--text-muted)">No es un examen ni bloquea nada — es para que repases si tenés claras las reglas del programa. Tocá una pregunta para ver la respuesta.</p>
+      <div id="quiz-list"></div>
+    </section>
+
     <!-- PERFIL -->
     <section class="section" id="sec-perfil">
       <h2>Mi perfil y documentación</h2>
@@ -275,9 +306,7 @@ let SOCIO = null;
 let CATALOGO = null;
 
 function showScreen(name){
-  document.getElementById('card-login').classList.add('hidden');
-  document.getElementById('card-registro').classList.add('hidden');
-  document.getElementById('card-verificar').classList.add('hidden');
+  ['login','registro','verificar','olvide','resetear'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
   document.getElementById('card-'+name).classList.remove('hidden');
 }
 
@@ -341,6 +370,33 @@ async function doLogout(){
   location.reload();
 }
 
+let identificadorRecupero = null;
+
+async function doOlvide(){
+  const msg = document.getElementById('olvide-msg'); msg.className='msg'; msg.textContent='';
+  const id = document.getElementById('olvide-id').value.trim();
+  if(!id){ msg.className='msg error'; msg.textContent='Ingresá tu email o código'; return; }
+  identificadorRecupero = id;
+  try{
+    const body = id.includes('@') ? {email:id} : {codigo:id};
+    const data = await api('/api/public/socio-olvide-password', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent = data.mensaje;
+    showScreen('resetear');
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doResetear(){
+  const msg = document.getElementById('resetear-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const body = identificadorRecupero.includes('@')
+      ? {email: identificadorRecupero, otp: document.getElementById('resetear-otp').value.trim(), password_nueva: document.getElementById('resetear-pass').value}
+      : {codigo: identificadorRecupero, otp: document.getElementById('resetear-otp').value.trim(), password_nueva: document.getElementById('resetear-pass').value};
+    await api('/api/public/socio-resetear-password', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent = '¡Listo! Ya podés ingresar con tu nueva contraseña.';
+    setTimeout(() => showScreen('login'), 1200);
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
 async function cargarApp(){
   try{
     SOCIO = await api('/api/socio/me');
@@ -362,6 +418,17 @@ function nav(section){
   if(section==='comisiones') cargarComisionesTabla();
   if(section==='ranking') cargarRanking();
   if(section==='biblioteca') cargarBiblioteca();
+  if(section==='quiz') cargarQuiz();
+}
+
+async function cargarQuiz(){
+  const data = await api('/api/socio/quiz').catch(()=>({preguntas:[]}));
+  const el = document.getElementById('quiz-list');
+  el.innerHTML = data.preguntas.map((q,i) => `
+    <div class="card" style="cursor:pointer" onclick="this.querySelector('.resp').classList.toggle('hidden')">
+      <strong>${i+1}. ${q.pregunta}</strong>
+      <p class="resp hidden" style="margin:8px 0 0;color:var(--good)">${q.respuesta}</p>
+    </div>`).join('');
 }
 
 function fmt(n){ return '$'+Math.round(n||0).toLocaleString('es-AR'); }

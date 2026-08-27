@@ -923,25 +923,31 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # ── TAREAS FRANCO — CANAL DE ALIADOS ────────────────────────────────────
+    # ── TAREAS FRANCO — CANAL DE SOCIOS COMERCIALES ─────────────────────────
 
-    # Cada 30 min entre 9 y 20 — Detecta nuevos postulantes e inicia quiz
-    _scheduler.add_job(
-        tarea_franco_onboarding_postulantes,
-        CronTrigger(minute="0,30", hour="9-20", timezone=TIMEZONE),
-        id="franco_onboarding_postulantes",
-        name="Franco — onboarding quiz nuevos postulantes",
-        replace_existing=True,
-    )
-
-    # 08:00 AM diario — Timeout postulantes sin respuesta 5+ días
-    _scheduler.add_job(
-        tarea_franco_timeout_postulantes,
-        CronTrigger(hour=8, minute=15, timezone=TIMEZONE),
-        id="franco_timeout_postulantes",
-        name="Franco — timeout postulantes inactivos",
-        replace_existing=True,
-    )
+    # DESACTIVADAS: el registro ahora es autoservicio y directo (Plataforma de
+    # Socios), nadie queda más en estado "postulante" esperando el quiz por
+    # WhatsApp — ese endpoint (aliado-postulacion) ya no lo usa la landing.
+    # El quiz sigue existiendo como contenido educativo dentro del panel
+    # (GET /api/socio/quiz), no como gate de aprobación. Se dejan las
+    # funciones en cron.py por si se necesita reactivar este canal en el
+    # futuro, pero no se programan.
+    #
+    # _scheduler.add_job(
+    #     tarea_franco_onboarding_postulantes,
+    #     CronTrigger(minute="0,30", hour="9-20", timezone=TIMEZONE),
+    #     id="franco_onboarding_postulantes",
+    #     name="Franco — onboarding quiz nuevos postulantes",
+    #     replace_existing=True,
+    # )
+    #
+    # _scheduler.add_job(
+    #     tarea_franco_timeout_postulantes,
+    #     CronTrigger(hour=8, minute=15, timezone=TIMEZONE),
+    #     id="franco_timeout_postulantes",
+    #     name="Franco — timeout postulantes inactivos",
+    #     replace_existing=True,
+    # )
 
     # Lunes 08:00 — Material semanal + copy comercial
     _scheduler.add_job(

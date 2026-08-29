@@ -15,13 +15,18 @@ WA_API_URL = "https://graph.facebook.com/v19.0"
 def _get_wa_creds(db: Session):
     """Devuelve (token, phone_id) desde la configuración. Retorna (None, None) si no están."""
     from database.models import ConfiguracionSistema
+    from database.encryption import decrypt_value
     token_cfg = db.query(ConfiguracionSistema).filter(
         ConfiguracionSistema.clave == "wa_token"
     ).first()
     phone_cfg = db.query(ConfiguracionSistema).filter(
         ConfiguracionSistema.clave == "wa_phone_id"
     ).first()
-    token = token_cfg.valor if token_cfg and token_cfg.valor else None
+    # wa_token se guarda encriptado (es_secreto=True) — hay que desencriptarlo antes
+    # de usarlo. Antes se mandaba el valor cifrado tal cual como Bearer token, lo
+    # que siempre daba 401 "Authentication Error" sin importar qué tan válido
+    # fuera el token real detrás.
+    token = decrypt_value(token_cfg.valor) if token_cfg and token_cfg.valor else None
     phone_id = phone_cfg.valor if phone_cfg and phone_cfg.valor else None
     return token, phone_id
 

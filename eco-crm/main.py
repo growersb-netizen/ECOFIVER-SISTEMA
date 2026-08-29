@@ -89,7 +89,12 @@ try:
         import os as _os
         from database.encryption import encrypt_value as _encrypt_value
         from database.models import ConfiguracionSistema as _ConfigModel
-        for _clave, _env_var, _es_secreto in (("wa_token", "WA_TOKEN", True), ("wa_phone_id", "WA_PHONE_ID", False)):
+        for _clave, _env_var, _es_secreto in (
+            ("wa_token", "WA_TOKEN", True), ("wa_phone_id", "WA_PHONE_ID", False),
+            ("smtp_host", "SMTP_HOST", False), ("smtp_port", "SMTP_PORT", False),
+            ("smtp_user", "SMTP_USER", False), ("smtp_password", "SMTP_PASSWORD", True),
+            ("smtp_from", "SMTP_FROM", False),
+        ):
             _val = _os.getenv(_env_var, "")
             if not _val:
                 continue

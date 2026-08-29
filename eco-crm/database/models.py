@@ -1325,6 +1325,17 @@ class Aliado(Base):
     intentos_fallidos = Column(Integer, default=0)
     bloqueado_hasta = Column(DateTime(timezone=True), nullable=True)
 
+    # ── Verificación de email (canal separado del WhatsApp) ──────────────────
+    email_verificado = Column(Boolean, default=False)
+    codigo_verificacion_email = Column(String(10), nullable=True)
+    codigo_verificacion_email_expira = Column(DateTime(timezone=True), nullable=True)
+
+    # ── El registro ya no pide DNI/CUIT: se completan en el pop-up post-login.
+    # perfil_completo = True cuando cargó DNI + zona (CUIT es opcional). Junto
+    # con whatsapp_verificado + email_verificado da el "Verificado ✓" del panel,
+    # requisito para poder cargar ventas y empezar a generar comisiones.
+    perfil_completo = Column(Boolean, default=False)
+
     # ── Documentación propia (para poder cobrar comisiones) ──────────────────
     doc_monotributo_path = Column(String(500), nullable=True)
     doc_dni_path = Column(String(500), nullable=True)

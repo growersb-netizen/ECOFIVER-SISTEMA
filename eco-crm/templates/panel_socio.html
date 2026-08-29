@@ -29,6 +29,13 @@
   .brand .logo{font-family:Georgia,serif;font-weight:800;font-size:24px;color:var(--navy)}
   .brand .logo span{color:var(--teal)}
   .hidden{display:none !important}
+  .verificado-tilde{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--teal, #2563EB);background:linear-gradient(135deg,#4EC3B5,#2C8C7D);color:#fff;font-size:11px;font-weight:900;vertical-align:middle}
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,23,32,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal-box{background:var(--surface);border-radius:16px;padding:28px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto}
+  .verif-step{border-top:1px solid var(--border);padding:16px 0}
+  .verif-step-title{font-weight:700;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .verif-check{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:800;flex-shrink:0}
+  .verif-check.done{background:var(--good-bg);color:var(--good)}
   .switch-link{text-align:center;font-size:13.5px;color:var(--text-muted);margin-top:14px}
   .switch-link a{color:var(--navy-2);font-weight:600;cursor:pointer;text-decoration:none}
 
@@ -125,35 +132,59 @@
   <!-- REGISTRO -->
   <div class="card hidden" id="card-registro">
     <h2 style="margin:0 0 4px;font-size:19px">Registrate y empezá a vender hoy</h2>
-    <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Completá tus datos y entrás directo.</p>
+    <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Creás tu cuenta y entrás directo — el resto de tus datos los completás ya adentro.</p>
     <label>Nombre y apellido</label>
     <input id="reg-nombre">
-    <label>DNI</label>
-    <input id="reg-dni" inputmode="numeric">
     <label>WhatsApp</label>
     <input id="reg-whatsapp" placeholder="11 0000 0000" inputmode="tel">
     <label>Email</label>
     <input id="reg-email" type="email">
-    <label>Zona / localidad</label>
-    <input id="reg-zona">
-    <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional — lo podés cargar después)</span></label>
-    <input id="reg-cuit">
     <label>Contraseña</label>
     <input id="reg-pass" type="password">
     <button class="btn-primary" style="margin-top:16px" onclick="doRegistro()">Crear mi cuenta</button>
     <div class="msg" id="registro-msg"></div>
     <div class="switch-link">¿Ya tenés cuenta? <a onclick="showScreen('login')">Ingresá acá</a></div>
   </div>
+</div>
 
-  <!-- VERIFICACIÓN -->
-  <div class="card hidden" id="card-verificar">
-    <h2 style="margin:0 0 4px;font-size:19px">Verificá tu WhatsApp</h2>
-    <p style="font-size:13px;color:var(--text-muted)">Te mandamos un código de 6 dígitos a tu WhatsApp. Ingresalo para activar tu panel.</p>
-    <label>Código de verificación</label>
-    <input id="verif-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
-    <button class="btn-primary" style="margin-top:16px" onclick="doVerificar()">Verificar y entrar</button>
-    <div class="msg" id="verif-msg"></div>
-    <div class="switch-link"><a onclick="doReenviar()">Reenviar código</a></div>
+<!-- ═══════════════ POP-UP obligatorio: completar datos y verificar canales ═══════════════ -->
+<div class="modal-overlay hidden" id="modal-verificacion">
+  <div class="modal-box">
+    <h2 style="margin:0 0 4px;font-size:19px">Completá tus datos para empezar a vender</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px">Con esto activás tu perfil <strong>Verificado ✓</strong> — es lo único que te falta para poder cargar ventas y empezar a generar comisiones con nuestra estructura.</p>
+
+    <div class="verif-step" id="vstep-datos">
+      <div class="verif-step-title"><span class="verif-check" id="vcheck-datos">1</span> Tus datos</div>
+      <label>DNI</label><input id="mv-dni" inputmode="numeric">
+      <label>Zona / localidad</label><input id="mv-zona">
+      <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="mv-cuit">
+      <button class="btn-teal" style="margin-top:10px" onclick="mvGuardarDatos()">Guardar datos</button>
+      <div class="msg" id="mv-datos-msg"></div>
+    </div>
+
+    <div class="verif-step" id="vstep-whatsapp">
+      <div class="verif-step-title"><span class="verif-check" id="vcheck-whatsapp">2</span> Verificar WhatsApp</div>
+      <button class="btn-ghost" onclick="mvEnviarWhatsapp()">Mandarme el código por WhatsApp</button>
+      <input id="mv-wa-otp" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" style="margin-top:8px;font-size:18px;letter-spacing:3px;text-align:center">
+      <button class="btn-teal" style="margin-top:8px" onclick="mvConfirmarWhatsapp()">Confirmar</button>
+      <div class="msg" id="mv-wa-msg"></div>
+    </div>
+
+    <div class="verif-step" id="vstep-email">
+      <div class="verif-step-title"><span class="verif-check" id="vcheck-email">3</span> Verificar email</div>
+      <button class="btn-ghost" onclick="mvEnviarEmail()">Mandarme el código por email</button>
+      <input id="mv-email-otp" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" style="margin-top:8px;font-size:18px;letter-spacing:3px;text-align:center">
+      <button class="btn-teal" style="margin-top:8px" onclick="mvConfirmarEmail()">Confirmar</button>
+      <div class="msg" id="mv-email-msg"></div>
+    </div>
+
+    <div id="mv-listo" class="hidden" style="text-align:center;padding:12px 0">
+      <div style="font-size:32px">✅</div>
+      <p style="font-weight:700">¡Listo, tu perfil ya está Verificado!</p>
+      <button class="btn-primary" onclick="cerrarModalVerificacion()">Ir al panel</button>
+    </div>
+
+    <div class="switch-link" style="margin-top:14px"><a onclick="cerrarModalVerificacion()">Completar más tarde</a></div>
   </div>
 </div>
 
@@ -295,8 +326,12 @@
     <!-- PERFIL -->
     <section class="section" id="sec-perfil">
       <h2>Mi perfil y documentación</h2>
+      <div class="card" id="perfil-verificacion-banner" style="font-size:13px"></div>
       <div class="card">
-        <h3 style="margin-top:0;font-size:15px">Datos para cobrar</h3>
+        <h3 style="margin-top:0;font-size:15px">Mis datos</h3>
+        <label>DNI</label><input id="p-dni" inputmode="numeric">
+        <label>Zona / localidad</label><input id="p-zona">
+        <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="p-cuit">
         <label>CBU o alias</label><input id="p-cbu">
         <button class="btn-teal" style="margin-top:12px" onclick="guardarPerfil()">Guardar</button>
         <div class="msg" id="p-msg"></div>
@@ -327,7 +362,7 @@ let SOCIO = null;
 let CATALOGO = null;
 
 function showScreen(name){
-  ['login','registro','verificar','olvide','resetear'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
+  ['login','registro','olvide','resetear'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
   document.getElementById('card-'+name).classList.remove('hidden');
 }
 
@@ -345,34 +380,14 @@ async function doRegistro(){
   try{
     const body = {
       nombre: document.getElementById('reg-nombre').value.trim(),
-      dni: document.getElementById('reg-dni').value.trim(),
       whatsapp: document.getElementById('reg-whatsapp').value.trim(),
       email: document.getElementById('reg-email').value.trim(),
-      zona: document.getElementById('reg-zona').value.trim(),
-      cuit_monotributo: document.getElementById('reg-cuit').value.trim(),
       password: document.getElementById('reg-pass').value,
     };
     const data = await api('/api/public/socio-registro', {method:'POST', body: JSON.stringify(body)});
     ultimoCodigoRegistrado = data.codigo;
-    msg.className='msg ok'; msg.textContent = 'Cuenta creada: ' + data.codigo;
-    showScreen('verificar');
-  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
-}
-
-async function doVerificar(){
-  const msg = document.getElementById('verif-msg'); msg.className='msg'; msg.textContent='';
-  try{
-    const otp = document.getElementById('verif-otp').value.trim();
-    await api('/api/public/socio-verificar', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado, otp})});
     await cargarApp();
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
-}
-
-async function doReenviar(){
-  if(!ultimoCodigoRegistrado) return;
-  await api('/api/public/socio-reenviar-codigo', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado})}).catch(()=>{});
-  document.getElementById('verif-msg').className='msg ok';
-  document.getElementById('verif-msg').textContent='Te mandamos un código nuevo.';
 }
 
 async function doLogin(){
@@ -424,12 +439,106 @@ async function cargarApp(){
   }catch(e){ return; }
   document.getElementById('auth-screens').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
-  document.getElementById('saludo-nombre').textContent = SOCIO.nombre.split(' ')[0];
-  document.getElementById('sidebar-socio-info').textContent = SOCIO.codigo + ' · ' + (SOCIO.zona || 'sin zona');
+  const tilde = SOCIO.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
+  document.getElementById('saludo-nombre').innerHTML = SOCIO.nombre.split(' ')[0] + tilde;
+  document.getElementById('sidebar-socio-info').innerHTML = SOCIO.codigo + tilde + ' · ' + (SOCIO.zona || 'sin zona');
   document.getElementById('p-cbu').value = SOCIO.cbu_alias || '';
+  document.getElementById('p-dni').value = SOCIO.dni || '';
+  document.getElementById('p-zona').value = SOCIO.zona || '';
+  document.getElementById('p-cuit').value = SOCIO.cuit_monotributo || '';
+  actualizarEstadoVerificacionPerfil();
   cargarComisiones();
   cargarCatalogo();
   cargarProgreso();
+  if(!SOCIO.verificado) abrirModalVerificacion();
+}
+
+function abrirModalVerificacion(){
+  mvSincronizarPasos();
+  document.getElementById('mv-dni').value = SOCIO.dni || '';
+  document.getElementById('mv-zona').value = SOCIO.zona || '';
+  document.getElementById('mv-cuit').value = SOCIO.cuit_monotributo || '';
+  document.getElementById('modal-verificacion').classList.remove('hidden');
+}
+
+function cerrarModalVerificacion(){
+  document.getElementById('modal-verificacion').classList.add('hidden');
+}
+
+function mvSincronizarPasos(){
+  document.getElementById('vcheck-datos').textContent = SOCIO.perfil_completo ? '✓' : '1';
+  document.getElementById('vcheck-datos').classList.toggle('done', !!SOCIO.perfil_completo);
+  document.getElementById('vcheck-whatsapp').textContent = SOCIO.whatsapp_verificado ? '✓' : '2';
+  document.getElementById('vcheck-whatsapp').classList.toggle('done', !!SOCIO.whatsapp_verificado);
+  document.getElementById('vcheck-email').textContent = SOCIO.email_verificado ? '✓' : '3';
+  document.getElementById('vcheck-email').classList.toggle('done', !!SOCIO.email_verificado);
+  document.getElementById('vstep-datos').classList.toggle('hidden', !!SOCIO.perfil_completo);
+  document.getElementById('vstep-whatsapp').classList.toggle('hidden', !!SOCIO.whatsapp_verificado);
+  document.getElementById('vstep-email').classList.toggle('hidden', !!SOCIO.email_verificado);
+  document.getElementById('mv-listo').classList.toggle('hidden', !SOCIO.verificado);
+}
+
+async function mvGuardarDatos(){
+  const msg = document.getElementById('mv-datos-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const data = await api('/api/socio/me', {method:'PUT', body: JSON.stringify({
+      dni: document.getElementById('mv-dni').value.trim(),
+      zona: document.getElementById('mv-zona').value.trim(),
+      cuit_monotributo: document.getElementById('mv-cuit').value.trim(),
+    })});
+    SOCIO.perfil_completo = data.perfil_completo; SOCIO.verificado = data.verificado;
+    SOCIO.dni = document.getElementById('mv-dni').value.trim();
+    SOCIO.zona = document.getElementById('mv-zona').value.trim();
+    SOCIO.cuit_monotributo = document.getElementById('mv-cuit').value.trim();
+    msg.className='msg ok'; msg.textContent = data.perfil_completo ? 'Datos guardados.' : 'Faltan DNI y/o zona.';
+    mvSincronizarPasos();
+    actualizarEstadoVerificacionPerfil();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function mvEnviarWhatsapp(){
+  const msg = document.getElementById('mv-wa-msg'); msg.className='msg'; msg.textContent='';
+  try{ await api('/api/socio/verificar-whatsapp/enviar', {method:'POST'}); msg.className='msg ok'; msg.textContent='Te mandamos el código.'; }
+  catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function mvConfirmarWhatsapp(){
+  const msg = document.getElementById('mv-wa-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const data = await api('/api/socio/verificar-whatsapp/confirmar', {method:'POST', body: JSON.stringify({otp: document.getElementById('mv-wa-otp').value.trim()})});
+    SOCIO.whatsapp_verificado = true; SOCIO.verificado = data.verificado;
+    msg.className='msg ok'; msg.textContent='WhatsApp verificado.';
+    mvSincronizarPasos(); actualizarEstadoVerificacionPerfil();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function mvEnviarEmail(){
+  const msg = document.getElementById('mv-email-msg'); msg.className='msg'; msg.textContent='';
+  try{ await api('/api/socio/verificar-email/enviar', {method:'POST'}); msg.className='msg ok'; msg.textContent='Te mandamos el código.'; }
+  catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function mvConfirmarEmail(){
+  const msg = document.getElementById('mv-email-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const data = await api('/api/socio/verificar-email/confirmar', {method:'POST', body: JSON.stringify({otp: document.getElementById('mv-email-otp').value.trim()})});
+    SOCIO.email_verificado = true; SOCIO.verificado = data.verificado;
+    msg.className='msg ok'; msg.textContent='Email verificado.';
+    mvSincronizarPasos(); actualizarEstadoVerificacionPerfil();
+    if(data.verificado){
+      const tilde = ' <span class="verificado-tilde" title="Perfil verificado">✓</span>';
+      document.getElementById('saludo-nombre').innerHTML = SOCIO.nombre.split(' ')[0] + tilde;
+      document.getElementById('sidebar-socio-info').innerHTML = SOCIO.codigo + tilde + ' · ' + (SOCIO.zona || 'sin zona');
+    }
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+function actualizarEstadoVerificacionPerfil(){
+  const el = document.getElementById('perfil-verificacion-banner');
+  if(!el) return;
+  el.innerHTML = SOCIO.verificado
+    ? '<span class="pill ok">✓ Verificado</span> Ya podés cargar ventas y generar comisiones.'
+    : '<span class="pill warn">Pendiente</span> Te falta completar la verificación. <a onclick="abrirModalVerificacion()" style="cursor:pointer;text-decoration:underline">Completar ahora</a>';
 }
 
 function nav(section){
@@ -647,7 +756,8 @@ async function cargarRanking(){
   const data = await api('/api/socio/ranking?periodo=mes').catch(()=>({ranking:[]}));
   let h = '<table><tr><th>#</th><th>Socio</th><th>Zona</th><th>Facturado (mes)</th></tr>';
   for(const f of data.ranking){
-    h += `<tr><td>${f.medalla||f.puesto}</td><td>${f.nombre}</td><td>${f.zona||'—'}</td><td>${fmt(f.monto_facturado)}</td></tr>`;
+    const tilde = f.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
+    h += `<tr><td>${f.medalla||f.puesto}</td><td>${f.nombre}${tilde}</td><td>${f.zona||'—'}</td><td>${fmt(f.monto_facturado)}</td></tr>`;
   }
   h += '</table>';
   document.getElementById('tabla-ranking').innerHTML = h;
@@ -668,7 +778,17 @@ async function cargarBiblioteca(){
 async function guardarPerfil(){
   const msg = document.getElementById('p-msg'); msg.className='msg'; msg.textContent='';
   try{
-    await api('/api/socio/me', {method:'PUT', body: JSON.stringify({cbu_alias: document.getElementById('p-cbu').value})});
+    const data = await api('/api/socio/me', {method:'PUT', body: JSON.stringify({
+      cbu_alias: document.getElementById('p-cbu').value.trim(),
+      dni: document.getElementById('p-dni').value.trim(),
+      zona: document.getElementById('p-zona').value.trim(),
+      cuit_monotributo: document.getElementById('p-cuit').value.trim(),
+    })});
+    SOCIO.perfil_completo = data.perfil_completo; SOCIO.verificado = data.verificado;
+    SOCIO.dni = document.getElementById('p-dni').value.trim();
+    SOCIO.zona = document.getElementById('p-zona').value.trim();
+    SOCIO.cuit_monotributo = document.getElementById('p-cuit').value.trim();
+    actualizarEstadoVerificacionPerfil();
     msg.className='msg ok'; msg.textContent='Guardado.';
   }catch(e){ msg.className='msg error'; msg.textContent=e.message; }
 }

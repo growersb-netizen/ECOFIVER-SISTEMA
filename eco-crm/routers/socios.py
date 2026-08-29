@@ -84,12 +84,29 @@ def get_current_socio(request: Request, db: Session = Depends(get_db)) -> Option
 
 
 def require_socio(request: Request, db: Session = Depends(get_db)) -> Aliado:
+    """
+    Requiere sesión iniciada. La verificación de WhatsApp/email y la carga de
+    perfil (DNI, zona) NO son requisito para entrar al panel — se piden después
+    del login, con un pop-up obligatorio, y solo bloquean poder cargar ventas
+    (ver `_require_verificado`).
+    """
     socio = get_current_socio(request, db)
     if not socio:
         raise HTTPException(401, "No autenticado")
-    if not socio.whatsapp_verificado:
-        raise HTTPException(403, "WhatsApp sin verificar")
     return socio
+
+
+def _esta_verificado(socio: Aliado) -> bool:
+    return bool(socio.perfil_completo and socio.whatsapp_verificado and socio.email_verificado)
+
+
+def _require_verificado(socio: Aliado):
+    """Gate para las acciones que generan comisiones: perfil completo + los dos canales verificados."""
+    if not _esta_verificado(socio):
+        raise HTTPException(
+            403,
+            "Completá tu perfil y verificá WhatsApp y email antes de cargar ventas — te va a aparecer el paso pendiente al entrar al panel.",
+        )
 
 
 def _require_gestion_interna(x_api_key: Optional[str], current_user: Optional[Usuario]):
@@ -132,24 +149,25 @@ def _notificar_socio(db: Session, aliado_codigo: Optional[str], mensaje: str):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/public/socio-registro")
-async def socio_registro(request: Request, db: Session = Depends(get_db)):
+async def socio_registro(request: Request, response: Response, db: Session = Depends(get_db)):
     """
-    Registro directo y automático: crea el socio en estado "activo" al instante
-    (no hay aprobación humana) y le manda un código de verificación por WhatsApp.
-    El acceso al panel queda bloqueado hasta que verifique ese código.
+    Registro directo y automático: crea el socio en estado "activo" y lo deja
+    logueado al instante — sin aprobación humana y sin código bloqueante.
+    Solo pide nombre y apellido, WhatsApp, email y contraseña. El DNI, el
+    CUIT/Monotributo y la verificación de WhatsApp/email se completan después
+    del login, con un pop-up obligatorio (ver /api/socio/completar-perfil y
+    /api/socio/verificar-*). Hasta completarlo, el socio puede usar el panel
+    (catálogo, simulador, biblioteca) pero no puede cargar ventas.
     """
     data = await request.json()
 
     nombre = (data.get("nombre") or "").strip()
-    dni = (data.get("dni") or "").strip()
     telefono = _normalizar_telefono(data.get("whatsapp") or data.get("telefono") or "")
     email = (data.get("email") or "").strip().lower()
-    zona = (data.get("zona") or data.get("localidad") or "").strip()
-    cuit_monotributo = (data.get("cuit_monotributo") or "").strip()
     password = data.get("password") or ""
 
-    if not nombre or not dni or not telefono or not email:
-        raise HTTPException(400, "Nombre, DNI, WhatsApp y email son obligatorios")
+    if not nombre or not telefono or not email:
+        raise HTTPException(400, "Nombre y apellido, WhatsApp y email son obligatorios")
     if not re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(400, "Email inválido")
     if len(password) < 6:
@@ -157,43 +175,30 @@ async def socio_registro(request: Request, db: Session = Depends(get_db)):
     if len(telefono) < 8:
         raise HTTPException(400, "WhatsApp inválido")
 
-    if db.query(Aliado).filter(Aliado.dni == dni, Aliado.dni != "").first():
-        raise HTTPException(409, "Ya existe un socio registrado con ese DNI")
     if db.query(Aliado).filter(Aliado.telefono == telefono, Aliado.telefono != "").first():
         raise HTTPException(409, "Ya existe un socio registrado con ese WhatsApp")
     if db.query(Aliado).filter(Aliado.email == email).first():
         raise HTTPException(409, "Ya existe un socio registrado con ese email")
 
-    codigo_otp = f"{random.randint(0, 999999):06d}"
-
     socio = Aliado(
         codigo=_generar_codigo_aliado(db),
         nombre=nombre,
-        dni=dni,
         telefono=telefono,
         email=email,
-        zona=zona,
-        cuit_monotributo=cuit_monotributo,
         estado="activo",  # registro directo, sin aprobación
         password_hash=pwd_context.hash(password),
         whatsapp_verificado=False,
-        codigo_verificacion=codigo_otp,
-        codigo_verificacion_expira=datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS),
+        email_verificado=False,
+        perfil_completo=False,
         notas="Registro directo vía plataforma de socios",
     )
     db.add(socio)
     db.commit()
     db.refresh(socio)
 
-    mensaje = (
-        f"¡Bienvenido a EcoFiver, {nombre.split()[0]}! 🎉\n"
-        f"Tu código de socio es *{socio.codigo}*.\n"
-        f"Para activar tu acceso al panel, ingresá este código de verificación: *{codigo_otp}*\n"
-        f"Vence en {CODIGO_OTP_EXPIRA_MINUTOS} minutos."
-    )
-    send_whatsapp_text(db, telefono, mensaje)
-
-    return {"ok": True, "codigo": socio.codigo, "mensaje": "Te enviamos un código de verificación por WhatsApp"}
+    token = _crear_token_socio(socio.id)
+    response.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=SOCIO_TOKEN_EXPIRE_HOURS * 3600, samesite="lax")
+    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
 
 
 @router.post("/api/public/socio-verificar")
@@ -275,9 +280,6 @@ async def socio_login(request: Request, response: Response, db: Session = Depend
         db.commit()
         raise HTTPException(401, "Credenciales incorrectas")
 
-    if not socio.whatsapp_verificado:
-        raise HTTPException(403, "Todavía no verificaste tu WhatsApp")
-
     socio.intentos_fallidos = 0
     socio.bloqueado_hasta = None
     db.commit()
@@ -356,11 +358,16 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "codigo": socio.codigo,
         "nombre": socio.nombre,
         "email": socio.email,
+        "dni": socio.dni or "",
         "zona": socio.zona,
         "cuit_monotributo": socio.cuit_monotributo or "",
         "cbu_alias": socio.cbu_alias or "",
         "doc_monotributo_cargado": bool(socio.doc_monotributo_path),
         "doc_dni_cargado": bool(socio.doc_dni_path),
+        "perfil_completo": bool(socio.perfil_completo),
+        "whatsapp_verificado": bool(socio.whatsapp_verificado),
+        "email_verificado": bool(socio.email_verificado),
+        "verificado": _esta_verificado(socio),
     }
 
 
@@ -370,8 +377,92 @@ async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(requ
     for campo in ("zona", "cbu_alias", "cuit_monotributo"):
         if campo in data:
             setattr(socio, campo, (data[campo] or "").strip())
+
+    if "dni" in data:
+        dni = (data["dni"] or "").strip()
+        if dni:
+            existente = db.query(Aliado).filter(Aliado.dni == dni, Aliado.dni != "", Aliado.id != socio.id).first()
+            if existente:
+                raise HTTPException(409, "Ese DNI ya está registrado en otra cuenta")
+        socio.dni = dni
+
+    # Perfil completo = DNI + zona cargados (el CUIT/Monotributo es opcional).
+    if socio.dni and socio.zona:
+        socio.perfil_completo = True
+
     db.commit()
+    return {"ok": True, "perfil_completo": bool(socio.perfil_completo), "verificado": _esta_verificado(socio)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VERIFICACIÓN DE CANALES (post-login) — WhatsApp y email por separado
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/socio/verificar-whatsapp/enviar")
+async def enviar_codigo_whatsapp(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    if socio.whatsapp_verificado:
+        return {"ok": True, "ya_verificado": True}
+    if not socio.telefono:
+        raise HTTPException(400, "No tenés un WhatsApp cargado")
+    otp = f"{random.randint(0, 999999):06d}"
+    socio.codigo_verificacion = otp
+    socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+    db.commit()
+    send_whatsapp_text(db, socio.telefono, f"Tu código de verificación de EcoFiver es *{otp}* (vence en {CODIGO_OTP_EXPIRA_MINUTOS} min).")
     return {"ok": True}
+
+
+@router.post("/api/socio/verificar-whatsapp/confirmar")
+async def confirmar_codigo_whatsapp(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    data = await request.json()
+    otp = (data.get("otp") or data.get("codigo") or "").strip()
+    if socio.whatsapp_verificado:
+        return {"ok": True, "ya_verificado": True}
+    if not socio.codigo_verificacion or socio.codigo_verificacion != otp:
+        raise HTTPException(400, "Código incorrecto")
+    if socio.codigo_verificacion_expira and socio.codigo_verificacion_expira < datetime.now():
+        raise HTTPException(400, "El código venció — pedí uno nuevo")
+    socio.whatsapp_verificado = True
+    socio.codigo_verificacion = None
+    socio.codigo_verificacion_expira = None
+    db.commit()
+    return {"ok": True, "verificado": _esta_verificado(socio)}
+
+
+@router.post("/api/socio/verificar-email/enviar")
+async def enviar_codigo_email(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    from utils.email import send_email_text
+
+    if socio.email_verificado:
+        return {"ok": True, "ya_verificado": True}
+    if not socio.email:
+        raise HTTPException(400, "No tenés un email cargado")
+    otp = f"{random.randint(0, 999999):06d}"
+    socio.codigo_verificacion_email = otp
+    socio.codigo_verificacion_email_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+    db.commit()
+    enviado = send_email_text(
+        db, socio.email, "Tu código de verificación EcoFiver",
+        f"Tu código de verificación es {otp}. Vence en {CODIGO_OTP_EXPIRA_MINUTOS} minutos.\n\nSi no lo pediste vos, ignorá este mensaje.",
+    )
+    return {"ok": True, "enviado": enviado}
+
+
+@router.post("/api/socio/verificar-email/confirmar")
+async def confirmar_codigo_email(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    data = await request.json()
+    otp = (data.get("otp") or data.get("codigo") or "").strip()
+    if socio.email_verificado:
+        return {"ok": True, "ya_verificado": True}
+    if not socio.codigo_verificacion_email or socio.codigo_verificacion_email != otp:
+        raise HTTPException(400, "Código incorrecto")
+    if socio.codigo_verificacion_email_expira and socio.codigo_verificacion_email_expira < datetime.now():
+        raise HTTPException(400, "El código venció — pedí uno nuevo")
+    socio.email_verificado = True
+    socio.codigo_verificacion_email = None
+    socio.codigo_verificacion_email_expira = None
+    db.commit()
+    return {"ok": True, "verificado": _esta_verificado(socio)}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -742,6 +833,7 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
     incluida — la coordina el propio socio (él, su equipo, o tercerizada).
     El equipo interno se contacta con el cliente dentro de las 48hs.
     """
+    _require_verificado(socio)
     data = await request.json()
     cliente_nombre = (data.get("cliente_nombre") or "").strip()
     if not cliente_nombre:
@@ -834,6 +926,7 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
     contra el catálogo (nunca un número tipeado a mano) para que no haya
     inconsistencias con las fichas oficiales.
     """
+    _require_verificado(socio)
     data = await request.json()
     cliente_nombre = (data.get("cliente_nombre") or "").strip()
     cliente_dni = (data.get("cliente_dni") or "").strip()
@@ -1356,7 +1449,10 @@ async def ranking_socios(
     for a in db.query(Aliado).filter(Aliado.estado == "activo").all():
         partes = a.nombre.strip().split()
         nombre_mostrado = partes[0] if len(partes) == 1 else f"{partes[0]} {partes[-1][0]}."
-        filas[a.codigo] = {"codigo": a.codigo, "nombre": nombre_mostrado, "zona": a.zona or "", "monto_facturado": 0.0}
+        filas[a.codigo] = {
+            "codigo": a.codigo, "nombre": nombre_mostrado, "zona": a.zona or "",
+            "monto_facturado": 0.0, "verificado": _esta_verificado(a),
+        }
 
     for v in db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo.isnot(None), VentaFinanciada.inscripcion_pagada_en.isnot(None), VentaFinanciada.inscripcion_pagada_en >= desde).all():
         if v.aliado_codigo in filas:

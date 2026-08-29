@@ -85,6 +85,7 @@
   .biblio-card h4{margin:0 0 6px;font-size:14px;font-family:inherit;color:var(--text)}
   .biblio-card p{margin:0 0 10px;font-size:12.5px;color:var(--text-muted)}
   .tag-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal);font-weight:700}
+  .biblio-filtro.active{background:var(--navy,#0B2350);color:#fff;border-color:transparent}
   .copyable{font-family:ui-monospace,monospace;font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;word-break:break-all}
 </style>
 </head>
@@ -202,6 +203,7 @@
     <a class="nav-item" data-section="mis-ventas" onclick="nav('mis-ventas')">📦 Mis ventas</a>
     <a class="nav-item" data-section="comisiones" onclick="nav('comisiones')">💰 Mis comisiones</a>
     <a class="nav-item" data-section="ranking" onclick="nav('ranking')">🏆 Ranking</a>
+    <a class="nav-item" data-section="empresa" onclick="nav('empresa')">🏭 Mi Empresa</a>
     <a class="nav-item" data-section="biblioteca" onclick="nav('biblioteca')">🖼️ Biblioteca de contenidos</a>
     <a class="nav-item" data-section="quiz" onclick="nav('quiz')">✅ Autoevaluación</a>
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
@@ -312,9 +314,51 @@
       <div id="tabla-ranking">Cargando…</div>
     </section>
 
+    <!-- MI EMPRESA -->
+    <section class="section" id="sec-empresa">
+      <h2>EcoFiver — quiénes somos</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">La info institucional que te puede pedir un cliente antes de cerrar.</p>
+      <div class="grid2">
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🏭 Fábrica propia</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">Más de 15 años fabricando módulos habitacionales y piscinas de fibra en nuestra propia planta en <strong>Zárate, Buenos Aires</strong>. No revendemos catálogo de terceros: lo que mostrás en tus publicaciones lo fabricamos nosotros.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🛡️ Garantía</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0"><strong>10 años de garantía de fábrica</strong> en todos los productos. Es uno de los argumentos más fuertes frente a la competencia — usalo siempre en tus publicaciones y cotizaciones.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🚚 Instalación y entrega</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">
+            En <strong>financiado</strong>, la instalación va incluida y se completa el mismo día de la entrega, con equipo propio (no tercerizamos).<br>
+            En <strong>contado</strong>, el precio no incluye instalación — la coordinás vos, tu equipo o un tercero; EcoFiver se encarga del traslado a cualquier parte del país.<br>
+            Tiempos de producción: piscinas y módulos 6/12/18 m², entrega + instalación en 48-72hs desde el pedido. Viviendas modulares (24+ m²), 45-60 días de producción.
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">📍 Puntos de retiro sin cargo</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">CABA (San Telmo) · Zona Oeste (Paso del Rey) · Planta en Zárate (coordinar previamente). Útil para clientes que prefieren venir a buscar el producto ellos mismos.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">💳 Formas de pago</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">Efectivo, transferencia, tarjeta de crédito/débito y Mercado Pago para el contado. Para financiado, cuotas propias directas de fábrica — sin banco ni tarjeta, solo entrada + cuotas mensuales.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🧾 Datos legales</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">Cooperativa de Trabajo Eco Zárate Limitada — CUIT 30-71807393-2. Por si un cliente te pide el dato para facturar o verificar la empresa.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- BIBLIOTECA -->
     <section class="section" id="sec-biblioteca">
       <h2>Biblioteca de contenidos</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Guías para vender mejor y copys listos para pegar en tus publicaciones o mensajes.</p>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn-ghost biblio-filtro active" data-tipo="todos" onclick="filtrarBiblioteca('todos')">Todo</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="copy" onclick="filtrarBiblioteca('copy')">📋 Copys</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="guia" onclick="filtrarBiblioteca('guia')">📘 Guías</button>
+      </div>
       <div class="biblio-grid" id="biblio-grid">Cargando…</div>
     </section>
 
@@ -770,16 +814,38 @@ async function cargarRanking(){
   document.getElementById('tabla-ranking').innerHTML = h;
 }
 
+let BIBLIOTECA_ITEMS = [];
+let BIBLIOTECA_FILTRO = 'todos';
+
 async function cargarBiblioteca(){
   const data = await api('/api/socio/biblioteca').catch(()=>({materiales:[]}));
+  BIBLIOTECA_ITEMS = data.materiales;
+  renderBiblioteca();
+}
+
+function filtrarBiblioteca(tipo){
+  BIBLIOTECA_FILTRO = tipo;
+  document.querySelectorAll('.biblio-filtro').forEach(b => b.classList.toggle('active', b.dataset.tipo === tipo));
+  renderBiblioteca();
+}
+
+function renderBiblioteca(){
   const el = document.getElementById('biblio-grid');
-  el.innerHTML = data.materiales.map(m => `
+  const items = BIBLIOTECA_FILTRO === 'todos' ? BIBLIOTECA_ITEMS : BIBLIOTECA_ITEMS.filter(m => m.tipo === BIBLIOTECA_FILTRO);
+  el.innerHTML = items.map((m, i) => `
     <div class="biblio-card">
-      <div class="tag-cat">${m.categoria}</div>
+      <div class="tag-cat">${m.categoria}${m.tipo === 'copy' ? ' · copy listo para pegar' : ''}</div>
       <h4>${m.titulo || m.tipo}</h4>
-      <p>${m.descripcion||''}</p>
+      <p>${(m.descripcion||'').replace(/\n/g,'<br>')}</p>
+      ${m.tipo === 'copy' ? `<button class="btn-ghost" onclick="copiarTexto(this, ${JSON.stringify(m.descripcion)})">📋 Copiar texto</button>` : ''}
       ${m.url ? `<a href="${m.url}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px">Ver / descargar</a>` : ''}
-    </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay material cargado.</p>';
+    </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay material en esta categoría.</p>';
+}
+
+async function copiarTexto(btn, texto){
+  try{ await navigator.clipboard.writeText(texto); btn.textContent = '✅ Copiado'; }
+  catch(e){ btn.textContent = 'No se pudo copiar'; }
+  setTimeout(() => { btn.textContent = '📋 Copiar texto'; }, 1800);
 }
 
 async function guardarPerfil(){

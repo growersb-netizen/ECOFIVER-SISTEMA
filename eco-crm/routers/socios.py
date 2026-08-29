@@ -639,9 +639,93 @@ _GUIAS_SEED = [
 ]
 
 
+_COPYS_SEED = [
+    # ── General / marca ──
+    {"tipo": "copy", "categoria": "general", "orden": 1,
+     "titulo": "Presentación — quién sos como Socio Comercial",
+     "descripcion": (
+         "🌿 Ahora represento a EcoFiver en [TU ZONA] — fábrica propia en Zárate con más de 15 años haciendo "
+         "módulos habitacionales y piscinas de fibra. Puedo cotizarte al instante, con financiación propia "
+         "directa de fábrica (sin banco, sin recibo de sueldo). Contactame por acá 👇"
+     )},
+    {"tipo": "copy", "categoria": "general", "orden": 2,
+     "titulo": "Financiación propia — argumento de cierre",
+     "descripcion": (
+         "💳 Financiamos directo de fábrica, en cuotas propias fijas, sin pasar por bancos ni tarjetas. "
+         "Solo pedimos una entrada + cuotas mensuales, con aprobación simple y rápida. Y si en algún momento "
+         "querés adelantar la entrega, después de cierta cuota podés hacerlo sin dejar de pagar el resto del plan."
+     )},
+    {"tipo": "copy", "categoria": "general", "orden": 3,
+     "titulo": "Garantía y respaldo de fábrica",
+     "descripcion": (
+         "🏭 Esto no es un catálogo genérico: fabricamos en nuestra propia planta en Zárate, Buenos Aires. "
+         "Todos los productos tienen 10 años de garantía de fábrica. Podés venir a ver la planta o coordinar "
+         "el retiro sin cargo en nuestros puntos de CABA (San Telmo) o Zona Oeste (Paso del Rey)."
+     )},
+    # ── Piscinas de fibra (Arco Romano / Playa y Abanico) ──
+    {"tipo": "copy", "categoria": "piscinas", "orden": 10,
+     "titulo": "Piscinas de fibra — línea Arco Romano",
+     "descripcion": (
+         "🏊 Línea Arco Romano: piscinas de fibra de vidrio en 3 tamaños (Chico, Mediano, Grande) y con o sin "
+         "desnivel de profundidad. Instalación en el día una vez en obra. Consultame el tamaño que se ajusta "
+         "a tu espacio y te paso precio contado o en cuotas."
+     )},
+    {"tipo": "copy", "categoria": "piscinas", "orden": 11,
+     "titulo": "Piscinas grandes — línea Playa y Abanico",
+     "descripcion": (
+         "🌊 Para patios grandes: la línea Playa y Abanico (9,20 x 3,80m, hasta 53.000 litros) es nuestro modelo "
+         "más grande, ideal para uso familiar o quinchos de fin de semana. Financiación propia disponible — "
+         "pedime el simulador de cuotas para tu presupuesto."
+     )},
+    {"tipo": "copy", "categoria": "piscinas", "orden": 12,
+     "titulo": "Piscinas hidromasaje / bañeras — spa en casa",
+     "descripcion": (
+         "🛁 ¿Buscás algo más compacto? Tenemos bañeras y mini piscinas hidromasaje (rectangulares, circulares, "
+         "esquineras) ideales para baños, terrazas o SPA en casa. Se pueden sumar accesorios: blower de burbujas, "
+         "iluminación LED, grifería integrada y ozonizador. Te armo la cotización completa con lo que necesites."
+     )},
+    # ── Módulos habitacionales ──
+    {"tipo": "copy", "categoria": "modulos", "orden": 20,
+     "titulo": "Módulos habitacionales — 6, 12, 18 y 24 m²",
+     "descripcion": (
+         "🏠 Módulos de fábrica en 4 tamaños (6, 12, 18 y 24 m²), en versión BASE o PREMIUM. Incluyen aberturas, "
+         "pintura completa e instalación eléctrica interna. Sirven como vivienda, ampliación, depósito u oficina. "
+         "Entrega y montaje en el mismo día para 6/12/18 m² — te cotizo el tamaño y la versión que necesites."
+     )},
+    {"tipo": "copy", "categoria": "modulos", "orden": 21,
+     "titulo": "Módulo depósito — solución rápida y económica",
+     "descripcion": (
+         "📦 ¿Necesitás un espacio extra ya? El módulo de 6 m² es nuestra opción más accesible: depósito, "
+         "herramientas, oficina de obra o cuarto extra. Entrega y montaje en el mismo día. Preguntame el precio "
+         "contado o en cuotas propias."
+     )},
+    {"tipo": "copy", "categoria": "modulos", "orden": 22,
+     "titulo": "Vivienda modular — ampliá o mudate a estrenar",
+     "descripcion": (
+         "🏡 Nuestros módulos de 18 y 24 m² funcionan como vivienda modular completa: dormitorio, ampliación "
+         "familiar o casa chica llave en mano. Fabricación propia, financiación directa y garantía de 10 años. "
+         "Pedime el simulador para ver el plan de cuotas que más te convenga."
+     )},
+    # ── Objeciones / cierre ──
+    {"tipo": "copy", "categoria": "ventas", "orden": 30,
+     "titulo": "Respuesta lista — \"¿Y si no me aprueban el crédito?\"",
+     "descripcion": (
+         "No pedimos recibo de sueldo ni garante — es una aprobación simple y directa de fábrica, no un crédito "
+         "bancario. En la mayoría de los casos te puedo confirmar en el momento si tu plan queda aprobado."
+     )},
+    {"tipo": "copy", "categoria": "ventas", "orden": 31,
+     "titulo": "Respuesta lista — \"¿La instalación está incluida?\"",
+     "descripcion": (
+         "En financiado, sí, va incluida. Si preferís pagar de contado, la instalación no está incluida en ese "
+         "precio — la coordinamos entre nosotros o un instalador de tu zona, y EcoFiver se encarga solo del "
+         "traslado del producto a cualquier parte del país."
+     )},
+]
+
+
 def seed_biblioteca_socios(db: Session):
-    """Carga las guías reales una sola vez (idempotente por título)."""
-    for g in _GUIAS_SEED:
+    """Carga las guías y los copys reales una sola vez (idempotente por título)."""
+    for g in _GUIAS_SEED + _COPYS_SEED:
         existe = db.query(MaterialSocio).filter(MaterialSocio.titulo == g["titulo"]).first()
         if not existe:
             db.add(MaterialSocio(**g))

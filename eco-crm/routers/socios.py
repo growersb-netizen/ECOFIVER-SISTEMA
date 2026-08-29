@@ -132,7 +132,23 @@ def _generar_codigo_aliado(db: Session) -> str:
 
 
 def _normalizar_telefono(tel: str) -> str:
-    return re.sub(r"\D", "", tel or "")
+    """
+    Normaliza a formato internacional completo para WhatsApp Cloud API:
+    54 + 9 + 10 dígitos (ej: "11 3516-4644" -> "5491135164644"). Nadie tipea
+    el "54 9" a mano, pero sin eso el envío por WhatsApp devuelve 200 OK
+    (la API acepta el pedido) y el mensaje nunca llega a ningún dispositivo
+    real. Asume números argentinos (el programa opera "todo el país" = AR).
+    """
+    digitos = re.sub(r"\D", "", tel or "")
+    if not digitos:
+        return ""
+    if digitos.startswith("549"):
+        return digitos
+    if digitos.startswith("54"):
+        return "549" + digitos[2:]
+    if digitos.startswith("9") and len(digitos) == 11:
+        return "54" + digitos
+    return "549" + digitos  # número local sin código de país (10 dígitos)
 
 
 def _notificar_socio(db: Session, aliado_codigo: Optional[str], mensaje: str):

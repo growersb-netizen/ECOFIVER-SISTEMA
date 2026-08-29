@@ -358,6 +358,7 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "codigo": socio.codigo,
         "nombre": socio.nombre,
         "email": socio.email,
+        "telefono": socio.telefono or "",
         "dni": socio.dni or "",
         "zona": socio.zona,
         "cuit_monotributo": socio.cuit_monotributo or "",
@@ -399,9 +400,30 @@ async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(requ
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/socio/verificar-whatsapp/enviar")
-async def enviar_codigo_whatsapp(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+async def enviar_codigo_whatsapp(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Manda el código al WhatsApp del socio. Acepta opcionalmente `whatsapp` en el
+    body para elegir/corregir el número a verificar (por si se equivocó al
+    registrarse, o prefiere verificar otro) — se guarda como su número de
+    contacto si difiere del que ya tenía.
+    """
     if socio.whatsapp_verificado:
         return {"ok": True, "ya_verificado": True}
+
+    data = {}
+    try:
+        data = await request.json()
+    except Exception:
+        pass
+    nuevo_tel = _normalizar_telefono(data.get("whatsapp") or "") if data else ""
+    if nuevo_tel:
+        if len(nuevo_tel) < 8:
+            raise HTTPException(400, "WhatsApp inválido")
+        existente = db.query(Aliado).filter(Aliado.telefono == nuevo_tel, Aliado.telefono != "", Aliado.id != socio.id).first()
+        if existente:
+            raise HTTPException(409, "Ese WhatsApp ya está registrado en otra cuenta")
+        socio.telefono = nuevo_tel
+
     if not socio.telefono:
         raise HTTPException(400, "No tenés un WhatsApp cargado")
     otp = f"{random.randint(0, 999999):06d}"

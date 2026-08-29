@@ -164,7 +164,9 @@
 
     <div class="verif-step" id="vstep-whatsapp">
       <div class="verif-step-title"><span class="verif-check" id="vcheck-whatsapp">2</span> Verificar WhatsApp</div>
-      <button class="btn-ghost" onclick="mvEnviarWhatsapp()">Mandarme el código por WhatsApp</button>
+      <label>Número a verificar <span style="color:var(--text-muted);font-weight:400">(podés cambiarlo si querés usar otro)</span></label>
+      <input id="mv-wa-numero" placeholder="11 0000 0000" inputmode="tel">
+      <button class="btn-ghost" style="margin-top:8px" onclick="mvEnviarWhatsapp()">Mandarme el código a ese WhatsApp</button>
       <input id="mv-wa-otp" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" style="margin-top:8px;font-size:18px;letter-spacing:3px;text-align:center">
       <button class="btn-teal" style="margin-top:8px" onclick="mvConfirmarWhatsapp()">Confirmar</button>
       <div class="msg" id="mv-wa-msg"></div>
@@ -458,6 +460,7 @@ function abrirModalVerificacion(){
   document.getElementById('mv-dni').value = SOCIO.dni || '';
   document.getElementById('mv-zona').value = SOCIO.zona || '';
   document.getElementById('mv-cuit').value = SOCIO.cuit_monotributo || '';
+  document.getElementById('mv-wa-numero').value = SOCIO.telefono || '';
   document.getElementById('modal-verificacion').classList.remove('hidden');
 }
 
@@ -498,8 +501,12 @@ async function mvGuardarDatos(){
 
 async function mvEnviarWhatsapp(){
   const msg = document.getElementById('mv-wa-msg'); msg.className='msg'; msg.textContent='';
-  try{ await api('/api/socio/verificar-whatsapp/enviar', {method:'POST'}); msg.className='msg ok'; msg.textContent='Te mandamos el código.'; }
-  catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+  try{
+    const whatsapp = document.getElementById('mv-wa-numero').value.trim();
+    await api('/api/socio/verificar-whatsapp/enviar', {method:'POST', body: JSON.stringify({whatsapp})});
+    if(whatsapp) SOCIO.telefono = whatsapp;
+    msg.className='msg ok'; msg.textContent='Te mandamos el código a ese WhatsApp.';
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
 async function mvConfirmarWhatsapp(){

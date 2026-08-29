@@ -39,7 +39,7 @@ export default function AffiliatesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const headers = { Authorization: `Bearer ${localStorage.getItem("access_token")}` };
+      const headers = { Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` };
       const [affRes, commRes] = await Promise.all([
         fetch("/api/v1/affiliates", { headers }),
         fetch("/api/v1/affiliates/commissions", { headers }),
@@ -57,7 +57,7 @@ export default function AffiliatesPage() {
   const handleCreate = async () => {
     await fetch("/api/v1/affiliates", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
       body: JSON.stringify({ name: form.name, email: form.email, commissionRate: parseFloat(form.commissionRate) }),
     });
     setCreating(false);

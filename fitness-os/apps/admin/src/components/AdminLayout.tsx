@@ -11,15 +11,16 @@ const NAV = [
   { href: "/dashboard", icon: "◈", label: "Dashboard" },
   { href: "/dashboard/products", icon: "📦", label: "Productos" },
   { href: "/dashboard/orders", icon: "🛒", label: "Órdenes" },
+  { href: "/dashboard/coupons", icon: "🎟", label: "Cupones" },
   { href: "/dashboard/crm", icon: "👥", label: "CRM / Leads" },
+  { href: "/dashboard/whatsapp", icon: "💬", label: "WhatsApp" },
   { href: "/dashboard/ai", icon: "✨", label: "IA Generativa" },
   { href: "/dashboard/social", icon: "📱", label: "Redes Sociales" },
   { href: "/dashboard/ml", icon: "🛍️", label: "MercadoLibre" },
+  { href: "/dashboard/affiliates", icon: "🔗", label: "Afiliadas" },
   { href: "/dashboard/coaches", icon: "🏋️", label: "Coaches" },
-  { href: "/dashboard/affiliates", icon: "🤝", label: "Afiliadas" },
-  { href: "/dashboard/blog", icon: "✍️", label: "Blog" },
-  { href: "/dashboard/email", icon: "📧", label: "Email" },
-  { href: "/dashboard/config", icon: "⚙️", label: "Configuración" },
+  { href: "/dashboard/blog", icon: "📝", label: "Blog & Email" },
+  { href: "/dashboard/settings", icon: "⚙️", label: "Configuración" },
 ];
 
 const NEON = "#00FF87";

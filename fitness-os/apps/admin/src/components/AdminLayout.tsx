@@ -34,12 +34,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     apiClient.getMe()
       .then(u => setUserName(u.name || u.email))
-      .catch(() => router.push("/login"));
+      .catch(() => { window.location.href = "/login"; });
   }, [router]);
 
   const handleLogout = async () => {
     await apiClient.logout();
-    router.push("/login");
+    window.location.href = "/login";
   };
 
   return (

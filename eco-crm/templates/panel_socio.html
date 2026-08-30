@@ -101,56 +101,51 @@
 <div id="auth-screens" class="center-wrap">
   <div class="brand"><div class="logo">ECO<span>FIVER</span></div><div style="color:var(--text-muted);font-size:13px;margin-top:4px">Panel de Socios Comerciales</div></div>
 
-  <!-- LOGIN -->
+  <!-- LOGIN — sin contraseña: siempre por código de WhatsApp -->
   <div class="card" id="card-login">
-    <h2 style="margin:0 0 4px;font-size:19px">Ingresá a tu panel</h2>
-    <label>Email o código de socio</label>
-    <input id="login-id" placeholder="tu@email.com o AL-004">
-    <label>Contraseña</label>
-    <input id="login-pass" type="password">
-    <button class="btn-primary" style="margin-top:16px" onclick="doLogin()">Ingresar</button>
-    <div class="msg" id="login-msg"></div>
-    <div class="switch-link">¿Todavía no sos socio? <a onclick="showScreen('registro')">Registrate acá</a></div>
-    <div class="switch-link">¿Olvidaste tu contraseña? <a onclick="showScreen('olvide')">Recuperala acá</a></div>
-  </div>
-
-  <!-- OLVIDÉ MI CONTRASEÑA -->
-  <div class="card hidden" id="card-olvide">
-    <h2 style="margin:0 0 4px;font-size:19px">Recuperar contraseña</h2>
-    <p style="font-size:13px;color:var(--text-muted)">Te mandamos un código por WhatsApp para que puedas elegir una nueva.</p>
-    <label>Email o código de socio</label>
-    <input id="olvide-id">
-    <button class="btn-primary" style="margin-top:16px" onclick="doOlvide()">Mandarme el código</button>
-    <div class="msg" id="olvide-msg"></div>
-    <div class="switch-link"><a onclick="showScreen('login')">Volver a ingresar</a></div>
-  </div>
-
-  <!-- RESETEAR CONTRASEÑA -->
-  <div class="card hidden" id="card-resetear">
-    <h2 style="margin:0 0 4px;font-size:19px">Elegí tu nueva contraseña</h2>
-    <label>Código de verificación (te lo mandamos por WhatsApp)</label>
-    <input id="resetear-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
-    <label>Nueva contraseña</label>
-    <input id="resetear-pass" type="password" minlength="6">
-    <button class="btn-primary" style="margin-top:16px" onclick="doResetear()">Guardar y entrar</button>
-    <div class="msg" id="resetear-msg"></div>
+    <div id="login-paso-pedir">
+      <h2 style="margin:0 0 4px;font-size:19px">Ingresá a tu panel</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Sin contraseñas. Te mandamos un código por WhatsApp cada vez que querés entrar.</p>
+      <label>WhatsApp, email o código de socio</label>
+      <input id="login-id" placeholder="11 0000 0000, tu@email.com o AL-004">
+      <button class="btn-primary" style="margin-top:16px" onclick="doSolicitarCodigoLogin()">Mandarme el código</button>
+      <div class="msg" id="login-msg"></div>
+      <div class="switch-link">¿Todavía no sos socio? <a onclick="showScreen('registro')">Registrate acá</a></div>
+    </div>
+    <div class="hidden" id="login-paso-otp">
+      <h2 style="margin:0 0 4px;font-size:19px">Ingresá el código</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Te lo mandamos por WhatsApp — vence en unos minutos.</p>
+      <label>Código de 6 dígitos</label>
+      <input id="login-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
+      <button class="btn-primary" style="margin-top:16px" onclick="doConfirmarLogin()">Ingresar</button>
+      <div class="msg" id="login-otp-msg"></div>
+      <div class="switch-link"><a onclick="doSolicitarCodigoLogin()">Volver a mandar el código</a></div>
+    </div>
   </div>
 
   <!-- REGISTRO -->
   <div class="card hidden" id="card-registro">
-    <h2 style="margin:0 0 4px;font-size:19px">Registrate y empezá a vender hoy</h2>
-    <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Creás tu cuenta y entrás directo — el resto de tus datos los completás ya adentro.</p>
-    <label>Nombre y apellido</label>
-    <input id="reg-nombre">
-    <label>WhatsApp</label>
-    <input id="reg-whatsapp" placeholder="11 0000 0000" inputmode="tel">
-    <label>Email</label>
-    <input id="reg-email" type="email">
-    <label>Contraseña</label>
-    <input id="reg-pass" type="password">
-    <button class="btn-primary" style="margin-top:16px" onclick="doRegistro()">Crear mi cuenta</button>
-    <div class="msg" id="registro-msg"></div>
-    <div class="switch-link">¿Ya tenés cuenta? <a onclick="showScreen('login')">Ingresá acá</a></div>
+    <div id="registro-paso-datos">
+      <h2 style="margin:0 0 4px;font-size:19px">Quiero ser Socio Comercial</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Con estos 3 datos activás tu cuenta al instante.</p>
+      <label>Nombre y apellido</label>
+      <input id="reg-nombre">
+      <label>WhatsApp</label>
+      <input id="reg-whatsapp" placeholder="11 0000 0000" inputmode="tel">
+      <label>Email</label>
+      <input id="reg-email" type="email">
+      <button class="btn-primary" style="margin-top:16px" onclick="doRegistro()">Quiero ser Socio Comercial</button>
+      <div class="msg" id="registro-msg"></div>
+      <div class="switch-link">¿Ya tenés cuenta? <a onclick="showScreen('login')">Ingresá acá</a></div>
+    </div>
+    <div class="hidden" id="registro-paso-otp">
+      <h2 style="margin:0 0 4px;font-size:19px">¡Ya está registrado!</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Verificá tu WhatsApp para activar tu cuenta — te mandamos un código de 6 dígitos.</p>
+      <label>Código de 6 dígitos</label>
+      <input id="registro-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
+      <button class="btn-primary" style="margin-top:16px" onclick="doConfirmarRegistro()">Activar mi cuenta</button>
+      <div class="msg" id="registro-otp-msg"></div>
+    </div>
   </div>
 </div>
 
@@ -463,8 +458,13 @@ let SOCIO = null;
 let CATALOGO = null;
 
 function showScreen(name){
-  ['login','registro','olvide','resetear'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
+  ['login','registro'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
   document.getElementById('card-'+name).classList.remove('hidden');
+  // siempre arranca en el primer paso de cada tarjeta
+  document.getElementById('login-paso-pedir').classList.remove('hidden');
+  document.getElementById('login-paso-otp').classList.add('hidden');
+  document.getElementById('registro-paso-datos').classList.remove('hidden');
+  document.getElementById('registro-paso-otp').classList.add('hidden');
 }
 
 async function api(path, opts={}){
@@ -472,6 +472,16 @@ async function api(path, opts={}){
   const data = await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(data.detail || 'Error');
   return data;
+}
+
+function capturarUTM(){
+  const p = new URLSearchParams(location.search);
+  const out = {};
+  ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(k => {
+    const v = p.get(k) || sessionStorage.getItem(k);
+    if(v){ out[k] = v; try{ sessionStorage.setItem(k, v); }catch(e){} }
+  });
+  return out;
 }
 
 let ultimoCodigoRegistrado = null;
@@ -483,21 +493,46 @@ async function doRegistro(){
       nombre: document.getElementById('reg-nombre').value.trim(),
       whatsapp: document.getElementById('reg-whatsapp').value.trim(),
       email: document.getElementById('reg-email').value.trim(),
-      password: document.getElementById('reg-pass').value,
+      ...capturarUTM(),
     };
     const data = await api('/api/public/socio-registro', {method:'POST', body: JSON.stringify(body)});
     ultimoCodigoRegistrado = data.codigo;
+    if(typeof fbq === 'function') fbq('track', 'Lead');
+    document.getElementById('registro-paso-datos').classList.add('hidden');
+    document.getElementById('registro-paso-otp').classList.remove('hidden');
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doConfirmarRegistro(){
+  const msg = document.getElementById('registro-otp-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const otp = document.getElementById('registro-otp').value.trim();
+    await api('/api/public/socio-verificar', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado, otp})});
+    if(typeof fbq === 'function') fbq('track', 'CompleteRegistration');
     await cargarApp();
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
-async function doLogin(){
+let ultimoCodigoLogin = null;
+
+async function doSolicitarCodigoLogin(){
   const msg = document.getElementById('login-msg'); msg.className='msg'; msg.textContent='';
+  const id = document.getElementById('login-id').value.trim();
+  if(!id){ msg.className='msg error'; msg.textContent='Ingresá tu WhatsApp, email o código de socio'; return; }
   try{
-    const email = document.getElementById('login-id').value.trim();
-    const password = document.getElementById('login-pass').value;
-    const body = email.includes('@') ? {email, password} : {codigo: email, password};
-    await api('/api/public/socio-login', {method:'POST', body: JSON.stringify(body)});
+    const campo = id.includes('@') ? 'email' : (/^[A-Za-z]{2}-\d+$/.test(id) ? 'codigo' : 'whatsapp');
+    const data = await api('/api/public/socio-solicitar-codigo', {method:'POST', body: JSON.stringify({[campo]: id})});
+    ultimoCodigoLogin = data.codigo;
+    document.getElementById('login-paso-pedir').classList.add('hidden');
+    document.getElementById('login-paso-otp').classList.remove('hidden');
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doConfirmarLogin(){
+  const msg = document.getElementById('login-otp-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const otp = document.getElementById('login-otp').value.trim();
+    await api('/api/public/socio-verificar', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoLogin, otp})});
     await cargarApp();
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
@@ -505,33 +540,6 @@ async function doLogin(){
 async function doLogout(){
   await api('/api/public/socio-logout', {method:'POST'}).catch(()=>{});
   location.reload();
-}
-
-let identificadorRecupero = null;
-
-async function doOlvide(){
-  const msg = document.getElementById('olvide-msg'); msg.className='msg'; msg.textContent='';
-  const id = document.getElementById('olvide-id').value.trim();
-  if(!id){ msg.className='msg error'; msg.textContent='Ingresá tu email o código'; return; }
-  identificadorRecupero = id;
-  try{
-    const body = id.includes('@') ? {email:id} : {codigo:id};
-    const data = await api('/api/public/socio-olvide-password', {method:'POST', body: JSON.stringify(body)});
-    msg.className='msg ok'; msg.textContent = data.mensaje;
-    showScreen('resetear');
-  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
-}
-
-async function doResetear(){
-  const msg = document.getElementById('resetear-msg'); msg.className='msg'; msg.textContent='';
-  try{
-    const body = identificadorRecupero.includes('@')
-      ? {email: identificadorRecupero, otp: document.getElementById('resetear-otp').value.trim(), password_nueva: document.getElementById('resetear-pass').value}
-      : {codigo: identificadorRecupero, otp: document.getElementById('resetear-otp').value.trim(), password_nueva: document.getElementById('resetear-pass').value};
-    await api('/api/public/socio-resetear-password', {method:'POST', body: JSON.stringify(body)});
-    msg.className='msg ok'; msg.textContent = '¡Listo! Ya podés ingresar con tu nueva contraseña.';
-    setTimeout(() => showScreen('login'), 1200);
-  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
 async function cargarApp(){

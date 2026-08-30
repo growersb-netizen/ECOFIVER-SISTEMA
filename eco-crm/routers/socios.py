@@ -168,29 +168,24 @@ def _notificar_socio(db: Session, aliado_codigo: Optional[str], mensaje: str):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/public/socio-registro")
-async def socio_registro(request: Request, response: Response, db: Session = Depends(get_db)):
+async def socio_registro(request: Request, db: Session = Depends(get_db)):
     """
-    Registro directo y automático: crea el socio en estado "activo" y lo deja
-    logueado al instante — sin aprobación humana y sin código bloqueante.
-    Solo pide nombre y apellido, WhatsApp, email y contraseña. El DNI, el
-    CUIT/Monotributo y la verificación de WhatsApp/email se completan después
-    del login, con un pop-up obligatorio (ver /api/socio/completar-perfil y
-    /api/socio/verificar-*). Hasta completarlo, el socio puede usar el panel
-    (catálogo, simulador, biblioteca) pero no puede cargar ventas.
+    Registro directo y automático — sin aprobación humana. El único requisito
+    para arrancar es Nombre, WhatsApp y Email; el resto (DNI, zona, etc.) se
+    completa después de verificar. No hay contraseña: el acceso es siempre
+    por código de WhatsApp, tanto para activar la cuenta como para cada
+    login posterior (ver /api/public/socio-solicitar-codigo y /socio-verificar).
     """
     data = await request.json()
 
     nombre = (data.get("nombre") or "").strip()
     telefono = _normalizar_telefono(data.get("whatsapp") or data.get("telefono") or "")
     email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
 
     if not nombre or not telefono or not email:
         raise HTTPException(400, "Nombre y apellido, WhatsApp y email son obligatorios")
     if not re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(400, "Email inválido")
-    if len(password) < 6:
-        raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
     if len(telefono) < 8:
         raise HTTPException(400, "WhatsApp inválido")
 
@@ -199,30 +194,74 @@ async def socio_registro(request: Request, response: Response, db: Session = Dep
     if db.query(Aliado).filter(Aliado.email == email).first():
         raise HTTPException(409, "Ya existe un socio registrado con ese email")
 
+    origen_partes = [
+        f"{k}={v}" for k in ("utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term")
+        if (v := (data.get(k) or "").strip())
+    ]
+    origen_registro = "&".join(origen_partes)
+
+    otp = f"{random.randint(0, 999999):06d}"
     socio = Aliado(
         codigo=_generar_codigo_aliado(db),
         nombre=nombre,
         telefono=telefono,
         email=email,
         estado="activo",  # registro directo, sin aprobación
-        password_hash=pwd_context.hash(password),
         whatsapp_verificado=False,
         email_verificado=False,
         perfil_completo=False,
+        codigo_verificacion=otp,
+        codigo_verificacion_expira=datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS),
+        origen_registro=origen_registro,
         notas="Registro directo vía plataforma de socios",
     )
     db.add(socio)
     db.commit()
     db.refresh(socio)
 
-    token = _crear_token_socio(socio.id)
-    response.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=SOCIO_TOKEN_EXPIRE_HOURS * 3600, samesite="lax")
+    send_whatsapp_otp(db, telefono, otp)
     return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
+
+
+@router.post("/api/public/socio-solicitar-codigo")
+async def socio_solicitar_codigo(request: Request, db: Session = Depends(get_db)):
+    """
+    Pide un código de acceso por WhatsApp para un socio YA registrado —
+    reemplaza al login con contraseña. Sirve tanto para el primer ingreso
+    (si el código de bienvenida ya venció) como para cualquier login
+    posterior. Se confirma con /api/public/socio-verificar.
+    """
+    data = await request.json()
+    identificador = (data.get("whatsapp") or data.get("email") or data.get("codigo") or "").strip()
+    if not identificador:
+        raise HTTPException(400, "Ingresá tu WhatsApp, email o código de socio")
+
+    q = db.query(Aliado)
+    if "@" in identificador:
+        socio = q.filter(Aliado.email == identificador.lower()).first()
+    elif re.match(r"^[A-Za-z]{2}-\d+$", identificador):
+        socio = q.filter(Aliado.codigo == identificador.upper()).first()
+    else:
+        socio = q.filter(Aliado.telefono == _normalizar_telefono(identificador)).first()
+
+    if not socio:
+        raise HTTPException(404, "No encontramos una cuenta con ese dato — registrate primero")
+
+    otp = f"{random.randint(0, 999999):06d}"
+    socio.codigo_verificacion = otp
+    socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+    db.commit()
+    send_whatsapp_otp(db, socio.telefono, otp)
+    return {"ok": True, "codigo": socio.codigo}
 
 
 @router.post("/api/public/socio-verificar")
 async def socio_verificar(request: Request, response: Response, db: Session = Depends(get_db)):
-    """Confirma el código de WhatsApp y deja la sesión iniciada."""
+    """
+    Confirma el código de WhatsApp y deja la sesión iniciada — funciona tanto
+    para activar la cuenta la primera vez como para cada login posterior
+    (no hay contraseña: este es el único mecanismo de acceso).
+    """
     data = await request.json()
     codigo = (data.get("codigo") or "").strip().upper()
     otp = (data.get("otp") or data.get("codigo_verificacion") or "").strip()
@@ -233,8 +272,6 @@ async def socio_verificar(request: Request, response: Response, db: Session = De
     socio = db.query(Aliado).filter(Aliado.codigo == codigo).first()
     if not socio:
         raise HTTPException(404, "Socio no encontrado")
-    if socio.whatsapp_verificado:
-        return {"ok": True, "ya_verificado": True}
     if not socio.codigo_verificacion or socio.codigo_verificacion != otp:
         raise HTTPException(400, "Código incorrecto")
     if socio.codigo_verificacion_expira and socio.codigo_verificacion_expira < datetime.now():
@@ -257,8 +294,6 @@ async def socio_reenviar_codigo(request: Request, db: Session = Depends(get_db))
     socio = db.query(Aliado).filter(Aliado.codigo == codigo).first()
     if not socio:
         raise HTTPException(404, "Socio no encontrado")
-    if socio.whatsapp_verificado:
-        return {"ok": True, "ya_verificado": True}
 
     otp = f"{random.randint(0, 999999):06d}"
     socio.codigo_verificacion = otp
@@ -266,46 +301,6 @@ async def socio_reenviar_codigo(request: Request, db: Session = Depends(get_db))
     db.commit()
     send_whatsapp_otp(db, socio.telefono, otp)
     return {"ok": True}
-
-
-@router.post("/api/public/socio-login")
-async def socio_login(request: Request, response: Response, db: Session = Depends(get_db)):
-    """Login con email o código + contraseña. Con límite de intentos."""
-    data = await request.json()
-    identificador = (data.get("email") or data.get("codigo") or "").strip()
-    password = data.get("password") or ""
-
-    if not identificador or not password:
-        raise HTTPException(400, "Faltan credenciales")
-
-    q = db.query(Aliado)
-    if "@" in identificador:
-        socio = q.filter(Aliado.email == identificador.lower().strip()).first()
-    else:
-        socio = q.filter(Aliado.codigo == identificador.upper().strip()).first()
-
-    if not socio:
-        raise HTTPException(401, "Credenciales incorrectas")
-
-    if socio.bloqueado_hasta and socio.bloqueado_hasta > datetime.now():
-        minutos = max(1, int((socio.bloqueado_hasta - datetime.now()).total_seconds() // 60) + 1)
-        raise HTTPException(429, f"Demasiados intentos fallidos. Probá de nuevo en {minutos} minutos.")
-
-    if not socio.password_hash or not pwd_context.verify(password, socio.password_hash):
-        socio.intentos_fallidos = (socio.intentos_fallidos or 0) + 1
-        if socio.intentos_fallidos >= MAX_INTENTOS_LOGIN:
-            socio.bloqueado_hasta = datetime.now() + timedelta(minutes=BLOQUEO_MINUTOS)
-            socio.intentos_fallidos = 0
-        db.commit()
-        raise HTTPException(401, "Credenciales incorrectas")
-
-    socio.intentos_fallidos = 0
-    socio.bloqueado_hasta = None
-    db.commit()
-
-    token = _crear_token_socio(socio.id)
-    response.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=SOCIO_TOKEN_EXPIRE_HOURS * 3600, samesite="lax")
-    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
 
 
 # ─── Recuperación de contraseña — mismo canal de OTP por WhatsApp ─────────────

@@ -1345,6 +1345,9 @@ class Aliado(Base):
     doc_monotributo_path = Column(String(500), nullable=True)
     doc_dni_path = Column(String(500), nullable=True)
 
+    # ── Atribución de marketing: de dónde vino el registro (UTM de la pauta) ──
+    origen_registro = Column(String(300), default="")
+
 
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,

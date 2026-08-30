@@ -688,6 +688,33 @@ _GUIAS_SEED = [
             "\"Quiero verlo antes\" → Mostrale el catálogo con fotos reales y ofrecele una videollamada con el equipo."
         ),
     },
+    {
+        "tipo": "guia", "categoria": "operacion", "orden": 6,
+        "titulo": "Recorrido completo del panel — qué hace cada sección",
+        "descripcion": (
+            "Inicio: tu resumen general (comisiones, ventas cargadas, tu progreso). Catálogo y precios: todos "
+            "los productos con sus precios reales — siempre cotizá desde acá, nunca de memoria. Simulador de "
+            "cuotas: calculá la cuota exacta de un plan financiado antes de ofrecerlo. Cargar venta: acá "
+            "registrás cada operación — elegís categoría y producto, el precio se autocompleta, y en "
+            "financiado podés chequear la situación crediticia del cliente antes de avanzar. Mis ventas: el "
+            "estado de cada operación, paso a paso, con los documentos para descargar. Mis comisiones: cuánto "
+            "tenés pendiente y cuánto ya te transferimos. Ranking: tu posición a nivel nacional. Mi Empresa: "
+            "los datos institucionales que te puede pedir un cliente. Biblioteca de contenidos: fotos, videos "
+            "y copys listos para usar. Capacitación: donde estás ahora. Mi perfil: tus datos y documentación."
+        ),
+    },
+    {
+        "tipo": "guia", "categoria": "operacion", "orden": 7,
+        "titulo": "Checklist antes de cargar una venta",
+        "descripcion": (
+            "1) ¿Cotizaste el precio exacto desde el Catálogo (no de memoria)? 2) Si es financiado, ¿corriste "
+            "el chequeo de BCRA del cliente? 3) ¿Tenés el nombre completo, WhatsApp y localidad del cliente "
+            "cargados correctamente? 4) Si es una piscina fuera del área de cobertura directa, ¿elegiste bien "
+            "el nivel de instalación (con instalación / casco + equipo / casco solo)? 5) En financiado, ¿le "
+            "explicaste al cliente que la inscripción equivale a 2 cuotas y que puede pagarla en partes? "
+            "Con estos 5 puntos resueltos, cargá la venta con confianza — el resto lo maneja el sistema."
+        ),
+    },
 ]
 
 
@@ -2012,6 +2039,23 @@ FAQ_SOCIOS = [
 @router.get("/api/socio/faq")
 async def socio_faq(socio: Aliado = Depends(require_socio)):
     return {"faq": FAQ_SOCIOS}
+
+
+@router.get("/api/socio/capacitacion")
+async def socio_capacitacion(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Guías propias de EcoFiver — a propósito separadas de la Biblioteca de
+    marketing (esa es para contenido reusable en publicaciones; esto es
+    para aprender a operar). No exige estar verificado: es justamente lo
+    que ayuda a un socio nuevo a llegar a estarlo.
+    """
+    guias = (
+        db.query(MaterialSocio)
+        .filter(MaterialSocio.tipo == "guia", MaterialSocio.activo == True)
+        .order_by(MaterialSocio.orden, MaterialSocio.id)
+        .all()
+    )
+    return {"guias": [_material_dict(g) for g in guias]}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

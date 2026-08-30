@@ -203,7 +203,7 @@
     <a class="nav-item" data-section="ranking" onclick="nav('ranking')">🏆 Ranking</a>
     <a class="nav-item" data-section="empresa" onclick="nav('empresa')">🏭 Mi Empresa</a>
     <a class="nav-item" data-section="biblioteca" onclick="nav('biblioteca')">🖼️ Biblioteca de contenidos</a>
-    <a class="nav-item" data-section="quiz" onclick="nav('quiz')">✅ Autoevaluación</a>
+    <a class="nav-item" data-section="capacitacion" onclick="nav('capacitacion')">🎓 Capacitación</a>
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
     <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
     <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
@@ -376,22 +376,52 @@
     <!-- BIBLIOTECA -->
     <section class="section" id="sec-biblioteca">
       <h2>Biblioteca de contenidos</h2>
-      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Guías para vender mejor y copys listos para pegar en tus publicaciones o mensajes.</p>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Fotos, videos y copys listos para pegar en tus publicaciones o mensajes. Las guías y capacitaciones están en su propia sección.</p>
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn-ghost biblio-filtro active" data-tipo="todos" onclick="filtrarBiblioteca('todos')">Todo</button>
         <button class="btn-ghost biblio-filtro" data-tipo="imagen" onclick="filtrarBiblioteca('imagen')">🖼️ Fotos</button>
         <button class="btn-ghost biblio-filtro" data-tipo="foto_entrega" onclick="filtrarBiblioteca('foto_entrega')">📦 Entregas</button>
         <button class="btn-ghost biblio-filtro" data-tipo="copy" onclick="filtrarBiblioteca('copy')">📋 Copys</button>
-        <button class="btn-ghost biblio-filtro" data-tipo="guia" onclick="filtrarBiblioteca('guia')">📘 Guías</button>
       </div>
       <div class="biblio-grid" id="biblio-grid">Cargando…</div>
     </section>
 
-    <!-- QUIZ / AUTOEVALUACIÓN -->
-    <section class="section" id="sec-quiz">
-      <h2>Autoevaluación</h2>
-      <p style="color:var(--text-muted)">No es un examen ni bloquea nada — es para que repases si tenés claras las reglas del programa. Tocá una pregunta para ver la respuesta.</p>
+    <!-- CAPACITACIÓN — separada de la biblioteca de marketing a propósito -->
+    <section class="section" id="sec-capacitacion">
+      <h2>Capacitación</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Todo lo que necesitás saber para operar al 100% como Socio Comercial: guías propias de EcoFiver y cursos externos gratuitos recomendados.</p>
+
+      <h3 style="font-size:14px;margin:20px 0 8px">📘 Guías de EcoFiver</h3>
+      <div id="capacitacion-guias">Cargando…</div>
+
+      <h3 style="font-size:14px;margin:28px 0 8px">✅ Autoevaluación</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-4px">No es un examen ni bloquea nada — es para que repases si tenés claras las reglas del programa. Tocá una pregunta para ver la respuesta.</p>
       <div id="quiz-list"></div>
+
+      <h3 style="font-size:14px;margin:28px 0 8px">🌐 Cursos externos gratuitos recomendados</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-4px">Recursos oficiales y gratuitos de terceros — no son de EcoFiver, pero son relevantes para vender mejor y manejar tu actividad como Socio Comercial.</p>
+      <div class="grid2">
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">📱 Meta Blueprint — vender por redes sociales</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Cursos oficiales y gratuitos de Meta para promocionar y vender por Facebook e Instagram.</p>
+          <a href="https://www.facebook.com/business/learn" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">facebook.com/business/learn</a>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">🎓 Google — habilidades digitales gratuitas</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Programa gratuito de Google con cursos de marketing digital y ventas online. Buscá "Crece con Google" o "Habilidades digitales para el empleo".</p>
+          <a href="https://grow.google" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">grow.google</a>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">🛒 Mercado Libre — academia de vendedores</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Guías oficiales de Mercado Libre sobre atención al cliente y ventas online, útiles aunque vendas por otros medios.</p>
+          <a href="https://www.mercadolibre.com.ar/ayuda" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">mercadolibre.com.ar/ayuda</a>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">🧾 AFIP — Monotributo</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Información oficial para inscribirte en el Monotributo y poder facturar tus comisiones.</p>
+          <a href="https://www.afip.gob.ar/monotributo/" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">afip.gob.ar/monotributo</a>
+        </div>
+      </div>
     </section>
 
     <!-- PERFIL -->
@@ -608,7 +638,7 @@ function nav(section){
   if(section==='comisiones') cargarComisionesTabla();
   if(section==='ranking') cargarRanking();
   if(section==='biblioteca') cargarBiblioteca();
-  if(section==='quiz') cargarQuiz();
+  if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
   if(section==='ayuda') cargarFaq();
 }
 
@@ -627,6 +657,17 @@ async function cargarFaq(){
       <strong>${f.pregunta}</strong>
       <p class="resp hidden" style="margin:8px 0 0;color:var(--text-muted)">${f.respuesta}</p>
     </div>`).join('');
+}
+
+async function cargarCapacitacionGuias(){
+  const el = document.getElementById('capacitacion-guias');
+  const data = await api('/api/socio/capacitacion').catch(()=>({guias:[]}));
+  el.innerHTML = data.guias.map(g => `
+    <div class="card" style="cursor:pointer" onclick="this.querySelector('.resp').classList.toggle('hidden')">
+      <div class="tag-cat">${g.categoria}</div>
+      <h4 style="margin:2px 0 0">${g.titulo}</h4>
+      <p class="resp hidden" style="margin:10px 0 0;font-size:13.5px;line-height:1.6">${g.descripcion}</p>
+    </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay guías cargadas.</p>';
 }
 
 async function cargarQuiz(){
@@ -995,7 +1036,7 @@ async function cargarBiblioteca(){
     return;
   }
   const data = await api('/api/socio/biblioteca').catch(()=>({materiales:[]}));
-  BIBLIOTECA_ITEMS = data.materiales;
+  BIBLIOTECA_ITEMS = data.materiales.filter(m => m.tipo !== 'guia');  // las guías viven en Capacitación
   renderBiblioteca();
 }
 

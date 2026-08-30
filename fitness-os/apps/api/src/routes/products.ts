@@ -442,6 +442,80 @@ export async function productRoutes(fastify: FastifyInstance) {
   );
 
   /**
+   * GET /products/:id/download
+   * Genera una URL de descarga del archivo primario del producto.
+   * - storageKey es URL http(s)?: redirect 302 directo.
+   * - R2 configurado (env vars): URL presignada, redirect 302, TTL 1 hora.
+   * - local:// o sin R2: 422 con instrucciones.
+   */
+  fastify.get(
+    "/:id/download",
+    { preHandler: [fastify.authenticate] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+      const product = await prisma.product.findFirst({
+        where: { id: request.params.id, tenantId: request.tenantId! },
+        include: {
+          files: {
+            orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
+            take: 5,
+          },
+        },
+      });
+
+      if (!product) return reply.code(404).send({ error: "Producto no encontrado" });
+
+      const primaryFile = product.files.find(f => f.isPrimary) ?? product.files[0];
+      if (!primaryFile) {
+        return reply.code(404).send({ error: "El producto no tiene archivos asociados" });
+      }
+
+      const { storageKey } = primaryFile;
+
+      // URL directa: redirect inmediato
+      if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
+        return reply.redirect(302, storageKey);
+      }
+
+      // R2 presignada
+      const R2_ACCOUNT_ID = process.env["R2_ACCOUNT_ID"];
+      const R2_ACCESS_KEY_ID = process.env["R2_ACCESS_KEY_ID"];
+      const R2_SECRET_ACCESS_KEY = process.env["R2_SECRET_ACCESS_KEY"];
+      const R2_BUCKET = process.env["R2_BUCKET"];
+
+      if (R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET) {
+        const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+        const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+
+        const s3 = new S3Client({
+          region: "auto",
+          endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+          credentials: {
+            accessKeyId: R2_ACCESS_KEY_ID,
+            secretAccessKey: R2_SECRET_ACCESS_KEY,
+          },
+        });
+
+        const command = new GetObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: storageKey,
+          ResponseContentDisposition: `attachment; filename="${primaryFile.name}"`,
+        });
+
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+        return reply.redirect(302, signedUrl);
+      }
+
+      // Sin R2 ni URL directa: informar
+      return reply.code(422).send({
+        error: "Archivo no disponible para descarga",
+        message: "Configure R2 (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET) o use una URL directa como storageKey.",
+        storageKey,
+        fileName: primaryFile.name,
+      });
+    }
+  );
+
+  /**
    * POST /products/:id/files
    * Registra (o actualiza) el ProductFile primario asociado a un producto.
    * Usado por scripts de R2 y por el seed de entrega para pre-registrar la

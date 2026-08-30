@@ -1230,10 +1230,13 @@ async def update_precios_unificado(
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """
-    Body: { "tipo": "piscinas"|"modulos", "campo": "precios"|"precios_lista" (opcional, default "precios"),
+    Body: { "tipo": "piscinas"|"modulos", "campo": "precios"|"precios_lista"|"precios_sin_instalacion" (opcional, default "precios"),
             "precios": { "clave": valor, ... } }
-    "precios" = precio CONTADO (el que se cotiza al cliente).
+    "precios" = precio CONTADO CON instalación (el que se cotiza al cliente por defecto).
     "precios_lista" = precio LISTA (base para financiación/cuotas — no confundir).
+    "precios_sin_instalacion" = precio CONTADO en formato casco, sin instalación — para
+    ventas fuera del área de cobertura de instalación directa (la coordina el socio o
+    un instalador de su zona).
     """
     _write_auth(x_api_key, current_user)
     data = await request.json()
@@ -1241,8 +1244,8 @@ async def update_precios_unificado(
     campo = data.get("campo", "precios")
     if tipo not in ("piscinas", "modulos"):
         raise HTTPException(400, "tipo debe ser 'piscinas' o 'modulos'")
-    if campo not in ("precios", "precios_lista"):
-        raise HTTPException(400, "campo debe ser 'precios' o 'precios_lista'")
+    if campo not in ("precios", "precios_lista", "precios_sin_instalacion"):
+        raise HTTPException(400, "campo debe ser 'precios', 'precios_lista' o 'precios_sin_instalacion'")
     nuevos_precios = data.get("precios", {})
     cat = load_catalogo()
     cat[tipo].setdefault(campo, {})

@@ -514,18 +514,31 @@ async def confirmar_codigo_email(request: Request, socio: Aliado = Depends(requi
 async def socio_catalogo(socio: Aliado = Depends(require_socio)):
     """Catálogo completo con precios de lista — para cotizar con seguridad."""
     cat = load_catalogo()
-    return {
+    resultado = {
         "piscinas": {
             "modelos": cat["piscinas"].get("modelos", []),
             "precios_lista": cat["piscinas"].get("precios_lista", {}),
             "precios": cat["piscinas"].get("precios", {}),
+            "precios_sin_instalacion": cat["piscinas"].get("precios_sin_instalacion", {}),
+            "fotos": cat["piscinas"].get("fotos", {}),
         },
         "modulos": {
             "superficies_m2": cat["modulos"].get("superficies_m2", []),
             "precios_lista": cat["modulos"].get("precios_lista", {}),
             "precios": cat["modulos"].get("precios", {}),
+            "fotos": cat["modulos"].get("fotos", {}),
         },
+        "combos": cat.get("combos") or {},
     }
+    # Resto de categorías (hidromasajes, bañeras, receptáculos, accesorios,
+    # baños químicos, garitas, cuchas, reposeras, depósitos de jardín):
+    # misma forma genérica {nombre_item: {precio_contado, descripcion, fotos, ...}}.
+    for cat_key in _CATEGORIAS_CATALOGO_SIMPLES:
+        bloque = cat.get(cat_key) or {}
+        items = bloque.get("modelos") if isinstance(bloque.get("modelos"), dict) else bloque
+        if isinstance(items, dict):
+            resultado[cat_key] = items
+    return resultado
 
 
 # ─── Flete — tabla propia del canal de socios ─────────────────────────────────
@@ -616,12 +629,12 @@ _GUIAS_SEED = [
         "tipo": "guia", "categoria": "ventas", "orden": 1,
         "titulo": "Cómo empezar a vender tu primera semana",
         "descripcion": (
-            "1) Armá una lista de 10-15 contactos: familia, vecinos, comercios de tu zona que puedan necesitar "
-            "un módulo o una piscina. 2) Mandales un mensaje corto contando que ahora sos Socio Comercial de "
-            "EcoFiver y podés asesorarlos con precio y financiación directa de fábrica. 3) Usá el catálogo y el "
-            "simulador de tu panel para cotizar en el momento — nunca de memoria. 4) Si preguntan por instalación "
-            "en contado, aclará siempre que no está incluida (la coordinás vos, tu equipo, o un tercero) y que "
-            "nosotros trasladamos a cualquier parte del país. 5) Cuando cierres, cargá la venta el mismo día."
+            "1) Armá una lista de 10 a 15 contactos: familia, vecinos y comercios de tu zona que puedan necesitar "
+            "un módulo o una piscina. 2) Presentate como Socio Comercial de EcoFiver, con respaldo de fábrica y "
+            "financiación propia directa. 3) Usá el catálogo y el simulador de tu panel para cotizar en el momento, "
+            "con precisión. 4) Si te consultan por la instalación en una venta de contado, explicá que está incluida "
+            "en la mayoría de los casos, y que fuera del área de cobertura directa se coordina con tu equipo o un "
+            "instalador de la zona. 5) Al cerrar la venta, cargala desde tu panel el mismo día."
         ),
     },
     {
@@ -648,11 +661,11 @@ _GUIAS_SEED = [
         "tipo": "guia", "categoria": "ventas", "orden": 4,
         "titulo": "Objeciones frecuentes de clientes y cómo responderlas",
         "descripcion": (
-            "\"¿Y si no me aprueban?\" → No pedimos recibo de sueldo ni garante, la aprobación es simple y directa "
-            "de fábrica. \"¿Por qué no un banco?\" → Sin intermediarios significa cuotas más accesibles y trámite "
-            "más rápido. \"¿Y la instalación?\" → En financiado va incluida; en contado la coordinás vos o un "
-            "tercero, nosotros trasladamos a cualquier parte del país. \"Quiero verlo antes\" → Mostrale el "
-            "catálogo con fotos reales y ofrecele una videollamada con el equipo."
+            "\"¿Y si no me aprueban?\" → La aprobación es simple y directa de fábrica, sin recibo de sueldo ni "
+            "garante. \"¿Por qué no un banco?\" → Sin intermediarios, las cuotas son más accesibles y el trámite "
+            "más ágil. \"¿Y la instalación?\" → Está incluida en financiado y en la mayoría de las ventas de "
+            "contado; fuera del área de cobertura directa, se coordina con tu equipo o un instalador de la zona. "
+            "\"Quiero verlo antes\" → Mostrale el catálogo con fotos reales y ofrecele una videollamada con el equipo."
         ),
     },
 ]
@@ -735,9 +748,9 @@ _COPYS_SEED = [
     {"tipo": "copy", "categoria": "ventas", "orden": 31,
      "titulo": "Respuesta lista — \"¿La instalación está incluida?\"",
      "descripcion": (
-         "En financiado, sí, va incluida. Si preferís pagar de contado, la instalación no está incluida en ese "
-         "precio — la coordinamos entre nosotros o un instalador de tu zona, y EcoFiver se encarga solo del "
-         "traslado del producto a cualquier parte del país."
+         "Sí, está incluida en financiado y en la mayoría de las ventas de contado. Si tu zona queda fuera del "
+         "área de instalación directa, te entrego el producto en formato casco (o casco con equipo de filtrado "
+         "completo) y coordinamos juntos la instalación con tu equipo o un instalador de confianza."
      )},
 ]
 
@@ -825,6 +838,51 @@ def sincronizar_biblioteca_catalogo(db: Session) -> int:
     return len(fotos)
 
 
+def sincronizar_biblioteca_marketing(db: Session) -> int:
+    """
+    Trae a la Biblioteca de socios el contenido de marketing ya aprobado o
+    publicado en Ecopost (flyers, fotos y videos, cada uno con su copy y
+    hashtags listos) — el mismo material que ya se usa para las redes
+    propias de EcoFiver, disponible también para que lo usen los socios.
+    Idempotente: reemplaza todo lo de origen='ecopost' en cada corrida.
+    """
+    from database.models import ContenidoEcopost
+    import secrets as _secrets
+
+    crm_base = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app").rstrip("/")
+
+    db.query(MaterialSocio).filter(MaterialSocio.origen == "ecopost").delete()
+
+    items = db.query(ContenidoEcopost).filter(ContenidoEcopost.estado.in_(["aprobado", "publicado"])).all()
+    orden, n = 200, 0
+    for c in items:
+        url, tipo = None, ("video" if c.video_token else "imagen")
+        if c.video_token:
+            url = f"{crm_base}/pub/video/{c.video_token}"
+        elif c.imagen_url:
+            url = c.imagen_url
+        elif c.imagen_base64:
+            if not c.public_token:
+                c.public_token = _secrets.token_urlsafe(32)
+            url = f"{crm_base}/pub/img/{c.public_token}"
+        if not url:
+            continue
+
+        descripcion = (c.copy_texto or "").strip()
+        if c.copy_hashtags:
+            descripcion = (descripcion + "\n\n" + c.copy_hashtags).strip()
+
+        db.add(MaterialSocio(
+            tipo=tipo, categoria=(c.producto or "general").lower(),
+            titulo=c.titulo or c.modelo_especifico or "Contenido de marketing",
+            descripcion=descripcion, url_externa=url, orden=orden, origen="ecopost",
+        ))
+        orden += 1
+        n += 1
+    db.commit()
+    return n
+
+
 def _material_dict(m: MaterialSocio) -> dict:
     return {
         "id": m.id, "tipo": m.tipo, "categoria": m.categoria, "titulo": m.titulo,
@@ -849,9 +907,9 @@ QUIZ_AUTOEVALUACION = [
     {"pregunta": "¿Cuándo se libera tu comisión en una venta financiada?", "respuesta": "Cuando el equipo hace la llamada de bienvenida (auditoría) y confirma que el cliente entendió el plan."},
     {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "2% del valor nominal del producto — se libera contra entrega y cobro."},
     {"pregunta": "¿Necesitás Monotributo para operar?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones."},
-    {"pregunta": "¿La instalación está incluida en una venta de contado?", "respuesta": "No. La coordinás vos, tu equipo, o un tercero — EcoFiver solo traslada y entrega."},
+    {"pregunta": "¿La instalación está incluida en una venta de contado?", "respuesta": "En general sí. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo del Socio o de un instalador de su zona."},
     {"pregunta": "¿Desde qué cuota se puede pedir la entrega anticipada (licitación)?", "respuesta": "Desde la cuota 6 en viviendas, y desde la cuota 3 en piscinas."},
-    {"pregunta": "¿A quién le escribís si tenés dudas sobre una venta en curso?", "respuesta": "A Franco, por el WhatsApp del canal de socios."},
+    {"pregunta": "¿A quién le escribís si tenés dudas sobre una venta en curso?", "respuesta": "Al WhatsApp del programa de Socios Comerciales, donde te atiende el equipo de EcoFiver."},
 ]
 
 
@@ -933,12 +991,14 @@ async def sincronizar_catalogo_endpoint(
     db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
-    """Vuelve a leer el catálogo y actualiza en la Biblioteca todas las fotos
-    (piscinas, módulos, hidromasajes, bañeras, accesorios, etc). Usar después
-    de cargar fotos nuevas a un producto en el catálogo."""
+    """Vuelve a leer el catálogo y Ecopost, y actualiza en la Biblioteca todas
+    las fotos/videos disponibles (piscinas, módulos, hidromasajes, bañeras,
+    accesorios, flyers y reels de marketing, etc). Usar después de cargar
+    fotos nuevas a un producto, o de aprobar contenido nuevo en Ecopost."""
     _require_gestion_interna(x_api_key, current_user)
-    n = sincronizar_biblioteca_catalogo(db)
-    return {"ok": True, "fotos_sincronizadas": n}
+    n1 = sincronizar_biblioteca_catalogo(db)
+    n2 = sincronizar_biblioteca_marketing(db)
+    return {"ok": True, "fotos_catalogo": n1, "contenido_marketing": n2, "total": n1 + n2}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1059,37 +1119,65 @@ async def subir_factura_comision(comision_id: int, archivo: UploadFile = File(..
 BCRA_API = "https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas"
 
 
+def _calcular_cuit(prefijo: str, dni: str) -> str:
+    """Calcula un CUIT/CUIL válido a partir de un DNI y un prefijo (20=varón, 27=mujer)."""
+    dni = dni.zfill(8)
+    base = prefijo + dni
+    multiplicadores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
+    suma = sum(int(d) * m for d, m in zip(base, multiplicadores))
+    verificador = 11 - (suma % 11)
+    if verificador == 11:
+        verificador = 0
+    elif verificador == 10:
+        verificador = 9  # ajuste práctico estándar para el dígito verificador 10
+    return base + str(verificador)
+
+
+async def _consultar_bcra_por_identificacion(identificacion: str) -> tuple:
+    """Devuelve (situacion, respuesta_raw, encontrado: bool). Lanza HTTPException solo ante un error real de red/servicio."""
+    async with httpx.AsyncClient(timeout=15, verify=False) as client:
+        r = await client.get(f"{BCRA_API}/{identificacion}")
+        if r.status_code == 200:
+            body = r.json()
+            periodos = (body.get("results") or {}).get("periodos") or []
+            if periodos:
+                entidades = periodos[0].get("entidades") or []  # la API devuelve el más reciente primero
+                situaciones = [e.get("situacion") for e in entidades if e.get("situacion") is not None]
+                if situaciones:
+                    return max(situaciones), r.text, True  # la peor situación entre todas las entidades
+            return None, r.text, True
+        if r.status_code in (400, 404):
+            # 404: sin antecedentes para esa identificación. 400 (típicamente por
+            # longitud): se resuelve reintentando con otra identificación válida.
+            return None, r.text, False
+        raise HTTPException(502, "El servicio del BCRA no respondió correctamente, reintentá en un momento")
+
+
 @router.post("/api/socio/scoring")
 async def consultar_scoring(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """
-    Consulta la Central de Deudores del BCRA por DNI/CUIT antes de financiar.
-    Situación 5 o 6 no bloquean la venta — disparan pedirle al cliente una
-    declaración jurada (requiere_declaracion_jurada=True).
+    Consulta la Central de Deudores del BCRA por DNI o CUIT — disponible en
+    cualquier momento, no solo al cargar una venta. La Central de Deudores
+    solo admite CUIT/CUIL (11 dígitos); si se ingresa un DNI (8 dígitos) se
+    calculan y prueban los CUIT/CUIL más probables (varón y mujer) hasta
+    encontrar antecedentes. Situación 5 o 6 no bloquean la venta — disparan
+    pedirle al cliente una declaración jurada (requiere_declaracion_jurada=True).
     """
     data = await request.json()
     identificacion = re.sub(r"\D", "", data.get("dni") or data.get("cuit") or "")
     if not identificacion:
         raise HTTPException(400, "Falta DNI o CUIT")
 
-    situacion = None
-    respuesta_raw = ""
+    candidatos = [identificacion] if len(identificacion) == 11 else [
+        _calcular_cuit("20", identificacion), _calcular_cuit("27", identificacion),
+    ]
+
+    situacion, respuesta_raw = None, ""
     try:
-        async with httpx.AsyncClient(timeout=15, verify=False) as client:
-            r = await client.get(f"{BCRA_API}/{identificacion}")
-            respuesta_raw = r.text
-            if r.status_code == 200:
-                body = r.json()
-                periodos = (body.get("results") or {}).get("periodos") or []
-                if periodos:
-                    ultimo_periodo = periodos[0]  # la API devuelve el más reciente primero
-                    entidades = ultimo_periodo.get("entidades") or []
-                    situaciones = [e.get("situacion") for e in entidades if e.get("situacion") is not None]
-                    if situaciones:
-                        situacion = max(situaciones)  # la peor situación entre todas las entidades
-            elif r.status_code == 404:
-                situacion = None  # sin antecedentes en el sistema financiero — no es una mala señal
-            else:
-                raise HTTPException(502, "El servicio del BCRA no respondió correctamente, reintentá en un momento")
+        for candidato in candidatos:
+            situacion, respuesta_raw, encontrado = await _consultar_bcra_por_identificacion(candidato)
+            if encontrado:
+                break
     except httpx.HTTPError:
         raise HTTPException(502, "No se pudo conectar con el BCRA — reintentá en un momento")
 
@@ -1102,9 +1190,9 @@ async def consultar_scoring(request: Request, socio: Aliado = Depends(require_so
     db.add(log)
     db.commit()
 
-    mensaje = "Sin antecedentes registrados." if situacion is None else f"Situación {situacion} en el sistema financiero."
+    mensaje = "Sin antecedentes registrados en la Central de Deudores." if situacion is None else f"Situación {situacion} en el sistema financiero."
     if requiere_dj:
-        mensaje += " Se le va a pedir al cliente una declaración jurada antes de avanzar — la operación no se bloquea."
+        mensaje += " Se le va a solicitar al cliente una declaración jurada antes de avanzar — la operación continúa sin inconvenientes."
 
     return {"ok": True, "situacion": situacion, "requiere_declaracion_jurada": requiere_dj, "mensaje": mensaje}
 
@@ -1696,11 +1784,11 @@ FAQ_SOCIOS = [
     {"pregunta": "¿Necesito aprobación para arrancar?", "respuesta": "No. Apenas te registrás y verificás tu WhatsApp, tu cuenta queda activa. No hay ningún paso de aprobación."},
     {"pregunta": "¿Cómo cargo una venta?", "respuesta": "Desde la sección \"Cargar venta\" de tu panel, elegís contado o financiado y completás los datos del cliente."},
     {"pregunta": "¿Cuándo cobro mi comisión?", "respuesta": "Financiado: cuando el equipo hace la llamada de bienvenida al cliente. Contado: cuando se entrega y se cobra el producto. En ambos casos vas a ver la comisión como \"pendiente\" hasta que te la transfiramos."},
-    {"pregunta": "¿Puedo vender en cualquier parte del país?", "respuesta": "Sí, el programa es nacional. En contado, fuera de Buenos Aires el precio no incluye instalación — la coordinás vos, tu equipo o un tercero."},
+    {"pregunta": "¿Puedo vender en cualquier parte del país?", "respuesta": "Sí, el programa opera en todo el territorio nacional. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona — ideal si trabajás junto a instaladores."},
     {"pregunta": "¿Qué pasa si mi cliente tiene mala situación crediticia (BCRA)?", "respuesta": "Si da situación 5 o 6, no se bloquea la venta — se le pide al cliente una declaración jurada adicional antes de la auditoría."},
     {"pregunta": "¿Qué es la licitación?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede pedir adelantar la entrega mediante una integración de capital, sin dejar de pagar el resto del plan."},
     {"pregunta": "¿Necesito Monotributo?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones. Podés cargar la constancia después desde tu perfil."},
-    {"pregunta": "¿Con quién hablo si tengo una duda?", "respuesta": "Escribile a Franco por el WhatsApp del canal de socios — te responde consultas de precio, estado de tus ventas y comisiones."},
+    {"pregunta": "¿Con quién hablo si tengo una duda?", "respuesta": "Comunicate al WhatsApp del programa de Socios Comerciales — el equipo te responde consultas de precio, estado de tus ventas y comisiones."},
 ]
 
 

@@ -60,11 +60,12 @@ seed_rr_defaults()
 # Guías reales de la Biblioteca de contenidos del panel de socios (idempotente)
 try:
     from database.database import SessionLocal
-    from routers.socios import seed_biblioteca_socios, sincronizar_biblioteca_catalogo
+    from routers.socios import seed_biblioteca_socios, sincronizar_biblioteca_catalogo, sincronizar_biblioteca_marketing
     _db_seed = SessionLocal()
     try:
         seed_biblioteca_socios(_db_seed)
         sincronizar_biblioteca_catalogo(_db_seed)
+        sincronizar_biblioteca_marketing(_db_seed)
     finally:
         _db_seed.close()
 except Exception:

@@ -130,8 +130,8 @@
 
   <h3 style="font-size:14px;margin:28px 0 8px">🖼️ Biblioteca de contenidos</h3>
   <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
-    Las fotos del catálogo (piscinas, módulos, hidromasajes, accesorios, etc.) se sincronizan solas.
-    Usá esto para subir contenido extra: flyers, videos, fotos de entregas, documentos.
+    Las fotos del catálogo y el contenido de Ecopost ya aprobado (flyers, fotos y videos con su copy) se
+    sincronizan solos. Usá esto para subir contenido extra: documentos, fotos de entregas, material puntual.
   </p>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
     <button class="btn btn-secondary" onclick="sincronizarBibliotecaCatalogo()">🔄 Sincronizar fotos del catálogo</button>
@@ -477,7 +477,7 @@ async function sincronizarBibliotecaCatalogo(){
   msg.textContent = 'Sincronizando...';
   const r = await AL.send('/api/materiales-socio/sincronizar-catalogo', 'POST', {});
   const data = await r.json().catch(()=>({}));
-  msg.textContent = r.ok ? `✅ ${data.fotos_sincronizadas} fotos sincronizadas.` : '❌ Error al sincronizar.';
+  msg.textContent = r.ok ? `✅ ${data.fotos_catalogo} fotos del catálogo + ${data.contenido_marketing} piezas de marketing.` : '❌ Error al sincronizar.';
 }
 
 async function subirMaterialSocio(){

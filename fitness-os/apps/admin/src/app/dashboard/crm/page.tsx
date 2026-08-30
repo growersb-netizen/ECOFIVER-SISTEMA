@@ -42,7 +42,7 @@ export default function CRMPage() {
     setLoading(true);
     try {
       const data = await apiClient.getLeads({ search, status: filterStatus });
-      setLeads((data.leads ?? data) as Lead[]);
+      setLeads((data.leads ?? data.data ?? []) as Lead[]);
     } catch { /* empty */ }
     finally { setLoading(false); }
   }, [search, filterStatus]);
@@ -144,7 +144,7 @@ function CustomersTab() {
 
   useEffect(() => {
     apiClient.getCustomers?.()
-      .then(d => setCustomers(d.customers ?? d))
+      .then(d => setCustomers((d.customers ?? d.data ?? []) as Array<{ id: string; name?: string; email: string; source?: string; tags: string[]; createdAt: string }>))
       .catch(() => { })
       .finally(() => setLoading(false));
   }, []);

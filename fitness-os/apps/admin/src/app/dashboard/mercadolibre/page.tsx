@@ -6,6 +6,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/AdminLayout";
 
+const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+
 const NEON = "#00FF87";
 const CYAN = "#00F5FF";
 const YELLOW = "#FFE234";
@@ -28,8 +30,6 @@ interface MLListing {
   publishedAt?: string;
   product?: { name: string; sku: string };
 }
-
-const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
 
 export default function MLPage() {
   const [listings, setListings] = useState<MLListing[]>([]);

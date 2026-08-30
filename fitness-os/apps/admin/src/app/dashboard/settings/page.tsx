@@ -173,9 +173,10 @@ export default function SettingsPage() {
           <NavItem label="💬 WhatsApp" href="/dashboard/whatsapp" />
           <NavItem label="🤖 IA" href="/dashboard/ai" />
           <NavItem label="📱 Redes Sociales" href="/dashboard/social" />
-          <NavItem label="🏪 MercadoLibre" href="/dashboard/mercadolibre" />
+          <NavItem label="🏪 MercadoLibre" href="/dashboard/ml" />
           <NavItem label="🔗 Afiliadas" href="/dashboard/affiliates" />
           <NavItem label="🏋️ Coaches" href="/dashboard/coaches" />
+          <NavItem label="📝 Blog & Email" href="/dashboard/blog" />
           <NavItem label="⚙️ Configuración" href="/dashboard/settings" active />
         </nav>
         <div style={{ borderTop: "1px solid #1E2240", paddingTop: "1rem", marginTop: "1rem" }}>

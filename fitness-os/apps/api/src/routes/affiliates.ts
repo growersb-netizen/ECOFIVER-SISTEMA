@@ -190,7 +190,7 @@ export async function affiliateRoutes(fastify: FastifyInstance) {
         },
         include: {
           affiliate: { select: { id: true, name: true, email: true } },
-          order: { select: { id: true, total: true, createdAt: true } },
+          attribution: { select: { id: true, clickedAt: true } },
         },
         orderBy: { createdAt: "desc" },
       });

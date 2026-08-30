@@ -44,7 +44,7 @@ export default function SocialPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/v1/social/publications", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
       });
       const data = await res.json();
       setPubs(data.publications ?? data.data ?? []);
@@ -58,7 +58,7 @@ export default function SocialPage() {
     try {
       await fetch("/api/v1/social/publications", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
         body: JSON.stringify(newPub),
       });
       setCreating(false);
@@ -71,7 +71,7 @@ export default function SocialPage() {
     if (!confirm("¿Publicar en la plataforma? Esta acción es externa.")) return;
     await fetch(`/api/v1/social/publications/${id}/publish`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+      headers: { Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
     });
     load();
   };

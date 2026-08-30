@@ -43,14 +43,14 @@ export default function AIPage() {
       } else if (genType === "email-subject") {
         const r = await fetch("/api/v1/ai/generate/email-subject", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("access_token")}` },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("fitness_access_token")}` },
           body: JSON.stringify({ campaignName: inputs.name, productName: inputs.name, tone: inputs.tone }),
         }).then(r => r.json());
         setResult(Array.isArray(r.subjects) ? r.subjects.join("\n") : JSON.stringify(r));
       } else {
         const r = await fetch("/api/v1/ai/generate/whatsapp-response", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("access_token")}` },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("fitness_access_token")}` },
           body: JSON.stringify({ customerMessage: inputs.customerMessage, customerName: "Cliente" }),
         }).then(r => r.json());
         setResult(r.response ?? r.suggestion ?? JSON.stringify(r));

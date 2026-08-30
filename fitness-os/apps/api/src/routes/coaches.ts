@@ -34,8 +34,7 @@ const CreateProgramSchema = z.object({
 });
 
 const AssignCustomerSchema = z.object({
-  customerId: z.string().uuid(),
-  programId: z.string().uuid().optional(),
+  customerId: z.string().min(1),
   notes: z.string().optional(),
 });
 
@@ -110,10 +109,8 @@ export async function coachRoutes(fastify: FastifyInstance) {
           profile: true,
           programs: true,
           coachCustomers: {
-            include: {
-              customer: { select: { id: true, name: true, email: true } },
-              program: { select: { id: true, name: true } },
-            },
+            // CoachCustomer solo tiene relación coach; customerId es String sin FK declarada
+            orderBy: { startedAt: "desc" },
           },
         },
       });
@@ -138,14 +135,12 @@ export async function coachRoutes(fastify: FastifyInstance) {
       const assignment = await prisma.coachCustomer.upsert({
         where: { coachId_customerId: { coachId: coach.id, customerId: body.data.customerId } },
         update: {
-          programId: body.data.programId ?? null,
           notes: body.data.notes,
           active: true,
         },
         create: {
           coachId: coach.id,
           customerId: body.data.customerId,
-          programId: body.data.programId ?? null,
           notes: body.data.notes,
           active: true,
         },

@@ -69,7 +69,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("fitness_access_token");
-    if (!token) { router.push("/login"); return; }
+    if (!token) { window.location.href = "/login"; return; }
 
     const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
     const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -79,7 +79,7 @@ export default function DashboardPage() {
       fetch(`${apiUrl}/api/v1/stats/overview`, { headers }),
     ])
       .then(async ([meRes, statsRes]) => {
-        if (!meRes.ok) { router.push("/login"); return; }
+        if (!meRes.ok) { window.location.href = "/login"; return; }
         const meData = await meRes.json() as { user: { name: string; email: string; role: string } };
         setUser(meData.user);
 
@@ -91,7 +91,7 @@ export default function DashboardPage() {
           setStats({ totalProducts: 0, publishedProducts: 0, totalOrders: 0, pendingOrders: 0, totalRevenue: 0, totalLeads: 0, newLeads: 0, totalCustomers: 0 });
         }
       })
-      .catch(() => router.push("/login"))
+      .catch(() => { window.location.href = "/login"; })
       .finally(() => setLoading(false));
   }, [router]);
 
@@ -149,9 +149,10 @@ export default function DashboardPage() {
           <NavItem label="💬 WhatsApp" href="/dashboard/whatsapp" />
           <NavItem label="🤖 IA" href="/dashboard/ai" />
           <NavItem label="📱 Redes Sociales" href="/dashboard/social" />
-          <NavItem label="🏪 MercadoLibre" href="/dashboard/mercadolibre" />
+          <NavItem label="🏪 MercadoLibre" href="/dashboard/ml" />
           <NavItem label="🔗 Afiliadas" href="/dashboard/affiliates" />
           <NavItem label="🏋️ Coaches" href="/dashboard/coaches" />
+          <NavItem label="📝 Blog & Email" href="/dashboard/blog" />
           <NavItem label="⚙️ Configuración" href="/dashboard/settings" />
         </nav>
 

@@ -13,6 +13,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireRole } from "../plugins/rbac.js";
 import { slugify } from "@fitness-os/shared";
+import { generateGuideHTML, generateTrackingHTML, generateReadme } from "../services/guide-generator.js";
 
 // ── Schemas ────────────────────────────────────────────────────────
 const CreateProductSchema = z.object({
@@ -438,6 +439,163 @@ export async function productRoutes(fastify: FastifyInstance) {
       });
 
       return reply.send({ message: "Producto archivado" });
+    }
+  );
+
+  /**
+   * GET /products/:id/download
+   * Genera una URL de descarga del archivo primario del producto.
+   * - storageKey es URL http(s)?: redirect 302 directo.
+   * - R2 configurado (env vars): URL presignada, redirect 302, TTL 1 hora.
+   * - local:// o sin R2: 422 con instrucciones.
+   */
+  fastify.get(
+    "/:id/download",
+    { preHandler: [fastify.authenticate] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+      const product = await prisma.product.findFirst({
+        where: { id: request.params.id, tenantId: request.tenantId! },
+        include: {
+          files: {
+            orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
+            take: 5,
+          },
+        },
+      });
+
+      if (!product) return reply.code(404).send({ error: "Producto no encontrado" });
+
+      const primaryFile = product.files.find(f => f.isPrimary) ?? product.files[0];
+      if (!primaryFile) {
+        return reply.code(404).send({ error: "El producto no tiene archivos asociados" });
+      }
+
+      const { storageKey } = primaryFile;
+
+      // URL directa: redirect inmediato
+      if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
+        return reply.redirect(302, storageKey);
+      }
+
+      // R2 presignada
+      const R2_ACCOUNT_ID = process.env["R2_ACCOUNT_ID"];
+      const R2_ACCESS_KEY_ID = process.env["R2_ACCESS_KEY_ID"];
+      const R2_SECRET_ACCESS_KEY = process.env["R2_SECRET_ACCESS_KEY"];
+      const R2_BUCKET = process.env["R2_BUCKET"];
+
+      if (R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET) {
+        const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+        const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+
+        const s3 = new S3Client({
+          region: "auto",
+          endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+          credentials: {
+            accessKeyId: R2_ACCESS_KEY_ID,
+            secretAccessKey: R2_SECRET_ACCESS_KEY,
+          },
+        });
+
+        const command = new GetObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: storageKey,
+          ResponseContentDisposition: `attachment; filename="${primaryFile.name}"`,
+        });
+
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+        return reply.redirect(302, signedUrl);
+      }
+
+      // Sin R2 ni URL directa: informar
+      return reply.code(422).send({
+        error: "Archivo no disponible para descarga",
+        message: "Configure R2 (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET) o use una URL directa como storageKey.",
+        storageKey,
+        fileName: primaryFile.name,
+      });
+    }
+  );
+
+  /**
+   * GET /products/:id/package
+   * Genera y descarga el paquete ZIP completo del producto:
+   *   - guia.html     (guía del programa, print-ready para PDF)
+   *   - seguimiento.html (planilla de seguimiento semanal)
+   *   - README.txt
+   * La guía se genera dinámicamente a partir de los datos del producto en DB.
+   * No requiere R2 ni archivos externos.
+   */
+  fastify.get(
+    "/:id/package",
+    { preHandler: [fastify.authenticate] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+      const product = await prisma.product.findFirst({
+        where: { id: request.params.id, tenantId: request.tenantId! },
+        include: {
+          category: { select: { name: true } },
+          prices: { take: 1 },
+        },
+      });
+
+      if (!product) return reply.code(404).send({ error: "Producto no encontrado" });
+
+      // Generar contenido
+      const guideHTML = generateGuideHTML({
+        id: product.id,
+        sku: product.sku ?? product.id,
+        name: product.name,
+        description: product.description,
+        productType: product.productType,
+        level: product.level,
+        durationWeeks: product.durationWeeks,
+        objective: product.objective,
+        category: product.category,
+      });
+
+      const trackingHTML = generateTrackingHTML({
+        id: product.id,
+        sku: product.sku ?? product.id,
+        name: product.name,
+        description: product.description,
+        productType: product.productType,
+        level: product.level,
+        durationWeeks: product.durationWeeks,
+        objective: product.objective,
+        category: product.category,
+      });
+
+      const readmeTXT = generateReadme({
+        id: product.id,
+        sku: product.sku ?? product.id,
+        name: product.name,
+        description: product.description,
+        productType: product.productType,
+        level: product.level,
+        durationWeeks: product.durationWeeks,
+        objective: product.objective,
+        category: product.category,
+      });
+
+      // Armar ZIP con JSZip
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      zip.file("guia.html", guideHTML);
+      zip.file("seguimiento.html", trackingHTML);
+      zip.file("README.txt", readmeTXT);
+
+      const zipBuffer = await zip.generateAsync({
+        type: "nodebuffer",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+
+      const safeName = (product.sku ?? product.id).replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      reply
+        .header("Content-Type", "application/zip")
+        .header("Content-Disposition", `attachment; filename="${safeName}.zip"`)
+        .header("Content-Length", zipBuffer.length.toString())
+        .send(zipBuffer);
     }
   );
 

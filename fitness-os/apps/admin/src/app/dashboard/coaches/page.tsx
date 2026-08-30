@@ -29,7 +29,7 @@ export default function CoachesPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/v1/coaches", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
       });
       const data = await res.json();
       setCoaches(data.coaches ?? data.data ?? []);
@@ -42,7 +42,7 @@ export default function CoachesPage() {
   const handleCreate = async () => {
     await fetch("/api/v1/coaches", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
       body: JSON.stringify({
         name: form.name, email: form.email,
         specialties: form.specialties.split(",").map(s => s.trim()).filter(Boolean),

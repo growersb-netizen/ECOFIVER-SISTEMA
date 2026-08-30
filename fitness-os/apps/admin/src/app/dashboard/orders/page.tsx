@@ -55,7 +55,7 @@ export default function OrdersPage() {
     setLoading(true);
     try {
       const data = await apiClient.getOrders();
-      setOrders(data.orders ?? data);
+      setOrders((data.orders ?? data.data ?? []) as Order[]);
     } catch {
       /* empty */
     } finally {

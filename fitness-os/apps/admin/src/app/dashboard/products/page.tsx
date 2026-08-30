@@ -66,7 +66,7 @@ export default function ProductsPage() {
     setLoading(true);
     try {
       const data = await apiClient.getProducts({ search, status: filterStatus });
-      setProducts(data.products ?? data);
+      setProducts((data.products ?? data.data ?? []) as Product[]);
     } catch {
       showToast("Error cargando productos", "err");
     } finally {
@@ -174,8 +174,12 @@ export default function ProductsPage() {
               <tbody>
                 {products.map(p => (
                   <tr key={p.id} style={{ borderBottom: "1px solid #0F111E" }}>
-                    <td style={{ padding: "0.75rem 1rem", color: "#6B7494", fontFamily: "monospace", fontSize: "0.75rem" }}>{p.sku}</td>
-                    <td style={{ padding: "0.75rem 1rem", color: "#E8EDFF", fontWeight: 500 }}>{p.name}</td>
+                    <td style={{ padding: "0.75rem 1rem", color: "#6B7494", fontFamily: "monospace", fontSize: "0.75rem" }}>
+                      <a href={`/dashboard/products/${p.id}`} style={{ color: "#6B7494", textDecoration: "none" }}>{p.sku}</a>
+                    </td>
+                    <td style={{ padding: "0.75rem 1rem", fontWeight: 500 }}>
+                      <a href={`/dashboard/products/${p.id}`} style={{ color: "#E8EDFF", textDecoration: "none" }}>{p.name}</a>
+                    </td>
                     <td style={{ padding: "0.75rem 1rem", color: "#6B7494" }}>{p.category?.name ?? "—"}</td>
                     <td style={{ padding: "0.75rem 1rem", color: CYAN, fontVariantNumeric: "tabular-nums" }}>
                       {p.prices?.[0] ? `$${Number(p.prices[0].basePrice).toLocaleString("es-AR")} ${p.prices[0].currency}` : "—"}

@@ -1111,6 +1111,18 @@ async def crear_material_socio(
     return {"ok": True, **_material_dict(m)}
 
 
+@router.get("/api/admin/materiales-socio")
+async def admin_listar_materiales(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Lista todo el material (activo o no) para el panel de admin — a
+    diferencia de /api/socio/biblioteca, no requiere sesión de socio."""
+    _require_gestion_interna(x_api_key, current_user)
+    items = db.query(MaterialSocio).order_by(MaterialSocio.id).all()
+    return {"total": len(items), "materiales": [_material_dict(m) for m in items]}
+
+
 @router.put("/api/materiales-socio/{material_id}")
 async def editar_material_socio(
     material_id: int, request: Request, db: Session = Depends(get_db),

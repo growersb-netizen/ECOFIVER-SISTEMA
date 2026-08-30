@@ -1266,13 +1266,24 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
     db.commit()
     db.refresh(venta)
 
+    nivel_label = {
+        "con": "Con instalación incluida",
+        "sin_instalacion": "⚠️ SIN instalación (casco + equipo de filtrado) — la coordina el socio o un instalador de su zona",
+        "sin_equipo": "⚠️ SIN instalación y SIN equipo de filtrado (casco solo) — la coordina el socio o un instalador de su zona",
+    }.get(nivel_instalacion, "Con instalación incluida")
+
     notificar_rodrigo(
         db,
-        f"🟣 *Nueva venta de contado — Socio {socio.codigo} ({socio.nombre})*\n"
-        f"Cliente: {cliente_nombre} — {venta.cliente_localidad}\n"
+        f"🟣 *Nueva venta de contado*\n"
+        f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
+        f"Cliente: {cliente_nombre}\n"
+        f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
+        f"Localidad: {venta.cliente_localidad or '—'}\n"
         f"Producto: {venta.producto} {venta.modelo_especifico}\n"
+        f"Instalación: {nivel_label}\n"
         f"Monto: ${venta.precio_final:,.0f}\n"
-        f"⏰ Contactar dentro de las 48hs para confirmar fecha y detalles.\n"
+        f"Cobro: contraentrega en el domicilio del cliente\n"
+        f"⏰ Contactar al cliente dentro de las 48hs para confirmar fecha y detalles.\n"
         f"Venta ID: {venta.id}",
     )
 
@@ -1384,6 +1395,21 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
     db.add(venta)
     db.commit()
     db.refresh(venta)
+
+    notificar_rodrigo(
+        db,
+        f"🔵 *Nueva venta financiada*\n"
+        f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
+        f"Cliente: {cliente_nombre} (DNI {cliente_dni})\n"
+        f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
+        f"Localidad: {venta.cliente_localidad or '—'}\n"
+        f"Email: {venta.cliente_email or '—'}\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico} — {cantidad_cuotas} cuotas\n"
+        f"Precio total: ${precio_lista:,.0f} · Inscripción: ${monto_inscripcion:,.0f} · Cuota: ${valor_cuota:,.0f}\n"
+        f"{'⚠️ Situación BCRA ' + str(venta.scoring_situacion) + ' — requiere declaración jurada del cliente' if venta.declaracion_jurada_requerida else ''}\n"
+        f"→ Falta que el cliente pague la inscripción y confirme el plan.\n"
+        f"Venta ID: {venta.id}",
+    )
 
     return {
         "ok": True, "venta_id": venta.id, "precio_lista": precio_lista,
@@ -1514,6 +1540,8 @@ async def confirmar_plan_cliente(token: str, db: Session = Depends(get_db)):
         db,
         f"🟢 *Cliente confirmó su plan — Socio {venta.aliado_codigo}*\n"
         f"Cliente: {venta.cliente_nombre} (DNI {venta.cliente_dni})\n"
+        f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
+        f"Localidad: {venta.cliente_localidad or '—'}\n"
         f"Producto: {venta.producto} {venta.modelo_especifico} — {venta.cantidad_cuotas} cuotas\n"
         f"Solicitud N° {venta.numero_solicitud}\n"
         f"{'⚠️ Requiere declaración jurada (situación BCRA ' + str(venta.scoring_situacion) + ')' if venta.declaracion_jurada_requerida else ''}\n"
@@ -1623,6 +1651,8 @@ async def solicitar_licitacion(venta_id: int, socio: Aliado = Depends(require_so
         db,
         f"🏗️ *Pedido de licitación — Socio {socio.codigo}*\n"
         f"Cliente: {venta.cliente_nombre} (DNI {venta.cliente_dni})\n"
+        f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
+        f"Localidad: {venta.cliente_localidad or '—'}\n"
         f"Producto: {venta.producto} {venta.modelo_especifico} — cuota {venta.cuotas_pagas}/{venta.cantidad_cuotas}\n"
         f"Solicita integración de capital para adelantar la entrega.\n"
         f"Venta ID: {venta.id}",

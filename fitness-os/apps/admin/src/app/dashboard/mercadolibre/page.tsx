@@ -6,6 +6,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/AdminLayout";
 
+const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+
 const NEON = "#00FF87";
 const CYAN = "#00F5FF";
 const YELLOW = "#FFE234";
@@ -37,7 +39,7 @@ export default function MLPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/v1/ml/listings", {
+      const res = await fetch(`${API_URL}/api/v1/ml/listings`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
       });
       if (res.status === 401) { setOauthStatus("disconnected"); return; }
@@ -52,7 +54,7 @@ export default function MLPage() {
 
   const handlePublish = async (id: string) => {
     if (!confirm("¿Publicar este listing en MercadoLibre? Esta acción es real y pública.")) return;
-    const res = await fetch(`/api/v1/ml/listings/${id}/publish`, {
+    const res = await fetch(`${API_URL}/api/v1/ml/listings/${id}/publish`, {
       method: "POST",
       headers: { Authorization: `Bearer ${localStorage.getItem("fitness_access_token")}` },
     });
@@ -60,7 +62,7 @@ export default function MLPage() {
   };
 
   const handleConnectML = () => {
-    window.open("/api/v1/ml/auth", "_blank");
+    window.open(`${API_URL}/api/v1/ml/auth`, "_blank");
   };
 
   return (

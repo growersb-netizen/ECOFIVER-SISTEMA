@@ -66,7 +66,7 @@ export default function ProductsPage() {
     setLoading(true);
     try {
       const data = await apiClient.getProducts({ search, status: filterStatus });
-      setProducts(data.products ?? data);
+      setProducts((data.products ?? data.data ?? []) as Product[]);
     } catch {
       showToast("Error cargando productos", "err");
     } finally {

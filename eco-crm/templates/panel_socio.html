@@ -264,6 +264,7 @@
           <button class="btn-ghost" onclick="correrScoring()">Consultar</button>
         </div>
         <div class="msg" id="scoring-msg"></div>
+        <div id="scoring-detalle"></div>
       </div>
 
       <div class="grid2">
@@ -675,6 +676,7 @@ let ultimoScoringOk = false;
 
 async function correrScoring(){
   const msg = document.getElementById('scoring-msg'); msg.className='msg'; msg.textContent='Consultando…';
+  const detalleEl = document.getElementById('scoring-detalle'); detalleEl.innerHTML = '';
   try{
     const dni = document.getElementById('bcra-dni').value.trim();
     if(!dni){ msg.className='msg error'; msg.textContent='Ingresá el DNI o CUIT del cliente.'; return; }
@@ -684,6 +686,21 @@ async function correrScoring(){
     msg.className = data.requiere_declaracion_jurada ? 'msg' : 'msg ok';
     msg.style.color = data.requiere_declaracion_jurada ? 'var(--warn)' : '';
     msg.textContent = data.mensaje;
+
+    const d = data.detalle;
+    if(d && d.entidades && d.entidades.length){
+      let h = `<p style="font-size:13px;margin:10px 0 6px"><strong>${d.denominacion||'Cliente'}</strong> · período ${d.periodo} · opera con ${d.cantidad_entidades} entidad${d.cantidad_entidades===1?'':'es'} · deuda total registrada: ${fmt((d.monto_total_miles||0)*1000)}</p>`;
+      h += '<table style="font-size:12.5px"><tr><th>Entidad</th><th>Situación</th><th>Monto</th><th>Atraso</th><th>Estado</th></tr>';
+      for(const e of d.entidades){
+        const alertas = [];
+        if(e.refinanciaciones) alertas.push('Refinanciada');
+        if(e.en_revision) alertas.push('En revisión');
+        if(e.proceso_judicial) alertas.push('Proceso judicial');
+        h += `<tr><td>${e.entidad}</td><td>${e.situacion}</td><td>${fmt((e.monto_miles||0)*1000)}</td><td>${e.dias_atraso_pago||0} días</td><td>${alertas.join(', ')||'—'}</td></tr>`;
+      }
+      h += '</table>';
+      detalleEl.innerHTML = h;
+    }
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 

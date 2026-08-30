@@ -1135,22 +1135,42 @@ def _calcular_cuit(prefijo: str, dni: str) -> str:
 
 
 async def _consultar_bcra_por_identificacion(identificacion: str) -> tuple:
-    """Devuelve (situacion, respuesta_raw, encontrado: bool). Lanza HTTPException solo ante un error real de red/servicio."""
+    """Devuelve (situacion, detalle: dict, respuesta_raw, encontrado: bool). Lanza HTTPException solo ante un error real de red/servicio."""
     async with httpx.AsyncClient(timeout=15, verify=False) as client:
         r = await client.get(f"{BCRA_API}/{identificacion}")
         if r.status_code == 200:
             body = r.json()
-            periodos = (body.get("results") or {}).get("periodos") or []
+            results = body.get("results") or {}
+            periodos = results.get("periodos") or []
             if periodos:
-                entidades = periodos[0].get("entidades") or []  # la API devuelve el más reciente primero
+                ultimo = periodos[0]  # la API devuelve el período más reciente primero
+                entidades = ultimo.get("entidades") or []
                 situaciones = [e.get("situacion") for e in entidades if e.get("situacion") is not None]
+                detalle = {
+                    "denominacion": results.get("denominacion"),
+                    "periodo": ultimo.get("periodo"),
+                    "cantidad_entidades": len(entidades),
+                    "monto_total_miles": round(sum(e.get("monto") or 0 for e in entidades), 2),
+                    "entidades": [
+                        {
+                            "entidad": e.get("entidad"),
+                            "situacion": e.get("situacion"),
+                            "monto_miles": e.get("monto"),
+                            "dias_atraso_pago": e.get("diasAtrasoPago"),
+                            "refinanciaciones": bool(e.get("refinanciaciones")),
+                            "en_revision": bool(e.get("enRevision")),
+                            "proceso_judicial": bool(e.get("procesoJud")),
+                        }
+                        for e in entidades
+                    ],
+                }
                 if situaciones:
-                    return max(situaciones), r.text, True  # la peor situación entre todas las entidades
-            return None, r.text, True
+                    return max(situaciones), detalle, r.text, True  # la peor situación entre todas las entidades
+            return None, None, r.text, True
         if r.status_code in (400, 404):
             # 404: sin antecedentes para esa identificación. 400 (típicamente por
             # longitud): se resuelve reintentando con otra identificación válida.
-            return None, r.text, False
+            return None, None, r.text, False
         raise HTTPException(502, "El servicio del BCRA no respondió correctamente, reintentá en un momento")
 
 
@@ -1173,10 +1193,10 @@ async def consultar_scoring(request: Request, socio: Aliado = Depends(require_so
         _calcular_cuit("20", identificacion), _calcular_cuit("27", identificacion),
     ]
 
-    situacion, respuesta_raw = None, ""
+    situacion, detalle, respuesta_raw = None, None, ""
     try:
         for candidato in candidatos:
-            situacion, respuesta_raw, encontrado = await _consultar_bcra_por_identificacion(candidato)
+            situacion, detalle, respuesta_raw, encontrado = await _consultar_bcra_por_identificacion(candidato)
             if encontrado:
                 break
     except httpx.HTTPError:
@@ -1195,7 +1215,10 @@ async def consultar_scoring(request: Request, socio: Aliado = Depends(require_so
     if requiere_dj:
         mensaje += " Se le va a solicitar al cliente una declaración jurada antes de avanzar — la operación continúa sin inconvenientes."
 
-    return {"ok": True, "situacion": situacion, "requiere_declaracion_jurada": requiere_dj, "mensaje": mensaje}
+    return {
+        "ok": True, "situacion": situacion, "requiere_declaracion_jurada": requiere_dj,
+        "mensaje": mensaje, "detalle": detalle,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

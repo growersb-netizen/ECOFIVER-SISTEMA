@@ -86,6 +86,12 @@
   .biblio-card p{margin:0 0 10px;font-size:12.5px;color:var(--text-muted)}
   .tag-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal);font-weight:700}
   .biblio-filtro.active{background:var(--navy,#0B2350);color:#fff;border-color:transparent}
+  .cat-cat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 18px 18px;margin-bottom:14px}
+  .cat-cat summary{cursor:pointer;font-weight:700;font-size:15px;padding:14px 0;list-style:none}
+  .cat-cat summary::-webkit-details-marker{display:none}
+  .cat-cat summary::before{content:'▸';display:inline-block;margin-right:8px;transition:transform .15s}
+  .cat-cat[open] summary::before{transform:rotate(90deg)}
+  .cat-nota{font-size:12.5px;color:var(--text-muted);line-height:1.5;margin:0 0 14px}
   .copyable{font-family:ui-monospace,monospace;font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;word-break:break-all}
 </style>
 </head>
@@ -374,6 +380,7 @@
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn-ghost biblio-filtro active" data-tipo="todos" onclick="filtrarBiblioteca('todos')">Todo</button>
         <button class="btn-ghost biblio-filtro" data-tipo="imagen" onclick="filtrarBiblioteca('imagen')">🖼️ Fotos</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="foto_entrega" onclick="filtrarBiblioteca('foto_entrega')">📦 Entregas</button>
         <button class="btn-ghost biblio-filtro" data-tipo="copy" onclick="filtrarBiblioteca('copy')">📋 Copys</button>
         <button class="btn-ghost biblio-filtro" data-tipo="guia" onclick="filtrarBiblioteca('guia')">📘 Guías</button>
       </div>
@@ -634,19 +641,79 @@ async function cargarQuiz(){
 
 function fmt(n){ return '$'+Math.round(n||0).toLocaleString('es-AR'); }
 
+function categoriaEmoji(key){
+  return {hidromasajes:'🛁', baneras:'🛀', receptaculos:'🚿', accesorios_piscinas:'🔧', banios_quimicos:'🚻', garitas_seguridad:'🏗️', cuchas_perros:'🐕', reposeras:'🏖️', depositos_jardin:'📦'}[key] || '📦';
+}
+
 async function cargarCatalogo(){
   CATALOGO = await api('/api/socio/catalogo').catch(()=>null);
   if(!CATALOGO) return;
   const el = document.getElementById('catalogo-contenido');
-  let html = '<h3>Piscinas</h3><table><tr><th>Modelo</th><th>Precio lista</th><th></th></tr>';
+  let html = '';
+
+  // PISCINAS — 4 niveles de precio explicados
+  html += `<details open class="cat-cat"><summary>🏊 Piscinas de fibra de vidrio</summary>
+    <p class="cat-nota">Cada modelo tiene 4 precios según cómo se entregue. <strong>Con instalación</strong> es el precio estándar en tu zona de cobertura. Los otros dos son para ventas fuera de esa zona: <strong>casco + equipo de filtrado</strong> (sin instalación) o <strong>casco solo</strong> (sin instalación ni equipo) — en ambos casos, la instalación la coordinás vos, tu equipo, o un instalador de la zona del cliente.</p>`;
   for(const m of CATALOGO.piscinas.modelos){
-    html += `<tr><td>${m}</td><td>${fmt(CATALOGO.piscinas.precios_lista[m])}</td><td><a href="/api/socio/ficha-producto?tipo=PISCINA&modelo=${encodeURIComponent(m)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px">📄 Ficha</a></td></tr>`;
+    const med = CATALOGO.piscinas.medidas ? CATALOGO.piscinas.medidas[m] : null;
+    const medidaTxt = med ? `${med.largo_m}m × ${med.ancho_m}m × ${med.profundidad_min_m}${med.profundidad_max_m && med.profundidad_max_m !== med.profundidad_min_m ? '–'+med.profundidad_max_m : ''}m` + (med.litros ? ` · ${Number(med.litros).toLocaleString('es-AR')} litros` : '') : '';
+    html += `<div class="card">
+      <h4 style="margin:0 0 2px">${m}</h4>
+      ${medidaTxt ? `<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">${medidaTxt}</p>` : ''}
+      <table style="font-size:12.5px"><tbody>
+        <tr><td>Precio de lista</td><td style="text-align:right">${fmt(CATALOGO.piscinas.precios_lista[m])}</td></tr>
+        <tr><td><strong>Contado — con instalación</strong></td><td style="text-align:right"><strong>${fmt(CATALOGO.piscinas.precios[m])}</strong></td></tr>
+        <tr><td>Contado — casco + equipo, sin instalación</td><td style="text-align:right">${fmt((CATALOGO.piscinas.precios_sin_instalacion||{})[m])}</td></tr>
+        <tr><td>Contado — casco solo, sin instalación ni equipo</td><td style="text-align:right">${fmt((CATALOGO.piscinas.precios_sin_instalacion_sin_equipo||{})[m])}</td></tr>
+      </tbody></table>
+      <a href="/api/socio/ficha-producto?tipo=PISCINA&modelo=${encodeURIComponent(m)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px;margin-top:10px">📄 Ficha para el cliente</a>
+    </div>`;
   }
-  html += '</table><h3 style="margin-top:20px">Módulos</h3><table><tr><th>m²</th><th>Precio lista</th><th></th></tr>';
-  for(const m2 of CATALOGO.modulos.superficies_m2){
-    html += `<tr><td>${m2} m²</td><td>${fmt(CATALOGO.modulos.precios_lista[m2])}</td><td><a href="/api/socio/ficha-producto?tipo=MODULO&modelo=${encodeURIComponent(m2)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px">📄 Ficha</a></td></tr>`;
+  html += `</details>`;
+
+  // MÓDULOS
+  html += `<details class="cat-cat"><summary>🏠 Módulos habitacionales y viviendas modulares</summary>`;
+  if(CATALOGO.modulos.tecnologia) html += `<p class="cat-nota">${CATALOGO.modulos.tecnologia}</p>`;
+  html += `<table><tr><th>Modelo</th><th>Precio lista</th><th>Precio contado</th><th></th></tr>`;
+  for(const [nombre, precioLista] of Object.entries(CATALOGO.modulos.precios_lista || {})){
+    html += `<tr><td>${nombre}</td><td>${fmt(precioLista)}</td><td>${fmt((CATALOGO.modulos.precios||{})[nombre])}</td>
+      <td><a href="/api/socio/ficha-producto?tipo=MODULO&modelo=${encodeURIComponent(nombre)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px">📄 Ficha</a></td></tr>`;
   }
-  html += '</table>';
+  html += `</table></details>`;
+
+  // COMBOS
+  const combosEntries = Object.entries(CATALOGO.combos || {});
+  if(combosEntries.length){
+    html += `<details class="cat-cat"><summary>🎁 Combos</summary><table><tr><th>Combo</th><th>Descripción</th><th>Precio lista</th><th>Precio contado</th></tr>`;
+    for(const [nombre, d] of combosEntries){
+      html += `<tr><td>${nombre}</td><td style="font-size:12.5px">${(d||{}).descripcion || '—'}</td><td>${fmt((d||{}).precio_lista)}</td><td>${fmt((d||{}).precio_contado)}</td></tr>`;
+    }
+    html += `</table></details>`;
+  }
+
+  // Resto de categorías (hidromasajes, bañeras, receptáculos, accesorios,
+  // baños químicos, garitas, cuchas, reposeras, depósitos de jardín)
+  for(const cat of CATEGORIAS_VENTA){
+    if(['piscinas','modulos','combos'].includes(cat.key)) continue;
+    const bloque = CATALOGO[cat.key];
+    if(!bloque || !bloque.items || !Object.keys(bloque.items).length) continue;
+    const info = bloque.info || {};
+    const infoTexto = [info.material, info.estructura, info.instalacion].filter(Boolean).join(' · ');
+    html += `<details class="cat-cat"><summary>${categoriaEmoji(cat.key)} ${cat.label}</summary>`;
+    if(infoTexto) html += `<p class="cat-nota">${infoTexto}</p>`;
+    html += `<div class="biblio-grid">`;
+    for(const [nombre, d] of Object.entries(bloque.items)){
+      const dd = d || {};
+      const fotoUrl = Array.isArray(dd.fotos) ? dd.fotos[0] : null;
+      const foto = fotoUrl ? `<img src="${fotoUrl}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;margin-bottom:8px;background:var(--bg)">` : '';
+      html += `<div class="biblio-card">${foto}<h4 style="margin:0 0 4px">${nombre}</h4>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">${dd.descripcion_corta || dd.descripcion || ''}</p>
+        <div style="font-weight:700">${dd.precio_contado != null ? fmt(dd.precio_contado) : 'Consultar precio'}</div>
+      </div>`;
+    }
+    html += `</div></details>`;
+  }
+
   el.innerHTML = html;
 
   const selModelo = document.getElementById('sim-modelo');
@@ -703,7 +770,8 @@ function obtenerItemsCategoria(categoria){
   if(categoria === 'combos'){
     return Object.entries(CATALOGO.combos||{}).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
   }
-  return Object.entries(CATALOGO[categoria]||{}).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
+  const items = (CATALOGO[categoria]||{}).items || {};
+  return Object.entries(items).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
 }
 
 function poblarCategoriasVenta(){
@@ -942,7 +1010,7 @@ function renderBiblioteca(){
   const items = BIBLIOTECA_FILTRO === 'todos' ? BIBLIOTECA_ITEMS : BIBLIOTECA_ITEMS.filter(m => m.tipo === BIBLIOTECA_FILTRO);
   el.innerHTML = items.map((m, i) => `
     <div class="biblio-card">
-      ${m.tipo === 'imagen' && m.url ? `<img src="${m.url}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;margin-bottom:10px;background:var(--bg)">` : ''}
+      ${(m.tipo === 'imagen' || m.tipo === 'foto_entrega') && m.url ? `<img src="${m.url}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;margin-bottom:10px;background:var(--bg)">` : ''}
       <div class="tag-cat">${m.categoria}${m.tipo === 'copy' ? ' · copy listo para pegar' : ''}</div>
       <h4>${m.titulo || m.tipo}</h4>
       <p>${(m.descripcion||'').replace(/\n/g,'<br>')}</p>

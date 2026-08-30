@@ -166,6 +166,34 @@
   <button class="btn btn-primary" onclick="subirMaterialSocio()">Subir a la Biblioteca</button>
   <span id="op-mat-msg" style="font-size:13px;margin-left:10px"></span>
 
+  <h3 style="font-size:14px;margin:28px 0 8px">📦 Fotos de entrega — carga rápida diaria</h3>
+  <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
+    Cargá la foto de cada entrega del día para que quede disponible en la Biblioteca de todos los socios,
+    organizada por producto y zona.
+  </p>
+  <div class="form-row">
+    <div><label class="form-label">Foto</label><input class="form-control" type="file" id="op-ent-archivo"></div>
+    <div><label class="form-label">Categoría del producto</label>
+      <select class="form-control" id="op-ent-categoria">
+        <option value="piscinas">Piscinas</option><option value="modulos">Módulos</option>
+        <option value="combos">Combos</option><option value="hidromasajes">Hidromasaje</option>
+        <option value="baneras">Bañeras</option><option value="receptaculos">Receptáculos</option>
+        <option value="accesorios_piscinas">Accesorios de piscina</option><option value="banios_quimicos">Baños químicos</option>
+        <option value="garitas_seguridad">Garitas de seguridad</option><option value="cuchas_perros">Cuchas</option>
+        <option value="reposeras">Reposeras</option><option value="depositos_jardin">Depósitos de jardín</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div><label class="form-label">Zona / localidad</label><input class="form-control" id="op-ent-zona" placeholder="Ej: Zárate, Buenos Aires"></div>
+    <div><label class="form-label">Modelo (opcional)</label><input class="form-control" id="op-ent-modelo" placeholder="Ej: Arco Romano Grande"></div>
+  </div>
+  <div class="form-row">
+    <div style="grid-column:1/-1"><label class="form-label">Cliente <span style="font-weight:400;color:var(--text-muted)">(referencia interna, opcional)</span></label><input class="form-control" id="op-ent-cliente"></div>
+  </div>
+  <button class="btn btn-primary" onclick="subirFotoEntrega()">Subir foto de entrega</button>
+  <span id="op-ent-msg" style="font-size:13px;margin-left:10px"></span>
+
   <p style="color:var(--text-muted);font-size:13px;margin:28px 0 14px">
     Las ventas las cargan los propios socios desde su panel. Estas 4 colas son las únicas
     acciones que sigue haciendo el equipo a mano.
@@ -516,6 +544,35 @@ async function subirMaterialSocio(){
     document.getElementById('op-mat-descripcion').value = '';
     document.getElementById('op-mat-url').value = '';
     document.getElementById('op-mat-archivo').value = '';
+  } else {
+    msg.style.color = '#f87171'; msg.textContent = '❌ Error al subir.';
+  }
+}
+
+async function subirFotoEntrega(){
+  const msg = document.getElementById('op-ent-msg'); msg.textContent = '';
+  const archivo = document.getElementById('op-ent-archivo').files[0];
+  if(!archivo){ msg.style.color='#f87171'; msg.textContent='Elegí una foto primero.'; return; }
+  const categoria = document.getElementById('op-ent-categoria').value;
+  const zona = document.getElementById('op-ent-zona').value.trim();
+  const modelo = document.getElementById('op-ent-modelo').value.trim();
+  const cliente = document.getElementById('op-ent-cliente').value.trim();
+  const fecha = new Date().toLocaleDateString('es-AR');
+
+  const fd = new FormData();
+  fd.append('tipo', 'foto_entrega');
+  fd.append('categoria', categoria);
+  fd.append('titulo', `Entrega${modelo?' — '+modelo:''}${zona?' — '+zona:''}`);
+  fd.append('descripcion', `${zona?'Zona: '+zona+'. ':''}${fecha?'Fecha: '+fecha+'.':''}${cliente?' Cliente (ref. interna): '+cliente+'.':''}`);
+  fd.append('archivo', archivo);
+
+  const r = await fetch('/api/materiales-socio', {method:'POST', credentials:'same-origin', body: fd});
+  if(r.ok){
+    msg.style.color = '#4ade80'; msg.textContent = '✅ Foto de entrega cargada.';
+    document.getElementById('op-ent-archivo').value = '';
+    document.getElementById('op-ent-zona').value = '';
+    document.getElementById('op-ent-modelo').value = '';
+    document.getElementById('op-ent-cliente').value = '';
   } else {
     msg.style.color = '#f87171'; msg.textContent = '❌ Error al subir.';
   }

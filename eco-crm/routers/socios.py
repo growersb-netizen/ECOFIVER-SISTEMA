@@ -522,23 +522,29 @@ async def socio_catalogo(socio: Aliado = Depends(require_socio)):
             "precios_sin_instalacion": cat["piscinas"].get("precios_sin_instalacion", {}),
             "precios_sin_instalacion_sin_equipo": cat["piscinas"].get("precios_sin_instalacion_sin_equipo", {}),
             "fotos": cat["piscinas"].get("fotos", {}),
+            "medidas": cat["piscinas"].get("medidas", {}),
+            "colores": cat["piscinas"].get("colores", []),
         },
         "modulos": {
             "superficies_m2": cat["modulos"].get("superficies_m2", []),
             "precios_lista": cat["modulos"].get("precios_lista", {}),
             "precios": cat["modulos"].get("precios", {}),
             "fotos": cat["modulos"].get("fotos", {}),
+            "tecnologia": cat["modulos"].get("tecnologia", ""),
         },
         "combos": cat.get("combos") or {},
     }
     # Resto de categorías (hidromasajes, bañeras, receptáculos, accesorios,
-    # baños químicos, garitas, cuchas, reposeras, depósitos de jardín):
-    # misma forma genérica {nombre_item: {precio_contado, descripcion, fotos, ...}}.
+    # baños químicos, garitas, cuchas, reposeras, depósitos de jardín): cada
+    # una expone su info general (material/instalación/estructura) más los
+    # items con su propio precio, descripción y fotos.
     for cat_key in _CATEGORIAS_CATALOGO_SIMPLES:
         bloque = cat.get(cat_key) or {}
         items = bloque.get("modelos") if isinstance(bloque.get("modelos"), dict) else bloque
-        if isinstance(items, dict):
-            resultado[cat_key] = items
+        if not isinstance(items, dict):
+            continue
+        info_general = {k: v for k, v in bloque.items() if k != "modelos" and not isinstance(v, dict)}
+        resultado[cat_key] = {"info": info_general, "items": items}
     return resultado
 
 

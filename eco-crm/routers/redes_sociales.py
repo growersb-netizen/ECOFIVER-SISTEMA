@@ -660,6 +660,91 @@ async def api_redes_subscribe_webhook(
     }
 
 
+# ─── AUDIT: REFRESCAR TOKEN Y SUSCRIBIR WEBHOOK CON USER TOKEN ────────────────
+
+@router.post("/api/redes/audit/refresh-and-subscribe")
+async def api_redes_audit_refresh_subscribe(
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Endpoint de auditoría:
+    1. Recibe un user_access_token del Graph API Explorer (con scopes correctos)
+    2. Para cada page_id en la lista (o para todos en la DB), extrae el page_token
+       via GET /{page_id}?fields=access_token usando el user_token
+    3. Actualiza el page_token en la DB
+    4. Llama a POST /{page_id}/subscribed_apps?subscribed_fields=feed,messages,message_reactions
+    5. Devuelve el resultado
+
+    Body JSON: { "user_token": "...", "page_ids": ["id1", "id2"] }
+    Si page_ids está vacío, usa todos los registros de meta_paginas.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    body = await request.json()
+    user_token = (body.get("user_token") or "").strip()
+    page_ids = body.get("page_ids") or []
+
+    if not user_token:
+        raise HTTPException(400, "Falta 'user_token' en el body")
+
+    # Si no se especifican páginas, procesar todas las de la DB
+    if page_ids:
+        paginas = db.query(MetaPagina).filter(MetaPagina.page_id.in_(page_ids)).all()
+    else:
+        paginas = db.query(MetaPagina).all()
+
+    if not paginas:
+        return {"ok": False, "error": "No hay páginas en la DB"}
+
+    resultados = {}
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for pg in paginas:
+            pid = pg.page_id
+            resultado_pg = {}
+
+            # 1) Obtener page token desde el user token
+            r_pt = await hc.get(
+                f"{META_GRAPH_URL}/{pid}",
+                params={"fields": "access_token,name", "access_token": user_token},
+            )
+            if r_pt.status_code != 200 or "access_token" not in r_pt.json():
+                resultado_pg["error_token"] = r_pt.json()
+                resultados[pid] = resultado_pg
+                continue
+
+            page_token = r_pt.json()["access_token"]
+            resultado_pg["page_name"] = r_pt.json().get("name", pid)
+            resultado_pg["token_ok"] = True
+
+            # 2) Actualizar token en DB
+            pg.page_token = page_token
+            db.commit()
+            resultado_pg["token_actualizado"] = True
+
+            # 3) Suscribir al webhook
+            r_sub = await hc.post(
+                f"{META_GRAPH_URL}/{pid}/subscribed_apps",
+                params={
+                    "access_token": page_token,
+                    "subscribed_fields": "feed,messages,message_reactions",
+                },
+            )
+            resultado_pg["subscribed_apps"] = r_sub.json()
+
+            if r_sub.json().get("success"):
+                pg.webhook_subscribed = True
+                db.commit()
+
+            resultados[pid] = resultado_pg
+
+    all_ok = all(r.get("subscribed_apps", {}).get("success") for r in resultados.values())
+    return {"ok": all_ok, "resultados": resultados}
+
+
 # ─── INTERACCIONES — HISTORIAL + GESTIÓN MANUAL ────────────────────────────────
 
 @router.get("/api/redes/interacciones")

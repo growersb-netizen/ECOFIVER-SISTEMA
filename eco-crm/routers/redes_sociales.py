@@ -634,8 +634,11 @@ async def api_redes_subscribe_webhook(
     pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
     if not pg:
         raise HTTPException(404, "Página no encontrada")
-    if not pg.page_token:
-        raise HTTPException(400, "Esta página no tiene page_token cargado")
+
+    # Usar page_token propio, o el token global de config como fallback
+    token_a_usar = pg.page_token or get_config_value("meta_page_access_token", db) or ""
+    if not token_a_usar:
+        raise HTTPException(400, "Esta página no tiene page_token cargado y no hay meta_page_access_token global")
 
     resultados = {}
     async with httpx.AsyncClient(timeout=20) as hc:
@@ -643,7 +646,7 @@ async def api_redes_subscribe_webhook(
         r = await hc.post(
             f"{META_GRAPH_URL}/{page_id}/subscribed_apps",
             params={
-                "access_token": pg.page_token,
+                "access_token": token_a_usar,
                 "subscribed_fields": "feed,messages,message_reactions",
             },
         )
@@ -688,8 +691,11 @@ async def api_redes_audit_refresh_subscribe(
     user_token = (body.get("user_token") or "").strip()
     page_ids = body.get("page_ids") or []
 
+    # Fallback: usar el token global de la configuración si no se pasa user_token
     if not user_token:
-        raise HTTPException(400, "Falta 'user_token' en el body")
+        user_token = get_config_value("meta_page_access_token", db) or ""
+    if not user_token:
+        raise HTTPException(400, "Falta 'user_token' en el body y no hay meta_page_access_token en configuración")
 
     # Si no se especifican páginas, procesar todas las de la DB
     if page_ids:

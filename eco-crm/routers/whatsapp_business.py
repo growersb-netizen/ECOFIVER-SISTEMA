@@ -181,3 +181,57 @@ async def subir_foto_perfil(file: UploadFile = File(...), x_api_key: Optional[st
     if r_perfil.status_code != 200:
         raise HTTPException(r_perfil.status_code, f"No se pudo aplicar la foto: {r_perfil.text[:300]}")
     return {"ok": True}
+
+
+@router.post("/api/whatsapp/audit/cambiar-nombre")
+async def cambiar_nombre_wa(
+    request: Request,
+    t: str = "",
+    phone_id_override: str = "",
+):
+    """
+    Envía solicitud de cambio de nombre de WhatsApp Business a Meta.
+    Meta revisa la solicitud (puede tardar minutos u horas).
+    """
+    import os as _os
+    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    body = await request.json()
+    nuevo_nombre = (body.get("nuevo_nombre") or "").strip()
+    if not nuevo_nombre:
+        raise HTTPException(400, "Falta 'nuevo_nombre' en el body")
+
+    token = _os.getenv("WA_TOKEN", "")
+    phone_id = phone_id_override or _os.getenv("WA_PHONE_ID", "")
+    if not token or not phone_id:
+        raise HTTPException(400, "Faltan WA_TOKEN / WA_PHONE_ID en las variables de entorno")
+
+    # 1) Leer nombre actual
+    async with httpx.AsyncClient(timeout=15) as c:
+        rn = await c.get(
+            f"{META_API_BASE}/{phone_id}",
+            params={"fields": "display_phone_number,verified_name,name_status"},
+            headers=_headers(token),
+        )
+    nombre_actual = rn.json().get("verified_name", "?") if rn.status_code == 200 else "?"
+    name_status = rn.json().get("name_status", "?") if rn.status_code == 200 else "?"
+
+    # 2) Enviar solicitud de cambio de nombre
+    async with httpx.AsyncClient(timeout=15) as c:
+        rc = await c.post(
+            f"{META_API_BASE}/{phone_id}",
+            headers=_headers(token),
+            json={"new_name": nuevo_nombre},
+        )
+
+    ok = rc.status_code in (200, 201)
+    return {
+        "ok": ok,
+        "nombre_anterior": nombre_actual,
+        "name_status_anterior": name_status,
+        "nuevo_nombre_solicitado": nuevo_nombre,
+        "http": rc.status_code,
+        "respuesta_meta": rc.json() if rc.content else {},
+    }

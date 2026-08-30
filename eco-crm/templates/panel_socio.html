@@ -177,6 +177,21 @@
   </div>
 </div>
 
+<!-- ═══════════════ POP-UP obligatorio: comisiones vigentes (primer ingreso) ═══════════════ -->
+<div class="modal-overlay hidden" id="modal-comisiones">
+  <div class="modal-box">
+    <h2 style="margin:0 0 4px;font-size:19px">Comisiones vigentes</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px">Antes de empezar a vender, revisá cómo se calcula tu comisión en cada tipo de venta. Vas a poder consultar esto en cualquier momento desde "Mis comisiones".</p>
+    <div id="mc-tabla">Cargando…</div>
+    <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;font-weight:400;color:var(--text)">
+      <input type="checkbox" id="mc-check" style="width:auto;margin-top:2px">
+      <span>Leí y acepto las condiciones generales del Programa de Socios Comerciales de EcoFiver, incluyendo cómo se calculan y liberan las comisiones.</span>
+    </label>
+    <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doAceptarComisiones()">Aceptar y continuar</button>
+    <div class="msg" id="mc-msg"></div>
+  </div>
+</div>
+
 <!-- ═══════════════ POP-UP obligatorio: completar datos y verificar canales ═══════════════ -->
 <div class="modal-overlay hidden" id="modal-verificacion">
   <div class="modal-box">
@@ -286,11 +301,11 @@
       <h2>Cargar una venta</h2>
 
       <div class="card">
-        <h3 style="margin-top:0;font-size:15px">Consultar situación crediticia (BCRA)</h3>
+        <h3 style="margin-top:0;font-size:15px">Chequear Scoring</h3>
         <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Disponible en cualquier momento, incluso antes de definir si la venta es contado o financiada.</p>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
           <div style="flex:1;min-width:180px"><label style="margin-top:0">DNI o CUIT del cliente</label><input id="bcra-dni"></div>
-          <button class="btn-ghost" onclick="correrScoring()">Consultar</button>
+          <button class="btn-ghost" onclick="correrScoring()">Chequear Scoring</button>
         </div>
         <div class="msg" id="scoring-msg"></div>
         <div id="scoring-detalle"></div>
@@ -352,6 +367,9 @@
     <!-- COMISIONES -->
     <section class="section" id="sec-comisiones">
       <h2>Mis comisiones</h2>
+      <h3 style="font-size:14px;margin:0 0 8px">Comisiones vigentes</h3>
+      <div id="comisiones-vigentes-card">Cargando…</div>
+      <h3 style="font-size:14px;margin:24px 0 8px">Historial</h3>
       <div id="tabla-comisiones">Cargando…</div>
     </section>
 
@@ -563,6 +581,46 @@ async function doCrearPassword(){
     await api('/api/socio/crear-password', {method:'POST', body: JSON.stringify({password: pass})});
     SOCIO.tiene_password = true;
     document.getElementById('modal-crear-password').classList.add('hidden');
+    avanzarOnboarding();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+function avanzarOnboarding(){
+  if(!SOCIO.comisiones_aceptadas) abrirModalComisiones();
+  else if(!SOCIO.verificado) abrirModalVerificacion();
+}
+
+async function abrirModalComisiones(){
+  const cont = document.getElementById('mc-tabla');
+  cont.innerHTML = 'Cargando…';
+  document.getElementById('mc-check').checked = false;
+  document.getElementById('mc-msg').className = 'msg';
+  document.getElementById('mc-msg').textContent = '';
+  document.getElementById('modal-comisiones').classList.remove('hidden');
+  try{
+    const data = await api('/api/socio/comisiones/vigentes');
+    cont.innerHTML = data.tabla.map(f => `
+      <div class="card" style="margin-bottom:10px">
+        <h4 style="margin:0 0 8px;font-size:14px">${f.producto_label}</h4>
+        <div style="font-size:13px;line-height:1.7">
+          <div><strong>Venta de contado:</strong> ${f.contado_texto}</div>
+          <div><strong>Venta financiada:</strong> ${f.financiado_texto}</div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){ cont.innerHTML = '<p class="msg error">No pudimos cargar las comisiones vigentes — recargá la página.</p>'; }
+}
+
+async function doAceptarComisiones(){
+  const msg = document.getElementById('mc-msg'); msg.className='msg'; msg.textContent='';
+  if(!document.getElementById('mc-check').checked){
+    msg.className='msg error'; msg.textContent='Tenés que confirmar que leíste las condiciones para continuar.';
+    return;
+  }
+  try{
+    await api('/api/socio/comisiones/aceptar', {method:'POST'});
+    SOCIO.comisiones_aceptadas = true;
+    document.getElementById('modal-comisiones').classList.add('hidden');
     if(!SOCIO.verificado) abrirModalVerificacion();
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
@@ -628,7 +686,7 @@ async function cargarApp(){
   cargarCatalogo();
   cargarProgreso();
   if(!SOCIO.tiene_password) abrirModalCrearPassword();
-  else if(!SOCIO.verificado) abrirModalVerificacion();
+  else avanzarOnboarding();
 }
 
 function abrirModalVerificacion(){
@@ -1071,7 +1129,24 @@ async function cargarComisiones(){
   document.getElementById('kpi-liquidado').textContent = fmt(data.monto_liquidado);
 }
 
+async function cargarComisionesVigentesCard(){
+  const cont = document.getElementById('comisiones-vigentes-card');
+  try{
+    const data = await api('/api/socio/comisiones/vigentes');
+    cont.innerHTML = `<div class="grid2">` + data.tabla.map(f => `
+      <div class="card">
+        <h4 style="margin:0 0 8px;font-size:14px">${f.producto_label}</h4>
+        <div style="font-size:13px;line-height:1.7">
+          <div><strong>Contado:</strong> ${f.contado_texto}</div>
+          <div><strong>Financiado:</strong> ${f.financiado_texto}</div>
+        </div>
+      </div>
+    `).join('') + `</div>`;
+  }catch(e){ cont.innerHTML = '<p class="msg error">No pudimos cargar las comisiones vigentes.</p>'; }
+}
+
 async function cargarComisionesTabla(){
+  cargarComisionesVigentesCard();
   const data = await api('/api/socio/comisiones').catch(()=>({comisiones:[]}));
   let h = `<div class="kpis"><div class="kpi"><div class="v">${fmt(data.monto_pendiente)}</div><div class="l">Pendiente</div></div><div class="kpi"><div class="v">${fmt(data.monto_liquidado)}</div><div class="l">Liquidado</div></div></div>`;
   h += `<a href="/api/socio/comisiones/exportar" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px;margin-bottom:14px">⬇️ Exportar CSV</a>`;

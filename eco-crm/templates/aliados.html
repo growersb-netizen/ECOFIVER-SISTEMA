@@ -119,7 +119,34 @@
   <h3 style="font-size:14px;margin:0 0 10px">📊 Resumen del programa</h3>
   <div class="op-stats" id="op-stats"><div class="al-empty">Cargando...</div></div>
 
-  <h3 style="font-size:14px;margin:24px 0 8px">👥 Socios registrados</h3>
+  <h3 style="font-size:14px;margin:24px 0 8px">💰 Comisiones — porcentaje por producto/modelo</h3>
+  <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
+    Definí el % de comisión del socio. Dejar "Modelo" vacío aplica a todo el producto; dejar "Producto" vacío
+    también define el default general de ese tipo de venta. La fila más específica siempre gana.
+  </p>
+  <div id="comision-vigentes-admin" style="margin-bottom:14px"><div class="al-empty">Cargando...</div></div>
+  <div class="form-row">
+    <div><label class="form-label">Tipo de venta</label>
+      <select class="form-control" id="cc-tipo">
+        <option value="contado">Contado</option>
+        <option value="financiado">Financiado</option>
+      </select>
+    </div>
+    <div><label class="form-label">Producto (opcional)</label>
+      <select class="form-control" id="cc-producto">
+        <option value="">— default general —</option>
+        <option value="PISCINA">Piscina</option>
+        <option value="MODULO">Módulo</option>
+      </select>
+    </div>
+    <div><label class="form-label">Modelo (opcional)</label><input class="form-control" id="cc-modelo" placeholder="ej. Minideck"></div>
+    <div><label class="form-label">Porcentaje (%)</label><input class="form-control" type="number" step="0.1" id="cc-pct" placeholder="5"></div>
+  </div>
+  <button class="btn btn-secondary" onclick="guardarComisionConfig()">Guardar</button>
+  <span id="cc-msg" style="font-size:13px;margin-left:10px"></span>
+  <div id="comision-config-tabla" style="margin-top:14px"><div class="al-empty">Cargando...</div></div>
+
+  <h3 style="font-size:14px;margin:28px 0 8px">👥 Socios registrados</h3>
   <div class="al-filters">
     <input class="form-control" id="op-socios-search" placeholder="🔍 Buscar nombre / código / email" oninput="renderOpSocios()" style="max-width:280px">
     <label style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
@@ -402,9 +429,55 @@ async function cargarPaquetes(){
 function fmtMoney(n){return '$'+(n||0).toLocaleString('es-AR');}
 let OP_SOCIOS = [];
 
+async function cargarComisionConfig(){
+  const d = await AL.get('/api/admin/comisiones/config');
+  const vig = document.getElementById('comision-vigentes-admin');
+  vig.innerHTML = `<div class="op-stats">` + d.vigentes.map(f => `
+    <div class="op-stat"><div class="n" style="font-size:15px">${f.producto_label}</div>
+      <div class="l" style="margin-top:6px;line-height:1.5">Contado: <strong>${f.contado_pct}%</strong><br>Financiado: <strong>${f.financiado_pct}%</strong></div>
+    </div>`).join('') + `</div>`;
+
+  const tabla = document.getElementById('comision-config-tabla');
+  if(!d.config || !d.config.length){ tabla.innerHTML = '<div class="al-empty">Sin configuración cargada.</div>'; return; }
+  tabla.innerHTML = `<table class="al-table"><thead><tr><th>Tipo</th><th>Producto</th><th>Modelo</th><th>%</th><th>Actualizado</th><th></th></tr></thead><tbody>` +
+    d.config.map(c => `<tr>
+      <td>${c.tipo_venta}</td>
+      <td>${c.producto || '<em style="color:var(--text-muted)">— default general —</em>'}</td>
+      <td>${c.modelo || (c.producto ? '<em style="color:var(--text-muted)">todo el producto</em>' : '—')}</td>
+      <td>${c.porcentaje_pct}%</td>
+      <td style="font-size:11px;color:var(--text-muted)">${c.updated_at ? new Date(c.updated_at).toLocaleString('es-AR') : '—'}</td>
+      <td>${(c.producto || c.modelo) ? `<button class="btn btn-sm" style="color:#f87171" onclick="borrarComisionConfig(${c.id})">✕</button>` : ''}</td>
+    </tr>`).join('') + `</tbody></table>`;
+}
+
+async function guardarComisionConfig(){
+  const msg = document.getElementById('cc-msg'); msg.textContent = '';
+  const body = {
+    tipo_venta: document.getElementById('cc-tipo').value,
+    producto: document.getElementById('cc-producto').value,
+    modelo: document.getElementById('cc-modelo').value.trim(),
+    porcentaje_pct: parseFloat(document.getElementById('cc-pct').value),
+  };
+  if(isNaN(body.porcentaje_pct)){ msg.style.color = '#f87171'; msg.textContent = 'Ingresá un porcentaje válido'; return; }
+  const r = await AL.send('/api/admin/comisiones/config', 'PUT', body);
+  const data = await r.json();
+  if(!r.ok){ msg.style.color = '#f87171'; msg.textContent = data.detail || 'Error'; return; }
+  msg.style.color = '#4ade80'; msg.textContent = `Guardado: ${data.porcentaje_pct}%`;
+  document.getElementById('cc-modelo').value = '';
+  document.getElementById('cc-pct').value = '';
+  cargarComisionConfig();
+}
+
+async function borrarComisionConfig(id){
+  if(!confirm('¿Borrar esta excepción? Vuelve a aplicar el default.')) return;
+  await fetch('/api/admin/comisiones/config/'+id, {method:'DELETE', credentials:'same-origin'});
+  cargarComisionConfig();
+}
+
 async function cargarOperacionSocios(){
   cargarOpStats();
   cargarOpSocios();
+  cargarComisionConfig();
 
   const [ins, aud, c48, ent] = await Promise.all([
     AL.get('/api/ventas-financiadas/pendientes-inscripcion'),

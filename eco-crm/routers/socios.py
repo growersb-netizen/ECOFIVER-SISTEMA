@@ -32,7 +32,7 @@ from pathlib import Path
 from database.database import get_db
 from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
-    ScoringBCRA, Usuario,
+    ScoringBCRA, Usuario, ComisionConfig,
 )
 from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.catalogo import load_catalogo
@@ -441,6 +441,7 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "email_verificado": bool(socio.email_verificado),
         "verificado": _esta_verificado(socio),
         "tiene_password": bool(socio.password_hash),
+        "comisiones_aceptadas": bool(socio.comisiones_aceptadas_en),
     }
 
 
@@ -761,7 +762,7 @@ _GUIAS_SEED = [
         "titulo": "Checklist antes de cargar una venta",
         "descripcion": (
             "1) ¿Cotizaste el precio exacto desde el Catálogo (no de memoria)? 2) Si es financiado, ¿corriste "
-            "el chequeo de BCRA del cliente? 3) ¿Tenés el nombre completo, WhatsApp y localidad del cliente "
+            "el Scoring del cliente? 3) ¿Tenés el nombre completo, WhatsApp y localidad del cliente "
             "cargados correctamente? 4) Si es una piscina fuera del área de cobertura directa, ¿elegiste bien "
             "el nivel de instalación (con instalación / casco + equipo / casco solo)? 5) En financiado, ¿le "
             "explicaste al cliente que la inscripción equivale a 2 cuotas y que puede pagarla en partes? "
@@ -862,6 +863,45 @@ def seed_biblioteca_socios(db: Session):
         if not existe:
             db.add(MaterialSocio(**g))
     db.commit()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMISIONES — porcentaje configurable desde el panel de admin, por tipo de
+# venta y opcionalmente por producto/modelo. Default de hoy: 5% en contado
+# (cualquier producto) y 100% de la primera cuota en financiado.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def seed_comision_config(db: Session):
+    """Crea los valores por defecto una sola vez (si la tabla está vacía)."""
+    if db.query(ComisionConfig).first():
+        return
+    db.add(ComisionConfig(tipo_venta="contado", producto=None, modelo=None, porcentaje=0.05))
+    db.add(ComisionConfig(tipo_venta="financiado", producto=None, modelo=None, porcentaje=1.0))
+    db.commit()
+
+
+def obtener_porcentaje_comision(db: Session, tipo_venta: str, producto: str = None, modelo: str = None) -> float:
+    """
+    Resuelve el % de comisión vigente por especificidad: modelo exacto >
+    producto (todo modelo) > default global de ese tipo_venta. Si no hay
+    ninguna config cargada (no debería pasar tras el seed), cae a un
+    fallback fijo para no romper el cálculo.
+    """
+    producto = (producto or "").upper() or None
+    q = db.query(ComisionConfig).filter(ComisionConfig.tipo_venta == tipo_venta)
+
+    if producto and modelo:
+        row = q.filter(ComisionConfig.producto == producto, ComisionConfig.modelo == modelo).first()
+        if row:
+            return row.porcentaje
+    if producto:
+        row = q.filter(ComisionConfig.producto == producto, ComisionConfig.modelo.is_(None)).first()
+        if row:
+            return row.porcentaje
+    row = q.filter(ComisionConfig.producto.is_(None), ComisionConfig.modelo.is_(None)).first()
+    if row:
+        return row.porcentaje
+    return 0.05 if tipo_venta == "contado" else 1.0
 
 
 _CATEGORIAS_CATALOGO_SIMPLES = {
@@ -1003,9 +1043,9 @@ QUIZ_AUTOEVALUACION = [
     {"pregunta": "¿Quién cierra una venta, contado o financiada: el Socio o el equipo de EcoFiver?", "respuesta": "El Socio Comercial — hace la operación completa, de punta a punta."},
     {"pregunta": "¿Con qué herramienta cotizás precios y cuotas?", "respuesta": "Con el catálogo y el simulador de tu panel — nunca de memoria."},
     {"pregunta": "¿Tenés horario fijo de trabajo?", "respuesta": "No. Es un vínculo comercial, sin obligación de horario ni de asistencia."},
-    {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "75% del valor de una cuota del plan."},
+    {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "El 100% del valor de la primera cuota del plan. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
     {"pregunta": "¿Cuándo se libera tu comisión en una venta financiada?", "respuesta": "Cuando el equipo hace la llamada de bienvenida (auditoría) y confirma que el cliente entendió el plan."},
-    {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "2% del valor nominal del producto — se libera contra entrega y cobro."},
+    {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "El 5% del precio de venta — se libera contra entrega y cobro. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
     {"pregunta": "¿Necesitás Monotributo para operar?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones."},
     {"pregunta": "¿La instalación está incluida en una venta de contado?", "respuesta": "En general sí. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo del Socio o de un instalador de su zona."},
     {"pregunta": "¿Desde qué cuota se puede pedir la entrega anticipada (licitación)?", "respuesta": "Desde la cuota 6 en viviendas, y desde la cuota 3 en piscinas."},
@@ -1270,7 +1310,7 @@ async def _consultar_bcra_por_identificacion(identificacion: str) -> tuple:
             # 404: sin antecedentes para esa identificación. 400 (típicamente por
             # longitud): se resuelve reintentando con otra identificación válida.
             return None, None, r.text, False
-        raise HTTPException(502, "El servicio del BCRA no respondió correctamente, reintentá en un momento")
+        raise HTTPException(502, "El servicio de Scoring no respondió correctamente, reintentá en un momento")
 
 
 @router.post("/api/socio/scoring")
@@ -1299,7 +1339,7 @@ async def consultar_scoring(request: Request, socio: Aliado = Depends(require_so
             if encontrado:
                 break
     except httpx.HTTPError:
-        raise HTTPException(502, "No se pudo conectar con el BCRA — reintentá en un momento")
+        raise HTTPException(502, "No se pudo conectar con el servicio de Scoring — reintentá en un momento")
 
     requiere_dj = situacion in (5, 6)
 
@@ -1412,7 +1452,8 @@ async def marcar_entregada_cobrada(
 ):
     """
     Entrega + cobro en el domicilio del cliente. Libera la comisión del socio
-    (2% del valor nominal) — cuenta también para el ranking en este momento.
+    (% configurable desde el panel de admin, ver ComisionConfig) — cuenta
+    también para el ranking en este momento.
     """
     _require_gestion_interna(x_api_key, current_user)
     venta = db.query(VentaContado).filter(VentaContado.id == venta_id).first()
@@ -1423,10 +1464,11 @@ async def marcar_entregada_cobrada(
     db.commit()
 
     if venta.aliado_codigo:
+        pct = obtener_porcentaje_comision(db, "contado", venta.producto, venta.modelo_especifico)
         comision = Comision(
             aliado_codigo=venta.aliado_codigo,
             tipo="contado",
-            monto=round((venta.precio_final or 0) * 0.02, 2),
+            monto=round((venta.precio_final or 0) * pct, 2),
             estado="pendiente",
             venta_contado_id=venta.id,
         )
@@ -1776,7 +1818,8 @@ async def completar_auditoria_bienvenida(
 ):
     """
     El equipo confirma que hizo la llamada de bienvenida: el cliente entendió
-    el plan y la condición del 50%. Libera la comisión (75% de una cuota).
+    el plan y la condición del 50%. Libera la comisión (% configurable desde
+    el panel de admin, ver ComisionConfig; hoy es el 100% de una cuota).
     Si la venta requiere declaración jurada, exige que ya esté confirmada.
     """
     _require_gestion_interna(x_api_key, current_user)
@@ -1791,11 +1834,12 @@ async def completar_auditoria_bienvenida(
 
     comision = None
     if venta.aliado_codigo:
+        pct = obtener_porcentaje_comision(db, "financiado", venta.producto, venta.modelo_especifico)
         comision = Comision(
             aliado_codigo=venta.aliado_codigo,
             solicitud_numero=venta.numero_solicitud or "",
             tipo="entrada",
-            monto=round((venta.valor_cuota or 0) * 0.75, 2),
+            monto=round((venta.valor_cuota or 0) * pct, 2),
             estado="pendiente",
             venta_financiada_id=venta.id,
         )
@@ -2004,6 +2048,117 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
     }
 
 
+def _tabla_comisiones_vigentes(db: Session) -> list:
+    """Tabla resuelta (con overrides aplicados) para PISCINA y MODULO — lo que
+    ve el socio en el modal de aceptación y en 'Mis comisiones'."""
+    filas = []
+    for producto, label in (("PISCINA", "Piscinas"), ("MODULO", "Módulos")):
+        pct_contado = obtener_porcentaje_comision(db, "contado", producto)
+        pct_financiado = obtener_porcentaje_comision(db, "financiado", producto)
+        filas.append({
+            "producto": producto, "producto_label": label,
+            "contado_pct": round(pct_contado * 100, 2),
+            "contado_texto": f"{round(pct_contado * 100, 2):g}% del precio de venta, contra entrega y cobro.",
+            "financiado_pct": round(pct_financiado * 100, 2),
+            "financiado_texto": f"{round(pct_financiado * 100, 2):g}% del valor de la primera cuota, al confirmar la llamada de bienvenida.",
+        })
+    return filas
+
+
+@router.get("/api/socio/comisiones/vigentes")
+async def comisiones_vigentes(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """Porcentajes de comisión vigentes por producto — para el modal de
+    aceptación del primer ingreso y para consulta permanente en el panel."""
+    return {"tabla": _tabla_comisiones_vigentes(db), "aceptadas": bool(socio.comisiones_aceptadas_en)}
+
+
+@router.post("/api/socio/comisiones/aceptar")
+async def aceptar_comisiones(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """Marca que el socio vio y aceptó las condiciones de comisión vigentes —
+    obligatorio antes de poder operar el panel."""
+    if not socio.comisiones_aceptadas_en:
+        socio.comisiones_aceptadas_en = datetime.now()
+        db.commit()
+    return {"ok": True}
+
+
+@router.get("/api/admin/comisiones/config")
+async def admin_listar_comisiones_config(
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Lista toda la configuración de comisiones (defaults + excepciones por
+    producto/modelo) para el panel de admin."""
+    _require_gestion_interna(x_api_key, current_user)
+    filas = db.query(ComisionConfig).order_by(
+        ComisionConfig.tipo_venta, ComisionConfig.producto.is_(None).desc(), ComisionConfig.modelo.is_(None).desc()
+    ).all()
+    return {"config": [{
+        "id": c.id, "tipo_venta": c.tipo_venta, "producto": c.producto, "modelo": c.modelo,
+        "porcentaje": c.porcentaje, "porcentaje_pct": round(c.porcentaje * 100, 2),
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    } for c in filas], "vigentes": _tabla_comisiones_vigentes(db)}
+
+
+@router.put("/api/admin/comisiones/config")
+async def admin_actualizar_comision_config(
+    request: Request, x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Crea o actualiza una fila de configuración de comisión. Body:
+    {tipo_venta: 'contado'|'financiado', producto?: 'PISCINA'|'MODULO'|...,
+     modelo?: str, porcentaje_pct: number (ej. 5 para 5%)}.
+    producto=null aplica como default general de ese tipo_venta; modelo=null
+    aplica a todo el producto.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    data = await request.json()
+    tipo_venta = (data.get("tipo_venta") or "").strip().lower()
+    if tipo_venta not in ("contado", "financiado"):
+        raise HTTPException(400, "tipo_venta debe ser 'contado' o 'financiado'")
+    producto = (data.get("producto") or "").strip().upper() or None
+    modelo = (data.get("modelo") or "").strip() or None
+    if modelo and not producto:
+        raise HTTPException(400, "Un modelo específico requiere indicar el producto")
+    try:
+        porcentaje = float(data.get("porcentaje_pct")) / 100.0
+    except (TypeError, ValueError):
+        raise HTTPException(400, "porcentaje_pct inválido")
+    if not (0 <= porcentaje <= 2):
+        raise HTTPException(400, "El porcentaje debe estar entre 0% y 200%")
+
+    row = db.query(ComisionConfig).filter(
+        ComisionConfig.tipo_venta == tipo_venta,
+        ComisionConfig.producto == producto,
+        ComisionConfig.modelo == modelo,
+    ).first()
+    if row:
+        row.porcentaje = porcentaje
+    else:
+        row = ComisionConfig(tipo_venta=tipo_venta, producto=producto, modelo=modelo, porcentaje=porcentaje)
+        db.add(row)
+    db.commit()
+    return {"ok": True, "id": row.id, "porcentaje_pct": round(porcentaje * 100, 2)}
+
+
+@router.delete("/api/admin/comisiones/config/{config_id}")
+async def admin_borrar_comision_config(
+    config_id: int, x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Borra una excepción (nunca el default global: producto y modelo NULL)."""
+    _require_gestion_interna(x_api_key, current_user)
+    row = db.query(ComisionConfig).filter(ComisionConfig.id == config_id).first()
+    if not row:
+        raise HTTPException(404, "No encontrado")
+    if row.producto is None and row.modelo is None:
+        raise HTTPException(409, "No se puede borrar el default general — editalo en su lugar")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/api/socio/comisiones")
 async def mis_comisiones(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     comisiones = db.query(Comision).filter(Comision.aliado_codigo == socio.codigo).order_by(Comision.id.desc()).all()
@@ -2075,7 +2230,7 @@ FAQ_SOCIOS = [
     {"pregunta": "¿Cómo cargo una venta?", "respuesta": "Desde la sección \"Cargar venta\" de tu panel, elegís contado o financiado y completás los datos del cliente."},
     {"pregunta": "¿Cuándo cobro mi comisión?", "respuesta": "Financiado: cuando el equipo hace la llamada de bienvenida al cliente. Contado: cuando se entrega y se cobra el producto. En ambos casos vas a ver la comisión como \"pendiente\" hasta que te la transfiramos."},
     {"pregunta": "¿Puedo vender en cualquier parte del país?", "respuesta": "Sí, el programa opera en todo el territorio nacional. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona — ideal si trabajás junto a instaladores."},
-    {"pregunta": "¿Qué pasa si mi cliente tiene mala situación crediticia (BCRA)?", "respuesta": "Si da situación 5 o 6, no se bloquea la venta — se le pide al cliente una declaración jurada adicional antes de la auditoría."},
+    {"pregunta": "¿Qué pasa si mi cliente tiene mala situación crediticia?", "respuesta": "Si el Scoring da situación 5 o 6, no se bloquea la venta — se le pide al cliente una declaración jurada adicional antes de la auditoría."},
     {"pregunta": "¿Qué es la licitación?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede pedir adelantar la entrega mediante una integración de capital. Ese aporte se descuenta del saldo total, y el cliente sigue abonando el saldo restante mes a mes hasta completarlo."},
     {"pregunta": "¿Necesito Monotributo?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones. Podés cargar la constancia después desde tu perfil."},
     {"pregunta": "¿Con quién hablo si tengo una duda?", "respuesta": "Comunicate al WhatsApp del programa de Socios Comerciales — el equipo te responde consultas de precio, estado de tus ventas y comisiones."},

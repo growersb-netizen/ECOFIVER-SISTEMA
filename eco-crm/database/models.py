@@ -1348,6 +1348,9 @@ class Aliado(Base):
     # ── Atribución de marketing: de dónde vino el registro (UTM de la pauta) ──
     origen_registro = Column(String(300), default="")
 
+    # ── Notificación y aceptación de comisiones (obligatoria en el primer ingreso) ──
+    comisiones_aceptadas_en = Column(DateTime(timezone=True), nullable=True)
+
 
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,
@@ -1404,6 +1407,23 @@ class Comision(Base):
     venta_financiada_id = Column(Integer, ForeignKey("ventas_financiadas.id"), nullable=True)
     venta_contado_id = Column(Integer, ForeignKey("ventas_contado.id"), nullable=True)
     factura_path = Column(String(500), nullable=True)  # no bloqueante ni excluyente del pago
+
+
+class ComisionConfig(Base):
+    """
+    Porcentaje de comisión del socio, configurable desde el panel de admin.
+    Se resuelve por especificidad: (tipo_venta, producto, modelo) exacto >
+    (tipo_venta, producto, modelo=NULL) > (tipo_venta, producto=NULL, modelo=NULL)
+    como default global. `porcentaje` es una fracción (0.05 = 5%, 1.0 = 100%).
+    """
+    __tablename__ = "comision_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tipo_venta = Column(String(20), nullable=False, index=True)   # contado | financiado
+    producto = Column(String(30), nullable=True)                  # PISCINA | MODULO | ... | NULL = default general
+    modelo = Column(String(150), nullable=True)                   # modelo específico | NULL = todo el producto
+    porcentaje = Column(Float, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class AuditoriaPaquete(Base):

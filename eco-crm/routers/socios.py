@@ -1111,6 +1111,26 @@ async def crear_material_socio(
     return {"ok": True, **_material_dict(m)}
 
 
+@router.put("/api/materiales-socio/{material_id}")
+async def editar_material_socio(
+    material_id: int, request: Request, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Corrige título/descripción/categoría de un material ya cargado, sin
+    tener que volver a subir el archivo."""
+    _require_gestion_interna(x_api_key, current_user)
+    m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
+    if not m:
+        raise HTTPException(404, "No encontrado")
+    data = await request.json()
+    for campo in ("titulo", "descripcion", "categoria"):
+        if campo in data:
+            setattr(m, campo, data[campo])
+    db.commit()
+    return {"ok": True, **_material_dict(m)}
+
+
 @router.delete("/api/materiales-socio/{material_id}")
 async def borrar_material_socio(
     material_id: int, db: Session = Depends(get_db),

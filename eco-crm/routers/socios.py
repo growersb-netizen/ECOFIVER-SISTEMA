@@ -1228,15 +1228,24 @@ async def consultar_scoring(request: Request, socio: Aliado = Depends(require_so
 @router.post("/api/socio/ventas/contado")
 async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """
-    Venta de contado cargada por el socio. Requisito excluyente: SIN instalación
-    incluida — la coordina el propio socio (él, su equipo, o tercerizada).
-    El equipo interno se contacta con el cliente dentro de las 48hs.
+    Venta de contado cargada por el socio. La instalación está incluida por
+    defecto; en piscinas vendidas fuera del área de cobertura directa (formato
+    casco, con o sin equipo de filtrado), la coordina el propio socio, su
+    equipo, o un instalador de su zona. El equipo interno se contacta con el
+    cliente dentro de las 48hs.
     """
     _require_verificado(socio)
     data = await request.json()
     cliente_nombre = (data.get("cliente_nombre") or "").strip()
     if not cliente_nombre:
         raise HTTPException(400, "Falta el nombre del cliente")
+
+    nivel_instalacion = (data.get("nivel_instalacion") or "con").strip()
+    nota_instalacion = {
+        "con": "Instalación incluida.",
+        "sin_instalacion": "Formato casco + equipo de filtrado, SIN instalación — la coordina el socio o un instalador de su zona.",
+        "sin_equipo": "Formato casco SOLO, sin instalación y sin equipo de filtrado — la coordina el socio o un instalador de su zona.",
+    }.get(nivel_instalacion, "Instalación incluida.")
 
     venta = VentaContado(
         cliente_nombre=cliente_nombre,
@@ -1250,7 +1259,7 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         estado="COORDINADO",
         modalidad_cobro="CONTRAENTREGA",  # se cobra contra la entrega en el domicilio
         cobro_estado="PENDIENTE",
-        notas=f"Venta de socio comercial {socio.codigo}. Instalación NO incluida — la coordina el socio. {data.get('notas', '')}",
+        notas=f"Venta de socio comercial {socio.codigo}. {nota_instalacion} {data.get('notas', '')}".strip(),
         aliado_codigo=socio.codigo,
     )
     db.add(venta)

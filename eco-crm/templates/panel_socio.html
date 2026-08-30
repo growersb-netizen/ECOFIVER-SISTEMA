@@ -270,24 +270,40 @@
       <div class="grid2">
         <div class="card">
           <h3 style="margin-top:0;font-size:15px">Contado</h3>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona.</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px" id="c-nota-instalacion">La instalación está incluida en la mayoría de los productos. Fuera del área de cobertura directa, se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona.</p>
           <label>Nombre del cliente</label><input id="c-nombre">
           <label>Teléfono</label><input id="c-tel">
           <label>Localidad</label><input id="c-loc">
-          <label>Producto</label><select id="c-prod"><option value="MODULO">Módulo</option><option value="PISCINA">Piscina</option></select>
-          <label>Modelo</label><input id="c-modelo">
+          <label>Categoría</label>
+          <select id="c-categoria" onchange="poblarProductoVenta('c')"></select>
+          <label>Producto</label>
+          <select id="c-modelo" onchange="actualizarPrecioVenta('c')"></select>
+          <div id="c-nivel-instalacion-wrap" class="hidden">
+            <label>Nivel de instalación</label>
+            <select id="c-nivel-instalacion" onchange="actualizarPrecioVenta('c')">
+              <option value="con">Con instalación</option>
+              <option value="sin_instalacion">Sin instalación (casco + equipo)</option>
+              <option value="sin_equipo">Sin instalación y sin equipo</option>
+            </select>
+          </div>
           <label>Precio final</label><input id="c-precio" type="number">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarContado()">Cargar venta de contado</button>
           <div class="msg" id="c-msg"></div>
         </div>
         <div class="card">
           <h3 style="margin-top:0;font-size:15px">Financiado</h3>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Disponible para piscinas y módulos, con instalación incluida.</p>
           <label>Nombre del cliente</label><input id="f-nombre">
           <label>DNI</label><input id="f-dni">
           <label>Teléfono</label><input id="f-tel">
           <label>Localidad</label><input id="f-loc">
-          <label>Producto</label><select id="f-prod"><option value="MODULO">Módulo</option><option value="PISCINA">Piscina</option></select>
-          <label>Modelo</label><input id="f-modelo">
+          <label>Categoría</label>
+          <select id="f-prod" onchange="poblarProductoVenta('f')">
+            <option value="PISCINA">Piscina</option>
+            <option value="MODULO">Módulo</option>
+          </select>
+          <label>Producto</label>
+          <select id="f-modelo"></select>
           <label>Cuotas</label><input id="f-cuotas" type="number" value="24">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarFinanciado()">Cargar venta financiada</button>
           <div class="msg" id="f-msg"></div>
@@ -642,6 +658,10 @@ async function cargarCatalogo(){
   }
   document.getElementById('sim-tipo').addEventListener('change', poblarSim);
   poblarSim();
+
+  poblarCategoriasVenta();
+  poblarProductoVenta('c');
+  poblarProductoVenta('f');
 }
 
 async function simular(){
@@ -656,16 +676,85 @@ async function simular(){
     <p style="margin-top:12px;font-size:13.5px">Precio de lista: ${fmt(data.precio_lista)}<br>Ingreso inicial: ${fmt(data.ingreso_inicial)}<br>Total financiado: ${fmt(data.total)}</p>`;
 }
 
+const CATEGORIAS_VENTA = [
+  {key:'piscinas', label:'Piscinas'},
+  {key:'modulos', label:'Módulos'},
+  {key:'combos', label:'Combos'},
+  {key:'hidromasajes', label:'Hidromasaje'},
+  {key:'baneras', label:'Bañeras'},
+  {key:'receptaculos', label:'Receptáculos'},
+  {key:'accesorios_piscinas', label:'Accesorios de piscina'},
+  {key:'banios_quimicos', label:'Baños químicos'},
+  {key:'garitas_seguridad', label:'Garitas de seguridad'},
+  {key:'cuchas_perros', label:'Cuchas'},
+  {key:'reposeras', label:'Reposeras'},
+  {key:'depositos_jardin', label:'Depósitos de jardín'},
+];
+const CATEGORIA_A_PRODUCTO = {piscinas:'PISCINA', modulos:'MODULO'};
+
+function obtenerItemsCategoria(categoria){
+  if(!CATALOGO) return [];
+  if(categoria === 'piscinas'){
+    return (CATALOGO.piscinas.modelos||[]).map(m => ({nombre:m, precio_contado: CATALOGO.piscinas.precios[m]}));
+  }
+  if(categoria === 'modulos'){
+    return Object.keys(CATALOGO.modulos.precios||{}).map(m => ({nombre:m, precio_contado: CATALOGO.modulos.precios[m]}));
+  }
+  if(categoria === 'combos'){
+    return Object.entries(CATALOGO.combos||{}).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
+  }
+  return Object.entries(CATALOGO[categoria]||{}).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
+}
+
+function poblarCategoriasVenta(){
+  const sel = document.getElementById('c-categoria');
+  if(sel && !sel.options.length){
+    sel.innerHTML = CATEGORIAS_VENTA.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+  }
+}
+
+function poblarProductoVenta(prefix){
+  const categoria = prefix === 'f' ? (document.getElementById('f-prod').value === 'PISCINA' ? 'piscinas' : 'modulos') : document.getElementById('c-categoria').value;
+  const items = obtenerItemsCategoria(categoria);
+  const selModelo = document.getElementById(prefix+'-modelo');
+  selModelo.innerHTML = items.map(it => `<option value="${it.nombre.replace(/"/g,'&quot;')}">${it.nombre}</option>`).join('') || '<option value="">Sin productos cargados</option>';
+  if(prefix === 'c'){
+    document.getElementById('c-nivel-instalacion-wrap').classList.toggle('hidden', categoria !== 'piscinas');
+    actualizarPrecioVenta('c');
+  }
+}
+
+function actualizarPrecioVenta(prefix){
+  if(prefix !== 'c') return; // en financiado el precio se resuelve siempre en el servidor, contra precios_lista
+  const categoria = document.getElementById('c-categoria').value;
+  const modelo = document.getElementById('c-modelo').value;
+  if(!modelo) return;
+  let precio = null;
+  if(categoria === 'piscinas'){
+    const nivel = document.getElementById('c-nivel-instalacion').value;
+    const tabla = nivel === 'sin_instalacion' ? CATALOGO.piscinas.precios_sin_instalacion
+      : nivel === 'sin_equipo' ? CATALOGO.piscinas.precios_sin_instalacion_sin_equipo
+      : CATALOGO.piscinas.precios;
+    precio = tabla[modelo];
+  } else {
+    const it = obtenerItemsCategoria(categoria).find(x => x.nombre === modelo);
+    precio = it ? it.precio_contado : null;
+  }
+  if(precio != null) document.getElementById('c-precio').value = precio;
+}
+
 async function cargarContado(){
   const msg = document.getElementById('c-msg'); msg.className='msg'; msg.textContent='';
   try{
+    const categoria = document.getElementById('c-categoria').value;
     const body = {
       cliente_nombre: document.getElementById('c-nombre').value,
       cliente_telefono: document.getElementById('c-tel').value,
       cliente_localidad: document.getElementById('c-loc').value,
-      producto: document.getElementById('c-prod').value,
+      producto: CATEGORIA_A_PRODUCTO[categoria] || categoria.toUpperCase(),
       modelo_especifico: document.getElementById('c-modelo').value,
       precio_final: parseFloat(document.getElementById('c-precio').value || 0),
+      nivel_instalacion: categoria === 'piscinas' ? document.getElementById('c-nivel-instalacion').value : 'con',
     };
     const data = await api('/api/socio/ventas/contado', {method:'POST', body: JSON.stringify(body)});
     msg.className='msg ok'; msg.textContent = data.mensaje;

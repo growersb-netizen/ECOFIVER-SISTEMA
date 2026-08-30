@@ -817,7 +817,7 @@ def sincronizar_biblioteca_catalogo(db: Session) -> int:
     for f in fotos:
         db.add(MaterialSocio(
             tipo="imagen", categoria=f["categoria"], titulo=f["producto"],
-            descripcion=f"Foto oficial de {f['producto']} — lista para usar en tus publicaciones.",
+            descripcion=f"Foto oficial de {f['producto']} - lista para usar en tus publicaciones.",
             url_externa=f["url"], orden=orden, origen="catalogo",
         ))
         orden += 1

@@ -155,24 +155,62 @@ async def actualizar_perfil(request: Request, x_api_key: Optional[str] = Header(
 @router.post("/api/whatsapp/foto-perfil")
 async def subir_foto_perfil(file: UploadFile = File(...), x_api_key: Optional[str] = Header(None),
                             current_user: Optional[Usuario] = Depends(get_current_user)):
-    """Sube y aplica una nueva foto de perfil de WhatsApp Business."""
+    """
+    Sube y aplica una nueva foto de perfil de WhatsApp Business.
+
+    Flujo correcto según Meta:
+      1) Crear sesión de upload (Graph Upload API): POST /v22.0/app/uploads
+      2) Subir binario a la sesión:              POST /v22.0/{session_id}
+         → retorna un handle con prefijo "h:"
+      3) Aplicar el handle al perfil:            POST /{phone_id}/whatsapp_business_profile
+         con { profile_picture_handle: "h:..." }
+    """
     _auth(x_api_key, current_user)
     token, phone_id = _creds()
     content = await file.read()
+    file_type = file.content_type or "image/jpeg"
+    file_name = file.filename or "foto.jpg"
 
-    async with httpx.AsyncClient(timeout=40) as c:
-        # 1) Subir la imagen como media
-        r_media = await c.post(
-            f"{META_API_BASE}/{phone_id}/media",
+    async with httpx.AsyncClient(timeout=60) as c:
+        # 1) Crear sesión de upload
+        r_session = await c.post(
+            "https://graph.facebook.com/v22.0/app/uploads",
             headers=_headers(token),
-            data={"messaging_product": "whatsapp"},
-            files={"file": (file.filename or "foto.jpg", content, file.content_type or "image/jpeg")},
+            params={
+                "file_length": len(content),
+                "file_type": file_type,
+                "file_name": file_name,
+            },
         )
-        if r_media.status_code != 200:
-            raise HTTPException(r_media.status_code, f"No se pudo subir la imagen: {r_media.text[:300]}")
-        handle = r_media.json().get("id")
+        if r_session.status_code != 200:
+            raise HTTPException(
+                r_session.status_code,
+                f"No se pudo crear sesión de upload: {r_session.text[:300]}"
+            )
+        session_id = r_session.json().get("id")
+        if not session_id:
+            raise HTTPException(500, f"Meta no devolvió session id: {r_session.text[:200]}")
 
-        # 2) Aplicarla como foto de perfil
+        # 2) Subir el binario a la sesión
+        r_upload = await c.post(
+            f"https://graph.facebook.com/v22.0/{session_id}",
+            headers={
+                **_headers(token),
+                "file_offset": "0",
+                "Content-Type": "application/octet-stream",
+            },
+            content=content,
+        )
+        if r_upload.status_code != 200:
+            raise HTTPException(
+                r_upload.status_code,
+                f"No se pudo subir el archivo: {r_upload.text[:300]}"
+            )
+        handle = r_upload.json().get("h")
+        if not handle:
+            raise HTTPException(500, f"Meta no devolvió handle: {r_upload.text[:200]}")
+
+        # 3) Aplicar el handle como foto de perfil
         r_perfil = await c.post(
             f"{META_API_BASE}/{phone_id}/whatsapp_business_profile",
             headers=_headers(token),
@@ -180,7 +218,72 @@ async def subir_foto_perfil(file: UploadFile = File(...), x_api_key: Optional[st
         )
     if r_perfil.status_code != 200:
         raise HTTPException(r_perfil.status_code, f"No se pudo aplicar la foto: {r_perfil.text[:300]}")
-    return {"ok": True}
+    return {"ok": True, "handle": handle}
+
+
+@router.post("/api/whatsapp/portada")
+async def subir_portada(file: UploadFile = File(...), x_api_key: Optional[str] = Header(None),
+                        current_user: Optional[Usuario] = Depends(get_current_user)):
+    """
+    Sube y aplica la imagen de portada (cover) de WhatsApp Business.
+
+    Mismo flujo de Graph Upload API que la foto de perfil, pero usando
+    el campo 'cover_photo_handle' en whatsapp_business_profile.
+    """
+    _auth(x_api_key, current_user)
+    token, phone_id = _creds()
+    content = await file.read()
+    file_type = file.content_type or "image/jpeg"
+    file_name = file.filename or "portada.jpg"
+
+    async with httpx.AsyncClient(timeout=60) as c:
+        # 1) Crear sesión de upload
+        r_session = await c.post(
+            "https://graph.facebook.com/v22.0/app/uploads",
+            headers=_headers(token),
+            params={
+                "file_length": len(content),
+                "file_type": file_type,
+                "file_name": file_name,
+            },
+        )
+        if r_session.status_code != 200:
+            raise HTTPException(
+                r_session.status_code,
+                f"No se pudo crear sesión de upload: {r_session.text[:300]}"
+            )
+        session_id = r_session.json().get("id")
+        if not session_id:
+            raise HTTPException(500, f"Meta no devolvió session id: {r_session.text[:200]}")
+
+        # 2) Subir el binario
+        r_upload = await c.post(
+            f"https://graph.facebook.com/v22.0/{session_id}",
+            headers={
+                **_headers(token),
+                "file_offset": "0",
+                "Content-Type": "application/octet-stream",
+            },
+            content=content,
+        )
+        if r_upload.status_code != 200:
+            raise HTTPException(
+                r_upload.status_code,
+                f"No se pudo subir el archivo: {r_upload.text[:300]}"
+            )
+        handle = r_upload.json().get("h")
+        if not handle:
+            raise HTTPException(500, f"Meta no devolvió handle: {r_upload.text[:200]}")
+
+        # 3) Aplicar como portada/cover
+        r_portada = await c.post(
+            f"{META_API_BASE}/{phone_id}/whatsapp_business_profile",
+            headers=_headers(token),
+            json={"messaging_product": "whatsapp", "cover_photo_handle": handle},
+        )
+    if r_portada.status_code != 200:
+        raise HTTPException(r_portada.status_code, f"No se pudo aplicar la portada: {r_portada.text[:300]}")
+    return {"ok": True, "handle": handle}
 
 
 @router.post("/api/whatsapp/audit/cambiar-nombre")

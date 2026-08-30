@@ -520,6 +520,7 @@ async def socio_catalogo(socio: Aliado = Depends(require_socio)):
             "precios_lista": cat["piscinas"].get("precios_lista", {}),
             "precios": cat["piscinas"].get("precios", {}),
             "precios_sin_instalacion": cat["piscinas"].get("precios_sin_instalacion", {}),
+            "precios_sin_instalacion_sin_equipo": cat["piscinas"].get("precios_sin_instalacion_sin_equipo", {}),
             "fotos": cat["piscinas"].get("fotos", {}),
         },
         "modulos": {

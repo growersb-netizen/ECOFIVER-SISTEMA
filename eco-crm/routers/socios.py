@@ -36,7 +36,7 @@ from database.models import (
 )
 from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.catalogo import load_catalogo
-from utils.whatsapp import send_whatsapp_text, notificar_rodrigo
+from utils.whatsapp import send_whatsapp_text, send_whatsapp_otp, notificar_rodrigo
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -261,7 +261,7 @@ async def socio_reenviar_codigo(request: Request, db: Session = Depends(get_db))
     socio.codigo_verificacion = otp
     socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
-    send_whatsapp_text(db, socio.telefono, f"Tu nuevo código de verificación EcoFiver es *{otp}* (vence en {CODIGO_OTP_EXPIRA_MINUTOS} min).")
+    send_whatsapp_otp(db, socio.telefono, otp)
     return {"ok": True}
 
 
@@ -327,7 +327,7 @@ async def socio_olvide_password(request: Request, db: Session = Depends(get_db))
         socio.codigo_verificacion = otp
         socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
         db.commit()
-        send_whatsapp_text(db, socio.telefono, f"Tu código para restablecer la contraseña de EcoFiver es *{otp}* (vence en {CODIGO_OTP_EXPIRA_MINUTOS} min). Si no lo pediste vos, ignorá este mensaje.")
+        send_whatsapp_otp(db, socio.telefono, otp)
 
     return {"ok": True, "mensaje": "Si el dato coincide con una cuenta, te mandamos un código por WhatsApp."}
 
@@ -446,7 +446,7 @@ async def enviar_codigo_whatsapp(request: Request, socio: Aliado = Depends(requi
     socio.codigo_verificacion = otp
     socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
-    send_whatsapp_text(db, socio.telefono, f"Tu código de verificación de EcoFiver es *{otp}* (vence en {CODIGO_OTP_EXPIRA_MINUTOS} min).")
+    send_whatsapp_otp(db, socio.telefono, otp)
     return {"ok": True}
 
 

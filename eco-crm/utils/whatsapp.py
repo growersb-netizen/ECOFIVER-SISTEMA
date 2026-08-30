@@ -71,6 +71,57 @@ def send_whatsapp_text(db: Session, to: str, mensaje: str) -> bool:
         return False
 
 
+OTP_TEMPLATE_NAME = "ecofiver_codigo_verificacion"
+OTP_TEMPLATE_LANG = "es_AR"
+
+
+def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
+    """
+    Envía un código de verificación usando la plantilla de autenticación
+    aprobada por Meta ('ecofiver_codigo_verificacion'). Es OBLIGATORIO usar
+    una plantilla (no texto libre) para el primer mensaje a un número —
+    WhatsApp rechaza texto libre fuera de la ventana de 24hs de conversación
+    con el error 131047 "Re-engagement message", que es exactamente el caso
+    de un socio nuevo que nunca escribió antes. Retorna True si Meta aceptó
+    el envío (no garantiza entrega — eso llega después por webhook de status).
+    """
+    token, phone_id = _get_wa_creds(db)
+    if not token or not phone_id:
+        log.warning("[WA] Credenciales no configuradas — omitiendo envío")
+        return False
+
+    numero = to.replace("+", "").replace(" ", "").replace("-", "")
+
+    try:
+        resp = httpx.post(
+            f"{WA_API_URL}/{phone_id}/messages",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "messaging_product": "whatsapp",
+                "to": numero,
+                "type": "template",
+                "template": {
+                    "name": OTP_TEMPLATE_NAME,
+                    "language": {"code": OTP_TEMPLATE_LANG},
+                    "components": [
+                        {"type": "body", "parameters": [{"type": "text", "text": codigo}]},
+                        {"type": "button", "sub_type": "url", "index": "0",
+                         "parameters": [{"type": "text", "text": codigo}]},
+                    ],
+                },
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            log.info(f"[WA] OTP enviado a {numero}")
+            return True
+        log.warning(f"[WA] Error OTP {resp.status_code}: {resp.text[:300]}")
+        return False
+    except Exception as e:
+        log.error(f"[WA] Excepción al enviar OTP: {e}")
+        return False
+
+
 def notificar_asesor_nuevo_lead(db: Session, asesor_telefono: str, lead_nombre: str,
                                  producto: str, localidad: str, forma_pago: str, lead_id: int):
     """Notifica al asesor que le llegó un nuevo lead."""

@@ -182,6 +182,10 @@ def run_migrations():
             "ALTER TABLE aliados ADD COLUMN codigo_verificacion_email_expira DATETIME",
             "ALTER TABLE aliados ADD COLUMN perfil_completo BOOLEAN DEFAULT 0",
             "ALTER TABLE materiales_socio ADD COLUMN origen TEXT DEFAULT 'manual'",
+            "ALTER TABLE ventas_financiadas ADD COLUMN monto_pagado_inscripcion REAL DEFAULT 0",
+            "ALTER TABLE ventas_financiadas ADD COLUMN primera_sena_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN sena_vence_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN recibo_generado_en DATETIME",
             # ── Socios: venta cargada de punta a punta por el socio ─────────────────
             "ALTER TABLE ventas_financiadas ADD COLUMN aliado_codigo TEXT",
             "ALTER TABLE ventas_financiadas ADD COLUMN scoring_situacion INTEGER",

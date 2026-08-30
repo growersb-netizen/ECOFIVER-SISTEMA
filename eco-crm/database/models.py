@@ -342,8 +342,13 @@ class VentaFinanciada(Base):
     scoring_situacion = Column(Integer, nullable=True)                    # 1-6 del BCRA al momento de cargar
     declaracion_jurada_requerida = Column(Boolean, default=False)
     declaracion_jurada_confirmada_en = Column(DateTime(timezone=True), nullable=True)
-    inscripcion_pagada_en = Column(DateTime(timezone=True), nullable=True)  # cliente abonó la seña completa
+    inscripcion_pagada_en = Column(DateTime(timezone=True), nullable=True)  # cliente completó el 100% de la inscripción
     contrato_generado_en = Column(DateTime(timezone=True), nullable=True)
+    # ── Pago de la inscripción en partes (seña + saldo) ───────────────────────
+    monto_pagado_inscripcion = Column(Float, default=0)   # acumulado de lo pagado hacia monto_inscripcion
+    primera_sena_en = Column(DateTime(timezone=True), nullable=True)   # primer pago parcial recibido — dispara el contrato
+    sena_vence_en = Column(DateTime(timezone=True), nullable=True)     # primera_sena_en + 30 días para completar el 100%
+    recibo_generado_en = Column(DateTime(timezone=True), nullable=True)  # recibo emitido al completar la inscripción
     link_confirmacion_token = Column(String(64), nullable=True, unique=True, index=True)
     link_confirmacion_confirmada_en = Column(DateTime(timezone=True), nullable=True)  # cliente aceptó por el link
     auditoria_bienvenida_en = Column(DateTime(timezone=True), nullable=True)  # llamada del equipo — dispara comisión

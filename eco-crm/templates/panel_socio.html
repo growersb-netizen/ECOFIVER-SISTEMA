@@ -219,7 +219,7 @@
       </div>
       <div class="card">
         <h3 style="margin-top:0;font-size:16px">Entrega anticipada: un beneficio para ofrecer</h3>
-        <p style="font-size:14px;line-height:1.6">En <strong>viviendas modulares</strong>, tu cliente puede adelantar la entrega desde la <strong>cuota 6</strong> mediante una integración de capital. En <strong>piscinas</strong>, desde la <strong>cuota 3</strong>. El plan de pagos continúa igual hasta completarse — solo se adelanta la entrega. Es un beneficio concreto para presentar al momento de cerrar la venta.</p>
+        <p style="font-size:14px;line-height:1.6">En <strong>viviendas modulares</strong>, tu cliente puede adelantar la entrega desde la <strong>cuota 6</strong> mediante una integración de capital. En <strong>piscinas</strong>, desde la <strong>cuota 3</strong>. Ese aporte se descuenta del saldo total, y el cliente continúa abonando el saldo restante mes a mes hasta completarlo. Es un beneficio concreto para presentar al momento de cerrar la venta.</p>
       </div>
       <div class="card">
         <h3 style="margin-top:0;font-size:16px">Tu progreso</h3>
@@ -820,24 +820,35 @@ async function cargarMisVentas(){
   for(const v of data.financiado){
     const pasos = [
       {l:'Cargada', ok:true},
-      {l:'Inscripción', ok:v.inscripcion_pagada},
+      {l:'Seña recibida', ok:v.sena_recibida},
       {l:'Contrato', ok:v.contrato_generado},
+      {l:'Inscripción completa', ok:v.inscripcion_pagada},
       {l:'Cliente confirmó', ok:v.cliente_confirmo},
       {l:'Bienvenida', ok:v.auditoria_completada},
     ];
     const timeline = pasos.map(p=>`<span class="pill ${p.ok?'ok':'warn'}" style="margin-right:4px">${p.ok?'✓':'○'} ${p.l}</span>`).join('');
+    let progreso = '';
+    if(!v.inscripcion_pagada){
+      progreso = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px">Inscripción: ${fmt(v.monto_pagado_inscripcion)} de ${fmt(v.monto_inscripcion)}${v.sena_vence_en?' · vence '+new Date(v.sena_vence_en).toLocaleDateString('es-AR'):''}</div>`;
+    }
     let accion = '';
-    if(v.inscripcion_pagada && !v.contrato_generado){
+    if(v.contrato_generado){
+      accion = `<a href="/api/socio/ventas/${v.id}/contrato-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">📄 Contrato</a>`;
+    } else {
       accion = `<button class="btn-teal" onclick="generarContrato(${v.id})">Generar contrato</button>`;
-    } else if(v.link_confirmacion_token && !v.cliente_confirmo){
-      accion = `<span class="copyable">${location.origin}/socio/confirmar/${v.link_confirmacion_token}</span>`;
+    }
+    if(v.recibo_generado){
+      accion += ` <a href="/api/socio/ventas/${v.id}/recibo-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">🧾 Recibo</a>`;
+    }
+    if(v.link_confirmacion_token && !v.cliente_confirmo){
+      accion += ` <span class="copyable">${location.origin}/socio/confirmar/${v.link_confirmacion_token}</span>`;
     }
     if(v.puede_licitar && !v.licitacion_solicitada){
       accion += ` <button class="btn-ghost" onclick="solicitarLicitacion(${v.id})">🏗️ Solicitar entrega anticipada</button>`;
     } else if(v.licitacion_solicitada){
       accion += ' <span class="pill ok">Licitación solicitada</span>';
     }
-    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td style="white-space:normal">${timeline}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
+    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td style="white-space:normal">${timeline}${progreso}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
   }
   hf += '</table>';
   document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';

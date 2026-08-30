@@ -1419,38 +1419,13 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
     }
 
 
-@router.post("/api/ventas-financiadas/{venta_id}/inscripcion-pagada")
-async def marcar_inscripcion_pagada(
-    venta_id: int, db: Session = Depends(get_db),
-    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
-):
-    """
-    El equipo de administración confirma la acreditación bancaria de la
-    inscripción completa (2 cuotas). Acción interna — requiere verificar el
-    extracto bancario real, no puede quedar en manos del propio socio.
-    """
-    _require_gestion_interna(x_api_key, current_user)
-    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
-    if not venta:
-        raise HTTPException(404, "Venta no encontrada")
-    venta.inscripcion_pagada_en = datetime.now()
-    venta.estado_plan = "ACTIVO"
-    db.commit()
-    _notificar_socio(db, venta.aliado_codigo, f"✅ Confirmamos el pago de la inscripción de {venta.cliente_nombre}. Ya podés descargar el contrato desde tu panel y mandárselo al cliente para que confirme.")
-    return {"ok": True}
+def _money(v):
+    return f"{(v or 0):,.0f}".replace(",", ".")
 
 
-@router.post("/api/socio/ventas/{venta_id}/generar-contrato")
-async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
-    """
-    Genera el contrato y el link de confirmación para el cliente. Solo
-    disponible una vez que el equipo confirmó la inscripción pagada.
-    """
-    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
-    if not venta:
-        raise HTTPException(404, "Venta no encontrada")
-    if not venta.inscripcion_pagada_en:
-        raise HTTPException(409, "Todavía no se confirmó el pago de la inscripción")
+async def _generar_contrato_pdf(venta: VentaFinanciada, socio_codigo: str, socio_nombre: str, db: Session) -> str:
+    """Genera (o regenera) el PDF del resumen del plan + el link de confirmación. Devuelve el número de solicitud."""
+    from utils.documentos import render_html, html_to_pdf
 
     if not venta.link_confirmacion_token:
         venta.link_confirmacion_token = secrets.token_urlsafe(24)
@@ -1459,11 +1434,6 @@ async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_
         from routers.aliados import siguiente_numero_solicitud
         venta.numero_solicitud = siguiente_numero_solicitud(db)
     db.commit()
-
-    from utils.documentos import render_html, html_to_pdf
-
-    def _money(v):
-        return f"{(v or 0):,.0f}".replace(",", ".")
 
     html = render_html("resumen_plan_socio.html", {
         "numero_solicitud": venta.numero_solicitud,
@@ -1479,11 +1449,159 @@ async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_
         "valor_cuota": _money(venta.valor_cuota),
         "monto_inscripcion": _money(venta.monto_inscripcion),
         "cuota_minima_licitacion": _cuota_minima_licitacion(venta.producto),
-        "socio_codigo": socio.codigo,
-        "socio_nombre": socio.nombre,
+        "socio_codigo": socio_codigo,
+        "socio_nombre": socio_nombre,
     })
     pdf_path = Path("data/contratos") / f"plan_{venta.numero_solicitud.replace('/', '-')}_{venta.id}.pdf"
     await html_to_pdf(html, pdf_path)
+    return venta.numero_solicitud
+
+
+async def _generar_recibo_pdf(venta: VentaFinanciada, db: Session) -> None:
+    """Genera el PDF del recibo de inscripción completa."""
+    from utils.documentos import render_html, html_to_pdf
+
+    html = render_html("recibo_pago.html", {
+        "numero_solicitud": venta.numero_solicitud or str(venta.id),
+        "fecha": datetime.now().strftime("%d/%m/%Y"),
+        "cliente_nombre": venta.cliente_nombre,
+        "cliente_dni": venta.cliente_dni,
+        "cliente_telefono": venta.cliente_telefono,
+        "cliente_localidad": venta.cliente_localidad,
+        "producto": venta.producto,
+        "modelo": venta.modelo_especifico,
+        "cantidad_cuotas": venta.cantidad_cuotas,
+        "valor_cuota": _money(venta.valor_cuota),
+        "monto_inscripcion": _money(venta.monto_inscripcion),
+    })
+    pdf_path = Path("data/contratos") / f"recibo_{(venta.numero_solicitud or str(venta.id)).replace('/', '-')}_{venta.id}.pdf"
+    await html_to_pdf(html, pdf_path)
+
+
+async def _registrar_pago_inscripcion(venta: VentaFinanciada, monto: float, db: Session) -> dict:
+    """
+    Núcleo compartido: acumula un pago hacia la inscripción (2 cuotas).
+    - Primer pago recibido (la seña, cualquier monto a elección del cliente):
+      genera el contrato automáticamente y abre un plazo de 30 días para
+      completar el 100%.
+    - Al alcanzar el 100% del monto_inscripcion: marca la inscripción como
+      completa y emite el recibo de ese pago.
+    """
+    es_primer_pago = venta.primera_sena_en is None
+    venta.monto_pagado_inscripcion = (venta.monto_pagado_inscripcion or 0) + monto
+
+    resultado = {
+        "monto_pagado_inscripcion": venta.monto_pagado_inscripcion,
+        "monto_inscripcion": venta.monto_inscripcion,
+        "contrato_generado": False,
+        "inscripcion_completa": False,
+    }
+
+    if es_primer_pago:
+        venta.primera_sena_en = datetime.now()
+        venta.sena_vence_en = venta.primera_sena_en + timedelta(days=30)
+        db.commit()
+        socio_row = db.query(Aliado).filter(Aliado.codigo == venta.aliado_codigo).first()
+        await _generar_contrato_pdf(venta, venta.aliado_codigo, socio_row.nombre if socio_row else "", db)
+        resultado["contrato_generado"] = True
+        _notificar_socio(
+            db, venta.aliado_codigo,
+            f"📄 Recibimos la seña de {venta.cliente_nombre} (${monto:,.0f}".replace(",", ".") + f"). Ya se generó el contrato — descargalo desde tu panel. Tiene 30 días para completar el 100% de la inscripción.",
+        )
+
+    if venta.monto_pagado_inscripcion >= (venta.monto_inscripcion or 0) and not venta.inscripcion_pagada_en:
+        venta.inscripcion_pagada_en = datetime.now()
+        venta.estado_plan = "ACTIVO"
+        db.commit()
+        await _generar_recibo_pdf(venta, db)
+        venta.recibo_generado_en = datetime.now()
+        db.commit()
+        resultado["inscripcion_completa"] = True
+        _notificar_socio(
+            db, venta.aliado_codigo,
+            f"✅ {venta.cliente_nombre} completó el 100% de la inscripción. Generamos el recibo y ya podés descargar el contrato (si no lo habías hecho) desde tu panel.",
+        )
+    elif not es_primer_pago:
+        db.commit()
+        falta = (venta.monto_inscripcion or 0) - venta.monto_pagado_inscripcion
+        _notificar_socio(
+            db, venta.aliado_codigo,
+            f"💰 Registramos un pago de ${monto:,.0f}".replace(",", ".") + f" de {venta.cliente_nombre}. Lleva ${venta.monto_pagado_inscripcion:,.0f}".replace(",", ".") + f" de ${venta.monto_inscripcion:,.0f}".replace(",", ".") + f" — faltan ${falta:,.0f}".replace(",", "."),
+        )
+
+    return resultado
+
+
+@router.post("/api/ventas-financiadas/{venta_id}/registrar-pago-inscripcion")
+async def registrar_pago_inscripcion(
+    venta_id: int, request: Request, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    El equipo registra un pago (parcial o total) hacia la inscripción del
+    plan — requiere verificar el extracto bancario real, no puede quedar en
+    manos del propio socio. El primer pago recibido genera el contrato
+    automáticamente (es la seña); al completar el 100% se emite el recibo.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    data = await request.json()
+    monto = float(data.get("monto") or 0)
+    if monto <= 0:
+        raise HTTPException(400, "El monto debe ser mayor a 0")
+    resultado = await _registrar_pago_inscripcion(venta, monto, db)
+    return {"ok": True, **resultado}
+
+
+@router.post("/api/ventas-financiadas/{venta_id}/inscripcion-pagada")
+async def marcar_inscripcion_pagada(
+    venta_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Atajo: confirma de una sola vez el pago del 100% restante de la
+    inscripción (equivalente a registrar-pago-inscripcion por el saldo que
+    falte) — para cuando el cliente paga todo junto, sin seña previa.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    falta = (venta.monto_inscripcion or 0) - (venta.monto_pagado_inscripcion or 0)
+    if falta <= 0:
+        return {"ok": True, "ya_completa": True}
+    resultado = await _registrar_pago_inscripcion(venta, falta, db)
+    return {"ok": True, **resultado}
+
+
+@router.get("/api/socio/ventas/{venta_id}/recibo-pdf")
+async def descargar_recibo_pdf(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
+    if not venta or not venta.recibo_generado_en:
+        raise HTTPException(404, "Recibo no disponible todavía")
+    pdf_path = Path("data/contratos") / f"recibo_{(venta.numero_solicitud or str(venta.id)).replace('/', '-')}_{venta.id}.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(404, "Recibo no encontrado")
+    return FileResponse(str(pdf_path), media_type="application/pdf", filename=pdf_path.name)
+
+
+@router.post("/api/socio/ventas/{venta_id}/generar-contrato")
+async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Descarga manual del contrato — normalmente ya se generó solo al recibir
+    la seña (primer pago hacia la inscripción). Este endpoint sirve como
+    respaldo si por algún motivo todavía no se generó.
+    """
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if not (venta.primera_sena_en or venta.inscripcion_pagada_en):
+        raise HTTPException(409, "Todavía no se registró ningún pago hacia la inscripción")
+
+    await _generar_contrato_pdf(venta, socio.codigo, socio.nombre, db)
 
     base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
     link_confirmacion = f"{base_url}/socio/confirmar/{venta.link_confirmacion_token}"
@@ -1673,6 +1791,9 @@ def _venta_fin_dict(v: VentaFinanciada) -> dict:
         "producto": v.producto, "modelo_especifico": v.modelo_especifico,
         "cantidad_cuotas": v.cantidad_cuotas, "valor_cuota": v.valor_cuota,
         "precio_total": v.precio_total, "monto_inscripcion": v.monto_inscripcion,
+        "monto_pagado_inscripcion": v.monto_pagado_inscripcion or 0,
+        "primera_sena_en": v.primera_sena_en.isoformat() if v.primera_sena_en else None,
+        "sena_vence_en": v.sena_vence_en.isoformat() if v.sena_vence_en else None,
         "numero_solicitud": v.numero_solicitud,
         "declaracion_jurada_requerida": v.declaracion_jurada_requerida,
         "declaracion_jurada_confirmada": bool(v.declaracion_jurada_confirmada_en),
@@ -1766,7 +1887,12 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
             "cuota_minima_licitacion": _cuota_minima_licitacion(v.producto),
             "puede_licitar": (v.cuotas_pagas or 0) >= _cuota_minima_licitacion(v.producto),
             "licitacion_solicitada": bool(v.licitacion_solicitada_en),
+            "monto_inscripcion": v.monto_inscripcion,
+            "monto_pagado_inscripcion": v.monto_pagado_inscripcion or 0,
+            "sena_recibida": bool(v.primera_sena_en),
+            "sena_vence_en": v.sena_vence_en.isoformat() if v.sena_vence_en else None,
             "inscripcion_pagada": bool(v.inscripcion_pagada_en),
+            "recibo_generado": bool(v.recibo_generado_en),
             "contrato_generado": bool(v.contrato_generado_en),
             "link_confirmacion_token": v.link_confirmacion_token,
             "cliente_confirmo": bool(v.link_confirmacion_confirmada_en),
@@ -1851,7 +1977,7 @@ FAQ_SOCIOS = [
     {"pregunta": "¿Cuándo cobro mi comisión?", "respuesta": "Financiado: cuando el equipo hace la llamada de bienvenida al cliente. Contado: cuando se entrega y se cobra el producto. En ambos casos vas a ver la comisión como \"pendiente\" hasta que te la transfiramos."},
     {"pregunta": "¿Puedo vender en cualquier parte del país?", "respuesta": "Sí, el programa opera en todo el territorio nacional. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona — ideal si trabajás junto a instaladores."},
     {"pregunta": "¿Qué pasa si mi cliente tiene mala situación crediticia (BCRA)?", "respuesta": "Si da situación 5 o 6, no se bloquea la venta — se le pide al cliente una declaración jurada adicional antes de la auditoría."},
-    {"pregunta": "¿Qué es la licitación?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede pedir adelantar la entrega mediante una integración de capital, sin dejar de pagar el resto del plan."},
+    {"pregunta": "¿Qué es la licitación?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede pedir adelantar la entrega mediante una integración de capital. Ese aporte se descuenta del saldo total, y el cliente sigue abonando el saldo restante mes a mes hasta completarlo."},
     {"pregunta": "¿Necesito Monotributo?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones. Podés cargar la constancia después desde tu perfil."},
     {"pregunta": "¿Con quién hablo si tengo una duda?", "respuesta": "Comunicate al WhatsApp del programa de Socios Comerciales — el equipo te responde consultas de precio, estado de tus ventas y comisiones."},
 ]

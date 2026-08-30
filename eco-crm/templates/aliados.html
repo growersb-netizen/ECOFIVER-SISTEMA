@@ -387,10 +387,15 @@ async function cargarOperacionSocios(){
 
   const elIns = document.getElementById('op-inscripcion');
   elIns.innerHTML = !ins.ventas || !ins.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
-    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Plan</th><th></th></tr></thead><tbody>`+
-    ins.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}</td><td>${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)}<div style="font-size:11px;color:var(--text-muted)">Total ${fmtMoney(v.precio_total)} · Inscripción ${fmtMoney(v.monto_inscripcion)}</div></td>
-      <td><button class="btn btn-sm btn-primary" onclick="marcarInscripcion(${v.id})">✓ Pago confirmado</button></td></tr>`).join('')+`</tbody></table>`;
+    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Inscripción</th><th>Registrar pago</th></tr></thead><tbody>`+
+    ins.ventas.map(v=>{
+      const falta = (v.monto_inscripcion||0) - (v.monto_pagado_inscripcion||0);
+      const venceInfo = v.sena_vence_en ? `<div style="font-size:11px;color:var(--warn,#eab308)">Vence: ${new Date(v.sena_vence_en).toLocaleDateString('es-AR')}</div>` : '';
+      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)} · Total ${fmtMoney(v.precio_total)}</div></td>
+      <td>${fmtMoney(v.monto_pagado_inscripcion)} de ${fmtMoney(v.monto_inscripcion)}<div style="font-size:11px;color:var(--text-muted)">Falta ${fmtMoney(falta)}</div>${venceInfo}</td>
+      <td><div style="display:flex;gap:6px"><input type="number" id="pago-ins-${v.id}" placeholder="Monto" class="form-control" style="width:110px"><button class="btn btn-sm btn-primary" onclick="registrarPagoInscripcion(${v.id})">Registrar</button></div></td></tr>`;
+    }).join('')+`</tbody></table>`;
 
   const elAud = document.getElementById('op-auditoria');
   elAud.innerHTML = !aud.ventas || !aud.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
@@ -417,7 +422,20 @@ async function cargarOperacionSocios(){
       <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td>${fmtMoney(v.precio_final)}</td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarEntrega(${v.id})">✓ Entregada y cobrada</button></td></tr>`).join('')+`</tbody></table>`;
 }
-async function marcarInscripcion(id){if(!confirm('¿Confirmás que se acreditó la inscripción completa?'))return;const r=await AL.send('/api/ventas-financiadas/'+id+'/inscripcion-pagada','POST',{});if(r.ok)cargarOperacionSocios();else alert('Error');}
+async function registrarPagoInscripcion(id){
+  const input = document.getElementById('pago-ins-'+id);
+  const monto = parseFloat(input.value||0);
+  if(!monto || monto<=0){ alert('Ingresá un monto válido.'); return; }
+  if(!confirm(`¿Confirmás que se acreditó un pago de ${fmtMoney(monto)}?`))return;
+  const r = await AL.send('/api/ventas-financiadas/'+id+'/registrar-pago-inscripcion','POST',{monto});
+  if(r.ok){
+    const data = await r.json();
+    if(data.contrato_generado) toast&&toast('Pago registrado — contrato generado ✓');
+    else if(data.inscripcion_completa) toast&&toast('Inscripción completa — recibo generado ✓');
+    else toast&&toast('Pago registrado');
+    cargarOperacionSocios();
+  } else alert('Error al registrar el pago');
+}
 async function marcarAuditoria(id){if(!confirm('¿Confirmás que se hizo la llamada de bienvenida? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-financiadas/'+id+'/auditoria-completada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert((await r.json()).detail||'Error');}
 async function marcarConfirmacion48(id){if(!confirm('¿Confirmás que contactaste al cliente?'))return;const r=await AL.send('/api/ventas-contado/'+id+'/confirmacion-48hs','POST',{});if(r.ok)cargarOperacionSocios();else alert('Error');}
 async function marcarEntrega(id){if(!confirm('¿Confirmás que se entregó y se cobró? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-contado/'+id+'/entregada-cobrada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert('Error');}

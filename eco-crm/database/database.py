@@ -203,6 +203,12 @@ def run_migrations():
             "ALTER TABLE comisiones ADD COLUMN venta_financiada_id INTEGER",
             "ALTER TABLE comisiones ADD COLUMN venta_contado_id INTEGER",
             "ALTER TABLE comisiones ADD COLUMN factura_path TEXT",
+            # ── Facebook Automatización (MetaPagina + nueva tabla interacciones) ──
+            "ALTER TABLE meta_paginas ADD COLUMN auto_reply_comentarios BOOLEAN DEFAULT 0",
+            "ALTER TABLE meta_paginas ADD COLUMN auto_reply_mensajes BOOLEAN DEFAULT 0",
+            "ALTER TABLE meta_paginas ADD COLUMN auto_eliminar_negativos BOOLEAN DEFAULT 0",
+            "ALTER TABLE meta_paginas ADD COLUMN webhook_subscribed BOOLEAN DEFAULT 0",
+            "ALTER TABLE meta_paginas ADD COLUMN numero_whatsapp TEXT DEFAULT '1144498854'",
         ]
         for stmt in migrations:
             try:

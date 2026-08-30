@@ -126,6 +126,8 @@
       <button onclick="setTab('ig')" id="tab-ig" class="tab-btn">📸 Instagram</button>
       <button onclick="setTab('stats')" id="tab-stats" class="tab-btn">📊 Estadísticas</button>
       <button onclick="setTab('config')" id="tab-config" class="tab-btn">⚙️ Página</button>
+      <button onclick="setTab('auto')" id="tab-auto" class="tab-btn">🤖 Automatización</button>
+      <button onclick="setTab('inbox')" id="tab-inbox" class="tab-btn">💬 Inbox</button>
     </div>
 
     <!-- Aviso sin página seleccionada -->
@@ -176,6 +178,33 @@
           <div style="color:var(--text-muted);padding:20px;text-align:center">Seleccioná una página</div>
         </div>
       </div>
+    </div>
+
+    <!-- ── AUTOMATIZACIÓN ──────────────────────────────────── -->
+    <div id="panel-auto" style="display:none">
+      <div id="auto-content">
+        <div style="color:var(--text-muted);padding:20px;text-align:center">Seleccioná una página</div>
+      </div>
+    </div>
+
+    <!-- ── INBOX ───────────────────────────────────────────── -->
+    <div id="panel-inbox" style="display:none">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <select id="inbox-filtro-tipo" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px">
+          <option value="">Todos los tipos</option>
+          <option value="comentario">Comentarios</option>
+          <option value="mensaje">Mensajes</option>
+        </select>
+        <select id="inbox-filtro-accion" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px">
+          <option value="pendiente">Pendientes</option>
+          <option value="">Todos</option>
+          <option value="respondido">Respondidos</option>
+          <option value="eliminado">Eliminados</option>
+        </select>
+        <button onclick="cargarInbox()" class="btn btn-ghost btn-sm">🔄 Actualizar</button>
+      </div>
+      <div id="inbox-loading" style="color:var(--text-muted);padding:32px;text-align:center">Cargando interacciones…</div>
+      <div id="inbox-list"></div>
     </div>
   </div>
 </div>
@@ -233,12 +262,13 @@ function showBlock(id) { const el = document.getElementById(id); if (el) el.styl
 /* ─── tabs ───────────────────────────────────────────────────────────────── */
 function setTab(tab) {
   _curTab = tab;
-  ['feed','ig','stats','config'].forEach(t => {
+  ['feed','ig','stats','config','auto','inbox'].forEach(t => {
     document.getElementById('tab-' + t)?.classList.toggle('tab-active', t === tab);
     const p = document.getElementById('panel-' + t);
     if (p) p.style.display = t === tab ? 'block' : 'none';
   });
   if (_pageId) _loadTab(tab);
+  if (tab === 'inbox') cargarInbox();
 }
 
 function _loadTab(tab) {
@@ -246,6 +276,8 @@ function _loadTab(tab) {
   else if (tab === 'ig')    cargarIG(false);
   else if (tab === 'stats') cargarStats();
   else if (tab === 'config') renderConfig();
+  else if (tab === 'auto') renderAuto();
+  else if (tab === 'inbox') cargarInbox();
 }
 
 /* ─── páginas ────────────────────────────────────────────────────────────── */
@@ -654,6 +686,299 @@ function _metaTokenError(msg) {
         Actualizá el campo <strong>meta_page_access_token</strong> con un token válido del System User
       </div>
     </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTOMATIZACIÓN FACEBOOK
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let _fbConfig = null;  // webhook config cargado una sola vez
+
+async function renderAuto() {
+  const el = document.getElementById('auto-content');
+  if (!el) return;
+  const pg = _paginas.find(p => p.page_id === _pageId);
+  if (!pg) { el.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center">Seleccioná una página</div>'; return; }
+
+  // Cargar config webhook (solo la primera vez)
+  if (!_fbConfig) {
+    try { _fbConfig = await _get('/api/redes/facebook/config'); } catch(e) { _fbConfig = {}; }
+  }
+
+  const wa = pg.numero_whatsapp || '1144498854';
+  const waUrl = 'https://wa.me/' + (wa.startsWith('54') ? wa : '54'+wa);
+
+  el.innerHTML = `
+    <div style="display:grid;gap:14px">
+
+      <!-- Estado de la página -->
+      <div class="card" style="padding:18px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:14px">🤖 Automatización de respuestas — <span style="color:var(--accent)">${esc(pg.nombre)}</span></div>
+
+        <!-- Switches de automatización -->
+        <div style="display:grid;gap:10px">
+          ${_autoSwitch('auto_reply_comentarios', pg.auto_reply_comentarios, '💬 Auto-responder comentarios', 'Responde automáticamente todos los comentarios nuevos en los posts')}
+          ${_autoSwitch('auto_reply_mensajes', pg.auto_reply_mensajes, '✉️ Auto-responder mensajes privados', 'Responde automáticamente los mensajes directos recibidos por Messenger')}
+          ${_autoSwitch('auto_eliminar_negativos', pg.auto_eliminar_negativos, '🗑️ Eliminar comentarios negativos', 'Detecta y elimina comentarios con contenido ofensivo o negativo')}
+        </div>
+
+        <!-- WhatsApp de destino -->
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:500">📲 WhatsApp de contacto (todas las respuestas dirigen aquí)</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="auto-wa-input" type="text" value="${esc(wa)}" placeholder="1144498854"
+              style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);font-size:13px;color:var(--text)">
+            <button onclick="guardarAutoConfig('${esc(pg.page_id)}')" class="btn btn-primary btn-sm">Guardar</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Link generado: <a href="${waUrl}" target="_blank" style="color:var(--accent)">${waUrl}</a></div>
+        </div>
+
+        <!-- Suscribir webhook -->
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div>
+            <div style="font-size:13px;font-weight:600">📡 Suscripción al webhook</div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              ${pg.webhook_subscribed
+                ? '✅ Página suscrita — recibirá eventos en tiempo real'
+                : '⚠️ No suscrita — activar para recibir comentarios y mensajes'}
+            </div>
+          </div>
+          <button onclick="suscribirWebhook('${esc(pg.page_id)}')" class="btn ${pg.webhook_subscribed ? 'btn-ghost' : 'btn-primary'} btn-sm">
+            ${pg.webhook_subscribed ? '🔄 Renovar suscripción' : '🔔 Suscribir al webhook'}
+          </button>
+        </div>
+      </div>
+
+      <!-- Info de configuración del webhook -->
+      <div class="card" style="padding:16px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:10px">📋 Configuración en Meta for Developers</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.9">
+          ${(_fbConfig.instrucciones || []).map((l,i) => `<div>${esc(l)}</div>`).join('')}
+        </div>
+        ${_fbConfig.webhook_url ? `
+        <div style="margin-top:12px;display:grid;gap:6px">
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600">CALLBACK URL</div>
+            <div style="font-size:12px;background:var(--bg-hover);padding:8px;border-radius:6px;font-family:monospace;word-break:break-all">${esc(_fbConfig.webhook_url)}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600">VERIFY TOKEN</div>
+            <div style="font-size:12px;background:var(--bg-hover);padding:8px;border-radius:6px;font-family:monospace">${esc(_fbConfig.verify_token)}</div>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- Preview de respuesta tipo -->
+      <div class="card" style="padding:16px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">💡 Ejemplo de respuesta automática</div>
+        <div style="font-size:13px;background:color-mix(in srgb,var(--accent) 8%,transparent);border-left:3px solid var(--accent);padding:12px;border-radius:6px;line-height:1.6;color:var(--text)">
+          ¡Hola! 😊 Gracias por tu mensaje. Para brindarte atención personalizada comunicate con nosotros por WhatsApp: <strong>${waUrl}</strong> — ¡Te respondemos al instante!
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">La respuesta real es generada por IA con el contexto comercial de EcoFiver</div>
+      </div>
+    </div>
+  `;
+}
+
+function _autoSwitch(campo, activo, titulo, desc) {
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;background:var(--bg-hover)">
+      <div>
+        <div style="font-size:13px;font-weight:500">${titulo}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${desc}</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:42px;height:22px;flex-shrink:0;cursor:pointer">
+        <input type="checkbox" id="sw-${campo}" ${activo ? 'checked' : ''} onchange="toggleAuto('${campo}', this.checked)"
+          style="opacity:0;width:0;height:0;position:absolute">
+        <span style="position:absolute;inset:0;border-radius:22px;background:${activo ? 'var(--accent)' : 'var(--border)'};transition:.2s;cursor:pointer" id="sw-track-${campo}">
+          <span style="position:absolute;left:${activo ? '22px' : '2px'};top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)" id="sw-thumb-${campo}"></span>
+        </span>
+      </label>
+    </div>
+  `;
+}
+
+async function toggleAuto(campo, valor) {
+  const pg = _paginas.find(p => p.page_id === _pageId);
+  if (!pg) return;
+  try {
+    const r = await fetch(`/api/redes/paginas/${_pageId}/automation`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ [campo]: valor }),
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error'); }
+    const data = await r.json();
+    pg[campo] = data[campo];
+    // Actualizar visual del switch
+    const track = document.getElementById('sw-track-' + campo);
+    const thumb = document.getElementById('sw-thumb-' + campo);
+    if (track) track.style.background = valor ? 'var(--accent)' : 'var(--border)';
+    if (thumb) thumb.style.left = valor ? '22px' : '2px';
+    toast(valor ? '✅ Activado' : '⏸️ Desactivado');
+  } catch(e) {
+    toast(e.message, 'error');
+    // Revertir el checkbox
+    const sw = document.getElementById('sw-' + campo);
+    if (sw) sw.checked = !valor;
+  }
+}
+
+async function guardarAutoConfig(pageId) {
+  const pg = _paginas.find(p => p.page_id === pageId);
+  if (!pg) return;
+  const wa = document.getElementById('auto-wa-input')?.value.trim();
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}/automation`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ numero_whatsapp: wa }),
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error'); }
+    pg.numero_whatsapp = wa;
+    toast('✅ WhatsApp guardado');
+    renderAuto();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function suscribirWebhook(pageId) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '⏳ Suscribiendo…';
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}/subscribe-webhook`, {
+      method: 'POST', credentials: 'include',
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || JSON.stringify(j.detalle || 'Error'));
+    const pg = _paginas.find(p => p.page_id === pageId);
+    if (pg) pg.webhook_subscribed = true;
+    toast('✅ Webhook suscrito exitosamente');
+    renderAuto();
+  } catch(e) {
+    toast(e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '🔔 Suscribir al webhook';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INBOX — comentarios y mensajes
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function cargarInbox() {
+  const listEl = document.getElementById('inbox-list');
+  const loadEl = document.getElementById('inbox-loading');
+  if (!listEl || !loadEl) return;
+
+  loadEl.style.display = 'block';
+  listEl.innerHTML = '';
+
+  const tipo   = document.getElementById('inbox-filtro-tipo')?.value || '';
+  const accion = document.getElementById('inbox-filtro-accion')?.value || '';
+
+  let url = `/api/redes/interacciones?limit=60`;
+  if (_pageId) url += `&page_id=${_pageId}`;
+  if (tipo)   url += `&tipo=${tipo}`;
+  if (accion) url += `&accion=${accion}`;
+
+  try {
+    const data = await _get(url);
+    loadEl.style.display = 'none';
+
+    if (!data || !data.length) {
+      listEl.innerHTML = '<div style="color:var(--text-muted);padding:32px;text-align:center;font-size:13px">Sin interacciones registradas</div>';
+      return;
+    }
+
+    const ACCION_COLOR = { respondido:'#16a34a', eliminado:'#ef4444', pendiente:'#f59e0b', error:'#8b5cf6', ignorado:'#6b7280' };
+    const TIPO_ICON = { comentario:'💬', mensaje:'✉️', eliminado:'🗑️' };
+
+    listEl.innerHTML = data.map(i => {
+      const color = ACCION_COLOR[i.accion] || '#6b7280';
+      const icon  = TIPO_ICON[i.tipo] || '📌';
+      const esPendiente = i.accion === 'pendiente';
+      const esComentario = i.tipo === 'comentario';
+      return `
+        <div class="post-card" id="inbox-${i.id}" style="flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:16px">${icon}</span>
+              <span style="font-weight:600;font-size:13px">${esc(i.usuario_nombre || i.usuario_id || '—')}</span>
+              <span style="font-size:11px;color:var(--text-muted)">${fmtFecha(i.created_at)}</span>
+              ${i.sentimiento === 'negativo' ? '<span style="background:#ef444420;color:#ef4444;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">⚠️ NEGATIVO</span>' : ''}
+            </div>
+            <span style="font-size:11px;background:${color}20;color:${color};padding:3px 8px;border-radius:5px;font-weight:600;white-space:nowrap">
+              ${i.accion.toUpperCase()}
+            </span>
+          </div>
+          <div style="font-size:13px;color:var(--text);line-height:1.55;background:var(--bg-hover);padding:10px 12px;border-radius:8px">
+            ${esc(i.contenido || '(sin texto)')}
+          </div>
+          ${i.respuesta_enviada ? `
+            <div style="font-size:12px;color:var(--text-muted);padding:8px 12px;border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:color-mix(in srgb,var(--accent) 6%,transparent)">
+              <strong>Respuesta enviada:</strong> ${esc(i.respuesta_enviada)}
+            </div>
+          ` : ''}
+          ${esPendiente ? `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+              <div style="flex:1;min-width:180px;display:flex;gap:6px">
+                <input id="reply-${i.id}" type="text" placeholder="Escribir respuesta…"
+                  style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);font-size:12px;color:var(--text)"
+                  onkeydown="if(event.key==='Enter')enviarRespuesta(${i.id})">
+                <button onclick="enviarRespuesta(${i.id})" class="btn btn-primary btn-sm" style="font-size:11px;white-space:nowrap">✉️ Responder</button>
+              </div>
+              ${esComentario ? `<button onclick="eliminarComentarioInbox(${i.id})" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Eliminar</button>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    loadEl.style.display = 'none';
+    listEl.innerHTML = `<div style="color:#f59e0b;padding:20px;text-align:center">${esc(e.message)}</div>`;
+  }
+}
+
+async function enviarRespuesta(id) {
+  const input = document.getElementById('reply-' + id);
+  const respuesta = input?.value.trim();
+  if (!respuesta) { toast('Escribí una respuesta primero', 'error'); return; }
+  try {
+    const r = await fetch(`/api/redes/interacciones/${id}/responder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ respuesta }),
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error al responder');
+    toast('✅ Respuesta enviada');
+    cargarInbox();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function eliminarComentarioInbox(id) {
+  const ok = await showConfirm('El comentario se eliminará permanentemente de Facebook.', '¿Eliminar comentario?');
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/redes/interacciones/${id}/comentario`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error al eliminar');
+    toast('🗑️ Comentario eliminado');
+    cargarInbox();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
 }
 
 /* ─── init ───────────────────────────────────────────────────────────────── */

@@ -1558,8 +1558,32 @@ class MetaPagina(Base):
     ig_user_id = Column(String(50), nullable=True)   # Instagram Business Account ID vinculado
     page_token = Column(Text, nullable=True)          # Page Access Token (del sync vía /me/accounts)
     activa = Column(Boolean, default=True)
+    # ── Automatización de respuestas ──────────────────────────────────────────
+    auto_reply_comentarios = Column(Boolean, default=False)   # auto-responder comentarios en posts
+    auto_reply_mensajes = Column(Boolean, default=False)      # auto-responder mensajes privados (Messenger)
+    auto_eliminar_negativos = Column(Boolean, default=False)  # eliminar comentarios negativos
+    webhook_subscribed = Column(Boolean, default=False)       # página suscrita al webhook
+    numero_whatsapp = Column(String(30), default="1144498854")  # número al que redirige
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class FacebookInteraccion(Base):
+    """Log de comentarios y mensajes procesados por la automatización de Facebook."""
+    __tablename__ = "facebook_interacciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    page_id = Column(String(50), nullable=False, index=True)
+    tipo = Column(String(30), nullable=False)          # comentario | mensaje | eliminado
+    post_id = Column(String(150), nullable=True)       # post al que pertenece el comentario
+    objeto_id = Column(String(150), nullable=True)     # comment_id o message_mid
+    usuario_nombre = Column(String(200), nullable=True)
+    usuario_id = Column(String(50), nullable=True)
+    contenido = Column(Text, nullable=True)
+    sentimiento = Column(String(20), default="neutro") # positivo | negativo | neutro
+    accion = Column(String(30), default="pendiente")   # respondido | eliminado | ignorado | pendiente | error
+    respuesta_enviada = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class FotoML(Base):

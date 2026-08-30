@@ -255,6 +255,17 @@
     <!-- CARGAR VENTA -->
     <section class="section" id="sec-ventas">
       <h2>Cargar una venta</h2>
+
+      <div class="card">
+        <h3 style="margin-top:0;font-size:15px">Consultar situación crediticia (BCRA)</h3>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Disponible en cualquier momento, incluso antes de definir si la venta es contado o financiada.</p>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px"><label style="margin-top:0">DNI o CUIT del cliente</label><input id="bcra-dni"></div>
+          <button class="btn-ghost" onclick="correrScoring()">Consultar</button>
+        </div>
+        <div class="msg" id="scoring-msg"></div>
+      </div>
+
       <div class="grid2">
         <div class="card">
           <h3 style="margin-top:0;font-size:15px">Contado</h3>
@@ -274,8 +285,6 @@
           <label>DNI</label><input id="f-dni">
           <label>Teléfono</label><input id="f-tel">
           <label>Localidad</label><input id="f-loc">
-          <button class="btn-ghost" style="width:100%;margin:6px 0" onclick="correrScoring()">Chequear situación crediticia (BCRA)</button>
-          <div class="msg" id="scoring-msg"></div>
           <label>Producto</label><select id="f-prod"><option value="MODULO">Módulo</option><option value="PISCINA">Piscina</option></select>
           <label>Modelo</label><input id="f-modelo">
           <label>Cuotas</label><input id="f-cuotas" type="number" value="24">
@@ -667,9 +676,11 @@ let ultimoScoringOk = false;
 async function correrScoring(){
   const msg = document.getElementById('scoring-msg'); msg.className='msg'; msg.textContent='Consultando…';
   try{
-    const dni = document.getElementById('f-dni').value.trim();
+    const dni = document.getElementById('bcra-dni').value.trim();
+    if(!dni){ msg.className='msg error'; msg.textContent='Ingresá el DNI o CUIT del cliente.'; return; }
     const data = await api('/api/socio/scoring', {method:'POST', body: JSON.stringify({dni})});
     ultimoScoringOk = true;
+    document.getElementById('f-dni').value = dni;  // si después cargás una venta financiada, no hace falta retipearlo
     msg.className = data.requiere_declaracion_jurada ? 'msg' : 'msg ok';
     msg.style.color = data.requiere_declaracion_jurada ? 'var(--warn)' : '';
     msg.textContent = data.mensaje;

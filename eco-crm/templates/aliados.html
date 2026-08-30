@@ -388,8 +388,8 @@ async function cargarOperacionSocios(){
   const elIns = document.getElementById('op-inscripcion');
   elIns.innerHTML = !ins.ventas || !ins.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Plan</th><th></th></tr></thead><tbody>`+
-    ins.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}</td><td>${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)}</td>
+    ins.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}</td><td>${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)}<div style="font-size:11px;color:var(--text-muted)">Total ${fmtMoney(v.precio_total)} · Inscripción ${fmtMoney(v.monto_inscripcion)}</div></td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarInscripcion(${v.id})">✓ Pago confirmado</button></td></tr>`).join('')+`</tbody></table>`;
 
   const elAud = document.getElementById('op-auditoria');
@@ -397,7 +397,7 @@ async function cargarOperacionSocios(){
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>DJ</th><th></th></tr></thead><tbody>`+
     aud.ventas.map(v=>{
       const djOk = !v.declaracion_jurada_requerida || v.declaracion_jurada_confirmada;
-      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · Sol. ${v.numero_solicitud||'—'}</div></td>
+      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''} · Sol. ${v.numero_solicitud||'—'}</div></td>
       <td>${v.producto} ${v.modelo_especifico}</td>
       <td>${v.declaracion_jurada_requerida ? (v.declaracion_jurada_confirmada?'<span class="al-badge b-verificado">OK</span>':'<span class="al-badge b-pendiente">Falta</span>') : '—'}</td>
       <td>${djOk?`<button class="btn btn-sm btn-primary" onclick="marcarAuditoria(${v.id})">✓ Bienvenida hecha</button>`:'<span style="font-size:12px;color:var(--text-muted)">Esperando DJ del cliente</span>'}</td></tr>`;
@@ -406,15 +406,15 @@ async function cargarOperacionSocios(){
   const elC48 = document.getElementById('op-confirmacion48');
   elC48.innerHTML = !c48.ventas || !c48.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Cargada</th><th></th></tr></thead><tbody>`+
-    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||''} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}</td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
+    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarConfirmacion48(${v.id})">✓ Ya contacté</button></td></tr>`).join('')+`</tbody></table>`;
 
   const elEnt = document.getElementById('op-entrega');
   elEnt.innerHTML = !ent.ventas || !ent.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Monto</th><th></th></tr></thead><tbody>`+
-    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}</td><td>${fmtMoney(v.precio_final)}</td>
+    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td>${fmtMoney(v.precio_final)}</td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarEntrega(${v.id})">✓ Entregada y cobrada</button></td></tr>`).join('')+`</tbody></table>`;
 }
 async function marcarInscripcion(id){if(!confirm('¿Confirmás que se acreditó la inscripción completa?'))return;const r=await AL.send('/api/ventas-financiadas/'+id+'/inscripcion-pagada','POST',{});if(r.ok)cargarOperacionSocios();else alert('Error');}

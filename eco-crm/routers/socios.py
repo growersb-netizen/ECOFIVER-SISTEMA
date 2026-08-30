@@ -1669,8 +1669,10 @@ def _venta_fin_dict(v: VentaFinanciada) -> dict:
     return {
         "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
         "cliente_dni": v.cliente_dni, "cliente_telefono": v.cliente_telefono,
+        "cliente_localidad": v.cliente_localidad, "cliente_email": v.cliente_email,
         "producto": v.producto, "modelo_especifico": v.modelo_especifico,
         "cantidad_cuotas": v.cantidad_cuotas, "valor_cuota": v.valor_cuota,
+        "precio_total": v.precio_total, "monto_inscripcion": v.monto_inscripcion,
         "numero_solicitud": v.numero_solicitud,
         "declaracion_jurada_requerida": v.declaracion_jurada_requerida,
         "declaracion_jurada_confirmada": bool(v.declaracion_jurada_confirmada_en),
@@ -1683,7 +1685,7 @@ def _venta_cont_dict(v: VentaContado) -> dict:
         "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
         "cliente_telefono": v.cliente_telefono, "cliente_localidad": v.cliente_localidad,
         "producto": v.producto, "modelo_especifico": v.modelo_especifico,
-        "precio_final": v.precio_final,
+        "precio_final": v.precio_final, "notas": v.notas or "",
         "created_at": v.created_at.isoformat() if v.created_at else None,
     }
 

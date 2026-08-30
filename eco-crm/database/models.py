@@ -1357,6 +1357,10 @@ class MaterialSocio(Base):
     orden = Column(Integer, default=0)
     activo = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # "manual" (cargado a mano desde el panel interno) | "catalogo" (generado
+    # automáticamente por sincronizar_biblioteca_catalogo — se borra y recrea
+    # en cada sync, nunca editar estos a mano).
+    origen = Column(String(20), default="manual")
 
 
 class ScoringBCRA(Base):

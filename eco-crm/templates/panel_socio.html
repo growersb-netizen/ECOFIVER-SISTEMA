@@ -173,14 +173,6 @@
       <div class="msg" id="mv-wa-msg"></div>
     </div>
 
-    <div class="verif-step" id="vstep-email">
-      <div class="verif-step-title"><span class="verif-check" id="vcheck-email">3</span> Verificar email</div>
-      <button class="btn-ghost" onclick="mvEnviarEmail()">Mandarme el código por email</button>
-      <input id="mv-email-otp" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" style="margin-top:8px;font-size:18px;letter-spacing:3px;text-align:center">
-      <button class="btn-teal" style="margin-top:8px" onclick="mvConfirmarEmail()">Confirmar</button>
-      <div class="msg" id="mv-email-msg"></div>
-    </div>
-
     <div id="mv-listo" class="hidden" style="text-align:center;padding:12px 0">
       <div style="font-size:32px">✅</div>
       <p style="font-weight:700">¡Listo, tu perfil ya está Verificado!</p>
@@ -356,6 +348,7 @@
       <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Guías para vender mejor y copys listos para pegar en tus publicaciones o mensajes.</p>
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn-ghost biblio-filtro active" data-tipo="todos" onclick="filtrarBiblioteca('todos')">Todo</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="imagen" onclick="filtrarBiblioteca('imagen')">🖼️ Fotos</button>
         <button class="btn-ghost biblio-filtro" data-tipo="copy" onclick="filtrarBiblioteca('copy')">📋 Copys</button>
         <button class="btn-ghost biblio-filtro" data-tipo="guia" onclick="filtrarBiblioteca('guia')">📘 Guías</button>
       </div>
@@ -517,12 +510,15 @@ function mvSincronizarPasos(){
   document.getElementById('vcheck-datos').classList.toggle('done', !!SOCIO.perfil_completo);
   document.getElementById('vcheck-whatsapp').textContent = SOCIO.whatsapp_verificado ? '✓' : '2';
   document.getElementById('vcheck-whatsapp').classList.toggle('done', !!SOCIO.whatsapp_verificado);
-  document.getElementById('vcheck-email').textContent = SOCIO.email_verificado ? '✓' : '3';
-  document.getElementById('vcheck-email').classList.toggle('done', !!SOCIO.email_verificado);
   document.getElementById('vstep-datos').classList.toggle('hidden', !!SOCIO.perfil_completo);
   document.getElementById('vstep-whatsapp').classList.toggle('hidden', !!SOCIO.whatsapp_verificado);
-  document.getElementById('vstep-email').classList.toggle('hidden', !!SOCIO.email_verificado);
   document.getElementById('mv-listo').classList.toggle('hidden', !SOCIO.verificado);
+}
+
+function actualizarBadgeVerificado(){
+  const tilde = SOCIO.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
+  document.getElementById('saludo-nombre').innerHTML = SOCIO.nombre.split(' ')[0] + tilde;
+  document.getElementById('sidebar-socio-info').innerHTML = SOCIO.codigo + tilde + ' · ' + (SOCIO.zona || 'sin zona');
 }
 
 async function mvGuardarDatos(){
@@ -560,27 +556,7 @@ async function mvConfirmarWhatsapp(){
     SOCIO.whatsapp_verificado = true; SOCIO.verificado = data.verificado;
     msg.className='msg ok'; msg.textContent='WhatsApp verificado.';
     mvSincronizarPasos(); actualizarEstadoVerificacionPerfil();
-  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
-}
-
-async function mvEnviarEmail(){
-  const msg = document.getElementById('mv-email-msg'); msg.className='msg'; msg.textContent='';
-  try{ await api('/api/socio/verificar-email/enviar', {method:'POST'}); msg.className='msg ok'; msg.textContent='Te mandamos el código.'; }
-  catch(e){ msg.className='msg error'; msg.textContent = e.message; }
-}
-
-async function mvConfirmarEmail(){
-  const msg = document.getElementById('mv-email-msg'); msg.className='msg'; msg.textContent='';
-  try{
-    const data = await api('/api/socio/verificar-email/confirmar', {method:'POST', body: JSON.stringify({otp: document.getElementById('mv-email-otp').value.trim()})});
-    SOCIO.email_verificado = true; SOCIO.verificado = data.verificado;
-    msg.className='msg ok'; msg.textContent='Email verificado.';
-    mvSincronizarPasos(); actualizarEstadoVerificacionPerfil();
-    if(data.verificado){
-      const tilde = ' <span class="verificado-tilde" title="Perfil verificado">✓</span>';
-      document.getElementById('saludo-nombre').innerHTML = SOCIO.nombre.split(' ')[0] + tilde;
-      document.getElementById('sidebar-socio-info').innerHTML = SOCIO.codigo + tilde + ' · ' + (SOCIO.zona || 'sin zona');
-    }
+    if(data.verificado) actualizarBadgeVerificado();
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
@@ -818,6 +794,11 @@ let BIBLIOTECA_ITEMS = [];
 let BIBLIOTECA_FILTRO = 'todos';
 
 async function cargarBiblioteca(){
+  const el = document.getElementById('biblio-grid');
+  if(!SOCIO.verificado){
+    el.innerHTML = '<p style="color:var(--text-muted)">La Biblioteca se habilita cuando completás tu perfil y verificás tu WhatsApp. <a onclick="abrirModalVerificacion()" style="cursor:pointer;text-decoration:underline">Completar ahora</a></p>';
+    return;
+  }
   const data = await api('/api/socio/biblioteca').catch(()=>({materiales:[]}));
   BIBLIOTECA_ITEMS = data.materiales;
   renderBiblioteca();
@@ -834,11 +815,12 @@ function renderBiblioteca(){
   const items = BIBLIOTECA_FILTRO === 'todos' ? BIBLIOTECA_ITEMS : BIBLIOTECA_ITEMS.filter(m => m.tipo === BIBLIOTECA_FILTRO);
   el.innerHTML = items.map((m, i) => `
     <div class="biblio-card">
+      ${m.tipo === 'imagen' && m.url ? `<img src="${m.url}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;margin-bottom:10px;background:var(--bg)">` : ''}
       <div class="tag-cat">${m.categoria}${m.tipo === 'copy' ? ' · copy listo para pegar' : ''}</div>
       <h4>${m.titulo || m.tipo}</h4>
       <p>${(m.descripcion||'').replace(/\n/g,'<br>')}</p>
       ${m.tipo === 'copy' ? `<button class="btn-ghost" onclick="copiarTexto(this, ${JSON.stringify(m.descripcion)})">📋 Copiar texto</button>` : ''}
-      ${m.url ? `<a href="${m.url}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px">Ver / descargar</a>` : ''}
+      ${m.url ? `<a href="${m.url}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px">${m.tipo === 'imagen' ? 'Ver tamaño completo' : 'Ver / descargar'}</a>` : ''}
     </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay material en esta categoría.</p>';
 }
 

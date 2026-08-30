@@ -97,15 +97,18 @@ def require_socio(request: Request, db: Session = Depends(get_db)) -> Aliado:
 
 
 def _esta_verificado(socio: Aliado) -> bool:
-    return bool(socio.perfil_completo and socio.whatsapp_verificado and socio.email_verificado)
+    # La verificación de email quedó afuera a pedido: WhatsApp ya es suficiente
+    # como único canal verificado, para no duplicar un paso — la función/los
+    # endpoints de email siguen existiendo (sin uso) por si se retoma después.
+    return bool(socio.perfil_completo and socio.whatsapp_verificado)
 
 
 def _require_verificado(socio: Aliado):
-    """Gate para las acciones que generan comisiones: perfil completo + los dos canales verificados."""
+    """Gate para las acciones que generan comisiones y para la Biblioteca: perfil completo + WhatsApp verificado."""
     if not _esta_verificado(socio):
         raise HTTPException(
             403,
-            "Completá tu perfil y verificá WhatsApp y email antes de cargar ventas — te va a aparecer el paso pendiente al entrar al panel.",
+            "Completá tu perfil y verificá tu WhatsApp antes de cargar ventas o acceder a la Biblioteca — te va a aparecer el paso pendiente al entrar al panel.",
         )
 
 
@@ -748,6 +751,80 @@ def seed_biblioteca_socios(db: Session):
     db.commit()
 
 
+_CATEGORIAS_CATALOGO_SIMPLES = {
+    "hidromasajes": "Hidromasaje", "baneras": "Bañera", "receptaculos": "Receptáculo",
+    "accesorios_piscinas": "Accesorio de piscina", "banios_quimicos": "Baño químico",
+    "garitas_seguridad": "Garita de seguridad", "cuchas_perros": "Cucha", "reposeras": "Reposera",
+    "depositos_jardin": "Depósito de jardín",
+}
+
+
+def _extraer_fotos_catalogo(cat: dict) -> list:
+    """
+    Recorre el catálogo completo (todas las categorías, cualquiera sea su forma
+    exacta) y devuelve [{categoria, producto, url}, ...] para cada foto real
+    cargada. Genérico a propósito: cada rubro tiene una forma algo distinta
+    (piscinas/módulos guardan fotos como {modelo: [urls]} al nivel de la
+    categoría; combos y el resto las guardan por ítem, directo o bajo
+    'modelos') — así no hay que tocar esta función cada vez que se agrega un
+    producto nuevo, solo cuando se agrega una categoría con una forma distinta.
+    """
+    fotos = []
+
+    for modelo, urls in (cat.get("piscinas", {}).get("fotos") or {}).items():
+        for url in (urls or []):
+            if url:
+                fotos.append({"categoria": "piscinas", "producto": modelo, "url": url})
+
+    for modelo, urls in (cat.get("modulos", {}).get("fotos") or {}).items():
+        for url in (urls or []):
+            if url:
+                fotos.append({"categoria": "modulos", "producto": f"Módulo {modelo}m²", "url": url})
+
+    for nombre, datos in (cat.get("combos") or {}).items():
+        if isinstance(datos, dict):
+            for url in (datos.get("fotos") or []):
+                if url:
+                    fotos.append({"categoria": "combos", "producto": nombre, "url": url})
+
+    for cat_key in _CATEGORIAS_CATALOGO_SIMPLES:
+        bloque = cat.get(cat_key) or {}
+        items = bloque.get("modelos") if isinstance(bloque.get("modelos"), dict) else bloque
+        if not isinstance(items, dict):
+            continue
+        for nombre, datos in items.items():
+            if isinstance(datos, dict):
+                for url in (datos.get("fotos") or []):
+                    if url:
+                        fotos.append({"categoria": cat_key, "producto": nombre, "url": url})
+
+    return fotos
+
+
+def sincronizar_biblioteca_catalogo(db: Session) -> int:
+    """
+    Reemplaza todo el material tipo=imagen con origen='catalogo' por el estado
+    ACTUAL de fotos del catálogo — idempotente, se puede correr las veces que
+    haga falta (por ejemplo después de cargar fotos nuevas a un producto).
+    Nunca toca el material cargado a mano (origen='manual').
+    """
+    cat = load_catalogo()
+    fotos = _extraer_fotos_catalogo(cat)
+
+    db.query(MaterialSocio).filter(MaterialSocio.origen == "catalogo").delete()
+
+    orden = 100  # después de las guías/copys cargados a mano
+    for f in fotos:
+        db.add(MaterialSocio(
+            tipo="imagen", categoria=f["categoria"], titulo=f["producto"],
+            descripcion=f"Foto oficial de {f['producto']} — lista para usar en tus publicaciones.",
+            url_externa=f["url"], orden=orden, origen="catalogo",
+        ))
+        orden += 1
+    db.commit()
+    return len(fotos)
+
+
 def _material_dict(m: MaterialSocio) -> dict:
     return {
         "id": m.id, "tipo": m.tipo, "categoria": m.categoria, "titulo": m.titulo,
@@ -786,6 +863,7 @@ async def socio_quiz(socio: Aliado = Depends(require_socio)):
 
 @router.get("/api/socio/biblioteca")
 async def socio_biblioteca(tipo: Optional[str] = None, categoria: Optional[str] = None, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    _require_verificado(socio)
     q = db.query(MaterialSocio).filter(MaterialSocio.activo == True)
     if tipo:
         q = q.filter(MaterialSocio.tipo == tipo)
@@ -797,6 +875,7 @@ async def socio_biblioteca(tipo: Optional[str] = None, categoria: Optional[str] 
 
 @router.get("/api/socio/biblioteca/{material_id}/archivo")
 async def socio_biblioteca_archivo(material_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    _require_verificado(socio)
     from fastapi.responses import FileResponse
     m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
     if not m or not m.archivo_path or not os.path.exists(m.archivo_path):
@@ -845,6 +924,92 @@ async def borrar_material_socio(
     if not m:
         raise HTTPException(404, "No encontrado")
     m.activo = False
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/materiales-socio/sincronizar-catalogo")
+async def sincronizar_catalogo_endpoint(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Vuelve a leer el catálogo y actualiza en la Biblioteca todas las fotos
+    (piscinas, módulos, hidromasajes, bañeras, accesorios, etc). Usar después
+    de cargar fotos nuevas a un producto en el catálogo."""
+    _require_gestion_interna(x_api_key, current_user)
+    n = sincronizar_biblioteca_catalogo(db)
+    return {"ok": True, "fotos_sincronizadas": n}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PANEL ADMINISTRATIVO — resumen, listado y baja de socios (equipo interno)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/admin/socios/resumen")
+async def admin_socios_resumen(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    _require_gestion_interna(x_api_key, current_user)
+    todos = db.query(Aliado).filter(Aliado.estado == "activo").all()
+    total = len(todos)
+    verificados = sum(1 for a in todos if _esta_verificado(a))
+    con_perfil = sum(1 for a in todos if a.perfil_completo)
+    con_whatsapp = sum(1 for a in todos if a.whatsapp_verificado)
+    ventas_contado = db.query(VentaContado).filter(VentaContado.aliado_codigo.isnot(None)).count()
+    ventas_financiado = db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo.isnot(None)).count()
+    comision_pendiente = sum(c.monto or 0 for c in db.query(Comision).filter(Comision.estado == "pendiente").all())
+    comision_liquidada = sum(c.monto or 0 for c in db.query(Comision).filter(Comision.estado == "liquidada").all())
+    return {
+        "total_socios": total, "verificados": verificados, "con_perfil_completo": con_perfil,
+        "con_whatsapp_verificado": con_whatsapp,
+        "ventas_contado_cargadas": ventas_contado, "ventas_financiado_cargadas": ventas_financiado,
+        "comision_pendiente": round(comision_pendiente, 2), "comision_liquidada": round(comision_liquidada, 2),
+    }
+
+
+@router.get("/api/admin/socios")
+async def admin_socios_lista(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Listado completo de socios con su estado y actividad — para
+    trazabilidad desde el panel interno (cuántos hay, quién está verificado,
+    cuánto vendió cada uno, cuánto tiene pendiente de cobrar)."""
+    _require_gestion_interna(x_api_key, current_user)
+    filas = []
+    for a in db.query(Aliado).order_by(Aliado.id.desc()).all():
+        n_contado = db.query(VentaContado).filter(VentaContado.aliado_codigo == a.codigo).count()
+        n_financiado = db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo == a.codigo).count()
+        pendiente = sum(c.monto or 0 for c in db.query(Comision).filter(Comision.aliado_codigo == a.codigo, Comision.estado == "pendiente").all())
+        liquidada = sum(c.monto or 0 for c in db.query(Comision).filter(Comision.aliado_codigo == a.codigo, Comision.estado == "liquidada").all())
+        filas.append({
+            "codigo": a.codigo, "nombre": a.nombre, "email": a.email, "telefono": a.telefono or "",
+            "zona": a.zona or "", "estado": a.estado,
+            "fecha_alta": a.fecha_alta.isoformat() if a.fecha_alta else None,
+            "verificado": _esta_verificado(a), "perfil_completo": bool(a.perfil_completo),
+            "whatsapp_verificado": bool(a.whatsapp_verificado),
+            "ventas_contado": n_contado, "ventas_financiado": n_financiado,
+            "comision_pendiente": round(pendiente, 2), "comision_liquidada": round(liquidada, 2),
+        })
+    return {"total": len(filas), "socios": filas}
+
+
+@router.delete("/api/admin/socios/{codigo}")
+async def admin_eliminar_socio(
+    codigo: str, db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Elimina un socio y sus ventas/comisiones asociadas. Pensado para dar de
+    baja cuentas de prueba — es definitivo, no tiene papelera de reciclaje."""
+    _require_gestion_interna(x_api_key, current_user)
+    socio = db.query(Aliado).filter(Aliado.codigo == codigo.upper()).first()
+    if not socio:
+        raise HTTPException(404, "Socio no encontrado")
+    db.query(Comision).filter(Comision.aliado_codigo == socio.codigo).delete()
+    db.query(VentaContado).filter(VentaContado.aliado_codigo == socio.codigo).delete()
+    db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo == socio.codigo).delete()
+    db.delete(socio)
     db.commit()
     return {"ok": True}
 

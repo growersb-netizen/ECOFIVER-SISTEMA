@@ -645,7 +645,20 @@ _GUIAS_SEED = [
         ),
     },
     {
-        "tipo": "guia", "categoria": "redes", "orden": 2,
+        "tipo": "guia", "categoria": "ventas", "orden": 2,
+        "titulo": "Cómo explicarle el plan de pagos a un cliente financiado",
+        "descripcion": (
+            "1) Cotizá con el Simulador de tu panel: precio de lista, cantidad de cuotas y valor de cada una. "
+            "2) Explicale que la inscripción equivale a 2 cuotas del plan — la puede pagar completa de una vez, "
+            "o en partes: la primera parte (la seña, el monto que él elija) ya genera el contrato, y tiene 30 "
+            "días para completar el resto. 3) En cuanto hace ese primer pago, descargás el contrato desde tu "
+            "panel y se lo mandás — lo confirma con un link, sin papeles. 4) Al completar el 100% de la "
+            "inscripción, se emite un recibo y el plan queda activo. 5) Nuestro equipo hace una llamada de "
+            "bienvenida para confirmar todo, y ahí se libera tu comisión."
+        ),
+    },
+    {
+        "tipo": "guia", "categoria": "redes", "orden": 3,
         "titulo": "Ideas para publicar en redes esta semana",
         "descripcion": (
             "• Lunes: una foto de un módulo o piscina del catálogo con el precio y la cuota más baja. "
@@ -655,7 +668,7 @@ _GUIAS_SEED = [
         ),
     },
     {
-        "tipo": "guia", "categoria": "redes", "orden": 3,
+        "tipo": "guia", "categoria": "redes", "orden": 4,
         "titulo": "Cómo generar contenido con tu celular",
         "descripcion": (
             "No necesitás equipo profesional. Grabá en horizontal, con buena luz natural (de día, cerca de una "
@@ -665,7 +678,7 @@ _GUIAS_SEED = [
         ),
     },
     {
-        "tipo": "guia", "categoria": "ventas", "orden": 4,
+        "tipo": "guia", "categoria": "ventas", "orden": 5,
         "titulo": "Objeciones frecuentes de clientes y cómo responderlas",
         "descripcion": (
             "\"¿Y si no me aprueban?\" → La aprobación es simple y directa de fábrica, sin recibo de sueldo ni "
@@ -1986,6 +1999,13 @@ FAQ_SOCIOS = [
     {"pregunta": "¿Qué es la licitación?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede pedir adelantar la entrega mediante una integración de capital. Ese aporte se descuenta del saldo total, y el cliente sigue abonando el saldo restante mes a mes hasta completarlo."},
     {"pregunta": "¿Necesito Monotributo?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones. Podés cargar la constancia después desde tu perfil."},
     {"pregunta": "¿Con quién hablo si tengo una duda?", "respuesta": "Comunicate al WhatsApp del programa de Socios Comerciales — el equipo te responde consultas de precio, estado de tus ventas y comisiones."},
+    {"pregunta": "¿Cuáles son los 3 precios de contado de una piscina y cuándo uso cada uno?", "respuesta": "\"Con instalación\" es el precio estándar dentro del área de cobertura directa — usalo siempre que puedas. \"Casco + equipo, sin instalación\" y \"casco solo, sin instalación ni equipo\" son para clientes fuera de esa zona: el producto se entrega igual a cualquier parte del país, pero la instalación la coordinás vos, tu equipo, o un instalador de la zona del cliente."},
+    {"pregunta": "¿Qué es la inscripción de una venta financiada?", "respuesta": "El equivalente a 2 cuotas del plan elegido. El cliente puede pagarla completa de una vez, o en partes: la primera parte (la seña, el monto que el cliente elija) genera el contrato automáticamente, y tiene 30 días para completar el 100% — recién ahí se emite el recibo y el plan queda activo."},
+    {"pregunta": "¿Qué pasa si el cliente no completa la inscripción dentro de los 30 días?", "respuesta": "El plazo queda registrado en tu panel para que hagas el seguimiento con el cliente. Escribinos si necesitás una excepción puntual."},
+    {"pregunta": "¿Cómo le explico el plan de pagos a un cliente nuevo?", "respuesta": "Mostrale el catálogo con el precio de lista y usá el Simulador de cuotas para calcular la cuota exacta según el plazo que elija. El plan queda formalizado con el contrato, que se genera automáticamente en cuanto el cliente hace su primer pago hacia la inscripción."},
+    {"pregunta": "¿Puedo cargar una venta de cualquier categoría del catálogo?", "respuesta": "De contado, sí — piscinas, módulos, combos, hidromasajes, bañeras, receptáculos, accesorios, baños químicos, garitas, cuchas, reposeras y depósitos de jardín. Financiado está disponible solo para piscinas y módulos, que es donde ofrecemos financiación propia."},
+    {"pregunta": "¿Cómo sé si mi perfil está \"Verificado\"?", "respuesta": "Vas a ver un tilde ✓ junto a tu nombre en el panel y en el ranking. Se activa automáticamente cuando completás tu DNI y zona, y verificás tu WhatsApp — recién ahí podés cargar ventas y empezar a generar comisiones."},
+    {"pregunta": "¿La foto que subo del catálogo o de una entrega la puede usar cualquier socio?", "respuesta": "Sí. Todo el material de la Biblioteca (fotos del catálogo, contenido de marketing, fotos de entregas reales, copys y guías) está disponible para todos los socios verificados, listo para usar en tus publicaciones."},
 ]
 
 

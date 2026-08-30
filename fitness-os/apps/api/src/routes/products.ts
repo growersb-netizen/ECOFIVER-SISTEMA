@@ -13,6 +13,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireRole } from "../plugins/rbac.js";
 import { slugify } from "@fitness-os/shared";
+import { generateGuideHTML, generateTrackingHTML, generateReadme } from "../services/guide-generator.js";
 
 // ── Schemas ────────────────────────────────────────────────────────
 const CreateProductSchema = z.object({
@@ -512,6 +513,89 @@ export async function productRoutes(fastify: FastifyInstance) {
         storageKey,
         fileName: primaryFile.name,
       });
+    }
+  );
+
+  /**
+   * GET /products/:id/package
+   * Genera y descarga el paquete ZIP completo del producto:
+   *   - guia.html     (guía del programa, print-ready para PDF)
+   *   - seguimiento.html (planilla de seguimiento semanal)
+   *   - README.txt
+   * La guía se genera dinámicamente a partir de los datos del producto en DB.
+   * No requiere R2 ni archivos externos.
+   */
+  fastify.get(
+    "/:id/package",
+    { preHandler: [fastify.authenticate] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+      const product = await prisma.product.findFirst({
+        where: { id: request.params.id, tenantId: request.tenantId! },
+        include: {
+          category: { select: { name: true } },
+          prices: { take: 1 },
+        },
+      });
+
+      if (!product) return reply.code(404).send({ error: "Producto no encontrado" });
+
+      // Generar contenido
+      const guideHTML = generateGuideHTML({
+        id: product.id,
+        sku: product.sku ?? product.id,
+        name: product.name,
+        description: product.description,
+        productType: product.productType,
+        level: product.level,
+        durationWeeks: product.durationWeeks,
+        objective: product.objective,
+        category: product.category,
+      });
+
+      const trackingHTML = generateTrackingHTML({
+        id: product.id,
+        sku: product.sku ?? product.id,
+        name: product.name,
+        description: product.description,
+        productType: product.productType,
+        level: product.level,
+        durationWeeks: product.durationWeeks,
+        objective: product.objective,
+        category: product.category,
+      });
+
+      const readmeTXT = generateReadme({
+        id: product.id,
+        sku: product.sku ?? product.id,
+        name: product.name,
+        description: product.description,
+        productType: product.productType,
+        level: product.level,
+        durationWeeks: product.durationWeeks,
+        objective: product.objective,
+        category: product.category,
+      });
+
+      // Armar ZIP con JSZip
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      zip.file("guia.html", guideHTML);
+      zip.file("seguimiento.html", trackingHTML);
+      zip.file("README.txt", readmeTXT);
+
+      const zipBuffer = await zip.generateAsync({
+        type: "nodebuffer",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+
+      const safeName = (product.sku ?? product.id).replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      reply
+        .header("Content-Type", "application/zip")
+        .header("Content-Disposition", `attachment; filename="${safeName}.zip"`)
+        .header("Content-Length", zipBuffer.length.toString())
+        .send(zipBuffer);
     }
   );
 

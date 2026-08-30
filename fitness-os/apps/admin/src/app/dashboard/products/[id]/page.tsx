@@ -106,9 +106,38 @@ export default function ProductDetailPage() {
   // Estado de descarga
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
   const [downloadError, setDownloadError] = useState("");
+  const [packageLoading, setPackageLoading] = useState(false);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("fitness_access_token") : null;
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  // ── Descargar paquete ZIP (guía generada + seguimiento + README) ──
+  const handleDownloadPackage = async () => {
+    setPackageLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/products/${productId}/package`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Error" })) as { error: string };
+        throw new Error(err.error ?? "Error generando paquete");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${product?.sku ?? productId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Paquete descargado ✓");
+    } catch (err) {
+      showToast((err as Error).message ?? "Error al generar el paquete", "err");
+    } finally {
+      setPackageLoading(false);
+    }
+  };
 
   const showToast = (msg: string, type: "ok" | "err" = "ok") => {
     setToast({ msg, type });
@@ -270,26 +299,65 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* Botón de descarga principal */}
+        {/* Botones de acción */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
-          <button
-            onClick={() => handleDownload()}
-            disabled={downloadState === "loading" || !primaryFile}
-            style={{
-              padding: "0.65rem 1.5rem",
-              background: primaryFile ? NEON : "#2A2F45",
-              border: "none", borderRadius: 10,
-              color: primaryFile ? "#06080F" : "#4A5070",
-              fontWeight: 700, fontSize: "0.9rem",
-              cursor: primaryFile ? "pointer" : "not-allowed",
-              display: "flex", alignItems: "center", gap: "0.5rem",
-            }}
-          >
-            {downloadState === "loading" ? "⏳ Generando…" : "⬇️ Descargar ZIP"}
-          </button>
-          {!primaryFile && (
-            <span style={{ fontSize: "0.72rem", color: "#4A5070" }}>Sin archivos — agregá uno abajo</span>
-          )}
+          <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {/* Paquete generado automáticamente (guía + seguimiento + README) */}
+            <button
+              onClick={handleDownloadPackage}
+              disabled={packageLoading}
+              style={{
+                padding: "0.65rem 1.5rem",
+                background: NEON,
+                border: "none", borderRadius: 10,
+                color: "#06080F",
+                fontWeight: 700, fontSize: "0.9rem",
+                cursor: packageLoading ? "not-allowed" : "pointer",
+                opacity: packageLoading ? 0.7 : 1,
+              }}
+            >
+              {packageLoading ? "⏳ Generando…" : "📦 Descargar Paquete"}
+            </button>
+            {/* Guía en preview (nueva pestaña) */}
+            <a
+              href={`${API_URL}/api/v1/products/${productId}/guide`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: "0.65rem 1.5rem",
+                background: `${CYAN}22`,
+                border: `1px solid ${CYAN}44`,
+                borderRadius: 10,
+                color: CYAN,
+                fontWeight: 700, fontSize: "0.9rem",
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              👁️ Ver Guía
+            </a>
+            {/* Archivo custom (si existe) */}
+            {primaryFile && (
+              <button
+                onClick={() => handleDownload()}
+                disabled={downloadState === "loading"}
+                style={{
+                  padding: "0.65rem 1.5rem",
+                  background: "#1A1F35",
+                  border: "1px solid #2A2F45",
+                  borderRadius: 10,
+                  color: "#A0AAC8",
+                  fontWeight: 700, fontSize: "0.9rem",
+                  cursor: "pointer",
+                }}
+              >
+                {downloadState === "loading" ? "⏳" : "⬇️ Archivo custom"}
+              </button>
+            )}
+          </div>
+          <span style={{ fontSize: "0.72rem", color: "#4A5070" }}>
+            El paquete se genera automáticamente con la guía del programa
+          </span>
           {downloadState === "error" && (
             <div style={{ maxWidth: 320, padding: "0.6rem 0.85rem", background: `${PINK}15`, border: `1px solid ${PINK}44`, borderRadius: 8, fontSize: "0.78rem", color: PINK }}>
               {downloadError}

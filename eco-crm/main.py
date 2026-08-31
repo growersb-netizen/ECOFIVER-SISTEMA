@@ -398,6 +398,7 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/equipo/pedido",           # pública con código de equipo
         "/portal-aliado",           # portal de solo lectura del aliado (login por código+PIN)
         "/panel-socio",             # Plataforma de Socios Comerciales (login/registro propio, JWT en cookie aparte)
+        "/terminos-socios-comerciales",  # Términos y Condiciones del programa (pública, enlazada desde el registro)
         "/socio/confirmar/",        # cliente confirma su plan financiado por link, sin sesión
         "/socio/declaracion-jurada/",  # cliente confirma la declaración jurada por link, sin sesión
         "/api/public",              # endpoints públicos (landing, postulación aliado, portal)

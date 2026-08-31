@@ -183,6 +183,7 @@ def run_migrations():
             "ALTER TABLE aliados ADD COLUMN perfil_completo BOOLEAN DEFAULT 0",
             "ALTER TABLE aliados ADD COLUMN origen_registro TEXT",
             "ALTER TABLE aliados ADD COLUMN comisiones_aceptadas_en DATETIME",
+            "ALTER TABLE aliados ADD COLUMN interes_venta TEXT",
             "ALTER TABLE materiales_socio ADD COLUMN origen TEXT DEFAULT 'manual'",
             "ALTER TABLE ventas_financiadas ADD COLUMN monto_pagado_inscripcion REAL DEFAULT 0",
             "ALTER TABLE ventas_financiadas ADD COLUMN primera_sena_en DATETIME",

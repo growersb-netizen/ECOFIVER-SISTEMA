@@ -601,7 +601,7 @@ function renderOpSocios(){
   el.innerHTML = `<table class="al-table"><thead><tr><th>Código</th><th>Nombre</th><th>Contacto</th><th>Estado</th><th>Ventas</th><th>Comisiones</th><th></th></tr></thead><tbody>` +
     filas.map(s => `<tr>
       <td>${s.codigo}</td>
-      <td>${esc(s.nombre)}${s.verificado?' <span class="al-badge b-verificado">✓</span>':''}<div style="font-size:11px;color:var(--text-muted)">${s.zona||'sin zona'} · alta ${s.fecha_alta?s.fecha_alta.slice(0,10):'—'}</div></td>
+      <td>${esc(s.nombre)}${s.verificado?' <span class="al-badge b-verificado">✓</span>':''}<div style="font-size:11px;color:var(--text-muted)">${s.zona||'sin zona'} · alta ${s.fecha_alta?s.fecha_alta.slice(0,10):'—'}${s.interes_venta?' · vende: '+({PISCINAS:'piscinas',MODULOS:'módulos',AMBOS:'ambos'}[s.interes_venta]||s.interes_venta):''}</div></td>
       <td style="font-size:12px">${esc(s.email||'')}<br>${s.telefono||''}</td>
       <td>${s.perfil_completo?'<span class="al-badge b-verificado">Perfil OK</span>':'<span class="al-badge b-pendiente">Perfil</span>'} ${s.whatsapp_verificado?'<span class="al-badge b-verificado">WA OK</span>':'<span class="al-badge b-pendiente">WA</span>'}</td>
       <td>${s.ventas_contado} contado / ${s.ventas_financiado} financ.</td>

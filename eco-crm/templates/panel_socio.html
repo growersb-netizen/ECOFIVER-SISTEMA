@@ -185,7 +185,7 @@
     <div id="mc-tabla">Cargando…</div>
     <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;font-weight:400;color:var(--text)">
       <input type="checkbox" id="mc-check" style="width:auto;margin-top:2px">
-      <span>Leí y acepto las condiciones generales del Programa de Socios Comerciales de EcoFiver, incluyendo cómo se calculan y liberan las comisiones.</span>
+      <span>Leí y acepto los <a href="/terminos-socios-comerciales" target="_blank" style="color:var(--teal,#2563EB);text-decoration:underline">Términos y Condiciones</a> del Programa de Socios Comerciales de EcoFiver, incluyendo cómo se calculan y liberan las comisiones.</span>
     </label>
     <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doAceptarComisiones()">Aceptar y continuar</button>
     <div class="msg" id="mc-msg"></div>
@@ -203,6 +203,12 @@
       <label>DNI</label><input id="mv-dni" inputmode="numeric">
       <label>Zona / localidad</label><input id="mv-zona">
       <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="mv-cuit">
+      <label>¿Qué querés vender?</label>
+      <select id="mv-interes">
+        <option value="AMBOS">Piscinas y módulos</option>
+        <option value="PISCINAS">Solo piscinas</option>
+        <option value="MODULOS">Solo módulos</option>
+      </select>
       <button class="btn-teal" style="margin-top:10px" onclick="mvGuardarDatos()">Guardar datos</button>
       <div class="msg" id="mv-datos-msg"></div>
     </div>
@@ -504,6 +510,12 @@
         <label>DNI</label><input id="p-dni" inputmode="numeric">
         <label>Zona / localidad</label><input id="p-zona">
         <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="p-cuit">
+        <label>¿Qué querés vender?</label>
+        <select id="p-interes">
+          <option value="AMBOS">Piscinas y módulos</option>
+          <option value="PISCINAS">Solo piscinas</option>
+          <option value="MODULOS">Solo módulos</option>
+        </select>
         <label>CBU o alias</label><input id="p-cbu">
         <button class="btn-teal" style="margin-top:12px" onclick="guardarPerfil()">Guardar</button>
         <div class="msg" id="p-msg"></div>
@@ -711,6 +723,7 @@ async function cargarApp(){
   document.getElementById('p-dni').value = SOCIO.dni || '';
   document.getElementById('p-zona').value = SOCIO.zona || '';
   document.getElementById('p-cuit').value = SOCIO.cuit_monotributo || '';
+  document.getElementById('p-interes').value = SOCIO.interes_venta || 'AMBOS';
   actualizarEstadoVerificacionPerfil();
   cargarComisiones();
   cargarCatalogo();
@@ -724,6 +737,7 @@ function abrirModalVerificacion(){
   document.getElementById('mv-dni').value = SOCIO.dni || '';
   document.getElementById('mv-zona').value = SOCIO.zona || '';
   document.getElementById('mv-cuit').value = SOCIO.cuit_monotributo || '';
+  document.getElementById('mv-interes').value = SOCIO.interes_venta || 'AMBOS';
   document.getElementById('mv-wa-numero').value = SOCIO.telefono || '';
   document.getElementById('modal-verificacion').classList.remove('hidden');
 }
@@ -755,10 +769,12 @@ async function mvGuardarDatos(){
       dni: document.getElementById('mv-dni').value.trim(),
       zona: document.getElementById('mv-zona').value.trim(),
       cuit_monotributo: document.getElementById('mv-cuit').value.trim(),
+      interes_venta: document.getElementById('mv-interes').value,
     })});
     SOCIO.perfil_completo = data.perfil_completo; SOCIO.verificado = data.verificado;
     SOCIO.dni = document.getElementById('mv-dni').value.trim();
     SOCIO.zona = document.getElementById('mv-zona').value.trim();
+    SOCIO.interes_venta = document.getElementById('mv-interes').value;
     SOCIO.cuit_monotributo = document.getElementById('mv-cuit').value.trim();
     msg.className='msg ok'; msg.textContent = data.perfil_completo ? 'Datos guardados.' : 'Faltan DNI y/o zona.';
     mvSincronizarPasos();
@@ -1333,10 +1349,12 @@ async function guardarPerfil(){
       dni: document.getElementById('p-dni').value.trim(),
       zona: document.getElementById('p-zona').value.trim(),
       cuit_monotributo: document.getElementById('p-cuit').value.trim(),
+      interes_venta: document.getElementById('p-interes').value,
     })});
     SOCIO.perfil_completo = data.perfil_completo; SOCIO.verificado = data.verificado;
     SOCIO.dni = document.getElementById('p-dni').value.trim();
     SOCIO.zona = document.getElementById('p-zona').value.trim();
+    SOCIO.interes_venta = document.getElementById('p-interes').value;
     SOCIO.cuit_monotributo = document.getElementById('p-cuit').value.trim();
     actualizarEstadoVerificacionPerfil();
     msg.className='msg ok'; msg.textContent='Guardado.';

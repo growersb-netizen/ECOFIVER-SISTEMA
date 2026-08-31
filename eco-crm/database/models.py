@@ -1351,6 +1351,9 @@ class Aliado(Base):
     # ── Notificación y aceptación de comisiones (obligatoria en el primer ingreso) ──
     comisiones_aceptadas_en = Column(DateTime(timezone=True), nullable=True)
 
+    # ── Calificación del lead: qué le interesa vender (PISCINAS | MODULOS | AMBOS) ──
+    interes_venta = Column(String(20), nullable=True)
+
 
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,

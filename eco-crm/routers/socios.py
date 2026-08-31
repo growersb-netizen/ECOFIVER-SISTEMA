@@ -442,6 +442,7 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "verificado": _esta_verificado(socio),
         "tiene_password": bool(socio.password_hash),
         "comisiones_aceptadas": bool(socio.comisiones_aceptadas_en),
+        "interes_venta": socio.interes_venta,
     }
 
 
@@ -451,6 +452,12 @@ async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(requ
     for campo in ("zona", "cbu_alias", "cuit_monotributo"):
         if campo in data:
             setattr(socio, campo, (data[campo] or "").strip())
+
+    if "interes_venta" in data:
+        valor = (data["interes_venta"] or "").strip().upper()
+        if valor and valor not in ("PISCINAS", "MODULOS", "AMBOS"):
+            raise HTTPException(400, "interes_venta debe ser PISCINAS, MODULOS o AMBOS")
+        socio.interes_venta = valor or None
 
     if "dni" in data:
         dni = (data["dni"] or "").strip()
@@ -1411,7 +1418,8 @@ async def admin_socios_lista(
         liquidada = sum(c.monto or 0 for c in db.query(Comision).filter(Comision.aliado_codigo == a.codigo, Comision.estado == "liquidada").all())
         filas.append({
             "codigo": a.codigo, "nombre": a.nombre, "email": a.email, "telefono": a.telefono or "",
-            "zona": a.zona or "", "estado": a.estado,
+            "zona": a.zona or "", "estado": a.estado, "interes_venta": a.interes_venta or "",
+            "origen_registro": a.origen_registro or "",
             "fecha_alta": a.fecha_alta.isoformat() if a.fecha_alta else None,
             "verificado": _esta_verificado(a), "perfil_completo": bool(a.perfil_completo),
             "whatsapp_verificado": bool(a.whatsapp_verificado),
@@ -2548,3 +2556,8 @@ async def ranking_socios(
 @router.get("/panel-socio", response_class=HTMLResponse)
 async def panel_socio_page(request: Request):
     return templates.TemplateResponse("panel_socio.html", {"request": request})
+
+
+@router.get("/terminos-socios-comerciales", response_class=HTMLResponse)
+async def terminos_socios_page(request: Request):
+    return templates.TemplateResponse("terminos_socios.html", {"request": request})

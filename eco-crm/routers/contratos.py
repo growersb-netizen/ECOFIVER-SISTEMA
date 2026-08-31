@@ -115,7 +115,13 @@ def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
         )
 
     if tipo_plan == "CONTADO":
-        señia        = ctx.get("señia", ctx.get("pago_inicial", ""))
+        señia_raw    = ctx.get("señia", ctx.get("pago_inicial", "0"))
+        try:
+            señia_num = float(str(señia_raw).replace(".", "").replace(",", ".") or 0)
+        except Exception:
+            señia_num = 0.0
+        tiene_señia  = señia_num > 0
+        señia        = str(señia_raw) if tiene_señia else ""
         saldo        = ctx.get("saldo_contra_entrega", "")
         total        = ctx.get("valor_total", ctx.get("precio_total", ""))
         modalidad    = ctx.get("modalidad_pago", "Transferencia")
@@ -139,18 +145,29 @@ def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
             for it in items
         ) if items else '<span style="font-size:10px;color:#555;">Consultar detalle completo con el asesor</span>'
 
+        # Fila de seña: solo si se abonó una
+        if tiene_señia:
+            fila_señia = (
+                '<div class="pago-cell"><div class="plabel">Seña / Reserva abonada</div>'
+                '<div class="pvalue" style="color:#c8902a;">$ ' + señia + '</div></div>'
+                '<div class="pago-cell"><div class="plabel">Saldo contra entrega</div>'
+                '<div class="pvalue">$ ' + str(saldo) + '.-</div></div>'
+                '<div class="pago-cell"><div class="plabel">Modalidad de la seña</div>'
+                '<div class="pvalue">' + str(modalidad) + '</div></div>'
+            )
+        else:
+            fila_señia = (
+                '<div class="pago-cell" style="grid-column:span 3"><div class="plabel">Forma de pago</div>'
+                '<div class="pvalue">Pago total contra entrega &nbsp;•&nbsp; ' + str(modalidad) + '</div></div>'
+            )
+
         return (
             '<div class="section">'
             '<div class="section-header">Condiciones de la Operación &nbsp;•&nbsp; Venta de Contado — Entrega Contra Pago</div>'
             '<div class="pago-grid">'
             '<div class="pago-cell"><div class="plabel">Precio Total de la Operación</div>'
             '<div class="pvalue" style="font-size:14px;">$ ' + str(total) + '</div></div>'
-            '<div class="pago-cell"><div class="plabel">Seña / Reserva abonada</div>'
-            '<div class="pvalue" style="color:#c8902a;">$ ' + str(señia) + '</div></div>'
-            '<div class="pago-cell"><div class="plabel">Saldo contra entrega</div>'
-            '<div class="pvalue">$ ' + str(saldo) + '.-</div></div>'
-            '<div class="pago-cell"><div class="plabel">Modalidad de la seña</div>'
-            '<div class="pvalue">' + str(modalidad) + '</div></div>'
+            + fila_señia +
             '</div>'
             '<div style="border:1px solid #ddd;border-top:none;padding:5px 8px;">'
             '<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;font-weight:bold;margin-bottom:4px;">La operación incluye:</div>'
@@ -227,13 +244,28 @@ def _texto_legal(tipo_plan: str) -> str:
             "180 días hábiles para la puesta a disposición de los fondos."
         )
     if tipo_plan == "CONTADO":
+        señia_raw_legal = ctx.get("señia", "0")
+        try:
+            señia_num_legal = float(str(señia_raw_legal).replace(".", "").replace(",", ".") or 0)
+        except Exception:
+            señia_num_legal = 0.0
+        if señia_num_legal > 0:
+            clausula_seña = (
+                "La seña abonada en este acto confirma la reserva del producto y la fecha de producción. "
+                "El saldo restante deberá ser abonado contra entrega del producto en el domicilio indicado, "
+                "previo coordinación de fecha y horario con la empresa. "
+                "En caso de desistimiento por parte del comprador, la seña abonada no será devuelta. "
+            )
+        else:
+            clausula_seña = (
+                "El pago total de la operación se realizará contra entrega del producto en el domicilio "
+                "indicado, previo coordinación de fecha y horario con la empresa con al menos 72 hs de anticipación. "
+            )
         return (
             "Declaro bajo juramento que los datos proporcionados son verdaderos y en función de ellos formalizo "
             "la presente compra. El precio total de la operación queda fijado en la suma pactada, incluyendo "
-            "todos los ítems detallados en la sección 'La operación incluye'. La seña abonada en este acto "
-            "confirma la reserva del producto y la fecha de producción. El saldo restante deberá ser abonado "
-            "contra entrega del producto en el domicilio indicado, previo coordinación de fecha y horario con "
-            "la empresa. En caso de desistimiento por parte del comprador, la seña abonada no será devuelta. "
+            "todos los ítems detallados en la sección 'La operación incluye'. "
+            + clausula_seña +
             "La empresa garantiza la entrega en la fecha estimada salvo causas de fuerza mayor debidamente "
             "notificadas al cliente con anticipación razonable."
         )

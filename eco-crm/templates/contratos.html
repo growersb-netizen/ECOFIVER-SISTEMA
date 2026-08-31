@@ -137,7 +137,7 @@
         <div id="plan-contado" style="display:none;flex-direction:column;gap:14px">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
             <div><label class="label">Precio total de la operación *</label><input id="ct-total" class="input" type="number" placeholder="8500000"></div>
-            <div><label class="label">Seña / Reserva recibida *</label><input id="ct-señia" class="input" type="number" placeholder="500000"></div>
+            <div><label class="label">Seña / Reserva recibida <span style="font-size:11px;color:var(--text-muted)">(opcional)</span></label><input id="ct-señia" class="input" type="number" placeholder="0 — sin seña"></div>
             <div><label class="label">Saldo contra entrega</label><input id="ct-saldo" class="input" type="number" placeholder="8000000" readonly style="background:var(--bg-secondary);cursor:default"></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
@@ -488,7 +488,7 @@
 let _catalogo = null;
 
 async function loadCatalogo() {
-  if (_catalogo) return _catalogo;
+  if (_catalogo) { poblarModelos(); return _catalogo; }
   try {
     _catalogo = await API.get('/api/contratos/catalogo-modelos');
     poblarModelos();
@@ -702,8 +702,8 @@ async function generarContrato() {
     if (extra) items.push(extra);
     Object.assign(body, {
       valor_total:          ctTotal,
-      señia:                ctSeñia,
-      saldo_contra_entrega: ctTotal - ctSeñia,
+      señia:                ctSeñia || 0,
+      saldo_contra_entrega: ctSeñia > 0 ? ctTotal - ctSeñia : ctTotal,
       modalidad_pago:       document.getElementById('ct-modalidad').value,
       op_numero_pago:       document.getElementById('ct-op').value.trim(),
       fecha_entrega_estimada: document.getElementById('ct-fecha').value.trim(),

@@ -77,6 +77,109 @@ TIPOS_PLANTILLA = {
 }
 
 
+# ─── HELPERS — SECCIONES HTML DINÁMICAS DEL CONTRATO ─────────────────────────
+
+def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
+    """Genera el bloque HTML 'Sistema de Pago' según FINANCIADO o CONGELAMIENTO."""
+    if tipo_plan == "CONGELAMIENTO":
+        return (
+            '<div class="section">'
+            '<div class="section-header">Sistema de Pago &nbsp;•&nbsp; Congelamiento de Precio — Entrega Programada</div>'
+            '<div class="pago-grid">'
+            '<div class="pago-cell"><div class="plabel">Valor Total de la Operación</div>'
+            '<div class="pvalue">$ ' + str(ctx.get("valor_total", "")) + '</div></div>'
+            '<div class="pago-cell"><div class="plabel">Flete incluido</div>'
+            '<div class="pvalue">$ ' + str(ctx.get("flete", "")) + '</div></div>'
+            '<div class="pago-cell"><div class="plabel">Cuotas de congelamiento</div>'
+            '<div class="pvalue">' + str(ctx.get("n_cuotas_congelamiento", "")) + ' cuotas de $ '
+            + str(ctx.get("valor_cuota_congelamiento", "")) + '.-</div></div>'
+            '<div class="pago-cell"><div class="plabel">Saldo contra entrega</div>'
+            '<div class="pvalue">$ ' + str(ctx.get("saldo_contra_entrega", "")) + '.-</div></div>'
+            '</div>'
+            '<div class="modalidad-row">'
+            '<span style="font-weight:bold;font-size:10px;">Fecha de entrega estimada:&nbsp;&nbsp;'
+            '<strong style="color:#1a3a6b;">' + str(ctx.get("fecha_entrega_estimada", "")) + '</strong></span>'
+            '<span class="financiado-badge">Entrega Programada</span>'
+            '</div>'
+            '</div>'
+        )
+    # FINANCIADO (default)
+    check_ef = ctx.get("check_efectivo", "")
+    mark_ef  = ctx.get("mark_efectivo", "")
+    check_tr = ctx.get("check_transferencia", "")
+    mark_tr  = ctx.get("mark_transferencia", "")
+    return (
+        '<div class="section">'
+        '<div class="section-header">Sistema de Pago &nbsp;•&nbsp; 100% Financiado</div>'
+        '<div class="pago-grid">'
+        '<div class="pago-cell"><div class="plabel">Valor de mercado</div>'
+        '<div class="pvalue">$ ' + str(ctx.get("valor_mercado", "")) + '</div></div>'
+        '<div class="pago-cell"><div class="plabel">Pago inicial</div>'
+        '<div class="pvalue">$ ' + str(ctx.get("pago_inicial", "")) + '</div></div>'
+        '<div class="pago-cell"><div class="plabel">Cantidad de cuotas propuesta</div>'
+        '<div class="pvalue">' + str(ctx.get("cant_cuotas", "")) + ' cuotas</div></div>'
+        '<div class="pago-cell"><div class="plabel">Cuota ofrecida</div>'
+        '<div class="pvalue">$ ' + str(ctx.get("valor_cuota", ""))
+        + '.-&nbsp;<span style="font-size:9px;background:#1a3a6b;color:white;padding:1px 6px;border-radius:3px;">M - Fija</span></div></div>'
+        '</div>'
+        '<div class="modalidad-row">'
+        '<span style="font-weight:bold;font-size:10px;">Modalidad de pago:</span>'
+        '<span style="display:inline-flex;align-items:center;gap:5px;">'
+        '<span class="box ' + check_ef + '">' + mark_ef + '</span> Efectivo</span>'
+        '<span style="display:inline-flex;align-items:center;gap:5px;">'
+        '<span class="box ' + check_tr + '">' + mark_tr + '</span> Transferencia</span>'
+        '<span class="financiado-badge">100% Financiado</span>'
+        '</div>'
+        '</div>'
+    )
+
+
+def _recibo_box_html(tipo_plan: str, numero_solicitud: str) -> str:
+    """Genera (o suprime) el bloque 'Recibo Autorizado' al pie del contrato."""
+    if tipo_plan == "CONGELAMIENTO":
+        return ""
+    return (
+        '<div class="recibo-box">'
+        '<div class="recibo-title">Recibo Autorizado &nbsp;&nbsp; ' + str(numero_solicitud) + '</div>'
+        '<div class="recibo-line"><span>Recibimos de</span><span class="recibo-underline"></span></div>'
+        '<div class="recibo-line"><span>la suma de</span><span class="recibo-underline"></span></div>'
+        '<div class="recibo-line"><span>como pago de <span class="cuota-inicial-bold">Cuota inicial</span>'
+        ' en concepto de ingreso de derecho de suscripción y gasto detallado anteriormente.</span></div>'
+        '</div>'
+    )
+
+
+def _texto_legal(tipo_plan: str) -> str:
+    if tipo_plan == "CONGELAMIENTO":
+        return (
+            "Declaro bajo juramento que los datos procedentemente son verdaderos y en función de ellos, "
+            "solicito mi pedido de acuerdo a los términos del contrato que declaro conocer y aceptar. "
+            "El precio total queda congelado en la suma pactada, condicionado al cumplimiento del cronograma "
+            "de pagos. La entrega se coordinará una vez abonado el saldo contra entrega en la fecha estimada "
+            "indicada. Por último, reconozco estar en conocimiento que de solicitar la baja de la presente "
+            "solicitud en cualquier momento una vez iniciada la misma la empresa tendrá un plazo no menor a "
+            "180 días hábiles para la puesta a disposición de los fondos."
+        )
+    return (
+        "Declaro bajo juramento que los datos procedentemente son verdaderos y en función de ellos, "
+        "solicito mi pedido de acuerdo a los términos del contrato que declaro conocer y aceptar; por "
+        "otra parte, reconozco que lo abonado en este caso como suscripción inicial no me será reintegrado "
+        "por ningún concepto. En caso de recisión o resolución contractual por parte de la empresa. Por "
+        "último, reconozco estar en conocimiento que de solicitar la baja de la presente solicitud en "
+        "cualquier momento una vez iniciada la misma la empresa tendrá un plazo no menor a 180 días hábiles "
+        "para la puesta a disposición de los fondos. El pago de cada cuota debe realizarse entre los días "
+        "1 y 10 de cada mes para mantener vigentes las promociones asignadas."
+    )
+
+
+def _titulo_contrato(tipo_producto: str) -> str:
+    if tipo_producto == "MODULO":
+        return "Contrato de Financiación de Módulo"
+    if tipo_producto == "COMBO":
+        return "Contrato de Financiación de Piscina y Módulo"
+    return "Contrato de Financiación de Piscina"
+
+
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 def _plantilla_path(tipo: str) -> Path:
@@ -583,6 +686,18 @@ async def emitir_contrato(
     elif modalidad == "transferencia":
         context["check_transferencia"], context["mark_transferencia"] = "checked", "✓"
 
+    _tplan = (overrides.get("tipo_plan") or "FINANCIADO").upper()
+    context.setdefault("valor_total", context.get("valor_mercado", ""))
+    context.setdefault("flete", "")
+    context.setdefault("n_cuotas_congelamiento", "")
+    context.setdefault("valor_cuota_congelamiento", "")
+    context.setdefault("saldo_contra_entrega", "")
+    context.setdefault("fecha_entrega_estimada", "")
+    context["seccion_pago_html"] = _seccion_pago_html(_tplan, context)
+    context["recibo_box_html"]   = _recibo_box_html(_tplan, context.get("numero_solicitud", ""))
+    context["texto_legal"]       = _texto_legal(_tplan)
+    context["titulo_contrato"]   = _titulo_contrato(venta.producto or "PISCINA")
+
     html = render_html("contrato_template.html", context)
 
     nombre_archivo = f"contrato_{(venta.cliente_nombre or 'cliente').replace(' ', '_').replace(',', '')}_{hoy:%Y%m%d%H%M%S}.pdf"
@@ -934,6 +1049,16 @@ async def crear_contrato_unificado(
         context["check_transferencia"], context["mark_transferencia"] = "checked", "✓"
     context.update(_venta_base_dict(venta))
     context["estado_inscripcion"] = estado_inscripcion
+    context.setdefault("valor_total", context.get("valor_mercado", ""))
+    context.setdefault("flete", "")
+    context.setdefault("n_cuotas_congelamiento", "")
+    context.setdefault("valor_cuota_congelamiento", "")
+    context.setdefault("saldo_contra_entrega", "")
+    context.setdefault("fecha_entrega_estimada", "")
+    context["seccion_pago_html"] = _seccion_pago_html("FINANCIADO", context)
+    context["recibo_box_html"]   = _recibo_box_html("FINANCIADO", numero_solicitud)
+    context["texto_legal"]       = _texto_legal("FINANCIADO")
+    context["titulo_contrato"]   = _titulo_contrato(tipo_producto)
 
     pdf_url = None
     try:
@@ -1064,4 +1189,466 @@ async def registrar_pago_por_numero(
         "estado_inscripcion": estado_inscripcion,
         "recibo_pdf_url": recibo_pdf_url,
         **({"error_recibo": logger_err} if logger_err else {}),
+    }
+
+
+# ─── ENDPOINTS MANUALES — PANEL INTERNO ──────────────────────────────────────
+
+@router.get("/api/contratos/catalogo-modelos")
+async def get_catalogo_modelos(current_user: Usuario = Depends(require_auth)):
+    """Modelos, colores, medidas y sistemas disponibles para el formulario manual."""
+    try:
+        from routers.catalogo import load_catalogo, _MEDIDAS_PDF as _mpdf
+        cat = load_catalogo()
+    except Exception:
+        cat = {}
+        _mpdf = {}
+
+    medidas_cat = cat.get("piscinas", {}).get("medidas", {})
+    medidas = {**_mpdf, **medidas_cat}
+
+    return {
+        "piscinas": {
+            "modelos": cat.get("piscinas", {}).get("modelos", []),
+            "colores":  cat.get("piscinas", {}).get("colores", ["Blanco", "Beige", "Verde agua", "Celeste", "Azul"]),
+            "medidas":  medidas,
+            "sistemas": [
+                "Sistema de Filtrado Completo + Iluminación",
+                "Sistema de Filtrado Simple",
+                "Sistema C-6 básico",
+                "Sin sistema (solo estructura)",
+            ],
+        },
+        "modulos": {
+            "modelos": list(cat.get("modulos", {}).get("precios", {}).keys()),
+            "precios":  cat.get("modulos", {}).get("precios", {}),
+        },
+    }
+
+
+@router.post("/api/contratos/emitir-nuevo", status_code=201)
+async def emitir_nuevo_contrato(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """
+    Genera un contrato nuevo (PDF) para cualquier tipo de plan: FINANCIADO o CONGELAMIENTO.
+    Uso manual desde el panel. Body: ver formulario en contratos.html.
+    """
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in ("ADMIN", "COORDINADOR_OPERATIVO", "COBRADOR")):
+        raise HTTPException(403, "Sin permisos para emitir contratos")
+
+    body = await request.json()
+    tipo_plan    = (body.get("tipo_plan") or "FINANCIADO").upper()
+    tipo_raw     = (body.get("tipo_producto") or "PISCINA").upper()
+    tipo_producto = _TIPO_PRODUCTO_MAP.get(tipo_raw.lower(), tipo_raw)
+
+    nombre   = (body.get("nombre")   or "").strip()
+    apellido = (body.get("apellido") or "").strip()
+    dni      = (body.get("dni")      or "").strip()
+    if not nombre or not apellido or not dni:
+        raise HTTPException(400, "Faltan nombre, apellido o DNI del cliente")
+
+    cliente_nombre = f"{apellido}, {nombre}"
+    ahora = datetime.now()
+    fecha_str = body.get("fecha_contrato") or ahora.strftime("%d/%m/%Y")
+
+    numero_solicitud = siguiente_numero_solicitud(db)
+
+    if tipo_plan == "CONGELAMIENTO":
+        valor_total       = float(body.get("valor_total") or 0)
+        flete             = float(body.get("flete") or 0)
+        n_cuotas          = int(body.get("n_cuotas_congelamiento") or 0)
+        vcong             = float(body.get("valor_cuota_congelamiento") or 0)
+        saldo_entrega     = float(body.get("saldo_contra_entrega") or 0)
+        precio_total      = valor_total
+        pago_ini_contrato = 0.0
+        cant_cuotas_v     = n_cuotas
+        valor_cuota_v     = vcong
+        monto_insc        = n_cuotas * vcong
+    else:
+        valor_total       = float(body.get("valor_mercado") or 0)
+        flete             = 0.0
+        n_cuotas          = 0
+        vcong             = 0.0
+        saldo_entrega     = 0.0
+        pago_ini_contrato = float(body.get("pago_inicial") or 0)
+        cant_cuotas_v     = int(body.get("cant_cuotas") or 0)
+        valor_cuota_v     = float(body.get("valor_cuota") or 0)
+        precio_total      = valor_total
+        monto_insc        = pago_ini_contrato
+
+    monto_pago = float(body.get("monto_pago_inicial") or 0)
+
+    venta = VentaFinanciada(
+        cliente_nombre=cliente_nombre,
+        cliente_telefono=body.get("telefono") or "",
+        cliente_localidad=body.get("localidad") or "",
+        cliente_dni=dni,
+        cliente_cuil=body.get("cuil") or "",
+        cliente_domicilio=body.get("domicilio") or "",
+        cliente_estado_civil=body.get("estado_civil") or "",
+        cliente_ocupacion=body.get("ocupacion") or "",
+        cliente_email=body.get("email") or "",
+        producto=tipo_producto,
+        modelo_especifico=body.get("modelo") or "",
+        color=body.get("color") or "",
+        forma_pago=tipo_plan,
+        precio_total=precio_total,
+        anticipo=monto_pago,
+        monto_inscripcion=monto_insc,
+        cantidad_cuotas=cant_cuotas_v,
+        valor_cuota=valor_cuota_v,
+        fecha_inicio_plan=ahora,
+        estado_plan="ACTIVO",
+        estado_admision="PENDIENTE" if monto_pago == 0 else "PARCIAL",
+        numero_solicitud=numero_solicitud,
+        notas=f"Emitido manualmente — {getattr(current_user, 'nombre', '') or current_user.email}",
+    )
+    db.add(venta)
+    db.commit()
+    db.refresh(venta)
+
+    if monto_pago > 0:
+        db.add(Pago(
+            venta_financiada_id=venta.id,
+            monto=monto_pago,
+            notas=f"{body.get('concepto_pago_inicial','Pago inicial')} — "
+                  f"{body.get('modalidad_pago_inicial','')} — op {body.get('op_numero_pago','')}",
+        ))
+        db.commit()
+
+    # Modalidad checkboxes (para FINANCIADO)
+    modalidad = (body.get("modalidad_pago") or body.get("modalidad_pago_inicial") or "").lower()
+    check_ef = "checked" if modalidad == "efectivo" else ""
+    mark_ef  = "✓" if modalidad == "efectivo" else ""
+    check_tr = "checked" if modalidad == "transferencia" else ""
+    mark_tr  = "✓" if modalidad == "transferencia" else ""
+
+    context = {
+        "numero_solicitud":  numero_solicitud,
+        "fecha_contrato":    fecha_str,
+        "nombre":            nombre,
+        "apellido":          apellido,
+        "dni":               body.get("dni") or "",
+        "cuil":              body.get("cuil") or "",
+        "fecha_nacimiento":  body.get("fecha_nacimiento") or "",
+        "estado_civil":      body.get("estado_civil") or "",
+        "email":             body.get("email") or "",
+        "telefono":          body.get("telefono") or "",
+        "telefono_alt":      body.get("telefono_alt") or "",
+        "domicilio":         body.get("domicilio") or "",
+        "piso":              body.get("piso") or "",
+        "depto":             body.get("depto") or "",
+        "localidad":         body.get("localidad") or "",
+        "provincia":         body.get("provincia") or "",
+        "lugar_nacimiento":  body.get("lugar_nacimiento") or "",
+        "ocupacion":         body.get("ocupacion") or "",
+        "conyuge_nombre":    body.get("conyuge_nombre") or "",
+        "conyuge_apellido":  body.get("conyuge_apellido") or "",
+        "conyuge_dni":       body.get("conyuge_dni") or "",
+        "conyuge_nacimiento":body.get("conyuge_nacimiento") or "",
+        "conyuge_telefono":  body.get("conyuge_telefono") or "",
+        "conyuge_email":     body.get("conyuge_email") or "",
+        "tipo_producto_label": _PRODUCTO_LABEL_RECIBO.get(tipo_producto, tipo_producto.capitalize()),
+        "tipologia":         body.get("modelo") or "",
+        "modelo":            body.get("modelo") or "",
+        "largo":             str(body.get("largo_m") or ""),
+        "ancho":             str(body.get("ancho_m") or ""),
+        "profundidad_min":   str(body.get("profundidad_min_m") or ""),
+        "profundidad_max":   str(body.get("profundidad_max_m") or ""),
+        "sistema":           body.get("sistema") or "",
+        "observaciones":     body.get("observaciones") or
+                             "LA FECHA DE INSTALACIÓN SE ASIGNARÁ CONFORME AL PLAN DE PRODUCCIÓN VIGENTE.",
+        # FINANCIADO
+        "valor_mercado":     _fmt_ar(valor_total),
+        "pago_inicial":      _fmt_ar(pago_ini_contrato),
+        "cant_cuotas":       str(cant_cuotas_v),
+        "valor_cuota":       _fmt_ar(valor_cuota_v),
+        "check_efectivo":    check_ef, "mark_efectivo": mark_ef,
+        "check_transferencia": check_tr, "mark_transferencia": mark_tr,
+        # CONGELAMIENTO
+        "valor_total":               _fmt_ar(valor_total),
+        "flete":                     _fmt_ar(flete),
+        "n_cuotas_congelamiento":    str(n_cuotas),
+        "valor_cuota_congelamiento": _fmt_ar(vcong),
+        "saldo_contra_entrega":      _fmt_ar(saldo_entrega),
+        "fecha_entrega_estimada":    body.get("fecha_entrega_estimada") or "",
+        "firma_productor_block":     "",
+    }
+    context["seccion_pago_html"] = _seccion_pago_html(tipo_plan, context)
+    context["recibo_box_html"]   = _recibo_box_html(tipo_plan, numero_solicitud)
+    context["texto_legal"]       = _texto_legal(tipo_plan)
+    context["titulo_contrato"]   = _titulo_contrato(tipo_producto)
+
+    try:
+        html = render_html("contrato_template.html", context)
+        nombre_arch = f"contrato_{cliente_nombre.replace(' ','_').replace(',','')}_{ahora:%Y%m%d%H%M%S}.pdf"
+        out_path = UPLOAD_DIR / nombre_arch
+        await html_to_pdf(html, out_path)
+
+        contrato = Contrato(
+            venta_financiada_id=venta.id,
+            cliente_nombre=cliente_nombre,
+            tipo_contrato=f"{tipo_producto} — {tipo_plan}",
+            tipo_documento="CONTRATO",
+            numero_solicitud=numero_solicitud,
+            archivo_pdf=str(out_path),
+            datos_json=json.dumps(context, ensure_ascii=False),
+            estado="BORRADOR",
+            responsable_id=current_user.id,
+        )
+        db.add(contrato)
+        db.commit()
+        db.refresh(contrato)
+        pdf_url = _abs_url(request, f"/api/contratos/{contrato.id}/download")
+        return {
+            "ok": True, "numero_solicitud": numero_solicitud,
+            "venta_financiada_id": venta.id, "contrato_id": contrato.id,
+            "pdf_url": pdf_url,
+        }
+    except Exception as e:
+        return {
+            "ok": True, "numero_solicitud": numero_solicitud,
+            "venta_financiada_id": venta.id, "pdf_url": None, "error_pdf": str(e),
+        }
+
+
+@router.get("/api/contratos/buscar")
+async def buscar_contratos_manual(
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """Busca contratos por número de solicitud o nombre de cliente (para emitir recibos)."""
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in ("ADMIN", "COORDINADOR_OPERATIVO", "COBRADOR")):
+        raise HTTPException(403, "Sin permisos")
+
+    q = (q or "").strip()
+    query = db.query(Contrato).filter(Contrato.tipo_documento == "CONTRATO")
+    if q:
+        query = query.filter(
+            Contrato.numero_solicitud.ilike(f"%{q}%") |
+            Contrato.cliente_nombre.ilike(f"%{q}%")
+        )
+    rows = query.order_by(Contrato.fecha_generacion.desc()).limit(15).all()
+
+    results = []
+    for c in rows:
+        datos = json.loads(c.datos_json) if c.datos_json else {}
+        venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == c.venta_financiada_id).first()
+        recibos_n = db.query(Contrato).filter(
+            Contrato.venta_financiada_id == c.venta_financiada_id,
+            Contrato.tipo_documento == "RECIBO",
+        ).count()
+
+        def _safe_num(v):
+            if isinstance(v, (int, float)):
+                return float(v)
+            try:
+                return float(str(v).replace(".", "").replace(",", "."))
+            except Exception:
+                return 0.0
+
+        results.append({
+            "numero_solicitud":    c.numero_solicitud or "",
+            "cliente_nombre":      c.cliente_nombre or "",
+            "tipo_contrato":       c.tipo_contrato or "",
+            "tipo_plan":           (venta.forma_pago if venta else "") or "FINANCIADO",
+            "modelo":              datos.get("modelo", ""),
+            "tipo_producto_label": datos.get("tipo_producto_label", ""),
+            "nombre":              datos.get("nombre", ""),
+            "apellido":            datos.get("apellido", ""),
+            "telefono":            datos.get("telefono", ""),
+            "dni":                 datos.get("dni", ""),
+            "cuil":                datos.get("cuil", ""),
+            "domicilio":           datos.get("domicilio", ""),
+            "localidad":           datos.get("localidad", ""),
+            "email":               datos.get("email", ""),
+            "ocupacion":           datos.get("ocupacion", ""),
+            "estado_civil":        datos.get("estado_civil", ""),
+            "largo":               datos.get("largo", ""),
+            "ancho":               datos.get("ancho", ""),
+            "profundidad_min":     datos.get("profundidad_min", ""),
+            "profundidad_max":     datos.get("profundidad_max", ""),
+            "sistema":             datos.get("sistema", ""),
+            "precio_total":        venta.precio_total if venta else 0,
+            "cantidad_cuotas":     venta.cantidad_cuotas if venta else 0,
+            "valor_cuota":         venta.valor_cuota if venta else 0,
+            "n_cuotas_congelamiento":    datos.get("n_cuotas_congelamiento", ""),
+            "valor_cuota_congelamiento": datos.get("valor_cuota_congelamiento", ""),
+            "saldo_contra_entrega":      _safe_num(datos.get("saldo_contra_entrega", 0)),
+            "fecha_entrega_estimada":    datos.get("fecha_entrega_estimada", ""),
+            "venta_financiada_id":       c.venta_financiada_id,
+            "contrato_id":               c.id,
+            "recibos_emitidos":          recibos_n,
+        })
+    return results
+
+
+@router.post("/api/contratos/recibo-por-numero/{numero_solicitud}", status_code=201)
+async def emitir_recibo_manual(
+    numero_solicitud: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """
+    Genera un recibo manual para un contrato ya existente.
+    Body: { monto, cuota_actual, total_cuotas, tipo_cuota, concepto_libre,
+            modalidad, medio_pago, op_numero, plan_descripcion, nota_final, fecha_pago }
+    """
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in ("ADMIN", "COORDINADOR_OPERATIVO", "COBRADOR")):
+        raise HTTPException(403, "Sin permisos para emitir recibos")
+
+    contrato = db.query(Contrato).filter(
+        Contrato.numero_solicitud == numero_solicitud,
+        Contrato.tipo_documento == "CONTRATO",
+    ).order_by(Contrato.fecha_generacion.desc()).first()
+    if not contrato:
+        raise HTTPException(404, f"Contrato {numero_solicitud} no encontrado")
+
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == contrato.venta_financiada_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta financiada no encontrada")
+
+    body = await request.json()
+    monto = float(body.get("monto") or 0)
+    if monto <= 0:
+        raise HTTPException(400, "El monto debe ser > 0")
+
+    cuota_actual   = str(body.get("cuota_actual") or "")
+    total_cuotas   = str(body.get("total_cuotas") or "")
+    tipo_cuota     = (body.get("tipo_cuota") or "")
+    concepto_libre = (body.get("concepto_libre") or "").strip()
+    modalidad      = (body.get("modalidad") or "Transferencia")
+    medio_pago     = (body.get("medio_pago") or modalidad)
+    op_numero      = (body.get("op_numero") or "")
+    plan_desc      = (body.get("plan_descripcion") or "")
+    nota_final     = (body.get("nota_final") or "")
+    fecha_pago_str = (body.get("fecha_pago") or datetime.now().strftime("%d/%m/%Y"))
+
+    if concepto_libre:
+        concepto = concepto_libre
+        concepto_corto = concepto_libre[:40]
+    elif cuota_actual and total_cuotas:
+        sufijo = f" — {tipo_cuota}" if tipo_cuota else ""
+        concepto = f"Cuota {cuota_actual}/{total_cuotas}{sufijo}"
+        concepto_corto = f"Cuota {cuota_actual}/{total_cuotas}"
+    else:
+        concepto = tipo_cuota or "Pago"
+        concepto_corto = concepto[:40]
+
+    op_data_blocks = (
+        '<div><div class="op-label">Fecha de pago</div>'
+        '<div class="op-value">' + fecha_pago_str + '</div></div>'
+        '<div><div class="op-label">Medio de pago</div>'
+        '<div class="op-value">' + medio_pago + '</div></div>'
+        + (
+            '<div><div class="op-label">N° Operación</div>'
+            '<div class="op-value">' + op_numero + '</div></div>'
+            if op_numero else ''
+        )
+        + (
+            '<div><div class="op-label">Plan</div>'
+            '<div class="op-value">' + plan_desc + '</div></div>'
+            if plan_desc else ''
+        )
+    )
+
+    tabla_filas = (
+        '<tr class="highlight">'
+        '<td><strong>' + concepto + '</strong></td>'
+        '<td>' + modalidad + ((' — ' + medio_pago) if medio_pago != modalidad else '') + '</td>'
+        '<td style="text-align:right">$ ' + _fmt_ar(monto) + '</td>'
+        '<td style="text-align:center"><span class="tag-paid">PAGADO</span></td>'
+        '</tr>'
+    )
+
+    if nota_final:
+        notice_bg = "rgba(200,144,42,0.1)"
+        notice_border = "#c8902a"
+        notice_color = "#1a1a1a"
+        notice_strong = "#c8902a"
+    else:
+        notice_bg = notice_border = notice_color = notice_strong = "transparent"
+
+    datos = json.loads(contrato.datos_json) if contrato.datos_json else {}
+    context = {
+        "numero_solicitud":  numero_solicitud,
+        "concepto_corto":    concepto_corto,
+        "fecha_recibo":      fecha_pago_str,
+        "monto_recibido":    _fmt_ar(monto),
+        "monto_en_letras":   monto_en_letras(monto),
+        "modalidad":         modalidad,
+        "concepto":          concepto,
+        "op_data_blocks":    op_data_blocks,
+        "tabla_filas":       tabla_filas,
+        "nota_final":        nota_final,
+        "notice_bg":         notice_bg,
+        "notice_border":     notice_border,
+        "notice_color":      notice_color,
+        "notice_strong":     notice_strong,
+        "nombre":            datos.get("nombre", ""),
+        "apellido":          datos.get("apellido", ""),
+        "dni":               datos.get("dni", ""),
+        "cuil":              datos.get("cuil", ""),
+        "telefono":          datos.get("telefono", ""),
+        "email":             datos.get("email", ""),
+        "domicilio_completo":datos.get("domicilio", ""),
+        "estado_civil":      datos.get("estado_civil", ""),
+        "ocupacion":         datos.get("ocupacion", ""),
+        "tipo_producto_label": datos.get("tipo_producto_label", ""),
+        "modelo":            datos.get("modelo", ""),
+        "largo":             datos.get("largo", ""),
+        "ancho":             datos.get("ancho", ""),
+        "profundidad_min":   datos.get("profundidad_min", ""),
+        "profundidad_max":   datos.get("profundidad_max", ""),
+        "sistema":           datos.get("sistema", ""),
+    }
+
+    db.add(Pago(
+        venta_financiada_id=venta.id,
+        monto=monto,
+        notas=f"{concepto} — {modalidad} — op {op_numero}",
+    ))
+    venta.anticipo = (venta.anticipo or 0) + monto
+    if venta.anticipo >= (venta.precio_total or 0):
+        venta.estado_plan = "FINALIZADO"
+    db.commit()
+
+    ahora = datetime.now()
+    html = render_html("recibo_template.html", context)
+    nombre_arch = (
+        f"recibo_{(contrato.cliente_nombre or 'cliente').replace(' ', '_').replace(',', '')}_{ahora:%Y%m%d%H%M%S}.pdf"
+    )
+    out_path = UPLOAD_DIR / nombre_arch
+    await html_to_pdf(html, out_path)
+
+    recibo = Contrato(
+        venta_financiada_id=venta.id,
+        cliente_nombre=contrato.cliente_nombre,
+        tipo_contrato=concepto,
+        tipo_documento="RECIBO",
+        numero_solicitud=numero_solicitud,
+        archivo_pdf=str(out_path),
+        datos_json=json.dumps(context, ensure_ascii=False),
+        estado="EMITIDO",
+        responsable_id=current_user.id,
+    )
+    db.add(recibo)
+    db.commit()
+    db.refresh(recibo)
+
+    return {
+        "ok": True,
+        "recibo_id": recibo.id,
+        "numero_solicitud": numero_solicitud,
+        "concepto": concepto,
+        "monto": monto,
+        "pdf_url": _abs_url(request, f"/api/contratos/{recibo.id}/download"),
     }

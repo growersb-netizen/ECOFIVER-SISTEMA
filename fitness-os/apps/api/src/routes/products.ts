@@ -13,7 +13,8 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireRole } from "../plugins/rbac.js";
 import { slugify } from "@fitness-os/shared";
-import { generateGuideHTML, generateTrackingHTML, generateReadme } from "../services/guide-generator.js";
+import { generateReadme } from "../services/guide-generator.js";
+import { generateProductPDF, generateTrackingPDF } from "../services/pdf-generator.js";
 
 // ── Schemas ────────────────────────────────────────────────────────
 const CreateProductSchema = z.object({
@@ -518,12 +519,11 @@ export async function productRoutes(fastify: FastifyInstance) {
 
   /**
    * GET /products/:id/package
-   * Genera y descarga el paquete ZIP completo del producto:
-   *   - guia.html     (guía del programa, print-ready para PDF)
-   *   - seguimiento.html (planilla de seguimiento semanal)
-   *   - README.txt
-   * La guía se genera dinámicamente a partir de los datos del producto en DB.
-   * No requiere R2 ni archivos externos.
+   * Genera y descarga el paquete ZIP completo del producto con PDFs reales:
+   *   - guia.pdf         (PDF profesional completo: portada + programa + ejercicios + nutrición)
+   *   - seguimiento.pdf  (planilla de seguimiento semanal — A4, imprimible)
+   *   - README.txt       (instrucciones de uso)
+   * PDFs generados por pdfkit — sin browser, sin R2, listos al instante.
    */
   fastify.get(
     "/:id/package",
@@ -539,8 +539,7 @@ export async function productRoutes(fastify: FastifyInstance) {
 
       if (!product) return reply.code(404).send({ error: "Producto no encontrado" });
 
-      // Generar contenido
-      const guideHTML = generateGuideHTML({
+      const productData = {
         id: product.id,
         sku: product.sku ?? product.id,
         name: product.name,
@@ -548,21 +547,18 @@ export async function productRoutes(fastify: FastifyInstance) {
         productType: product.productType,
         level: product.level,
         durationWeeks: product.durationWeeks,
-        objective: product.objective,
         category: product.category,
-      });
+        prices: product.prices?.map(p => ({
+          basePrice: Number(p.basePrice),
+          currency: p.currency,
+        })) ?? null,
+      };
 
-      const trackingHTML = generateTrackingHTML({
-        id: product.id,
-        sku: product.sku ?? product.id,
-        name: product.name,
-        description: product.description,
-        productType: product.productType,
-        level: product.level,
-        durationWeeks: product.durationWeeks,
-        objective: product.objective,
-        category: product.category,
-      });
+      // Generar PDFs reales en paralelo
+      const [guidePDF, trackingPDF] = await Promise.all([
+        generateProductPDF(productData),
+        generateTrackingPDF(productData),
+      ]);
 
       const readmeTXT = generateReadme({
         id: product.id,
@@ -576,11 +572,11 @@ export async function productRoutes(fastify: FastifyInstance) {
         category: product.category,
       });
 
-      // Armar ZIP con JSZip
+      // Armar ZIP
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
-      zip.file("guia.html", guideHTML);
-      zip.file("seguimiento.html", trackingHTML);
+      zip.file(`${productData.sku}_guia.pdf`, guidePDF);
+      zip.file(`${productData.sku}_seguimiento.pdf`, trackingPDF);
       zip.file("README.txt", readmeTXT);
 
       const zipBuffer = await zip.generateAsync({

@@ -36,7 +36,7 @@ async function main() {
     where: {
       tenantId: tenant.id,
       status: "PUBLISHED",
-      sku: { not: null },
+      NOT: { sku: null },
     },
     select: { id: true, sku: true, name: true },
     orderBy: { sku: "asc" },

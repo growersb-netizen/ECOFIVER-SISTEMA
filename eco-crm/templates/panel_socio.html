@@ -279,21 +279,51 @@
 
     <!-- SIMULADOR -->
     <section class="section" id="sec-simulador">
-      <h2>Simulador de cuotas</h2>
+      <h2>Simulador y presupuestos</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Cotizá cualquier producto del catálogo, al contado o financiado, y generá un presupuesto en PDF para enviarle al cliente.</p>
+
       <div class="card grid2">
         <div>
-          <label>Tipo</label>
-          <select id="sim-tipo"><option value="MODULO">Módulo</option><option value="PISCINA">Piscina</option></select>
-          <label>Modelo</label>
-          <select id="sim-modelo"></select>
-          <label>Cuotas</label>
-          <input id="sim-cuotas" type="number" value="24">
-          <button class="btn-teal" style="margin-top:14px;width:100%" onclick="simular()">Calcular</button>
+          <label>Categoría</label>
+          <select id="sim2-categoria" onchange="simPoblarProducto()"></select>
+          <label>Producto</label>
+          <select id="sim2-producto" onchange="simCalcular()"></select>
+          <label>Forma de pago</label>
+          <select id="sim2-forma-pago" onchange="simCambiarFormaPago()">
+            <option value="contado">Contado</option>
+            <option value="financiado">Financiado</option>
+          </select>
+          <div id="sim2-cuotas-wrap" class="hidden">
+            <label>Cuotas</label>
+            <select id="sim2-cuotas" onchange="simCalcular()">
+              <option>6</option><option>12</option><option>18</option><option selected>24</option><option>36</option><option>48</option>
+            </select>
+          </div>
         </div>
         <div>
-          <div id="sim-resultado" style="font-size:14px;color:var(--text-muted)">Elegí un modelo y las cuotas.</div>
+          <div id="sim2-resultado" style="font-size:14px;color:var(--text-muted)">Elegí una categoría y un producto.</div>
         </div>
       </div>
+
+      <div class="card" id="sim2-presupuesto-card" style="margin-top:16px">
+        <h3 style="margin-top:0;font-size:15px">Generar presupuesto para un cliente</h3>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Con estos datos generamos el PDF y queda registrado el contacto — así el equipo ya tiene el lead capturado.</p>
+        <div class="grid2">
+          <div><label>Nombre</label><input id="sim2-cliente-nombre"></div>
+          <div><label>Apellido</label><input id="sim2-cliente-apellido"></div>
+        </div>
+        <div class="grid2">
+          <div><label>WhatsApp</label><input id="sim2-cliente-whatsapp" placeholder="11 0000 0000"></div>
+          <div><label>Localidad</label><input id="sim2-cliente-localidad"></div>
+        </div>
+        <label>Email <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
+        <input id="sim2-cliente-email" type="email">
+        <button class="btn-teal" style="margin-top:12px;width:100%" onclick="simGenerarPresupuesto()">Generar y descargar PDF</button>
+        <div class="msg" id="sim2-presupuesto-msg"></div>
+      </div>
+
+      <h3 style="font-size:14px;margin:24px 0 8px">Mis presupuestos generados</h3>
+      <div id="sim2-mis-presupuestos">Cargando…</div>
     </section>
 
     <!-- CARGAR VENTA -->
@@ -771,6 +801,7 @@ function nav(section){
   document.getElementById('sec-'+section).classList.add('active');
   if(section==='mis-ventas') cargarMisVentas();
   if(section==='comisiones') cargarComisionesTabla();
+  if(section==='simulador') cargarMisPresupuestos();
   if(section==='ranking') cargarRanking();
   if(section==='biblioteca') cargarBiblioteca();
   if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
@@ -892,31 +923,107 @@ async function cargarCatalogo(){
 
   el.innerHTML = html;
 
-  const selModelo = document.getElementById('sim-modelo');
-  function poblarSim(){
-    const tipo = document.getElementById('sim-tipo').value;
-    selModelo.innerHTML = '';
-    const lista = tipo === 'MODULO' ? CATALOGO.modulos.superficies_m2.map(m=>m+' m²') : CATALOGO.piscinas.modelos;
-    lista.forEach(v => selModelo.innerHTML += `<option>${v}</option>`);
-  }
-  document.getElementById('sim-tipo').addEventListener('change', poblarSim);
-  poblarSim();
-
   poblarCategoriasVenta();
   poblarProductoVenta('c');
   poblarProductoVenta('f');
+  simPoblarCategoria();
 }
 
-async function simular(){
-  const tipo = document.getElementById('sim-tipo').value;
-  let modelo = document.getElementById('sim-modelo').value;
-  if(tipo === 'MODULO') modelo = modelo.replace(' m²','');
-  const cuotas = document.getElementById('sim-cuotas').value;
-  const data = await api(`/api/simulador/cuotas?tipo=${tipo}&modelo=${encodeURIComponent(modelo)}&cuotas=${cuotas}`).catch(e=>({error:e.message}));
-  const el = document.getElementById('sim-resultado');
-  if(data.error){ el.textContent = data.error; return; }
-  el.innerHTML = `<div class="kpi"><div class="v">${fmt(data.cuota_mensual)}/mes</div><div class="l">${data.cuotas} cuotas</div></div>
-    <p style="margin-top:12px;font-size:13.5px">Precio de lista: ${fmt(data.precio_lista)}<br>Ingreso inicial: ${fmt(data.ingreso_inicial)}<br>Total financiado: ${fmt(data.total)}</p>`;
+const CATEGORIAS_FINANCIABLES = ['piscinas', 'modulos', 'combos'];
+
+function simPoblarCategoria(){
+  const sel = document.getElementById('sim2-categoria');
+  if(!sel || sel.options.length) { simPoblarProducto(); return; }
+  sel.innerHTML = CATEGORIAS_VENTA.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+  simPoblarProducto();
+}
+
+function simPoblarProducto(){
+  const categoria = document.getElementById('sim2-categoria').value;
+  const items = obtenerItemsCategoria(categoria);
+  const sel = document.getElementById('sim2-producto');
+  sel.innerHTML = items.map(it => `<option value="${it.nombre.replace(/"/g,'&quot;')}">${it.nombre}</option>`).join('') || '<option value="">Sin productos cargados</option>';
+
+  const financiable = CATEGORIAS_FINANCIABLES.includes(categoria);
+  const selForma = document.getElementById('sim2-forma-pago');
+  selForma.querySelector('option[value="financiado"]').disabled = !financiable;
+  if(!financiable) selForma.value = 'contado';
+  simCambiarFormaPago();
+}
+
+function simCambiarFormaPago(){
+  const financiado = document.getElementById('sim2-forma-pago').value === 'financiado';
+  document.getElementById('sim2-cuotas-wrap').classList.toggle('hidden', !financiado);
+  simCalcular();
+}
+
+function simItemActual(){
+  const categoria = document.getElementById('sim2-categoria').value;
+  const producto = document.getElementById('sim2-producto').value;
+  const item = obtenerItemsCategoria(categoria).find(x => x.nombre === producto);
+  let precioLista = null;
+  if(categoria === 'piscinas') precioLista = (CATALOGO.piscinas.precios_lista||{})[producto];
+  else if(categoria === 'modulos') precioLista = (CATALOGO.modulos.precios_lista||{})[producto];
+  else if(categoria === 'combos') precioLista = ((CATALOGO.combos||{})[producto]||{}).precio_lista;
+  return {categoria, producto, precioContado: item ? item.precio_contado : null, precioLista};
+}
+
+function simCalcular(){
+  const el = document.getElementById('sim2-resultado');
+  const {producto, precioContado, precioLista} = simItemActual();
+  if(!producto){ el.textContent = 'Elegí una categoría y un producto.'; return; }
+  const financiado = document.getElementById('sim2-forma-pago').value === 'financiado';
+  if(!financiado){
+    el.innerHTML = precioContado != null
+      ? `<div class="kpi"><div class="v">${fmt(precioContado)}</div><div class="l">Precio de contado</div></div>`
+      : `<p>Este producto no tiene precio de contado cargado — consultar.</p>`;
+    return;
+  }
+  if(!precioLista){ el.innerHTML = '<p>Este producto no tiene precio de lista cargado para financiar.</p>'; return; }
+  const cuotas = parseInt(document.getElementById('sim2-cuotas').value, 10);
+  const factor = 2;
+  const cuotaMensual = Math.round(precioLista / (cuotas + factor));
+  const ingresoInicial = Math.round(cuotaMensual * factor);
+  const total = ingresoInicial + cuotaMensual * cuotas;
+  el.innerHTML = `<div class="kpi"><div class="v">${fmt(cuotaMensual)}/mes</div><div class="l">${cuotas} cuotas</div></div>
+    <p style="margin-top:12px;font-size:13.5px">Precio de lista: ${fmt(precioLista)}<br>Ingreso inicial: ${fmt(ingresoInicial)}<br>Total financiado: ${fmt(total)}</p>`;
+}
+
+async function simGenerarPresupuesto(){
+  const msg = document.getElementById('sim2-presupuesto-msg'); msg.className='msg'; msg.textContent='';
+  const {categoria, producto} = simItemActual();
+  const formaPago = document.getElementById('sim2-forma-pago').value;
+  const body = {
+    categoria, producto, forma_pago: formaPago,
+    cliente_nombre: document.getElementById('sim2-cliente-nombre').value.trim(),
+    cliente_apellido: document.getElementById('sim2-cliente-apellido').value.trim(),
+    cliente_whatsapp: document.getElementById('sim2-cliente-whatsapp').value.trim(),
+    cliente_localidad: document.getElementById('sim2-cliente-localidad').value.trim(),
+    cliente_email: document.getElementById('sim2-cliente-email').value.trim(),
+  };
+  if(formaPago === 'financiado') body.cuotas = parseInt(document.getElementById('sim2-cuotas').value, 10);
+  try{
+    const data = await api('/api/socio/presupuestos', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent = '¡Presupuesto generado! Descargando PDF…';
+    window.open(data.pdf_url, '_blank');
+    cargarMisPresupuestos();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function cargarMisPresupuestos(){
+  const el = document.getElementById('sim2-mis-presupuestos');
+  const data = await api('/api/socio/presupuestos').catch(()=>({presupuestos:[]}));
+  if(!data.presupuestos.length){ el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Todavía no generaste ningún presupuesto.</p>'; return; }
+  let h = '<table><tr><th>Fecha</th><th>Cliente</th><th>Producto</th><th>Forma de pago</th><th>Monto</th><th></th></tr>';
+  for(const p of data.presupuestos){
+    const monto = p.forma_pago === 'financiado' ? `${fmt(p.cuota_mensual)}/mes` : fmt(p.precio_contado);
+    h += `<tr><td style="font-size:12px">${p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '—'}</td>
+      <td>${p.cliente_nombre} ${p.cliente_apellido}<div style="font-size:11px;color:var(--text-muted)">${p.cliente_whatsapp||''} · ${p.cliente_localidad||''}</div></td>
+      <td>${p.producto}</td><td>${p.forma_pago === 'financiado' ? 'Financiado' : 'Contado'}</td><td>${monto}</td>
+      <td><a href="/api/socio/presupuestos/${p.id}/pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 10px;font-size:12px">PDF</a></td></tr>`;
+  }
+  h += '</table>';
+  el.innerHTML = h;
 }
 
 const CATEGORIAS_VENTA = [

@@ -119,6 +119,12 @@
   <h3 style="font-size:14px;margin:0 0 10px">📊 Resumen del programa</h3>
   <div class="op-stats" id="op-stats"><div class="al-empty">Cargando...</div></div>
 
+  <h3 style="font-size:14px;margin:24px 0 8px">📋 Presupuestos generados (leads capturados)</h3>
+  <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
+    Cada presupuesto que un socio genera desde su simulador queda acá, con los datos completos del cliente.
+  </p>
+  <div id="op-presupuestos-tabla"><div class="al-empty">Cargando...</div></div>
+
   <h3 style="font-size:14px;margin:24px 0 8px">💰 Comisiones — porcentaje por producto/modelo</h3>
   <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
     Definí el % de comisión del socio. Dejar "Modelo" vacío aplica a todo el producto; dejar "Producto" vacío
@@ -474,10 +480,30 @@ async function borrarComisionConfig(id){
   cargarComisionConfig();
 }
 
+async function cargarOpPresupuestos(){
+  const d = await AL.get('/api/admin/presupuestos');
+  const el = document.getElementById('op-presupuestos-tabla');
+  if(!d.presupuestos || !d.presupuestos.length){ el.innerHTML = '<div class="al-empty">Todavía no se generó ningún presupuesto.</div>'; return; }
+  el.innerHTML = `<table class="al-table"><thead><tr><th>Fecha</th><th>Socio</th><th>Cliente</th><th>Producto</th><th>Forma de pago</th><th>Monto</th><th></th></tr></thead><tbody>` +
+    d.presupuestos.map(p => {
+      const monto = p.forma_pago === 'financiado' ? fmtMoney(p.cuota_mensual) + '/mes' : fmtMoney(p.precio_contado);
+      return `<tr>
+        <td style="font-size:12px">${p.created_at ? new Date(p.created_at).toLocaleString('es-AR') : '—'}</td>
+        <td>${p.aliado_codigo}</td>
+        <td>${p.cliente_nombre} ${p.cliente_apellido}<div style="font-size:11px;color:var(--text-muted)">${p.cliente_whatsapp||''} · ${p.cliente_localidad||''}</div></td>
+        <td>${p.producto}</td>
+        <td>${p.forma_pago === 'financiado' ? 'Financiado (' + p.cuotas + ' cuotas)' : 'Contado'}</td>
+        <td>${monto}</td>
+        <td><a href="/api/admin/presupuestos/${p.id}/pdf" target="_blank" class="btn btn-sm">PDF</a></td>
+      </tr>`;
+    }).join('') + `</tbody></table>`;
+}
+
 async function cargarOperacionSocios(){
   cargarOpStats();
   cargarOpSocios();
   cargarComisionConfig();
+  cargarOpPresupuestos();
 
   const [ins, aud, c48, ent] = await Promise.all([
     AL.get('/api/ventas-financiadas/pendientes-inscripcion'),

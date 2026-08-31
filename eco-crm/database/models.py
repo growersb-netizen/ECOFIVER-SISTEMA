@@ -1409,6 +1409,38 @@ class Comision(Base):
     factura_path = Column(String(500), nullable=True)  # no bloqueante ni excluyente del pago
 
 
+class Presupuesto(Base):
+    """
+    Cotización profesional generada por un socio desde el simulador — con
+    datos completos del cliente, para que funcione también como captura de
+    lead (queda registrado y disponible para el socio y para el admin).
+    """
+    __tablename__ = "presupuestos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    aliado_codigo = Column(String(20), ForeignKey("aliados.codigo"), nullable=False, index=True)
+
+    categoria = Column(String(30), default="")
+    producto = Column(String(150), default="")
+    forma_pago = Column(String(20), default="contado")   # contado | financiado
+    cuotas = Column(Integer, nullable=True)
+
+    precio_lista = Column(Float, nullable=True)
+    precio_contado = Column(Float, nullable=True)
+    cuota_mensual = Column(Float, nullable=True)
+    ingreso_inicial = Column(Float, nullable=True)
+    total_financiado = Column(Float, nullable=True)
+
+    cliente_nombre = Column(String(150), default="")
+    cliente_apellido = Column(String(150), default="")
+    cliente_whatsapp = Column(String(30), default="")
+    cliente_email = Column(String(150), default="")
+    cliente_localidad = Column(String(150), default="")
+
+    pdf_path = Column(String(500), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class ComisionConfig(Base):
     """
     Porcentaje de comisión del socio, configurable desde el panel de admin.

@@ -32,7 +32,7 @@ from pathlib import Path
 from database.database import get_db
 from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
-    ScoringBCRA, Usuario, ComisionConfig,
+    ScoringBCRA, Usuario, ComisionConfig, Presupuesto,
 )
 from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.catalogo import load_catalogo
@@ -600,6 +600,200 @@ async def socio_catalogo(socio: Aliado = Depends(require_socio)):
         info_general = {k: v for k, v in bloque.items() if k != "modelos" and not isinstance(v, dict)}
         resultado[cat_key] = {"info": info_general, "items": items}
     return resultado
+
+
+CATEGORIAS_FINANCIABLES = ("piscinas", "modulos", "combos")
+
+
+def _resolver_item_catalogo(cat: dict, categoria: str, producto: str) -> Optional[dict]:
+    """
+    Busca un producto por categoría+nombre en el catálogo completo (fuente
+    única de verdad — igual criterio que /api/socio/catalogo). Devuelve
+    {precio_contado, precio_lista} — precio_lista solo existe en las
+    categorías financiables (piscinas/módulos/combos).
+    """
+    categoria = (categoria or "").strip().lower()
+    producto = (producto or "").strip()
+    if not categoria or not producto:
+        return None
+
+    if categoria == "piscinas":
+        precios = cat["piscinas"].get("precios", {})
+        if producto not in precios:
+            return None
+        return {"precio_contado": precios[producto], "precio_lista": cat["piscinas"].get("precios_lista", {}).get(producto)}
+
+    if categoria == "modulos":
+        precios = cat["modulos"].get("precios", {})
+        if producto not in precios:
+            return None
+        return {"precio_contado": precios[producto], "precio_lista": cat["modulos"].get("precios_lista", {}).get(producto)}
+
+    if categoria == "combos":
+        combo = (cat.get("combos") or {}).get(producto)
+        if not combo:
+            return None
+        return {"precio_contado": combo.get("precio_contado"), "precio_lista": combo.get("precio_lista")}
+
+    # Categorías simples (hidromasajes, bañeras, garitas, etc.) — solo contado.
+    if categoria in _CATEGORIAS_CATALOGO_SIMPLES:
+        bloque = cat.get(categoria) or {}
+        items = bloque.get("modelos") if isinstance(bloque.get("modelos"), dict) else bloque
+        if not isinstance(items, dict) or producto not in items:
+            return None
+        item = items[producto]
+        precio = item.get("precio_contado") if isinstance(item, dict) else None
+        return {"precio_contado": precio, "precio_lista": None}
+
+    return None
+
+
+@router.post("/api/socio/presupuestos")
+async def crear_presupuesto(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """
+    Genera un presupuesto profesional en PDF a partir del catálogo completo —
+    funciona también como captura de lead: pide los datos completos del
+    cliente y queda registrado, disponible para el socio y para el admin.
+    """
+    data = await request.json()
+    categoria = (data.get("categoria") or "").strip().lower()
+    producto = (data.get("producto") or "").strip()
+    forma_pago = (data.get("forma_pago") or "contado").strip().lower()
+    cuotas = data.get("cuotas")
+
+    cliente_nombre = (data.get("cliente_nombre") or "").strip()
+    cliente_apellido = (data.get("cliente_apellido") or "").strip()
+    cliente_whatsapp = _normalizar_telefono(data.get("cliente_whatsapp") or "")
+    cliente_email = (data.get("cliente_email") or "").strip()
+    cliente_localidad = (data.get("cliente_localidad") or "").strip()
+
+    if not cliente_nombre or not cliente_apellido or not cliente_whatsapp or not cliente_localidad:
+        raise HTTPException(400, "Faltan datos del cliente (nombre, apellido, WhatsApp y localidad son obligatorios)")
+
+    cat = load_catalogo()
+    item = _resolver_item_catalogo(cat, categoria, producto)
+    if not item:
+        raise HTTPException(404, f"No se encontró '{producto}' en la categoría '{categoria}'")
+
+    presu = Presupuesto(
+        aliado_codigo=socio.codigo, categoria=categoria, producto=producto, forma_pago=forma_pago,
+        cliente_nombre=cliente_nombre, cliente_apellido=cliente_apellido, cliente_whatsapp=cliente_whatsapp,
+        cliente_email=cliente_email, cliente_localidad=cliente_localidad,
+    )
+
+    if forma_pago == "financiado":
+        if categoria not in CATEGORIAS_FINANCIABLES:
+            raise HTTPException(400, f"'{categoria}' no tiene plan financiado — solo contado")
+        precio_lista = item.get("precio_lista")
+        if not precio_lista:
+            raise HTTPException(409, "Ese producto no tiene precio de lista cargado")
+        try:
+            cuotas = int(cuotas)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Indicá la cantidad de cuotas")
+        if cuotas < 1:
+            raise HTTPException(400, "La cantidad de cuotas debe ser mayor a 0")
+        factor = 2.0
+        cuota_mensual = round(precio_lista / (cuotas + factor))
+        ingreso_inicial = round(cuota_mensual * factor)
+        presu.cuotas = cuotas
+        presu.precio_lista = precio_lista
+        presu.cuota_mensual = cuota_mensual
+        presu.ingreso_inicial = ingreso_inicial
+        presu.total_financiado = ingreso_inicial + cuota_mensual * cuotas
+    else:
+        forma_pago = "contado"
+        presu.forma_pago = "contado"
+        precio_contado = item.get("precio_contado")
+        if not precio_contado:
+            raise HTTPException(409, "Ese producto no tiene precio de contado cargado — consultar")
+        presu.precio_contado = precio_contado
+
+    db.add(presu)
+    db.commit()
+    db.refresh(presu)
+
+    from utils.documentos import render_html, html_to_pdf
+    label_categoria = _CATEGORIAS_CATALOGO_SIMPLES.get(categoria, categoria.capitalize())
+    html = render_html("presupuesto.html", {
+        "numero": presu.id, "fecha": datetime.now().strftime("%d/%m/%Y"),
+        "categoria_label": label_categoria, "producto": producto,
+        "forma_pago": presu.forma_pago, "forma_pago_label": "Financiado" if presu.forma_pago == "financiado" else "Contado",
+        "cliente_nombre": cliente_nombre, "cliente_apellido": cliente_apellido,
+        "cliente_whatsapp": cliente_whatsapp, "cliente_email": cliente_email, "cliente_localidad": cliente_localidad,
+        "precio_contado": _money(presu.precio_contado), "precio_lista": _money(presu.precio_lista),
+        "cuota_mensual": _money(presu.cuota_mensual), "ingreso_inicial": _money(presu.ingreso_inicial),
+        "total_financiado": _money(presu.total_financiado), "cuotas": presu.cuotas,
+        "socio_nombre": socio.nombre, "socio_codigo": socio.codigo, "socio_whatsapp": socio.telefono,
+    })
+    pdf_path = Path("data/presupuestos") / f"presupuesto_{presu.id}.pdf"
+    await html_to_pdf(html, pdf_path)
+    presu.pdf_path = str(pdf_path)
+    db.commit()
+
+    notificar_rodrigo(
+        db,
+        f"📋 *Nuevo presupuesto generado*\n"
+        f"Socio: {socio.codigo} ({socio.nombre})\n"
+        f"Cliente: {cliente_nombre} {cliente_apellido} · WhatsApp {cliente_whatsapp}\n"
+        f"Localidad: {cliente_localidad}\n"
+        f"Producto: {label_categoria} — {producto}\n"
+        f"Forma de pago: {'Financiado' if presu.forma_pago == 'financiado' else 'Contado'}\n"
+        f"Presupuesto ID: {presu.id}",
+    )
+
+    return {"ok": True, "presupuesto_id": presu.id, "pdf_url": f"/api/socio/presupuestos/{presu.id}/pdf"}
+
+
+@router.get("/api/socio/presupuestos")
+async def listar_mis_presupuestos(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    items = db.query(Presupuesto).filter(Presupuesto.aliado_codigo == socio.codigo).order_by(Presupuesto.id.desc()).all()
+    return {"total": len(items), "presupuestos": [_presupuesto_dict(p) for p in items]}
+
+
+@router.get("/api/socio/presupuestos/{presupuesto_id}/pdf")
+async def descargar_mi_presupuesto(presupuesto_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+    p = db.query(Presupuesto).filter(Presupuesto.id == presupuesto_id, Presupuesto.aliado_codigo == socio.codigo).first()
+    if not p or not p.pdf_path or not Path(p.pdf_path).exists():
+        raise HTTPException(404, "Presupuesto no encontrado")
+    return FileResponse(p.pdf_path, media_type="application/pdf", filename=f"Presupuesto_{p.id}.pdf")
+
+
+def _presupuesto_dict(p: "Presupuesto") -> dict:
+    return {
+        "id": p.id, "aliado_codigo": p.aliado_codigo, "categoria": p.categoria, "producto": p.producto,
+        "forma_pago": p.forma_pago, "cuotas": p.cuotas,
+        "precio_lista": p.precio_lista, "precio_contado": p.precio_contado,
+        "cuota_mensual": p.cuota_mensual, "ingreso_inicial": p.ingreso_inicial, "total_financiado": p.total_financiado,
+        "cliente_nombre": p.cliente_nombre, "cliente_apellido": p.cliente_apellido,
+        "cliente_whatsapp": p.cliente_whatsapp, "cliente_email": p.cliente_email, "cliente_localidad": p.cliente_localidad,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
+
+
+@router.get("/api/admin/presupuestos")
+async def admin_listar_presupuestos(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Todos los presupuestos generados por todos los socios — trazabilidad de leads."""
+    _require_gestion_interna(x_api_key, current_user)
+    items = db.query(Presupuesto).order_by(Presupuesto.id.desc()).all()
+    return {"total": len(items), "presupuestos": [_presupuesto_dict(p) for p in items]}
+
+
+@router.get("/api/admin/presupuestos/{presupuesto_id}/pdf")
+async def admin_descargar_presupuesto(
+    presupuesto_id: int, db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    from fastapi.responses import FileResponse
+    _require_gestion_interna(x_api_key, current_user)
+    p = db.query(Presupuesto).filter(Presupuesto.id == presupuesto_id).first()
+    if not p or not p.pdf_path or not Path(p.pdf_path).exists():
+        raise HTTPException(404, "Presupuesto no encontrado")
+    return FileResponse(p.pdf_path, media_type="application/pdf", filename=f"Presupuesto_{p.id}.pdf")
 
 
 # ─── Flete — tabla propia del canal de socios ─────────────────────────────────

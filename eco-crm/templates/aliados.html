@@ -518,8 +518,8 @@ async function cargarOperacionSocios(){
     ins.ventas.map(v=>{
       const falta = (v.monto_inscripcion||0) - (v.monto_pagado_inscripcion||0);
       const venceInfo = v.sena_vence_en ? `<div style="font-size:11px;color:var(--warn,#eab308)">Vence: ${new Date(v.sena_vence_en).toLocaleDateString('es-AR')}</div>` : '';
-      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)} · Total ${fmtMoney(v.precio_total)}</div></td>
+      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}<div style="font-size:11px;color:var(--text-muted)">${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)} · Total ${fmtMoney(v.precio_total)}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}</div></td>
       <td>${fmtMoney(v.monto_pagado_inscripcion)} de ${fmtMoney(v.monto_inscripcion)}<div style="font-size:11px;color:var(--text-muted)">Falta ${fmtMoney(falta)}</div>${venceInfo}</td>
       <td><div style="display:flex;gap:6px"><input type="number" id="pago-ins-${v.id}" placeholder="Monto" class="form-control" style="width:110px"><button class="btn btn-sm btn-primary" onclick="registrarPagoInscripcion(${v.id})">Registrar</button></div></td></tr>`;
     }).join('')+`</tbody></table>`;
@@ -529,8 +529,8 @@ async function cargarOperacionSocios(){
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>DJ</th><th></th></tr></thead><tbody>`+
     aud.ventas.map(v=>{
       const djOk = !v.declaracion_jurada_requerida || v.declaracion_jurada_confirmada;
-      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''} · Sol. ${v.numero_solicitud||'—'}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}</td>
+      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''} · Sol. ${v.numero_solicitud||'—'}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}</td>
       <td>${v.declaracion_jurada_requerida ? (v.declaracion_jurada_confirmada?'<span class="al-badge b-verificado">OK</span>':'<span class="al-badge b-pendiente">Falta</span>') : '—'}</td>
       <td>${djOk?`<button class="btn btn-sm btn-primary" onclick="marcarAuditoria(${v.id})">✓ Bienvenida hecha</button>`:'<span style="font-size:12px;color:var(--text-muted)">Esperando DJ del cliente</span>'}</td></tr>`;
     }).join('')+`</tbody></table>`;
@@ -538,15 +538,15 @@ async function cargarOperacionSocios(){
   const elC48 = document.getElementById('op-confirmacion48');
   elC48.innerHTML = !c48.ventas || !c48.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Cargada</th><th></th></tr></thead><tbody>`+
-    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
+    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_email||''} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarConfirmacion48(${v.id})">✓ Ya contacté</button></td></tr>`).join('')+`</tbody></table>`;
 
   const elEnt = document.getElementById('op-entrega');
   elEnt.innerHTML = !ent.ventas || !ent.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Monto</th><th></th></tr></thead><tbody>`+
-    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td>${fmtMoney(v.precio_final)}</td>
+    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_email||''} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td>${fmtMoney(v.precio_final)}</td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarEntrega(${v.id})">✓ Entregada y cobrada</button></td></tr>`).join('')+`</tbody></table>`;
 }
 async function registrarPagoInscripcion(id){

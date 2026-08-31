@@ -1614,6 +1614,7 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
     if not cliente_nombre:
         raise HTTPException(400, "Falta el nombre del cliente")
 
+    producto = (data.get("producto") or "").upper()
     nivel_instalacion = (data.get("nivel_instalacion") or "con").strip()
     nota_instalacion = {
         "con": "Instalación incluida.",
@@ -1621,18 +1622,38 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         "sin_equipo": "Formato casco SOLO, sin instalación y sin equipo de filtrado — la coordina el socio o un instalador de su zona.",
     }.get(nivel_instalacion, "Instalación incluida.")
 
+    distancia_km = data.get("distancia_km")
+    flete_calculado = None
+    if distancia_km:
+        try:
+            distancia_km = float(distancia_km)
+            modelo_o_m2 = data.get("superficie_m2") if producto == "MODULO" else data.get("modelo_especifico")
+            flete_calculado = round(_flete_por_km(producto, modelo_o_m2) * distancia_km)
+        except (TypeError, ValueError):
+            distancia_km = None
+
     venta = VentaContado(
         cliente_nombre=cliente_nombre,
         cliente_telefono=_normalizar_telefono(data.get("cliente_telefono") or ""),
         cliente_localidad=(data.get("cliente_localidad") or "").strip(),
-        producto=(data.get("producto") or "").upper(),
+        cliente_domicilio=(data.get("cliente_domicilio") or "").strip() or None,
+        cliente_email=(data.get("cliente_email") or "").strip() or None,
+        producto=producto,
         modelo_especifico=(data.get("modelo_especifico") or "").strip(),
+        color=(data.get("color") or "").strip() or None,
         superficie_m2=data.get("superficie_m2"),
+        distancia_km=distancia_km,
+        flete_calculado=flete_calculado,
         precio_final=float(data.get("precio_final") or 0),
         forma_pago="CONTADO",
         estado="COORDINADO",
         modalidad_cobro="CONTRAENTREGA",  # se cobra contra la entrega en el domicilio
         cobro_estado="PENDIENTE",
+        con_banio=bool(data.get("con_banio")),
+        con_cocina=bool(data.get("con_cocina")),
+        con_puerta_ingreso=bool(data.get("con_puerta_ingreso")),
+        con_ventana_balcon=bool(data.get("con_ventana_balcon")),
+        sobre_piso=(data.get("sobre_piso") or "").strip() or None,
         notas=f"Venta de socio comercial {socio.codigo}. {nota_instalacion} {data.get('notas', '')}".strip(),
         aliado_codigo=socio.codigo,
     )
@@ -1646,22 +1667,33 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         "sin_equipo": "⚠️ SIN instalación y SIN equipo de filtrado (casco solo) — la coordina el socio o un instalador de su zona",
     }.get(nivel_instalacion, "Con instalación incluida")
 
+    particularidades = ", ".join(filter(None, [
+        "con baño" if venta.con_banio else None,
+        "con cocina" if venta.con_cocina else None,
+        "con puerta de ingreso" if venta.con_puerta_ingreso else None,
+        "con ventana/balcón" if venta.con_ventana_balcon else None,
+        f"sobre {venta.sobre_piso.lower()}" if venta.sobre_piso else None,
+    ])) or "—"
+
     notificar_rodrigo(
         db,
         f"🟣 *Nueva venta de contado*\n"
         f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
         f"Cliente: {cliente_nombre}\n"
         f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
-        f"Localidad: {venta.cliente_localidad or '—'}\n"
-        f"Producto: {venta.producto} {venta.modelo_especifico}\n"
+        f"Email cliente: {venta.cliente_email or '—'}\n"
+        f"Domicilio: {venta.cliente_domicilio or '—'} · Localidad: {venta.cliente_localidad or '—'}\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico}{' · Color: '+venta.color if venta.color else ''}\n"
+        f"{'Particularidades módulo: ' + particularidades + chr(10) if venta.producto == 'MODULO' else ''}"
         f"Instalación: {nivel_label}\n"
-        f"Monto: ${venta.precio_final:,.0f}\n"
+        f"Monto: ${venta.precio_final:,.0f}"
+        f"{f' · Flete estimado: ${flete_calculado:,.0f} ({distancia_km:.0f} km)' if flete_calculado else ' · Flete: a coordinar (falta distancia)'}\n"
         f"Cobro: contraentrega en el domicilio del cliente\n"
         f"⏰ Contactar al cliente dentro de las 48hs para confirmar fecha y detalles.\n"
         f"Venta ID: {venta.id}",
     )
 
-    return {"ok": True, "venta_id": venta.id, "mensaje": "Venta cargada. El equipo va a contactar al cliente dentro de las 48hs."}
+    return {"ok": True, "venta_id": venta.id, "flete_calculado": flete_calculado, "mensaje": "Venta cargada. El equipo va a contactar al cliente dentro de las 48hs."}
 
 
 @router.post("/api/ventas-contado/{venta_id}/confirmacion-48hs")
@@ -1749,14 +1781,27 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         .order_by(ScoringBCRA.id.desc()).first()
     )
 
+    distancia_km = data.get("distancia_km")
+    flete_calculado = None
+    if distancia_km:
+        try:
+            distancia_km = float(distancia_km)
+            flete_calculado = round(_flete_por_km(tipo_norm, modelo) * distancia_km)
+        except (TypeError, ValueError):
+            distancia_km = None
+
     venta = VentaFinanciada(
         cliente_nombre=cliente_nombre,
         cliente_dni=cliente_dni,
         cliente_telefono=_normalizar_telefono(data.get("cliente_telefono") or ""),
         cliente_localidad=(data.get("cliente_localidad") or "").strip(),
+        cliente_domicilio=(data.get("cliente_domicilio") or "").strip() or None,
         cliente_email=(data.get("cliente_email") or "").strip(),
         producto=tipo_norm,
         modelo_especifico=modelo,
+        color=(data.get("color") or "").strip() or None,
+        distancia_km=distancia_km,
+        flete_calculado=flete_calculado,
         forma_pago="FINANCIADO",
         precio_total=precio_lista,
         monto_inscripcion=monto_inscripcion,
@@ -1778,10 +1823,11 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
         f"Cliente: {cliente_nombre} (DNI {cliente_dni})\n"
         f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
-        f"Localidad: {venta.cliente_localidad or '—'}\n"
         f"Email: {venta.cliente_email or '—'}\n"
-        f"Producto: {venta.producto} {venta.modelo_especifico} — {cantidad_cuotas} cuotas\n"
+        f"Domicilio: {venta.cliente_domicilio or '—'} · Localidad: {venta.cliente_localidad or '—'}\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico}{' · Color: '+venta.color if venta.color else ''} — {cantidad_cuotas} cuotas\n"
         f"Precio total: ${precio_lista:,.0f} · Inscripción: ${monto_inscripcion:,.0f} · Cuota: ${valor_cuota:,.0f}\n"
+        f"{f'Flete estimado: ${flete_calculado:,.0f} ({distancia_km:.0f} km)' if flete_calculado else 'Flete: a coordinar (falta distancia)'}\n"
         f"{'⚠️ Situación BCRA ' + str(venta.scoring_situacion) + ' — requiere declaración jurada del cliente' if venta.declaracion_jurada_requerida else ''}\n"
         f"→ Falta que el cliente pague la inscripción y confirme el plan.\n"
         f"Venta ID: {venta.id}",
@@ -1790,7 +1836,7 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
     return {
         "ok": True, "venta_id": venta.id, "precio_lista": precio_lista,
         "cuotas": cantidad_cuotas, "valor_cuota": valor_cuota, "monto_inscripcion": monto_inscripcion,
-        "declaracion_jurada_requerida": venta.declaracion_jurada_requerida,
+        "declaracion_jurada_requerida": venta.declaracion_jurada_requerida, "flete_calculado": flete_calculado,
         "mensaje": "Venta cargada. En cuanto el cliente pague la inscripción completa, descargá el contrato desde tu panel.",
     }
 
@@ -2165,8 +2211,10 @@ def _venta_fin_dict(v: VentaFinanciada) -> dict:
     return {
         "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
         "cliente_dni": v.cliente_dni, "cliente_telefono": v.cliente_telefono,
-        "cliente_localidad": v.cliente_localidad, "cliente_email": v.cliente_email,
-        "producto": v.producto, "modelo_especifico": v.modelo_especifico,
+        "cliente_localidad": v.cliente_localidad, "cliente_domicilio": v.cliente_domicilio,
+        "cliente_email": v.cliente_email,
+        "producto": v.producto, "modelo_especifico": v.modelo_especifico, "color": v.color,
+        "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
         "cantidad_cuotas": v.cantidad_cuotas, "valor_cuota": v.valor_cuota,
         "precio_total": v.precio_total, "monto_inscripcion": v.monto_inscripcion,
         "monto_pagado_inscripcion": v.monto_pagado_inscripcion or 0,
@@ -2183,7 +2231,12 @@ def _venta_cont_dict(v: VentaContado) -> dict:
     return {
         "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
         "cliente_telefono": v.cliente_telefono, "cliente_localidad": v.cliente_localidad,
-        "producto": v.producto, "modelo_especifico": v.modelo_especifico,
+        "cliente_domicilio": v.cliente_domicilio, "cliente_email": v.cliente_email,
+        "producto": v.producto, "modelo_especifico": v.modelo_especifico, "color": v.color,
+        "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
+        "con_banio": v.con_banio, "con_cocina": v.con_cocina,
+        "con_puerta_ingreso": v.con_puerta_ingreso, "con_ventana_balcon": v.con_ventana_balcon,
+        "sobre_piso": v.sobre_piso,
         "precio_final": v.precio_final, "notas": v.notas or "",
         "created_at": v.created_at.isoformat() if v.created_at else None,
     }
@@ -2252,14 +2305,19 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
     return {
         "contado": [{
             "id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto,
-            "modelo_especifico": v.modelo_especifico, "precio_final": v.precio_final,
+            "modelo_especifico": v.modelo_especifico, "color": v.color, "precio_final": v.precio_final,
+            "cliente_domicilio": v.cliente_domicilio, "cliente_localidad": v.cliente_localidad,
+            "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
             "cobro_estado": v.cobro_estado,
             "confirmacion_48hs": bool(v.confirmacion_48hs_en),
             "created_at": v.created_at.isoformat() if v.created_at else None,
         } for v in contado],
         "financiado": [{
             "id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto,
-            "modelo_especifico": v.modelo_especifico, "cantidad_cuotas": v.cantidad_cuotas,
+            "modelo_especifico": v.modelo_especifico, "color": v.color,
+            "cliente_domicilio": v.cliente_domicilio, "cliente_localidad": v.cliente_localidad,
+            "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
+            "cantidad_cuotas": v.cantidad_cuotas,
             "valor_cuota": v.valor_cuota, "estado_plan": v.estado_plan,
             "cuotas_pagas": v.cuotas_pagas or 0,
             "cuota_minima_licitacion": _cuota_minima_licitacion(v.producto),

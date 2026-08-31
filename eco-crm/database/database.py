@@ -184,6 +184,12 @@ def run_migrations():
             "ALTER TABLE aliados ADD COLUMN origen_registro TEXT",
             "ALTER TABLE aliados ADD COLUMN comisiones_aceptadas_en DATETIME",
             "ALTER TABLE aliados ADD COLUMN interes_venta TEXT",
+            # ── VentaContado: domicilio/email del cliente + flete (canal Aliados) ──
+            "ALTER TABLE ventas_contado ADD COLUMN cliente_domicilio TEXT",
+            "ALTER TABLE ventas_contado ADD COLUMN cliente_email TEXT",
+            # ── VentaFinanciada: flete (canal Aliados) ─────────────────────────
+            "ALTER TABLE ventas_financiadas ADD COLUMN distancia_km REAL",
+            "ALTER TABLE ventas_financiadas ADD COLUMN flete_calculado REAL",
             "ALTER TABLE materiales_socio ADD COLUMN origen TEXT DEFAULT 'manual'",
             "ALTER TABLE ventas_financiadas ADD COLUMN monto_pagado_inscripcion REAL DEFAULT 0",
             "ALTER TABLE ventas_financiadas ADD COLUMN primera_sena_en DATETIME",

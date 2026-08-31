@@ -255,6 +255,8 @@ class VentaContado(Base):
     cliente_nombre = Column(String(150), nullable=False)
     cliente_telefono = Column(String(30))
     cliente_localidad = Column(String(100))
+    cliente_domicilio = Column(String(300), nullable=True)   # calle y altura, para flete/entrega real
+    cliente_email = Column(String(150), nullable=True)
     producto = Column(String(20))
     modelo_especifico = Column(String(150))
     color = Column(String(50), nullable=True)
@@ -310,6 +312,8 @@ class VentaFinanciada(Base):
     modelo_especifico = Column(String(150))
     color = Column(String(50), nullable=True)
     superficie_m2 = Column(Float, nullable=True)
+    distancia_km = Column(Float, nullable=True)
+    flete_calculado = Column(Float, nullable=True)
     forma_pago = Column(String(20))
     precio_total = Column(Float, default=0)
     anticipo = Column(Float, default=0)

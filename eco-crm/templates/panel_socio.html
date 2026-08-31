@@ -353,11 +353,17 @@
           <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px" id="c-nota-instalacion">La instalación está incluida en la mayoría de los productos. Fuera del área de cobertura directa, se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona.</p>
           <label>Nombre del cliente</label><input id="c-nombre">
           <label>Teléfono</label><input id="c-tel">
+          <label>Email <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="c-email" type="email">
+          <label>Domicilio (calle y altura)</label><input id="c-domicilio" placeholder="Necesario para coordinar la entrega">
           <label>Localidad</label><input id="c-loc">
           <label>Categoría</label>
           <select id="c-categoria" onchange="poblarProductoVenta('c')"></select>
           <label>Producto</label>
           <select id="c-modelo" onchange="actualizarPrecioVenta('c')"></select>
+          <div id="c-color-wrap" class="hidden">
+            <label>Color</label>
+            <select id="c-color"></select>
+          </div>
           <div id="c-nivel-instalacion-wrap" class="hidden">
             <label>Nivel de instalación</label>
             <select id="c-nivel-instalacion" onchange="actualizarPrecioVenta('c')">
@@ -366,6 +372,23 @@
               <option value="sin_equipo">Sin instalación y sin equipo</option>
             </select>
           </div>
+          <div id="c-modulo-part-wrap" class="hidden">
+            <label>Particularidades del módulo</label>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:13px">
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-banio" style="width:auto"> Con baño</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-cocina" style="width:auto"> Con cocina</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-puerta" style="width:auto"> Puerta de ingreso</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-ventana" style="width:auto"> Ventana/balcón</label>
+            </div>
+            <label>Se instala sobre</label>
+            <select id="c-sobre-piso">
+              <option value="">Sin especificar</option>
+              <option value="PISO">Piso (platea/contrapiso)</option>
+              <option value="TIERRA">Tierra</option>
+            </select>
+          </div>
+          <label>Distancia estimada desde Zárate (km) <span style="color:var(--text-muted);font-weight:400">(para calcular el flete)</span></label>
+          <input id="c-km" type="number" placeholder="Ej: 120">
           <label>Precio final</label><input id="c-precio" type="number">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarContado()">Cargar venta de contado</button>
           <div class="msg" id="c-msg"></div>
@@ -376,6 +399,8 @@
           <label>Nombre del cliente</label><input id="f-nombre">
           <label>DNI</label><input id="f-dni">
           <label>Teléfono</label><input id="f-tel">
+          <label>Email <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="f-email" type="email">
+          <label>Domicilio (calle y altura)</label><input id="f-domicilio" placeholder="Necesario para coordinar la entrega">
           <label>Localidad</label><input id="f-loc">
           <label>Categoría</label>
           <select id="f-prod" onchange="poblarProductoVenta('f')">
@@ -384,6 +409,12 @@
           </select>
           <label>Producto</label>
           <select id="f-modelo"></select>
+          <div id="f-color-wrap" class="hidden">
+            <label>Color</label>
+            <select id="f-color"></select>
+          </div>
+          <label>Distancia estimada desde Zárate (km) <span style="color:var(--text-muted);font-weight:400">(para calcular el flete)</span></label>
+          <input id="f-km" type="number" placeholder="Ej: 120">
           <label>Cuotas</label><input id="f-cuotas" type="number" value="24">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarFinanciado()">Cargar venta financiada</button>
           <div class="msg" id="f-msg"></div>
@@ -1085,8 +1116,19 @@ function poblarProductoVenta(prefix){
   const items = obtenerItemsCategoria(categoria);
   const selModelo = document.getElementById(prefix+'-modelo');
   selModelo.innerHTML = items.map(it => `<option value="${it.nombre.replace(/"/g,'&quot;')}">${it.nombre}</option>`).join('') || '<option value="">Sin productos cargados</option>';
+
+  const esPiscina = categoria === 'piscinas';
+  const colorWrap = document.getElementById(prefix+'-color-wrap');
+  if(colorWrap){
+    colorWrap.classList.toggle('hidden', !esPiscina);
+    if(esPiscina){
+      const colores = (CATALOGO.piscinas.colores||[]);
+      document.getElementById(prefix+'-color').innerHTML = colores.map(c => `<option>${c}</option>`).join('') || '<option value="">Consultar</option>';
+    }
+  }
   if(prefix === 'c'){
-    document.getElementById('c-nivel-instalacion-wrap').classList.toggle('hidden', categoria !== 'piscinas');
+    document.getElementById('c-nivel-instalacion-wrap').classList.toggle('hidden', !esPiscina);
+    document.getElementById('c-modulo-part-wrap').classList.toggle('hidden', categoria !== 'modulos');
     actualizarPrecioVenta('c');
   }
 }
@@ -1114,17 +1156,29 @@ async function cargarContado(){
   const msg = document.getElementById('c-msg'); msg.className='msg'; msg.textContent='';
   try{
     const categoria = document.getElementById('c-categoria').value;
+    const esPiscina = categoria === 'piscinas';
+    const esModulo = categoria === 'modulos';
     const body = {
       cliente_nombre: document.getElementById('c-nombre').value,
       cliente_telefono: document.getElementById('c-tel').value,
+      cliente_email: document.getElementById('c-email').value,
+      cliente_domicilio: document.getElementById('c-domicilio').value,
       cliente_localidad: document.getElementById('c-loc').value,
       producto: CATEGORIA_A_PRODUCTO[categoria] || categoria.toUpperCase(),
       modelo_especifico: document.getElementById('c-modelo').value,
+      color: esPiscina ? document.getElementById('c-color').value : '',
+      distancia_km: document.getElementById('c-km').value || null,
       precio_final: parseFloat(document.getElementById('c-precio').value || 0),
-      nivel_instalacion: categoria === 'piscinas' ? document.getElementById('c-nivel-instalacion').value : 'con',
+      nivel_instalacion: esPiscina ? document.getElementById('c-nivel-instalacion').value : 'con',
+      con_banio: esModulo && document.getElementById('c-con-banio').checked,
+      con_cocina: esModulo && document.getElementById('c-con-cocina').checked,
+      con_puerta_ingreso: esModulo && document.getElementById('c-con-puerta').checked,
+      con_ventana_balcon: esModulo && document.getElementById('c-con-ventana').checked,
+      sobre_piso: esModulo ? document.getElementById('c-sobre-piso').value : '',
     };
     const data = await api('/api/socio/ventas/contado', {method:'POST', body: JSON.stringify(body)});
-    msg.className='msg ok'; msg.textContent = data.mensaje;
+    msg.className='msg ok';
+    msg.textContent = data.mensaje + (data.flete_calculado ? ` Flete estimado: ${fmt(data.flete_calculado)}.` : '');
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
@@ -1164,18 +1218,24 @@ async function cargarFinanciado(){
   const msg = document.getElementById('f-msg'); msg.className='msg'; msg.textContent='';
   try{
     let modelo = document.getElementById('f-modelo').value;
+    const esPiscina = document.getElementById('f-prod').value === 'PISCINA';
     const body = {
       cliente_nombre: document.getElementById('f-nombre').value,
       cliente_dni: document.getElementById('f-dni').value,
       cliente_telefono: document.getElementById('f-tel').value,
+      cliente_email: document.getElementById('f-email').value,
+      cliente_domicilio: document.getElementById('f-domicilio').value,
       cliente_localidad: document.getElementById('f-loc').value,
       producto: document.getElementById('f-prod').value,
       modelo_especifico: modelo,
+      color: esPiscina ? document.getElementById('f-color').value : '',
+      distancia_km: document.getElementById('f-km').value || null,
       cantidad_cuotas: parseInt(document.getElementById('f-cuotas').value || 0),
     };
     const data = await api('/api/socio/ventas/financiado', {method:'POST', body: JSON.stringify(body)});
     msg.className='msg ok';
-    msg.textContent = `${data.mensaje} Cuota: ${fmt(data.valor_cuota)} — Inscripción: ${fmt(data.monto_inscripcion)}`;
+    msg.textContent = `${data.mensaje} Cuota: ${fmt(data.valor_cuota)} — Inscripción: ${fmt(data.monto_inscripcion)}`
+      + (data.flete_calculado ? ` Flete estimado: ${fmt(data.flete_calculado)}.` : '');
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
@@ -1215,7 +1275,9 @@ async function cargarMisVentas(){
     } else if(v.licitacion_solicitada){
       accion += ' <span class="pill ok">Licitación solicitada</span>';
     }
-    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td style="white-space:normal">${timeline}${progreso}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
+    const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
+    const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
+    hf += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td style="white-space:normal">${timeline}${progreso}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
   }
   hf += '</table>';
   document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
@@ -1223,7 +1285,9 @@ async function cargarMisVentas(){
   let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th></tr>';
   for(const v of data.contado){
     const pill = v.cobro_estado==='COBRADO' ? '<span class="pill ok">Entregada y cobrada</span>' : (v.confirmacion_48hs ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
-    hc += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td></tr>`;
+    const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
+    const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
+    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td></tr>`;
   }
   hc += '</table>';
   document.getElementById('tabla-contado').innerHTML = hc;

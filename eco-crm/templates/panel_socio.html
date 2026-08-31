@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de Socios · EcoFiver</title>
+<style>
+  :root{
+    --navy:#0B2350; --navy-2:#123a6e; --teal:#4EC3B5; --teal-light:#7DD8CC;
+    --bg:#F6F8FB; --surface:#FFFFFF; --border:#E2E8F0; --text:#16232F; --text-muted:#5C6B7A;
+    --good:#1B7A5A; --good-bg:#E7F5EF; --warn:#9A6700; --warn-bg:#FBF3DE; --bad:#B3261E; --bad-bg:#FBEAE8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  h1,h2,h3{font-family:Georgia,serif;font-weight:800;color:var(--navy)}
+  .center-wrap{max-width:420px;margin:0 auto;padding:60px 20px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px}
+  label{display:block;font-size:13px;color:var(--text-muted);margin:12px 0 4px;font-weight:600}
+  input,select,textarea{width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:15px}
+  button{cursor:pointer;border:none;border-radius:9px;font-weight:700;font-size:14.5px;padding:12px 18px}
+  .btn-primary{background:var(--navy);color:#fff;width:100%}
+  .btn-primary:disabled{opacity:.55;cursor:default}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-muted)}
+  .btn-teal{background:var(--teal);color:var(--navy)}
+  .msg{font-size:13.5px;margin-top:10px;min-height:18px}
+  .msg.error{color:var(--bad)}
+  .msg.ok{color:var(--good)}
+  .brand{text-align:center;margin-bottom:24px}
+  .brand .logo{font-family:Georgia,serif;font-weight:800;font-size:24px;color:var(--navy)}
+  .brand .logo span{color:var(--teal)}
+  .hidden{display:none !important}
+  .verificado-tilde{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--teal, #2563EB);background:linear-gradient(135deg,#4EC3B5,#2C8C7D);color:#fff;font-size:11px;font-weight:900;vertical-align:middle}
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,23,32,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal-box{background:var(--surface);border-radius:16px;padding:28px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto}
+  .verif-step{border-top:1px solid var(--border);padding:16px 0}
+  .verif-step-title{font-weight:700;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .verif-check{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:800;flex-shrink:0}
+  .verif-check.done{background:var(--good-bg);color:var(--good)}
+  .switch-link{text-align:center;font-size:13.5px;color:var(--text-muted);margin-top:14px}
+  .switch-link a{color:var(--navy-2);font-weight:600;cursor:pointer;text-decoration:none}
+
+  /* ── Panel principal ── */
+  .app-shell{display:flex;min-height:100vh}
+  .sidebar{width:230px;flex-shrink:0;background:var(--navy);color:#fff;padding:24px 14px;display:flex;flex-direction:column;gap:2px}
+  .sidebar .brand{color:#fff;text-align:left;margin-bottom:20px}
+  .sidebar .brand .logo{color:#fff;font-size:20px}
+  .sidebar .brand .logo span{color:var(--teal)}
+  .sidebar .socio-info{font-size:12px;color:#b8cbe0;margin-bottom:18px}
+  .nav-item{padding:10px 12px;border-radius:8px;color:#cfe0f5;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:block}
+  .nav-item:hover{background:rgba(255,255,255,.06)}
+  .nav-item.active{background:var(--teal);color:var(--navy)}
+  .nav-logout{margin-top:auto;color:#8ea3c4;font-size:12.5px;cursor:pointer}
+  main.content{flex:1;padding:32px 40px;max-width:980px}
+  #catalogo-contenido, #tabla-financiado, #tabla-contado, #tabla-comisiones, #tabla-ranking { overflow-x: auto; }
+  #catalogo-contenido table, #tabla-financiado table, #tabla-contado table, #tabla-comisiones table, #tabla-ranking table { min-width: 520px; }
+  @media (max-width:800px){
+    .app-shell{flex-direction:column}
+    .sidebar{width:100%;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;padding:10px;gap:4px;-webkit-overflow-scrolling:touch}
+    .sidebar .brand,.sidebar .socio-info{display:none}
+    .nav-item{flex:0 0 auto;white-space:nowrap;font-size:12.5px;padding:8px 10px}
+    .nav-logout{flex:0 0 auto;white-space:nowrap;margin-top:0;padding:8px 10px}
+    main.content{padding:16px}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+
+  .section{display:none}
+  .section.active{display:block}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .kpi .v{font-family:Georgia,serif;font-weight:800;font-size:24px;color:var(--navy)}
+  .kpi .l{font-size:12.5px;color:var(--text-muted)}
+
+  table{width:100%;border-collapse:collapse;font-size:13.8px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);padding:8px;border-bottom:2px solid var(--border)}
+  td{padding:10px 8px;border-bottom:1px solid var(--border)}
+  .pill{display:inline-flex;padding:2px 10px;border-radius:100px;font-size:11.5px;font-weight:700}
+  .pill.ok{background:var(--good-bg);color:var(--good)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .pill.bad{background:var(--bad-bg);color:var(--bad)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:700px){.grid2{grid-template-columns:1fr}}
+  .biblio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+  .biblio-card{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--surface)}
+  .biblio-card h4{margin:0 0 6px;font-size:14px;font-family:inherit;color:var(--text)}
+  .biblio-card p{margin:0 0 10px;font-size:12.5px;color:var(--text-muted)}
+  .tag-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal);font-weight:700}
+  .biblio-filtro.active{background:var(--navy,#0B2350);color:#fff;border-color:transparent}
+  .cat-cat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 18px 18px;margin-bottom:14px}
+  .cat-cat summary{cursor:pointer;font-weight:700;font-size:15px;padding:14px 0;list-style:none}
+  .cat-cat summary::-webkit-details-marker{display:none}
+  .cat-cat summary::before{content:'▸';display:inline-block;margin-right:8px;transition:transform .15s}
+  .cat-cat[open] summary::before{transform:rotate(90deg)}
+  .cat-nota{font-size:12.5px;color:var(--text-muted);line-height:1.5;margin:0 0 14px}
+  .copyable{font-family:ui-monospace,monospace;font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;word-break:break-all}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ AUTH SCREENS ═══════════════ -->
+<div id="auth-screens" class="center-wrap">
+  <div class="brand"><div class="logo">ECO<span>FIVER</span></div><div style="color:var(--text-muted);font-size:13px;margin-top:4px">Panel de Socios Comerciales</div></div>
+
+  <!-- LOGIN -->
+  <div class="card" id="card-login">
+    <div id="login-paso-pedir">
+      <h2 style="margin:0 0 4px;font-size:19px">Ingresá a tu panel</h2>
+      <label>WhatsApp, email o código de socio</label>
+      <input id="login-id" placeholder="11 0000 0000, tu@email.com o AL-004">
+      <label>Contraseña</label>
+      <input id="login-pass" type="password">
+      <button class="btn-primary" style="margin-top:16px" onclick="doLogin()">Ingresar</button>
+      <div class="msg" id="login-msg"></div>
+      <div class="switch-link">¿Todavía no sos socio? <a onclick="showScreen('registro')">Registrate acá</a></div>
+      <div class="switch-link">¿Olvidaste tu contraseña? <a onclick="showScreen('olvide')">Recuperala acá</a></div>
+    </div>
+  </div>
+
+  <!-- OLVIDÉ MI CONTRASEÑA -->
+  <div class="card hidden" id="card-olvide">
+    <div id="olvide-paso-pedir">
+      <h2 style="margin:0 0 4px;font-size:19px">Recuperar contraseña</h2>
+      <p style="font-size:13px;color:var(--text-muted)">Te mandamos un código por WhatsApp para que puedas elegir una nueva.</p>
+      <label>WhatsApp, email o código de socio</label>
+      <input id="olvide-id">
+      <button class="btn-primary" style="margin-top:16px" onclick="doOlvide()">Mandarme el código</button>
+      <div class="msg" id="olvide-msg"></div>
+      <div class="switch-link"><a onclick="showScreen('login')">Volver a ingresar</a></div>
+    </div>
+    <div class="hidden" id="olvide-paso-resetear">
+      <h2 style="margin:0 0 4px;font-size:19px">Elegí tu nueva contraseña</h2>
+      <label>Código de verificación (te lo mandamos por WhatsApp)</label>
+      <input id="resetear-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
+      <label>Nueva contraseña</label>
+      <input id="resetear-pass" type="password" minlength="6">
+      <button class="btn-primary" style="margin-top:16px" onclick="doResetear()">Guardar y entrar</button>
+      <div class="msg" id="resetear-msg"></div>
+    </div>
+  </div>
+
+  <!-- REGISTRO -->
+  <div class="card hidden" id="card-registro">
+    <div id="registro-paso-datos">
+      <h2 style="margin:0 0 4px;font-size:19px">Quiero ser Socio Comercial</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Con estos 3 datos activás tu cuenta al instante.</p>
+      <label>Nombre y apellido</label>
+      <input id="reg-nombre">
+      <label>WhatsApp</label>
+      <input id="reg-whatsapp" placeholder="11 0000 0000" inputmode="tel">
+      <label>Email</label>
+      <input id="reg-email" type="email">
+      <button class="btn-primary" style="margin-top:16px" onclick="doRegistro()">Quiero ser Socio Comercial</button>
+      <div class="msg" id="registro-msg"></div>
+      <div class="switch-link">¿Ya tenés cuenta? <a onclick="showScreen('login')">Ingresá acá</a></div>
+    </div>
+    <div class="hidden" id="registro-paso-otp">
+      <h2 style="margin:0 0 4px;font-size:19px">¡Ya está registrado!</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Verificá tu WhatsApp para activar tu cuenta — te mandamos un código de 6 dígitos.</p>
+      <label>Código de 6 dígitos</label>
+      <input id="registro-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
+      <button class="btn-primary" style="margin-top:16px" onclick="doConfirmarRegistro()">Activar mi cuenta</button>
+      <div class="msg" id="registro-otp-msg"></div>
+      <div class="switch-link"><a onclick="doReenviarCodigoRegistro()">Reenviar código</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ POP-UP: crear contraseña (primer ingreso tras verificar WhatsApp) ═══════════════ -->
+<div class="modal-overlay hidden" id="modal-crear-password">
+  <div class="modal-box">
+    <h2 style="margin:0 0 4px;font-size:19px">Creá tu contraseña</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px">Ya activaste tu cuenta. Elegí una contraseña para entrar más rápido la próxima vez, con tu WhatsApp, email o código de socio.</p>
+    <label>Contraseña</label>
+    <input id="cp-pass" type="password" minlength="6">
+    <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doCrearPassword()">Guardar contraseña</button>
+    <div class="msg" id="cp-msg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ POP-UP obligatorio: comisiones vigentes (primer ingreso) ═══════════════ -->
+<div class="modal-overlay hidden" id="modal-comisiones">
+  <div class="modal-box">
+    <h2 style="margin:0 0 4px;font-size:19px">Comisiones vigentes</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px">Antes de empezar a vender, revisá cómo se calcula tu comisión en cada tipo de venta. Vas a poder consultar esto en cualquier momento desde "Mis comisiones".</p>
+    <div id="mc-tabla">Cargando…</div>
+    <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;font-weight:400;color:var(--text)">
+      <input type="checkbox" id="mc-check" style="width:auto;margin-top:2px">
+      <span>Leí y acepto los <a href="/terminos-socios-comerciales" target="_blank" style="color:var(--teal,#2563EB);text-decoration:underline">Términos y Condiciones</a> del Programa de Socios Comerciales de EcoFiver, incluyendo cómo se calculan y liberan las comisiones.</span>
+    </label>
+    <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doAceptarComisiones()">Aceptar y continuar</button>
+    <div class="msg" id="mc-msg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ POP-UP obligatorio: completar datos y verificar canales ═══════════════ -->
+<div class="modal-overlay hidden" id="modal-verificacion">
+  <div class="modal-box">
+    <h2 style="margin:0 0 4px;font-size:19px">Completá tus datos para empezar a vender</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px">Con esto activás tu perfil <strong>Verificado ✓</strong> — es lo único que te falta para poder cargar ventas y empezar a generar comisiones con nuestra estructura.</p>
+
+    <div class="verif-step" id="vstep-datos">
+      <div class="verif-step-title"><span class="verif-check" id="vcheck-datos">1</span> Tus datos</div>
+      <label>DNI</label><input id="mv-dni" inputmode="numeric">
+      <label>Zona / localidad</label><input id="mv-zona">
+      <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="mv-cuit">
+      <label>¿Qué querés vender?</label>
+      <select id="mv-interes">
+        <option value="AMBOS">Piscinas y módulos</option>
+        <option value="PISCINAS">Solo piscinas</option>
+        <option value="MODULOS">Solo módulos</option>
+      </select>
+      <button class="btn-teal" style="margin-top:10px" onclick="mvGuardarDatos()">Guardar datos</button>
+      <div class="msg" id="mv-datos-msg"></div>
+    </div>
+
+    <div class="verif-step" id="vstep-whatsapp">
+      <div class="verif-step-title"><span class="verif-check" id="vcheck-whatsapp">2</span> Verificar WhatsApp</div>
+      <label>Número a verificar <span style="color:var(--text-muted);font-weight:400">(podés cambiarlo si querés usar otro)</span></label>
+      <input id="mv-wa-numero" placeholder="11 0000 0000" inputmode="tel">
+      <button class="btn-ghost" style="margin-top:8px" onclick="mvEnviarWhatsapp()">Mandarme el código a ese WhatsApp</button>
+      <input id="mv-wa-otp" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" style="margin-top:8px;font-size:18px;letter-spacing:3px;text-align:center">
+      <button class="btn-teal" style="margin-top:8px" onclick="mvConfirmarWhatsapp()">Confirmar</button>
+      <div class="msg" id="mv-wa-msg"></div>
+    </div>
+
+    <div id="mv-listo" class="hidden" style="text-align:center;padding:12px 0">
+      <div style="font-size:32px">✅</div>
+      <p style="font-weight:700">¡Listo, tu perfil ya está Verificado!</p>
+      <button class="btn-primary" onclick="cerrarModalVerificacion()">Ir al panel</button>
+    </div>
+
+    <div class="switch-link" style="margin-top:14px"><a onclick="cerrarModalVerificacion()">Completar más tarde</a></div>
+  </div>
+</div>
+
+<!-- ═══════════════ APP (post-login) ═══════════════ -->
+<div id="app-shell" class="app-shell hidden">
+  <div class="sidebar">
+    <div class="brand"><div class="logo">ECO<span>FIVER</span></div></div>
+    <div class="socio-info" id="sidebar-socio-info"></div>
+    <a class="nav-item active" data-section="inicio" onclick="nav('inicio')">🏠 Inicio</a>
+    <a class="nav-item" data-section="catalogo" onclick="nav('catalogo')">📋 Catálogo y precios</a>
+    <a class="nav-item" data-section="simulador" onclick="nav('simulador')">🧮 Simulador de cuotas</a>
+    <a class="nav-item" data-section="ventas" onclick="nav('ventas')">💼 Cargar venta</a>
+    <a class="nav-item" data-section="mis-ventas" onclick="nav('mis-ventas')">📦 Mis ventas</a>
+    <a class="nav-item" data-section="comisiones" onclick="nav('comisiones')">💰 Mis comisiones</a>
+    <a class="nav-item" data-section="ranking" onclick="nav('ranking')">🏆 Ranking</a>
+    <a class="nav-item" data-section="empresa" onclick="nav('empresa')">🏭 Mi Empresa</a>
+    <a class="nav-item" data-section="biblioteca" onclick="nav('biblioteca')">🖼️ Biblioteca de contenidos</a>
+    <a class="nav-item" data-section="capacitacion" onclick="nav('capacitacion')">🎓 Capacitación</a>
+    <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
+    <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
+    <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
+  </div>
+
+  <main class="content">
+    <!-- INICIO -->
+    <section class="section active" id="sec-inicio">
+      <h1 style="font-size:24px">Hola, <span id="saludo-nombre"></span></h1>
+      <p style="color:var(--text-muted)">Este es tu panel de Socio Comercial: catálogo, simulador de cuotas, carga de ventas y seguimiento de tus comisiones, todo en un mismo lugar.</p>
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="kpi-pendiente">$0</div><div class="l">Comisión pendiente</div></div>
+        <div class="kpi"><div class="v" id="kpi-liquidado">$0</div><div class="l">Comisión liquidada</div></div>
+        <div class="kpi"><div class="v" id="kpi-ventas">0</div><div class="l">Ventas cargadas</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:16px">Tu rol como Socio Comercial</h3>
+        <p style="font-size:14px;line-height:1.6">Gestionás la venta de punta a punta: identificás al cliente, cotizás con el catálogo oficial y cargás la operación desde tu panel. En una venta financiada, una vez acreditada la seña, descargás el contrato directamente desde acá y tu cliente lo confirma con un enlace, sin papeles de por medio. Nuestro equipo se comunica con el cliente para una llamada de bienvenida que valida la operación, y a partir de ahí tu comisión queda liberada.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:16px">Entrega anticipada: un beneficio para ofrecer</h3>
+        <p style="font-size:14px;line-height:1.6">En <strong>viviendas modulares</strong>, tu cliente puede adelantar la entrega desde la <strong>cuota 6</strong> mediante una integración de capital. En <strong>piscinas</strong>, desde la <strong>cuota 3</strong>. Ese aporte se descuenta del saldo total, y el cliente continúa abonando el saldo restante mes a mes hasta completarlo. Es un beneficio concreto para presentar al momento de cerrar la venta.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:16px">Tu progreso</h3>
+        <div id="progreso-list">Cargando…</div>
+      </div>
+    </section>
+
+    <!-- CATÁLOGO -->
+    <section class="section" id="sec-catalogo">
+      <h2>Catálogo y listas de precios</h2>
+      <div id="catalogo-contenido">Cargando…</div>
+    </section>
+
+    <!-- SIMULADOR -->
+    <section class="section" id="sec-simulador">
+      <h2>Simulador y presupuestos</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Cotizá cualquier producto del catálogo, al contado o financiado, y generá un presupuesto en PDF para enviarle al cliente.</p>
+
+      <div class="card grid2">
+        <div>
+          <label>Categoría</label>
+          <select id="sim2-categoria" onchange="simPoblarProducto()"></select>
+          <label>Producto</label>
+          <select id="sim2-producto" onchange="simCalcular()"></select>
+          <label>Forma de pago</label>
+          <select id="sim2-forma-pago" onchange="simCambiarFormaPago()">
+            <option value="contado">Contado</option>
+            <option value="financiado">Financiado</option>
+          </select>
+          <div id="sim2-cuotas-wrap" class="hidden">
+            <label>Cuotas</label>
+            <select id="sim2-cuotas" onchange="simCalcular()">
+              <option>6</option><option>12</option><option>18</option><option selected>24</option><option>36</option><option>48</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div id="sim2-resultado" style="font-size:14px;color:var(--text-muted)">Elegí una categoría y un producto.</div>
+        </div>
+      </div>
+
+      <div class="card" id="sim2-presupuesto-card" style="margin-top:16px">
+        <h3 style="margin-top:0;font-size:15px">Generar presupuesto para un cliente</h3>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Con estos datos generamos el PDF y queda registrado el contacto — así el equipo ya tiene el lead capturado.</p>
+        <div class="grid2">
+          <div><label>Nombre</label><input id="sim2-cliente-nombre"></div>
+          <div><label>Apellido</label><input id="sim2-cliente-apellido"></div>
+        </div>
+        <div class="grid2">
+          <div><label>WhatsApp</label><input id="sim2-cliente-whatsapp" placeholder="11 0000 0000"></div>
+          <div><label>Localidad</label><input id="sim2-cliente-localidad"></div>
+        </div>
+        <label>Email <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
+        <input id="sim2-cliente-email" type="email">
+        <button class="btn-teal" style="margin-top:12px;width:100%" onclick="simGenerarPresupuesto()">Generar y descargar PDF</button>
+        <div class="msg" id="sim2-presupuesto-msg"></div>
+      </div>
+
+      <h3 style="font-size:14px;margin:24px 0 8px">Mis presupuestos generados</h3>
+      <div id="sim2-mis-presupuestos">Cargando…</div>
+    </section>
+
+    <!-- CARGAR VENTA -->
+    <section class="section" id="sec-ventas">
+      <h2>Cargar una venta</h2>
+
+      <div class="card">
+        <h3 style="margin-top:0;font-size:15px">Chequear Scoring</h3>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Disponible en cualquier momento, incluso antes de definir si la venta es contado o financiada.</p>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px"><label style="margin-top:0">DNI o CUIT del cliente</label><input id="bcra-dni"></div>
+          <button class="btn-ghost" onclick="correrScoring()">Chequear Scoring</button>
+        </div>
+        <div class="msg" id="scoring-msg"></div>
+        <div id="scoring-detalle"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">Contado</h3>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px" id="c-nota-instalacion">La instalación está incluida en la mayoría de los productos. Fuera del área de cobertura directa, se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona.</p>
+          <label>Nombre del cliente</label><input id="c-nombre">
+          <label>Teléfono</label><input id="c-tel">
+          <label>Localidad</label><input id="c-loc">
+          <label>Categoría</label>
+          <select id="c-categoria" onchange="poblarProductoVenta('c')"></select>
+          <label>Producto</label>
+          <select id="c-modelo" onchange="actualizarPrecioVenta('c')"></select>
+          <div id="c-nivel-instalacion-wrap" class="hidden">
+            <label>Nivel de instalación</label>
+            <select id="c-nivel-instalacion" onchange="actualizarPrecioVenta('c')">
+              <option value="con">Con instalación</option>
+              <option value="sin_instalacion">Sin instalación (casco + equipo)</option>
+              <option value="sin_equipo">Sin instalación y sin equipo</option>
+            </select>
+          </div>
+          <label>Precio final</label><input id="c-precio" type="number">
+          <button class="btn-primary" style="margin-top:14px" onclick="cargarContado()">Cargar venta de contado</button>
+          <div class="msg" id="c-msg"></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">Financiado</h3>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Disponible para piscinas y módulos, con instalación incluida.</p>
+          <label>Nombre del cliente</label><input id="f-nombre">
+          <label>DNI</label><input id="f-dni">
+          <label>Teléfono</label><input id="f-tel">
+          <label>Localidad</label><input id="f-loc">
+          <label>Categoría</label>
+          <select id="f-prod" onchange="poblarProductoVenta('f')">
+            <option value="PISCINA">Piscina</option>
+            <option value="MODULO">Módulo</option>
+          </select>
+          <label>Producto</label>
+          <select id="f-modelo"></select>
+          <label>Cuotas</label><input id="f-cuotas" type="number" value="24">
+          <button class="btn-primary" style="margin-top:14px" onclick="cargarFinanciado()">Cargar venta financiada</button>
+          <div class="msg" id="f-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MIS VENTAS -->
+    <section class="section" id="sec-mis-ventas">
+      <h2>Mis ventas</h2>
+      <h3 style="font-size:14px">Financiadas</h3>
+      <div id="tabla-financiado">Cargando…</div>
+      <h3 style="font-size:14px;margin-top:24px">Contado</h3>
+      <div id="tabla-contado"></div>
+    </section>
+
+    <!-- COMISIONES -->
+    <section class="section" id="sec-comisiones">
+      <h2>Mis comisiones</h2>
+      <h3 style="font-size:14px;margin:0 0 8px">Comisiones vigentes</h3>
+      <div id="comisiones-vigentes-card">Cargando…</div>
+      <h3 style="font-size:14px;margin:24px 0 8px">Historial</h3>
+      <div id="tabla-comisiones">Cargando…</div>
+    </section>
+
+    <!-- RANKING -->
+    <section class="section" id="sec-ranking">
+      <h2>Ranking nacional</h2>
+      <div id="tabla-ranking">Cargando…</div>
+    </section>
+
+    <!-- MI EMPRESA -->
+    <section class="section" id="sec-empresa">
+      <h2>EcoFiver — quiénes somos</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">La info institucional que te puede pedir un cliente antes de cerrar.</p>
+      <div class="grid2">
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🏭 Fábrica propia</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">Más de 15 años fabricando módulos habitacionales y piscinas de fibra en nuestra propia planta en <strong>Zárate, Buenos Aires</strong>. No revendemos catálogo de terceros: lo que mostrás en tus publicaciones lo fabricamos nosotros.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🛡️ Garantía</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0"><strong>10 años de garantía de fábrica</strong> en todos los productos. Es uno de los argumentos más fuertes frente a la competencia — usalo siempre en tus publicaciones y cotizaciones.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🚚 Instalación y entrega</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">
+            La instalación está incluida en la mayoría de los precios de contado y en todas las ventas financiadas, con equipo propio y en el mismo día de la entrega. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco (solo o con el equipo de filtrado completo), y la instalación queda a cargo tuyo o de un instalador de tu zona — una gran oportunidad si trabajás junto a instaladores o querés sumar ese servicio a tu propuesta.<br>
+            Tiempos de producción: piscinas y módulos de 6, 12 y 18 m², entrega e instalación en 48 a 72 horas desde el pedido. Viviendas modulares de 24 m² en adelante, 45 a 60 días de producción.
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">📍 Puntos de retiro sin cargo</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">CABA (San Telmo) · Zona Oeste (Paso del Rey) · Planta en Zárate (coordinar previamente). Útil para clientes que prefieren venir a buscar el producto ellos mismos.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">💳 Formas de pago</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">Efectivo, transferencia, tarjeta de crédito/débito y Mercado Pago para el contado. Para financiado, cuotas propias directas de fábrica — sin banco ni tarjeta, solo entrada + cuotas mensuales.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;font-size:15px">🧾 Datos legales</h3>
+          <p style="font-size:13.5px;line-height:1.6;margin:0">Cooperativa de Trabajo Eco Zárate Limitada — CUIT 30-71807393-2. Por si un cliente te pide el dato para facturar o verificar la empresa.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- BIBLIOTECA -->
+    <section class="section" id="sec-biblioteca">
+      <h2>Biblioteca de contenidos</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Fotos, videos y copys listos para pegar en tus publicaciones o mensajes. Las guías y capacitaciones están en su propia sección.</p>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn-ghost biblio-filtro active" data-tipo="todos" onclick="filtrarBiblioteca('todos')">Todo</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="imagen" onclick="filtrarBiblioteca('imagen')">🖼️ Fotos</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="foto_entrega" onclick="filtrarBiblioteca('foto_entrega')">📦 Entregas</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="copy" onclick="filtrarBiblioteca('copy')">📋 Copys</button>
+      </div>
+      <div class="biblio-grid" id="biblio-grid">Cargando…</div>
+    </section>
+
+    <!-- CAPACITACIÓN — separada de la biblioteca de marketing a propósito -->
+    <section class="section" id="sec-capacitacion">
+      <h2>Capacitación</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Todo lo que necesitás saber para operar al 100% como Socio Comercial: guías propias de EcoFiver y cursos externos gratuitos recomendados.</p>
+
+      <h3 style="font-size:14px;margin:20px 0 8px">📘 Guías de EcoFiver</h3>
+      <div id="capacitacion-guias">Cargando…</div>
+
+      <h3 style="font-size:14px;margin:28px 0 8px">✅ Autoevaluación</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-4px">No es un examen ni bloquea nada — es para que repases si tenés claras las reglas del programa. Tocá una pregunta para ver la respuesta.</p>
+      <div id="quiz-list"></div>
+
+      <h3 style="font-size:14px;margin:28px 0 8px">🌐 Cursos externos gratuitos recomendados</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-4px">Recursos oficiales y gratuitos de terceros — no son de EcoFiver, pero son relevantes para vender mejor y manejar tu actividad como Socio Comercial.</p>
+      <div class="grid2">
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">📱 Meta Blueprint — vender por redes sociales</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Cursos oficiales y gratuitos de Meta para promocionar y vender por Facebook e Instagram.</p>
+          <a href="https://www.facebook.com/business/learn" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">facebook.com/business/learn</a>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">🎓 Google — habilidades digitales gratuitas</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Programa gratuito de Google con cursos de marketing digital y ventas online. Buscá "Crece con Google" o "Habilidades digitales para el empleo".</p>
+          <a href="https://grow.google" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">grow.google</a>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">🛒 Mercado Libre — academia de vendedores</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Guías oficiales de Mercado Libre sobre atención al cliente y ventas online, útiles aunque vendas por otros medios.</p>
+          <a href="https://www.mercadolibre.com.ar/ayuda" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">mercadolibre.com.ar/ayuda</a>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;font-size:14px">🧾 AFIP — Monotributo</h4>
+          <p style="font-size:12.5px;color:var(--text-muted)">Información oficial para inscribirte en el Monotributo y poder facturar tus comisiones.</p>
+          <a href="https://www.afip.gob.ar/monotributo/" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12px">afip.gob.ar/monotributo</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PERFIL -->
+    <section class="section" id="sec-perfil">
+      <h2>Mi perfil y documentación</h2>
+      <div class="card" id="perfil-verificacion-banner" style="font-size:13px"></div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:15px">Mis datos</h3>
+        <label>DNI</label><input id="p-dni" inputmode="numeric">
+        <label>Zona / localidad</label><input id="p-zona">
+        <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="p-cuit">
+        <label>¿Qué querés vender?</label>
+        <select id="p-interes">
+          <option value="AMBOS">Piscinas y módulos</option>
+          <option value="PISCINAS">Solo piscinas</option>
+          <option value="MODULOS">Solo módulos</option>
+        </select>
+        <label>CBU o alias</label><input id="p-cbu">
+        <button class="btn-teal" style="margin-top:12px" onclick="guardarPerfil()">Guardar</button>
+        <div class="msg" id="p-msg"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;font-size:15px">Documentación</h3>
+        <label>Constancia de Monotributo</label>
+        <input type="file" id="doc-monotributo">
+        <button class="btn-ghost" style="margin-top:8px" onclick="subirDoc('monotributo')">Subir</button>
+        <label style="margin-top:16px">Copia de DNI</label>
+        <input type="file" id="doc-dni">
+        <button class="btn-ghost" style="margin-top:8px" onclick="subirDoc('dni')">Subir</button>
+        <div class="msg" id="doc-msg"></div>
+      </div>
+    </section>
+
+    <!-- AYUDA -->
+    <section class="section" id="sec-ayuda">
+      <h2>Centro de ayuda</h2>
+      <div id="faq-list"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const API = '';
+let SOCIO = null;
+let CATALOGO = null;
+
+function showScreen(name){
+  ['login','registro','olvide'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
+  document.getElementById('card-'+name).classList.remove('hidden');
+  // siempre arranca en el primer paso de cada tarjeta
+  document.getElementById('registro-paso-datos').classList.remove('hidden');
+  document.getElementById('registro-paso-otp').classList.add('hidden');
+  document.getElementById('olvide-paso-pedir').classList.remove('hidden');
+  document.getElementById('olvide-paso-resetear').classList.add('hidden');
+}
+
+async function api(path, opts={}){
+  const res = await fetch(API+path, {credentials:'include', headers:{'Content-Type':'application/json'}, ...opts});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || 'Error');
+  return data;
+}
+
+function capturarUTM(){
+  const p = new URLSearchParams(location.search);
+  const out = {};
+  ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(k => {
+    const v = p.get(k) || sessionStorage.getItem(k);
+    if(v){ out[k] = v; try{ sessionStorage.setItem(k, v); }catch(e){} }
+  });
+  return out;
+}
+
+let ultimoCodigoRegistrado = null;
+
+async function doRegistro(){
+  const msg = document.getElementById('registro-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const body = {
+      nombre: document.getElementById('reg-nombre').value.trim(),
+      whatsapp: document.getElementById('reg-whatsapp').value.trim(),
+      email: document.getElementById('reg-email').value.trim(),
+      ...capturarUTM(),
+    };
+    const data = await api('/api/public/socio-registro', {method:'POST', body: JSON.stringify(body)});
+    ultimoCodigoRegistrado = data.codigo;
+    if(typeof fbq === 'function') fbq('track', 'Lead');
+    document.getElementById('registro-paso-datos').classList.add('hidden');
+    document.getElementById('registro-paso-otp').classList.remove('hidden');
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doConfirmarRegistro(){
+  const msg = document.getElementById('registro-otp-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    await api('/api/public/socio-verificar', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado, otp: document.getElementById('registro-otp').value.trim()})});
+    if(typeof fbq === 'function') fbq('track', 'CompleteRegistration');
+    await cargarApp();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doReenviarCodigoRegistro(){
+  const msg = document.getElementById('registro-otp-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    await api('/api/public/socio-reenviar-codigo', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado})});
+    msg.className='msg ok'; msg.textContent = 'Te mandamos un código nuevo por WhatsApp.';
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+function abrirModalCrearPassword(){
+  document.getElementById('cp-pass').value = '';
+  document.getElementById('cp-msg').className = 'msg';
+  document.getElementById('cp-msg').textContent = '';
+  document.getElementById('modal-crear-password').classList.remove('hidden');
+}
+
+async function doCrearPassword(){
+  const msg = document.getElementById('cp-msg'); msg.className='msg'; msg.textContent='';
+  const pass = document.getElementById('cp-pass').value;
+  if(pass.length < 6){ msg.className='msg error'; msg.textContent='La contraseña debe tener al menos 6 caracteres'; return; }
+  try{
+    await api('/api/socio/crear-password', {method:'POST', body: JSON.stringify({password: pass})});
+    SOCIO.tiene_password = true;
+    document.getElementById('modal-crear-password').classList.add('hidden');
+    avanzarOnboarding();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+function avanzarOnboarding(){
+  if(!SOCIO.comisiones_aceptadas) abrirModalComisiones();
+  else if(!SOCIO.verificado) abrirModalVerificacion();
+}
+
+async function abrirModalComisiones(){
+  const cont = document.getElementById('mc-tabla');
+  cont.innerHTML = 'Cargando…';
+  document.getElementById('mc-check').checked = false;
+  document.getElementById('mc-msg').className = 'msg';
+  document.getElementById('mc-msg').textContent = '';
+  document.getElementById('modal-comisiones').classList.remove('hidden');
+  try{
+    const data = await api('/api/socio/comisiones/vigentes');
+    cont.innerHTML = data.tabla.map(f => `
+      <div class="card" style="margin-bottom:10px">
+        <h4 style="margin:0 0 8px;font-size:14px">${f.producto_label}</h4>
+        <div style="font-size:13px;line-height:1.7">
+          <div><strong>Venta de contado:</strong> ${f.contado_texto}</div>
+          <div><strong>Venta financiada:</strong> ${f.financiado_texto}</div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){ cont.innerHTML = '<p class="msg error">No pudimos cargar las comisiones vigentes — recargá la página.</p>'; }
+}
+
+async function doAceptarComisiones(){
+  const msg = document.getElementById('mc-msg'); msg.className='msg'; msg.textContent='';
+  if(!document.getElementById('mc-check').checked){
+    msg.className='msg error'; msg.textContent='Tenés que confirmar que leíste las condiciones para continuar.';
+    return;
+  }
+  try{
+    await api('/api/socio/comisiones/aceptar', {method:'POST'});
+    SOCIO.comisiones_aceptadas = true;
+    document.getElementById('modal-comisiones').classList.add('hidden');
+    if(!SOCIO.verificado) abrirModalVerificacion();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doLogin(){
+  const msg = document.getElementById('login-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const identificador = document.getElementById('login-id').value.trim();
+    const password = document.getElementById('login-pass').value;
+    await api('/api/public/socio-login', {method:'POST', body: JSON.stringify({identificador, password})});
+    await cargarApp();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+let identificadorRecupero = null;
+
+async function doOlvide(){
+  const msg = document.getElementById('olvide-msg'); msg.className='msg'; msg.textContent='';
+  const id = document.getElementById('olvide-id').value.trim();
+  if(!id){ msg.className='msg error'; msg.textContent='Ingresá tu WhatsApp, email o código de socio'; return; }
+  identificadorRecupero = id;
+  try{
+    const campo = id.includes('@') ? 'email' : (/^[A-Za-z]{2}-\d+$/.test(id) ? 'codigo' : 'whatsapp');
+    const data = await api('/api/public/socio-olvide-password', {method:'POST', body: JSON.stringify({[campo]: id})});
+    msg.className='msg ok'; msg.textContent = data.mensaje;
+    document.getElementById('olvide-paso-pedir').classList.add('hidden');
+    document.getElementById('olvide-paso-resetear').classList.remove('hidden');
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doResetear(){
+  const msg = document.getElementById('resetear-msg'); msg.className='msg'; msg.textContent='';
+  const otp = document.getElementById('resetear-otp').value.trim();
+  const passwordNueva = document.getElementById('resetear-pass').value;
+  try{
+    const campo = identificadorRecupero.includes('@') ? 'email' : (/^[A-Za-z]{2}-\d+$/.test(identificadorRecupero) ? 'codigo' : 'whatsapp');
+    await api('/api/public/socio-resetear-password', {method:'POST', body: JSON.stringify({[campo]: identificadorRecupero, otp, password_nueva: passwordNueva})});
+    await api('/api/public/socio-login', {method:'POST', body: JSON.stringify({identificador: identificadorRecupero, password: passwordNueva})});
+    await cargarApp();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doLogout(){
+  await api('/api/public/socio-logout', {method:'POST'}).catch(()=>{});
+  location.reload();
+}
+
+async function cargarApp(){
+  try{
+    SOCIO = await api('/api/socio/me');
+  }catch(e){ return; }
+  document.getElementById('auth-screens').classList.add('hidden');
+  document.getElementById('app-shell').classList.remove('hidden');
+  const tilde = SOCIO.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
+  document.getElementById('saludo-nombre').innerHTML = SOCIO.nombre.split(' ')[0] + tilde;
+  document.getElementById('sidebar-socio-info').innerHTML = SOCIO.codigo + tilde + ' · ' + (SOCIO.zona || 'sin zona');
+  document.getElementById('p-cbu').value = SOCIO.cbu_alias || '';
+  document.getElementById('p-dni').value = SOCIO.dni || '';
+  document.getElementById('p-zona').value = SOCIO.zona || '';
+  document.getElementById('p-cuit').value = SOCIO.cuit_monotributo || '';
+  document.getElementById('p-interes').value = SOCIO.interes_venta || 'AMBOS';
+  actualizarEstadoVerificacionPerfil();
+  cargarComisiones();
+  cargarCatalogo();
+  cargarProgreso();
+  if(!SOCIO.tiene_password) abrirModalCrearPassword();
+  else avanzarOnboarding();
+}
+
+function abrirModalVerificacion(){
+  mvSincronizarPasos();
+  document.getElementById('mv-dni').value = SOCIO.dni || '';
+  document.getElementById('mv-zona').value = SOCIO.zona || '';
+  document.getElementById('mv-cuit').value = SOCIO.cuit_monotributo || '';
+  document.getElementById('mv-interes').value = SOCIO.interes_venta || 'AMBOS';
+  document.getElementById('mv-wa-numero').value = SOCIO.telefono || '';
+  document.getElementById('modal-verificacion').classList.remove('hidden');
+}
+
+function cerrarModalVerificacion(){
+  document.getElementById('modal-verificacion').classList.add('hidden');
+}
+
+function mvSincronizarPasos(){
+  document.getElementById('vcheck-datos').textContent = SOCIO.perfil_completo ? '✓' : '1';
+  document.getElementById('vcheck-datos').classList.toggle('done', !!SOCIO.perfil_completo);
+  document.getElementById('vcheck-whatsapp').textContent = SOCIO.whatsapp_verificado ? '✓' : '2';
+  document.getElementById('vcheck-whatsapp').classList.toggle('done', !!SOCIO.whatsapp_verificado);
+  document.getElementById('vstep-datos').classList.toggle('hidden', !!SOCIO.perfil_completo);
+  document.getElementById('vstep-whatsapp').classList.toggle('hidden', !!SOCIO.whatsapp_verificado);
+  document.getElementById('mv-listo').classList.toggle('hidden', !SOCIO.verificado);
+}
+
+function actualizarBadgeVerificado(){
+  const tilde = SOCIO.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
+  document.getElementById('saludo-nombre').innerHTML = SOCIO.nombre.split(' ')[0] + tilde;
+  document.getElementById('sidebar-socio-info').innerHTML = SOCIO.codigo + tilde + ' · ' + (SOCIO.zona || 'sin zona');
+}
+
+async function mvGuardarDatos(){
+  const msg = document.getElementById('mv-datos-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const data = await api('/api/socio/me', {method:'PUT', body: JSON.stringify({
+      dni: document.getElementById('mv-dni').value.trim(),
+      zona: document.getElementById('mv-zona').value.trim(),
+      cuit_monotributo: document.getElementById('mv-cuit').value.trim(),
+      interes_venta: document.getElementById('mv-interes').value,
+    })});
+    SOCIO.perfil_completo = data.perfil_completo; SOCIO.verificado = data.verificado;
+    SOCIO.dni = document.getElementById('mv-dni').value.trim();
+    SOCIO.zona = document.getElementById('mv-zona').value.trim();
+    SOCIO.interes_venta = document.getElementById('mv-interes').value;
+    SOCIO.cuit_monotributo = document.getElementById('mv-cuit').value.trim();
+    msg.className='msg ok'; msg.textContent = data.perfil_completo ? 'Datos guardados.' : 'Faltan DNI y/o zona.';
+    mvSincronizarPasos();
+    actualizarEstadoVerificacionPerfil();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function mvEnviarWhatsapp(){
+  const msg = document.getElementById('mv-wa-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const whatsapp = document.getElementById('mv-wa-numero').value.trim();
+    await api('/api/socio/verificar-whatsapp/enviar', {method:'POST', body: JSON.stringify({whatsapp})});
+    if(whatsapp) SOCIO.telefono = whatsapp;
+    msg.className='msg ok'; msg.textContent='Te mandamos el código a ese WhatsApp.';
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function mvConfirmarWhatsapp(){
+  const msg = document.getElementById('mv-wa-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const data = await api('/api/socio/verificar-whatsapp/confirmar', {method:'POST', body: JSON.stringify({otp: document.getElementById('mv-wa-otp').value.trim()})});
+    SOCIO.whatsapp_verificado = true; SOCIO.verificado = data.verificado;
+    msg.className='msg ok'; msg.textContent='WhatsApp verificado.';
+    mvSincronizarPasos(); actualizarEstadoVerificacionPerfil();
+    if(data.verificado) actualizarBadgeVerificado();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+function actualizarEstadoVerificacionPerfil(){
+  const el = document.getElementById('perfil-verificacion-banner');
+  if(!el) return;
+  el.innerHTML = SOCIO.verificado
+    ? '<span class="pill ok">✓ Verificado</span> Ya podés cargar ventas y generar comisiones.'
+    : '<span class="pill warn">Pendiente</span> Te falta completar la verificación. <a onclick="abrirModalVerificacion()" style="cursor:pointer;text-decoration:underline">Completar ahora</a>';
+}
+
+function nav(section){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.section===section));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+section).classList.add('active');
+  if(section==='mis-ventas') cargarMisVentas();
+  if(section==='comisiones') cargarComisionesTabla();
+  if(section==='simulador') cargarMisPresupuestos();
+  if(section==='ranking') cargarRanking();
+  if(section==='biblioteca') cargarBiblioteca();
+  if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
+  if(section==='ayuda') cargarFaq();
+}
+
+async function cargarProgreso(){
+  const data = await api('/api/socio/progreso').catch(()=>null);
+  if(!data) return;
+  document.getElementById('progreso-list').innerHTML =
+    `<p style="font-size:13px;color:var(--text-muted);margin:0 0 10px">${data.completados} de ${data.total} completados</p>` +
+    data.pasos.map(p=>`<div style="padding:4px 0"><span class="pill ${p.hecho?'ok':'warn'}">${p.hecho?'✓':'○'}</span> ${p.paso}</div>`).join('');
+}
+
+async function cargarFaq(){
+  const data = await api('/api/socio/faq').catch(()=>({faq:[]}));
+  document.getElementById('faq-list').innerHTML = data.faq.map(f => `
+    <div class="card" style="cursor:pointer" onclick="this.querySelector('.resp').classList.toggle('hidden')">
+      <strong>${f.pregunta}</strong>
+      <p class="resp hidden" style="margin:8px 0 0;color:var(--text-muted)">${f.respuesta}</p>
+    </div>`).join('');
+}
+
+async function cargarCapacitacionGuias(){
+  const el = document.getElementById('capacitacion-guias');
+  const data = await api('/api/socio/capacitacion').catch(()=>({guias:[]}));
+  el.innerHTML = data.guias.map(g => `
+    <div class="card" style="cursor:pointer" onclick="this.querySelector('.resp').classList.toggle('hidden')">
+      <div class="tag-cat">${g.categoria}</div>
+      <h4 style="margin:2px 0 0">${g.titulo}</h4>
+      <p class="resp hidden" style="margin:10px 0 0;font-size:13.5px;line-height:1.6">${g.descripcion}</p>
+    </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay guías cargadas.</p>';
+}
+
+async function cargarQuiz(){
+  const data = await api('/api/socio/quiz').catch(()=>({preguntas:[]}));
+  const el = document.getElementById('quiz-list');
+  el.innerHTML = data.preguntas.map((q,i) => `
+    <div class="card" style="cursor:pointer" onclick="this.querySelector('.resp').classList.toggle('hidden')">
+      <strong>${i+1}. ${q.pregunta}</strong>
+      <p class="resp hidden" style="margin:8px 0 0;color:var(--good)">${q.respuesta}</p>
+    </div>`).join('');
+}
+
+function fmt(n){ return '$'+Math.round(n||0).toLocaleString('es-AR'); }
+
+function categoriaEmoji(key){
+  return {hidromasajes:'🛁', baneras:'🛀', receptaculos:'🚿', accesorios_piscinas:'🔧', banios_quimicos:'🚻', garitas_seguridad:'🏗️', cuchas_perros:'🐕', reposeras:'🏖️', depositos_jardin:'📦'}[key] || '📦';
+}
+
+async function cargarCatalogo(){
+  CATALOGO = await api('/api/socio/catalogo').catch(()=>null);
+  if(!CATALOGO) return;
+  const el = document.getElementById('catalogo-contenido');
+  let html = '';
+
+  // PISCINAS — 4 niveles de precio explicados
+  html += `<details open class="cat-cat"><summary>🏊 Piscinas de fibra de vidrio</summary>
+    <p class="cat-nota">Cada modelo tiene 4 precios según cómo se entregue. <strong>Con instalación</strong> es el precio estándar en tu zona de cobertura. Los otros dos son para ventas fuera de esa zona: <strong>casco + equipo de filtrado</strong> (sin instalación) o <strong>casco solo</strong> (sin instalación ni equipo) — en ambos casos, la instalación la coordinás vos, tu equipo, o un instalador de la zona del cliente.</p>`;
+  for(const m of CATALOGO.piscinas.modelos){
+    const med = CATALOGO.piscinas.medidas ? CATALOGO.piscinas.medidas[m] : null;
+    const medidaTxt = med ? `${med.largo_m}m × ${med.ancho_m}m × ${med.profundidad_min_m}${med.profundidad_max_m && med.profundidad_max_m !== med.profundidad_min_m ? '–'+med.profundidad_max_m : ''}m` + (med.litros ? ` · ${Number(med.litros).toLocaleString('es-AR')} litros` : '') : '';
+    html += `<div class="card">
+      <h4 style="margin:0 0 2px">${m}</h4>
+      ${medidaTxt ? `<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">${medidaTxt}</p>` : ''}
+      <table style="font-size:12.5px"><tbody>
+        <tr><td>Precio de lista</td><td style="text-align:right">${fmt(CATALOGO.piscinas.precios_lista[m])}</td></tr>
+        <tr><td><strong>Contado — con instalación</strong></td><td style="text-align:right"><strong>${fmt(CATALOGO.piscinas.precios[m])}</strong></td></tr>
+        <tr><td>Contado — casco + equipo, sin instalación</td><td style="text-align:right">${fmt((CATALOGO.piscinas.precios_sin_instalacion||{})[m])}</td></tr>
+        <tr><td>Contado — casco solo, sin instalación ni equipo</td><td style="text-align:right">${fmt((CATALOGO.piscinas.precios_sin_instalacion_sin_equipo||{})[m])}</td></tr>
+      </tbody></table>
+      <a href="/api/socio/ficha-producto?tipo=PISCINA&modelo=${encodeURIComponent(m)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px;margin-top:10px">📄 Ficha para el cliente</a>
+    </div>`;
+  }
+  html += `</details>`;
+
+  // MÓDULOS
+  html += `<details class="cat-cat"><summary>🏠 Módulos habitacionales y viviendas modulares</summary>`;
+  if(CATALOGO.modulos.tecnologia) html += `<p class="cat-nota">${CATALOGO.modulos.tecnologia}</p>`;
+  html += `<table><tr><th>Modelo</th><th>Precio lista</th><th>Precio contado</th><th></th></tr>`;
+  for(const [nombre, precioLista] of Object.entries(CATALOGO.modulos.precios_lista || {})){
+    html += `<tr><td>${nombre}</td><td>${fmt(precioLista)}</td><td>${fmt((CATALOGO.modulos.precios||{})[nombre])}</td>
+      <td><a href="/api/socio/ficha-producto?tipo=MODULO&modelo=${encodeURIComponent(nombre)}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:5px 12px;font-size:12.5px">📄 Ficha</a></td></tr>`;
+  }
+  html += `</table></details>`;
+
+  // COMBOS
+  const combosEntries = Object.entries(CATALOGO.combos || {});
+  if(combosEntries.length){
+    html += `<details class="cat-cat"><summary>🎁 Combos</summary><table><tr><th>Combo</th><th>Descripción</th><th>Precio lista</th><th>Precio contado</th></tr>`;
+    for(const [nombre, d] of combosEntries){
+      html += `<tr><td>${nombre}</td><td style="font-size:12.5px">${(d||{}).descripcion || '—'}</td><td>${fmt((d||{}).precio_lista)}</td><td>${fmt((d||{}).precio_contado)}</td></tr>`;
+    }
+    html += `</table></details>`;
+  }
+
+  // Resto de categorías (hidromasajes, bañeras, receptáculos, accesorios,
+  // baños químicos, garitas, cuchas, reposeras, depósitos de jardín)
+  for(const cat of CATEGORIAS_VENTA){
+    if(['piscinas','modulos','combos'].includes(cat.key)) continue;
+    const bloque = CATALOGO[cat.key];
+    if(!bloque || !bloque.items || !Object.keys(bloque.items).length) continue;
+    const info = bloque.info || {};
+    const infoTexto = [info.material, info.estructura, info.instalacion].filter(Boolean).join(' · ');
+    html += `<details class="cat-cat"><summary>${categoriaEmoji(cat.key)} ${cat.label}</summary>`;
+    if(infoTexto) html += `<p class="cat-nota">${infoTexto}</p>`;
+    html += `<div class="biblio-grid">`;
+    for(const [nombre, d] of Object.entries(bloque.items)){
+      const dd = d || {};
+      const fotoUrl = Array.isArray(dd.fotos) ? dd.fotos[0] : null;
+      const foto = fotoUrl ? `<img src="${fotoUrl}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;margin-bottom:8px;background:var(--bg)">` : '';
+      html += `<div class="biblio-card">${foto}<h4 style="margin:0 0 4px">${nombre}</h4>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">${dd.descripcion_corta || dd.descripcion || ''}</p>
+        <div style="font-weight:700">${dd.precio_contado != null ? fmt(dd.precio_contado) : 'Consultar precio'}</div>
+      </div>`;
+    }
+    html += `</div></details>`;
+  }
+
+  el.innerHTML = html;
+
+  poblarCategoriasVenta();
+  poblarProductoVenta('c');
+  poblarProductoVenta('f');
+  simPoblarCategoria();
+}
+
+const CATEGORIAS_FINANCIABLES = ['piscinas', 'modulos', 'combos'];
+
+function simPoblarCategoria(){
+  const sel = document.getElementById('sim2-categoria');
+  if(!sel || sel.options.length) { simPoblarProducto(); return; }
+  sel.innerHTML = CATEGORIAS_VENTA.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+  simPoblarProducto();
+}
+
+function simPoblarProducto(){
+  const categoria = document.getElementById('sim2-categoria').value;
+  const items = obtenerItemsCategoria(categoria);
+  const sel = document.getElementById('sim2-producto');
+  sel.innerHTML = items.map(it => `<option value="${it.nombre.replace(/"/g,'&quot;')}">${it.nombre}</option>`).join('') || '<option value="">Sin productos cargados</option>';
+
+  const financiable = CATEGORIAS_FINANCIABLES.includes(categoria);
+  const selForma = document.getElementById('sim2-forma-pago');
+  selForma.querySelector('option[value="financiado"]').disabled = !financiable;
+  if(!financiable) selForma.value = 'contado';
+  simCambiarFormaPago();
+}
+
+function simCambiarFormaPago(){
+  const financiado = document.getElementById('sim2-forma-pago').value === 'financiado';
+  document.getElementById('sim2-cuotas-wrap').classList.toggle('hidden', !financiado);
+  simCalcular();
+}
+
+function simItemActual(){
+  const categoria = document.getElementById('sim2-categoria').value;
+  const producto = document.getElementById('sim2-producto').value;
+  const item = obtenerItemsCategoria(categoria).find(x => x.nombre === producto);
+  let precioLista = null;
+  if(categoria === 'piscinas') precioLista = (CATALOGO.piscinas.precios_lista||{})[producto];
+  else if(categoria === 'modulos') precioLista = (CATALOGO.modulos.precios_lista||{})[producto];
+  else if(categoria === 'combos') precioLista = ((CATALOGO.combos||{})[producto]||{}).precio_lista;
+  return {categoria, producto, precioContado: item ? item.precio_contado : null, precioLista};
+}
+
+function simCalcular(){
+  const el = document.getElementById('sim2-resultado');
+  const {producto, precioContado, precioLista} = simItemActual();
+  if(!producto){ el.textContent = 'Elegí una categoría y un producto.'; return; }
+  const financiado = document.getElementById('sim2-forma-pago').value === 'financiado';
+  if(!financiado){
+    el.innerHTML = precioContado != null
+      ? `<div class="kpi"><div class="v">${fmt(precioContado)}</div><div class="l">Precio de contado</div></div>`
+      : `<p>Este producto no tiene precio de contado cargado — consultar.</p>`;
+    return;
+  }
+  if(!precioLista){ el.innerHTML = '<p>Este producto no tiene precio de lista cargado para financiar.</p>'; return; }
+  const cuotas = parseInt(document.getElementById('sim2-cuotas').value, 10);
+  const factor = 2;
+  const cuotaMensual = Math.round(precioLista / (cuotas + factor));
+  const ingresoInicial = Math.round(cuotaMensual * factor);
+  const total = ingresoInicial + cuotaMensual * cuotas;
+  el.innerHTML = `<div class="kpi"><div class="v">${fmt(cuotaMensual)}/mes</div><div class="l">${cuotas} cuotas</div></div>
+    <p style="margin-top:12px;font-size:13.5px">Precio de lista: ${fmt(precioLista)}<br>Ingreso inicial: ${fmt(ingresoInicial)}<br>Total financiado: ${fmt(total)}</p>`;
+}
+
+async function simGenerarPresupuesto(){
+  const msg = document.getElementById('sim2-presupuesto-msg'); msg.className='msg'; msg.textContent='';
+  const {categoria, producto} = simItemActual();
+  const formaPago = document.getElementById('sim2-forma-pago').value;
+  const body = {
+    categoria, producto, forma_pago: formaPago,
+    cliente_nombre: document.getElementById('sim2-cliente-nombre').value.trim(),
+    cliente_apellido: document.getElementById('sim2-cliente-apellido').value.trim(),
+    cliente_whatsapp: document.getElementById('sim2-cliente-whatsapp').value.trim(),
+    cliente_localidad: document.getElementById('sim2-cliente-localidad').value.trim(),
+    cliente_email: document.getElementById('sim2-cliente-email').value.trim(),
+  };
+  if(formaPago === 'financiado') body.cuotas = parseInt(document.getElementById('sim2-cuotas').value, 10);
+  try{
+    const data = await api('/api/socio/presupuestos', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent = '¡Presupuesto generado! Descargando PDF…';
+    window.open(data.pdf_url, '_blank');
+    cargarMisPresupuestos();
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function cargarMisPresupuestos(){
+  const el = document.getElementById('sim2-mis-presupuestos');
+  const data = await api('/api/socio/presupuestos').catch(()=>({presupuestos:[]}));
+  if(!data.presupuestos.length){ el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Todavía no generaste ningún presupuesto.</p>'; return; }
+  let h = '<table><tr><th>Fecha</th><th>Cliente</th><th>Producto</th><th>Forma de pago</th><th>Monto</th><th></th></tr>';
+  for(const p of data.presupuestos){
+    const monto = p.forma_pago === 'financiado' ? `${fmt(p.cuota_mensual)}/mes` : fmt(p.precio_contado);
+    h += `<tr><td style="font-size:12px">${p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '—'}</td>
+      <td>${p.cliente_nombre} ${p.cliente_apellido}<div style="font-size:11px;color:var(--text-muted)">${p.cliente_whatsapp||''} · ${p.cliente_localidad||''}</div></td>
+      <td>${p.producto}</td><td>${p.forma_pago === 'financiado' ? 'Financiado' : 'Contado'}</td><td>${monto}</td>
+      <td><a href="/api/socio/presupuestos/${p.id}/pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 10px;font-size:12px">PDF</a></td></tr>`;
+  }
+  h += '</table>';
+  el.innerHTML = h;
+}
+
+const CATEGORIAS_VENTA = [
+  {key:'piscinas', label:'Piscinas'},
+  {key:'modulos', label:'Módulos'},
+  {key:'combos', label:'Combos'},
+  {key:'hidromasajes', label:'Hidromasaje'},
+  {key:'baneras', label:'Bañeras'},
+  {key:'receptaculos', label:'Receptáculos'},
+  {key:'accesorios_piscinas', label:'Accesorios de piscina'},
+  {key:'banios_quimicos', label:'Baños químicos'},
+  {key:'garitas_seguridad', label:'Garitas de seguridad'},
+  {key:'cuchas_perros', label:'Cuchas'},
+  {key:'reposeras', label:'Reposeras'},
+  {key:'depositos_jardin', label:'Depósitos de jardín'},
+];
+const CATEGORIA_A_PRODUCTO = {piscinas:'PISCINA', modulos:'MODULO'};
+
+function obtenerItemsCategoria(categoria){
+  if(!CATALOGO) return [];
+  if(categoria === 'piscinas'){
+    return (CATALOGO.piscinas.modelos||[]).map(m => ({nombre:m, precio_contado: CATALOGO.piscinas.precios[m]}));
+  }
+  if(categoria === 'modulos'){
+    return Object.keys(CATALOGO.modulos.precios||{}).map(m => ({nombre:m, precio_contado: CATALOGO.modulos.precios[m]}));
+  }
+  if(categoria === 'combos'){
+    return Object.entries(CATALOGO.combos||{}).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
+  }
+  const items = (CATALOGO[categoria]||{}).items || {};
+  return Object.entries(items).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
+}
+
+function poblarCategoriasVenta(){
+  const sel = document.getElementById('c-categoria');
+  if(sel && !sel.options.length){
+    sel.innerHTML = CATEGORIAS_VENTA.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+  }
+}
+
+function poblarProductoVenta(prefix){
+  const categoria = prefix === 'f' ? (document.getElementById('f-prod').value === 'PISCINA' ? 'piscinas' : 'modulos') : document.getElementById('c-categoria').value;
+  const items = obtenerItemsCategoria(categoria);
+  const selModelo = document.getElementById(prefix+'-modelo');
+  selModelo.innerHTML = items.map(it => `<option value="${it.nombre.replace(/"/g,'&quot;')}">${it.nombre}</option>`).join('') || '<option value="">Sin productos cargados</option>';
+  if(prefix === 'c'){
+    document.getElementById('c-nivel-instalacion-wrap').classList.toggle('hidden', categoria !== 'piscinas');
+    actualizarPrecioVenta('c');
+  }
+}
+
+function actualizarPrecioVenta(prefix){
+  if(prefix !== 'c') return; // en financiado el precio se resuelve siempre en el servidor, contra precios_lista
+  const categoria = document.getElementById('c-categoria').value;
+  const modelo = document.getElementById('c-modelo').value;
+  if(!modelo) return;
+  let precio = null;
+  if(categoria === 'piscinas'){
+    const nivel = document.getElementById('c-nivel-instalacion').value;
+    const tabla = nivel === 'sin_instalacion' ? CATALOGO.piscinas.precios_sin_instalacion
+      : nivel === 'sin_equipo' ? CATALOGO.piscinas.precios_sin_instalacion_sin_equipo
+      : CATALOGO.piscinas.precios;
+    precio = tabla[modelo];
+  } else {
+    const it = obtenerItemsCategoria(categoria).find(x => x.nombre === modelo);
+    precio = it ? it.precio_contado : null;
+  }
+  if(precio != null) document.getElementById('c-precio').value = precio;
+}
+
+async function cargarContado(){
+  const msg = document.getElementById('c-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const categoria = document.getElementById('c-categoria').value;
+    const body = {
+      cliente_nombre: document.getElementById('c-nombre').value,
+      cliente_telefono: document.getElementById('c-tel').value,
+      cliente_localidad: document.getElementById('c-loc').value,
+      producto: CATEGORIA_A_PRODUCTO[categoria] || categoria.toUpperCase(),
+      modelo_especifico: document.getElementById('c-modelo').value,
+      precio_final: parseFloat(document.getElementById('c-precio').value || 0),
+      nivel_instalacion: categoria === 'piscinas' ? document.getElementById('c-nivel-instalacion').value : 'con',
+    };
+    const data = await api('/api/socio/ventas/contado', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent = data.mensaje;
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+let ultimoScoringOk = false;
+
+async function correrScoring(){
+  const msg = document.getElementById('scoring-msg'); msg.className='msg'; msg.textContent='Consultando…';
+  const detalleEl = document.getElementById('scoring-detalle'); detalleEl.innerHTML = '';
+  try{
+    const dni = document.getElementById('bcra-dni').value.trim();
+    if(!dni){ msg.className='msg error'; msg.textContent='Ingresá el DNI o CUIT del cliente.'; return; }
+    const data = await api('/api/socio/scoring', {method:'POST', body: JSON.stringify({dni})});
+    ultimoScoringOk = true;
+    document.getElementById('f-dni').value = dni;  // si después cargás una venta financiada, no hace falta retipearlo
+    msg.className = data.requiere_declaracion_jurada ? 'msg' : 'msg ok';
+    msg.style.color = data.requiere_declaracion_jurada ? 'var(--warn)' : '';
+    msg.textContent = data.mensaje;
+
+    const d = data.detalle;
+    if(d && d.entidades && d.entidades.length){
+      let h = `<p style="font-size:13px;margin:10px 0 6px"><strong>${d.denominacion||'Cliente'}</strong> · período ${d.periodo} · opera con ${d.cantidad_entidades} entidad${d.cantidad_entidades===1?'':'es'} · deuda total registrada: ${fmt((d.monto_total_miles||0)*1000)}</p>`;
+      h += '<table style="font-size:12.5px"><tr><th>Entidad</th><th>Situación</th><th>Monto</th><th>Atraso</th><th>Estado</th></tr>';
+      for(const e of d.entidades){
+        const alertas = [];
+        if(e.refinanciaciones) alertas.push('Refinanciada');
+        if(e.en_revision) alertas.push('En revisión');
+        if(e.proceso_judicial) alertas.push('Proceso judicial');
+        h += `<tr><td>${e.entidad}</td><td>${e.situacion}</td><td>${fmt((e.monto_miles||0)*1000)}</td><td>${e.dias_atraso_pago||0} días</td><td>${alertas.join(', ')||'—'}</td></tr>`;
+      }
+      h += '</table>';
+      detalleEl.innerHTML = h;
+    }
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function cargarFinanciado(){
+  const msg = document.getElementById('f-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    let modelo = document.getElementById('f-modelo').value;
+    const body = {
+      cliente_nombre: document.getElementById('f-nombre').value,
+      cliente_dni: document.getElementById('f-dni').value,
+      cliente_telefono: document.getElementById('f-tel').value,
+      cliente_localidad: document.getElementById('f-loc').value,
+      producto: document.getElementById('f-prod').value,
+      modelo_especifico: modelo,
+      cantidad_cuotas: parseInt(document.getElementById('f-cuotas').value || 0),
+    };
+    const data = await api('/api/socio/ventas/financiado', {method:'POST', body: JSON.stringify(body)});
+    msg.className='msg ok';
+    msg.textContent = `${data.mensaje} Cuota: ${fmt(data.valor_cuota)} — Inscripción: ${fmt(data.monto_inscripcion)}`;
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function cargarMisVentas(){
+  const data = await api('/api/socio/ventas').catch(()=>({financiado:[],contado:[]}));
+  document.getElementById('kpi-ventas').textContent = data.financiado.length + data.contado.length;
+
+  let hf = '<table><tr><th>Cliente</th><th>Producto</th><th>Línea de tiempo</th><th>Solicitud</th><th></th></tr>';
+  for(const v of data.financiado){
+    const pasos = [
+      {l:'Cargada', ok:true},
+      {l:'Seña recibida', ok:v.sena_recibida},
+      {l:'Contrato', ok:v.contrato_generado},
+      {l:'Inscripción completa', ok:v.inscripcion_pagada},
+      {l:'Cliente confirmó', ok:v.cliente_confirmo},
+      {l:'Bienvenida', ok:v.auditoria_completada},
+    ];
+    const timeline = pasos.map(p=>`<span class="pill ${p.ok?'ok':'warn'}" style="margin-right:4px">${p.ok?'✓':'○'} ${p.l}</span>`).join('');
+    let progreso = '';
+    if(!v.inscripcion_pagada){
+      progreso = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px">Inscripción: ${fmt(v.monto_pagado_inscripcion)} de ${fmt(v.monto_inscripcion)}${v.sena_vence_en?' · vence '+new Date(v.sena_vence_en).toLocaleDateString('es-AR'):''}</div>`;
+    }
+    let accion = '';
+    if(v.contrato_generado){
+      accion = `<a href="/api/socio/ventas/${v.id}/contrato-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">📄 Contrato</a>`;
+    } else {
+      accion = `<button class="btn-teal" onclick="generarContrato(${v.id})">Generar contrato</button>`;
+    }
+    if(v.recibo_generado){
+      accion += ` <a href="/api/socio/ventas/${v.id}/recibo-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">🧾 Recibo</a>`;
+    }
+    if(v.link_confirmacion_token && !v.cliente_confirmo){
+      accion += ` <span class="copyable">${location.origin}/socio/confirmar/${v.link_confirmacion_token}</span>`;
+    }
+    if(v.puede_licitar && !v.licitacion_solicitada){
+      accion += ` <button class="btn-ghost" onclick="solicitarLicitacion(${v.id})">🏗️ Solicitar entrega anticipada</button>`;
+    } else if(v.licitacion_solicitada){
+      accion += ' <span class="pill ok">Licitación solicitada</span>';
+    }
+    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td style="white-space:normal">${timeline}${progreso}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
+  }
+  hf += '</table>';
+  document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
+
+  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th></tr>';
+  for(const v of data.contado){
+    const pill = v.cobro_estado==='COBRADO' ? '<span class="pill ok">Entregada y cobrada</span>' : (v.confirmacion_48hs ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
+    hc += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td></tr>`;
+  }
+  hc += '</table>';
+  document.getElementById('tabla-contado').innerHTML = hc;
+}
+
+async function solicitarLicitacion(ventaId){
+  try{
+    await api(`/api/socio/ventas/${ventaId}/solicitar-licitacion`, {method:'POST'});
+    alert('Listo, el equipo ya tiene el pedido de entrega anticipada.');
+    cargarMisVentas();
+  }catch(e){ alert(e.message); }
+}
+
+async function generarContrato(ventaId){
+  try{
+    const data = await api(`/api/socio/ventas/${ventaId}/generar-contrato`, {method:'POST'});
+    window.open(data.contrato_pdf_url, '_blank');
+    alert('Se descargó el resumen del plan en PDF.\n\nMandale este link al cliente para que confirme:\n' + data.link_confirmacion);
+    cargarMisVentas();
+  }catch(e){ alert(e.message); }
+}
+
+async function cargarComisiones(){
+  const data = await api('/api/socio/comisiones').catch(()=>({monto_pendiente:0, monto_liquidado:0}));
+  document.getElementById('kpi-pendiente').textContent = fmt(data.monto_pendiente);
+  document.getElementById('kpi-liquidado').textContent = fmt(data.monto_liquidado);
+}
+
+async function cargarComisionesVigentesCard(){
+  const cont = document.getElementById('comisiones-vigentes-card');
+  try{
+    const data = await api('/api/socio/comisiones/vigentes');
+    cont.innerHTML = `<div class="grid2">` + data.tabla.map(f => `
+      <div class="card">
+        <h4 style="margin:0 0 8px;font-size:14px">${f.producto_label}</h4>
+        <div style="font-size:13px;line-height:1.7">
+          <div><strong>Contado:</strong> ${f.contado_texto}</div>
+          <div><strong>Financiado:</strong> ${f.financiado_texto}</div>
+        </div>
+      </div>
+    `).join('') + `</div>`;
+  }catch(e){ cont.innerHTML = '<p class="msg error">No pudimos cargar las comisiones vigentes.</p>'; }
+}
+
+async function cargarComisionesTabla(){
+  cargarComisionesVigentesCard();
+  const data = await api('/api/socio/comisiones').catch(()=>({comisiones:[]}));
+  let h = `<div class="kpis"><div class="kpi"><div class="v">${fmt(data.monto_pendiente)}</div><div class="l">Pendiente</div></div><div class="kpi"><div class="v">${fmt(data.monto_liquidado)}</div><div class="l">Liquidado</div></div></div>`;
+  h += `<a href="/api/socio/comisiones/exportar" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px;margin-bottom:14px">⬇️ Exportar CSV</a>`;
+  h += '<table><tr><th>Solicitud</th><th>Tipo</th><th>Monto</th><th>Estado</th><th>Factura</th></tr>';
+  for(const c of data.comisiones){
+    h += `<tr><td>${c.solicitud_numero||'—'}</td><td>${c.tipo}</td><td>${fmt(c.monto)}</td><td><span class="pill ${c.estado==='liquidada'?'ok':'warn'}">${c.estado}</span></td>
+      <td>${c.factura_cargada ? '✅' : `<input type="file" id="fact-${c.id}" style="width:120px"><button class="btn-ghost" onclick="subirFactura(${c.id})">Subir</button>`}</td></tr>`;
+  }
+  h += '</table>';
+  document.getElementById('tabla-comisiones').innerHTML = h;
+}
+
+async function subirFactura(comisionId){
+  const input = document.getElementById('fact-'+comisionId);
+  if(!input.files[0]) return;
+  const fd = new FormData(); fd.append('archivo', input.files[0]);
+  await fetch(`/api/socio/comisiones/${comisionId}/factura`, {method:'POST', credentials:'include', body: fd});
+  cargarComisionesTabla();
+}
+
+async function cargarRanking(){
+  const data = await api('/api/socio/ranking?periodo=mes').catch(()=>({ranking:[]}));
+  let h = '<table><tr><th>#</th><th>Socio</th><th>Zona</th><th>Facturado (mes)</th></tr>';
+  for(const f of data.ranking){
+    const tilde = f.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
+    h += `<tr><td>${f.medalla||f.puesto}</td><td>${f.nombre}${tilde}</td><td>${f.zona||'—'}</td><td>${fmt(f.monto_facturado)}</td></tr>`;
+  }
+  h += '</table>';
+  document.getElementById('tabla-ranking').innerHTML = h;
+}
+
+let BIBLIOTECA_ITEMS = [];
+let BIBLIOTECA_FILTRO = 'todos';
+
+async function cargarBiblioteca(){
+  const el = document.getElementById('biblio-grid');
+  if(!SOCIO.verificado){
+    el.innerHTML = '<p style="color:var(--text-muted)">La Biblioteca se habilita cuando completás tu perfil y verificás tu WhatsApp. <a onclick="abrirModalVerificacion()" style="cursor:pointer;text-decoration:underline">Completar ahora</a></p>';
+    return;
+  }
+  const data = await api('/api/socio/biblioteca').catch(()=>({materiales:[]}));
+  BIBLIOTECA_ITEMS = data.materiales.filter(m => m.tipo !== 'guia');  // las guías viven en Capacitación
+  renderBiblioteca();
+}
+
+function filtrarBiblioteca(tipo){
+  BIBLIOTECA_FILTRO = tipo;
+  document.querySelectorAll('.biblio-filtro').forEach(b => b.classList.toggle('active', b.dataset.tipo === tipo));
+  renderBiblioteca();
+}
+
+function renderBiblioteca(){
+  const el = document.getElementById('biblio-grid');
+  const items = BIBLIOTECA_FILTRO === 'todos' ? BIBLIOTECA_ITEMS : BIBLIOTECA_ITEMS.filter(m => m.tipo === BIBLIOTECA_FILTRO);
+  el.innerHTML = items.map((m, i) => `
+    <div class="biblio-card">
+      ${(m.tipo === 'imagen' || m.tipo === 'foto_entrega') && m.url ? `<img src="${m.url}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;margin-bottom:10px;background:var(--bg)">` : ''}
+      <div class="tag-cat">${m.categoria}${m.tipo === 'copy' ? ' · copy listo para pegar' : ''}</div>
+      <h4>${m.titulo || m.tipo}</h4>
+      <p>${(m.descripcion||'').replace(/\n/g,'<br>')}</p>
+      ${m.tipo === 'copy' ? `<button class="btn-ghost" onclick="copiarTexto(this, ${JSON.stringify(m.descripcion)})">📋 Copiar texto</button>` : ''}
+      ${m.url ? `<a href="${m.url}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px">${m.tipo === 'imagen' ? 'Ver tamaño completo' : 'Ver / descargar'}</a>` : ''}
+    </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay material en esta categoría.</p>';
+}
+
+async function copiarTexto(btn, texto){
+  try{ await navigator.clipboard.writeText(texto); btn.textContent = '✅ Copiado'; }
+  catch(e){ btn.textContent = 'No se pudo copiar'; }
+  setTimeout(() => { btn.textContent = '📋 Copiar texto'; }, 1800);
+}
+
+async function guardarPerfil(){
+  const msg = document.getElementById('p-msg'); msg.className='msg'; msg.textContent='';
+  try{
+    const data = await api('/api/socio/me', {method:'PUT', body: JSON.stringify({
+      cbu_alias: document.getElementById('p-cbu').value.trim(),
+      dni: document.getElementById('p-dni').value.trim(),
+      zona: document.getElementById('p-zona').value.trim(),
+      cuit_monotributo: document.getElementById('p-cuit').value.trim(),
+      interes_venta: document.getElementById('p-interes').value,
+    })});
+    SOCIO.perfil_completo = data.perfil_completo; SOCIO.verificado = data.verificado;
+    SOCIO.dni = document.getElementById('p-dni').value.trim();
+    SOCIO.zona = document.getElementById('p-zona').value.trim();
+    SOCIO.interes_venta = document.getElementById('p-interes').value;
+    SOCIO.cuit_monotributo = document.getElementById('p-cuit').value.trim();
+    actualizarEstadoVerificacionPerfil();
+    msg.className='msg ok'; msg.textContent='Guardado.';
+  }catch(e){ msg.className='msg error'; msg.textContent=e.message; }
+}
+
+async function subirDoc(tipo){
+  const msg = document.getElementById('doc-msg'); msg.className='msg'; msg.textContent='';
+  const input = document.getElementById('doc-'+tipo);
+  if(!input.files[0]){ msg.className='msg error'; msg.textContent='Elegí un archivo primero'; return; }
+  const fd = new FormData(); fd.append('archivo', input.files[0]);
+  const r = await fetch(`/api/socio/documentos/${tipo}`, {method:'POST', credentials:'include', body: fd});
+  if(r.ok){ msg.className='msg ok'; msg.textContent='Documento subido.'; }
+  else { msg.className='msg error'; msg.textContent='Error al subir.'; }
+}
+
+// Intento de sesión ya iniciada al cargar la página
+cargarApp();
+</script>
+</body>
+</html>

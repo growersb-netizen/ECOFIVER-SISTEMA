@@ -276,7 +276,7 @@ async def receive_message(request: Request, background: BackgroundTasks):
             field      = body.get("entry", [{}])[0].get("changes", [{}])[0].get("field", "?")
             if statuses:
                 st = statuses[0]
-                logger.info(f"[WA] STATUS UPDATE recibido: status={st.get('status')} id={st.get('id')} phone={st.get('recipient_id')}")
+                logger.info(f"[WA] STATUS UPDATE recibido: status={st.get('status')} id={st.get('id')} phone={st.get('recipient_id')} errors={st.get('errors')}")
             else:
                 logger.info(f"[WA] WEBHOOK recibido (no-mensaje): field={field} body_keys={list(change_val.keys())}")
         except Exception:

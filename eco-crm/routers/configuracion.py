@@ -82,6 +82,44 @@ CONFIG_DEFS: dict = {
         "test_id": None,
         "placeholder": "mi_token_secreto_webhook",
     },
+    # ── Email (SMTP) — códigos de verificación del panel de Socios ──
+    "smtp_host": {
+        "label": "SMTP — Host",
+        "categoria": "api_keys",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "smtp.gmail.com",
+    },
+    "smtp_port": {
+        "label": "SMTP — Puerto",
+        "categoria": "api_keys",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "587",
+    },
+    "smtp_user": {
+        "label": "SMTP — Usuario (mail que envía)",
+        "categoria": "api_keys",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "notificaciones@ecofiver.com",
+    },
+    "smtp_password": {
+        "label": "SMTP — Contraseña de aplicación",
+        "categoria": "api_keys",
+        "es_secreto": True,
+        "test_id": None,
+        "placeholder": "contraseña de aplicación de Google",
+        "link_obtener": "https://myaccount.google.com/apppasswords",
+        "link_label": "Generar en Google →",
+    },
+    "smtp_from": {
+        "label": "SMTP — Remitente (si difiere del usuario)",
+        "categoria": "api_keys",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "opcional",
+    },
     # ── Meta / Facebook / Instagram ──
     "meta_app_id": {
         "label": "Meta — App ID",
@@ -363,6 +401,11 @@ def auto_init_config(db: Session):
         ("wa_token",       ["WA_TOKEN"],                      True),
         ("wa_phone_id",    ["WA_PHONE_ID"],                   False),
         ("wa_webhook_verify_token", ["WA_VERIFY_TOKEN"],      True),
+        ("smtp_host",      ["SMTP_HOST"],                     False),
+        ("smtp_port",      ["SMTP_PORT"],                     False),
+        ("smtp_user",      ["SMTP_USER"],                     False),
+        ("smtp_password",  ["SMTP_PASSWORD"],                 True),
+        ("smtp_from",      ["SMTP_FROM"],                     False),
         # Meta / Facebook / Instagram
         ("meta_app_id",           ["META_APP_ID"],            False),
         ("meta_app_secret",       ["META_APP_SECRET"],        True),

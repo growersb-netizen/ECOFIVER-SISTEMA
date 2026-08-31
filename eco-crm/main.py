@@ -36,7 +36,7 @@ from routers import (
     control_agentes, instalacion, panolero, asistencia_rapida, entrega_rapida,
     marketing, simulador, seguimiento, testimonial, inbox, public_landing,
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
-    integraciones, redes_sociales, imagenes, ml_biblioteca,
+    integraciones, redes_sociales, imagenes, ml_biblioteca, socios,
 )
 from routers import ml_audit
 
@@ -57,6 +57,63 @@ seed_database()
 seed_config_defaults()
 seed_rr_defaults()
 
+# Guías reales de la Biblioteca de contenidos del panel de socios (idempotente)
+try:
+    from database.database import SessionLocal
+    from routers.socios import seed_biblioteca_socios, sincronizar_biblioteca_catalogo, sincronizar_biblioteca_marketing, seed_comision_config
+    _db_seed = SessionLocal()
+    try:
+        seed_biblioteca_socios(_db_seed)
+        sincronizar_biblioteca_catalogo(_db_seed)
+        sincronizar_biblioteca_marketing(_db_seed)
+        seed_comision_config(_db_seed)
+    finally:
+        _db_seed.close()
+except Exception:
+    log.exception("No se pudo sembrar la biblioteca de socios")
+
+# Sincronizar en DB las claves de configuración que vienen de env vars (WA_TOKEN,
+# WA_PHONE_ID, API keys de IA, etc.). Antes esto solo corría cuando un admin
+# abría /configuracion manualmente, lo que dejaba wa_token/wa_phone_id vacíos en
+# DB (y por lo tanto el envío de WhatsApp roto en silencio, ej: OTP de registro
+# de socios) aunque las env vars estuvieran cargadas en Railway.
+try:
+    from database.database import SessionLocal as _SessionLocalCfg
+    from routers.configuracion import auto_init_config
+    _db_cfg = _SessionLocalCfg()
+    try:
+        auto_init_config(_db_cfg)
+
+        # WA_TOKEN/WA_PHONE_ID: Railway (env var) es siempre la fuente de verdad.
+        # auto_init_config() de arriba solo llena la clave si está VACÍA en DB, así
+        # que si alguna vez quedó un token viejo/vencido guardado, un WA_TOKEN
+        # nuevo en Railway nunca lo pisaba sin abrir /configuracion a mano. Acá
+        # sí forzamos el overwrite en cada arranque para estas dos claves.
+        import os as _os
+        from database.encryption import encrypt_value as _encrypt_value
+        from database.models import ConfiguracionSistema as _ConfigModel
+        for _clave, _env_var, _es_secreto in (
+            ("wa_token", "WA_TOKEN", True), ("wa_phone_id", "WA_PHONE_ID", False),
+            ("smtp_host", "SMTP_HOST", False), ("smtp_port", "SMTP_PORT", False),
+            ("smtp_user", "SMTP_USER", False), ("smtp_password", "SMTP_PASSWORD", True),
+            ("smtp_from", "SMTP_FROM", False),
+        ):
+            _val = _os.getenv(_env_var, "")
+            if not _val:
+                continue
+            _stored = _encrypt_value(_val) if _es_secreto else _val
+            _entry = _db_cfg.query(_ConfigModel).filter(_ConfigModel.clave == _clave).first()
+            if _entry:
+                _entry.valor = _stored
+                _entry.estado = "activa"
+            else:
+                _db_cfg.add(_ConfigModel(clave=_clave, valor=_stored, es_secreto=_es_secreto, categoria="whatsapp", estado="activa"))
+        _db_cfg.commit()
+    finally:
+        _db_cfg.close()
+except Exception:
+    log.exception("No se pudo auto-inicializar la configuración desde env vars")
+
 app = FastAPI(
     title="EcoFiver — CRM",
     description="Sistema de gestión comercial y operativo",
@@ -67,7 +124,20 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # OJO: con allow_credentials=True no se puede usar "*" como origen.
+    # Starlette solo refleja el origin exacto (en vez de "*") en preflight
+    # (OPTIONS); en la respuesta real de un POST/GET sin cookie ya seteada
+    # devuelve el "*" literal, y el navegador lo rechaza cuando el fetch
+    # usa credentials:"include" (ver /api/public/socio-registro). Por eso
+    # se lista de forma explícita cada origen habilitado.
+    allow_origins=[
+        "https://landing-aliados-ecofiver.vercel.app",
+        "https://landing-financiacion.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+    ],
+    allow_origin_regex=r"https://landing-aliados-ecofiver.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -124,6 +194,7 @@ app.include_router(testimonial.router)  # público: /testimonial/{token}
 app.include_router(inbox.router)        # bandeja de entrada WhatsApp
 app.include_router(public_landing.router)  # público, sin API key: /api/public/landing-lead
 app.include_router(aliados.router)          # canal Aliados Comerciales (Franco)
+app.include_router(socios.router)           # Plataforma de Socios Comerciales (registro autoservicio)
 app.include_router(cobranza_historica.router)  # Cobranza histórica Construsol — independiente de EcoFiver
 app.include_router(ml_publicaciones.router) # MercadoLibre — cola de publicaciones
 app.include_router(negocio.router)          # Configuración del negocio
@@ -326,6 +397,10 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/api/inbox/modo/",      # multiagente consulta modo de atención
         "/equipo/pedido",           # pública con código de equipo
         "/portal-aliado",           # portal de solo lectura del aliado (login por código+PIN)
+        "/panel-socio",             # Plataforma de Socios Comerciales (login/registro propio, JWT en cookie aparte)
+        "/terminos-socios-comerciales",  # Términos y Condiciones del programa (pública, enlazada desde el registro)
+        "/socio/confirmar/",        # cliente confirma su plan financiado por link, sin sesión
+        "/socio/declaracion-jurada/",  # cliente confirma la declaración jurada por link, sin sesión
         "/api/public",              # endpoints públicos (landing, postulación aliado, portal)
         "/api/materiales/pedidos",  # POST público para pedidos del equipo
         "/operario/",               # panel operario por token (sin login)

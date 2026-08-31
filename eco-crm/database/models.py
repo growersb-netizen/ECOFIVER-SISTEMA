@@ -291,6 +291,10 @@ class VentaContado(Base):
     cobro_fecha             = Column(DateTime(timezone=True), nullable=True)
     cobro_notas             = Column(Text, default="")
 
+    # ── Venta cargada por un Socio Comercial (canal Aliados) ──────────────────
+    aliado_codigo               = Column(String(20), ForeignKey("aliados.codigo"), nullable=True, index=True)
+    confirmacion_48hs_en        = Column(DateTime(timezone=True), nullable=True)  # equipo confirmó fecha/detalles
+
     vendedor           = relationship("Usuario", foreign_keys=[vendedor_id])
     equipo_instalador  = relationship("EquipoInstalador", foreign_keys=[equipo_instalador_id])
 
@@ -332,6 +336,23 @@ class VentaFinanciada(Base):
     ultima_indexacion = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # ── Venta cargada por un Socio Comercial (canal Aliados) ──────────────────
+    aliado_codigo = Column(String(20), ForeignKey("aliados.codigo"), nullable=True, index=True)
+    scoring_situacion = Column(Integer, nullable=True)                    # 1-6 del BCRA al momento de cargar
+    declaracion_jurada_requerida = Column(Boolean, default=False)
+    declaracion_jurada_confirmada_en = Column(DateTime(timezone=True), nullable=True)
+    inscripcion_pagada_en = Column(DateTime(timezone=True), nullable=True)  # cliente completó el 100% de la inscripción
+    contrato_generado_en = Column(DateTime(timezone=True), nullable=True)
+    # ── Pago de la inscripción en partes (seña + saldo) ───────────────────────
+    monto_pagado_inscripcion = Column(Float, default=0)   # acumulado de lo pagado hacia monto_inscripcion
+    primera_sena_en = Column(DateTime(timezone=True), nullable=True)   # primer pago parcial recibido — dispara el contrato
+    sena_vence_en = Column(DateTime(timezone=True), nullable=True)     # primera_sena_en + 30 días para completar el 100%
+    recibo_generado_en = Column(DateTime(timezone=True), nullable=True)  # recibo emitido al completar la inscripción
+    link_confirmacion_token = Column(String(64), nullable=True, unique=True, index=True)
+    link_confirmacion_confirmada_en = Column(DateTime(timezone=True), nullable=True)  # cliente aceptó por el link
+    auditoria_bienvenida_en = Column(DateTime(timezone=True), nullable=True)  # llamada del equipo — dispara comisión
+    licitacion_solicitada_en = Column(DateTime(timezone=True), nullable=True)  # pedido de entrega anticipada
 
     asesor_apertura = relationship("Usuario", foreign_keys=[asesor_apertura_id])
     supervisor_cierre = relationship("Usuario", foreign_keys=[supervisor_cierre_id])
@@ -1291,13 +1312,82 @@ class Aliado(Base):
     cbu_alias = Column(String(120), default="")          # para pago de comisiones
     zona = Column(String(120), default="")               # localidad / partido PBA
     # postulante | en_evaluacion | activo | inactivo | suspendido | rechazado
+    # Con el modelo de registro directo, el alta pública ya crea el registro en "activo".
     estado = Column(String(20), default="postulante", index=True)
     fecha_alta = Column(DateTime(timezone=True), server_default=func.now())
     contrato_firmado = Column(Boolean, default=False)    # bloquea operativa si es False
-    pin = Column(String(12), nullable=True)              # PIN para el portal de solo lectura del aliado
+    pin = Column(String(12), nullable=True)              # legado: PIN del portal de solo lectura anterior
     notas = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # ── Cuenta de acceso al Panel de Socios (registro autoservicio) ───────────
+    email = Column(String(150), nullable=True, index=True)
+    password_hash = Column(String(255), nullable=True)
+    whatsapp_verificado = Column(Boolean, default=False)
+    codigo_verificacion = Column(String(10), nullable=True)
+    codigo_verificacion_expira = Column(DateTime(timezone=True), nullable=True)
+    intentos_fallidos = Column(Integer, default=0)
+    bloqueado_hasta = Column(DateTime(timezone=True), nullable=True)
+
+    # ── Verificación de email (canal separado del WhatsApp) ──────────────────
+    email_verificado = Column(Boolean, default=False)
+    codigo_verificacion_email = Column(String(10), nullable=True)
+    codigo_verificacion_email_expira = Column(DateTime(timezone=True), nullable=True)
+
+    # ── El registro ya no pide DNI/CUIT: se completan en el pop-up post-login.
+    # perfil_completo = True cuando cargó DNI + zona (CUIT es opcional). Junto
+    # con whatsapp_verificado + email_verificado da el "Verificado ✓" del panel,
+    # requisito para poder cargar ventas y empezar a generar comisiones.
+    perfil_completo = Column(Boolean, default=False)
+
+    # ── Documentación propia (para poder cobrar comisiones) ──────────────────
+    doc_monotributo_path = Column(String(500), nullable=True)
+    doc_dni_path = Column(String(500), nullable=True)
+
+    # ── Atribución de marketing: de dónde vino el registro (UTM de la pauta) ──
+    origen_registro = Column(String(300), default="")
+
+    # ── Notificación y aceptación de comisiones (obligatoria en el primer ingreso) ──
+    comisiones_aceptadas_en = Column(DateTime(timezone=True), nullable=True)
+
+    # ── Calificación del lead: qué le interesa vender (PISCINAS | MODULOS | AMBOS) ──
+    interes_venta = Column(String(20), nullable=True)
+
+
+class MaterialSocio(Base):
+    """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,
+    documentación, fotos de entregas y guías. tipo/categoria son de vocabulario
+    libre para no atarse a un enum rígido mientras se carga material real."""
+    __tablename__ = "materiales_socio"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tipo = Column(String(30), default="imagen")          # imagen | video | flyer | documento | foto_entrega | guia
+    categoria = Column(String(30), default="general")     # modulos | piscinas | combo | redes | ventas | general
+    titulo = Column(String(200), default="")
+    descripcion = Column(Text, default="")
+    archivo_path = Column(String(500), nullable=True)      # archivo subido (persistente en /app/data)
+    url_externa = Column(String(500), nullable=True)       # o un link externo (ej. video de YouTube)
+    orden = Column(Integer, default=0)
+    activo = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # "manual" (cargado a mano desde el panel interno) | "catalogo" (generado
+    # automáticamente por sincronizar_biblioteca_catalogo — se borra y recrea
+    # en cada sync, nunca editar estos a mano).
+    origen = Column(String(20), default="manual")
+
+
+class ScoringBCRA(Base):
+    """Log de consultas a la Central de Deudores del BCRA antes de financiar."""
+    __tablename__ = "scoring_bcra"
+
+    id = Column(Integer, primary_key=True, index=True)
+    aliado_codigo = Column(String(20), index=True)
+    cliente_dni = Column(String(20), index=True)
+    situacion = Column(Integer, nullable=True)             # 1-6, o null si no encontrado
+    requiere_declaracion_jurada = Column(Boolean, default=False)  # True si situación 5 o 6
+    respuesta_raw = Column(Text, default="")               # JSON crudo de la API del BCRA
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Comision(Base):
@@ -1315,6 +1405,60 @@ class Comision(Base):
     ajuste_manual = Column(Boolean, default=False)
     ajuste_motivo = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # ── Venta que originó la comisión + factura del socio (si tiene monotributo) ──
+    venta_financiada_id = Column(Integer, ForeignKey("ventas_financiadas.id"), nullable=True)
+    venta_contado_id = Column(Integer, ForeignKey("ventas_contado.id"), nullable=True)
+    factura_path = Column(String(500), nullable=True)  # no bloqueante ni excluyente del pago
+
+
+class Presupuesto(Base):
+    """
+    Cotización profesional generada por un socio desde el simulador — con
+    datos completos del cliente, para que funcione también como captura de
+    lead (queda registrado y disponible para el socio y para el admin).
+    """
+    __tablename__ = "presupuestos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    aliado_codigo = Column(String(20), ForeignKey("aliados.codigo"), nullable=False, index=True)
+
+    categoria = Column(String(30), default="")
+    producto = Column(String(150), default="")
+    forma_pago = Column(String(20), default="contado")   # contado | financiado
+    cuotas = Column(Integer, nullable=True)
+
+    precio_lista = Column(Float, nullable=True)
+    precio_contado = Column(Float, nullable=True)
+    cuota_mensual = Column(Float, nullable=True)
+    ingreso_inicial = Column(Float, nullable=True)
+    total_financiado = Column(Float, nullable=True)
+
+    cliente_nombre = Column(String(150), default="")
+    cliente_apellido = Column(String(150), default="")
+    cliente_whatsapp = Column(String(30), default="")
+    cliente_email = Column(String(150), default="")
+    cliente_localidad = Column(String(150), default="")
+
+    pdf_path = Column(String(500), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ComisionConfig(Base):
+    """
+    Porcentaje de comisión del socio, configurable desde el panel de admin.
+    Se resuelve por especificidad: (tipo_venta, producto, modelo) exacto >
+    (tipo_venta, producto, modelo=NULL) > (tipo_venta, producto=NULL, modelo=NULL)
+    como default global. `porcentaje` es una fracción (0.05 = 5%, 1.0 = 100%).
+    """
+    __tablename__ = "comision_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tipo_venta = Column(String(20), nullable=False, index=True)   # contado | financiado
+    producto = Column(String(30), nullable=True)                  # PISCINA | MODULO | ... | NULL = default general
+    modelo = Column(String(150), nullable=True)                   # modelo específico | NULL = todo el producto
+    porcentaje = Column(Float, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class AuditoriaPaquete(Base):
@@ -1469,8 +1613,32 @@ class MetaPagina(Base):
     ig_user_id = Column(String(50), nullable=True)   # Instagram Business Account ID vinculado
     page_token = Column(Text, nullable=True)          # Page Access Token (del sync vía /me/accounts)
     activa = Column(Boolean, default=True)
+    # ── Automatización de respuestas ──────────────────────────────────────────
+    auto_reply_comentarios = Column(Boolean, default=False)   # auto-responder comentarios en posts
+    auto_reply_mensajes = Column(Boolean, default=False)      # auto-responder mensajes privados (Messenger)
+    auto_eliminar_negativos = Column(Boolean, default=False)  # eliminar comentarios negativos
+    webhook_subscribed = Column(Boolean, default=False)       # página suscrita al webhook
+    numero_whatsapp = Column(String(30), default="1144498854")  # número al que redirige
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class FacebookInteraccion(Base):
+    """Log de comentarios y mensajes procesados por la automatización de Facebook."""
+    __tablename__ = "facebook_interacciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    page_id = Column(String(50), nullable=False, index=True)
+    tipo = Column(String(30), nullable=False)          # comentario | mensaje | eliminado
+    post_id = Column(String(150), nullable=True)       # post al que pertenece el comentario
+    objeto_id = Column(String(150), nullable=True)     # comment_id o message_mid
+    usuario_nombre = Column(String(200), nullable=True)
+    usuario_id = Column(String(50), nullable=True)
+    contenido = Column(Text, nullable=True)
+    sentimiento = Column(String(20), default="neutro") # positivo | negativo | neutro
+    accion = Column(String(30), default="pendiente")   # respondido | eliminado | ignorado | pendiente | error
+    respuesta_enviada = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class FotoML(Base):

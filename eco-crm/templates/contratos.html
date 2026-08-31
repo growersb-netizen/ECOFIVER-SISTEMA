@@ -28,48 +28,308 @@
   <div id="contratos-list"><div class="loading">Cargando...</div></div>
 </div>
 
-<!-- ═══ TAB: GENERAR CONTRATO ═══ -->
+<!-- ═══ TAB: GENERAR DOCUMENTO ═══ -->
 <div id="tab-generar" style="display:none">
-  <div class="card mb-3">
-    <div class="card-header"><strong>⚡ Generar contrato desde venta financiada</strong></div>
-    <div class="card-body">
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
-        Seleccioná una venta financiada sin contrato. El sistema llenará la plantilla Word con los datos del cliente y la descargará automáticamente.
-      </p>
-      <div id="ventas-pendientes-list"><div class="loading">Cargando ventas...</div></div>
-    </div>
+
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">
+    <button id="stb-contrato" onclick="switchDocTab('contrato')"
+      style="padding:10px 24px;background:var(--accent);color:white;border:none;border-radius:6px 6px 0 0;font-weight:600;cursor:pointer;font-size:14px">
+      📄 Nuevo Contrato
+    </button>
+    <button id="stb-recibo" onclick="switchDocTab('recibo')"
+      style="padding:10px 24px;background:var(--bg-secondary);color:var(--text-muted);border:none;border-radius:6px 6px 0 0;font-weight:600;cursor:pointer;font-size:14px">
+      🧾 Nuevo Recibo
+    </button>
   </div>
 
-  <div class="card">
-    <div class="card-header"><strong>📝 O crear contrato manual</strong></div>
-    <div class="card-body">
-      <form id="contrato-form" style="display:grid;gap:12px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <!-- ══ FORMULARIO CONTRATO ══ -->
+  <div id="docform-contrato">
+
+    <!-- TIPO DE PRODUCTO -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>📦 Tipo de producto</strong></div>
+      <div class="card-body" style="display:flex;gap:24px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+          <input type="radio" name="tipo_prod" value="PISCINA" checked onchange="onTipoProd(this.value)"> 🏊 Piscina de Fibra de Vidrio
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+          <input type="radio" name="tipo_prod" value="MODULO" onchange="onTipoProd(this.value)"> 🏠 Módulo Habitacional
+        </label>
+      </div>
+    </div>
+
+    <!-- PRODUCTO -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>🏊 Producto solicitado</strong></div>
+      <div class="card-body" style="display:grid;gap:14px">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px">
           <div>
-            <label class="label">Cliente *</label>
-            <input name="cliente_nombre" class="input" required placeholder="Nombre completo">
+            <label class="label">Modelo *</label>
+            <select id="sel-modelo" class="input" onchange="onModeloChange()">
+              <option value="">— cargando catálogo... —</option>
+            </select>
           </div>
           <div>
-            <label class="label">Tipo de contrato</label>
-            <select name="tipo_contrato" class="input">
-              <option value="Módulo PMI">Módulo PMI</option>
-              <option value="Módulo Directa 50%">Módulo Directa 50%</option>
-              <option value="Piscina PMI">Piscina PMI</option>
-              <option value="Piscina Directa 50%">Piscina Directa 50%</option>
+            <label class="label">Color</label>
+            <select id="sel-color" class="input"></select>
+          </div>
+          <div>
+            <label class="label">Sistema</label>
+            <select id="sel-sistema" class="input"></select>
+          </div>
+        </div>
+        <div id="medidas-row" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px;background:var(--bg-secondary);border-radius:6px;font-size:13px">
+          <span style="color:var(--text-muted)">Medidas:</span>
+          <span><strong>Largo:</strong> <span id="m-largo">—</span> m</span>
+          <span><strong>Ancho:</strong> <span id="m-ancho">—</span> m</span>
+          <span><strong>Prof.:</strong> <span id="m-pmin">—</span> → <span id="m-pmax">—</span> m</span>
+        </div>
+        <div>
+          <label class="label">Observaciones</label>
+          <input id="inp-obs" class="input" placeholder="LA FECHA DE INSTALACIÓN SE ASIGNARÁ CONFORME AL PLAN DE PRODUCCIÓN VIGENTE.">
+        </div>
+      </div>
+    </div>
+
+    <!-- PLAN DE PAGO -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>💳 Plan de pago</strong></div>
+      <div class="card-body" style="display:grid;gap:14px">
+        <div style="display:flex;gap:24px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+            <input type="radio" name="tipo_plan" value="FINANCIADO" checked onchange="onPlan(this.value)"> 💰 100% Financiado
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+            <input type="radio" name="tipo_plan" value="CONGELAMIENTO" onchange="onPlan(this.value)"> ❄️ Congelamiento de Precio
+          </label>
+        </div>
+
+        <!-- FINANCIADO -->
+        <div id="plan-financiado" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div><label class="label">Valor de mercado *</label><input id="fp-vmercado" class="input" type="number" placeholder="6132000"></div>
+          <div><label class="label">Pago inicial *</label><input id="fp-pinicial" class="input" type="number" placeholder="550000"></div>
+          <div><label class="label">Cantidad de cuotas *</label><input id="fp-cuotas" class="input" type="number" placeholder="12"></div>
+          <div><label class="label">Valor de cuota *</label><input id="fp-vcuota" class="input" type="number" placeholder="511000"></div>
+          <div style="grid-column:span 2">
+            <label class="label">Modalidad de pago</label>
+            <select id="fp-modalidad" class="input">
+              <option value="Transferencia">Transferencia</option>
+              <option value="Efectivo">Efectivo</option>
             </select>
           </div>
         </div>
-        <div>
-          <label class="label">Notas</label>
-          <textarea name="notas" class="input" rows="2" placeholder="Observaciones..."></textarea>
+
+        <!-- CONGELAMIENTO (oculto por defecto) -->
+        <div id="plan-congelamiento" style="display:none;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div><label class="label">Valor total operación *</label><input id="cp-vtotal" class="input" type="number" placeholder="4582000"></div>
+          <div><label class="label">Flete incluido</label><input id="cp-flete" class="input" type="number" placeholder="1580000"></div>
+          <div><label class="label">Saldo contra entrega *</label><input id="cp-saldo" class="input" type="number" placeholder="3580000"></div>
+          <div><label class="label">N° cuotas congelamiento *</label><input id="cp-ncuotas" class="input" type="number" placeholder="3"></div>
+          <div><label class="label">Valor cuota congelamiento *</label><input id="cp-vcuota" class="input" type="number" placeholder="334000"></div>
+          <div><label class="label">Fecha estimada de entrega *</label><input id="cp-fecha" class="input" placeholder="Octubre 2026"></div>
         </div>
-        <div>
-          <button type="button" onclick="saveContrato()" class="btn btn-primary">💾 Guardar borrador</button>
-        </div>
-      </form>
+      </div>
     </div>
-  </div>
-</div>
+
+    <!-- DATOS DEL CLIENTE -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>👤 Datos del adquiriente</strong></div>
+      <div class="card-body" style="display:grid;gap:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><label class="label">Nombre *</label><input id="cl-nombre" class="input" placeholder="Adrián Luis"></div>
+          <div><label class="label">Apellido *</label><input id="cl-apellido" class="input" placeholder="Menéndez"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+          <div><label class="label">DNI *</label><input id="cl-dni" class="input" placeholder="23342042"></div>
+          <div><label class="label">CUIL</label><input id="cl-cuil" class="input" placeholder="20-23342042-6"></div>
+          <div><label class="label">Fecha de nacimiento</label><input id="cl-fnac" class="input" placeholder="25/05/1973"></div>
+          <div><label class="label">Estado civil</label>
+            <select id="cl-ecivil" class="input">
+              <option value="">—</option>
+              <option>Soltero/a</option><option>Casado/a</option>
+              <option>Divorciado/a</option><option>Viudo/a</option><option>Unión convivencial</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><label class="label">E-mail</label><input id="cl-email" class="input" type="email" placeholder="cliente@mail.com"></div>
+          <div><label class="label">Teléfono *</label><input id="cl-tel" class="input" placeholder="+54 9 11 3148-3911"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 0.4fr 0.4fr;gap:12px">
+          <div><label class="label">Domicilio</label><input id="cl-dom" class="input" placeholder="Saenz Peña 2183"></div>
+          <div><label class="label">Piso</label><input id="cl-piso" class="input" placeholder="—"></div>
+          <div><label class="label">Depto</label><input id="cl-depto" class="input" placeholder="—"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+          <div><label class="label">Localidad</label><input id="cl-localidad" class="input" placeholder="San Andrés"></div>
+          <div><label class="label">Provincia</label><input id="cl-provincia" class="input" placeholder="Buenos Aires" value="Buenos Aires"></div>
+          <div><label class="label">Lugar de nacimiento</label><input id="cl-lnac" class="input" placeholder="Buenos Aires"></div>
+          <div><label class="label">Profesión / Ocupación</label><input id="cl-ocup" class="input" placeholder="Entrenador Personal"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><label class="label">Teléfono alternativo</label><input id="cl-telalt" class="input" placeholder="—"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CÓNYUGE (colapsable) -->
+    <div class="card mb-3">
+      <div class="card-header" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+           onclick="togglePanel('panel-conyuge','ico-conyuge')">
+        <strong>👫 Cónyuge / Apoderado <span style="font-size:12px;color:var(--text-muted)">(opcional)</span></strong>
+        <span id="ico-conyuge">▶</span>
+      </div>
+      <div id="panel-conyuge" style="display:none" class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+          <div><label class="label">Nombre</label><input id="cy-nombre" class="input"></div>
+          <div><label class="label">Apellido</label><input id="cy-apellido" class="input"></div>
+          <div><label class="label">DNI</label><input id="cy-dni" class="input"></div>
+          <div><label class="label">Fecha de nacimiento</label><input id="cy-fnac" class="input" placeholder="DD/MM/AAAA"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+          <div><label class="label">Teléfono</label><input id="cy-tel" class="input"></div>
+          <div><label class="label">E-mail</label><input id="cy-email" class="input" type="email"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGO INICIAL (colapsable) -->
+    <div class="card mb-3">
+      <div class="card-header" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+           onclick="togglePanel('panel-pagoini','ico-pagoini')">
+        <strong>💵 Registrar pago inicial <span style="font-size:12px;color:var(--text-muted)">(si ya abonó algo al firmar)</span></strong>
+        <span id="ico-pagoini">▶</span>
+      </div>
+      <div id="panel-pagoini" style="display:none" class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+          <div><label class="label">Monto recibido</label><input id="pi-monto" class="input" type="number" placeholder="334000"></div>
+          <div><label class="label">Modalidad</label>
+            <select id="pi-modalidad" class="input">
+              <option>Transferencia</option><option>Efectivo</option>
+            </select>
+          </div>
+          <div><label class="label">N° Operación</label><input id="pi-op" class="input" placeholder="175580102509"></div>
+          <div><label class="label">Concepto</label><input id="pi-concepto" class="input" placeholder="Cuota 1 — Congelamiento"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FECHA Y BOTÓN -->
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px">
+      <div>
+        <label class="label">Fecha del contrato</label>
+        <input id="inp-fecha-contrato" class="input" style="width:160px" placeholder="31/08/2026">
+      </div>
+      <div style="flex:1"></div>
+      <button class="btn btn-primary" onclick="generarContrato()" style="min-width:240px;padding:12px 24px;font-size:15px">
+        ⬇ Generar y descargar contrato PDF
+      </button>
+    </div>
+    <div id="resultado-contrato" style="margin-top:12px"></div>
+  </div><!-- /docform-contrato -->
+
+
+  <!-- ══ FORMULARIO RECIBO ══ -->
+  <div id="docform-recibo" style="display:none">
+
+    <!-- BUSCAR CONTRATO -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>🔍 Buscar contrato existente</strong></div>
+      <div class="card-body">
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <label class="label">N° de solicitud o nombre del cliente</label>
+            <input id="rec-buscar" class="input" placeholder="000-13860181  ó  Menéndez"
+                   onkeydown="if(event.key==='Enter') buscarContrato()">
+          </div>
+          <button class="btn btn-primary" onclick="buscarContrato()">🔍 Buscar</button>
+        </div>
+        <div id="rec-resultados" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- RESUMEN DEL CONTRATO ENCONTRADO -->
+    <div id="rec-detalle" style="display:none">
+      <div class="card mb-3" style="border-color:var(--accent)">
+        <div class="card-header" style="display:flex;justify-content:space-between">
+          <strong>📄 Contrato seleccionado</strong>
+          <span id="rec-nro" style="font-family:monospace;color:var(--accent)"></span>
+        </div>
+        <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+          <div><span style="color:var(--text-muted)">Cliente:</span> <strong id="rec-cliente"></strong></div>
+          <div><span style="color:var(--text-muted)">Producto:</span> <strong id="rec-producto"></strong></div>
+          <div><span style="color:var(--text-muted)">Plan:</span> <strong id="rec-plan"></strong></div>
+          <div><span style="color:var(--text-muted)">Recibos emitidos:</span> <strong id="rec-nrecibos"></strong></div>
+        </div>
+      </div>
+
+      <!-- DATOS DEL RECIBO -->
+      <div class="card mb-3">
+        <div class="card-header"><strong>🧾 Datos del recibo</strong></div>
+        <div class="card-body" style="display:grid;gap:14px">
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div>
+              <label class="label">Cuota N°</label>
+              <input id="rec-cuota-n" class="input" type="number" placeholder="1" min="1">
+            </div>
+            <div>
+              <label class="label">de (total cuotas)</label>
+              <input id="rec-cuota-m" class="input" type="number" placeholder="3" min="1">
+            </div>
+            <div>
+              <label class="label">Tipo de cuota</label>
+              <select id="rec-tipo-cuota" class="input">
+                <option value="">— libre —</option>
+                <option value="Congelamiento de Precio">Congelamiento de Precio</option>
+                <option value="Mensual">Mensual</option>
+                <option value="Cuota inicial">Cuota inicial</option>
+                <option value="Saldo contra entrega">Saldo contra entrega</option>
+                <option value="Pago a cuenta">Pago a cuenta</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="label">Concepto libre (deja vacío para usar "Cuota N de M")</label>
+            <input id="rec-concepto-libre" class="input" placeholder="Ej: Saldo final — Congelamiento de Precio">
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+            <div><label class="label">Monto recibido *</label><input id="rec-monto" class="input" type="number" placeholder="334000"></div>
+            <div>
+              <label class="label">Modalidad</label>
+              <select id="rec-modalidad" class="input" onchange="onRecModalidad()">
+                <option>Transferencia</option>
+                <option>Efectivo</option>
+                <option>Mercado Pago</option>
+              </select>
+            </div>
+            <div><label class="label">Medio (detalle)</label><input id="rec-medio" class="input" placeholder="Transferencia bancaria"></div>
+            <div><label class="label">N° Operación</label><input id="rec-op" class="input" placeholder="175580102509"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><label class="label">Descripción del plan</label><input id="rec-plan-desc" class="input" placeholder="3 Cuotas + Saldo contra entrega"></div>
+            <div><label class="label">Fecha de pago</label><input id="rec-fecha" class="input" placeholder="31/08/2026"></div>
+          </div>
+          <div>
+            <label class="label">Nota final (pie del recibo)</label>
+            <textarea id="rec-nota" class="input" rows="2"
+              placeholder="Ej: Cuota 1 de 3 del cronograma de congelamiento. Restan 2 cuotas de $334.000 y el saldo de $3.580.000 contra entrega."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button class="btn btn-primary" onclick="generarRecibo()" style="min-width:220px;padding:12px 24px;font-size:15px">
+          🧾 Generar recibo PDF
+        </button>
+      </div>
+      <div id="resultado-recibo" style="margin-top:12px"></div>
+    </div>
+  </div><!-- /docform-recibo -->
+
+</div><!-- /tab-generar -->
 
 <!-- ═══ TAB: PLANTILLAS ═══ -->
 <div id="tab-plantillas" style="display:none">
@@ -159,6 +419,338 @@
 </style>
 
 <script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CATÁLOGO (cargado una sola vez al abrir la pestaña Generar)
+// ═══════════════════════════════════════════════════════════════════════════
+let _catalogo = null;
+
+async function loadCatalogo() {
+  if (_catalogo) return _catalogo;
+  try {
+    _catalogo = await API.get('/api/contratos/catalogo-modelos');
+    poblarModelos();
+  } catch(e) {
+    showToast('No se pudo cargar el catálogo: ' + e.message, 'error');
+  }
+  return _catalogo;
+}
+
+function poblarModelos() {
+  if (!_catalogo) return;
+  const tipoProd = document.querySelector('input[name="tipo_prod"]:checked')?.value || 'PISCINA';
+  const sel = document.getElementById('sel-modelo');
+  sel.innerHTML = '<option value="">— seleccioná un modelo —</option>';
+  const lista = tipoProd === 'MODULO'
+    ? Object.keys(_catalogo.modulos || {})
+    : Object.keys(_catalogo.piscinas?.modelos || {});
+  lista.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  // Colores y sistemas (solo piscinas)
+  const selColor = document.getElementById('sel-color');
+  const selSis   = document.getElementById('sel-sistema');
+  selColor.innerHTML = ''; selSis.innerHTML = '';
+  if (tipoProd !== 'MODULO') {
+    (_catalogo.piscinas?.colores || []).forEach(c => {
+      const o = document.createElement('option'); o.value=c; o.textContent=c; selColor.appendChild(o);
+    });
+    (_catalogo.piscinas?.sistemas || []).forEach(s => {
+      const o = document.createElement('option'); o.value=s; o.textContent=s; selSis.appendChild(o);
+    });
+  } else {
+    selColor.innerHTML = '<option value="">—</option>';
+    selSis.innerHTML   = '<option value="">—</option>';
+  }
+  onModeloChange();
+}
+
+function onTipoProd(val) { poblarModelos(); }
+
+function onModeloChange() {
+  if (!_catalogo) return;
+  const sel = document.getElementById('sel-modelo');
+  const modelo = sel.value;
+  const tipoProd = document.querySelector('input[name="tipo_prod"]:checked')?.value || 'PISCINA';
+  let m = null;
+  if (tipoProd === 'MODULO') {
+    m = (_catalogo.modulos || {})[modelo];
+    if (m) {
+      document.getElementById('m-largo').textContent  = m.largo_m  || '—';
+      document.getElementById('m-ancho').textContent  = m.ancho_m  || '—';
+      document.getElementById('m-pmin').textContent   = m.alto_m   || '—';
+      document.getElementById('m-pmax').textContent   = '—';
+    }
+  } else {
+    m = (_catalogo.piscinas?.medidas || {})[modelo];
+    if (m) {
+      document.getElementById('m-largo').textContent  = m.largo_m  || '—';
+      document.getElementById('m-ancho').textContent  = m.ancho_m  || '—';
+      document.getElementById('m-pmin').textContent   = m.profundidad_min_m || '—';
+      document.getElementById('m-pmax').textContent   = m.profundidad_max_m || '—';
+    }
+  }
+  if (!m) {
+    ['m-largo','m-ancho','m-pmin','m-pmax'].forEach(id =>
+      document.getElementById(id).textContent = '—');
+  }
+}
+
+function onPlan(val) {
+  const fp = document.getElementById('plan-financiado');
+  const cp = document.getElementById('plan-congelamiento');
+  if (val === 'CONGELAMIENTO') {
+    fp.style.display = 'none';
+    cp.style.display = 'grid';
+  } else {
+    fp.style.display = 'grid';
+    cp.style.display = 'none';
+  }
+}
+
+function togglePanel(panelId, icoId) {
+  const p = document.getElementById(panelId);
+  const i = document.getElementById(icoId);
+  const open = p.style.display !== 'none';
+  p.style.display = open ? 'none' : '';
+  i.textContent   = open ? '▶' : '▼';
+}
+
+// ── Fecha de hoy formateada DD/MM/AAAA ─────────────────────────
+function fechaHoy() {
+  const d = new Date();
+  return [String(d.getDate()).padStart(2,'0'),
+          String(d.getMonth()+1).padStart(2,'0'),
+          d.getFullYear()].join('/');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-TABS (Contrato / Recibo)
+// ═══════════════════════════════════════════════════════════════════════════
+function switchDocTab(name) {
+  document.getElementById('docform-contrato').style.display = name==='contrato' ? '' : 'none';
+  document.getElementById('docform-recibo').style.display   = name==='recibo'   ? '' : 'none';
+  const stbC = document.getElementById('stb-contrato');
+  const stbR = document.getElementById('stb-recibo');
+  if (name === 'contrato') {
+    stbC.style.background = 'var(--accent)'; stbC.style.color = 'white';
+    stbR.style.background = 'var(--bg-secondary)'; stbR.style.color = 'var(--text-muted)';
+  } else {
+    stbR.style.background = 'var(--accent)'; stbR.style.color = 'white';
+    stbC.style.background = 'var(--bg-secondary)'; stbC.style.color = 'var(--text-muted)';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERAR CONTRATO
+// ═══════════════════════════════════════════════════════════════════════════
+async function generarContrato() {
+  const tipoProd = document.querySelector('input[name="tipo_prod"]:checked')?.value || 'PISCINA';
+  const tipoPlan = document.querySelector('input[name="tipo_plan"]:checked')?.value || 'FINANCIADO';
+
+  const nombre   = document.getElementById('cl-nombre').value.trim();
+  const apellido = document.getElementById('cl-apellido').value.trim();
+  const dni      = document.getElementById('cl-dni').value.trim();
+  const modelo   = document.getElementById('sel-modelo').value;
+
+  if (!nombre || !apellido || !dni) {
+    showToast('Nombre, apellido y DNI son obligatorios', 'error'); return;
+  }
+  if (!modelo) {
+    showToast('Seleccioná un modelo del catálogo', 'error'); return;
+  }
+
+  const body = {
+    tipo_producto: tipoProd,
+    tipo_plan:     tipoPlan,
+    nombre, apellido, dni,
+    cuil:          document.getElementById('cl-cuil').value.trim(),
+    fecha_nacimiento: document.getElementById('cl-fnac').value.trim(),
+    estado_civil:  document.getElementById('cl-ecivil').value,
+    email:         document.getElementById('cl-email').value.trim(),
+    telefono:      document.getElementById('cl-tel').value.trim(),
+    telefono_alt:  document.getElementById('cl-telalt').value.trim(),
+    domicilio:     document.getElementById('cl-dom').value.trim(),
+    piso:          document.getElementById('cl-piso').value.trim(),
+    depto:         document.getElementById('cl-depto').value.trim(),
+    localidad:     document.getElementById('cl-localidad').value.trim(),
+    provincia:     document.getElementById('cl-provincia').value.trim() || 'Buenos Aires',
+    lugar_nacimiento: document.getElementById('cl-lnac').value.trim(),
+    ocupacion:     document.getElementById('cl-ocup').value.trim(),
+    modelo,
+    color:         document.getElementById('sel-color').value,
+    sistema:       document.getElementById('sel-sistema').value,
+    observaciones: document.getElementById('inp-obs').value.trim(),
+    fecha_contrato: document.getElementById('inp-fecha-contrato').value.trim() || fechaHoy(),
+    // Cónyuge
+    conyuge_nombre:   document.getElementById('cy-nombre').value.trim(),
+    conyuge_apellido: document.getElementById('cy-apellido').value.trim(),
+    conyuge_dni:      document.getElementById('cy-dni').value.trim(),
+    conyuge_nacimiento: document.getElementById('cy-fnac').value.trim(),
+    conyuge_telefono: document.getElementById('cy-tel').value.trim(),
+    conyuge_email:    document.getElementById('cy-email').value.trim(),
+    // Pago inicial
+    monto_pago_inicial: document.getElementById('pi-monto').value || null,
+    modalidad_pago_inicial: document.getElementById('pi-modalidad').value,
+    op_numero_pago: document.getElementById('pi-op').value.trim(),
+    concepto_pago_inicial: document.getElementById('pi-concepto').value.trim(),
+  };
+
+  if (tipoPlan === 'CONGELAMIENTO') {
+    Object.assign(body, {
+      valor_total:              document.getElementById('cp-vtotal').value,
+      flete:                    document.getElementById('cp-flete').value,
+      n_cuotas_congelamiento:   document.getElementById('cp-ncuotas').value,
+      valor_cuota_congelamiento: document.getElementById('cp-vcuota').value,
+      saldo_contra_entrega:     document.getElementById('cp-saldo').value,
+      fecha_entrega_estimada:   document.getElementById('cp-fecha').value.trim(),
+    });
+  } else {
+    Object.assign(body, {
+      valor_mercado: document.getElementById('fp-vmercado').value,
+      pago_inicial:  document.getElementById('fp-pinicial').value,
+      cant_cuotas:   document.getElementById('fp-cuotas').value,
+      valor_cuota:   document.getElementById('fp-vcuota').value,
+      modalidad_pago: document.getElementById('fp-modalidad').value,
+    });
+  }
+
+  const btn = document.querySelector('[onclick="generarContrato()"]');
+  btn.disabled = true; btn.textContent = '⏳ Generando PDF...';
+  const res = document.getElementById('resultado-contrato');
+  res.innerHTML = '';
+  try {
+    const data = await API.post('/api/contratos/emitir-nuevo', body);
+    res.innerHTML = `
+      <div class="alert" style="background:#1a3a1a;border:1px solid #2d5a2d;border-radius:8px;padding:14px;display:flex;align-items:center;gap:16px">
+        <span style="font-size:26px">✅</span>
+        <div>
+          <strong style="color:#4caf50">Contrato generado — N° ${escHtml(data.numero_solicitud)}</strong><br>
+          <a href="${escHtml(data.pdf_url)}" target="_blank" download
+             style="color:#42a5f5;text-decoration:underline;font-size:14px">
+            ⬇ Descargar PDF
+          </a>
+        </div>
+      </div>`;
+    showToast('Contrato ' + data.numero_solicitud + ' generado ✅', 'success');
+  } catch(e) {
+    res.innerHTML = '<div class="alert alert-error">❌ ' + escHtml(e.message) + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = '⬇ Generar y descargar contrato PDF';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BUSCAR CONTRATO (para recibo)
+// ═══════════════════════════════════════════════════════════════════════════
+let _contratoSeleccionado = null;
+
+async function buscarContrato() {
+  const q = document.getElementById('rec-buscar').value.trim();
+  if (!q) { showToast('Ingresá un número o nombre para buscar', 'error'); return; }
+  const el = document.getElementById('rec-resultados');
+  el.innerHTML = '<div class="loading">Buscando...</div>';
+  document.getElementById('rec-detalle').style.display = 'none';
+  _contratoSeleccionado = null;
+  try {
+    const data = await API.get('/api/contratos/buscar?q=' + encodeURIComponent(q));
+    if (!data.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Sin resultados</div>'; return; }
+    el.innerHTML = data.map(c => `
+      <div onclick="seleccionarContrato(${JSON.stringify(c).replace(/"/g,'&quot;')})"
+        style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:6px;margin-bottom:6px;background:var(--bg-secondary);border:1px solid var(--border);cursor:pointer"
+        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div>
+          <strong style="font-family:monospace">${escHtml(c.numero_solicitud)}</strong>
+          &nbsp;·&nbsp; ${escHtml(c.cliente_nombre)} ${escHtml(c.cliente_apellido||'')}
+        </div>
+        <div style="font-size:12px;color:var(--text-muted)">
+          ${escHtml(c.modelo||'')} · ${escHtml(c.tipo_plan||'')} · ${c.recibos_emitidos||0} recibos
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<div class="alert alert-error">' + escHtml(e.message) + '</div>'; }
+}
+
+function seleccionarContrato(c) {
+  _contratoSeleccionado = c;
+  document.getElementById('rec-resultados').innerHTML = '';
+  document.getElementById('rec-nro').textContent    = c.numero_solicitud;
+  document.getElementById('rec-cliente').textContent = (c.cliente_nombre || '') + ' ' + (c.apellido || c.cliente_apellido || '');
+  document.getElementById('rec-producto').textContent = c.modelo || '—';
+  document.getElementById('rec-plan').textContent    = c.tipo_plan || '—';
+  document.getElementById('rec-nrecibos').textContent = (c.recibos_emitidos || 0) + ' emitidos';
+  // prefill cuota siguiente
+  const nEmit = parseInt(c.recibos_emitidos || 0);
+  document.getElementById('rec-cuota-n').value = nEmit + 1;
+  const cuotasTotal = c.n_cuotas_congelamiento || c.cantidad_cuotas || c.cant_cuotas || '';
+  if (cuotasTotal) document.getElementById('rec-cuota-m').value = cuotasTotal;
+  if (c.tipo_plan==='CONGELAMIENTO') document.getElementById('rec-tipo-cuota').value = 'Congelamiento de Precio';
+  const valCuota = c.valor_cuota_congelamiento || c.valor_cuota || '';
+  if (valCuota) document.getElementById('rec-monto').value = valCuota;
+  document.getElementById('rec-fecha').value = fechaHoy();
+  document.getElementById('rec-detalle').style.display = '';
+}
+
+function onRecModalidad() {
+  const m = document.getElementById('rec-modalidad').value;
+  document.getElementById('rec-medio').value = m === 'Mercado Pago' ? 'Transferencia (Mercado Pago)' : m;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERAR RECIBO
+// ═══════════════════════════════════════════════════════════════════════════
+async function generarRecibo() {
+  if (!_contratoSeleccionado) { showToast('Seleccioná un contrato primero', 'error'); return; }
+  const monto = document.getElementById('rec-monto').value;
+  if (!monto || parseFloat(monto) <= 0) { showToast('Ingresá el monto recibido', 'error'); return; }
+
+  const body = {
+    monto:          parseFloat(monto),
+    cuota_actual:   parseInt(document.getElementById('rec-cuota-n').value || 1),
+    total_cuotas:   parseInt(document.getElementById('rec-cuota-m').value || 1),
+    tipo_cuota:     document.getElementById('rec-tipo-cuota').value,
+    concepto_libre: document.getElementById('rec-concepto-libre').value.trim(),
+    modalidad:      document.getElementById('rec-modalidad').value,
+    medio_pago:     document.getElementById('rec-medio').value.trim(),
+    op_numero:      document.getElementById('rec-op').value.trim(),
+    plan_descripcion: document.getElementById('rec-plan-desc').value.trim(),
+    nota_final:     document.getElementById('rec-nota').value.trim(),
+    fecha_pago:     document.getElementById('rec-fecha').value.trim() || fechaHoy(),
+  };
+
+  const btn = document.querySelector('[onclick="generarRecibo()"]');
+  btn.disabled = true; btn.textContent = '⏳ Generando...';
+  const res = document.getElementById('resultado-recibo');
+  res.innerHTML = '';
+  try {
+    const data = await API.post('/api/contratos/recibo-por-numero/' + _contratoSeleccionado.numero_solicitud, body);
+    res.innerHTML = `
+      <div class="alert" style="background:#1a3a1a;border:1px solid #2d5a2d;border-radius:8px;padding:14px;display:flex;align-items:center;gap:16px">
+        <span style="font-size:26px">✅</span>
+        <div>
+          <strong style="color:#4caf50">Recibo generado — ${escHtml(data.numero_solicitud)}</strong>
+          &nbsp;·&nbsp; ${escHtml(data.concepto)} — $${parseFloat(data.monto).toLocaleString('es-AR')}<br>
+          <a href="${escHtml(data.pdf_url)}" target="_blank" download
+             style="color:#42a5f5;text-decoration:underline;font-size:14px">
+            ⬇ Descargar PDF
+          </a>
+        </div>
+      </div>`;
+    // Actualizar contador
+    document.getElementById('rec-nrecibos').textContent =
+      ((_contratoSeleccionado.recibos_emitidos || 0) + 1) + ' emitidos';
+    _contratoSeleccionado.recibos_emitidos = (_contratoSeleccionado.recibos_emitidos || 0) + 1;
+    showToast('Recibo generado ✅', 'success');
+  } catch(e) {
+    res.innerHTML = '<div class="alert alert-error">❌ ' + escHtml(e.message) + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = '🧾 Generar recibo PDF';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TABS PRINCIPALES
+// ═══════════════════════════════════════════════════════════════════════════
 const TABS_C = ['lista', 'generar', 'plantillas'];
 function showTab(name, el) {
   TABS_C.forEach(t => {
@@ -170,8 +762,11 @@ function showTab(name, el) {
     const idx = TABS_C.indexOf(name);
     document.querySelectorAll('#tabs-contratos .tab')[idx]?.classList.add('active');
   }
-  if (name === 'lista') loadContratos();
-  if (name === 'generar') loadVentasPendientes();
+  if (name === 'lista')   loadContratos();
+  if (name === 'generar') {
+    loadCatalogo();
+    document.getElementById('inp-fecha-contrato').value = fechaHoy();
+  }
 }
 
 // ─── Lista de contratos ───────────────────────────────────────────────────────
@@ -221,49 +816,9 @@ async function cambiarEstado(id, estado) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
-// ─── Ventas pendientes ────────────────────────────────────────────────────────
-async function loadVentasPendientes() {
-  const el = document.getElementById('ventas-pendientes-list');
-  el.innerHTML = '<div class="loading">Cargando...</div>';
-  try {
-    const data = await API.get('/api/contratos/ventas-pendientes');
-    if (!data.length) {
-      el.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No hay ventas financiadas sin contrato 🎉</div>';
-      return;
-    }
-    const prodIcon = { PISCINA:'🏊', MODULO:'🏠', COMBO:'✨' };
-    el.innerHTML = data.map(v => `
-      <div class="venta-row">
-        <div>
-          <div style="font-weight:600">${escHtml(v.cliente_nombre)}</div>
-          <div style="font-size:12px;color:var(--text-muted)">
-            ${prodIcon[v.producto]||'📦'} ${escHtml(v.modelo_especifico||v.producto||'')} ·
-            ${escHtml(v.forma_pago||'')} ·
-            ${v.precio_total ? '$'+Number(v.precio_total).toLocaleString('es-AR') : '—'}
-          </div>
-        </div>
-        <a href="/api/contratos/generar/${v.id}" class="btn btn-primary btn-sm" download>
-          📄 Generar .docx
-        </a>
-      </div>`).join('');
-  } catch(e) {
-    el.innerHTML = `<div class="alert alert-error">Error: ${escHtml(e.message)}</div>`;
-  }
-}
+// loadVentasPendientes eliminado — reemplazado por flujo manual con catálogo
 
-// ─── Crear contrato manual ────────────────────────────────────────────────────
-async function saveContrato() {
-  const form = document.getElementById('contrato-form');
-  const data = Object.fromEntries(new FormData(form));
-  if (!data.cliente_nombre) { showToast('Ingresá el nombre del cliente', 'error'); return; }
-  try {
-    await API.post('/api/contratos/manual', data);
-    showToast('Contrato guardado', 'success');
-    form.reset();
-    loadContratos();
-    showTab('lista', null);
-  } catch(e) { showToast(e.message, 'error'); }
-}
+// saveContrato eliminado — reemplazado por generarContrato()
 
 // ─── Upload adjunto PDF/DOCX a contrato existente ────────────────────────────
 let _uploadId = null;

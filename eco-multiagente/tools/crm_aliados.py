@@ -89,11 +89,16 @@ async def check_dni_duplicado(dni: str) -> dict:
 
 
 async def get_ranking_aliados(periodo: str = "semana") -> list:
-    """Ranking de aliados por periodo ('semana' o 'mes')."""
+    """
+    Ranking de socios por periodo ('semana' o 'mes'). Usa el ranking de la
+    Plataforma de Socios (monto facturado con plata ya movida) — es el mismo
+    que ve el socio en su panel, para no anunciar un número distinto por
+    WhatsApp los viernes.
+    """
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             r = await client.get(
-                f"{CRM_BASE_URL}/api/aliados/ranking",
+                f"{CRM_BASE_URL}/api/socio/ranking",
                 headers=HEADERS_XKEY,
                 params={"periodo": periodo},
             )

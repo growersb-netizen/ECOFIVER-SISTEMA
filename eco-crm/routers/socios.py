@@ -1443,6 +1443,7 @@ async def admin_eliminar_socio(
     db.query(Comision).filter(Comision.aliado_codigo == socio.codigo).delete()
     db.query(VentaContado).filter(VentaContado.aliado_codigo == socio.codigo).delete()
     db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo == socio.codigo).delete()
+    db.query(Presupuesto).filter(Presupuesto.aliado_codigo == socio.codigo).delete()
     db.delete(socio)
     db.commit()
     return {"ok": True}

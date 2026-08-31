@@ -103,6 +103,9 @@
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
             <input type="radio" name="tipo_plan" value="CONGELAMIENTO" onchange="onPlan(this.value)"> ❄️ Congelamiento de Precio
           </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+            <input type="radio" name="tipo_plan" value="CONTADO" onchange="onPlan(this.value)"> 🤝 Venta de Contado / Seña
+          </label>
         </div>
 
         <!-- FINANCIADO -->
@@ -128,6 +131,66 @@
           <div><label class="label">N° cuotas congelamiento *</label><input id="cp-ncuotas" class="input" type="number" placeholder="3"></div>
           <div><label class="label">Valor cuota congelamiento *</label><input id="cp-vcuota" class="input" type="number" placeholder="334000"></div>
           <div><label class="label">Fecha estimada de entrega *</label><input id="cp-fecha" class="input" placeholder="Octubre 2026"></div>
+        </div>
+
+        <!-- CONTADO (oculto por defecto) -->
+        <div id="plan-contado" style="display:none;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div><label class="label">Precio total de la operación *</label><input id="ct-total" class="input" type="number" placeholder="8500000"></div>
+            <div><label class="label">Seña / Reserva recibida *</label><input id="ct-señia" class="input" type="number" placeholder="500000"></div>
+            <div><label class="label">Saldo contra entrega</label><input id="ct-saldo" class="input" type="number" placeholder="8000000" readonly style="background:var(--bg-secondary);cursor:default"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div>
+              <label class="label">Modalidad de la seña</label>
+              <select id="ct-modalidad" class="input">
+                <option>Transferencia</option><option>Efectivo</option><option>Mercado Pago</option>
+              </select>
+            </div>
+            <div><label class="label">N° Operación (seña)</label><input id="ct-op" class="input" placeholder="175580102509"></div>
+            <div><label class="label">Fecha estimada de entrega</label><input id="ct-fecha" class="input" placeholder="Noviembre 2026"></div>
+          </div>
+
+          <!-- QUÉ INCLUYE -->
+          <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:12px">
+            <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text-primary)">✅ ¿Qué incluye la operación?</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-fabricacion" checked> Fabricación completa del producto
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-flete" checked> Flete hasta el domicilio del cliente
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-instalacion" checked> Instalación y puesta en marcha
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-sistema" checked> Sistema de filtrado completo
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-iluminacion"> Iluminación subacuática
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-garantia" checked> Garantía estructural 10 años
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-nivelacion"> Nivelación del terreno
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="inc-escalera"> Escalera de acceso
+              </label>
+            </div>
+            <div style="margin-top:10px">
+              <label class="label">Ítem adicional (libre)</label>
+              <input id="inc-extra" class="input" placeholder="Ej: Termómetro digital + cubre piscina">
+            </div>
+          </div>
+
+          <div>
+            <label class="label">Condiciones de entrega (texto libre)</label>
+            <textarea id="ct-condiciones" class="input" rows="2"
+              placeholder="La entrega se realizará contra el pago total del saldo acordado. La coordinación de fecha y horario se realizará entre las partes con al menos 72 hs de anticipación."></textarea>
+          </div>
         </div>
       </div>
     </div>
@@ -440,14 +503,18 @@ function poblarModelos() {
   const tipoProd = document.querySelector('input[name="tipo_prod"]:checked')?.value || 'PISCINA';
   const sel = document.getElementById('sel-modelo');
   sel.innerHTML = '<option value="">— seleccioná un modelo —</option>';
+
+  // piscinas.modelos es un ARRAY; modulos.modelos también es ARRAY
   const lista = tipoProd === 'MODULO'
-    ? Object.keys(_catalogo.modulos || {})
-    : Object.keys(_catalogo.piscinas?.modelos || {});
+    ? (_catalogo.modulos?.modelos || [])
+    : (_catalogo.piscinas?.modelos || []);
+
   lista.forEach(m => {
     const opt = document.createElement('option');
     opt.value = m; opt.textContent = m;
     sel.appendChild(opt);
   });
+
   // Colores y sistemas (solo piscinas)
   const selColor = document.getElementById('sel-color');
   const selSis   = document.getElementById('sel-sistema');
@@ -498,16 +565,23 @@ function onModeloChange() {
 }
 
 function onPlan(val) {
-  const fp = document.getElementById('plan-financiado');
-  const cp = document.getElementById('plan-congelamiento');
-  if (val === 'CONGELAMIENTO') {
-    fp.style.display = 'none';
-    cp.style.display = 'grid';
-  } else {
-    fp.style.display = 'grid';
-    cp.style.display = 'none';
-  }
+  document.getElementById('plan-financiado').style.display  = val === 'FINANCIADO'   ? 'grid'  : 'none';
+  document.getElementById('plan-congelamiento').style.display = val === 'CONGELAMIENTO' ? 'grid'  : 'none';
+  document.getElementById('plan-contado').style.display      = val === 'CONTADO'       ? 'flex'  : 'none';
 }
+
+// Calcula saldo contra entrega en tiempo real
+document.addEventListener('DOMContentLoaded', () => {
+  ['ct-total','ct-señia'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => {
+      const total = parseFloat(document.getElementById('ct-total').value || 0);
+      const señia = parseFloat(document.getElementById('ct-señia').value || 0);
+      const saldo = document.getElementById('ct-saldo');
+      if (saldo) saldo.value = total > 0 ? (total - señia).toLocaleString('es-AR') : '';
+    });
+  });
+});
 
 function togglePanel(panelId, icoId) {
   const p = document.getElementById(panelId);
@@ -605,6 +679,36 @@ async function generarContrato() {
       valor_cuota_congelamiento: document.getElementById('cp-vcuota').value,
       saldo_contra_entrega:     document.getElementById('cp-saldo').value,
       fecha_entrega_estimada:   document.getElementById('cp-fecha').value.trim(),
+    });
+  } else if (tipoPlan === 'CONTADO') {
+    const ctTotal = parseFloat(document.getElementById('ct-total').value || 0);
+    const ctSeñia = parseFloat(document.getElementById('ct-señia').value || 0);
+    // Armar lista de ítems incluidos
+    const items = [];
+    const incMap = {
+      'inc-fabricacion': 'Fabricación completa del producto',
+      'inc-flete':       'Flete hasta el domicilio del cliente',
+      'inc-instalacion': 'Instalación y puesta en marcha',
+      'inc-sistema':     'Sistema de filtrado completo',
+      'inc-iluminacion': 'Iluminación subacuática',
+      'inc-garantia':    'Garantía estructural 10 años',
+      'inc-nivelacion':  'Nivelación del terreno',
+      'inc-escalera':    'Escalera de acceso',
+    };
+    Object.entries(incMap).forEach(([id, label]) => {
+      if (document.getElementById(id)?.checked) items.push(label);
+    });
+    const extra = document.getElementById('inc-extra').value.trim();
+    if (extra) items.push(extra);
+    Object.assign(body, {
+      valor_total:          ctTotal,
+      señia:                ctSeñia,
+      saldo_contra_entrega: ctTotal - ctSeñia,
+      modalidad_pago:       document.getElementById('ct-modalidad').value,
+      op_numero_pago:       document.getElementById('ct-op').value.trim(),
+      fecha_entrega_estimada: document.getElementById('ct-fecha').value.trim(),
+      incluye_items:        items,
+      condiciones_entrega:  document.getElementById('ct-condiciones').value.trim(),
     });
   } else {
     Object.assign(body, {

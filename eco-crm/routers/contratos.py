@@ -79,30 +79,95 @@ TIPOS_PLANTILLA = {
 
 # ─── HELPERS — SECCIONES HTML DINÁMICAS DEL CONTRATO ─────────────────────────
 
+def _fmt_money(v) -> str:
+    """Alias de _fmt_ar — formato argentino de precio."""
+    return _fmt_ar(v)
+
+
 def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
-    """Genera el bloque HTML 'Sistema de Pago' según FINANCIADO o CONGELAMIENTO."""
+    """Genera el bloque HTML 'Sistema de Pago' según FINANCIADO, CONGELAMIENTO o CONTADO."""
+
+    # Los valores en ctx ya vienen formateados como strings (p.ej. "2.500.000")
+    def _sv(key: str) -> str:
+        return str(ctx.get(key) or "")
+
     if tipo_plan == "CONGELAMIENTO":
         return (
             '<div class="section">'
             '<div class="section-header">Sistema de Pago &nbsp;•&nbsp; Congelamiento de Precio — Entrega Programada</div>'
             '<div class="pago-grid">'
             '<div class="pago-cell"><div class="plabel">Valor Total de la Operación</div>'
-            '<div class="pvalue">$ ' + str(ctx.get("valor_total", "")) + '</div></div>'
+            '<div class="pvalue">$ ' + _sv("valor_total") + '</div></div>'
             '<div class="pago-cell"><div class="plabel">Flete incluido</div>'
-            '<div class="pvalue">$ ' + str(ctx.get("flete", "")) + '</div></div>'
+            '<div class="pvalue">$ ' + _sv("flete") + '</div></div>'
             '<div class="pago-cell"><div class="plabel">Cuotas de congelamiento</div>'
-            '<div class="pvalue">' + str(ctx.get("n_cuotas_congelamiento", "")) + ' cuotas de $ '
-            + str(ctx.get("valor_cuota_congelamiento", "")) + '.-</div></div>'
+            '<div class="pvalue">' + _sv("n_cuotas_congelamiento") + ' cuotas de $ '
+            + _sv("valor_cuota_congelamiento") + '.-</div></div>'
             '<div class="pago-cell"><div class="plabel">Saldo contra entrega</div>'
-            '<div class="pvalue">$ ' + str(ctx.get("saldo_contra_entrega", "")) + '.-</div></div>'
+            '<div class="pvalue">$ ' + _sv("saldo_contra_entrega") + '.-</div></div>'
             '</div>'
             '<div class="modalidad-row">'
             '<span style="font-weight:bold;font-size:10px;">Fecha de entrega estimada:&nbsp;&nbsp;'
-            '<strong style="color:#1a3a6b;">' + str(ctx.get("fecha_entrega_estimada", "")) + '</strong></span>'
+            '<strong style="color:#1a3a6b;">' + _sv("fecha_entrega_estimada") + '</strong></span>'
             '<span class="financiado-badge">Entrega Programada</span>'
             '</div>'
             '</div>'
         )
+
+    if tipo_plan == "CONTADO":
+        señia        = ctx.get("señia", ctx.get("pago_inicial", ""))
+        saldo        = ctx.get("saldo_contra_entrega", "")
+        total        = ctx.get("valor_total", ctx.get("precio_total", ""))
+        modalidad    = ctx.get("modalidad_pago", "Transferencia")
+        fecha_ent    = ctx.get("fecha_entrega_estimada", "")
+        condiciones  = ctx.get("condiciones_entrega",
+                               "La entrega se realizará una vez abonado el saldo contra entrega. "
+                               "La coordinación de fecha y horario se efectuará entre las partes "
+                               "con al menos 72 hs de anticipación.")
+        items        = ctx.get("incluye_items", [])
+        if isinstance(items, str):
+            import json as _json
+            try:
+                items = _json.loads(items)
+            except Exception:
+                items = [i.strip() for i in items.split(",") if i.strip()]
+
+        items_html = "".join(
+            '<div style="display:flex;align-items:baseline;gap:4px;font-size:10px;margin-bottom:2px;">'
+            '<span style="color:#1a3a6b;font-weight:bold;">✔</span>'
+            '<span>' + str(it) + '</span></div>'
+            for it in items
+        ) if items else '<span style="font-size:10px;color:#555;">Consultar detalle completo con el asesor</span>'
+
+        return (
+            '<div class="section">'
+            '<div class="section-header">Condiciones de la Operación &nbsp;•&nbsp; Venta de Contado — Entrega Contra Pago</div>'
+            '<div class="pago-grid">'
+            '<div class="pago-cell"><div class="plabel">Precio Total de la Operación</div>'
+            '<div class="pvalue" style="font-size:14px;">$ ' + str(total) + '</div></div>'
+            '<div class="pago-cell"><div class="plabel">Seña / Reserva abonada</div>'
+            '<div class="pvalue" style="color:#c8902a;">$ ' + str(señia) + '</div></div>'
+            '<div class="pago-cell"><div class="plabel">Saldo contra entrega</div>'
+            '<div class="pvalue">$ ' + str(saldo) + '.-</div></div>'
+            '<div class="pago-cell"><div class="plabel">Modalidad de la seña</div>'
+            '<div class="pvalue">' + str(modalidad) + '</div></div>'
+            '</div>'
+            '<div style="border:1px solid #ddd;border-top:none;padding:5px 8px;">'
+            '<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;font-weight:bold;margin-bottom:4px;">La operación incluye:</div>'
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;">' + items_html + '</div>'
+            '</div>'
+            '<div class="modalidad-row" style="flex-direction:column;align-items:flex-start;gap:3px;">'
+            '<div style="display:flex;align-items:center;gap:12px;width:100%;">'
+            '<span style="font-weight:bold;font-size:10px;">Fecha de entrega estimada:&nbsp;'
+            '<strong style="color:#1a3a6b;">' + str(fecha_ent) + '</strong></span>'
+            '<span class="financiado-badge" style="margin-left:auto;">Contado</span>'
+            '</div>'
+            '<div style="font-size:9px;color:#444;line-height:1.4;margin-top:2px;">'
+            '<strong>Condiciones de entrega:</strong> ' + str(condiciones) + '</div>'
+            '</div>'
+            '</div>'
+        )
+
     # FINANCIADO (default)
     check_ef = ctx.get("check_efectivo", "")
     mark_ef  = ctx.get("mark_efectivo", "")
@@ -113,13 +178,13 @@ def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
         '<div class="section-header">Sistema de Pago &nbsp;•&nbsp; 100% Financiado</div>'
         '<div class="pago-grid">'
         '<div class="pago-cell"><div class="plabel">Valor de mercado</div>'
-        '<div class="pvalue">$ ' + str(ctx.get("valor_mercado", "")) + '</div></div>'
+        '<div class="pvalue">$ ' + _sv("valor_mercado") + '</div></div>'
         '<div class="pago-cell"><div class="plabel">Pago inicial</div>'
-        '<div class="pvalue">$ ' + str(ctx.get("pago_inicial", "")) + '</div></div>'
+        '<div class="pvalue">$ ' + _sv("pago_inicial") + '</div></div>'
         '<div class="pago-cell"><div class="plabel">Cantidad de cuotas propuesta</div>'
-        '<div class="pvalue">' + str(ctx.get("cant_cuotas", "")) + ' cuotas</div></div>'
+        '<div class="pvalue">' + _sv("cant_cuotas") + ' cuotas</div></div>'
         '<div class="pago-cell"><div class="plabel">Cuota ofrecida</div>'
-        '<div class="pvalue">$ ' + str(ctx.get("valor_cuota", ""))
+        '<div class="pvalue">$ ' + _sv("valor_cuota")
         + '.-&nbsp;<span style="font-size:9px;background:#1a3a6b;color:white;padding:1px 6px;border-radius:3px;">M - Fija</span></div></div>'
         '</div>'
         '<div class="modalidad-row">'
@@ -136,7 +201,8 @@ def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
 
 def _recibo_box_html(tipo_plan: str, numero_solicitud: str) -> str:
     """Genera (o suprime) el bloque 'Recibo Autorizado' al pie del contrato."""
-    if tipo_plan == "CONGELAMIENTO":
+    if tipo_plan in ("CONGELAMIENTO", "CONTADO"):
+        # Para CONTADO el recibo de seña se genera como documento separado
         return ""
     return (
         '<div class="recibo-box">'
@@ -160,6 +226,17 @@ def _texto_legal(tipo_plan: str) -> str:
             "solicitud en cualquier momento una vez iniciada la misma la empresa tendrá un plazo no menor a "
             "180 días hábiles para la puesta a disposición de los fondos."
         )
+    if tipo_plan == "CONTADO":
+        return (
+            "Declaro bajo juramento que los datos proporcionados son verdaderos y en función de ellos formalizo "
+            "la presente compra. El precio total de la operación queda fijado en la suma pactada, incluyendo "
+            "todos los ítems detallados en la sección 'La operación incluye'. La seña abonada en este acto "
+            "confirma la reserva del producto y la fecha de producción. El saldo restante deberá ser abonado "
+            "contra entrega del producto en el domicilio indicado, previo coordinación de fecha y horario con "
+            "la empresa. En caso de desistimiento por parte del comprador, la seña abonada no será devuelta. "
+            "La empresa garantiza la entrega en la fecha estimada salvo causas de fuerza mayor debidamente "
+            "notificadas al cliente con anticipación razonable."
+        )
     return (
         "Declaro bajo juramento que los datos procedentemente son verdaderos y en función de ellos, "
         "solicito mi pedido de acuerdo a los términos del contrato que declaro conocer y aceptar; por "
@@ -172,7 +249,13 @@ def _texto_legal(tipo_plan: str) -> str:
     )
 
 
-def _titulo_contrato(tipo_producto: str) -> str:
+def _titulo_contrato(tipo_producto: str, tipo_plan: str = "FINANCIADO") -> str:
+    if tipo_plan == "CONTADO":
+        if tipo_producto == "MODULO":
+            return "Contrato de Compraventa de Módulo Habitacional"
+        if tipo_producto == "COMBO":
+            return "Contrato de Compraventa de Piscina y Módulo"
+        return "Contrato de Compraventa de Piscina de Fibra de Vidrio"
     if tipo_producto == "MODULO":
         return "Contrato de Financiación de Módulo"
     if tipo_producto == "COMBO":
@@ -696,7 +779,7 @@ async def emitir_contrato(
     context["seccion_pago_html"] = _seccion_pago_html(_tplan, context)
     context["recibo_box_html"]   = _recibo_box_html(_tplan, context.get("numero_solicitud", ""))
     context["texto_legal"]       = _texto_legal(_tplan)
-    context["titulo_contrato"]   = _titulo_contrato(venta.producto or "PISCINA")
+    context["titulo_contrato"]   = _titulo_contrato(venta.producto or "PISCINA", _tplan)
 
     html = render_html("contrato_template.html", context)
 
@@ -1268,17 +1351,41 @@ async def emitir_nuevo_contrato(
         cant_cuotas_v     = n_cuotas
         valor_cuota_v     = vcong
         monto_insc        = n_cuotas * vcong
+        señia             = 0.0
+        incluye_items     = []
+        condiciones_ent   = ""
+    elif tipo_plan == "CONTADO":
+        valor_total       = float(body.get("valor_total") or 0)
+        señia             = float(body.get("señia") or body.get("pago_inicial") or 0)
+        saldo_entrega     = float(body.get("saldo_contra_entrega") or (valor_total - señia))
+        flete             = 0.0
+        n_cuotas          = 1
+        vcong             = 0.0
+        pago_ini_contrato = señia
+        cant_cuotas_v     = 1
+        valor_cuota_v     = saldo_entrega
+        precio_total      = valor_total
+        monto_insc        = señia
+        incluye_items     = body.get("incluye_items") or []
+        condiciones_ent   = body.get("condiciones_entrega") or (
+            "La entrega se realizará contra el pago total del saldo acordado. "
+            "La coordinación de fecha y horario se realizará entre las partes "
+            "con al menos 72 hs de anticipación."
+        )
     else:
         valor_total       = float(body.get("valor_mercado") or 0)
         flete             = 0.0
         n_cuotas          = 0
         vcong             = 0.0
         saldo_entrega     = 0.0
+        señia             = 0.0
         pago_ini_contrato = float(body.get("pago_inicial") or 0)
         cant_cuotas_v     = int(body.get("cant_cuotas") or 0)
         valor_cuota_v     = float(body.get("valor_cuota") or 0)
         precio_total      = valor_total
         monto_insc        = pago_ini_contrato
+        incluye_items     = []
+        condiciones_ent   = ""
 
     monto_pago = float(body.get("monto_pago_inicial") or 0)
 
@@ -1376,12 +1483,17 @@ async def emitir_nuevo_contrato(
         "valor_cuota_congelamiento": _fmt_ar(vcong),
         "saldo_contra_entrega":      _fmt_ar(saldo_entrega),
         "fecha_entrega_estimada":    body.get("fecha_entrega_estimada") or "",
+        # CONTADO
+        "señia":                     _fmt_ar(señia),
+        "modalidad_pago":            body.get("modalidad_pago") or body.get("modalidad_pago_inicial") or "Transferencia",
+        "incluye_items":             json.dumps(incluye_items, ensure_ascii=False),
+        "condiciones_entrega":       condiciones_ent,
         "firma_productor_block":     "",
     }
     context["seccion_pago_html"] = _seccion_pago_html(tipo_plan, context)
     context["recibo_box_html"]   = _recibo_box_html(tipo_plan, numero_solicitud)
     context["texto_legal"]       = _texto_legal(tipo_plan)
-    context["titulo_contrato"]   = _titulo_contrato(tipo_producto)
+    context["titulo_contrato"]   = _titulo_contrato(tipo_producto, tipo_plan)
 
     try:
         html = render_html("contrato_template.html", context)

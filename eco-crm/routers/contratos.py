@@ -586,6 +586,115 @@ async def create_contrato(
     return {"id": contrato.id, "ok": True}
 
 
+# ─── RUTAS ESPECÍFICAS — deben ir ANTES de {contrato_id} ─────────────────────
+
+@router.get("/api/contratos/catalogo-modelos")
+async def get_catalogo_modelos(current_user: Usuario = Depends(require_auth)):
+    """Modelos, colores, medidas y sistemas disponibles para el formulario manual."""
+    try:
+        from routers.catalogo import load_catalogo, _MEDIDAS_PDF as _mpdf
+        cat = load_catalogo()
+    except Exception:
+        cat = {}
+        _mpdf = {}
+
+    medidas_cat = cat.get("piscinas", {}).get("medidas", {})
+    medidas = {**_mpdf, **medidas_cat}
+
+    return {
+        "piscinas": {
+            "modelos": cat.get("piscinas", {}).get("modelos", []),
+            "colores":  cat.get("piscinas", {}).get("colores", ["Blanco", "Beige", "Verde agua", "Celeste", "Azul"]),
+            "medidas":  medidas,
+            "sistemas": [
+                "Sistema de Filtrado Completo + Iluminación",
+                "Sistema de Filtrado Simple",
+                "Sistema C-6 básico",
+                "Sin sistema (solo estructura)",
+            ],
+        },
+        "modulos": {
+            "modelos": list(cat.get("modulos", {}).get("precios", {}).keys()),
+            "precios":  cat.get("modulos", {}).get("precios", {}),
+        },
+    }
+
+
+@router.get("/api/contratos/buscar")
+async def buscar_contratos_manual(
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """Busca contratos por número de solicitud o nombre de cliente (para emitir recibos)."""
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in ("ADMIN", "COORDINADOR_OPERATIVO", "COBRADOR")):
+        raise HTTPException(403, "Sin permisos")
+
+    q = (q or "").strip()
+    query = db.query(Contrato).filter(Contrato.tipo_documento == "CONTRATO")
+    if q:
+        query = query.filter(
+            Contrato.numero_solicitud.ilike(f"%{q}%") |
+            Contrato.cliente_nombre.ilike(f"%{q}%")
+        )
+    rows = query.order_by(Contrato.fecha_generacion.desc()).limit(15).all()
+
+    results = []
+    for c in rows:
+        datos = json.loads(c.datos_json) if c.datos_json else {}
+        venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == c.venta_financiada_id).first()
+        recibos_n = db.query(Contrato).filter(
+            Contrato.venta_financiada_id == c.venta_financiada_id,
+            Contrato.tipo_documento == "RECIBO",
+        ).count()
+
+        def _safe_num(v):
+            if isinstance(v, (int, float)):
+                return float(v)
+            try:
+                return float(str(v).replace(".", "").replace(",", "."))
+            except Exception:
+                return 0.0
+
+        results.append({
+            "numero_solicitud":    c.numero_solicitud or "",
+            "cliente_nombre":      c.cliente_nombre or "",
+            "tipo_contrato":       c.tipo_contrato or "",
+            "tipo_plan":           (venta.forma_pago if venta else "") or "FINANCIADO",
+            "modelo":              datos.get("modelo", ""),
+            "tipo_producto_label": datos.get("tipo_producto_label", ""),
+            "nombre":              datos.get("nombre", ""),
+            "apellido":            datos.get("apellido", ""),
+            "telefono":            datos.get("telefono", ""),
+            "dni":                 datos.get("dni", ""),
+            "cuil":                datos.get("cuil", ""),
+            "domicilio":           datos.get("domicilio", ""),
+            "localidad":           datos.get("localidad", ""),
+            "email":               datos.get("email", ""),
+            "ocupacion":           datos.get("ocupacion", ""),
+            "estado_civil":        datos.get("estado_civil", ""),
+            "largo":               datos.get("largo", ""),
+            "ancho":               datos.get("ancho", ""),
+            "profundidad_min":     datos.get("profundidad_min", ""),
+            "profundidad_max":     datos.get("profundidad_max", ""),
+            "sistema":             datos.get("sistema", ""),
+            "precio_total":        venta.precio_total if venta else 0,
+            "cantidad_cuotas":     venta.cantidad_cuotas if venta else 0,
+            "valor_cuota":         venta.valor_cuota if venta else 0,
+            "n_cuotas_congelamiento":    datos.get("n_cuotas_congelamiento", ""),
+            "valor_cuota_congelamiento": datos.get("valor_cuota_congelamiento", ""),
+            "saldo_contra_entrega":      _safe_num(datos.get("saldo_contra_entrega", 0)),
+            "fecha_entrega_estimada":    datos.get("fecha_entrega_estimada", ""),
+            "venta_financiada_id":       c.venta_financiada_id,
+            "contrato_id":               c.id,
+            "recibos_emitidos":          recibos_n,
+        })
+    return results
+
+
+# ─── FIN rutas específicas — ahora sí rutas con {contrato_id} ────────────────
+
 @router.get("/api/contratos/{contrato_id}")
 async def get_contrato(
     contrato_id: int,
@@ -1277,38 +1386,6 @@ async def registrar_pago_por_numero(
 
 # ─── ENDPOINTS MANUALES — PANEL INTERNO ──────────────────────────────────────
 
-@router.get("/api/contratos/catalogo-modelos")
-async def get_catalogo_modelos(current_user: Usuario = Depends(require_auth)):
-    """Modelos, colores, medidas y sistemas disponibles para el formulario manual."""
-    try:
-        from routers.catalogo import load_catalogo, _MEDIDAS_PDF as _mpdf
-        cat = load_catalogo()
-    except Exception:
-        cat = {}
-        _mpdf = {}
-
-    medidas_cat = cat.get("piscinas", {}).get("medidas", {})
-    medidas = {**_mpdf, **medidas_cat}
-
-    return {
-        "piscinas": {
-            "modelos": cat.get("piscinas", {}).get("modelos", []),
-            "colores":  cat.get("piscinas", {}).get("colores", ["Blanco", "Beige", "Verde agua", "Celeste", "Azul"]),
-            "medidas":  medidas,
-            "sistemas": [
-                "Sistema de Filtrado Completo + Iluminación",
-                "Sistema de Filtrado Simple",
-                "Sistema C-6 básico",
-                "Sin sistema (solo estructura)",
-            ],
-        },
-        "modulos": {
-            "modelos": list(cat.get("modulos", {}).get("precios", {}).keys()),
-            "precios":  cat.get("modulos", {}).get("precios", {}),
-        },
-    }
-
-
 @router.post("/api/contratos/emitir-nuevo", status_code=201)
 async def emitir_nuevo_contrato(
     request: Request,
@@ -1526,80 +1603,6 @@ async def emitir_nuevo_contrato(
             "ok": True, "numero_solicitud": numero_solicitud,
             "venta_financiada_id": venta.id, "pdf_url": None, "error_pdf": str(e),
         }
-
-
-@router.get("/api/contratos/buscar")
-async def buscar_contratos_manual(
-    q: str = "",
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
-):
-    """Busca contratos por número de solicitud o nombre de cliente (para emitir recibos)."""
-    roles = get_user_roles(current_user)
-    if not any(r in roles for r in ("ADMIN", "COORDINADOR_OPERATIVO", "COBRADOR")):
-        raise HTTPException(403, "Sin permisos")
-
-    q = (q or "").strip()
-    query = db.query(Contrato).filter(Contrato.tipo_documento == "CONTRATO")
-    if q:
-        query = query.filter(
-            Contrato.numero_solicitud.ilike(f"%{q}%") |
-            Contrato.cliente_nombre.ilike(f"%{q}%")
-        )
-    rows = query.order_by(Contrato.fecha_generacion.desc()).limit(15).all()
-
-    results = []
-    for c in rows:
-        datos = json.loads(c.datos_json) if c.datos_json else {}
-        venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == c.venta_financiada_id).first()
-        recibos_n = db.query(Contrato).filter(
-            Contrato.venta_financiada_id == c.venta_financiada_id,
-            Contrato.tipo_documento == "RECIBO",
-        ).count()
-
-        def _safe_num(v):
-            if isinstance(v, (int, float)):
-                return float(v)
-            try:
-                return float(str(v).replace(".", "").replace(",", "."))
-            except Exception:
-                return 0.0
-
-        results.append({
-            "numero_solicitud":    c.numero_solicitud or "",
-            "cliente_nombre":      c.cliente_nombre or "",
-            "tipo_contrato":       c.tipo_contrato or "",
-            "tipo_plan":           (venta.forma_pago if venta else "") or "FINANCIADO",
-            "modelo":              datos.get("modelo", ""),
-            "tipo_producto_label": datos.get("tipo_producto_label", ""),
-            "nombre":              datos.get("nombre", ""),
-            "apellido":            datos.get("apellido", ""),
-            "telefono":            datos.get("telefono", ""),
-            "dni":                 datos.get("dni", ""),
-            "cuil":                datos.get("cuil", ""),
-            "domicilio":           datos.get("domicilio", ""),
-            "localidad":           datos.get("localidad", ""),
-            "email":               datos.get("email", ""),
-            "ocupacion":           datos.get("ocupacion", ""),
-            "estado_civil":        datos.get("estado_civil", ""),
-            "largo":               datos.get("largo", ""),
-            "ancho":               datos.get("ancho", ""),
-            "profundidad_min":     datos.get("profundidad_min", ""),
-            "profundidad_max":     datos.get("profundidad_max", ""),
-            "sistema":             datos.get("sistema", ""),
-            "precio_total":        venta.precio_total if venta else 0,
-            "cantidad_cuotas":     venta.cantidad_cuotas if venta else 0,
-            "valor_cuota":         venta.valor_cuota if venta else 0,
-            "n_cuotas_congelamiento":    datos.get("n_cuotas_congelamiento", ""),
-            "valor_cuota_congelamiento": datos.get("valor_cuota_congelamiento", ""),
-            "saldo_contra_entrega":      _safe_num(datos.get("saldo_contra_entrega", 0)),
-            "fecha_entrega_estimada":    datos.get("fecha_entrega_estimada", ""),
-            "venta_financiada_id":       c.venta_financiada_id,
-            "contrato_id":               c.id,
-            "recibos_emitidos":          recibos_n,
-        })
-    return results
-
 
 @router.post("/api/contratos/recibo-por-numero/{numero_solicitud}", status_code=201)
 async def emitir_recibo_manual(

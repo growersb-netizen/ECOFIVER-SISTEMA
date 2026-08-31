@@ -59,7 +59,7 @@
       <a href="/envios-cargo" class="nav-item"><span class="nav-icon">🚚</span> Envíos Vía Cargo</a>
       {% endif %}
 
-      {% if 'ADMIN' in roles or 'COBRANZAS' in roles %}
+      {% if 'ADMIN' in roles or 'COBRANZAS' in roles or 'COORDINADOR_OPERATIVO' in roles %}
       <a href="/cobranzas" class="nav-item">
         <span class="nav-icon">💳</span> Cobranzas
         <span class="nav-badge" id="notif-badge" style="display:none">0</span>
@@ -76,7 +76,6 @@
       {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles %}
       <div class="nav-section">Operaciones</div>
       <a href="/logistica" class="nav-item"><span class="nav-icon">🚚</span> Logística y Entregas</a>
-      <a href="/contratos" class="nav-item"><span class="nav-icon">📄</span> Contratos</a>
       <a href="/flota" class="nav-item"><span class="nav-icon">🚗</span> Flota</a>
       <a href="/instalacion" class="nav-item"><span class="nav-icon">🔨</span> Instalación & Equipos</a>
       {% endif %}

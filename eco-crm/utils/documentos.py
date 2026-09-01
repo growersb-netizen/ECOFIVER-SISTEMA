@@ -25,6 +25,8 @@ _env = Environment(
 # Campos que ya vienen armados como HTML (no se deben escapar)
 _CAMPOS_HTML_CRUDO = {
     "firma_productor_block", "op_data_blocks", "tabla_filas", "nota_final",
+    # Bloques HTML generados dinámicamente en contratos/recibos
+    "seccion_pago_html", "recibo_box_html",
 }
 
 

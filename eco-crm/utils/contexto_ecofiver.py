@@ -73,7 +73,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    · Wave / Bali y otras líneas: modelos de mayor metraje (5x2.5, 6x3, 7x3, 8x4 y más)
    Colores disponibles: blanco, gris perla, azul turquesa, verde agua, piedra (varían según modelo)
    Qué incluye el precio publicado: fabricación + instalación en el día (equipo propio de EcoFiver) + puesta en marcha del sistema de filtrado + entrega probado y funcionando.
-   Qué NO incluye: el flete hasta la obra, que se cotiza a razón de $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Alternativa gratuita: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
+   Qué NO incluye: el flete hasta la obra, que se cotiza a razón de $3.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Alternativa gratuita: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
    Disponibilidad y entrega: modelos estándar en stock, entrega coordinada en 48-72 hs. La instalación completa se realiza en el mismo día de entrega.
 
 2. HIDROMASAJES, JACUZZIS Y SPAS (línea propia EcoFiver — acrílico sanitario)
@@ -218,7 +218,7 @@ MODELO DE NEGOCIO Y LOGÍSTICA
 - Fabricación: planta propia en Zárate, Buenos Aires
 - Instalación: equipo técnico propio, no tercerizan la instalación
 - Zona de cobertura de instalación: Gran Buenos Aires, provincia de Buenos Aires y provincias del interior del país (consultar zona específica antes de comprar)
-- Flete: $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si se conoce la localidad del comprador se calcula al momento. Alternativa: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste). Flete estimado para zonas frecuentes: CABA ~$360.000 (90 km), GBA Norte/Oeste ~$280.000-$320.000 (70-80 km), Rosario ~$1.120.000 (280 km), Córdoba ~$2.800.000 (700 km).
+- Flete: $3.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si se conoce la localidad del comprador se calcula al momento. Alternativa: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste). Flete estimado para zonas frecuentes: CABA ~$270.000 (90 km), GBA Norte/Oeste ~$210.000-$240.000 (70-80 km), Rosario ~$840.000 (280 km), Córdoba ~$2.100.000 (700 km).
 - Garantía: 10 años con certificado de calidad premium incluido en todos los productos
 - Financiación propia en cuotas: SOLO para piscinas de fibra de vidrio, módulos habitacionales y viviendas modulares (productos de entrega coordinada). Plan: señal inicial + cuotas mensuales a convenir. Sin banco ni tarjeta.
 - Productos de stock (hidromasajes, bañeras, receptáculos, reposeras, accesorios): pago al momento de la compra. Sin cuotas propias de la empresa — las cuotas las ofrece ML según la tarjeta del comprador.
@@ -226,7 +226,7 @@ MODELO DE NEGOCIO Y LOGÍSTICA
 
 PREGUNTAS FRECUENTES CON RESPUESTAS CORRECTAS
 P: ¿El precio incluye la instalación?
-R: Sí, el precio publicado incluye fabricación e instalación completa. El sistema se entrega probado y funcionando. El flete sale $4.000 por kilómetro desde Zárate — si nos decís tu zona, calculamos el total. O podés retirar sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
+R: Sí, el precio publicado incluye fabricación e instalación completa. El sistema se entrega probado y funcionando. El flete sale $3.000 por kilómetro desde Zárate — si nos decís tu zona, calculamos el total. O podés retirar sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
 
 P: ¿Cuánto tarda la instalación?
 R: La instalación se realiza en el mismo día. Para piscinas: un equipo propio instala, conecta y prueba el sistema ese mismo día. Para módulos de 6, 12 y 18 m²: el montaje se completa en el día.
@@ -238,7 +238,7 @@ P: ¿Puedo financiarlo?
 R: Sí, tienen financiación propia en cuotas directas con la empresa, sin banco ni tarjeta.
 
 P: ¿Cuánto es el flete a mi zona?
-R: El flete sale $4.000 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires. Si sabemos tu localidad, calculamos el total exacto al momento. También podés retirar sin cargo en CABA (zona San Telmo) o Paso del Rey (Zona Oeste).
+R: El flete sale $3.000 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires. Si sabemos tu localidad, calculamos el total exacto al momento. También podés retirar sin cargo en CABA (zona San Telmo) o Paso del Rey (Zona Oeste).
 
 P: ¿Qué incluye el sistema de filtrado?
 R: La instalación incluye la conexión hidráulica y puesta en marcha del filtro. El equipo de filtrado puede estar incluido o cotizarse aparte según el paquete — consultarlo al comprar.
@@ -302,7 +302,7 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
         prod_lines.append(
             f"Precio publicado en MercadoLibre: {precio_fmt} ARS. "
             f"Este precio INCLUYE fabricación e instalación completa con equipo propio de EcoFiver. "
-            f"El flete hasta la obra NO está incluido y sale $4.000 por km desde Zárate, Buenos Aires. "
+            f"El flete hasta la obra NO está incluido y sale $3.000 por km desde Zárate, Buenos Aires. "
             f"El comprador puede retirar SIN CARGO en CABA (San Telmo) o Zona Oeste (Paso del Rey)."
         )
     if descripcion_pub:
@@ -341,8 +341,8 @@ Si la pregunta es sobre PRECIO:
 Si la pregunta es sobre FLETE / ENVÍO / CÓMO LLEGA:
 - Explicá las DOS opciones disponibles claramente.
 - Opción 1 (gratis): Retiro sin cargo en CABA zona San Telmo (acceso en subte Líneas A y C) o Zona Oeste Paso del Rey (Ruta 7 y Tren Sarmiento). Se retira listo para instalar.
-- Opción 2 (con flete): EcoFiver lo transporta e instala en la obra. El flete sale $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. La instalación completa ya está incluida en el precio publicado.
-- Si el comprador mencionó su localidad: calculá el flete estimado. Distancias de referencia desde Zárate: CABA ~90 km ($360.000), GBA Norte/Oeste ~70-80 km ($280.000-320.000), GBA Sur ~80 km ($320.000), Rosario ~280 km ($1.120.000), Córdoba ~700 km ($2.800.000). Usá estas referencias para dar un número orientativo.
+- Opción 2 (con flete): EcoFiver lo transporta e instala en la obra. El flete sale $3.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. La instalación completa ya está incluida en el precio publicado.
+- Si el comprador mencionó su localidad: calculá el flete estimado. Distancias de referencia desde Zárate: CABA ~90 km ($270.000), GBA Norte/Oeste ~70-80 km ($210.000-240.000), GBA Sur ~80 km ($240.000), Rosario ~280 km ($840.000), Córdoba ~700 km ($2.100.000). Usá estas referencias para dar un número orientativo.
 - CTA: "Compartinos tu localidad exacta y te calculamos el flete al toque."
 - NUNCA digas solo "el flete se cotiza aparte" sin dar las alternativas de retiro y la tarifa por km.
 

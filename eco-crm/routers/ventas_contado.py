@@ -19,7 +19,22 @@ from routers.notificaciones import notificar_nueva_venta
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-PRECIO_FLETE_KM = 3000  # $/km unificado para todos los productos
+# ── Flete por km desde Zárate — tabla real por categoría/modelo ────────────
+# Base: piscinas (resto de modelos) y módulos. Alto: solo Arco Romano Grande
+# (8.10m) y Playa y Abanico (9.20m). Hidromasajes/jacuzzis: tarifa reducida.
+PRECIO_FLETE_KM = 3000
+PRECIO_FLETE_KM_ALTO = 5000
+PRECIO_FLETE_KM_HIDROMASAJES = 2000
+_MODELOS_FLETE_ALTO = {"Arco Romano Grande", "Playa y Abanico"}
+
+
+def _precio_flete_km(producto: Optional[str], modelo: Optional[str]) -> int:
+    producto_norm = (producto or "").upper()
+    if producto_norm in ("HIDROMASAJE", "HIDROMASAJES"):
+        return PRECIO_FLETE_KM_HIDROMASAJES
+    if producto_norm == "PISCINA" and (modelo or "") in _MODELOS_FLETE_ALTO:
+        return PRECIO_FLETE_KM_ALTO
+    return PRECIO_FLETE_KM
 
 
 def venta_to_dict(v: VentaContado, db=None) -> dict:
@@ -221,11 +236,12 @@ async def create_venta_contado(
         except Exception:
             pass
 
-    # Calcular flete ($3.000/km unificado)
+    # Calcular flete según categoría/modelo (ver _precio_flete_km)
     distancia_km = data.get("distancia_km")
     flete_calculado = None
     if distancia_km:
-        flete_calculado = float(distancia_km) * PRECIO_FLETE_KM
+        precio_km = _precio_flete_km(data.get("producto"), data.get("modelo_especifico"))
+        flete_calculado = float(distancia_km) * precio_km
 
     desde_stock = bool(data.get("desde_stock", False))
 
@@ -317,10 +333,6 @@ async def update_venta_contado(
         except Exception:
             pass
 
-    if "distancia_km" in data and data["distancia_km"]:
-        venta.distancia_km = float(data["distancia_km"])
-        venta.flete_calculado = venta.distancia_km * PRECIO_FLETE_KM
-
     for field in ["cliente_nombre", "cliente_telefono", "cliente_localidad", "producto",
                   "modelo_especifico", "color", "superficie_m2", "precio_final", "forma_pago",
                   "vendedor_id", "rango_horario", "estado", "notas", "sobre_piso"]:
@@ -331,6 +343,13 @@ async def update_venta_contado(
     for bfield in ["con_banio", "con_cocina", "con_puerta_ingreso", "con_ventana_balcon"]:
         if bfield in data:
             setattr(venta, bfield, bool(data[bfield]))
+
+    # Flete: recalcular después de aplicar producto/modelo, para que la
+    # categoría/modelo vigentes (nuevos o ya cargados) definan la tarifa.
+    if "distancia_km" in data and data["distancia_km"]:
+        venta.distancia_km = float(data["distancia_km"])
+        precio_km = _precio_flete_km(venta.producto, venta.modelo_especifico)
+        venta.flete_calculado = venta.distancia_km * precio_km
 
     db.commit()
 
@@ -447,10 +466,11 @@ async def calcular_flete(
 ):
     data = await request.json()
     distancia_km = float(data.get("distancia_km", 0))
-    flete = distancia_km * PRECIO_FLETE_KM
+    precio_km = _precio_flete_km(data.get("producto"), data.get("modelo_especifico") or data.get("modelo"))
+    flete = distancia_km * precio_km
     return {
         "distancia_km": distancia_km,
-        "precio_por_km": PRECIO_FLETE_KM,
+        "precio_por_km": precio_km,
         "flete_calculado": flete,
         "nota": "Valor estimado. Logística confirma el precio exacto."
     }

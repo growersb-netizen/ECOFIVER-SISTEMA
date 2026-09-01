@@ -427,7 +427,8 @@
     const km = document.getElementById('vc-distancia').value;
     if (!km) { document.getElementById('flete-display').textContent = '—'; return; }
     const modelo = document.getElementById('vc-modelo').value;
-    const data = await API.post('/api/calcular-flete', { distancia_km: parseFloat(km), modelo_especifico: modelo });
+    const producto = document.getElementById('vc-producto').value;
+    const data = await API.post('/api/calcular-flete', { distancia_km: parseFloat(km), modelo_especifico: modelo, producto });
     if (data) document.getElementById('flete-display').textContent = formatMoney(data.flete_calculado);
   }
 

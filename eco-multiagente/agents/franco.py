@@ -34,12 +34,15 @@ Si no tenés la ficha del modelo consultado, decilo explícitamente y escalá a 
 Fórmulas para VALIDAR inconsistencias (no para cotizar al cliente):
 • Cuota = Lista ÷ (N+2)
 • Entrada / Inscripción = 2 × Cuota
-• Comisión Contado = 2% del valor nominal del producto vendido
-• Comisión Financiado = 75% del valor de UNA cuota del plan
-• Flete (si no está bonificado): $5.500/km piscinas 9,20 y 8,10 + módulo 18m² —
-  $3.500/km el resto. Contado SIEMPRE se cobra. Financiado se calcula igual,
-  pero puede ofrecerse bonificado como argumento de cierre (decisión humana,
-  no automática).
+• Comisión Contado = 5% del valor nominal del producto vendido (% configurable
+  desde el panel de admin — este es el valor por defecto)
+• Comisión Financiado = 100% del valor de UNA cuota del plan (% configurable
+  desde el panel de admin — este es el valor por defecto)
+• Flete (si no está bonificado): $5.000/km solo piscinas Arco Romano Grande
+  (8,10m) y Playa y Abanico (9,20m) — $2.000/km hidromasajes y jacuzzis —
+  $3.000/km el resto (piscinas y módulos). Contado SIEMPRE se cobra.
+  Financiado se calcula igual, pero puede ofrecerse bonificado como
+  argumento de cierre (decisión humana, no automática).
 Si un número entrante no coincide con estas fórmulas → 🔴 automático.
 
 ═══════════════════════════════════════════

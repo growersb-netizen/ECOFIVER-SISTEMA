@@ -28,10 +28,11 @@ Superficies siempre múltiplos de 6. Si piden una superficie no listada → redi
 Precio incluye: fabricación, traslado a obra, instalación, entrega en Obra Blanca.
 
 FLETE CONTADO:
-$4.000/km desde Av. Antártida Argentina 3105, Zárate, Buenos Aires → hasta el domicilio del cliente.
+$3.000/km desde Av. Antártida Argentina 3105, Zárate, Buenos Aires → hasta el domicilio del cliente
+(tarifa general de módulos, cualquier tamaño).
 Usá tu conocimiento geográfico para estimar la distancia en km desde Zárate a la localidad del cliente
-y calculá el monto exacto de flete (km × $4.000).
-Ejemplo: Pilar ≈ 100km → flete ≈ $400.000.
+y calculá el monto exacto de flete (km × $3.000).
+Ejemplo: Pilar ≈ 100km → flete ≈ $300.000.
 Aclará siempre: "Logística confirma el valor exacto antes de la instalación."
 
 COMBOS MÓDULO + PISCINA:

@@ -28,8 +28,10 @@ CATALOGO = {
     "modulos_precio_m2_base": 7480000 / 18,   # ~415.556/m² para >18m²
     # Precio módulos FINANCIADO: $510.000/m² (cualquier superficie, múltiplos de 6)
     "modulos_precio_m2_financiado": 510000,
-    "flete_por_km": 4000,
-    "flete_miniportante_por_km": 4000,
+    "flete_por_km": 3000,                  # general: piscinas (resto) y módulos
+    "flete_alto_por_km": 5000,             # solo Arco Romano Grande y Playa y Abanico
+    "flete_hidromasajes_por_km": 2000,     # hidromasajes / jacuzzis
+    "flete_miniportante_por_km": 4000,     # ⚠️ valor histórico sin reconfirmar en la última corrección de tarifas
     "flete_financiado": 0,       # BONIFICADO en financiación (piscinas, módulos, combos)
     "fabrica_direccion": "Av. Antártida Argentina 3105, Zárate, Buenos Aires",
     "ciudad_origen": "Zárate",

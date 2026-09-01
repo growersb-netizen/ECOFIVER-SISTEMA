@@ -2149,8 +2149,8 @@ async def _generar_contrato_contado_pdf_socio(venta: VentaContado, socio: Aliado
             f'<div class="sig-sublabel">{socio.nombre} — Cód. {socio.codigo}</div></div>'
         ),
     }
-    ctx["seccion_pago_html"] = _seccion_pago_html(ctx, "CONTADO")
-    ctx["texto_legal"]       = _texto_legal(ctx, "CONTADO")
+    ctx["seccion_pago_html"] = _seccion_pago_html("CONTADO", ctx)
+    ctx["texto_legal"]       = _texto_legal("CONTADO", ctx)
     ctx["recibo_box_html"]   = ""
 
     html_content = render_html("documentos/contrato_template.html", ctx)

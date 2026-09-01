@@ -232,7 +232,9 @@ def _recibo_box_html(tipo_plan: str, numero_solicitud: str) -> str:
     )
 
 
-def _texto_legal(tipo_plan: str) -> str:
+def _texto_legal(tipo_plan: str, ctx: dict = None) -> str:
+    if ctx is None:
+        ctx = {}
     if tipo_plan == "CONGELAMIENTO":
         return (
             "Declaro bajo juramento que los datos procedentemente son verdaderos y en función de ellos, "
@@ -919,7 +921,7 @@ async def emitir_contrato(
     context.setdefault("fecha_entrega_estimada", "")
     context["seccion_pago_html"] = _seccion_pago_html(_tplan, context)
     context["recibo_box_html"]   = _recibo_box_html(_tplan, context.get("numero_solicitud", ""))
-    context["texto_legal"]       = _texto_legal(_tplan)
+    context["texto_legal"]       = _texto_legal(_tplan, context)
     context["titulo_contrato"]   = _titulo_contrato(venta.producto or "PISCINA", _tplan)
 
     html = render_html("contrato_template.html", context)
@@ -1281,7 +1283,7 @@ async def crear_contrato_unificado(
     context.setdefault("fecha_entrega_estimada", "")
     context["seccion_pago_html"] = _seccion_pago_html("FINANCIADO", context)
     context["recibo_box_html"]   = _recibo_box_html("FINANCIADO", numero_solicitud)
-    context["texto_legal"]       = _texto_legal("FINANCIADO")
+    context["texto_legal"]       = _texto_legal("FINANCIADO", context)
     context["titulo_contrato"]   = _titulo_contrato(tipo_producto)
 
     pdf_url = None
@@ -1601,7 +1603,7 @@ async def emitir_nuevo_contrato(
     }
     context["seccion_pago_html"] = _seccion_pago_html(tipo_plan, context)
     context["recibo_box_html"]   = _recibo_box_html(tipo_plan, numero_solicitud)
-    context["texto_legal"]       = _texto_legal(tipo_plan)
+    context["texto_legal"]       = _texto_legal(tipo_plan, context)
     context["titulo_contrato"]   = _titulo_contrato(tipo_producto, tipo_plan)
 
     try:

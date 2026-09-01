@@ -807,19 +807,19 @@ async def admin_descargar_presupuesto(
 # Contado: SIEMPRE se cobra, nunca se bonifica. Financiado: se calcula igual,
 # pero puede ofrecerse bonificado como argumento de cierre (decisión humana al
 # cerrar la operación — el sistema no lo pone en $0 automáticamente).
-FLETE_KM_ALTO = 5500
-FLETE_KM_BAJO = 3500
-_MODELOS_FLETE_ALTO_PISCINA = {"Playa y Abanico", "Arco Romano Grande", "Playa y Abanico Chica", "Playa y Abanico Mediana", "Playa y Abanico Grande", "Arco Romano Grande Recto", "Arco Romano Grande Curvo"}
+FLETE_KM_BASE = 3000            # piscinas (resto de modelos) y módulos, cualquier tamaño
+FLETE_KM_ALTO = 5000            # solo piscinas Arco Romano Grande (8.10m) y Playa y Abanico (9.20m)
+FLETE_KM_HIDROMASAJES = 2000    # hidromasajes / jacuzzis
+_MODELOS_FLETE_ALTO_PISCINA = {"Arco Romano Grande", "Playa y Abanico"}
 
 
 def _flete_por_km(tipo: str, modelo_o_m2) -> int:
-    if tipo.upper() == "MODULO":
-        try:
-            m2 = float(modelo_o_m2)
-        except (TypeError, ValueError):
-            return FLETE_KM_BAJO
-        return FLETE_KM_ALTO if m2 >= 18 else FLETE_KM_BAJO
-    return FLETE_KM_ALTO if str(modelo_o_m2) in _MODELOS_FLETE_ALTO_PISCINA else FLETE_KM_BAJO
+    tipo_norm = (tipo or "").upper()
+    if tipo_norm in ("HIDROMASAJE", "HIDROMASAJES"):
+        return FLETE_KM_HIDROMASAJES
+    if tipo_norm == "PISCINA" and str(modelo_o_m2) in _MODELOS_FLETE_ALTO_PISCINA:
+        return FLETE_KM_ALTO
+    return FLETE_KM_BASE
 
 
 @router.get("/api/socio/ficha-producto")
@@ -2050,6 +2050,159 @@ async def descargar_contrato_pdf(venta_id: int, socio: Aliado = Depends(require_
     return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"Plan_{venta.numero_solicitud}.pdf")
 
 
+# ─── Contrato de compraventa CONTADO (venta de socio) ────────────────────────
+
+async def _generar_contrato_contado_pdf_socio(venta: VentaContado, socio: Aliado, db: Session) -> Path:
+    """Genera el PDF del contrato de compraventa para una VentaContado de socio."""
+    import json as _json
+    from utils.documentos import render_html, html_to_pdf
+    from routers.contratos import (_seccion_pago_html, _texto_legal,
+                                   _titulo_contrato, _fmt_ar, _MEDIDAS_PDF)
+
+    tipo_producto       = (venta.producto or "PISCINA").upper()
+    tipo_producto_label = "Piscina de Fibra de Vidrio" if tipo_producto == "PISCINA" else "Módulo Habitacional"
+    tipologia           = "Fibra de Vidrio"             if tipo_producto == "PISCINA" else "Estructural"
+
+    medidas = _MEDIDAS_PDF.get(venta.modelo_especifico or "", {})
+    largo   = medidas.get("largo_m",          "—")
+    ancho   = medidas.get("ancho_m",          "—")
+    pmin    = medidas.get("profundidad_min_m", "—")
+    pmax    = medidas.get("profundidad_max_m", "—")
+
+    # ítems incluidos: inferidos de los campos guardados
+    notas_lower = (venta.notas or "").lower()
+    items = ["Fabricación completa del producto",
+             "Flete hasta el domicilio del cliente"]
+    if "sin_instalacion" not in notas_lower and "sin instalaci" not in notas_lower:
+        items.append("Instalación y puesta en marcha")
+        items.append("Sistema de filtrado completo")
+    items.append("Garantía estructural 10 años")
+    if venta.con_banio:          items.append("Módulo con baño completo")
+    if venta.con_cocina:         items.append("Módulo con cocina")
+    if venta.con_puerta_ingreso: items.append("Puerta de ingreso")
+    if venta.con_ventana_balcon: items.append("Ventana / balcón")
+
+    nombre_completo = venta.cliente_nombre or "—"
+    partes   = nombre_completo.rsplit(" ", 1)
+    nombre   = partes[0] if len(partes) > 1 else nombre_completo
+    apellido = partes[1] if len(partes) > 1 else ""
+
+    valor_total = venta.precio_final or 0
+    fecha_hoy   = datetime.now().strftime("%d/%m/%Y")
+    doc_num     = f"SC-{socio.codigo}-{venta.id}"
+
+    ctx = {
+        "titulo_contrato":       _titulo_contrato(tipo_producto, "CONTADO"),
+        "numero_solicitud":      doc_num,
+        "fecha_contrato":        fecha_hoy,
+        # cliente
+        "nombre":                nombre,
+        "apellido":              apellido,
+        "dni":                   "—",
+        "cuil":                  "—",
+        "fecha_nacimiento":      "—",
+        "estado_civil":          "—",
+        "email":                 venta.cliente_email    or "—",
+        "telefono":              venta.cliente_telefono or "—",
+        "telefono_alt":          "—",
+        "domicilio":             venta.cliente_domicilio or "—",
+        "piso":                  "—",
+        "depto":                 "—",
+        "localidad":             venta.cliente_localidad or "—",
+        "provincia":             "—",
+        "lugar_nacimiento":      "—",
+        "ocupacion":             "—",
+        # cónyuge (en blanco)
+        "conyuge_nombre":        "—",
+        "conyuge_apellido":      "—",
+        "conyuge_dni":           "—",
+        "conyuge_nacimiento":    "—",
+        "conyuge_telefono":      "—",
+        "conyuge_email":         "—",
+        # producto
+        "modelo":                venta.modelo_especifico or "—",
+        "tipo_producto_label":   tipo_producto_label,
+        "tipologia":             tipologia,
+        "largo":                 str(largo),
+        "ancho":                 str(ancho),
+        "profundidad_min":       str(pmin),
+        "profundidad_max":       str(pmax),
+        "sistema":               ("Sistema de Filtrado Completo + Iluminación"
+                                  if tipo_producto == "PISCINA" else "—"),
+        "observaciones":         f"Color: {venta.color}" if venta.color else "Consultar con el asesor comercial",
+        # pago CONTADO
+        "valor_total":           _fmt_ar(valor_total),
+        "señia":                 "0",
+        "saldo_contra_entrega":  _fmt_ar(valor_total),
+        "modalidad_pago":        "Contra entrega",
+        "op_numero_pago":        "",
+        "incluye_items":         _json.dumps(items),
+        "condiciones_entrega":   (
+            "El pago total de la operación se realizará contra entrega del producto en el domicilio "
+            "indicado, previo coordinación de fecha y horario con la empresa con al menos 72 hs de "
+            "anticipación. El equipo se contactará dentro de las 48 hs para confirmar detalles."
+        ),
+        "fecha_entrega_estimada": "A coordinar con el equipo de logística",
+        "firma_productor_block":  (
+            f'<div class="sig-block"><div class="sig-line-draw"></div>'
+            f'<div class="sig-label">Asesor / Socio Comercial</div>'
+            f'<div class="sig-sublabel">{socio.nombre} — Cód. {socio.codigo}</div></div>'
+        ),
+    }
+    ctx["seccion_pago_html"] = _seccion_pago_html(ctx, "CONTADO")
+    ctx["texto_legal"]       = _texto_legal(ctx, "CONTADO")
+    ctx["recibo_box_html"]   = ""
+
+    html_content = render_html("documentos/contrato_template.html", ctx)
+    Path("data/contratos").mkdir(parents=True, exist_ok=True)
+    pdf_path = Path("data/contratos") / f"contado_{venta.id}.pdf"
+    await html_to_pdf(html_content, pdf_path)
+
+    venta.contrato_generado_en = datetime.now()
+    db.commit()
+    return pdf_path
+
+
+@router.post("/api/socio/ventas/contado/{venta_id}/generar-contrato")
+async def generar_contrato_contado_socio(
+    venta_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Genera el PDF del contrato de compraventa para una venta contado del socio."""
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    await _generar_contrato_contado_pdf_socio(venta, socio, db)
+    return {
+        "ok": True,
+        "contrato_pdf_url": f"/api/socio/ventas/contado/{venta.id}/contrato-pdf",
+    }
+
+
+@router.get("/api/socio/ventas/contado/{venta_id}/contrato-pdf")
+async def descargar_contrato_contado_pdf(
+    venta_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import FileResponse
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    pdf_path = Path("data/contratos") / f"contado_{venta.id}.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(404, "Todavía no se generó el PDF — hacé click en Generar contrato")
+    filename = f"Contrato_{venta.cliente_nombre.replace(' ', '_')}_{venta.id}.pdf"
+    return FileResponse(str(pdf_path), media_type="application/pdf", filename=filename)
+
+
 # ─── Confirmación pública del cliente (sin login) ─────────────────────────────
 
 @router.get("/socio/confirmar/{token}", response_class=HTMLResponse)
@@ -2310,6 +2463,7 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
             "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
             "cobro_estado": v.cobro_estado,
             "confirmacion_48hs": bool(v.confirmacion_48hs_en),
+            "contrato_generado": bool(v.contrato_generado_en),
             "created_at": v.created_at.isoformat() if v.created_at else None,
         } for v in contado],
         "financiado": [{

@@ -1282,12 +1282,18 @@ async function cargarMisVentas(){
   hf += '</table>';
   document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
 
-  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th></tr>';
+  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th><th></th></tr>';
   for(const v of data.contado){
     const pill = v.cobro_estado==='COBRADO' ? '<span class="pill ok">Entregada y cobrada</span>' : (v.confirmacion_48hs ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
     const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
     const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
-    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td></tr>`;
+    let accionC = '';
+    if(v.contrato_generado){
+      accionC = `<a href="/api/socio/ventas/contado/${v.id}/contrato-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">📄 Contrato</a>`;
+    } else {
+      accionC = `<button class="btn-teal" style="font-size:12.5px;padding:6px 12px" onclick="generarContratoContado(${v.id})">Generar contrato</button>`;
+    }
+    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td><td>${accionC}</td></tr>`;
   }
   hc += '</table>';
   document.getElementById('tabla-contado').innerHTML = hc;
@@ -1308,6 +1314,19 @@ async function generarContrato(ventaId){
     alert('Se descargó el resumen del plan en PDF.\n\nMandale este link al cliente para que confirme:\n' + data.link_confirmacion);
     cargarMisVentas();
   }catch(e){ alert(e.message); }
+}
+
+async function generarContratoContado(ventaId){
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Generando…';
+  try{
+    const data = await api(`/api/socio/ventas/contado/${ventaId}/generar-contrato`, {method:'POST'});
+    window.open(data.contrato_pdf_url, '_blank');
+    cargarMisVentas();
+  }catch(e){
+    alert('No se pudo generar el contrato: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Generar contrato';
+  }
 }
 
 async function cargarComisiones(){

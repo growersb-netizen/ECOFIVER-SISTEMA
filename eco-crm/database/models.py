@@ -300,6 +300,9 @@ class VentaContado(Base):
     vendedor           = relationship("Usuario", foreign_keys=[vendedor_id])
     equipo_instalador  = relationship("EquipoInstalador", foreign_keys=[equipo_instalador_id])
 
+    # Contrato firmable — generado cuando el socio lo solicita
+    contrato_generado_en = Column(DateTime(timezone=True), nullable=True)
+
 
 class VentaFinanciada(Base):
     __tablename__ = "ventas_financiadas"

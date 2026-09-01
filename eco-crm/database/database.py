@@ -208,6 +208,7 @@ def run_migrations():
             "ALTER TABLE ventas_financiadas ADD COLUMN licitacion_solicitada_en DATETIME",
             "ALTER TABLE ventas_contado ADD COLUMN aliado_codigo TEXT",
             "ALTER TABLE ventas_contado ADD COLUMN confirmacion_48hs_en DATETIME",
+            "ALTER TABLE ventas_contado ADD COLUMN contrato_generado_en DATETIME",
             "ALTER TABLE comisiones ADD COLUMN venta_financiada_id INTEGER",
             "ALTER TABLE comisiones ADD COLUMN venta_contado_id INTEGER",
             "ALTER TABLE comisiones ADD COLUMN factura_path TEXT",

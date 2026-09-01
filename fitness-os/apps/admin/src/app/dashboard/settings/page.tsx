@@ -2,7 +2,7 @@
 /**
  * /dashboard/settings — Configuración del tenant y perfil del admin.
  */
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -42,7 +42,7 @@ function NavItem({ label, href, active }: { label: string; href: string; active?
 }
 
 // ── Section wrapper ───────────────────────────────────────────────
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div style={{ background: "#0D0F1A", border: "1px solid #1E2240", borderRadius: 12, padding: "1.5rem", marginBottom: "1.5rem" }}>
       <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.05rem", color: "#E8EDFF", margin: "0 0 1.25rem", letterSpacing: "0.05em" }}>
@@ -54,7 +54,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 // ── Field ─────────────────────────────────────────────────────────
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <div style={{ marginBottom: "1rem" }}>
       <label style={{ display: "block", fontSize: "0.75rem", color: "#6B7494", letterSpacing: "0.08em", marginBottom: 6 }}>

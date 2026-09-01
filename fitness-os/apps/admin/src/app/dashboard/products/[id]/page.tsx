@@ -5,7 +5,7 @@
  * POST /api/v1/products/:id/files → asocia un archivo (URL o clave R2)
  * GET /api/v1/products/:id/download → genera URL presignada y descarga
  */
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { AdminLayout } from "@/components/AdminLayout";
 

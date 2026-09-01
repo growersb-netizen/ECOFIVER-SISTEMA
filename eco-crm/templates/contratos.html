@@ -568,6 +568,16 @@ function onPlan(val) {
   document.getElementById('plan-financiado').style.display  = val === 'FINANCIADO'   ? 'grid'  : 'none';
   document.getElementById('plan-congelamiento').style.display = val === 'CONGELAMIENTO' ? 'grid'  : 'none';
   document.getElementById('plan-contado').style.display      = val === 'CONTADO'       ? 'flex'  : 'none';
+  // Observaciones: para CONTADO mostrar fecha pactada, no el texto de financiado
+  const obs = document.getElementById('inp-obs');
+  if (obs) {
+    if (val === 'CONTADO') {
+      obs.placeholder = 'Ej: La fecha pactada de entrega es Octubre 2026. Pago contra entrega en domicilio.';
+      if (!obs.value) obs.value = '';
+    } else {
+      obs.placeholder = 'LA FECHA DE INSTALACIÓN SE ASIGNARÁ CONFORME AL PLAN DE PRODUCCIÓN VIGENTE.';
+    }
+  }
 }
 
 // Calcula saldo contra entrega en tiempo real

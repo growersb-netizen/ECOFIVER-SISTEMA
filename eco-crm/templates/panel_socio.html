@@ -1284,19 +1284,26 @@ async function cargarMisVentas(){
 
   let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th><th></th></tr>';
   for(const v of data.contado){
-    const pill = v.cobro_estado==='COBRADO' ? '<span class="pill ok">Entregada y cobrada</span>' : (v.confirmacion_48hs ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
+    const cobrado = v.cobro_estado==='COBRADO';
+    const confirmada = !!v.confirmacion_48hs;
+    const pill = cobrado ? '<span class="pill ok">Entregada y cobrada</span>' : (confirmada ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
     const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
     const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
+    const puedeModificar = !cobrado && !confirmada;
     let accionC = '';
     if(v.contrato_generado){
       accionC = `<a href="/api/socio/ventas/contado/${v.id}/contrato-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">📄 Contrato</a>`;
     } else {
       accionC = `<button class="btn-teal" style="font-size:12.5px;padding:6px 12px" onclick="generarContratoContado(${v.id})">Generar contrato</button>`;
     }
-    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td><td>${accionC}</td></tr>`;
+    if(puedeModificar){
+      accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirEditarVenta(${JSON.stringify(v).replace(/"/g,'&quot;')})">✏️ Editar</button>`;
+      accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px;color:#d63031" onclick="eliminarVentaContado(${v.id},'${(v.cliente_nombre||'').replace(/'/g,"\\'")}')">🗑️</button>`;
+    }
+    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td><td style="white-space:nowrap">${accionC}</td></tr>`;
   }
   hc += '</table>';
-  document.getElementById('tabla-contado').innerHTML = hc;
+  document.getElementById('tabla-contado').innerHTML = hc || 'Todavía no cargaste ventas de contado.';
 }
 
 async function solicitarLicitacion(ventaId){
@@ -1326,6 +1333,65 @@ async function generarContratoContado(ventaId){
   }catch(e){
     alert('No se pudo generar el contrato: ' + e.message);
     btn.disabled = false; btn.textContent = 'Generar contrato';
+  }
+}
+
+// ── Editar / Eliminar venta contado ─────────────────────────────────────────
+let _editandoVentaId = null;
+
+function abrirEditarVenta(v){
+  _editandoVentaId = v.id;
+  document.getElementById('edit-cliente-nombre').value   = v.cliente_nombre || '';
+  document.getElementById('edit-cliente-telefono').value = v.cliente_telefono || '';
+  document.getElementById('edit-cliente-localidad').value= v.cliente_localidad || '';
+  document.getElementById('edit-cliente-domicilio').value= v.cliente_domicilio || '';
+  document.getElementById('edit-cliente-email').value    = v.cliente_email || '';
+  document.getElementById('edit-modelo').value           = v.modelo_especifico || '';
+  document.getElementById('edit-color').value            = v.color || '';
+  document.getElementById('edit-precio').value           = v.precio_final || '';
+  document.getElementById('edit-distancia').value        = v.distancia_km || '';
+  document.getElementById('edit-notas').value            = v.notas || '';
+  document.getElementById('modal-editar-venta').style.display = 'flex';
+}
+
+function cerrarEditarVenta(){
+  document.getElementById('modal-editar-venta').style.display = 'none';
+  _editandoVentaId = null;
+}
+
+async function guardarEdicionVenta(){
+  if(!_editandoVentaId) return;
+  const body = {
+    cliente_nombre:    document.getElementById('edit-cliente-nombre').value.trim(),
+    cliente_telefono:  document.getElementById('edit-cliente-telefono').value.trim(),
+    cliente_localidad: document.getElementById('edit-cliente-localidad').value.trim(),
+    cliente_domicilio: document.getElementById('edit-cliente-domicilio').value.trim(),
+    cliente_email:     document.getElementById('edit-cliente-email').value.trim(),
+    modelo_especifico: document.getElementById('edit-modelo').value.trim(),
+    color:             document.getElementById('edit-color').value.trim(),
+    precio_final:      parseFloat(document.getElementById('edit-precio').value)||null,
+    distancia_km:      parseFloat(document.getElementById('edit-distancia').value)||null,
+    notas:             document.getElementById('edit-notas').value.trim(),
+  };
+  const btn = document.getElementById('btn-guardar-edicion');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try{
+    await api(`/api/socio/ventas/contado/${_editandoVentaId}`, {method:'PUT', body: JSON.stringify(body)});
+    cerrarEditarVenta();
+    cargarMisVentas();
+  }catch(e){
+    alert('No se pudo guardar: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Guardar cambios';
+  }
+}
+
+async function eliminarVentaContado(id, nombre){
+  if(!confirm(`¿Eliminar la venta de "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try{
+    await api(`/api/socio/ventas/contado/${id}`, {method:'DELETE'});
+    cargarMisVentas();
+  }catch(e){
+    alert('No se pudo eliminar: ' + e.message);
   }
 }
 
@@ -1457,5 +1523,67 @@ async function subirDoc(tipo){
 // Intento de sesión ya iniciada al cargar la página
 cargarApp();
 </script>
+
+<!-- ── Modal: Editar venta contado ──────────────────────────────────────── -->
+<div id="modal-editar-venta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg-card);border-radius:12px;width:100%;max-width:520px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">
+    <h3 style="margin:0 0 18px;font-size:17px">✏️ Editar venta de contado</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin-top:-10px;margin-bottom:18px">Solo podés editar la venta mientras el equipo todavía no la confirmó (48 hs).</p>
+    <div style="display:grid;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Nombre del cliente *</label>
+        <input id="edit-cliente-nombre" class="input" style="width:100%;box-sizing:border-box" placeholder="Nombre completo">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Teléfono</label>
+          <input id="edit-cliente-telefono" class="input" style="width:100%;box-sizing:border-box" placeholder="549…">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Email</label>
+          <input id="edit-cliente-email" class="input" style="width:100%;box-sizing:border-box" placeholder="cliente@mail.com" type="email">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Localidad</label>
+          <input id="edit-cliente-localidad" class="input" style="width:100%;box-sizing:border-box" placeholder="Ciudad / partido">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Domicilio</label>
+          <input id="edit-cliente-domicilio" class="input" style="width:100%;box-sizing:border-box" placeholder="Calle y número">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Modelo</label>
+          <input id="edit-modelo" class="input" style="width:100%;box-sizing:border-box" placeholder="Ej: Minimalista Grande">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Color</label>
+          <input id="edit-color" class="input" style="width:100%;box-sizing:border-box" placeholder="Ej: Azul">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Precio final ($)</label>
+          <input id="edit-precio" class="input" style="width:100%;box-sizing:border-box" type="number" min="0" step="1000">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Distancia km (flete)</label>
+          <input id="edit-distancia" class="input" style="width:100%;box-sizing:border-box" type="number" min="0" step="1">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Notas</label>
+        <textarea id="edit-notas" class="input" rows="2" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="Aclaraciones internas…"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="cerrarEditarVenta()">Cancelar</button>
+      <button id="btn-guardar-edicion" class="btn-primary" onclick="guardarEdicionVenta()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

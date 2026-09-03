@@ -1696,6 +1696,103 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
     return {"ok": True, "venta_id": venta.id, "flete_calculado": flete_calculado, "mensaje": "Venta cargada. El equipo va a contactar al cliente dentro de las 48hs."}
 
 
+@router.put("/api/socio/ventas/contado/{venta_id}")
+async def editar_venta_contado_socio(
+    venta_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    El socio puede editar una venta de contado propia mientras esté en estado
+    COORDINADO. Una vez que el equipo confirma (48hs o INSTALADA) ya no se puede
+    modificar para preservar la integridad del circuito.
+    """
+    _require_verificado(socio)
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo,
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.estado not in ("COORDINADO", "PENDIENTE"):
+        raise HTTPException(400, f"La venta ya está en estado '{venta.estado}' y no puede modificarse. Contactá al equipo para cambios.")
+
+    data = await request.json()
+
+    # Campos editables por el socio
+    if "cliente_nombre" in data:
+        venta.cliente_nombre = (data["cliente_nombre"] or "").strip()
+    if "cliente_telefono" in data:
+        venta.cliente_telefono = _normalizar_telefono(data.get("cliente_telefono") or "")
+    if "cliente_localidad" in data:
+        venta.cliente_localidad = (data["cliente_localidad"] or "").strip()
+    if "cliente_domicilio" in data:
+        venta.cliente_domicilio = (data["cliente_domicilio"] or "").strip() or None
+    if "cliente_email" in data:
+        venta.cliente_email = (data["cliente_email"] or "").strip() or None
+    if "modelo_especifico" in data:
+        venta.modelo_especifico = (data["modelo_especifico"] or "").strip()
+    if "color" in data:
+        venta.color = (data["color"] or "").strip() or None
+    if "precio_final" in data:
+        venta.precio_final = float(data["precio_final"] or 0)
+    if "distancia_km" in data and data["distancia_km"]:
+        try:
+            venta.distancia_km = float(data["distancia_km"])
+            venta.flete_calculado = round(_flete_por_km(venta.producto, venta.modelo_especifico) * venta.distancia_km)
+        except (TypeError, ValueError):
+            pass
+    if "notas" in data:
+        venta.notas = (data["notas"] or "").strip()
+
+    db.commit()
+    return {"ok": True, "venta_id": venta.id, "estado": venta.estado}
+
+
+@router.delete("/api/socio/ventas/contado/{venta_id}")
+async def eliminar_venta_contado_socio(
+    venta_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    El socio puede eliminar una venta de contado propia solo si está en estado
+    COORDINADO (antes de que el equipo empiece a gestionar). También elimina la
+    Entrega y OrdenFabrica/OrdenProduccion asociadas si existen.
+    """
+    _require_verificado(socio)
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo,
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.estado not in ("COORDINADO", "PENDIENTE"):
+        raise HTTPException(400, f"La venta ya está en estado '{venta.estado}'. Para anularla contactá al equipo.")
+
+    import logging
+    log = logging.getLogger(__name__)
+
+    try:
+        # Eliminar registros asociados en cascada (orden importa)
+        from database.models import Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, OrdenProduccion
+
+        db.query(OrdenProduccion).filter(OrdenProduccion.venta_contado_id == venta_id).delete()
+        db.query(OrdenFabricaPiscina).filter(OrdenFabricaPiscina.venta_contado_id == venta_id).delete()
+        db.query(OrdenFabricaModulo).filter(OrdenFabricaModulo.venta_contado_id == venta_id).delete()
+        db.query(Entrega).filter(Entrega.venta_contado_id == venta_id).delete()
+        db.delete(venta)
+        db.commit()
+        log.info(f"[SOCIO {socio.codigo}] Venta contado #{venta_id} eliminada")
+    except Exception as e:
+        db.rollback()
+        log.error(f"[SOCIO DELETE] Error: {e}")
+        raise HTTPException(500, f"Error al eliminar la venta: {e}")
+
+    return {"ok": True, "eliminada": venta_id}
+
+
 @router.post("/api/ventas-contado/{venta_id}/confirmacion-48hs")
 async def confirmar_48hs_contado(
     venta_id: int, db: Session = Depends(get_db),

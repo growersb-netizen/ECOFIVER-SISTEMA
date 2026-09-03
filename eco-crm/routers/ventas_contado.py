@@ -11,7 +11,7 @@ from database.database import get_db
 from database.models import (
     VentaContado, Usuario,
     Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, Lead, Interaccion,
-    OrdenProduccion,
+    OrdenProduccion, StockPiscina,
 )
 from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
@@ -164,6 +164,23 @@ def _crear_circuito_post_venta(db, venta: VentaContado, desde_stock: bool):
         auto_generada=True,
     )
     db.add(entrega)
+
+    # 1b ─ Descontar stock si sale desde stock (piscina)
+    if desde_stock and (venta.producto or "").upper() in ("PISCINA", "COMBO"):
+        import logging
+        log = logging.getLogger(__name__)
+        try:
+            stock = db.query(StockPiscina).filter(
+                StockPiscina.modelo.ilike(venta.modelo_especifico or ""),
+                StockPiscina.color.ilike(venta.color or ""),
+            ).first()
+            if stock and stock.cantidad > 0:
+                stock.cantidad -= 1
+                log.info(f"[STOCK] Descontado 1 de {stock.modelo}/{stock.color}. Nuevo: {stock.cantidad}")
+            else:
+                log.warning(f"[STOCK] No se encontró stock para {venta.modelo_especifico}/{venta.color} o ya en 0")
+        except Exception as e:
+            log.warning(f"[STOCK] Error al descontar stock: {e}")
 
     # 2 ─ Crear OrdenFabrica si no sale desde stock
     if not desde_stock:

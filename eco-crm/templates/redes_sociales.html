@@ -297,14 +297,22 @@ async function cargarPaginas() {
       lista.innerHTML = `
         <div style="padding:16px">
           <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)">🔗 Conectar Facebook</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6">
-            Pegá tu <strong>Page Access Token</strong> de Meta y hacé clic en <em>Guardar y sincronizar</em>.
-            <br>Obtenelo en <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:#1877f2">Graph API Explorer →</a>
+
+          <button onclick="conectarConFacebook()" class="btn btn-primary" style="width:100%;font-size:13px;margin-bottom:10px;background:#1877f2;border-color:#1877f2">
+            <span style="font-size:16px;vertical-align:middle;margin-right:6px">f</span> Conectar con Facebook (OAuth)
+          </button>
+
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:14px">— o pegá el token manualmente —</div>
+
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;line-height:1.5">
+            <strong>User Access Token</strong> del administrador de la página.<br>
+            Obtenelo en <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:#1877f2">Graph API Explorer →</a>
+            con permisos <code style="font-size:10px">pages_manage_metadata, pages_messaging, pages_read_engagement</code>
           </div>
           <textarea id="inp-meta-token" placeholder="EAABsbCS..." rows="3"
             style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:8px"></textarea>
           <button onclick="guardarTokenYSincronizar()" class="btn btn-primary" style="width:100%;font-size:13px">
-            🔄 Guardar y sincronizar páginas
+            🔄 Guardar token y suscribir páginas
           </button>
         </div>`;
       return;
@@ -683,36 +691,56 @@ async function syncPaginas() {
 }
 
 /* ─── guardar token y sincronizar en un paso ────────────────────────────── */
+async function conectarConFacebook() {
+  try {
+    const r = await fetch('/api/redes/facebook/oauth-url', { credentials: 'include' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error generando URL de OAuth');
+    // Abrir en nueva pestaña — después del OAuth, la callback page llama al backend
+    window.open(data.url, '_blank', 'width=600,height=700,scrollbars=yes');
+    toast('Se abrió la ventana de autorización de Facebook. Autorizá la app y las páginas se conectarán automáticamente.', 'info');
+    // Polling: recargar páginas cada 5s por 60s en caso de que el callback completo retorne
+    let tries = 0;
+    const poll = setInterval(async () => {
+      tries++;
+      const ps = await fetch('/api/redes/paginas', { credentials: 'include' }).then(r => r.json()).catch(() => []);
+      const conToken = (ps || []).filter(p => p.page_token_ok);
+      if (conToken.length > 0 || tries > 12) {
+        clearInterval(poll);
+        if (conToken.length > 0) {
+          toast(`✅ ${conToken.length} página(s) conectadas con webhook`, 'success');
+          await cargarPaginas();
+        }
+      }
+    }, 5000);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
 async function guardarTokenYSincronizar() {
   const token = document.getElementById('inp-meta-token')?.value?.trim();
-  if (!token) { toast('Pegá el Page Access Token primero', 'error'); return; }
+  if (!token) { toast('Pegá el User Access Token primero', 'error'); return; }
 
-  const btn = document.querySelector('#paginas-lista button');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
+  const btn = document.querySelector('#paginas-lista button:last-of-type');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
 
   try {
-    // 1) Guardar token en configuración
-    const r1 = await fetch('/api/config/meta_page_access_token', {
-      method: 'PUT',
+    // Usar el nuevo endpoint que extrae page_tokens y suscribe webhooks en un paso
+    const r = await fetch('/api/redes/facebook/oauth-token', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ valor: token }),
+      body: JSON.stringify({ user_token: token }),
     });
-    if (!r1.ok) {
-      const j1 = await r1.json().catch(() => ({}));
-      throw new Error(j1.detail || 'Error guardando token');
-    }
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error procesando token');
 
-    // 2) Sincronizar páginas
-    const r2 = await fetch('/api/meta/paginas/sync', { method: 'POST', credentials: 'include' });
-    const j2 = await r2.json().catch(() => ({}));
-    if (!r2.ok) throw new Error(j2.detail || 'Error sincronizando');
-
-    toast(`✅ ${j2.synced} página${j2.synced !== 1 ? 's' : ''} importada${j2.synced !== 1 ? 's' : ''}`);
+    toast(`✅ ${data.paginas_ok} de ${data.paginas_total} páginas conectadas con webhook`, 'success');
     await cargarPaginas();
   } catch(e) {
     toast(e.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Guardar y sincronizar páginas'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Guardar token y suscribir páginas'; }
   }
 }
 
@@ -777,7 +805,26 @@ async function renderAuto() {
           <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Link generado: <a href="${waUrl}" target="_blank" style="color:var(--accent)">${waUrl}</a></div>
         </div>
 
-        <!-- Suscribir webhook -->
+        <!-- Conectar Facebook si no hay token + Suscribir webhook -->
+        ${!pg.page_token_ok ? `
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px">🔑 Sin token de página</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+            Para suscribir el webhook y recibir eventos necesitás autorizar el acceso desde tu cuenta de Facebook administradora.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="conectarConFacebook()" class="btn btn-primary btn-sm" style="background:#1877f2;border-color:#1877f2">
+              <span style="font-size:14px;vertical-align:middle;margin-right:4px">f</span> Conectar con Facebook (OAuth)
+            </button>
+            <button onclick="mostrarPanelTokenManual()" class="btn btn-ghost btn-sm">✏️ Pegar token manual</button>
+          </div>
+          <div id="panel-token-manual" style="display:none;margin-top:10px">
+            <textarea id="inp-token-manual" placeholder="User Access Token de Meta (EAA...)" rows="2"
+              style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:6px"></textarea>
+            <button onclick="guardarTokenManual()" class="btn btn-primary btn-sm" style="width:100%">🔄 Guardar y suscribir todas las páginas</button>
+          </div>
+        </div>
+        ` : `
         <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <div>
             <div style="font-size:13px;font-weight:600">📡 Suscripción al webhook</div>
@@ -791,6 +838,7 @@ async function renderAuto() {
             ${pg.webhook_subscribed ? '🔄 Renovar suscripción' : '🔔 Suscribir al webhook'}
           </button>
         </div>
+        `}
       </div>
 
       <!-- Info de configuración del webhook -->
@@ -914,6 +962,33 @@ async function suscribirWebhook(pageId) {
     alert(msgAmigable);
     btn.disabled = false;
     btn.textContent = '🔔 Suscribir al webhook';
+  }
+}
+
+function mostrarPanelTokenManual() {
+  const panel = document.getElementById('panel-token-manual');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarTokenManual() {
+  const token = document.getElementById('inp-token-manual')?.value?.trim();
+  if (!token) { toast('Pegá el User Access Token primero', 'error'); return; }
+  const btn = document.querySelector('#panel-token-manual button');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
+  try {
+    const r = await fetch('/api/redes/facebook/oauth-token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({ user_token: token }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    toast(`✅ ${data.paginas_ok} de ${data.paginas_total} páginas conectadas con webhook`, 'success');
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Guardar y suscribir todas las páginas'; }
   }
 }
 

@@ -82,6 +82,7 @@ async def api_redes_paginas(
             "auto_eliminar_negativos": bool(p.auto_eliminar_negativos),
             "webhook_subscribed": bool(p.webhook_subscribed),
             "numero_whatsapp": p.numero_whatsapp or "1144498854",
+            "page_token_ok": bool(p.page_token),  # True si tiene token propio de página
             "fan_count": None, "ig_followers": None, "picture": None,
         }
 
@@ -873,4 +874,215 @@ async def api_redes_fb_config(
             "4. Suscribirse a: feed, messages, message_reactions",
             "5. En cada página, presionar 'Suscribir al Webhook' desde este panel",
         ],
+    }
+
+
+# ─── OAUTH FACEBOOK: FLUJO COMPLETO ──────────────────────────────────────────
+
+FB_OAUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth"
+FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
+FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_posts,pages_read_user_content"
+
+
+def _get_base_url(db: Session) -> str:
+    return (
+        os.getenv("RAILWAY_STATIC_URL")
+        or os.getenv("PUBLIC_URL")
+        or get_config_value("crm_base_url", db)
+        or "https://eco-crm-production.up.railway.app"
+    )
+
+
+@router.get("/api/redes/facebook/oauth-url")
+async def api_redes_fb_oauth_url(
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve la URL de autorización OAuth de Facebook para que el frontend
+    la abra en una nueva pestaña. Usa implicit flow (response_type=token)
+    para no requerir el app_secret en el servidor.
+    """
+    _check_access(user, db)
+    app_id = get_config_value("meta_app_id", db)
+    if not app_id:
+        raise HTTPException(400, "No está configurado el meta_app_id. Ir a Configuración → Redes Sociales.")
+
+    base_url = _get_base_url(db)
+    redirect_uri = f"{base_url}/redes/facebook/callback"
+
+    import urllib.parse
+    params = {
+        "client_id": app_id,
+        "redirect_uri": redirect_uri,
+        "scope": FB_SCOPES,
+        "response_type": "token",
+        "state": "ecofiver-oauth",
+    }
+    url = FB_OAUTH_URL + "?" + urllib.parse.urlencode(params)
+    return {"url": url, "redirect_uri": redirect_uri}
+
+
+@router.get("/redes/facebook/callback", response_class=HTMLResponse)
+async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)):
+    """
+    Página de callback OAuth. El token llega en el hash (#access_token=...) del lado
+    del cliente (implicit flow). Esta página lo lee con JS y llama al endpoint
+    de refresh-and-subscribe para guardar los page_tokens y suscribir webhooks.
+    """
+    audit_token = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    base_url = _get_base_url(db)
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Conectando Facebook...</title>
+  <style>
+    body {{ font-family: system-ui, sans-serif; display:flex; align-items:center; justify-content:center;
+           min-height:100vh; margin:0; background:#0d1420; color:#dce6f5; text-align:center; }}
+    .card {{ background:#192338; border:1px solid #243350; border-radius:12px; padding:32px 40px; max-width:480px; }}
+    h2 {{ margin:0 0 12px; font-size:1.3rem; }}
+    p {{ color:#647898; font-size:.9rem; margin:0 0 20px; }}
+    .spinner {{ width:36px; height:36px; border:3px solid #243350; border-top-color:#60a5fa;
+               border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 20px; }}
+    @keyframes spin {{ to {{ transform:rotate(360deg); }} }}
+    .ok {{ color:#4ade80; font-size:1.1rem; font-weight:600; }}
+    .err {{ color:#f87171; font-size:.9rem; }}
+    a {{ color:#60a5fa; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner" id="spinner"></div>
+    <h2 id="title">Conectando páginas de Facebook...</h2>
+    <p id="msg">Procesando autorización, no cierres esta pestaña.</p>
+  </div>
+  <script>
+    const AUDIT_TOKEN = "{audit_token}";
+    const BASE_URL = "{base_url}";
+
+    async function main() {{
+      // Leer el access_token del hash de la URL (implicit flow)
+      const hash = window.location.hash.substring(1);
+      const params = Object.fromEntries(new URLSearchParams(hash));
+      const accessToken = params.access_token;
+
+      if (!accessToken) {{
+        // Puede que haya un error
+        const searchParams = new URLSearchParams(window.location.search);
+        const errDesc = searchParams.get('error_description') || searchParams.get('error') || 'No se recibió token de Facebook.';
+        setError(errDesc);
+        return;
+      }}
+
+      try {{
+        setMsg('Obteniendo tokens de páginas y suscribiendo webhooks...');
+        const r = await fetch(BASE_URL + '/api/redes/audit/refresh-and-subscribe?t=' + encodeURIComponent(AUDIT_TOKEN), {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          credentials: 'include',
+          body: JSON.stringify({{ user_token: accessToken }})
+        }});
+        const data = await r.json();
+
+        if (!r.ok) {{
+          setError(data.detail || JSON.stringify(data));
+          return;
+        }}
+
+        // Contar éxitos y errores
+        const resultados = Object.values(data.resultados || {{}});
+        const ok = resultados.filter(r => r.webhook_subscribed).length;
+        const total = resultados.length;
+
+        document.getElementById('spinner').style.display = 'none';
+        document.getElementById('title').innerHTML = '<span class="ok">✅ ¡Facebook conectado!</span>';
+        document.getElementById('msg').innerHTML =
+          ok + ' de ' + total + ' páginas suscritas al webhook.' +
+          '<br><br><a href="' + BASE_URL + '/redes">← Volver al panel de Redes Sociales</a>';
+
+        // Redirigir automáticamente en 3s
+        setTimeout(() => window.location.href = BASE_URL + '/redes', 3000);
+
+      }} catch(e) {{
+        setError(e.message);
+      }}
+    }}
+
+    function setMsg(m) {{ document.getElementById('msg').textContent = m; }}
+    function setError(e) {{
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('title').innerHTML = '❌ Error de conexión';
+      document.getElementById('msg').innerHTML = '<span class="err">' + e + '</span><br><br><a href="/redes">← Volver</a>';
+    }}
+
+    main();
+  </script>
+</body>
+</html>"""
+    return HTMLResponse(html)
+
+
+@router.post("/api/redes/facebook/oauth-token")
+async def api_redes_fb_oauth_token(
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Alternativa: recibe un user_access_token directamente (pegado desde Graph API Explorer)
+    y llama al flujo de refresh-and-subscribe. Permite conectar sin OAuth interactivo.
+    """
+    _check_access(user, db)
+    body = await request.json()
+    user_token = (body.get("user_token") or "").strip()
+    if not user_token:
+        raise HTTPException(400, "Falta 'user_token'")
+
+    audit_token = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+
+    # Llamar internamente al endpoint de refresh-and-subscribe
+    from starlette.testclient import TestClient  # no disponible en prod
+    # Hacemos la lógica directamente
+    paginas = db.query(MetaPagina).all()
+    if not paginas:
+        raise HTTPException(400, "No hay páginas en la DB. Sincronizá primero.")
+
+    resultados = {}
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for pg in paginas:
+            pid = pg.page_id
+            r_pt = await hc.get(
+                f"{META_GRAPH_URL}/{pid}",
+                params={"fields": "access_token,name", "access_token": user_token},
+            )
+            data_pt = r_pt.json()
+            if r_pt.status_code != 200 or "access_token" not in data_pt:
+                resultados[pid] = {"error": data_pt.get("error", {}).get("message", "sin token"), "nombre": pg.nombre}
+                continue
+
+            page_token = data_pt["access_token"]
+            pg.page_token = page_token
+            db.commit()
+
+            r_sub = await hc.post(
+                f"{META_GRAPH_URL}/{pid}/subscribed_apps",
+                params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+            )
+            sub_data = r_sub.json()
+            pg.webhook_subscribed = bool(sub_data.get("success"))
+            db.commit()
+            resultados[pid] = {
+                "nombre": pg.nombre,
+                "token_ok": True,
+                "webhook_subscribed": pg.webhook_subscribed,
+                "webhook_resultado": sub_data,
+            }
+
+    ok_count = sum(1 for v in resultados.values() if v.get("webhook_subscribed"))
+    return {
+        "ok": ok_count > 0,
+        "paginas_ok": ok_count,
+        "paginas_total": len(resultados),
+        "resultados": resultados,
     }

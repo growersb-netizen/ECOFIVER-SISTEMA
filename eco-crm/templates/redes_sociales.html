@@ -294,9 +294,19 @@ async function cargarPaginas() {
 
     const lista = document.getElementById('paginas-lista');
     if (!_paginas.length) {
-      lista.innerHTML = `<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px">
-        Sin páginas.<br><small>Hacé clic en <strong>Sincronizar</strong> para importar desde Meta.</small>
-      </div>`;
+      lista.innerHTML = `
+        <div style="padding:16px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)">🔗 Conectar Facebook</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6">
+            Pegá tu <strong>Page Access Token</strong> de Meta y hacé clic en <em>Guardar y sincronizar</em>.
+            <br>Obtenelo en <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:#1877f2">Graph API Explorer →</a>
+          </div>
+          <textarea id="inp-meta-token" placeholder="EAABsbCS..." rows="3"
+            style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:8px"></textarea>
+          <button onclick="guardarTokenYSincronizar()" class="btn btn-primary" style="width:100%;font-size:13px">
+            🔄 Guardar y sincronizar páginas
+          </button>
+        </div>`;
       return;
     }
 
@@ -672,6 +682,40 @@ async function syncPaginas() {
   }
 }
 
+/* ─── guardar token y sincronizar en un paso ────────────────────────────── */
+async function guardarTokenYSincronizar() {
+  const token = document.getElementById('inp-meta-token')?.value?.trim();
+  if (!token) { toast('Pegá el Page Access Token primero', 'error'); return; }
+
+  const btn = document.querySelector('#paginas-lista button');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
+
+  try {
+    // 1) Guardar token en configuración
+    const r1 = await fetch('/api/config/meta_page_access_token', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ valor: token }),
+    });
+    if (!r1.ok) {
+      const j1 = await r1.json().catch(() => ({}));
+      throw new Error(j1.detail || 'Error guardando token');
+    }
+
+    // 2) Sincronizar páginas
+    const r2 = await fetch('/api/meta/paginas/sync', { method: 'POST', credentials: 'include' });
+    const j2 = await r2.json().catch(() => ({}));
+    if (!r2.ok) throw new Error(j2.detail || 'Error sincronizando');
+
+    toast(`✅ ${j2.synced} página${j2.synced !== 1 ? 's' : ''} importada${j2.synced !== 1 ? 's' : ''}`);
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Guardar y sincronizar páginas'; }
+  }
+}
+
 /* ─── helper: error de token Meta ───────────────────────────────────────── */
 function _metaTokenError(msg) {
   const esToken = /auth|token|oauth|session|expired|invalid/i.test(String(msg));
@@ -861,7 +905,13 @@ async function suscribirWebhook(pageId) {
     toast('✅ Webhook suscrito exitosamente');
     renderAuto();
   } catch(e) {
-    toast(e.message, 'error');
+    // OAuthException code 190 → token sin permisos de admin de página
+    const msg = e.message || '';
+    const esAdmin = /190|admin|imperson/i.test(msg);
+    const msgAmigable = esAdmin
+      ? '❌ El token no tiene permisos de administrador sobre esta página.\n\nNecesitás un Page Access Token del usuario administrador de la página, no del System User.\nObtené uno en: Meta for Developers → Herramientas → Graph API Explorer → seleccioná la página.'
+      : msg;
+    alert(msgAmigable);
     btn.disabled = false;
     btn.textContent = '🔔 Suscribir al webhook';
   }

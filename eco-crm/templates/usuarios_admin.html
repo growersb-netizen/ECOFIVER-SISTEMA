@@ -285,7 +285,7 @@ async function deleteUser(uid) {
   const u = allUsers.find(x => x.id === uid);
   if (!confirm(`¿Eliminar permanentemente a ${u?.nombre}?\nEsta acción no se puede deshacer.`)) return;
   try {
-    await API.del(`/api/usuarios/${uid}`);
+    await API.delete(`/api/usuarios/${uid}`);
     showToast('Usuario eliminado', 'success');
     loadUsers();
   } catch(e) { showToast(e.message, 'error'); }
@@ -298,20 +298,7 @@ function escHtml(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-const API = {
-  async _req(method, url, body) {
-    const opts = { method, headers: {'Content-Type':'application/json'} };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    const r = await fetch(url, opts);
-    const d = await r.json().catch(()=>({}));
-    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-    return d;
-  },
-  get: url       => API._req('GET',   url),
-  post:(url,b)   => API._req('POST',  url, b),
-  put: (url,b)   => API._req('PUT',   url, b),
-  del: url       => API._req('DELETE',url),
-};
+// API viene de main.js (global)
 function showToast(msg, type='info') {
   let t = document.getElementById('_toast');
   if (!t) { t=document.createElement('div'); t.id='_toast'; t.style.cssText='position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px'; document.body.appendChild(t); }

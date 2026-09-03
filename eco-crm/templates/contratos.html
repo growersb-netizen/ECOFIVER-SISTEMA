@@ -138,7 +138,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
             <div><label class="label">Precio total de la operación *</label><input id="ct-total" class="input" type="number" placeholder="8500000"></div>
             <div><label class="label">Seña / Reserva recibida <span style="font-size:11px;color:var(--text-muted)">(opcional)</span></label><input id="ct-señia" class="input" type="number" placeholder="0 — sin seña"></div>
-            <div><label class="label">Saldo contra entrega</label><input id="ct-saldo" class="input" type="number" placeholder="8000000" readonly style="background:var(--bg-secondary);cursor:default"></div>
+            <div><label class="label">Saldo contra entrega</label><input id="ct-saldo" class="input" type="text" placeholder="8.500.000" readonly style="background:var(--bg-secondary);cursor:default"></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
             <div>
@@ -982,7 +982,7 @@ async function uploadPlantilla(tipo) {
 async function deletePlantilla(tipo) {
   if (!confirm(`¿Eliminar la plantilla de ${tipo}?`)) return;
   try {
-    await API.del(`/api/contratos/plantillas/${tipo}`);
+    await API.delete(`/api/contratos/plantillas/${tipo}`);
     showToast('Plantilla eliminada', 'success');
     setTimeout(() => window.location.reload(), 600);
   } catch(e) { showToast(e.message, 'error'); }
@@ -1010,20 +1010,7 @@ function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit'});
 }
-const API = {
-  async _req(method, url, body) {
-    const opts = { method, headers: {'Content-Type':'application/json'} };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    const r = await fetch(url, opts);
-    const d = await r.json().catch(()=>({}));
-    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-    return d;
-  },
-  get: url       => API._req('GET',    url),
-  post:(url,body)=> API._req('POST',   url, body),
-  put: (url,body)=> API._req('PUT',    url, body),
-  del: url       => API._req('DELETE', url),
-};
+// API viene de main.js (global) — no redefinir aquí para evitar SyntaxError
 function showToast(msg, type='info') {
   let t = document.getElementById('_toast');
   if (!t) { t=document.createElement('div'); t.id='_toast'; t.style.cssText='position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px'; document.body.appendChild(t); }

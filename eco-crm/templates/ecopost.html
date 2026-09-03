@@ -2650,7 +2650,7 @@ function tipoRefLabel(t) {
 async function eliminarRef(id) {
   if (!confirm('¿Eliminar esta referencia?')) return;
   try {
-    await API.del(`/api/ecopost/referencias/${id}`);
+    await API.delete(`/api/ecopost/referencias/${id}`);
     showToast('Referencia eliminada', 'success');
     loadReferencias();
   } catch(e) {
@@ -2733,7 +2733,7 @@ function bulkDeselectAll() {
 async function eliminarContenido(id, cerrarModal = false) {
   if (!confirm('¿Eliminar este contenido? Esta acción no se puede deshacer.')) return;
   try {
-    await API.del(`/api/ecopost/${id}`);
+    await API.delete(`/api/ecopost/${id}`);
     if (cerrarModal) closeDetalle();
     showToast('🗑 Contenido eliminado', 'success');
     loadBiblioteca();
@@ -2749,7 +2749,7 @@ async function bulkEliminar() {
   if (!confirm(`¿Eliminar ${ids.length} contenido${ids.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return;
   let ok = 0;
   for (const id of ids) {
-    try { await API.del(`/api/ecopost/${id}`); ok++; }
+    try { await API.delete(`/api/ecopost/${id}`); ok++; }
     catch(e) { /* ignorar errores individuales */ }
   }
   showToast(`🗑 ${ok} contenido${ok !== 1 ? 's' : ''} eliminado${ok !== 1 ? 's' : ''}`, 'success');
@@ -3509,30 +3509,7 @@ function fmtDate(iso) {
   return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
 }
 
-// API client (same pattern as other templates)
-const API = {
-  async _req(method, url, body) {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    const r = await fetch(url, opts);
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      const det = data.detail;
-      const msg = typeof det === 'string' ? det
-                : Array.isArray(det) ? det.map(d => d.msg || JSON.stringify(d)).join('; ')
-                : det ? JSON.stringify(det)
-                : (data.error || `HTTP ${r.status}`);
-      throw new Error(msg);
-    }
-    return data;
-  },
-  get:   (url)        => API._req('GET',    url),
-  post:  (url, body)  => API._req('POST',   url, body),
-  put:   (url, body)  => API._req('PUT',    url, body),
-  patch: (url, body)  => API._req('PATCH',  url, body),
-  del:   (url)        => API._req('DELETE', url),
-};
-
+// API viene de main.js (global). API.patch y API.delete ya están disponibles.
 function showToast(msg, type = 'info') {
   let t = document.getElementById('toast-container');
   if (!t) {

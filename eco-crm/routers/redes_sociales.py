@@ -375,7 +375,7 @@ def _wa_url(numero: str) -> str:
     return f"https://wa.me/{n}"
 
 
-async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero_wa: str) -> str:
+async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero_wa: str, db=None) -> str:
     """Genera respuesta comercial con IA derivando a WhatsApp."""
     try:
         from utils.ai_client import ai_complete
@@ -389,7 +389,7 @@ async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero
             f"El link de WhatsApp es: {_wa_url(numero_wa)} — incluidlo siempre. "
             "No inventes precios ni fechas. Sé cálido, profesional y generá interés."
         )
-        resp = await ai_complete(prompt, max_tokens=200)
+        resp = await ai_complete(db, prompt, max_tokens=200)
         return resp.strip()
     except Exception as e:
         log.warning(f"IA falló, usando template: {e}")
@@ -475,7 +475,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
         db.flush()
 
         if pg.auto_reply_mensajes:
-            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa)
+            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db)
             ok = await _responder_mensaje(sender_id, respuesta, pg.page_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta
@@ -517,7 +517,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
             ok = await _eliminar_comentario(comment_id, pg.page_token)
             interaccion.accion = "eliminado" if ok else "error"
         elif pg.auto_reply_comentarios:
-            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa)
+            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db)
             ok = await _responder_comentario(comment_id, respuesta, pg.page_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta

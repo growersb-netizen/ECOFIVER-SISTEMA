@@ -2176,7 +2176,8 @@ async def _generar_contrato_contado_pdf_socio(venta: VentaContado, socio: Aliado
     import json as _json
     from utils.documentos import render_html, html_to_pdf
     from routers.contratos import (_seccion_pago_html, _texto_legal,
-                                   _titulo_contrato, _fmt_ar, _MEDIDAS_PDF)
+                                   _titulo_contrato, _fmt_ar)
+    from routers.catalogo import _MEDIDAS_PDF
 
     tipo_producto       = (venta.producto or "PISCINA").upper()
     tipo_producto_label = "Piscina de Fibra de Vidrio" if tipo_producto == "PISCINA" else "Módulo Habitacional"

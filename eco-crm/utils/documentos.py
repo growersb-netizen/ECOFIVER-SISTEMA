@@ -67,7 +67,9 @@ async def html_to_pdf(html: str, out_path: Path) -> Path:
 
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch()
+            browser = await p.chromium.launch(
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+            )
             page = await browser.new_page(device_scale_factor=2, viewport={"width": 794, "height": 800})
             await page.goto(f"file:///{tmp_html_path}")
             await page.wait_for_timeout(300)

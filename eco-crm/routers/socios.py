@@ -134,6 +134,25 @@ def _generar_codigo_aliado(db: Session) -> str:
     return f"AL-{n:03d}"
 
 
+def _parse_fecha_entrega(valor) -> "datetime | None":
+    """Parsea una fecha de entrega enviada como string ISO (YYYY-MM-DD o YYYY-MM-DDTHH:MM)
+    y devuelve un datetime aware (UTC). Devuelve None si el valor es vacío o inválido."""
+    from datetime import timezone
+    if not valor:
+        return None
+    try:
+        s = str(valor).strip()
+        if "T" in s:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        else:
+            dt = datetime.fromisoformat(s)  # YYYY-MM-DD → datetime a medianoche
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
 def _normalizar_telefono(tel: str) -> str:
     """
     Normaliza a formato internacional completo para WhatsApp Cloud API:
@@ -1656,6 +1675,7 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         sobre_piso=(data.get("sobre_piso") or "").strip() or None,
         notas=f"Venta de socio comercial {socio.codigo}. {nota_instalacion} {data.get('notas', '')}".strip(),
         aliado_codigo=socio.codigo,
+        fecha_instalacion=_parse_fecha_entrega(data.get("fecha_entrega")),
     )
     db.add(venta)
     db.commit()
@@ -1745,6 +1765,8 @@ async def editar_venta_contado_socio(
             pass
     if "notas" in data:
         venta.notas = (data["notas"] or "").strip()
+    if "fecha_entrega" in data:
+        venta.fecha_instalacion = _parse_fecha_entrega(data.get("fecha_entrega"))
 
     db.commit()
     return {"ok": True, "venta_id": venta.id, "estado": venta.estado}
@@ -2557,10 +2579,12 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
             "id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto,
             "modelo_especifico": v.modelo_especifico, "color": v.color, "precio_final": v.precio_final,
             "cliente_domicilio": v.cliente_domicilio, "cliente_localidad": v.cliente_localidad,
+            "cliente_telefono": v.cliente_telefono, "cliente_email": v.cliente_email,
             "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
-            "cobro_estado": v.cobro_estado,
+            "cobro_estado": v.cobro_estado, "notas": v.notas,
             "confirmacion_48hs": bool(v.confirmacion_48hs_en),
             "contrato_generado": bool(v.contrato_generado_en),
+            "fecha_entrega": v.fecha_instalacion.date().isoformat() if v.fecha_instalacion else None,
             "created_at": v.created_at.isoformat() if v.created_at else None,
         } for v in contado],
         "financiado": [{

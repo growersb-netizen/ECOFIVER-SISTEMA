@@ -390,6 +390,8 @@
           <label>Distancia estimada desde Zárate (km) <span style="color:var(--text-muted);font-weight:400">(para calcular el flete)</span></label>
           <input id="c-km" type="number" placeholder="Ej: 120">
           <label>Precio final</label><input id="c-precio" type="number">
+          <label>Fecha de entrega estimada <span style="color:var(--text-muted);font-weight:400">(opcional — para el calendario)</span></label>
+          <input id="c-fecha-entrega" type="date" style="width:100%;box-sizing:border-box">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarContado()">Cargar venta de contado</button>
           <div class="msg" id="c-msg"></div>
         </div>
@@ -1175,6 +1177,7 @@ async function cargarContado(){
       con_puerta_ingreso: esModulo && document.getElementById('c-con-puerta').checked,
       con_ventana_balcon: esModulo && document.getElementById('c-con-ventana').checked,
       sobre_piso: esModulo ? document.getElementById('c-sobre-piso').value : '',
+      fecha_entrega: document.getElementById('c-fecha-entrega').value || null,
     };
     const data = await api('/api/socio/ventas/contado', {method:'POST', body: JSON.stringify(body)});
     msg.className='msg ok';
@@ -1282,13 +1285,16 @@ async function cargarMisVentas(){
   hf += '</table>';
   document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
 
-  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th><th></th></tr>';
+  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Entrega</th><th>Estado</th><th></th></tr>';
   for(const v of data.contado){
     const cobrado = v.cobro_estado==='COBRADO';
     const confirmada = !!v.confirmacion_48hs;
     const pill = cobrado ? '<span class="pill ok">Entregada y cobrada</span>' : (confirmada ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
     const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
     const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
+    const fechaEntregaCell = v.fecha_entrega
+      ? `<span style="font-weight:600">${v.fecha_entrega}</span>`
+      : `<span style="color:var(--text-muted);font-size:12px">—</span>`;
     const puedeModificar = !cobrado && !confirmada;
     let accionC = '';
     if(v.contrato_generado){
@@ -1300,7 +1306,7 @@ async function cargarMisVentas(){
       accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirEditarVenta(${JSON.stringify(v).replace(/"/g,'&quot;')})">✏️ Editar</button>`;
       accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px;color:#d63031" onclick="eliminarVentaContado(${v.id},'${(v.cliente_nombre||'').replace(/'/g,"\\'")}')">🗑️</button>`;
     }
-    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td><td style="white-space:nowrap">${accionC}</td></tr>`;
+    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td style="white-space:nowrap">${fechaEntregaCell}</td><td>${pill}</td><td style="white-space:nowrap">${accionC}</td></tr>`;
   }
   hc += '</table>';
   document.getElementById('tabla-contado').innerHTML = hc || 'Todavía no cargaste ventas de contado.';
@@ -1351,6 +1357,7 @@ function abrirEditarVenta(v){
   document.getElementById('edit-precio').value           = v.precio_final || '';
   document.getElementById('edit-distancia').value        = v.distancia_km || '';
   document.getElementById('edit-notas').value            = v.notas || '';
+  document.getElementById('edit-fecha-entrega').value    = v.fecha_entrega || '';
   document.getElementById('modal-editar-venta').style.display = 'flex';
 }
 
@@ -1372,6 +1379,7 @@ async function guardarEdicionVenta(){
     precio_final:      parseFloat(document.getElementById('edit-precio').value)||null,
     distancia_km:      parseFloat(document.getElementById('edit-distancia').value)||null,
     notas:             document.getElementById('edit-notas').value.trim(),
+    fecha_entrega:     document.getElementById('edit-fecha-entrega').value || null,
   };
   const btn = document.getElementById('btn-guardar-edicion');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -1573,6 +1581,10 @@ cargarApp();
           <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Distancia km (flete)</label>
           <input id="edit-distancia" class="input" style="width:100%;box-sizing:border-box" type="number" min="0" step="1">
         </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Fecha de entrega estimada</label>
+        <input id="edit-fecha-entrega" type="date" class="input" style="width:100%;box-sizing:border-box">
       </div>
       <div>
         <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Notas</label>

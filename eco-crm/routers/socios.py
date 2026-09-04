@@ -1964,8 +1964,22 @@ def _money(v):
     return f"{(v or 0):,.0f}".replace(",", ".")
 
 
-async def _generar_contrato_pdf(venta: VentaFinanciada, socio_codigo: str, socio_nombre: str, db: Session) -> str:
-    """Genera (o regenera) el PDF del resumen del plan + el link de confirmación. Devuelve el número de solicitud."""
+async def _generar_contrato_pdf(
+    venta: VentaFinanciada,
+    socio_codigo: str,
+    socio_nombre: str,
+    db: Session,
+    pago_acreditado: bool = False,
+) -> str:
+    """
+    Genera (o regenera) el PDF del resumen del plan + el link de confirmación.
+    Devuelve el número de solicitud.
+
+    pago_acreditado=True → el PDF refleja que hay pago (o seña) registrado.
+    pago_acreditado=False → el PDF indica claramente que el contrato está
+        sujeto a pago y tiene vigencia desde el momento en que se acredite la
+        inscripción completa.
+    """
     from utils.documentos import render_html, html_to_pdf
 
     if not venta.link_confirmacion_token:
@@ -1975,6 +1989,18 @@ async def _generar_contrato_pdf(venta: VentaFinanciada, socio_codigo: str, socio
         from routers.aliados import siguiente_numero_solicitud
         venta.numero_solicitud = siguiente_numero_solicitud(db)
     db.commit()
+
+    # Mensaje de vigencia según estado de pago
+    if pago_acreditado:
+        vigencia_aviso = ""
+        estado_inscripcion_label = "Inscripción abonada"
+    else:
+        vigencia_aviso = (
+            "IMPORTANTE: Este documento es informativo y tiene vigencia contractual plena únicamente "
+            "a partir del pago completo de la inscripción indicada. Hasta ese momento, las condiciones "
+            "quedan reservadas y sujetas a disponibilidad."
+        )
+        estado_inscripcion_label = "Inscripción a abonar"
 
     html = render_html("resumen_plan_socio.html", {
         "numero_solicitud": venta.numero_solicitud,
@@ -1992,6 +2018,8 @@ async def _generar_contrato_pdf(venta: VentaFinanciada, socio_codigo: str, socio
         "cuota_minima_licitacion": _cuota_minima_licitacion(venta.producto),
         "socio_codigo": socio_codigo,
         "socio_nombre": socio_nombre,
+        "vigencia_aviso": vigencia_aviso,
+        "estado_inscripcion_label": estado_inscripcion_label,
     })
     pdf_path = Path("data/contratos") / f"plan_{venta.numero_solicitud.replace('/', '-')}_{venta.id}.pdf"
     await html_to_pdf(html, pdf_path)
@@ -2043,7 +2071,7 @@ async def _registrar_pago_inscripcion(venta: VentaFinanciada, monto: float, db: 
         venta.sena_vence_en = venta.primera_sena_en + timedelta(days=30)
         db.commit()
         socio_row = db.query(Aliado).filter(Aliado.codigo == venta.aliado_codigo).first()
-        await _generar_contrato_pdf(venta, venta.aliado_codigo, socio_row.nombre if socio_row else "", db)
+        await _generar_contrato_pdf(venta, venta.aliado_codigo, socio_row.nombre if socio_row else "", db, pago_acreditado=True)
         resultado["contrato_generado"] = True
         _notificar_socio(
             db, venta.aliado_codigo,
@@ -2132,20 +2160,33 @@ async def descargar_recibo_pdf(venta_id: int, socio: Aliado = Depends(require_so
 @router.post("/api/socio/ventas/{venta_id}/generar-contrato")
 async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """
-    Descarga manual del contrato — normalmente ya se generó solo al recibir
-    la seña (primer pago hacia la inscripción). Este endpoint sirve como
-    respaldo si por algún motivo todavía no se generó.
+    Genera (o regenera) el resumen del plan para la venta financiada.
+
+    El contrato puede generarse EN CUALQUIER MOMENTO — el socio lo necesita
+    ANTES de que el cliente pague para poder cerrar la operación. El documento
+    aclara que tiene vigencia contractual a partir del pago completo de la
+    inscripción. El recibo se emite por separado cuando el equipo registra el
+    pago completo.
     """
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
     if not venta:
         raise HTTPException(404, "Venta no encontrada")
-    if not (venta.primera_sena_en or venta.inscripcion_pagada_en):
-        raise HTTPException(409, "Todavía no se registró ningún pago hacia la inscripción")
 
-    await _generar_contrato_pdf(venta, socio.codigo, socio.nombre, db)
+    # Determinar estado de pago para personalizar el mensaje del PDF
+    pagado = bool(venta.primera_sena_en or venta.inscripcion_pagada_en)
+
+    await _generar_contrato_pdf(venta, socio.codigo, socio.nombre, db, pago_acreditado=pagado)
 
     base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
     link_confirmacion = f"{base_url}/socio/confirmar/{venta.link_confirmacion_token}"
+
+    if pagado:
+        mensaje = "Contrato regenerado. El cliente ya tiene pago acreditado — podés descargarlo y compartirlo."
+    else:
+        mensaje = (
+            "Resumen del plan generado. Compartilo con el cliente para que revise las condiciones y confirme. "
+            "El contrato tiene vigencia contractual desde el momento en que se acredite el pago completo de la inscripción."
+        )
 
     return {
         "ok": True,
@@ -2153,7 +2194,8 @@ async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_
         "link_confirmacion": link_confirmacion,
         "contrato_pdf_url": f"/api/socio/ventas/{venta.id}/contrato-pdf",
         "declaracion_jurada_requerida": venta.declaracion_jurada_requerida,
-        "mensaje": "Descargá el resumen del plan y mandale el link al cliente para que confirme su adhesión.",
+        "pago_acreditado": pagado,
+        "mensaje": mensaje,
     }
 
 

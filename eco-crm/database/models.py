@@ -361,6 +361,14 @@ class VentaFinanciada(Base):
     auditoria_bienvenida_en = Column(DateTime(timezone=True), nullable=True)  # llamada del equipo — dispara comisión
     licitacion_solicitada_en = Column(DateTime(timezone=True), nullable=True)  # pedido de entrega anticipada
 
+    # ── Solicitud de recibo por el socio (comprobante de pago pendiente de aprobación admin) ──
+    solicitud_recibo_en           = Column(DateTime(timezone=True), nullable=True)
+    solicitud_recibo_monto        = Column(Float, nullable=True)          # monto que el socio declara haber pagado
+    solicitud_recibo_comprobante  = Column(String(500), nullable=True)    # path al archivo subido
+    solicitud_recibo_notas        = Column(Text, nullable=True)           # notas del socio
+    solicitud_recibo_estado       = Column(String(20), nullable=True)     # PENDIENTE / APROBADO / RECHAZADO
+    solicitud_recibo_notas_admin  = Column(Text, nullable=True)           # motivo de rechazo (admin)
+
     asesor_apertura = relationship("Usuario", foreign_keys=[asesor_apertura_id])
     supervisor_cierre = relationship("Usuario", foreign_keys=[supervisor_cierre_id])
     pagos = relationship("Pago", back_populates="venta_financiada")

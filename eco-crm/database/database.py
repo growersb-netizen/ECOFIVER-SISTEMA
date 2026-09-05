@@ -218,6 +218,13 @@ def run_migrations():
             "ALTER TABLE meta_paginas ADD COLUMN auto_eliminar_negativos BOOLEAN DEFAULT 0",
             "ALTER TABLE meta_paginas ADD COLUMN webhook_subscribed BOOLEAN DEFAULT 0",
             "ALTER TABLE meta_paginas ADD COLUMN numero_whatsapp TEXT DEFAULT '1144498854'",
+            # ── Solicitud de recibo por el socio ─────────────────────────────────
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_monto REAL",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_comprobante TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_notas TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_estado TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_notas_admin TEXT",
         ]
         for stmt in migrations:
             try:

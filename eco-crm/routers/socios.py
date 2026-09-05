@@ -2649,6 +2649,9 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
             "recibo_generado": bool(v.recibo_generado_en),
             "contrato_generado": bool(v.contrato_generado_en),
             "link_confirmacion_token": v.link_confirmacion_token,
+            "solicitud_recibo_estado": v.solicitud_recibo_estado,   # PENDIENTE/APROBADO/RECHAZADO/None
+            "solicitud_recibo_notas_admin": v.solicitud_recibo_notas_admin,
+            "solicitud_recibo_monto": v.solicitud_recibo_monto,
             "cliente_confirmo": bool(v.link_confirmacion_confirmada_en),
             "declaracion_jurada_requerida": v.declaracion_jurada_requerida,
             "declaracion_jurada_confirmada": bool(v.declaracion_jurada_confirmada_en),
@@ -2924,6 +2927,262 @@ async def ranking_socios(
         f["monto_facturado"] = round(f["monto_facturado"], 2)
         f["medalla"] = medallas.get(i)
     return {"periodo": periodo, "ranking": ranking}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SOLICITUD DE RECIBO (socio sube comprobante → admin aprueba → se emite recibo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+COMPROBANTES_DIR = Path("data/comprobantes")
+COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@router.post("/api/socio/ventas/{venta_id}/solicitar-recibo")
+async def solicitar_recibo(
+    venta_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    El socio adjunta el comprobante de pago y solicita que el equipo lo verifique
+    y emita el recibo. El archivo puede ser imagen o PDF (max 10 MB).
+    La solicitud queda en estado PENDIENTE hasta que admin la apruebe o rechace.
+    """
+    _require_verificado(socio)
+    from fastapi import UploadFile, File, Form
+    from fastapi.datastructures import FormData
+
+    venta = db.query(VentaFinanciada).filter(
+        VentaFinanciada.id == venta_id,
+        VentaFinanciada.aliado_codigo == socio.codigo,
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.inscripcion_pagada_en:
+        raise HTTPException(400, "La inscripción ya está registrada como pagada y el recibo fue emitido.")
+    if venta.solicitud_recibo_estado == "PENDIENTE":
+        raise HTTPException(409, "Ya hay una solicitud de recibo en revisión. Esperá la respuesta del equipo.")
+
+    form: FormData = await request.form()
+    monto_raw = form.get("monto", "")
+    notas = str(form.get("notas", "") or "").strip()
+    comprobante_file = form.get("comprobante")
+
+    try:
+        monto = float(str(monto_raw).replace(",", ".") or 0)
+    except (ValueError, TypeError):
+        raise HTTPException(400, "El monto debe ser un número válido")
+    if monto <= 0:
+        raise HTTPException(400, "El monto debe ser mayor a 0")
+    if not comprobante_file:
+        raise HTTPException(400, "Debés adjuntar el comprobante de pago")
+
+    # Leer y guardar el archivo
+    contenido = await comprobante_file.read()
+    if len(contenido) > 10 * 1024 * 1024:
+        raise HTTPException(400, "El archivo no puede superar los 10 MB")
+
+    ext = Path(comprobante_file.filename or "comp.jpg").suffix.lower() or ".jpg"
+    if ext not in (".jpg", ".jpeg", ".png", ".pdf", ".webp", ".heic"):
+        raise HTTPException(400, "Formato no permitido. Usá JPG, PNG o PDF.")
+
+    COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
+    fname = f"vf{venta.id}_{int(datetime.now().timestamp())}{ext}"
+    fpath = COMPROBANTES_DIR / fname
+    fpath.write_bytes(contenido)
+
+    venta.solicitud_recibo_en          = datetime.now()
+    venta.solicitud_recibo_monto       = monto
+    venta.solicitud_recibo_comprobante = str(fpath)
+    venta.solicitud_recibo_notas       = notas
+    venta.solicitud_recibo_estado      = "PENDIENTE"
+    venta.solicitud_recibo_notas_admin = None
+    db.commit()
+
+    # Notificar al equipo por WA
+    num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+    notificar_rodrigo(
+        db,
+        f"💰 *Solicitud de recibo — revisión requerida*\n"
+        f"Socio: {socio.codigo} ({socio.nombre})\n"
+        f"Venta: {num_sol} · {venta.cliente_nombre}\n"
+        f"Monto declarado: ${monto:,.0f}\n"
+        f"Notas socio: {notas or '—'}\n"
+        f"Revisá y aprobá en: /api/admin/solicitudes-recibo",
+    )
+    return {"ok": True, "mensaje": "Solicitud enviada. El equipo la va a revisar y te confirma en breve."}
+
+
+@router.get("/api/admin/solicitudes-recibo")
+async def admin_solicitudes_recibo(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    estado: str = "PENDIENTE",
+):
+    """Lista solicitudes de recibo filtradas por estado (PENDIENTE/APROBADO/RECHAZADO)."""
+    _require_gestion_interna(x_api_key, current_user)
+    ventas = db.query(VentaFinanciada).filter(
+        VentaFinanciada.solicitud_recibo_estado == estado
+    ).order_by(VentaFinanciada.solicitud_recibo_en.desc()).all()
+    return {"solicitudes": [{
+        "id": v.id,
+        "numero_solicitud": v.numero_solicitud or f"VF-{v.id}",
+        "aliado_codigo": v.aliado_codigo,
+        "cliente_nombre": v.cliente_nombre,
+        "producto": v.producto,
+        "modelo_especifico": v.modelo_especifico,
+        "monto_inscripcion": v.monto_inscripcion,
+        "monto_pagado_actual": v.monto_pagado_inscripcion or 0,
+        "solicitud_monto": v.solicitud_recibo_monto,
+        "solicitud_notas": v.solicitud_recibo_notas,
+        "solicitud_en": v.solicitud_recibo_en.isoformat() if v.solicitud_recibo_en else None,
+        "tiene_comprobante": bool(v.solicitud_recibo_comprobante),
+        "comprobante_url": f"/api/admin/solicitudes-recibo/{v.id}/comprobante" if v.solicitud_recibo_comprobante else None,
+        "estado": v.solicitud_recibo_estado,
+        "notas_admin": v.solicitud_recibo_notas_admin,
+    } for v in ventas]}
+
+
+@router.get("/api/admin/solicitudes-recibo/{venta_id}/comprobante")
+async def admin_ver_comprobante(
+    venta_id: int,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Descarga el comprobante de pago adjunto por el socio."""
+    from fastapi.responses import FileResponse
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta or not venta.solicitud_recibo_comprobante:
+        raise HTTPException(404, "Comprobante no encontrado")
+    fpath = Path(venta.solicitud_recibo_comprobante)
+    if not fpath.exists():
+        raise HTTPException(404, "Archivo no encontrado en disco")
+    media = "application/pdf" if fpath.suffix.lower() == ".pdf" else "image/jpeg"
+    return FileResponse(str(fpath), media_type=media, filename=fpath.name)
+
+
+@router.post("/api/admin/solicitudes-recibo/{venta_id}/aprobar")
+async def admin_aprobar_recibo(
+    venta_id: int,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Admin confirma que el pago ingresó: registra el monto, genera el recibo PDF
+    y lo envía por email al socio (que se lo pasa al cliente).
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.solicitud_recibo_estado != "PENDIENTE":
+        raise HTTPException(400, f"La solicitud está en estado '{venta.solicitud_recibo_estado}', no PENDIENTE")
+
+    data = await request.json()
+    monto_confirmado = float(data.get("monto_confirmado") or venta.solicitud_recibo_monto or 0)
+    if monto_confirmado <= 0:
+        raise HTTPException(400, "El monto confirmado debe ser mayor a 0")
+
+    # Registrar el pago (esto genera el recibo si se completa la inscripción)
+    resultado = await _registrar_pago_inscripcion(venta, monto_confirmado, db)
+
+    # Actualizar estado de la solicitud
+    venta.solicitud_recibo_estado = "APROBADO"
+    db.commit()
+
+    # Buscar el aliado para enviar el email con el recibo
+    socio_row = db.query(Aliado).filter(Aliado.codigo == venta.aliado_codigo).first()
+    email_destino = socio_row.email if socio_row else None
+
+    recibo_enviado = False
+    if resultado.get("inscripcion_completa") and email_destino:
+        # El recibo se acaba de generar — enviarlo por mail al socio
+        pdf_path = Path("data/contratos") / f"recibo_{(venta.numero_solicitud or str(venta.id)).replace('/', '-')}_{venta.id}.pdf"
+        if pdf_path.exists():
+            from utils.email import send_email_with_attachment
+            num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+            recibo_enviado = send_email_with_attachment(
+                db,
+                to=email_destino,
+                subject=f"EcoFiver — Recibo de inscripción {num_sol}",
+                body=(
+                    f"Hola {socio_row.nombre},\n\n"
+                    f"El pago de inscripción de {venta.cliente_nombre} fue confirmado exitosamente.\n"
+                    f"Adjuntamos el recibo oficial para que se lo entregues al cliente.\n\n"
+                    f"Solicitud: {num_sol}\n"
+                    f"Cliente: {venta.cliente_nombre}\n"
+                    f"Monto acreditado: ${monto_confirmado:,.0f}\n\n"
+                    f"¡Gracias por tu trabajo!\nEquipo EcoFiver"
+                ),
+                attachment_path=pdf_path,
+                attachment_name=f"Recibo_{num_sol.replace('/', '-')}.pdf",
+            )
+
+    # También notificar por WA al socio
+    num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+    if socio_row:
+        _notificar_socio(
+            db, venta.aliado_codigo,
+            f"✅ *Pago confirmado — solicitud {num_sol}*\n"
+            f"El pago de ${monto_confirmado:,.0f} de {venta.cliente_nombre} fue verificado y acreditado.\n"
+            + (f"El recibo fue enviado a tu email ({email_destino})." if recibo_enviado else
+               f"Podés descargar el recibo desde tu panel de ventas."),
+        )
+
+    return {
+        "ok": True,
+        "inscripcion_completa": resultado.get("inscripcion_completa", False),
+        "recibo_enviado_email": recibo_enviado,
+        "email_destino": email_destino,
+        "monto_total_pagado": resultado.get("monto_pagado_inscripcion"),
+        "mensaje": (
+            f"Pago de ${monto_confirmado:,.0f} registrado. "
+            + ("Inscripción completa — recibo generado y enviado al socio." if resultado.get("inscripcion_completa") else
+               f"Acumulado: ${resultado.get('monto_pagado_inscripcion',0):,.0f} de ${venta.monto_inscripcion:,.0f}.")
+        ),
+    }
+
+
+@router.post("/api/admin/solicitudes-recibo/{venta_id}/rechazar")
+async def admin_rechazar_recibo(
+    venta_id: int,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Admin rechaza la solicitud con un motivo. Notifica al socio por WA."""
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.solicitud_recibo_estado != "PENDIENTE":
+        raise HTTPException(400, f"La solicitud está en estado '{venta.solicitud_recibo_estado}'")
+
+    data = await request.json()
+    motivo = (data.get("motivo") or "").strip()
+    if not motivo:
+        raise HTTPException(400, "Indicá el motivo del rechazo para notificar al socio")
+
+    venta.solicitud_recibo_estado      = "RECHAZADO"
+    venta.solicitud_recibo_notas_admin = motivo
+    db.commit()
+
+    num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+    _notificar_socio(
+        db, venta.aliado_codigo,
+        f"❌ *Solicitud de recibo rechazada — {num_sol}*\n"
+        f"Cliente: {venta.cliente_nombre}\n"
+        f"Motivo: {motivo}\n"
+        f"Por favor cargá una nueva solicitud con el comprobante correcto.",
+    )
+    return {"ok": True, "mensaje": "Solicitud rechazada. El socio fue notificado por WhatsApp."}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

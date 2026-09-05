@@ -1273,6 +1273,16 @@ async function cargarMisVentas(){
     }
     if(v.recibo_generado){
       accion += ` <a href="/api/socio/ventas/${v.id}/recibo-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">🧾 Recibo</a>`;
+    } else if(!v.inscripcion_pagada){
+      // Recibo no emitido: mostrar botón según estado de la solicitud
+      if(v.solicitud_recibo_estado === 'PENDIENTE'){
+        accion += ` <span class="pill warn" title="El equipo está verificando tu comprobante">⏳ Recibo en revisión</span>`;
+      } else if(v.solicitud_recibo_estado === 'RECHAZADO'){
+        accion += ` <button class="btn-ghost" style="font-size:12px;padding:5px 9px;color:#d63031" onclick="abrirSolicitudRecibo(${v.id})" title="Rechazado: ${(v.solicitud_recibo_notas_admin||'').replace(/'/g,'\\'')}">⚠️ Reintentar recibo</button>`;
+      } else {
+        // Sin solicitud activa: mostrar botón principal
+        accion += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirSolicitudRecibo(${v.id})">💳 Solicitar recibo</button>`;
+      }
     }
     // Link de confirmación disponible apenas se genera el contrato (no requiere pago previo)
     if(v.link_confirmacion_token && !v.cliente_confirmo){
@@ -1551,7 +1561,102 @@ async function subirDoc(tipo){
 
 // Intento de sesión ya iniciada al cargar la página
 cargarApp();
+
+// ── Solicitud de recibo con comprobante ─────────────────────────────────────
+let _solicitudReciboVentaId = null;
+
+function abrirSolicitudRecibo(ventaId){
+  _solicitudReciboVentaId = ventaId;
+  document.getElementById('sr-monto').value = '';
+  document.getElementById('sr-notas').value = '';
+  document.getElementById('sr-archivo').value = '';
+  document.getElementById('sr-archivo-label').textContent = 'Seleccionar archivo…';
+  document.getElementById('sr-msg').textContent = '';
+  document.getElementById('sr-msg').className = 'msg';
+  document.getElementById('modal-solicitud-recibo').style.display = 'flex';
+}
+
+function cerrarSolicitudRecibo(){
+  document.getElementById('modal-solicitud-recibo').style.display = 'none';
+  _solicitudReciboVentaId = null;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('sr-archivo');
+  if(inp) inp.addEventListener('change', () => {
+    const f = inp.files[0];
+    document.getElementById('sr-archivo-label').textContent = f ? f.name : 'Seleccionar archivo…';
+  });
+});
+
+async function enviarSolicitudRecibo(){
+  const msg = document.getElementById('sr-msg');
+  msg.className = 'msg'; msg.textContent = '';
+  const monto = document.getElementById('sr-monto').value;
+  const notas = document.getElementById('sr-notas').value;
+  const archivo = document.getElementById('sr-archivo').files[0];
+  if(!monto || parseFloat(monto) <= 0){ msg.className='msg error'; msg.textContent='Ingresá el monto pagado.'; return; }
+  if(!archivo){ msg.className='msg error'; msg.textContent='Adjuntá el comprobante de pago.'; return; }
+
+  const btn = document.getElementById('btn-enviar-solicitud');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  const fd = new FormData();
+  fd.append('monto', monto);
+  fd.append('notas', notas);
+  fd.append('comprobante', archivo);
+
+  try{
+    const resp = await fetch(`/api/socio/ventas/${_solicitudReciboVentaId}/solicitar-recibo`, {
+      method: 'POST',
+      headers: {'Authorization': `Bearer ${sessionStorage.getItem('socio_token')||''}`},
+      credentials: 'include',
+      body: fd,
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.detail || 'Error al enviar');
+    msg.className = 'msg ok'; msg.textContent = data.mensaje;
+    setTimeout(() => { cerrarSolicitudRecibo(); cargarMisVentas(); }, 2500);
+  }catch(e){
+    msg.className='msg error'; msg.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'Enviar solicitud';
+  }
+}
 </script>
+
+<!-- ── Modal: Solicitar recibo (comprobante de pago) ────────────────────── -->
+<div id="modal-solicitud-recibo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg-card);border-radius:12px;width:100%;max-width:480px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+    <h3 style="margin:0 0 6px;font-size:17px">💳 Solicitar emisión de recibo</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 18px;line-height:1.5">
+      Adjuntá el comprobante de pago (transferencia, depósito o ticket de Mercado Pago).
+      El equipo lo va a verificar y, una vez confirmado, te enviamos el recibo oficial por email para que se lo entregues al cliente.
+    </p>
+    <div style="display:grid;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Monto abonado ($) *</label>
+        <input id="sr-monto" class="input" type="number" min="1" step="1000" style="width:100%;box-sizing:border-box" placeholder="Ej: 150000">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Comprobante de pago * <span style="font-weight:400">(JPG, PNG o PDF · máx 10 MB)</span></label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 14px;border:1.5px dashed var(--border);border-radius:8px;font-size:13px">
+          <span>📎</span>
+          <span id="sr-archivo-label" style="flex:1;color:var(--text-muted)">Seleccionar archivo…</span>
+          <input id="sr-archivo" type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" style="display:none">
+        </label>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Notas para el equipo <span style="font-weight:400">(opcional)</span></label>
+        <textarea id="sr-notas" class="input" rows="2" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="Ej: transferencia del 03/09, banco Santander…"></textarea>
+      </div>
+    </div>
+    <div class="msg" id="sr-msg" style="margin-top:12px"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="cerrarSolicitudRecibo()">Cancelar</button>
+      <button id="btn-enviar-solicitud" class="btn-primary" onclick="enviarSolicitudRecibo()">Enviar solicitud</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Modal: Editar venta contado ──────────────────────────────────────── -->
 <div id="modal-editar-venta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;padding:16px">

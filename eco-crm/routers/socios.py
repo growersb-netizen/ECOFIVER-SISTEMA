@@ -1972,15 +1972,18 @@ async def _generar_contrato_pdf(
     pago_acreditado: bool = False,
 ) -> str:
     """
-    Genera (o regenera) el PDF del resumen del plan + el link de confirmación.
-    Devuelve el número de solicitud.
+    Genera (o regenera) el PDF del contrato de financiación usando el mismo
+    contrato_template.html que el flujo admin — mismo formato, misma presentación.
 
-    pago_acreditado=True → el PDF refleja que hay pago (o seña) registrado.
-    pago_acreditado=False → el PDF indica claramente que el contrato está
-        sujeto a pago y tiene vigencia desde el momento en que se acredite la
-        inscripción completa.
+    pago_acreditado=True  → sin aviso de vigencia (hay seña/inscripción registrada).
+    pago_acreditado=False → agrega nota al pie: vigencia sujeta al pago de la inscripción.
+
+    Devuelve el número de solicitud.
     """
     from utils.documentos import render_html, html_to_pdf
+    from routers.contratos import (_seccion_pago_html, _texto_legal,
+                                   _titulo_contrato, _fmt_ar, _recibo_box_html)
+    from routers.catalogo import _MEDIDAS_PDF
 
     if not venta.link_confirmacion_token:
         venta.link_confirmacion_token = secrets.token_urlsafe(24)
@@ -1990,37 +1993,87 @@ async def _generar_contrato_pdf(
         venta.numero_solicitud = siguiente_numero_solicitud(db)
     db.commit()
 
-    # Mensaje de vigencia según estado de pago
-    if pago_acreditado:
-        vigencia_aviso = ""
-        estado_inscripcion_label = "Inscripción abonada"
-    else:
-        vigencia_aviso = (
-            "IMPORTANTE: Este documento es informativo y tiene vigencia contractual plena únicamente "
-            "a partir del pago completo de la inscripción indicada. Hasta ese momento, las condiciones "
-            "quedan reservadas y sujetas a disponibilidad."
-        )
-        estado_inscripcion_label = "Inscripción a abonar"
+    tipo_producto       = (venta.producto or "PISCINA").upper()
+    tipo_producto_label = "Piscina de Fibra de Vidrio" if tipo_producto == "PISCINA" else "Módulo Habitacional"
+    tipologia           = "Fibra de Vidrio"             if tipo_producto == "PISCINA" else "Estructural"
 
-    html = render_html("resumen_plan_socio.html", {
-        "numero_solicitud": venta.numero_solicitud,
-        "fecha": datetime.now().strftime("%d/%m/%Y"),
-        "cliente_nombre": venta.cliente_nombre,
-        "cliente_dni": venta.cliente_dni,
-        "cliente_telefono": venta.cliente_telefono,
-        "cliente_localidad": venta.cliente_localidad,
-        "producto": venta.producto,
-        "modelo": venta.modelo_especifico,
-        "precio_total": _money(venta.precio_total),
-        "cantidad_cuotas": venta.cantidad_cuotas,
-        "valor_cuota": _money(venta.valor_cuota),
-        "monto_inscripcion": _money(venta.monto_inscripcion),
-        "cuota_minima_licitacion": _cuota_minima_licitacion(venta.producto),
-        "socio_codigo": socio_codigo,
-        "socio_nombre": socio_nombre,
-        "vigencia_aviso": vigencia_aviso,
-        "estado_inscripcion_label": estado_inscripcion_label,
-    })
+    medidas = _MEDIDAS_PDF.get(venta.modelo_especifico or "", {})
+
+    nombre_completo = venta.cliente_nombre or "—"
+    partes   = nombre_completo.rsplit(" ", 1)
+    nombre   = partes[0] if len(partes) > 1 else nombre_completo
+    apellido = partes[1] if len(partes) > 1 else ""
+
+    # Nota de vigencia → se adjunta al texto legal cuando no hay pago aún
+    vigencia_nota = (
+        ""
+        if pago_acreditado else
+        "\n\n⚠ CONDICIÓN DE VIGENCIA: Este documento tiene vigencia contractual plena únicamente a "
+        "partir del pago completo de la inscripción indicada. Hasta ese momento, las condiciones "
+        "quedan reservadas y sujetas a disponibilidad."
+    )
+
+    ctx = {
+        "titulo_contrato":       _titulo_contrato(tipo_producto, "FINANCIADO"),
+        "numero_solicitud":      venta.numero_solicitud,
+        "fecha_contrato":        datetime.now().strftime("%d/%m/%Y"),
+        # ── cliente ──────────────────────────────────────────────────────────
+        "nombre":                nombre,
+        "apellido":              apellido,
+        "dni":                   venta.cliente_dni       or "—",
+        "cuil":                  venta.cliente_cuil      or "—",
+        "fecha_nacimiento":      "—",
+        "estado_civil":          venta.cliente_estado_civil or "—",
+        "email":                 venta.cliente_email     or "—",
+        "telefono":              venta.cliente_telefono  or "—",
+        "telefono_alt":          "—",
+        "domicilio":             venta.cliente_domicilio or "—",
+        "piso":                  "—",
+        "depto":                 "—",
+        "localidad":             venta.cliente_localidad or "—",
+        "provincia":             "—",
+        "lugar_nacimiento":      "—",
+        "ocupacion":             venta.cliente_ocupacion or "—",
+        # ── cónyuge (en blanco — el socio completa a mano si aplica) ─────────
+        "conyuge_nombre":        "—",
+        "conyuge_apellido":      "—",
+        "conyuge_dni":           "—",
+        "conyuge_nacimiento":    "—",
+        "conyuge_telefono":      "—",
+        "conyuge_email":         "—",
+        # ── producto ─────────────────────────────────────────────────────────
+        "modelo":                venta.modelo_especifico or "—",
+        "tipo_producto_label":   tipo_producto_label,
+        "tipologia":             tipologia,
+        "largo":                 str(medidas.get("largo_m",           "—")),
+        "ancho":                 str(medidas.get("ancho_m",           "—")),
+        "profundidad_min":       str(medidas.get("profundidad_min_m", "—")),
+        "profundidad_max":       str(medidas.get("profundidad_max_m", "—")),
+        "sistema":               ("Sistema de Filtrado Completo + Iluminación"
+                                  if tipo_producto == "PISCINA" else "—"),
+        "observaciones":         (f"Color: {venta.color}" if venta.color
+                                  else "Consultar con el asesor comercial"),
+        # ── pago FINANCIADO ───────────────────────────────────────────────────
+        "valor_mercado":         _fmt_ar(venta.precio_total),
+        "pago_inicial":          _fmt_ar(venta.monto_inscripcion),
+        "cant_cuotas":           str(venta.cantidad_cuotas or "—"),
+        "valor_cuota":           _fmt_ar(venta.valor_cuota),
+        "check_efectivo":        "",
+        "mark_efectivo":         "",
+        "check_transferencia":   "checked",
+        "mark_transferencia":    "✔",
+        # ── firma ─────────────────────────────────────────────────────────────
+        "firma_productor_block": (
+            f'<div class="sig-block"><div class="sig-line-draw"></div>'
+            f'<div class="sig-label">Asesor / Socio Comercial</div>'
+            f'<div class="sig-sublabel">{socio_nombre} — Cód. {socio_codigo}</div></div>'
+        ),
+    }
+    ctx["seccion_pago_html"] = _seccion_pago_html("FINANCIADO", ctx)
+    ctx["texto_legal"]       = _texto_legal("FINANCIADO", ctx) + vigencia_nota
+    ctx["recibo_box_html"]   = _recibo_box_html("FINANCIADO", venta.numero_solicitud or "")
+
+    html = render_html("contrato_template.html", ctx)
     pdf_path = Path("data/contratos") / f"plan_{venta.numero_solicitud.replace('/', '-')}_{venta.id}.pdf"
     await html_to_pdf(html, pdf_path)
     return venta.numero_solicitud
@@ -2315,7 +2368,9 @@ async def _generar_contrato_contado_pdf_socio(venta: VentaContado, socio: Aliado
     ctx["texto_legal"]       = _texto_legal("CONTADO", ctx)
     ctx["recibo_box_html"]   = ""
 
-    html_content = render_html("documentos/contrato_template.html", ctx)
+    # Nota: render_html ya usa FileSystemLoader apuntado a templates/documentos/
+    # — la ruta correcta es solo el nombre del archivo, sin el prefijo "documentos/"
+    html_content = render_html("contrato_template.html", ctx)
     Path("data/contratos").mkdir(parents=True, exist_ok=True)
     pdf_path = Path("data/contratos") / f"contado_{venta.id}.pdf"
     await html_to_pdf(html_content, pdf_path)

@@ -62,6 +62,16 @@
     <span id="al-count" style="color:var(--text-muted);font-size:13px"></span>
   </div>
   <div id="al-lista"><div class="al-empty">Cargando...</div></div>
+
+  <!-- ── Diagnóstico y desbloqueo de cuentas de socios ── -->
+  <div style="margin-top:32px;border-top:1px solid var(--border-dark);padding-top:18px">
+    <h3 style="font-size:14px;margin:0 0 6px">🔑 Acceso al panel — diagnóstico de cuentas</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 12px">Si un socio dice que no puede ingresar, buscalo acá. Si aparece "Bloqueado" usá el botón para desbloquear. Si no tiene contraseña, que use "Olvidé mi contraseña" en el panel (le llega OTP por WhatsApp).</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="sc-buscar" class="form-control" placeholder="Nombre, código o email..." style="max-width:280px" oninput="buscarCuentasSocios()">
+    </div>
+    <div id="sc-lista"><div class="al-empty">Ingresá un nombre para buscar.</div></div>
+  </div>
 </div>
 
 <!-- ═══ RANKING ═══ -->
@@ -624,9 +634,61 @@ async function aprobarSolicitudRecibo(id){
 async function rechazarSolicitudRecibo(id){
   const motivo = prompt('Motivo del rechazo (se lo comunicamos al socio por WhatsApp):');
   if(!motivo||!motivo.trim()){ return; }
+
   const r = await AL.send(`/api/admin/solicitudes-recibo/${id}/rechazar`,'POST',{motivo});
   if(r.ok){ toast&&toast('Solicitud rechazada — socio notificado por WA'); cargarOperacionSocios(); }
   else alert('Error al rechazar');
+}
+
+// ── Diagnóstico de cuentas de socios ──────────────────────────────────────────
+let _scTimer = null;
+function buscarCuentasSocios(){
+  clearTimeout(_scTimer);
+  _scTimer = setTimeout(_buscarCuentasSociosFn, 350);
+}
+async function _buscarCuentasSociosFn(){
+  const q = document.getElementById('sc-buscar').value.trim();
+  const el = document.getElementById('sc-lista');
+  if(!q){ el.innerHTML = '<div class="al-empty">Ingresá un nombre para buscar.</div>'; return; }
+  el.innerHTML = '<div class="al-empty">Buscando...</div>';
+  const data = await AL.get(`/api/admin/socios?q=${encodeURIComponent(q)}`).catch(()=>null);
+  if(!data || !data.socios || !data.socios.length){
+    el.innerHTML = '<div class="al-empty">Sin resultados para "' + q + '"</div>'; return;
+  }
+  el.innerHTML = `<table class="al-table"><thead><tr>
+    <th>Código</th><th>Nombre / Email</th><th>Estado cuenta</th><th>Acceso</th><th></th>
+  </tr></thead><tbody>` + data.socios.map(s => {
+    const estadoCuenta = s.bloqueado
+      ? `<span class="badge badge-red">🔒 Bloqueado${s.bloqueado_hasta ? ' hasta ' + s.bloqueado_hasta.substring(11,16) : ''}</span>`
+      : s.tiene_password
+        ? `<span class="badge badge-green">✓ Con contraseña</span>`
+        : `<span class="badge badge-warn">⚠️ Sin contraseña</span>`;
+    const acceso = [
+      s.whatsapp_verificado ? '✓ WA' : '✗ WA',
+      s.perfil_completo ? '✓ Perfil' : '✗ Perfil',
+    ].join(' · ');
+    const btnDesbloquear = s.bloqueado
+      ? `<button class="btn btn-sm" onclick="desbloquearSocio('${s.codigo}')">🔓 Desbloquear</button>`
+      : '';
+    return `<tr>
+      <td><strong>${s.codigo}</strong></td>
+      <td>${s.nombre}<br><span style="font-size:11px;color:var(--text-muted)">${s.email||s.telefono||''}</span></td>
+      <td>${estadoCuenta}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${acceso}</td>
+      <td>${btnDesbloquear}</td>
+    </tr>`;
+  }).join('') + '</tbody></table>';
+}
+async function desbloquearSocio(codigo){
+  const r = await AL.send(`/api/admin/socios/${codigo}/desbloquear`, 'POST', {});
+  if(r.ok){
+    const data = await r.json();
+    toast && toast(data.mensaje);
+    _buscarCuentasSociosFn();
+  } else {
+    const err = await r.json().catch(()=>({}));
+    alert('Error: ' + (err.detail||'No se pudo desbloquear'));
+  }
 }
 
 async function cargarOpStats(){

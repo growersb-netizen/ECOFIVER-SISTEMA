@@ -746,7 +746,12 @@ async function doLogout(){
 async function cargarApp(){
   try{
     SOCIO = await api('/api/socio/me');
-  }catch(e){ return; }
+  }catch(e){
+    // Si hay un error real (no solo "no autenticado"), lo relanzamos para que
+    // doLogin() pueda mostrárselo al usuario en lugar de quedar en silencio.
+    if(e && e.message && e.message !== 'No autenticado') throw e;
+    return;
+  }
   document.getElementById('auth-screens').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
   const tilde = SOCIO.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';

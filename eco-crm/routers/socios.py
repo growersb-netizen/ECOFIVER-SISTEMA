@@ -3186,6 +3186,77 @@ async def admin_rechazar_recibo(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN — GESTIÓN DE CUENTAS DE SOCIOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/admin/socios/{codigo}/desbloquear")
+async def admin_desbloquear_socio(
+    codigo: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Desbloquea la cuenta de un socio que quedó bloqueada por demasiados intentos
+    de login fallidos. También resetea el contador de intentos.
+    Útil cuando el socio dice que no puede ingresar.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    socio = db.query(Aliado).filter(
+        Aliado.codigo == codigo.strip().upper()
+    ).first()
+    if not socio:
+        raise HTTPException(404, f"Socio {codigo} no encontrado")
+
+    socio.bloqueado_hasta  = None
+    socio.intentos_fallidos = 0
+    db.commit()
+
+    return {
+        "ok": True,
+        "codigo": socio.codigo,
+        "nombre": socio.nombre,
+        "estado": socio.estado,
+        "tiene_password": bool(socio.password_hash),
+        "whatsapp_verificado": bool(socio.whatsapp_verificado),
+        "mensaje": f"Cuenta de {socio.nombre} desbloqueada. Si el problema persiste, usá 'Olvidé mi contraseña' en el panel.",
+    }
+
+
+@router.get("/api/admin/socios")
+async def admin_listar_socios(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    q: str = "",
+):
+    """Lista todos los socios con su estado de acceso (para diagnóstico desde admin)."""
+    _require_gestion_interna(x_api_key, current_user)
+    query = db.query(Aliado)
+    if q:
+        query = query.filter(
+            (Aliado.nombre.ilike(f"%{q}%")) |
+            (Aliado.codigo.ilike(f"%{q}%")) |
+            (Aliado.email.ilike(f"%{q}%"))
+        )
+    socios = query.order_by(Aliado.id.desc()).all()
+    ahora = datetime.now()
+    return {"socios": [{
+        "codigo": s.codigo,
+        "nombre": s.nombre,
+        "email": s.email or "",
+        "telefono": s.telefono or "",
+        "estado": s.estado or "postulante",
+        "tiene_password": bool(s.password_hash),
+        "whatsapp_verificado": bool(s.whatsapp_verificado),
+        "perfil_completo": bool(s.perfil_completo),
+        "bloqueado": bool(s.bloqueado_hasta and s.bloqueado_hasta > ahora),
+        "bloqueado_hasta": s.bloqueado_hasta.isoformat() if s.bloqueado_hasta and s.bloqueado_hasta > ahora else None,
+        "intentos_fallidos": s.intentos_fallidos or 0,
+    } for s in socios]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PÁGINA DEL PANEL
 # ═══════════════════════════════════════════════════════════════════════════════
 

@@ -1283,7 +1283,7 @@ async function cargarMisVentas(){
       if(v.solicitud_recibo_estado === 'PENDIENTE'){
         accion += ` <span class="pill warn" title="El equipo está verificando tu comprobante">⏳ Recibo en revisión</span>`;
       } else if(v.solicitud_recibo_estado === 'RECHAZADO'){
-        accion += ` <button class="btn-ghost" style="font-size:12px;padding:5px 9px;color:#d63031" onclick="abrirSolicitudRecibo(${v.id})" title="Rechazado: ${(v.solicitud_recibo_notas_admin||'').replace(/'/g,'\\'')}">⚠️ Reintentar recibo</button>`;
+        accion += ` <button class="btn-ghost" style="font-size:12px;padding:5px 9px;color:#d63031" onclick="abrirSolicitudRecibo(${v.id})" title="Rechazado: ${(v.solicitud_recibo_notas_admin||'').replace(/'/g, "\\'")}">⚠️ Reintentar recibo</button>`;
       } else {
         // Sin solicitud activa: mostrar botón principal
         accion += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirSolicitudRecibo(${v.id})">💳 Solicitar recibo</button>`;

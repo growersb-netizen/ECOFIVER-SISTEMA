@@ -270,6 +270,10 @@
     <a class="nav-item" data-section="capacitacion" onclick="nav('capacitacion')">🎓 Capacitación</a>
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
     <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
+    <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-admin" target="_blank"
+       style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:var(--teal);font-weight:700">
+      🔧 Panel Admin CRM
+    </a>
     <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
   </div>
 
@@ -808,6 +812,10 @@ async function cargarApp(){
   document.getElementById('p-cuit').value = SOCIO.cuit_monotributo || '';
   document.getElementById('p-interes').value = SOCIO.interes_venta || 'AMBOS';
   actualizarEstadoVerificacionPerfil();
+  // Mostrar enlace al panel admin si el socio tiene ese rol
+  if(SOCIO.es_admin_crm){
+    document.getElementById('nav-admin-crm').classList.remove('hidden');
+  }
   cargarComisiones();
   cargarCatalogo();
   cargarProgreso();

@@ -326,6 +326,22 @@
         <div style="display:flex;align-items:flex-end"><a href="/portal-aliado" target="_blank" style="color:var(--green);font-size:13px">Ver portal del aliado ↗</a></div>
       </div>
       <label class="form-label">Notas</label><textarea class="form-control" id="ma-notas" rows="2"></textarea>
+      <div style="margin-top:16px;padding:14px;background:rgba(78,195,181,.08);border:1px solid rgba(78,195,181,.3);border-radius:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-weight:700;font-size:13.5px">🔧 Acceso de Admin al programa</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Permite acceder al CRM completo desde el panel de socios</div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
+            <input type="checkbox" id="ma-es-admin-crm" style="width:18px;height:18px;margin:0">
+            <span style="font-size:13px;font-weight:600" id="ma-es-admin-crm-label">No</span>
+          </label>
+        </div>
+        <div id="ma-admin-crm-btn-wrap" style="display:none;margin-top:10px">
+          <button class="btn btn-sm" id="ma-admin-crm-btn" onclick="toggleAdminCrm()" style="background:rgba(78,195,181,.15);border:1px solid rgba(78,195,181,.4);color:var(--teal,#4EC3B5)">Guardar cambio de admin</button>
+          <span id="ma-admin-crm-msg" style="font-size:12px;margin-left:8px"></span>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-nuevo-aliado')">Cancelar</button>
@@ -383,7 +399,26 @@ function editar(a){
   document.getElementById('ma-estado').value=a.estado;
   document.getElementById('ma-contrato').value=a.contrato_firmado?'true':'false';
   const pinEl=document.getElementById('ma-pin'); pinEl.value=''; pinEl.placeholder=a.tiene_pin?'(ya tiene PIN — dejá vacío para no cambiarlo)':'ej. 1234';
+  // Admin CRM toggle
+  const chk = document.getElementById('ma-es-admin-crm');
+  chk.checked = !!a.es_admin_crm;
+  document.getElementById('ma-es-admin-crm-label').textContent = a.es_admin_crm ? 'Sí' : 'No';
+  document.getElementById('ma-admin-crm-btn-wrap').style.display = a.codigo ? 'block' : 'none';
+  document.getElementById('ma-admin-crm-msg').textContent = '';
+  chk.onchange = () => { document.getElementById('ma-es-admin-crm-label').textContent = chk.checked ? 'Sí' : 'No'; };
   openModal('modal-nuevo-aliado');
+}
+async function toggleAdminCrm(){
+  const cod = document.getElementById('ma-codigo-edit').value;
+  const esAdmin = document.getElementById('ma-es-admin-crm').checked;
+  const msg = document.getElementById('ma-admin-crm-msg');
+  const btn = document.getElementById('ma-admin-crm-btn');
+  btn.disabled = true; msg.textContent = 'Guardando…';
+  const r = await AL.send(`/api/admin/aliados/${cod}/set-admin-crm`, 'PUT', {es_admin_crm: esAdmin});
+  const j = await r.json();
+  btn.disabled = false;
+  if(r.ok){ msg.style.color='var(--teal,#4EC3B5)'; msg.textContent='✓ ' + j.mensaje; cargarAliados(); }
+  else { msg.style.color='#f87171'; msg.textContent='Error: ' + (j.detail||'No se pudo guardar'); }
 }
 function ma(f,v){document.getElementById('ma-'+f).value=v||'';}
 async function guardarAliado(){

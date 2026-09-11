@@ -22,7 +22,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -34,7 +34,7 @@ from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
     ScoringBCRA, Usuario, ComisionConfig, Presupuesto,
 )
-from routers.auth import require_auth, get_user_roles, get_current_user
+from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
 from utils.whatsapp import send_whatsapp_text, send_whatsapp_otp, notificar_rodrigo
 
@@ -462,6 +462,7 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "tiene_password": bool(socio.password_hash),
         "comisiones_aceptadas": bool(socio.comisiones_aceptadas_en),
         "interes_venta": socio.interes_venta,
+        "es_admin_crm": bool(socio.es_admin_crm),
     }
 
 
@@ -3386,6 +3387,79 @@ async def admin_entregas_calendario(
             "created_at": v.created_at.strftime("%Y-%m-%d") if v.created_at else "",
         })
     return resultado
+
+
+@router.get("/socio/acceso-admin", response_class=HTMLResponse)
+async def socio_acceso_admin(
+    response: Response,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    Permite a un socio con es_admin_crm=True acceder al panel de administración.
+    Genera una sesión de admin CRM vinculada al socio y redirige a /aliados.
+    """
+    import json as _json, os as _os
+
+    if not socio.es_admin_crm:
+        raise HTTPException(403, "No tenés permisos de administrador del programa.")
+
+    # Buscar o crear el usuario CRM vinculado a este socio admin
+    email_admin = f"socio.admin.{socio.codigo.lower().replace('-', '')}@ecofiver.crm"
+    usuario_admin = db.query(Usuario).filter(Usuario.email == email_admin).first()
+    if not usuario_admin:
+        import hashlib as _hl
+        random_pass = _hl.sha256(_os.urandom(32)).hexdigest()
+        usuario_admin = Usuario(
+            nombre=f"{socio.nombre} (Socio Admin)",
+            email=email_admin,
+            password_hash=hash_password(random_pass),
+            roles_json=_json.dumps(["ADMIN"]),
+            activo=True,
+            es_agente_ia=False,
+        )
+        db.add(usuario_admin)
+        db.commit()
+        db.refresh(usuario_admin)
+
+    # Crear token de sesión admin
+    from datetime import timedelta
+    token = create_access_token(
+        {"sub": str(usuario_admin.id)},
+        expires_delta=timedelta(hours=8),
+    )
+
+    # Redirigir al panel admin con el cookie de sesión seteado
+    redirect = RedirectResponse(url="/aliados", status_code=302)
+    redirect.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+        max_age=8 * 3600,
+    )
+    return redirect
+
+
+@router.put("/api/admin/aliados/{codigo}/set-admin-crm")
+async def set_socio_admin_crm(
+    codigo: str,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Otorga o revoca el rol de admin del programa a un aliado."""
+    _require_gestion_interna(x_api_key, current_user)
+    data = await request.json()
+    aliado = db.query(Aliado).filter(Aliado.codigo == codigo).first()
+    if not aliado:
+        raise HTTPException(404, "Aliado no encontrado")
+    aliado.es_admin_crm = bool(data.get("es_admin_crm", False))
+    db.commit()
+    estado = "habilitado" if aliado.es_admin_crm else "revocado"
+    return {"ok": True, "mensaje": f"Acceso admin del programa {estado} para {aliado.nombre}.", "es_admin_crm": aliado.es_admin_crm}
 
 
 @router.get("/panel-socio", response_class=HTMLResponse)

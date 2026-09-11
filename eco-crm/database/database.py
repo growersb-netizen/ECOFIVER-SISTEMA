@@ -225,6 +225,8 @@ def run_migrations():
             "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_notas TEXT",
             "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_estado TEXT",
             "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_notas_admin TEXT",
+            # ── Aliados: rol de admin del programa (acceso al CRM desde el panel) ──
+            "ALTER TABLE aliados ADD COLUMN es_admin_crm BOOLEAN DEFAULT 0",
         ]
         for stmt in migrations:
             try:

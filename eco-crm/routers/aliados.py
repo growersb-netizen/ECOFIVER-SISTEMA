@@ -89,6 +89,7 @@ def _aliado_dict(a: Aliado) -> dict:
         "operativo": (a.estado == "activo" and bool(a.contrato_firmado)),
         "tiene_pin": bool(a.pin),
         "notas": a.notas or "",
+        "es_admin_crm": bool(a.es_admin_crm),
     }
 
 

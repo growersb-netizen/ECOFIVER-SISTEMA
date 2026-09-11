@@ -1369,6 +1369,9 @@ class Aliado(Base):
     # ── Calificación del lead: qué le interesa vender (PISCINAS | MODULOS | AMBOS) ──
     interes_venta = Column(String(20), nullable=True)
 
+    # ── Rol de administrador del programa (acceso al CRM admin desde el panel) ──
+    es_admin_crm = Column(Boolean, default=False)
+
 
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,

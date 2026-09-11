@@ -1480,8 +1480,15 @@ async function cargarMisVentas(){
   hf += '</table>';
   document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
 
-  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Entrega</th><th>Estado</th><th></th></tr>';
-  for(const v of data.contado){
+  // Ordenar ventas contado: primero las que tienen fecha (por fecha asc), luego las sin fecha
+  const contadoOrdenado = [...(data.contado||[])].sort((a,b)=>{
+    if(a.fecha_entrega && b.fecha_entrega) return a.fecha_entrega < b.fecha_entrega ? -1 : 1;
+    if(a.fecha_entrega) return -1;
+    if(b.fecha_entrega) return 1;
+    return 0;
+  });
+  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>📅 Entrega</th><th>Estado</th><th></th></tr>';
+  for(const v of contadoOrdenado){
     const cobrado = v.cobro_estado==='COBRADO';
     const confirmada = !!v.confirmacion_48hs;
     const pill = cobrado ? '<span class="pill ok">Entregada y cobrada</span>' : (confirmada ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
@@ -1806,7 +1813,7 @@ async function enviarSolicitudRecibo(){
 
 <!-- ── Modal: Solicitar recibo (comprobante de pago) ────────────────────── -->
 <div id="modal-solicitud-recibo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;padding:16px">
-  <div style="background:var(--bg-card);border-radius:12px;width:100%;max-width:480px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+  <div style="background:var(--surface);border-radius:12px;width:100%;max-width:480px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25)">
     <h3 style="margin:0 0 6px;font-size:17px">💳 Solicitar emisión de recibo</h3>
     <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 18px;line-height:1.5">
       Adjuntá el comprobante de pago (transferencia, depósito o ticket de Mercado Pago).
@@ -1840,7 +1847,7 @@ async function enviarSolicitudRecibo(){
 
 <!-- ── Modal: Editar venta contado ──────────────────────────────────────── -->
 <div id="modal-editar-venta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;padding:16px">
-  <div style="background:var(--bg-card);border-radius:12px;width:100%;max-width:520px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">
+  <div style="background:var(--surface);border-radius:12px;width:100%;max-width:520px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">
     <h3 style="margin:0 0 18px;font-size:17px">✏️ Editar venta de contado</h3>
     <p style="font-size:12.5px;color:var(--text-muted);margin-top:-10px;margin-bottom:18px">Solo podés editar la venta mientras el equipo todavía no la confirmó (48 hs).</p>
     <div style="display:grid;gap:12px">

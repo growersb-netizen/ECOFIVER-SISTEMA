@@ -3315,6 +3315,79 @@ async def admin_listar_socios(
 # PÁGINA DEL PANEL
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@router.get("/api/admin/entregas-calendario")
+async def admin_entregas_calendario(
+    desde: str = None,
+    hasta: str = None,
+    x_api_key: str = Header(None),
+    current_user=Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve todas las ventas de contado de socios que tienen fecha de entrega,
+    opcionalmente filtradas por rango de fechas (ISO YYYY-MM-DD).
+    Incluye comisión estimada calculada con el % vigente.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+
+    query = db.query(VentaContado).filter(
+        VentaContado.aliado_codigo.isnot(None),
+        VentaContado.fecha_instalacion.isnot(None),
+    )
+    if desde:
+        try:
+            d = datetime.strptime(desde, "%Y-%m-%d")
+            query = query.filter(VentaContado.fecha_instalacion >= d)
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            h = datetime.strptime(hasta, "%Y-%m-%d") + timedelta(hours=23, minutes=59, seconds=59)
+            query = query.filter(VentaContado.fecha_instalacion <= h)
+        except ValueError:
+            pass
+
+    ventas = query.order_by(VentaContado.fecha_instalacion.asc()).all()
+
+    resultado = []
+    for v in ventas:
+        pct = obtener_porcentaje_comision(db, "contado", v.producto or "PISCINA")
+        comision_est = round((v.precio_final or 0) * pct, 2)
+        estado_label = {
+            "COORDINADO": "Coordinada",
+            "ENTREGADO": "Entregada",
+            "CANCELADO": "Cancelada",
+        }.get(v.estado or "", v.estado or "—")
+        cobro_label = {
+            "PENDIENTE": "Cobro pendiente",
+            "COBRADO": "Cobrada ✓",
+            "PROBLEMA": "Problema de cobro",
+        }.get(v.cobro_estado or "", "—")
+        resultado.append({
+            "id": v.id,
+            "fecha_entrega": v.fecha_instalacion.strftime("%Y-%m-%d"),
+            "cliente_nombre": v.cliente_nombre,
+            "cliente_telefono": v.cliente_telefono or "",
+            "cliente_localidad": v.cliente_localidad or "",
+            "cliente_domicilio": v.cliente_domicilio or "",
+            "producto": v.producto or "",
+            "modelo_especifico": v.modelo_especifico or "",
+            "precio_final": v.precio_final or 0,
+            "flete_calculado": v.flete_calculado or 0,
+            "comision_estimada": comision_est,
+            "comision_pct": round(pct * 100, 2),
+            "estado": v.estado or "",
+            "estado_label": estado_label,
+            "cobro_estado": v.cobro_estado or "",
+            "cobro_label": cobro_label,
+            "aliado_codigo": v.aliado_codigo or "",
+            "confirmacion_48hs": bool(v.confirmacion_48hs_en),
+            "cobrado": v.cobro_estado == "COBRADO",
+            "created_at": v.created_at.strftime("%Y-%m-%d") if v.created_at else "",
+        })
+    return resultado
+
+
 @router.get("/panel-socio", response_class=HTMLResponse)
 async def panel_socio_page(request: Request):
     return templates.TemplateResponse("panel_socio.html", {"request": request})

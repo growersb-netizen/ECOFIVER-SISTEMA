@@ -44,6 +44,7 @@
   <button class="al-tab" onclick="alTab('verificacion',this)">🔎 Verificación</button>
   <button class="al-tab" onclick="alTab('paquetes',this)">📦 Paquetes</button>
   <button class="al-tab" onclick="alTab('operacion',this)">🔧 Operación de Socios</button>
+  <button class="al-tab" onclick="alTab('calendario',this)">📅 Calendario</button>
 </div>
 
 <!-- ═══ ALIADOS ═══ -->
@@ -258,6 +259,31 @@
   <div id="op-entrega"><div class="al-empty">Cargando...</div></div>
 </div>
 
+<!-- ═══ CALENDARIO DE ENTREGAS ═══ -->
+<div id="pane-calendario" class="al-pane">
+  <!-- KPIs summary -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px" id="cal-kpis">
+    <div class="op-stat"><div class="v" id="cal-k-total">—</div><div class="l">Entregas en período</div></div>
+    <div class="op-stat"><div class="v" id="cal-k-monto" style="color:var(--green)">$0</div><div class="l">Monto total</div></div>
+    <div class="op-stat"><div class="v" id="cal-k-comision" style="color:#60a5fa">$0</div><div class="l">Comisiones estimadas</div></div>
+    <div class="op-stat"><div class="v" id="cal-k-pendiente" style="color:#f59e0b">—</div><div class="l">Cobro pendiente</div></div>
+  </div>
+
+  <!-- Filtros -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+    <button class="btn btn-primary cal-filtro active" data-f="dia"   onclick="calFiltro('dia',this)">Hoy</button>
+    <button class="btn btn-secondary cal-filtro"      data-f="semana" onclick="calFiltro('semana',this)">Esta semana</button>
+    <button class="btn btn-secondary cal-filtro"      data-f="mes"    onclick="calFiltro('mes',this)">Este mes</button>
+    <button class="btn btn-secondary cal-filtro"      data-f="todos"  onclick="calFiltro('todos',this)">Todo</button>
+    <span style="flex:1"></span>
+    <input type="date" class="form-control" id="cal-desde" style="max-width:145px" onchange="calFiltroCustom()">
+    <span style="font-size:13px;color:var(--text-muted)">→</span>
+    <input type="date" class="form-control" id="cal-hasta" style="max-width:145px" onchange="calFiltroCustom()">
+  </div>
+
+  <div id="cal-lista"><div class="al-empty">Cargando…</div></div>
+</div>
+
 <!-- ═══ MODAL NUEVO ALIADO ═══ -->
 <div class="modal-overlay" id="modal-nuevo-aliado" style="display:none">
   <div class="modal" style="max-width:520px">
@@ -323,6 +349,7 @@ function alTab(name,btn){
   if(name==='verificacion') cargarVerificacion();
   if(name==='paquetes') cargarPaquetes();
   if(name==='operacion') cargarOperacionSocios();
+  if(name==='calendario') cargarCalendario();
 }
 
 // ── ALIADOS ──
@@ -799,6 +826,201 @@ async function subirFotoEntrega(){
   } else {
     msg.style.color = '#f87171'; msg.textContent = '❌ Error al subir.';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CALENDARIO DE ENTREGAS (admin)
+// ══════════════════════════════════════════════════════════════════
+const fmtARS = n => '$'+Math.round(n||0).toLocaleString('es-AR');
+
+function _calRango(filtro){
+  const hoy = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  if(filtro === 'dia'){
+    return {desde: iso(hoy), hasta: iso(hoy)};
+  }
+  if(filtro === 'semana'){
+    const lun = new Date(hoy); lun.setDate(hoy.getDate() - hoy.getDay() + (hoy.getDay()===0?-6:1));
+    const dom = new Date(lun); dom.setDate(lun.getDate() + 6);
+    return {desde: iso(lun), hasta: iso(dom)};
+  }
+  if(filtro === 'mes'){
+    const ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const fin = new Date(hoy.getFullYear(), hoy.getMonth()+1, 0);
+    return {desde: iso(ini), hasta: iso(fin)};
+  }
+  return {desde: null, hasta: null}; // todos
+}
+
+async function cargarCalendario(filtro){
+  if(!filtro){
+    const a = document.querySelector('.cal-filtro.active');
+    filtro = a ? a.dataset.f : 'dia';
+  }
+  const rango = _calRango(filtro);
+  // Si hay fechas custom activas en los inputs, usarlas (si el filtro custom está activo)
+  const desdeInput = document.getElementById('cal-desde').value;
+  const hastaInput = document.getElementById('cal-hasta').value;
+
+  let desde = rango.desde, hasta = rango.hasta;
+  // Sólo usar inputs cuando ningún botón quick-filter tiene foco ("todos" sin fechas)
+  if(!document.querySelector('.cal-filtro.active') && desdeInput) desde = desdeInput;
+  if(!document.querySelector('.cal-filtro.active') && hastaInput) hasta = hastaInput;
+
+  let url = '/api/admin/entregas-calendario';
+  const params = [];
+  if(desde) params.push('desde='+desde);
+  if(hasta) params.push('hasta='+hasta);
+  if(params.length) url += '?' + params.join('&');
+
+  const lista = document.getElementById('cal-lista');
+  lista.innerHTML = '<div class="al-empty">Cargando…</div>';
+
+  const ventas = await AL.get(url).catch(()=>[]);
+
+  // KPIs
+  const totalMonto  = ventas.reduce((s,v)=>s+(v.precio_final||0),0);
+  const totalComis  = ventas.reduce((s,v)=>s+(v.comision_estimada||0),0);
+  const pendientes  = ventas.filter(v=>v.cobro_estado !== 'COBRADO').length;
+  document.getElementById('cal-k-total').textContent    = ventas.length;
+  document.getElementById('cal-k-monto').textContent    = fmtARS(totalMonto);
+  document.getElementById('cal-k-comision').textContent = fmtARS(totalComis);
+  document.getElementById('cal-k-pendiente').textContent= pendientes;
+
+  if(!ventas.length){
+    const labels={dia:'para hoy',semana:'esta semana',mes:'este mes',todos:'en el período seleccionado'};
+    lista.innerHTML = `<div class="al-empty">📅 Sin entregas ${labels[filtro]||''}.</div>`;
+    return;
+  }
+
+  // Agrupar por fecha
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const porFecha = {};
+  for(const v of ventas) (porFecha[v.fecha_entrega]=porFecha[v.fecha_entrega]||[]).push(v);
+
+  let html = '';
+  for(const fecha of Object.keys(porFecha).sort()){
+    const esHoy = fecha === hoyStr;
+    const fObj  = new Date(fecha+'T00:00:00');
+    const fFmt  = fObj.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+    const fCap  = fFmt.charAt(0).toUpperCase()+fFmt.slice(1);
+    const items = porFecha[fecha];
+    const subMonto = items.reduce((s,v)=>s+(v.precio_final||0),0);
+
+    html += `<div style="display:flex;align-items:center;gap:12px;margin:20px 0 10px">
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap">${fCap}${esHoy?' <span style="background:#1e40af;color:#fff;font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:6px;margin-left:4px">HOY</span>':''}</div>
+      <div style="flex:1;height:1px;background:var(--border-dark)"></div>
+      <div style="font-size:11.5px;color:var(--text-muted);white-space:nowrap">${items.length} entrega${items.length>1?'s':''} · ${fmtARS(subMonto)}</div>
+    </div>`;
+
+    html += `<div style="display:grid;gap:10px">` + items.map(v => {
+      const cobColor = v.cobrado ? '#4ade80' : (v.cobro_estado==='PROBLEMA'?'#f87171':'#f59e0b');
+      const estadoBadge = `<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:${v.cobrado?'rgba(74,222,128,.15)':'rgba(245,158,11,.15)'};color:${cobColor}">${v.cobro_label}</span>`;
+      return `<div style="background:var(--surface-alt,#1a2540);border:1px solid var(--border-dark);border-radius:10px;padding:12px 16px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start${esHoy?';border-left:3px solid #3b82f6':''}">
+        <div>
+          <div style="font-weight:700;font-size:14px">${esc(v.cliente_nombre)}</div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px">${esc(v.producto)} ${esc(v.modelo_especifico)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px">📍 ${esc(v.cliente_domicilio||v.cliente_localidad||'Sin domicilio')}${v.cliente_telefono?' · 📱'+esc(v.cliente_telefono):''}</div>
+          <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
+            ${estadoBadge}
+            <span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(100,116,139,.15);color:var(--text-muted)">Socio: ${esc(v.aliado_codigo)}</span>
+            ${v.confirmacion_48hs?'<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(74,222,128,.1);color:#4ade80">✓ 48hs confirmada</span>':''}
+          </div>
+        </div>
+        <div style="text-align:right;min-width:130px">
+          <div style="font-size:15px;font-weight:800">${fmtARS(v.precio_final)}</div>
+          <div style="font-size:11.5px;color:#60a5fa;font-weight:600;margin-top:2px">Comis. ${fmtARS(v.comision_estimada)} (${v.comision_pct}%)</div>
+          ${v.flete_calculado?`<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Flete: ${fmtARS(v.flete_calculado)}</div>`:''}
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
+  }
+  lista.innerHTML = html;
+}
+
+function calFiltro(filtro, btn){
+  document.querySelectorAll('.cal-filtro').forEach(b=>{
+    b.classList.remove('active','btn-primary');
+    b.classList.add('btn-secondary');
+  });
+  if(btn){
+    btn.classList.add('active','btn-primary');
+    btn.classList.remove('btn-secondary');
+  }
+  // Limpiar inputs de fecha custom cuando se usa filtro rápido
+  document.getElementById('cal-desde').value = '';
+  document.getElementById('cal-hasta').value = '';
+  cargarCalendario(filtro);
+}
+
+function calFiltroCustom(){
+  // Quitar filtro rápido activo
+  document.querySelectorAll('.cal-filtro').forEach(b=>{
+    b.classList.remove('active','btn-primary');
+    b.classList.add('btn-secondary');
+  });
+  const desde = document.getElementById('cal-desde').value;
+  const hasta = document.getElementById('cal-hasta').value;
+  const lista = document.getElementById('cal-lista');
+  if(!desde && !hasta) return;
+  // Llamar API directamente con los valores de los inputs
+  let url = '/api/admin/entregas-calendario';
+  const params = [];
+  if(desde) params.push('desde='+desde);
+  if(hasta) params.push('hasta='+hasta);
+  if(params.length) url += '?' + params.join('&');
+  lista.innerHTML = '<div class="al-empty">Cargando…</div>';
+  AL.get(url).then(ventas=>{
+    const totalMonto  = ventas.reduce((s,v)=>s+(v.precio_final||0),0);
+    const totalComis  = ventas.reduce((s,v)=>s+(v.comision_estimada||0),0);
+    const pendientes  = ventas.filter(v=>v.cobro_estado !== 'COBRADO').length;
+    document.getElementById('cal-k-total').textContent    = ventas.length;
+    document.getElementById('cal-k-monto').textContent    = fmtARS(totalMonto);
+    document.getElementById('cal-k-comision').textContent = fmtARS(totalComis);
+    document.getElementById('cal-k-pendiente').textContent= pendientes;
+    if(!ventas.length){lista.innerHTML='<div class="al-empty">📅 Sin entregas en el rango seleccionado.</div>';return;}
+    // Reutilizar renderizado agrupado
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const porFecha = {};
+    for(const v of ventas) (porFecha[v.fecha_entrega]=porFecha[v.fecha_entrega]||[]).push(v);
+    let html = '';
+    for(const fecha of Object.keys(porFecha).sort()){
+      const esHoy = fecha === hoyStr;
+      const fObj  = new Date(fecha+'T00:00:00');
+      const fFmt  = fObj.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+      const fCap  = fFmt.charAt(0).toUpperCase()+fFmt.slice(1);
+      const items = porFecha[fecha];
+      const subMonto = items.reduce((s,v)=>s+(v.precio_final||0),0);
+      html += `<div style="display:flex;align-items:center;gap:12px;margin:20px 0 10px">
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap">${fCap}${esHoy?' <span style="background:#1e40af;color:#fff;font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:6px;margin-left:4px">HOY</span>':''}</div>
+        <div style="flex:1;height:1px;background:var(--border-dark)"></div>
+        <div style="font-size:11.5px;color:var(--text-muted);white-space:nowrap">${items.length} entrega${items.length>1?'s':''} · ${fmtARS(subMonto)}</div>
+      </div>`;
+      html += `<div style="display:grid;gap:10px">` + items.map(v => {
+        const cobColor = v.cobrado ? '#4ade80' : (v.cobro_estado==='PROBLEMA'?'#f87171':'#f59e0b');
+        const estadoBadge = `<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:${v.cobrado?'rgba(74,222,128,.15)':'rgba(245,158,11,.15)'};color:${cobColor}">${v.cobro_label}</span>`;
+        return `<div style="background:var(--surface-alt,#1a2540);border:1px solid var(--border-dark);border-radius:10px;padding:12px 16px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start${esHoy?';border-left:3px solid #3b82f6':''}">
+          <div>
+            <div style="font-weight:700;font-size:14px">${esc(v.cliente_nombre)}</div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px">${esc(v.producto)} ${esc(v.modelo_especifico)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">📍 ${esc(v.cliente_domicilio||v.cliente_localidad||'Sin domicilio')}${v.cliente_telefono?' · 📱'+esc(v.cliente_telefono):''}</div>
+            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
+              ${estadoBadge}
+              <span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(100,116,139,.15);color:var(--text-muted)">Socio: ${esc(v.aliado_codigo)}</span>
+              ${v.confirmacion_48hs?'<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(74,222,128,.1);color:#4ade80">✓ 48hs confirmada</span>':''}
+            </div>
+          </div>
+          <div style="text-align:right;min-width:130px">
+            <div style="font-size:15px;font-weight:800">${fmtARS(v.precio_final)}</div>
+            <div style="font-size:11.5px;color:#60a5fa;font-weight:600;margin-top:2px">Comis. ${fmtARS(v.comision_estimada)} (${v.comision_pct}%)</div>
+            ${v.flete_calculado?`<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Flete: ${fmtARS(v.flete_calculado)}</div>`:''}
+          </div>
+        </div>`;
+      }).join('') + `</div>`;
+    }
+    lista.innerHTML = html;
+  }).catch(()=>{ lista.innerHTML='<div class="al-empty">Error al cargar.</div>'; });
 }
 
 document.addEventListener('DOMContentLoaded',()=>{cargarAliados();

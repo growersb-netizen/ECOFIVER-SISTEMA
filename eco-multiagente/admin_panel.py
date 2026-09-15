@@ -317,8 +317,8 @@ def render_panel(env: dict, msg: str = "", msg_type: str = "ok") -> str:
         <div class="field">
           <label>CRM_BASE_URL {_dot('CRM_BASE_URL', env)}</label>
           <input type="text" name="CRM_BASE_URL"
-                 value="{val('CRM_BASE_URL')}" placeholder="https://eco-crm-dawn-fog-5476.fly.dev">
-          <div class="hint">URL del CRM en Fly.io</div>
+                 value="{val('CRM_BASE_URL')}" placeholder="https://eco-crm-production.up.railway.app">
+          <div class="hint">URL del CRM en Railway</div>
         </div>
         <div class="field">
           <label>CRM_API_KEY {_dot('CRM_API_KEY', env)}</label>
@@ -410,7 +410,7 @@ def render_panel(env: dict, msg: str = "", msg_type: str = "ok") -> str:
         <div class="field">
           <label>BASE_URL {_dot('BASE_URL', env)}</label>
           <input type="text" name="BASE_URL"
-                 value="{val('BASE_URL')}" placeholder="https://eco-multiagente-polished-sunset-4227.fly.dev">
+                 value="{val('BASE_URL')}" placeholder="https://eco-multiagente.up.railway.app">
         </div>
         <div class="field">
           <label>GOOGLE_DRIVE_FOLDER_ID {_dot('GOOGLE_DRIVE_FOLDER_ID', env)}</label>

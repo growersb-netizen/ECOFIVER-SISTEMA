@@ -18,7 +18,7 @@ X-Agent-Key:  agt_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX   ← clave única del agente
 ```
 La `agente_key` se genera automáticamente cuando se activa la opción "Es agente IA" en la sección Usuarios del CRM.
 
-Base URL: `https://eco-crm-dawn-fog-5476.fly.dev`
+Base URL: `https://eco-crm-production.up.railway.app`
 
 ---
 

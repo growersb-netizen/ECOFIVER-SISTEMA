@@ -979,7 +979,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         <p style="font-size:13px;color:#666;margin-bottom:12px">
           Renata también publica sola dos veces por día. Para ver el historial completo, el calendario de contenido y el flujo de aprobación, usá el módulo Ecopost del CRM.
         </p>
-        <a href="https://eco-crm-dawn-fog-5476.fly.dev/ecopost" target="_blank" class="btn btn-outline" style="text-decoration:none">📚 Abrir Ecopost del CRM →</a>
+        <a href="https://eco-crm-production.up.railway.app/ecopost" target="_blank" class="btn btn-outline" style="text-decoration:none">📚 Abrir Ecopost del CRM →</a>
       </div>
     </div>
   </div>
@@ -1358,7 +1358,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
               <div class="field-row">
                 <div class="field">
                   <label>CRM_BASE_URL <span id="dot-crm"></span></label>
-                  <input type="text" name="CRM_BASE_URL" id="cfg-crm-url" placeholder="https://eco-crm-dawn-fog-5476.fly.dev">
+                  <input type="text" name="CRM_BASE_URL" id="cfg-crm-url" placeholder="https://eco-crm-production.up.railway.app">
                 </div>
                 <div class="field">
                   <label>CRM_API_KEY</label>
@@ -1439,7 +1439,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
               <div class="field-row">
                 <div class="field">
                   <label>BASE_URL</label>
-                  <input type="text" name="BASE_URL" id="cfg-base-url" placeholder="https://eco-multiagente.fly.dev">
+                  <input type="text" name="BASE_URL" id="cfg-base-url" placeholder="https://eco-multiagente.up.railway.app">
                 </div>
                 <div class="field">
                   <label>PORT</label>

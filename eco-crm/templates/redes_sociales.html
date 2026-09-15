@@ -346,6 +346,7 @@ function setTab(tab) {
   });
   if (_pageId) _loadTab(tab);
   if (tab === 'inbox') cargarInbox();
+  if (tab === 'publish') renderPublish();
 }
 
 function _loadTab(tab) {
@@ -403,6 +404,8 @@ async function cargarPaginas() {
 
     lista.innerHTML = _paginas.map(p => {
       const pendientes = _pendientesPorPagina[p.page_id] || 0;
+      const wa = p.numero_whatsapp || '1144498854';
+      const autoActivo = p.auto_reply_comentarios || p.auto_reply_mensajes || p.auto_eliminar_negativos;
       return `
       <div class="page-card" id="pcard-${esc(p.page_id)}" onclick="selectPage('${esc(p.page_id)}')">
         <div class="page-avatar">
@@ -412,13 +415,18 @@ async function cargarPaginas() {
         </div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.nombre)}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:1px">
-            <span style="color:#1877f2">&#9671;</span> ${fmt(p.fan_count)}
-            ${p.ig_user_id ? `&nbsp;<span style="color:#e1306c">&#9671;</span> ${fmt(p.ig_followers)}` : ''}
+          <div style="font-size:11px;color:var(--text-muted);margin-top:1px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span><span style="color:#1877f2">&#9671;</span> ${fmt(p.fan_count)}</span>
+            ${p.ig_user_id ? `<span><span style="color:#e1306c">&#9671;</span> ${fmt(p.ig_followers)}</span>` : ''}
           </div>
-          ${!p.activa ? '<span style="font-size:10px;color:#f59e0b">⏸ inactiva</span>' : ''}
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+            <span title="WhatsApp vinculado">📲 ${esc(wa)}</span>
+            ${autoActivo ? '<span style="color:#16a34a" title="IA activa">🤖</span>' : ''}
+            ${!p.activa ? '<span style="color:#f59e0b">⏸</span>' : ''}
+            ${!p.page_token_ok ? '<span style="color:#ef4444" title="Sin token">⚠️</span>' : ''}
+          </div>
         </div>
-        ${pendientes > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 7px;flex-shrink:0">${pendientes}</span>` : ''}
+        ${pendientes > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 7px;flex-shrink:0;align-self:flex-start">${pendientes}</span>` : ''}
       </div>
     `}).join('');
 
@@ -505,6 +513,8 @@ async function cargarFeed(append = false) {
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
           ${post.permalink ? `<a href="${esc(post.permalink)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="font-size:11px">🔗 Ver</a>` : ''}
+          <button onclick="verComentariosPost('${esc(post.id)}', '${esc(post.message?.substring(0,40) || '')}...')" class="btn btn-ghost btn-sm" style="font-size:11px">💬 ${post.comments}</button>
+          <button onclick="editarPost('${esc(post.id)}', '${esc((post.message||'').replace(/'/g,"&#39;"))}')" class="btn btn-ghost btn-sm" style="font-size:11px">✏️ Editar</button>
           <button onclick="eliminarPost('${esc(post.id)}')" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Borrar</button>
         </div>
       </div>
@@ -568,6 +578,10 @@ async function cargarIG(append = false) {
           </div>
           ${isVideo    ? '<div class="ig-badge">🎥</div>' : ''}
           ${isCarousel ? '<div class="ig-badge">⊞</div>'  : ''}
+          <button onclick="event.stopPropagation();eliminarIgPost('${esc(p.id)}')"
+            style="position:absolute;bottom:6px;right:6px;background:rgba(239,68,68,.85);color:#fff;border:none;border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;z-index:2">
+            🗑
+          </button>
         </div>
       `;
     }).join('');
@@ -727,6 +741,17 @@ function renderConfig() {
 
     <div style="margin-top:20px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:12px;color:var(--text-muted)">
       💡 Para agregar nuevas páginas usá el botón <strong>+ Agregar</strong> en el sidebar, o conectalas con OAuth mediante <strong>Sincronizar</strong>.
+    </div>
+
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">ZONA DE PELIGRO</div>
+      <button onclick="eliminarPagina('${esc(p.page_id)}', '${esc(p.nombre)}')"
+        class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444440;font-size:12px">
+        🗑 Eliminar página del sistema
+      </button>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+        Solo elimina el registro del CRM — no afecta la página en Facebook
+      </div>
     </div>
   `;
 }
@@ -1197,6 +1222,7 @@ async function cargarInbox() {
                 <button onclick="enviarRespuesta(${i.id})" class="btn btn-primary btn-sm" style="font-size:11px;white-space:nowrap">✉️ Responder</button>
               </div>
               ${esComentario ? `<button onclick="eliminarComentarioInbox(${i.id})" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Eliminar</button>` : ''}
+              <button onclick="ignorarInteraccion(${i.id})" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted)">✗ Ignorar</button>
             </div>
           ` : ''}
         </div>
@@ -1385,6 +1411,196 @@ async function publicarEnPaginas() {
     toast(e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📤 Publicar ahora'; }
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GESTIÓN DE POSTS (EDITAR, COMENTARIOS)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function editarPost(postId, textoActual) {
+  const nuevo = prompt('Editá el texto de la publicación:', textoActual.replace(/&#39;/g, "'"));
+  if (nuevo === null) return;
+  if (!nuevo.trim()) { toast('El texto no puede estar vacío', 'error'); return; }
+
+  fetch(`/api/redes/posts/${encodeURIComponent(postId)}/editar`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ mensaje: nuevo, page_id: _pageId }),
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.ok || j.success) { toast('✅ Publicación actualizada'); cargarFeed(false); }
+    else throw new Error(j.detail || 'Error al editar');
+  })
+  .catch(e => toast(e.message, 'error'));
+}
+
+async function verComentariosPost(postId, titulo) {
+  // Crear/reutilizar modal
+  let modal = document.getElementById('modal-comentarios');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-comentarios';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);border-radius:12px;padding:24px;width:min(600px,100%);max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div id="modal-coments-titulo" style="font-weight:700;font-size:15px"></div>
+          <button onclick="document.getElementById('modal-comentarios').style.display='none'" class="btn btn-ghost btn-sm">✕ Cerrar</button>
+        </div>
+        <div id="modal-coments-body" style="overflow-y:auto;flex:1"></div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  document.getElementById('modal-coments-titulo').textContent = `Comentarios — ${titulo}`;
+  document.getElementById('modal-coments-body').innerHTML =
+    '<div style="color:var(--text-muted);padding:32px;text-align:center">Cargando comentarios…</div>';
+
+  try {
+    const data = await _get(`/api/redes/paginas/${_pageId}/post/${encodeURIComponent(postId)}/comentarios`);
+    if (!data) return;
+
+    if (data.error) {
+      document.getElementById('modal-coments-body').innerHTML =
+        `<div style="color:#f59e0b;padding:20px;text-align:center">${esc(data.error)}</div>`;
+      return;
+    }
+
+    if (!data.comentarios.length) {
+      document.getElementById('modal-coments-body').innerHTML =
+        '<div style="color:var(--text-muted);padding:32px;text-align:center">Sin comentarios todavía</div>';
+      return;
+    }
+
+    document.getElementById('modal-coments-body').innerHTML = data.comentarios.map(c => `
+      <div style="padding:12px;border-radius:8px;background:var(--bg-hover);margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <span style="font-weight:600;font-size:13px">${esc(c.autor_nombre || '—')}</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--text-muted)">${fmtFecha(c.created_at)}</span>
+            ${c.es_negativo ? '<span style="background:#ef444420;color:#ef4444;font-size:10px;padding:2px 5px;border-radius:4px;font-weight:600">⚠️</span>' : ''}
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.5;margin-bottom:8px">${esc(c.mensaje)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="display:flex;gap:4px;flex:1;min-width:160px">
+            <input type="text" placeholder="Responder…" id="rep-post-${esc(c.id).replace(/[^a-z0-9]/gi,'_')}"
+              style="flex:1;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);font-size:12px;color:var(--text)"
+              onkeydown="if(event.key==='Enter')responderComentarioPost('${esc(postId)}','${esc(c.id)}','rep-post-${esc(c.id).replace(/[^a-z0-9]/gi,'_')}')">
+            <button onclick="responderComentarioPost('${esc(postId)}','${esc(c.id)}','rep-post-${esc(c.id).replace(/[^a-z0-9]/gi,'_')}')"
+              class="btn btn-primary btn-sm" style="font-size:11px">Responder</button>
+          </div>
+          <button onclick="eliminarComentarioDirecto('${esc(c.id)}', this)"
+            class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('modal-coments-body').innerHTML =
+      `<div style="color:#f59e0b;padding:20px;text-align:center">${esc(e.message)}</div>`;
+  }
+}
+
+async function responderComentarioPost(postId, commentId, inputId) {
+  const input = document.getElementById(inputId);
+  const texto = input?.value.trim();
+  if (!texto) { toast('Escribí una respuesta', 'error'); return; }
+  try {
+    const r = await fetch('/api/redes/comentario/responder-directo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ comment_id: commentId, respuesta: texto, page_id: _pageId }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    if (input) input.value = '';
+    toast('✅ Respuesta enviada');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function eliminarComentarioDirecto(commentId, btnEl) {
+  const ok = await showConfirm('El comentario se eliminará de Facebook.', '¿Eliminar comentario?');
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/redes/posts/${encodeURIComponent(commentId)}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    btnEl?.closest('[style*="border-radius:8px"]')?.remove();
+    toast('🗑️ Comentario eliminado');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function eliminarIgPost(mediaId) {
+  const ok = await showConfirm('La publicación se eliminará permanentemente de Instagram.', '¿Eliminar post de Instagram?');
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/redes/ig/posts/${encodeURIComponent(mediaId)}?page_id=${_pageId || ''}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error al eliminar');
+    toast('🗑️ Post de Instagram eliminado');
+    cargarIG(false);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ELIMINAR PÁGINA DEL SISTEMA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function eliminarPagina(pageId, nombre) {
+  const ok = await showConfirm(
+    `Se eliminará "${nombre}" del CRM. La página en Facebook no se verá afectada.`,
+    '¿Eliminar página del sistema?'
+  );
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    toast(`🗑️ Página "${nombre}" eliminada del sistema`);
+    _pageId = null;
+    hide('panel-feed'); hide('panel-ig'); hide('panel-stats');
+    hide('panel-config'); hide('panel-auto'); hide('panel-inbox'); hide('panel-publish');
+    show('no-page-msg');
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IGNORAR INTERACCIÓN
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function ignorarInteraccion(id) {
+  try {
+    const r = await fetch(`/api/redes/interacciones/${id}/ignorar`, {
+      method: 'POST', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    const el = document.getElementById('inbox-' + id);
+    if (el) { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }
+  } catch(e) {
+    toast(e.message, 'error');
   }
 }
 

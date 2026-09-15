@@ -1033,6 +1033,27 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
     return HTMLResponse(html)
 
 
+# ─── ELIMINAR PÁGINA DEL SISTEMA ─────────────────────────────────────────────
+
+@router.delete("/api/redes/paginas/{page_id}")
+async def api_redes_pagina_eliminar(
+    page_id: str,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Elimina una página de la base de datos (no afecta Meta)."""
+    roles = _check_access(user, db)
+    if "ADMIN" not in roles:
+        raise HTTPException(403, "Solo ADMIN puede eliminar páginas")
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if not pg:
+        raise HTTPException(404, "Página no encontrada")
+    nombre = pg.nombre
+    db.delete(pg)
+    db.commit()
+    return {"ok": True, "page_id": page_id, "nombre": nombre}
+
+
 # ─── AGREGAR PÁGINA MANUALMENTE ──────────────────────────────────────────────
 
 @router.post("/api/redes/paginas")
@@ -1161,6 +1182,157 @@ async def api_redes_publicar(
         "total": len(resultados),
         "resultados": resultados,
     }
+
+
+# ─── EDITAR POST FACEBOOK ─────────────────────────────────────────────────────
+
+@router.patch("/api/redes/posts/{post_id:path}/editar")
+async def api_redes_editar_post(
+    post_id: str,
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Edita el texto de una publicación de Facebook."""
+    roles = _check_access(user, db)
+    body = await request.json()
+    mensaje = (body.get("mensaje") or "").strip()
+    page_id = (body.get("page_id") or "").strip()
+    if not mensaje:
+        raise HTTPException(400, "El campo 'mensaje' no puede estar vacío")
+
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
+    if not token:
+        raise HTTPException(400, "Sin token de Meta configurado")
+
+    async with httpx.AsyncClient(timeout=15) as hc:
+        r = await hc.post(
+            f"{META_GRAPH_URL}/{post_id}",
+            params={"access_token": token},
+            json={"message": mensaje},
+        )
+    data = r.json() if r.content else {}
+    if r.status_code not in (200, 201) or "error" in data:
+        raise HTTPException(400, data.get("error", {}).get("message", r.text[:200]))
+    return {"ok": data.get("success", True)}
+
+
+# ─── ELIMINAR POST INSTAGRAM ──────────────────────────────────────────────────
+
+@router.delete("/api/redes/ig/posts/{media_id}")
+async def api_redes_delete_ig_post(
+    media_id: str,
+    page_id: Optional[str] = None,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Elimina un post de Instagram Business."""
+    roles = _check_access(user, db)
+    if "ADMIN" not in roles:
+        raise HTTPException(403, "Solo ADMIN puede eliminar publicaciones")
+
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first() if page_id else None
+    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
+    if not token:
+        raise HTTPException(400, "Sin token de Meta configurado")
+
+    async with httpx.AsyncClient(timeout=15) as hc:
+        r = await hc.delete(
+            f"{META_GRAPH_URL}/{media_id}",
+            params={"access_token": token},
+        )
+    if r.status_code not in (200, 204):
+        err = r.json().get("error", {}) if r.content else {}
+        raise HTTPException(400, err.get("message", r.text[:200] or "Error al eliminar"))
+    result = r.json() if r.content else {}
+    return {"ok": result.get("success", True)}
+
+
+# ─── COMENTARIOS DE UN POST ────────────────────────────────────────────────────
+
+@router.get("/api/redes/paginas/{page_id}/post/{post_id:path}/comentarios")
+async def api_redes_post_comentarios(
+    page_id: str,
+    post_id: str,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Obtiene los comentarios de un post de Facebook."""
+    _check_access(user, db)
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
+    if not token:
+        return {"comentarios": [], "error": "Sin token de Meta"}
+
+    try:
+        data = await _meta_get(
+            f"{META_GRAPH_URL}/{post_id}/comments",
+            {"fields": "id,message,from,created_time,like_count,can_remove", "access_token": token, "limit": "50"},
+        )
+    except HTTPException as e:
+        return {"comentarios": [], "error": e.detail}
+
+    return {
+        "comentarios": [
+            {
+                "id": c.get("id"),
+                "mensaje": c.get("message", ""),
+                "autor_nombre": c.get("from", {}).get("name", ""),
+                "autor_id": c.get("from", {}).get("id", ""),
+                "created_at": c.get("created_time"),
+                "likes": c.get("like_count", 0),
+                "puede_eliminar": c.get("can_remove", False),
+                "es_negativo": _es_negativo(c.get("message", "")),
+            }
+            for c in data.get("data", [])
+        ]
+    }
+
+
+# ─── RESPONDER COMENTARIO DIRECTAMENTE (SIN INTERACCIÓN PREVIA) ──────────────
+
+@router.post("/api/redes/comentario/responder-directo")
+async def api_redes_responder_directo(
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Responde a cualquier comment_id de Facebook directamente, sin pasar por la tabla de interacciones."""
+    _check_access(user, db)
+    body = await request.json()
+    comment_id = (body.get("comment_id") or "").strip()
+    respuesta = (body.get("respuesta") or "").strip()
+    page_id = (body.get("page_id") or "").strip()
+
+    if not comment_id or not respuesta:
+        raise HTTPException(400, "comment_id y respuesta son requeridos")
+
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
+    if not token:
+        raise HTTPException(400, "Sin token de Meta configurado")
+
+    ok = await _responder_comentario(comment_id, respuesta, token)
+    return {"ok": ok}
+
+
+# ─── IGNORAR / ARCHIVAR INTERACCIÓN ──────────────────────────────────────────
+
+@router.post("/api/redes/interacciones/{interaccion_id}/ignorar")
+async def api_redes_ignorar_interaccion(
+    interaccion_id: int,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Marca una interacción como ignorada sin enviar nada a Meta."""
+    _check_access(user, db)
+    interaccion = db.query(FacebookInteraccion).filter(FacebookInteraccion.id == interaccion_id).first()
+    if not interaccion:
+        raise HTTPException(404, "Interacción no encontrada")
+    interaccion.accion = "ignorado"
+    db.commit()
+    return {"ok": True, "interaccion_id": interaccion_id}
 
 
 # ─── RESUMEN DE INTERACCIONES PENDIENTES POR PÁGINA ──────────────────────────

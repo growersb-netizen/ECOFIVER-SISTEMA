@@ -332,6 +332,7 @@ async def api_redes_stats(
 @router.delete("/api/redes/posts/{post_id:path}")
 async def api_redes_delete_post(
     post_id: str,
+    page_id: Optional[str] = None,
     user: Usuario = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
@@ -340,9 +341,15 @@ async def api_redes_delete_post(
     if "ADMIN" not in roles:
         raise HTTPException(403, "Solo ADMIN puede eliminar publicaciones")
 
-    token = get_config_value("meta_page_access_token", db)
+    token = None
+    if page_id:
+        pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+        if pg and pg.page_token:
+            token = pg.page_token
     if not token:
-        raise HTTPException(400, "Sin token de Meta configurado")
+        token = get_config_value("meta_page_access_token", db)
+    if not token:
+        raise HTTPException(400, "page token is required to delete post on page — configurá el token en la página")
 
     async with httpx.AsyncClient(timeout=15) as hc:
         r = await hc.delete(

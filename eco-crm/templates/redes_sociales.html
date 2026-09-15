@@ -404,7 +404,7 @@ async function cargarPaginas() {
 
     lista.innerHTML = _paginas.map(p => {
       const pendientes = _pendientesPorPagina[p.page_id] || 0;
-      const wa = p.numero_whatsapp || '1144498854';
+      const wa = p.numero_whatsapp || '';
       const autoActivo = p.auto_reply_comentarios || p.auto_reply_mensajes || p.auto_eliminar_negativos;
       return `
       <div class="page-card" id="pcard-${esc(p.page_id)}" onclick="selectPage('${esc(p.page_id)}')">
@@ -420,7 +420,7 @@ async function cargarPaginas() {
             ${p.ig_user_id ? `<span><span style="color:#e1306c">&#9671;</span> ${fmt(p.ig_followers)}</span>` : ''}
           </div>
           <div style="font-size:10px;color:var(--text-muted);margin-top:2px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-            <span title="WhatsApp vinculado">📲 ${esc(wa)}</span>
+            <span title="WhatsApp vinculado" style="${wa ? '' : 'color:#f59e0b'}">📲 ${wa ? esc(wa) : 'sin configurar'}</span>
             ${autoActivo ? '<span style="color:#16a34a" title="IA activa">🤖</span>' : ''}
             ${!p.activa ? '<span style="color:#f59e0b">⏸</span>' : ''}
             ${!p.page_token_ok ? '<span style="color:#ef4444" title="Sin token">⚠️</span>' : ''}
@@ -515,7 +515,7 @@ async function cargarFeed(append = false) {
           ${post.permalink ? `<a href="${esc(post.permalink)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="font-size:11px">🔗 Ver</a>` : ''}
           <button onclick="verComentariosPost('${esc(post.id)}', '${esc(post.message?.substring(0,40) || '')}...')" class="btn btn-ghost btn-sm" style="font-size:11px">💬 ${post.comments}</button>
           <button onclick="editarPost('${esc(post.id)}', '${esc((post.message||'').replace(/'/g,"&#39;"))}')" class="btn btn-ghost btn-sm" style="font-size:11px">✏️ Editar</button>
-          <button onclick="eliminarPost('${esc(post.id)}')" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Borrar</button>
+          <button onclick="eliminarPost('${esc(post.id)}', '${esc(_pageId)}')" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Borrar</button>
         </div>
       </div>
     `).join('');
@@ -813,12 +813,13 @@ async function toggleActiva(pageId, activa) {
 }
 
 /* ─── eliminar post ──────────────────────────────────────────────────────── */
-async function eliminarPost(postId) {
+async function eliminarPost(postId, pageId) {
   const ok = await showConfirm('Esta acción es permanente y no se puede deshacer.', '¿Eliminar publicación?');
   if (!ok) return;
 
   try {
-    const r = await fetch('/api/redes/posts/' + encodeURIComponent(postId), {
+    const qs = pageId ? `?page_id=${encodeURIComponent(pageId)}` : '';
+    const r = await fetch('/api/redes/posts/' + encodeURIComponent(postId) + qs, {
       method: 'DELETE', credentials: 'include',
     });
     if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error al eliminar'); }
@@ -936,8 +937,8 @@ async function renderAuto() {
     try { _fbConfig = await _get('/api/redes/facebook/config'); } catch(e) { _fbConfig = {}; }
   }
 
-  const wa = pg.numero_whatsapp || '1144498854';
-  const waUrl = 'https://wa.me/' + (wa.startsWith('54') ? wa : '54'+wa);
+  const wa = pg.numero_whatsapp || '';
+  const waUrl = wa ? ('https://wa.me/' + (wa.startsWith('54') ? wa : '54'+wa)) : null;
 
   el.innerHTML = `
     <div style="display:grid;gap:14px">
@@ -961,7 +962,7 @@ async function renderAuto() {
               style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);font-size:13px;color:var(--text)">
             <button onclick="guardarAutoConfig('${esc(pg.page_id)}')" class="btn btn-primary btn-sm">Guardar</button>
           </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Link generado: <a href="${waUrl}" target="_blank" style="color:var(--accent)">${waUrl}</a></div>
+          ${waUrl ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Link generado: <a href="${waUrl}" target="_blank" style="color:var(--accent)">${waUrl}</a></div>` : `<div style="font-size:11px;color:#f59e0b;margin-top:4px">⚠️ Ingresá el número para generar el link WA</div>`}
         </div>
 
         <!-- Conectar Facebook si no hay token + Suscribir webhook -->
@@ -1191,8 +1192,8 @@ async function cargarInbox() {
       const esComentario = i.tipo === 'comentario';
       const pg = _paginas.find(p => p.page_id === i.page_id);
       const pgNombre = pg ? pg.nombre : i.page_id;
-      const wa = pg ? (pg.numero_whatsapp || '1144498854') : '1144498854';
-      const waUrl = 'https://wa.me/' + (wa.startsWith('54') ? wa : '54' + wa);
+      const wa = pg ? (pg.numero_whatsapp || '') : '';
+      const waUrl = wa ? ('https://wa.me/' + (wa.startsWith('54') ? wa : '54' + wa)) : null;
       return `
         <div class="post-card" id="inbox-${i.id}" style="flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
@@ -1217,7 +1218,10 @@ async function cargarInbox() {
           ` : ''}
           <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
             <span>📲 Deriva a:</span>
-            <a href="${waUrl}" target="_blank" rel="noopener" style="color:#25d366;font-weight:600;text-decoration:none">${esc(wa)}</a>
+            ${waUrl
+              ? `<a href="${waUrl}" target="_blank" rel="noopener" style="color:#25d366;font-weight:600;text-decoration:none">${esc(wa)}</a>`
+              : `<span style="color:#f59e0b;font-weight:500">sin WhatsApp configurado</span>`
+            }
           </div>
           ${i.respuesta_enviada ? `
             <div style="font-size:12px;color:var(--text-muted);padding:8px 12px;border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:color-mix(in srgb,var(--accent) 6%,transparent)">

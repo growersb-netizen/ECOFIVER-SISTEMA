@@ -282,6 +282,9 @@
           <option value="eliminado">Eliminados</option>
         </select>
         <button onclick="cargarInbox()" class="btn btn-ghost btn-sm">🔄 Actualizar</button>
+        <button onclick="importarDesdeFA()" class="btn btn-primary btn-sm" id="btn-importar-fb" title="Trae mensajes y comentarios existentes desde Facebook">
+          📥 Importar desde FB
+        </button>
       </div>
       <div id="inbox-loading" style="color:var(--text-muted);padding:32px;text-align:center">Cargando interacciones…</div>
       <div id="inbox-list"></div>
@@ -1182,6 +1185,45 @@ async function guardarTokenManual() {
    INBOX — comentarios y mensajes
    ═══════════════════════════════════════════════════════════════════════════ */
 
+async function importarDesdeFA() {
+  const btn = document.getElementById('btn-importar-fb');
+  const pageId = document.getElementById('inbox-filtro-pagina')?.value || '';
+  if (!pageId) {
+    // importar de todas las páginas activas
+    const paginas = _paginas.filter(p => p.activa && p.page_token_ok);
+    if (!paginas.length) { toast('No hay páginas con token configurado para importar', 'error'); return; }
+    btn.disabled = true; btn.textContent = '⏳ Importando…';
+    let total = 0;
+    for (const p of paginas) {
+      try {
+        const r = await fetch(`/api/redes/paginas/${encodeURIComponent(p.page_id)}/importar-inbox`, {
+          method: 'POST', credentials: 'include',
+        });
+        const j = await r.json().catch(()=>({}));
+        if (j.importados) total += j.importados;
+      } catch(e) {}
+    }
+    btn.disabled = false; btn.textContent = '📥 Importar desde FB';
+    toast(`✅ ${total} interaccion${total !== 1 ? 'es' : ''} importada${total !== 1 ? 's' : ''} desde Facebook`);
+    cargarInbox();
+    return;
+  }
+  btn.disabled = true; btn.textContent = '⏳ Importando…';
+  try {
+    const r = await fetch(`/api/redes/paginas/${encodeURIComponent(pageId)}/importar-inbox`, {
+      method: 'POST', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(j.detail || 'Error al importar');
+    toast(`✅ ${j.importados} interaccion${j.importados !== 1 ? 'es' : ''} importada${j.importados !== 1 ? 's' : ''}`);
+    cargarInbox();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📥 Importar desde FB';
+  }
+}
+
 async function cargarInbox() {
   const listEl = document.getElementById('inbox-list');
   const loadEl = document.getElementById('inbox-loading');
@@ -1204,7 +1246,16 @@ async function cargarInbox() {
     loadEl.style.display = 'none';
 
     if (!data || !data.length) {
-      listEl.innerHTML = '<div style="color:var(--text-muted);padding:32px;text-align:center;font-size:13px">Sin interacciones registradas</div>';
+      listEl.innerHTML = `<div style="padding:32px;text-align:center">
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:12px">Sin interacciones registradas</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          El inbox muestra mensajes y comentarios recibidos desde que se configuró el webhook.<br>
+          Para ver conversaciones y comentarios ya existentes en Facebook:
+        </div>
+        <button onclick="importarDesdeFA()" class="btn btn-primary btn-sm">
+          📥 Importar mensajes y comentarios desde Facebook
+        </button>
+      </div>`;
       return;
     }
 

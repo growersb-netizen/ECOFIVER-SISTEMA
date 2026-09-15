@@ -322,6 +322,8 @@
       }).catch(function () { /* silencioso: WhatsApp sigue funcionando igual */ });
     } catch (err) { /* fetch no disponible o CRM caído: no bloquea nada */ }
 
+    if (typeof fbq === 'function') { fbq('track', 'Lead', { content_name: interes }); }
+
     window.open(waLink(texto), "_blank", "noopener");
 
     const submitBtn = leadForm.querySelector('button[type="submit"]');

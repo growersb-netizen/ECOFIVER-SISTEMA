@@ -1182,20 +1182,22 @@ async function cargarInbox() {
     }
 
     const ACCION_COLOR = { respondido:'#16a34a', eliminado:'#ef4444', pendiente:'#f59e0b', error:'#8b5cf6', ignorado:'#6b7280' };
-    const TIPO_ICON = { comentario:'💬', mensaje:'✉️', eliminado:'🗑️' };
+    const TIPO_LABEL = { comentario:'💬 Comentario público', mensaje:'✉️ Mensaje privado' };
 
     listEl.innerHTML = data.map(i => {
       const color = ACCION_COLOR[i.accion] || '#6b7280';
-      const icon  = TIPO_ICON[i.tipo] || '📌';
+      const tipoLabel = TIPO_LABEL[i.tipo] || i.tipo;
       const esPendiente = i.accion === 'pendiente';
       const esComentario = i.tipo === 'comentario';
       const pg = _paginas.find(p => p.page_id === i.page_id);
       const pgNombre = pg ? pg.nombre : i.page_id;
+      const wa = pg ? (pg.numero_whatsapp || '1144498854') : '1144498854';
+      const waUrl = 'https://wa.me/' + (wa.startsWith('54') ? wa : '54' + wa);
       return `
         <div class="post-card" id="inbox-${i.id}" style="flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span style="font-size:16px">${icon}</span>
+              <span style="font-size:12px;font-weight:600;background:${esComentario ? '#1877f220' : '#e1306c20'};color:${esComentario ? '#1877f2' : '#e1306c'};padding:2px 8px;border-radius:6px">${tipoLabel}</span>
               <span style="font-weight:600;font-size:13px">${esc(i.usuario_nombre || i.usuario_id || '—')}</span>
               <span style="font-size:11px;color:var(--text-muted)">${fmtFecha(i.created_at)}</span>
               <span style="font-size:10px;color:var(--text-muted);background:var(--bg-hover);padding:2px 6px;border-radius:4px">${esc(pgNombre)}</span>
@@ -1213,15 +1215,29 @@ async function cargarInbox() {
               <strong>Respuesta enviada:</strong> ${esc(i.respuesta_enviada)}
             </div>
           ` : ''}
+          <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
+            <span>📲 Deriva a:</span>
+            <a href="${waUrl}" target="_blank" rel="noopener" style="color:#25d366;font-weight:600;text-decoration:none">${esc(wa)}</a>
+          </div>
+          ${i.respuesta_enviada ? `
+            <div style="font-size:12px;color:var(--text-muted);padding:8px 12px;border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:color-mix(in srgb,var(--accent) 6%,transparent)">
+              <strong>Respuesta enviada:</strong> ${esc(i.respuesta_enviada)}
+            </div>
+          ` : ''}
           ${esPendiente ? `
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-              <div style="flex:1;min-width:180px;display:flex;gap:6px">
-                <input id="reply-${i.id}" type="text" placeholder="Escribir respuesta…"
+              <button onclick="responderConIA(${i.id})" class="btn btn-primary btn-sm" style="font-size:11px;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-color:transparent;white-space:nowrap">
+                🤖 Responder con IA + WA
+              </button>
+              <div style="flex:1;min-width:160px;display:flex;gap:6px">
+                <input id="reply-${i.id}" type="text" placeholder="Respuesta manual…"
                   style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);font-size:12px;color:var(--text)"
                   onkeydown="if(event.key==='Enter')enviarRespuesta(${i.id})">
-                <button onclick="enviarRespuesta(${i.id})" class="btn btn-primary btn-sm" style="font-size:11px;white-space:nowrap">✉️ Responder</button>
+                <button onclick="enviarRespuesta(${i.id})" class="btn btn-ghost btn-sm" style="font-size:11px;white-space:nowrap">Enviar</button>
               </div>
-              ${esComentario ? `<button onclick="eliminarComentarioInbox(${i.id})" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Eliminar</button>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${esComentario ? `<button onclick="eliminarComentarioInbox(${i.id})" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Eliminar comentario</button>` : ''}
               <button onclick="ignorarInteraccion(${i.id})" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted)">✗ Ignorar</button>
             </div>
           ` : ''}
@@ -1601,6 +1617,25 @@ async function ignorarInteraccion(id) {
     if (el) { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }
   } catch(e) {
     toast(e.message, 'error');
+  }
+}
+
+
+async function responderConIA(id) {
+  const btn = document.querySelector(`[onclick="responderConIA(${id})"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+  try {
+    const r = await fetch(`/api/redes/interacciones/${id}/responder-ia`, {
+      method: 'POST', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error al responder con IA');
+    toast('✅ Respuesta enviada con IA', 'success');
+    const el = document.getElementById('inbox-' + id);
+    if (el) { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Responder con IA + WA'; }
   }
 }
 

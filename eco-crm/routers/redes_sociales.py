@@ -1317,6 +1317,46 @@ async def api_redes_responder_directo(
     return {"ok": ok}
 
 
+# ─── RESPONDER CON IA (TRIGGER MANUAL) ───────────────────────────────────────
+
+@router.post("/api/redes/interacciones/{interaccion_id}/responder-ia")
+async def api_redes_responder_con_ia(
+    interaccion_id: int,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Genera respuesta con IA (con link WA) y la envía para una interacción pendiente.
+    Permite triggear manualmente la IA aunque el toggle automático esté desactivado.
+    """
+    _check_access(user, db)
+    interaccion = db.query(FacebookInteraccion).filter(FacebookInteraccion.id == interaccion_id).first()
+    if not interaccion:
+        raise HTTPException(404, "Interacción no encontrada")
+
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == interaccion.page_id).first()
+    if not pg or not pg.page_token:
+        raise HTTPException(400, "Página sin token — no se puede responder")
+
+    numero_wa = pg.numero_whatsapp or "1144498854"
+    respuesta = await _generar_respuesta_ia(
+        interaccion.contenido or "", pg.nombre, numero_wa, db
+    )
+
+    ok = False
+    if interaccion.tipo == "mensaje":
+        ok = await _responder_mensaje(interaccion.usuario_id, respuesta, pg.page_token)
+    elif interaccion.tipo == "comentario":
+        ok = await _responder_comentario(interaccion.objeto_id, respuesta, pg.page_token)
+
+    if ok:
+        interaccion.accion = "respondido"
+        interaccion.respuesta_enviada = respuesta
+        db.commit()
+
+    return {"ok": ok, "respuesta": respuesta, "interaccion_id": interaccion_id}
+
+
 # ─── IGNORAR / ARCHIVAR INTERACCIÓN ──────────────────────────────────────────
 
 @router.post("/api/redes/interacciones/{interaccion_id}/ignorar")

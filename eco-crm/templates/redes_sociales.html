@@ -111,7 +111,21 @@
   <!-- Sidebar: lista de páginas -->
   <div class="redes-sidebar">
     <div class="card" style="padding:14px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text-muted);letter-spacing:.05em">PÁGINAS</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.05em">PÁGINAS</div>
+        <button onclick="abrirAgregarPagina()" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px">+ Agregar</button>
+      </div>
+      <!-- Formulario inline agregar página (oculto por defecto) -->
+      <div id="form-agregar-pagina" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Nueva página</div>
+        <input id="add-pg-nombre" type="text" placeholder="Nombre de la página" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;margin-bottom:6px">
+        <input id="add-pg-id" type="text" placeholder="Page ID (ej: 123456789)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:6px">
+        <input id="add-pg-token" type="text" placeholder="Page Token (opcional)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px">
+        <div style="display:flex;gap:6px">
+          <button onclick="agregarPagina()" class="btn btn-primary btn-sm" style="flex:1;font-size:12px">Agregar</button>
+          <button onclick="cerrarAgregarPagina()" class="btn btn-ghost btn-sm" style="font-size:12px">Cancelar</button>
+        </div>
+      </div>
       <div id="paginas-lista">
         <div style="color:var(--text-muted);font-size:13px;padding:24px 0;text-align:center">Cargando…</div>
       </div>
@@ -128,6 +142,7 @@
       <button onclick="setTab('config')" id="tab-config" class="tab-btn">⚙️ Página</button>
       <button onclick="setTab('auto')" id="tab-auto" class="tab-btn">🤖 Automatización</button>
       <button onclick="setTab('inbox')" id="tab-inbox" class="tab-btn">💬 Inbox</button>
+      <button onclick="setTab('publish')" id="tab-publish" class="tab-btn">📤 Publicar</button>
     </div>
 
     <!-- Aviso sin página seleccionada -->
@@ -187,9 +202,71 @@
       </div>
     </div>
 
+    <!-- ── PUBLICAR ──────────────────────────────────────────── -->
+    <div id="panel-publish" style="display:none">
+      <div class="card" style="padding:20px">
+        <!-- Selector de páginas -->
+        <div style="margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.05em;margin-bottom:8px">PÁGINAS DESTINO</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+            <button onclick="togglePubTodas()" id="btn-pub-todas" class="btn btn-primary btn-sm">✓ Todas las páginas</button>
+            <span id="pub-seleccion-info" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <div id="pub-paginas-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:190px;overflow-y:auto;padding:2px 0"></div>
+        </div>
+
+        <!-- Texto -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.05em;margin-bottom:6px">TEXTO</div>
+          <textarea id="pub-texto" rows="4" placeholder="Escribí el texto de la publicación..."
+            style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:13px;resize:vertical;line-height:1.55;font-family:inherit"></textarea>
+        </div>
+
+        <!-- Imagen URL -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.05em;margin-bottom:6px">IMAGEN — URL pública (opcional)</div>
+          <div style="display:flex;gap:8px">
+            <input id="pub-imagen-url" type="url" placeholder="https://..."
+              style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:13px"
+              oninput="updatePubImgPreview()">
+            <button onclick="document.getElementById('pub-imagen-url').value='';updatePubImgPreview()" class="btn btn-ghost btn-sm">✕</button>
+          </div>
+          <div id="pub-img-wrap" style="display:none;margin-top:8px">
+            <img id="pub-img-thumb" style="max-height:130px;border-radius:8px;border:1px solid var(--border)" alt="Preview de imagen"
+              onerror="document.getElementById('pub-img-wrap').style.display='none'">
+          </div>
+        </div>
+
+        <!-- Toggle Instagram -->
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-hover);border-radius:8px;margin-bottom:16px">
+          <div>
+            <div style="font-size:13px;font-weight:500">📸 Publicar también en Instagram</div>
+            <div style="font-size:11px;color:var(--text-muted)">Solo para páginas con IG Business vinculado + imagen cargada</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:42px;height:22px;flex-shrink:0;cursor:pointer">
+            <input type="checkbox" id="sw-pub-ig" onchange="updateSwIG(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+            <span id="sw-ig-track" style="position:absolute;inset:0;border-radius:22px;background:var(--border);transition:.2s;cursor:pointer">
+              <span id="sw-ig-thumb" style="position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Resultados previos -->
+        <div id="pub-resultados" style="display:none;margin-bottom:14px"></div>
+
+        <!-- Botón -->
+        <button onclick="publicarEnPaginas()" id="btn-publicar" class="btn btn-primary" style="width:100%;font-size:14px;padding:11px">
+          📤 Publicar ahora
+        </button>
+      </div>
+    </div>
+
     <!-- ── INBOX ───────────────────────────────────────────── -->
     <div id="panel-inbox" style="display:none">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <select id="inbox-filtro-pagina" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px;max-width:180px">
+          <option value="">Todas las páginas</option>
+        </select>
         <select id="inbox-filtro-tipo" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px">
           <option value="">Todos los tipos</option>
           <option value="comentario">Comentarios</option>
@@ -197,7 +274,7 @@
         </select>
         <select id="inbox-filtro-accion" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px">
           <option value="pendiente">Pendientes</option>
-          <option value="">Todos</option>
+          <option value="">Todos los estados</option>
           <option value="respondido">Respondidos</option>
           <option value="eliminado">Eliminados</option>
         </select>
@@ -262,7 +339,7 @@ function showBlock(id) { const el = document.getElementById(id); if (el) el.styl
 /* ─── tabs ───────────────────────────────────────────────────────────────── */
 function setTab(tab) {
   _curTab = tab;
-  ['feed','ig','stats','config','auto','inbox'].forEach(t => {
+  ['feed','ig','stats','config','auto','inbox','publish'].forEach(t => {
     document.getElementById('tab-' + t)?.classList.toggle('tab-active', t === tab);
     const p = document.getElementById('panel-' + t);
     if (p) p.style.display = t === tab ? 'block' : 'none';
@@ -276,14 +353,20 @@ function _loadTab(tab) {
   else if (tab === 'ig')    cargarIG(false);
   else if (tab === 'stats') cargarStats();
   else if (tab === 'config') renderConfig();
-  else if (tab === 'auto') renderAuto();
+  else if (tab === 'auto')   renderAuto();
+  else if (tab === 'publish') renderPublish();
   else if (tab === 'inbox') cargarInbox();
 }
 
 /* ─── páginas ────────────────────────────────────────────────────────────── */
+let _pendientesPorPagina = {};
+
 async function cargarPaginas() {
   try {
-    _paginas = await _get('/api/redes/paginas');
+    [_paginas, _pendientesPorPagina] = await Promise.all([
+      _get('/api/redes/paginas'),
+      _get('/api/redes/interacciones/resumen').catch(() => ({})),
+    ]);
     if (!_paginas) return;
 
     // KPIs
@@ -318,7 +401,9 @@ async function cargarPaginas() {
       return;
     }
 
-    lista.innerHTML = _paginas.map(p => `
+    lista.innerHTML = _paginas.map(p => {
+      const pendientes = _pendientesPorPagina[p.page_id] || 0;
+      return `
       <div class="page-card" id="pcard-${esc(p.page_id)}" onclick="selectPage('${esc(p.page_id)}')">
         <div class="page-avatar">
           ${p.picture
@@ -333,8 +418,21 @@ async function cargarPaginas() {
           </div>
           ${!p.activa ? '<span style="font-size:10px;color:#f59e0b">⏸ inactiva</span>' : ''}
         </div>
+        ${pendientes > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 7px;flex-shrink:0">${pendientes}</span>` : ''}
       </div>
-    `).join('');
+    `}).join('');
+
+    // Poblar selector de páginas del inbox
+    const sel = document.getElementById('inbox-filtro-pagina');
+    if (sel) {
+      const curVal = sel.value;
+      sel.innerHTML = '<option value="">Todas las páginas</option>' +
+        _paginas.map(p => `<option value="${esc(p.page_id)}">${esc(p.nombre)}</option>`).join('');
+      sel.value = curVal;
+    }
+
+    // Si el tab publish está activo, re-renderizarlo
+    if (_curTab === 'publish') renderPublish();
 
     // Auto-select primera activa
     const primera = _paginas.find(p => p.activa) || _paginas[0];
@@ -611,10 +709,46 @@ function renderConfig() {
       </div>
     </div>
 
+    <div class="cfg-row">
+      <div class="cfg-label">Page Access Token</div>
+      <div style="display:flex;gap:8px">
+        <input id="cfg-page-token" type="password" value="${esc(p.page_token_ok ? '••••••••' : '')}"
+          placeholder="${p.page_token_ok ? 'Token cargado (haz clic para cambiar)' : 'Pegá el Page Access Token'}"
+          onfocus="if(this.value==='••••••••')this.value=''"
+          style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);font-size:13px;font-family:monospace;color:var(--text)">
+        <button onclick="guardarPageToken('${esc(p.page_id)}')" class="btn btn-primary btn-sm">Guardar</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+        Estado: ${p.page_token_ok
+          ? '<span style="color:#16a34a;font-weight:600">✅ Token cargado</span>'
+          : '<span style="color:#f59e0b;font-weight:600">⚠️ Sin token — las publicaciones y el webhook no funcionarán</span>'}
+      </div>
+    </div>
+
     <div style="margin-top:20px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:12px;color:var(--text-muted)">
-      💡 Para agregar nuevas páginas, vincinalas al System User en Meta Business Suite y luego hacé clic en <strong>Sincronizar</strong>.
+      💡 Para agregar nuevas páginas usá el botón <strong>+ Agregar</strong> en el sidebar, o conectalas con OAuth mediante <strong>Sincronizar</strong>.
     </div>
   `;
+}
+
+async function guardarPageToken(pageId) {
+  const token = document.getElementById('cfg-page-token')?.value.trim();
+  if (!token) { toast('Pegá el Page Access Token primero', 'error'); return; }
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ page_token: token }),
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error'); }
+    const p = _paginas.find(x => x.page_id === pageId);
+    if (p) p.page_token_ok = true;
+    toast('✅ Page Token guardado');
+    renderConfig();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function guardarIgId(pageId) {
@@ -1004,11 +1138,12 @@ async function cargarInbox() {
   loadEl.style.display = 'block';
   listEl.innerHTML = '';
 
-  const tipo   = document.getElementById('inbox-filtro-tipo')?.value || '';
-  const accion = document.getElementById('inbox-filtro-accion')?.value || '';
+  const filtPagina = document.getElementById('inbox-filtro-pagina')?.value || '';
+  const tipo       = document.getElementById('inbox-filtro-tipo')?.value || '';
+  const accion     = document.getElementById('inbox-filtro-accion')?.value || '';
 
-  let url = `/api/redes/interacciones?limit=60`;
-  if (_pageId) url += `&page_id=${_pageId}`;
+  let url = `/api/redes/interacciones?limit=100`;
+  if (filtPagina) url += `&page_id=${filtPagina}`;
   if (tipo)   url += `&tipo=${tipo}`;
   if (accion) url += `&accion=${accion}`;
 
@@ -1029,6 +1164,8 @@ async function cargarInbox() {
       const icon  = TIPO_ICON[i.tipo] || '📌';
       const esPendiente = i.accion === 'pendiente';
       const esComentario = i.tipo === 'comentario';
+      const pg = _paginas.find(p => p.page_id === i.page_id);
+      const pgNombre = pg ? pg.nombre : i.page_id;
       return `
         <div class="post-card" id="inbox-${i.id}" style="flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
@@ -1036,6 +1173,7 @@ async function cargarInbox() {
               <span style="font-size:16px">${icon}</span>
               <span style="font-weight:600;font-size:13px">${esc(i.usuario_nombre || i.usuario_id || '—')}</span>
               <span style="font-size:11px;color:var(--text-muted)">${fmtFecha(i.created_at)}</span>
+              <span style="font-size:10px;color:var(--text-muted);background:var(--bg-hover);padding:2px 6px;border-radius:4px">${esc(pgNombre)}</span>
               ${i.sentimiento === 'negativo' ? '<span style="background:#ef444420;color:#ef4444;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">⚠️ NEGATIVO</span>' : ''}
             </div>
             <span style="font-size:11px;background:${color}20;color:${color};padding:3px 8px;border-radius:5px;font-weight:600;white-space:nowrap">
@@ -1105,6 +1243,194 @@ async function eliminarComentarioInbox(id) {
     toast(e.message, 'error');
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PUBLICAR EN PÁGINAS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let _pubTodas = true;
+let _pubSeleccionadas = new Set();
+
+function renderPublish() {
+  _pubSeleccionadas = new Set(_paginas.map(p => p.page_id));
+  _renderPubPaginas();
+}
+
+function _renderPubPaginas() {
+  const lista = document.getElementById('pub-paginas-lista');
+  if (!lista) return;
+
+  lista.innerHTML = _paginas.map(p => {
+    const checked = _pubTodas || _pubSeleccionadas.has(p.page_id);
+    const disabled = _pubTodas;
+    const highlighted = !_pubTodas && checked;
+    return `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;
+      background:${highlighted ? 'color-mix(in srgb,var(--accent) 10%,transparent)' : 'var(--bg-hover)'};
+      border:1px solid ${highlighted ? 'var(--accent)' : 'transparent'}">
+      <input type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}
+        onchange="togglePubPagina('${esc(p.page_id)}', this.checked)"
+        style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
+      <div class="page-avatar" style="width:26px;height:26px;font-size:12px;flex-shrink:0">
+        ${p.picture ? `<img src="${esc(p.picture)}" onerror="this.parentElement.innerHTML='📄'">` : '📄'}
+      </div>
+      <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.nombre)}</span>
+      ${!p.page_token_ok ? '<span style="font-size:10px;color:#f59e0b;flex-shrink:0">sin token</span>' : ''}
+    </label>`;
+  }).join('');
+
+  const info = document.getElementById('pub-seleccion-info');
+  if (info) {
+    const count = _pubTodas ? _paginas.length : _pubSeleccionadas.size;
+    info.textContent = `${count} página${count !== 1 ? 's' : ''}`;
+  }
+}
+
+function togglePubTodas() {
+  _pubTodas = !_pubTodas;
+  const btn = document.getElementById('btn-pub-todas');
+  if (btn) {
+    btn.textContent = _pubTodas ? '✓ Todas las páginas' : 'Elegir páginas';
+    btn.className = _pubTodas ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  }
+  if (_pubTodas) _pubSeleccionadas = new Set(_paginas.map(p => p.page_id));
+  _renderPubPaginas();
+}
+
+function togglePubPagina(pageId, checked) {
+  if (checked) _pubSeleccionadas.add(pageId); else _pubSeleccionadas.delete(pageId);
+  _renderPubPaginas();
+}
+
+function updatePubImgPreview() {
+  const url = document.getElementById('pub-imagen-url')?.value.trim();
+  const wrap = document.getElementById('pub-img-wrap');
+  const thumb = document.getElementById('pub-img-thumb');
+  if (url && wrap && thumb) {
+    thumb.src = url;
+    wrap.style.display = 'block';
+  } else if (wrap) {
+    wrap.style.display = 'none';
+  }
+}
+
+function updateSwIG(checked) {
+  const track = document.getElementById('sw-ig-track');
+  const thumb = document.getElementById('sw-ig-thumb');
+  if (track) track.style.background = checked ? 'var(--accent)' : 'var(--border)';
+  if (thumb) thumb.style.left = checked ? '22px' : '2px';
+}
+
+async function publicarEnPaginas() {
+  const texto = (document.getElementById('pub-texto')?.value || '').trim();
+  const imagen_url = (document.getElementById('pub-imagen-url')?.value || '').trim();
+  const publicar_ig = document.getElementById('sw-pub-ig')?.checked || false;
+
+  if (!texto && !imagen_url) {
+    toast('Escribí un texto o pegá una URL de imagen', 'error');
+    return;
+  }
+  if (!_pubTodas && _pubSeleccionadas.size === 0) {
+    toast('Seleccioná al menos una página', 'error');
+    return;
+  }
+
+  const page_ids = _pubTodas ? 'all' : [..._pubSeleccionadas];
+  const btn = document.getElementById('btn-publicar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; }
+
+  const resEl = document.getElementById('pub-resultados');
+  if (resEl) resEl.style.display = 'none';
+
+  try {
+    const r = await fetch('/api/redes/publicar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ texto, imagen_url, page_ids, publicar_ig }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error al publicar');
+
+    const rows = Object.entries(data.resultados || {}).map(([pid, v]) => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 12px;border-radius:6px;background:var(--bg-hover);margin-bottom:4px;gap:8px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500">${esc(v.nombre || pid)}</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600;color:${v.ok ? '#16a34a' : '#ef4444'}">
+            ${v.ok ? '✅ Publicado' : '❌ ' + esc(v.error || 'Error')}
+          </span>
+          ${v.ig_ok ? '<span style="font-size:11px;color:#e1306c">📸 IG OK</span>' : ''}
+          ${v.ig_error ? `<span style="font-size:11px;color:#f59e0b" title="${esc(v.ig_error)}">📸 IG ✗</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    if (resEl) {
+      resEl.innerHTML = `
+        <div style="border:1px solid var(--border);border-radius:8px;padding:12px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:${data.publicados > 0 ? '#16a34a' : '#ef4444'}">
+            ${data.publicados} de ${data.total} páginas publicadas
+          </div>
+          ${rows}
+        </div>`;
+      resEl.style.display = 'block';
+    }
+
+    if (data.publicados > 0) {
+      toast(`✅ Publicado en ${data.publicados} página${data.publicados !== 1 ? 's' : ''}`);
+    } else {
+      toast('Sin páginas publicadas — verificá los tokens', 'error');
+    }
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Publicar ahora'; }
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AGREGAR PÁGINA MANUALMENTE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function abrirAgregarPagina() {
+  const f = document.getElementById('form-agregar-pagina');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function cerrarAgregarPagina() {
+  const f = document.getElementById('form-agregar-pagina');
+  if (f) f.style.display = 'none';
+  ['add-pg-nombre','add-pg-id','add-pg-token'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+async function agregarPagina() {
+  const nombre = document.getElementById('add-pg-nombre')?.value.trim();
+  const page_id = document.getElementById('add-pg-id')?.value.trim();
+  const page_token = document.getElementById('add-pg-token')?.value.trim();
+
+  if (!nombre || !page_id) { toast('Nombre y Page ID son obligatorios', 'error'); return; }
+
+  try {
+    const r = await fetch('/api/redes/paginas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ nombre, page_id, page_token: page_token || null }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || 'Error');
+    toast(`✅ Página "${nombre}" agregada`);
+    cerrarAgregarPagina();
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
 
 /* ─── init ───────────────────────────────────────────────────────────────── */
 setTab('feed');

@@ -138,8 +138,18 @@ async def api_redes_pagina_update(
         p.activa = bool(body["activa"])
     if "ig_user_id" in body:
         p.ig_user_id = body["ig_user_id"] or None
+    if "page_token" in body:
+        p.page_token = (body["page_token"] or "").strip() or None
+    if "nombre" in body:
+        nombre = (body["nombre"] or "").strip()
+        if nombre:
+            p.nombre = nombre
     db.commit()
-    return {"ok": True, "page_id": page_id, "activa": p.activa, "ig_user_id": p.ig_user_id}
+    return {
+        "ok": True, "page_id": page_id,
+        "activa": p.activa, "ig_user_id": p.ig_user_id,
+        "page_token_ok": bool(p.page_token),
+    }
 
 
 # ─── FEED FACEBOOK ────────────────────────────────────────────────────────────
@@ -1021,6 +1031,156 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
 </body>
 </html>"""
     return HTMLResponse(html)
+
+
+# ─── AGREGAR PÁGINA MANUALMENTE ──────────────────────────────────────────────
+
+@router.post("/api/redes/paginas")
+async def api_redes_pagina_crear(
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Agrega una nueva página manualmente con page_id, nombre y opcionalmente page_token e ig_user_id."""
+    _check_access(user, db)
+    body = await request.json()
+
+    page_id = (body.get("page_id") or "").strip()
+    nombre = (body.get("nombre") or "").strip()
+    page_token = (body.get("page_token") or "").strip() or None
+    ig_user_id = (body.get("ig_user_id") or "").strip() or None
+
+    if not page_id or not nombre:
+        raise HTTPException(400, "page_id y nombre son requeridos")
+
+    existing = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if existing:
+        raise HTTPException(409, f"La página {page_id} ya existe en el sistema")
+
+    pg = MetaPagina(
+        page_id=page_id,
+        nombre=nombre,
+        page_token=page_token,
+        ig_user_id=ig_user_id,
+        activa=True,
+    )
+    db.add(pg)
+    db.commit()
+    db.refresh(pg)
+    return {"ok": True, "page_id": pg.page_id, "nombre": pg.nombre}
+
+
+# ─── PUBLICAR EN MÚLTIPLES PÁGINAS ────────────────────────────────────────────
+
+@router.post("/api/redes/publicar")
+async def api_redes_publicar(
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Publica texto (y opcionalmente imagen) en una o varias páginas de Facebook/Instagram."""
+    _check_access(user, db)
+    body = await request.json()
+
+    texto = (body.get("texto") or "").strip()
+    imagen_url = (body.get("imagen_url") or "").strip()
+    page_ids_raw = body.get("page_ids") or "all"
+    publicar_ig = bool(body.get("publicar_ig", False))
+
+    if not texto and not imagen_url:
+        raise HTTPException(400, "Se requiere al menos texto o imagen_url")
+
+    if page_ids_raw == "all" or not page_ids_raw:
+        paginas = db.query(MetaPagina).filter(MetaPagina.activa == True).all()
+    else:
+        paginas = db.query(MetaPagina).filter(MetaPagina.page_id.in_(page_ids_raw)).all()
+
+    if not paginas:
+        raise HTTPException(400, "No hay páginas activas para publicar")
+
+    resultados: dict = {}
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for pg in paginas:
+            pid = pg.page_id
+            token = pg.page_token
+            if not token:
+                resultados[pid] = {"ok": False, "nombre": pg.nombre, "error": "Sin page_token — conectá la página primero"}
+                continue
+
+            try:
+                if imagen_url:
+                    r = await hc.post(
+                        f"{META_GRAPH_URL}/{pid}/photos",
+                        params={"access_token": token},
+                        json={"url": imagen_url, "message": texto, "published": True},
+                    )
+                else:
+                    r = await hc.post(
+                        f"{META_GRAPH_URL}/{pid}/feed",
+                        params={"access_token": token},
+                        json={"message": texto},
+                    )
+
+                data_r = r.json() if r.content else {}
+                if r.status_code not in (200, 201) or "error" in data_r:
+                    err_msg = data_r.get("error", {}).get("message", r.text[:200])
+                    resultados[pid] = {"ok": False, "nombre": pg.nombre, "error": err_msg}
+                else:
+                    post_id_result = data_r.get("post_id") or data_r.get("id")
+                    resultados[pid] = {"ok": True, "nombre": pg.nombre, "post_id": post_id_result}
+
+                    # Publicar en Instagram si está vinculado y hay imagen
+                    if publicar_ig and pg.ig_user_id and imagen_url:
+                        try:
+                            r_ig1 = await hc.post(
+                                f"{META_GRAPH_URL}/{pg.ig_user_id}/media",
+                                params={"access_token": token},
+                                json={"image_url": imagen_url, "caption": texto},
+                            )
+                            ig_data = r_ig1.json()
+                            if r_ig1.status_code == 200 and "id" in ig_data:
+                                r_ig2 = await hc.post(
+                                    f"{META_GRAPH_URL}/{pg.ig_user_id}/media_publish",
+                                    params={"access_token": token},
+                                    json={"creation_id": ig_data["id"]},
+                                )
+                                resultados[pid]["ig_ok"] = r_ig2.status_code == 200
+                                resultados[pid]["ig_post_id"] = r_ig2.json().get("id")
+                            else:
+                                resultados[pid]["ig_error"] = ig_data.get("error", {}).get("message", "Error IG")[:200]
+                        except Exception as e_ig:
+                            resultados[pid]["ig_error"] = str(e_ig)[:200]
+
+            except Exception as e:
+                resultados[pid] = {"ok": False, "nombre": pg.nombre, "error": str(e)[:200]}
+
+    ok_count = sum(1 for v in resultados.values() if v.get("ok"))
+    return {
+        "ok": ok_count > 0,
+        "publicados": ok_count,
+        "total": len(resultados),
+        "resultados": resultados,
+    }
+
+
+# ─── RESUMEN DE INTERACCIONES PENDIENTES POR PÁGINA ──────────────────────────
+
+@router.get("/api/redes/interacciones/resumen")
+async def api_redes_interacciones_resumen(
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Cuenta de interacciones pendientes por página."""
+    _check_access(user, db)
+    from sqlalchemy import func as sqlfunc
+
+    pendientes_q = (
+        db.query(FacebookInteraccion.page_id, sqlfunc.count(FacebookInteraccion.id).label("n"))
+        .filter(FacebookInteraccion.accion == "pendiente")
+        .group_by(FacebookInteraccion.page_id)
+        .all()
+    )
+    return {row.page_id: row.n for row in pendientes_q}
 
 
 @router.post("/api/redes/facebook/oauth-token")

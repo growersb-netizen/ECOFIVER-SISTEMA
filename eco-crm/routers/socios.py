@@ -3426,7 +3426,7 @@ async def socio_acceso_admin(
     from datetime import timedelta
     token = create_access_token(
         {"sub": str(usuario_admin.id)},
-        expires_delta=timedelta(hours=8),
+        expires_delta=timedelta(days=30),
     )
 
     # Redirigir al panel admin con el cookie de sesión seteado
@@ -3437,7 +3437,7 @@ async def socio_acceso_admin(
         httponly=True,
         samesite="lax",
         secure=True,
-        max_age=8 * 3600,
+        max_age=30 * 24 * 3600,
     )
     return redirect
 

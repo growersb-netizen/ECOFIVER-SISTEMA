@@ -1215,7 +1215,9 @@ async function importarDesdeFA() {
     });
     const j = await r.json().catch(()=>({}));
     if (!r.ok) throw new Error(j.detail || 'Error al importar');
-    toast(`✅ ${j.importados} interaccion${j.importados !== 1 ? 'es' : ''} importada${j.importados !== 1 ? 's' : ''}`);
+    let msg = `✅ ${j.importados} interaccion${j.importados !== 1 ? 'es' : ''} importada${j.importados !== 1 ? 's' : ''}`;
+    if (j.errores && j.errores.length) msg += ` — ⚠️ ${j.errores.join(' | ')}`;
+    toast(msg, j.errores && j.errores.length ? 'warning' : 'success');
     cargarInbox();
   } catch(e) {
     toast(e.message, 'error');

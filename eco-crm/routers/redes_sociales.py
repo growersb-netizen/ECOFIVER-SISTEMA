@@ -1414,28 +1414,31 @@ async def api_redes_importar_inbox(
         raise HTTPException(400, f'Sin token para "{pg.nombre}" — configuralo en Config')
 
     importados = 0
+    errores = []
 
-    async with httpx.AsyncClient(timeout=20) as hc:
+    async with httpx.AsyncClient(timeout=30) as hc:
         # ── 1. Mensajes de Messenger (conversaciones) ──────────────────────
         try:
             r = await hc.get(
                 f"{META_GRAPH_URL}/{page_id}/conversations",
                 params={
                     "platform": "messenger",
-                    "fields": "participants,messages.limit(5){message,from,created_time,id}",
-                    "limit": "20",
+                    "fields": "id,participants,updated_time,messages.limit(10){id,message,from,created_time}",
+                    "limit": "50",
                     "access_token": token,
                 },
             )
+            body = r.json()
             if r.status_code == 200:
-                for conv in r.json().get("data", []):
+                for conv in body.get("data", []):
                     for msg in conv.get("messages", {}).get("data", []):
                         sender = msg.get("from", {})
                         sender_id = sender.get("id", "")
                         if sender_id == page_id:
-                            continue  # ignorar mensajes del bot
+                            continue  # ignorar mensajes del bot/página
                         msg_id = msg.get("id", "")
-                        if not msg_id or not msg.get("message"):
+                        texto = (msg.get("message") or "").strip()
+                        if not msg_id or not texto:
                             continue
                         exists = db.query(FacebookInteraccion).filter(
                             FacebookInteraccion.objeto_id == msg_id
@@ -1447,53 +1450,61 @@ async def api_redes_importar_inbox(
                                 objeto_id=msg_id,
                                 usuario_id=sender_id,
                                 usuario_nombre=sender.get("name", sender_id),
-                                contenido=msg["message"][:1000],
-                                sentimiento="negativo" if _es_negativo(msg["message"]) else "neutro",
+                                contenido=texto[:1000],
+                                sentimiento="negativo" if _es_negativo(texto) else "neutro",
                                 accion="pendiente",
                             ))
                             importados += 1
-        except Exception:
-            pass
+            else:
+                err = body.get("error", {})
+                errores.append(f"Mensajes: {err.get('message', r.text[:100])}")
+        except Exception as e:
+            errores.append(f"Mensajes: {str(e)[:100]}")
 
         # ── 2. Comentarios en posts recientes ─────────────────────────────
         try:
             r = await hc.get(
                 f"{META_GRAPH_URL}/{page_id}/feed",
                 params={
-                    "fields": "id,comments.limit(10){id,message,from,created_time}",
-                    "limit": "10",
+                    "fields": "id,comments.limit(50){id,message,from,created_time}",
+                    "limit": "25",
                     "access_token": token,
                 },
             )
+            body2 = r.json()
             if r.status_code == 200:
-                for post in r.json().get("data", []):
+                for post in body2.get("data", []):
                     for cmnt in post.get("comments", {}).get("data", []):
                         cmnt_id = cmnt.get("id", "")
                         author = cmnt.get("from", {})
                         author_id = author.get("id", "")
-                        if not cmnt_id or not cmnt.get("message"):
+                        texto = (cmnt.get("message") or "").strip()
+                        if not cmnt_id or not texto:
                             continue
                         exists = db.query(FacebookInteraccion).filter(
                             FacebookInteraccion.objeto_id == cmnt_id
                         ).first()
                         if not exists:
-                            es_neg = _es_negativo(cmnt["message"])
+                            es_neg = _es_negativo(texto)
                             db.add(FacebookInteraccion(
                                 page_id=page_id,
                                 tipo="comentario",
                                 objeto_id=cmnt_id,
                                 usuario_id=author_id,
                                 usuario_nombre=author.get("name", author_id),
-                                contenido=cmnt["message"][:1000],
+                                contenido=texto[:1000],
                                 sentimiento="negativo" if es_neg else "neutro",
                                 accion="pendiente",
                             ))
                             importados += 1
-        except Exception:
-            pass
+            else:
+                err = body2.get("error", {})
+                errores.append(f"Comentarios: {err.get('message', r.text[:100])}")
+        except Exception as e:
+            errores.append(f"Comentarios: {str(e)[:100]}")
 
     db.commit()
-    return {"ok": True, "importados": importados, "page_id": page_id}
+    return {"ok": True, "importados": importados, "page_id": page_id, "errores": errores}
 
 
 # ─── RESUMEN DE INTERACCIONES PENDIENTES POR PÁGINA ──────────────────────────

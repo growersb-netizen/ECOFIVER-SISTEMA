@@ -1041,7 +1041,7 @@ async def api_meta_paginas_sync(
         else:
             db.add(MetaPagina(page_id=p["id"], nombre=p["name"], ig_user_id=ig_id,
                               page_token=page_tok, activa=True))
-        synced.append({"page_id": p["id"], "nombre": p["name"], "ig_user_id": ig_id})
+        synced.append({"page_id": p["id"], "nombre": p["name"], "ig_user_id": ig_id, "token_ok": bool(page_tok)})
 
     db.commit()
     return {"ok": True, "synced": len(synced), "pages": synced}

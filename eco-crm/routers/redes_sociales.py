@@ -349,13 +349,16 @@ async def api_redes_delete_post(
             pg_nombre = pg.nombre
             if pg.page_token:
                 token = pg.page_token
+    # Fallbacks: config DB → env var directo (por si hay problemas de decrypt)
     if not token:
-        token = get_config_value("meta_page_access_token", db)
+        token = get_config_value("meta_page_access_token", db) or ""
+    if not token:
+        token = os.getenv("META_PAGE_ACCESS_TOKEN", "").strip()
     if not token:
         raise HTTPException(
             400,
-            f'La página "{pg_nombre}" no tiene Page Access Token. '
-            "Ejecutá '🔄 Sincronizar' en el módulo Redes o ingresá el token manualmente en Config de la página."
+            f'Sin token disponible para "{pg_nombre}". '
+            "Entrá a Config de la página → pegá el Page Access Token → guardá."
         )
 
     async with httpx.AsyncClient(timeout=15) as hc:
@@ -1216,9 +1219,11 @@ async def api_redes_editar_post(
         raise HTTPException(400, "El campo 'mensaje' no puede estar vacío")
 
     pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
-    token = (pg.page_token if pg and pg.page_token else None) or get_config_value("meta_page_access_token", db)
+    token = (pg.page_token if pg and pg.page_token else None) \
+            or get_config_value("meta_page_access_token", db) \
+            or os.getenv("META_PAGE_ACCESS_TOKEN", "").strip()
     if not token:
-        raise HTTPException(400, "Sin token de Meta configurado")
+        raise HTTPException(400, "Sin token configurado para esta página — ingresá el Page Access Token en Config.")
 
     async with httpx.AsyncClient(timeout=15) as hc:
         r = await hc.post(

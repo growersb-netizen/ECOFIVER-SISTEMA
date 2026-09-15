@@ -81,7 +81,7 @@ async def api_redes_paginas(
             "auto_reply_mensajes": bool(p.auto_reply_mensajes),
             "auto_eliminar_negativos": bool(p.auto_eliminar_negativos),
             "webhook_subscribed": bool(p.webhook_subscribed),
-            "numero_whatsapp": p.numero_whatsapp or "1144498854",
+            "numero_whatsapp": p.numero_whatsapp or "",
             "page_token_ok": bool(p.page_token),  # True si tiene token propio de página
             "fan_count": None, "ig_followers": None, "picture": None,
         }
@@ -342,14 +342,21 @@ async def api_redes_delete_post(
         raise HTTPException(403, "Solo ADMIN puede eliminar publicaciones")
 
     token = None
+    pg_nombre = page_id or "desconocida"
     if page_id:
         pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
-        if pg and pg.page_token:
-            token = pg.page_token
+        if pg:
+            pg_nombre = pg.nombre
+            if pg.page_token:
+                token = pg.page_token
     if not token:
         token = get_config_value("meta_page_access_token", db)
     if not token:
-        raise HTTPException(400, "page token is required to delete post on page — configurá el token en la página")
+        raise HTTPException(
+            400,
+            f'La página "{pg_nombre}" no tiene Page Access Token. '
+            "Ejecutá '🔄 Sincronizar' en el módulo Redes o ingresá el token manualmente en Config de la página."
+        )
 
     async with httpx.AsyncClient(timeout=15) as hc:
         r = await hc.delete(
@@ -468,7 +475,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
     if not pg or not pg.page_token:
         return
 
-    numero_wa = pg.numero_whatsapp or "1144498854"
+    numero_wa = pg.numero_whatsapp or ""
 
     # ── MENSAJES PRIVADOS (Messenger) ──────────────────────────────────────
     for msg_event in entry.get("messaging", []):
@@ -623,7 +630,7 @@ async def api_redes_automation_config(
         if campo in body:
             setattr(pg, campo, bool(body[campo]))
     if "numero_whatsapp" in body:
-        pg.numero_whatsapp = (body["numero_whatsapp"] or "1144498854").strip()
+        pg.numero_whatsapp = (body["numero_whatsapp"] or "").strip() or None
 
     db.commit()
     return {
@@ -1345,7 +1352,9 @@ async def api_redes_responder_con_ia(
     if not pg or not pg.page_token:
         raise HTTPException(400, "Página sin token — no se puede responder")
 
-    numero_wa = pg.numero_whatsapp or "1144498854"
+    numero_wa = pg.numero_whatsapp or ""
+    if not numero_wa:
+        raise HTTPException(400, f'La página "{pg.nombre}" no tiene WhatsApp configurado — configuralo en Automatización.')
     respuesta = await _generar_respuesta_ia(
         interaccion.contenido or "", pg.nombre, numero_wa, db
     )

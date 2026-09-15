@@ -1636,7 +1636,7 @@ class MetaPagina(Base):
     auto_reply_mensajes = Column(Boolean, default=False)      # auto-responder mensajes privados (Messenger)
     auto_eliminar_negativos = Column(Boolean, default=False)  # eliminar comentarios negativos
     webhook_subscribed = Column(Boolean, default=False)       # página suscrita al webhook
-    numero_whatsapp = Column(String(30), default="1144498854")  # número al que redirige
+    numero_whatsapp = Column(String(30), default=None)  # número al que redirige la IA
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 

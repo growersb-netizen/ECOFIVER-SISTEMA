@@ -349,16 +349,14 @@ async def api_redes_delete_post(
             pg_nombre = pg.nombre
             if pg.page_token:
                 token = pg.page_token
-    # Fallbacks: config DB → env var directo (por si hay problemas de decrypt)
-    if not token:
-        token = get_config_value("meta_page_access_token", db) or ""
-    if not token:
-        token = os.getenv("META_PAGE_ACCESS_TOKEN", "").strip()
+    # Borrar posts requiere un Page Access Token específico — user/system tokens no sirven.
+    # No hacer fallback al token global porque Facebook rechazará con "page token required".
     if not token:
         raise HTTPException(
             400,
-            f'Sin token disponible para "{pg_nombre}". '
-            "Entrá a Config de la página → pegá el Page Access Token → guardá."
+            f'La página "{pg_nombre}" no tiene token de página configurado. '
+            "Sincronizá las páginas en la pestaña Config → Conectar con Facebook, "
+            "o pegá el Page Access Token manualmente en Config de la página."
         )
 
     async with httpx.AsyncClient(timeout=15) as hc:
@@ -1219,11 +1217,10 @@ async def api_redes_editar_post(
         raise HTTPException(400, "El campo 'mensaje' no puede estar vacío")
 
     pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
-    token = (pg.page_token if pg and pg.page_token else None) \
-            or get_config_value("meta_page_access_token", db) \
-            or os.getenv("META_PAGE_ACCESS_TOKEN", "").strip()
+    token = pg.page_token if pg and pg.page_token else None
     if not token:
-        raise HTTPException(400, "Sin token configurado para esta página — ingresá el Page Access Token en Config.")
+        pg_nombre = pg.nombre if pg else page_id
+        raise HTTPException(400, f'La página "{pg_nombre}" no tiene token de página configurado. Sincronizá en Config → Conectar con Facebook.')
 
     async with httpx.AsyncClient(timeout=15) as hc:
         r = await hc.post(
@@ -1413,66 +1410,117 @@ async def api_redes_importar_inbox(
     if not token:
         raise HTTPException(400, f'Sin token para "{pg.nombre}" — configuralo en Config')
 
+    importados, errores = await _importar_inbox_pagina(page_id, token, db)
+    db.commit()
+    return {"ok": True, "importados": importados, "page_id": page_id, "errores": errores}
+
+
+# ─── IMPORTAR INBOX DE TODAS LAS PÁGINAS ─────────────────────────────────────
+
+@router.post("/api/redes/importar-inbox-all")
+async def api_redes_importar_inbox_all(
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Importa mensajes y comentarios de TODAS las páginas que tengan page_token."""
+    _check_access(user, db)
+    paginas_con_token = db.query(MetaPagina).filter(
+        MetaPagina.activa == True,
+        MetaPagina.page_token != None,
+        MetaPagina.page_token != "",
+    ).all()
+
+    if not paginas_con_token:
+        raise HTTPException(400, "No hay páginas con token configurado. Sincronizá primero en Config → Conectar con Facebook.")
+
+    total_importados = 0
+    resultados = {}
+    for pg in paginas_con_token:
+        # Reutilizar la misma lógica de importar-inbox por página
+        imp, errs = await _importar_inbox_pagina(pg.page_id, pg.page_token, db)
+        total_importados += imp
+        resultados[pg.page_id] = {"nombre": pg.nombre, "importados": imp, "errores": errs}
+
+    db.commit()
+    return {
+        "ok": True,
+        "total_importados": total_importados,
+        "paginas": len(paginas_con_token),
+        "resultados": resultados,
+    }
+
+
+async def _importar_inbox_pagina(page_id: str, token: str, db: Session):
+    """Lógica compartida de importación de inbox para una página."""
     importados = 0
     errores = []
 
-    async with httpx.AsyncClient(timeout=30) as hc:
-        # ── 1. Mensajes de Messenger (conversaciones) ──────────────────────
+    async with httpx.AsyncClient(timeout=45) as hc:
+        # Mensajes Messenger paginados
         try:
-            r = await hc.get(
-                f"{META_GRAPH_URL}/{page_id}/conversations",
-                params={
-                    "platform": "messenger",
-                    "fields": "id,participants,updated_time,messages.limit(10){id,message,from,created_time}",
-                    "limit": "50",
-                    "access_token": token,
-                },
-            )
-            body = r.json()
-            if r.status_code == 200:
+            next_url = None
+            convs_fetched = 0
+            params_conv = {
+                "platform": "messenger",
+                "fields": "id,participants,updated_time,messages.limit(25){id,message,from,created_time}",
+                "limit": "50",
+                "access_token": token,
+            }
+            while convs_fetched < 5:
+                if next_url:
+                    r = await hc.get(next_url)
+                else:
+                    r = await hc.get(f"{META_GRAPH_URL}/{page_id}/conversations", params=params_conv)
+                body = r.json()
+                if r.status_code != 200:
+                    err = body.get("error", {})
+                    errores.append(f"Mensajes: {err.get('message', r.text[:200])}")
+                    break
                 for conv in body.get("data", []):
                     for msg in conv.get("messages", {}).get("data", []):
                         sender = msg.get("from", {})
                         sender_id = sender.get("id", "")
                         if sender_id == page_id:
-                            continue  # ignorar mensajes del bot/página
+                            continue
                         msg_id = msg.get("id", "")
                         texto = (msg.get("message") or "").strip()
                         if not msg_id or not texto:
                             continue
-                        exists = db.query(FacebookInteraccion).filter(
-                            FacebookInteraccion.objeto_id == msg_id
-                        ).first()
-                        if not exists:
+                        if not db.query(FacebookInteraccion).filter(FacebookInteraccion.objeto_id == msg_id).first():
                             db.add(FacebookInteraccion(
-                                page_id=page_id,
-                                tipo="mensaje",
-                                objeto_id=msg_id,
-                                usuario_id=sender_id,
-                                usuario_nombre=sender.get("name", sender_id),
+                                page_id=page_id, tipo="mensaje", objeto_id=msg_id,
+                                usuario_id=sender_id, usuario_nombre=sender.get("name", sender_id),
                                 contenido=texto[:1000],
                                 sentimiento="negativo" if _es_negativo(texto) else "neutro",
                                 accion="pendiente",
                             ))
                             importados += 1
-            else:
-                err = body.get("error", {})
-                errores.append(f"Mensajes: {err.get('message', r.text[:100])}")
+                convs_fetched += 1
+                next_url = body.get("paging", {}).get("next")
+                if not next_url:
+                    break
         except Exception as e:
-            errores.append(f"Mensajes: {str(e)[:100]}")
+            errores.append(f"Mensajes: {str(e)[:200]}")
 
-        # ── 2. Comentarios en posts recientes ─────────────────────────────
+        # Comentarios paginados
         try:
-            r = await hc.get(
-                f"{META_GRAPH_URL}/{page_id}/feed",
-                params={
-                    "fields": "id,comments.limit(50){id,message,from,created_time}",
-                    "limit": "25",
-                    "access_token": token,
-                },
-            )
-            body2 = r.json()
-            if r.status_code == 200:
+            next_url2 = None
+            posts_pages = 0
+            params_feed = {
+                "fields": "id,comments.limit(100){id,message,from,created_time}",
+                "limit": "25",
+                "access_token": token,
+            }
+            while posts_pages < 4:
+                if next_url2:
+                    r2 = await hc.get(next_url2)
+                else:
+                    r2 = await hc.get(f"{META_GRAPH_URL}/{page_id}/feed", params=params_feed)
+                body2 = r2.json()
+                if r2.status_code != 200:
+                    err = body2.get("error", {})
+                    errores.append(f"Comentarios: {err.get('message', r2.text[:200])}")
+                    break
                 for post in body2.get("data", []):
                     for cmnt in post.get("comments", {}).get("data", []):
                         cmnt_id = cmnt.get("id", "")
@@ -1481,30 +1529,24 @@ async def api_redes_importar_inbox(
                         texto = (cmnt.get("message") or "").strip()
                         if not cmnt_id or not texto:
                             continue
-                        exists = db.query(FacebookInteraccion).filter(
-                            FacebookInteraccion.objeto_id == cmnt_id
-                        ).first()
-                        if not exists:
+                        if not db.query(FacebookInteraccion).filter(FacebookInteraccion.objeto_id == cmnt_id).first():
                             es_neg = _es_negativo(texto)
                             db.add(FacebookInteraccion(
-                                page_id=page_id,
-                                tipo="comentario",
-                                objeto_id=cmnt_id,
-                                usuario_id=author_id,
-                                usuario_nombre=author.get("name", author_id),
+                                page_id=page_id, tipo="comentario", objeto_id=cmnt_id,
+                                usuario_id=author_id, usuario_nombre=author.get("name", author_id),
                                 contenido=texto[:1000],
                                 sentimiento="negativo" if es_neg else "neutro",
                                 accion="pendiente",
                             ))
                             importados += 1
-            else:
-                err = body2.get("error", {})
-                errores.append(f"Comentarios: {err.get('message', r.text[:100])}")
+                posts_pages += 1
+                next_url2 = body2.get("paging", {}).get("next")
+                if not next_url2:
+                    break
         except Exception as e:
-            errores.append(f"Comentarios: {str(e)[:100]}")
+            errores.append(f"Comentarios: {str(e)[:200]}")
 
-    db.commit()
-    return {"ok": True, "importados": importados, "page_id": page_id, "errores": errores}
+    return importados, errores
 
 
 # ─── RESUMEN DE INTERACCIONES PENDIENTES POR PÁGINA ──────────────────────────

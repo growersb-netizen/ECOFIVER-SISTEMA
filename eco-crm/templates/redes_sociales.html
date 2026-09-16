@@ -1038,6 +1038,18 @@ async function renderAuto() {
             ${pg.webhook_subscribed ? '🔄 Renovar suscripción' : '🔔 Suscribir al webhook'}
           </button>
         </div>
+        <div style="margin-top:10px">
+          <button onclick="mostrarPanelTokenManual()" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted)">🔑 Renovar permisos de Facebook</button>
+          <div id="panel-token-manual" style="display:none;margin-top:8px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Pegá un User Access Token de <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> (EcoFiver app, con scopes: pages_manage_metadata, pages_messaging, pages_read_engagement)</div>
+            <textarea id="inp-token-manual" placeholder="EAABsbCS..." rows="2"
+              style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:6px"></textarea>
+            <div style="display:flex;gap:8px">
+              <button onclick="guardarTokenManual()" class="btn btn-primary btn-sm" style="flex:1">🔄 Actualizar tokens y suscribir todas</button>
+              <button onclick="conectarConFacebook()" class="btn btn-ghost btn-sm" style="background:#1877f2;color:#fff;border-color:#1877f2">f OAuth</button>
+            </div>
+          </div>
+        </div>
         `}
       </div>
 

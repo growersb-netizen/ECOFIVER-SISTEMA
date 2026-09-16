@@ -732,24 +732,50 @@ async def api_redes_audit_refresh_subscribe(
     if not paginas:
         return {"ok": False, "error": "No hay páginas en la DB"}
 
+    # Pre-cargar todos los page tokens via /me/accounts (incluye páginas del Business Manager)
+    tokens_por_pagina: dict[str, str] = {}
+    async with httpx.AsyncClient(timeout=30) as hc:
+        after = None
+        for _ in range(10):  # max 10 páginas de paginación
+            params: dict = {"fields": "id,access_token,name", "access_token": user_token, "limit": 50}
+            if after:
+                params["after"] = after
+            r_acc = await hc.get(f"{META_GRAPH_URL}/me/accounts", params=params)
+            if r_acc.status_code == 200:
+                acc_data = r_acc.json()
+                for item in acc_data.get("data", []):
+                    if item.get("access_token"):
+                        tokens_por_pagina[item["id"]] = item["access_token"]
+                after = acc_data.get("paging", {}).get("cursors", {}).get("after")
+                if not after or not acc_data.get("data"):
+                    break
+            else:
+                break
+
     resultados = {}
     async with httpx.AsyncClient(timeout=30) as hc:
         for pg in paginas:
             pid = pg.page_id
             resultado_pg = {}
 
-            # 1) Obtener page token desde el user token
-            r_pt = await hc.get(
-                f"{META_GRAPH_URL}/{pid}",
-                params={"fields": "access_token,name", "access_token": user_token},
-            )
-            if r_pt.status_code != 200 or "access_token" not in r_pt.json():
-                resultado_pg["error_token"] = r_pt.json()
+            # 1) Obtener page token: primero /me/accounts, luego /{page_id}?fields=access_token
+            page_token = tokens_por_pagina.get(pid)
+            if not page_token:
+                r_pt = await hc.get(
+                    f"{META_GRAPH_URL}/{pid}",
+                    params={"fields": "access_token,name", "access_token": user_token},
+                )
+                if r_pt.status_code == 200 and "access_token" in r_pt.json():
+                    page_token = r_pt.json()["access_token"]
+                    resultado_pg["page_name"] = r_pt.json().get("name", pid)
+            else:
+                resultado_pg["page_name"] = pid
+
+            if not page_token:
+                resultado_pg["error_token"] = "No se pudo obtener token de página"
                 resultados[pid] = resultado_pg
                 continue
 
-            page_token = r_pt.json()["access_token"]
-            resultado_pg["page_name"] = r_pt.json().get("name", pid)
             resultado_pg["token_ok"] = True
 
             # 2) Actualizar token en DB

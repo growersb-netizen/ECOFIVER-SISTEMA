@@ -15,7 +15,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db, SessionLocal
-from database.models import MetaPagina, Usuario, FacebookInteraccion
+from database.models import MetaPagina, Usuario, FacebookInteraccion, ConfiguracionSistema
+from database.encryption import encrypt_value
 from routers.auth import require_auth, get_user_roles
 from routers.configuracion import get_config_value
 from routers.ecopost import META_GRAPH_URL
@@ -912,6 +913,15 @@ async def api_redes_admin_subscribe_via_system_token(
             return {"ok": False, "error": "No se pudo generar token de system user", "detalle": r_st.json()}
 
         system_token = r_st.json()["access_token"]
+
+        # Guardar el system user token en config como meta_page_access_token (permanente)
+        stored = encrypt_value(system_token)
+        entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
+        if entry:
+            entry.valor = stored
+        else:
+            db.add(ConfiguracionSistema(clave="meta_page_access_token", valor=stored, es_secreto=True, categoria="meta"))
+        db.commit()
 
         # 2) Obtener page tokens del system user vía /me/accounts
         tokens_por_pagina: dict[str, str] = {}

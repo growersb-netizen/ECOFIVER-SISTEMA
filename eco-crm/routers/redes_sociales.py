@@ -1089,7 +1089,7 @@ async def api_redes_fb_config(
 
 FB_OAUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth"
 FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
-FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_posts,pages_read_user_content"
+FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_posts,pages_read_user_content,business_management"
 
 
 def _get_base_url(db: Session) -> str:

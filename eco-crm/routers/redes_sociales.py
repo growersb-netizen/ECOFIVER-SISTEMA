@@ -859,37 +859,50 @@ META_SYSTEM_USER_ID = "61573476584460"
 
 @router.post("/api/redes/admin/subscribe-via-system-token")
 async def api_redes_admin_subscribe_via_system_token(
+    request: Request,
     t: str = "",
     db: Session = Depends(get_db),
 ):
     """
-    Genera un token para el System User 'fly' usando credenciales de app (app_id|app_secret),
-    luego obtiene page tokens para TODAS las páginas del Business Manager y las suscribe al webhook.
-    No requiere interacción del usuario. Requiere ?t=<ML_AUDIT_TOKEN>.
+    Genera un token para el System User 'fly' usando el token de admin del Business Manager
+    (Julian, que es BM admin), luego suscribe todas las páginas al webhook.
+    Body JSON opcional: { "user_token": "EAAB..." }
+    Si no se provee user_token, intenta usar el token global almacenado en config.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
     """
     expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
     if t != expected:
         raise HTTPException(403, "Forbidden")
+
+    import hmac as _hmac
+    import hashlib as _hashlib
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
 
     app_id = get_config_value("meta_app_id", db) or os.getenv("META_APP_ID", "")
     app_secret = get_config_value("meta_app_secret", db) or os.getenv("META_APP_SECRET", "")
     if not app_id or not app_secret:
         raise HTTPException(400, "Faltan meta_app_id o meta_app_secret en configuración")
 
-    import hmac as _hmac
-    import hashlib as _hashlib
+    # Token del admin humano del Business Manager (Julian)
+    admin_token = (body.get("user_token") or "").strip()
+    if not admin_token:
+        admin_token = get_config_value("meta_page_access_token", db) or ""
+    if not admin_token:
+        raise HTTPException(400, "Falta 'user_token' en el body. Hacer OAuth primero.")
 
-    # App access token (no expira, solo requiere app_id y app_secret)
-    app_token = f"{app_id}|{app_secret}"
-    # appsecret_proof requerido cuando la app tiene "appsecret_proof for all calls" activado
-    appsecret_proof = _hmac.new(app_secret.encode(), app_token.encode(), _hashlib.sha256).hexdigest()
+    appsecret_proof = _hmac.new(app_secret.encode(), admin_token.encode(), _hashlib.sha256).hexdigest()
 
     async with httpx.AsyncClient(timeout=30) as hc:
-        # 1) Generar token para el system user 'fly'
+        # 1) Generar token para el system user 'fly' usando el token del admin del BM
         r_st = await hc.post(
             f"{META_GRAPH_URL}/{META_BUSINESS_ID}/system_user_access_tokens",
             params={
-                "access_token": app_token,
+                "access_token": admin_token,
                 "appsecret_proof": appsecret_proof,
                 "system_user_id": META_SYSTEM_USER_ID,
                 "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list",
@@ -1174,7 +1187,7 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
       }}
 
       try {{
-        setMsg('Obteniendo tokens de páginas y suscribiendo webhooks...');
+        setMsg('Paso 1/2: Obteniendo tokens de páginas y suscribiendo webhooks...');
         const r = await fetch(BASE_URL + '/api/redes/audit/refresh-and-subscribe?t=' + encodeURIComponent(AUDIT_TOKEN), {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/json' }},
@@ -1188,15 +1201,32 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
           return;
         }}
 
-        // Contar éxitos y errores
-        const resultados = Object.values(data.resultados || {{}});
-        const ok = resultados.filter(r => r.subscribed_apps?.success || r.webhook_subscribed).length;
-        const total = resultados.length;
+        // Contar éxitos y errores del paso 1
+        const resultados1 = Object.values(data.resultados || {{}});
+        const ok1 = resultados1.filter(r => r.subscribed_apps?.success || r.webhook_subscribed).length;
+        const total = resultados1.length;
 
+        // Paso 2: Intentar generar token de system user para cubrir páginas restantes
+        setMsg('Paso 2/2: Generando token de sistema para páginas faltantes...');
+        let ok2 = 0;
+        try {{
+          const r2 = await fetch(BASE_URL + '/api/redes/admin/subscribe-via-system-token?t=' + encodeURIComponent(AUDIT_TOKEN), {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            credentials: 'include',
+            body: JSON.stringify({{ user_token: accessToken }})
+          }});
+          const data2 = await r2.json();
+          if (data2.ok) ok2 = total - ok1;
+          else if (data2.resultados) ok2 = Object.values(data2.resultados).filter(v => v.ok).length;
+        }} catch(e2) {{ /* ignorar si falla */ }}
+
+        const okTotal = Math.max(ok1, ok1 + ok2);
         document.getElementById('spinner').style.display = 'none';
         document.getElementById('title').innerHTML = '<span class="ok">✅ ¡Facebook conectado!</span>';
         document.getElementById('msg').innerHTML =
-          ok + ' de ' + total + ' páginas suscritas al webhook.' +
+          okTotal + ' de ' + total + ' páginas suscritas al webhook.' +
+          (okTotal < total ? ' (algunas requieren permisos adicionales)' : '') +
           '<br><br><a href="' + BASE_URL + '/redes">← Volver al panel de Redes Sociales</a>';
 
         // Redirigir automáticamente en 3s

@@ -795,15 +795,30 @@ async def api_redes_admin_subscribe_all(
     if not paginas:
         return {"ok": False, "error": "No hay páginas con token"}
 
+    global_token = get_config_value("meta_page_access_token", db) or ""
+
     resultados = {}
     async with httpx.AsyncClient(timeout=20) as hc:
         for pg in paginas:
+            token_a_usar = pg.page_token
             r = await hc.post(
                 f"{META_GRAPH_URL}/{pg.page_id}/subscribed_apps",
-                params={"access_token": pg.page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                params={"access_token": token_a_usar, "subscribed_fields": "feed,messages,message_reactions"},
             )
             body = r.json()
             ok = body.get("success", False)
+
+            # Fallback: si falla por permisos (error 200) y hay token global distinto, intentar con él
+            if not ok and body.get("error", {}).get("code") == 200 and global_token and global_token != token_a_usar:
+                r2 = await hc.post(
+                    f"{META_GRAPH_URL}/{pg.page_id}/subscribed_apps",
+                    params={"access_token": global_token, "subscribed_fields": "feed,messages,message_reactions"},
+                )
+                body2 = r2.json()
+                if body2.get("success"):
+                    body = body2
+                    ok = True
+
             if ok:
                 pg.webhook_subscribed = True
             resultados[pg.page_id] = {"nombre": pg.nombre, "ok": ok, "detalle": body}
@@ -1054,7 +1069,7 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
 
         // Contar éxitos y errores
         const resultados = Object.values(data.resultados || {{}});
-        const ok = resultados.filter(r => r.webhook_subscribed).length;
+        const ok = resultados.filter(r => r.subscribed_apps?.success || r.webhook_subscribed).length;
         const total = resultados.length;
 
         document.getElementById('spinner').style.display = 'none';

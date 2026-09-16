@@ -852,6 +852,95 @@ async def api_redes_admin_subscribe_all(
     return {"ok": all(v["ok"] for v in resultados.values()), "resultados": resultados}
 
 
+# ─── SUSCRIBIR TODAS USANDO TOKEN DE SISTEMA (app_id|app_secret) ───────────────
+
+META_BUSINESS_ID = "753481671171165"
+META_SYSTEM_USER_ID = "61573476584460"
+
+@router.post("/api/redes/admin/subscribe-via-system-token")
+async def api_redes_admin_subscribe_via_system_token(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Genera un token para el System User 'fly' usando credenciales de app (app_id|app_secret),
+    luego obtiene page tokens para TODAS las páginas del Business Manager y las suscribe al webhook.
+    No requiere interacción del usuario. Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    app_id = get_config_value("meta_app_id", db) or os.getenv("META_APP_ID", "")
+    app_secret = get_config_value("meta_app_secret", db) or os.getenv("META_APP_SECRET", "")
+    if not app_id or not app_secret:
+        raise HTTPException(400, "Faltan meta_app_id o meta_app_secret en configuración")
+
+    # App access token (no expira, solo requiere app_id y app_secret)
+    app_token = f"{app_id}|{app_secret}"
+
+    async with httpx.AsyncClient(timeout=30) as hc:
+        # 1) Generar token para el system user 'fly'
+        r_st = await hc.post(
+            f"{META_GRAPH_URL}/{META_BUSINESS_ID}/system_user_access_tokens",
+            params={
+                "access_token": app_token,
+                "system_user_id": META_SYSTEM_USER_ID,
+                "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list",
+            },
+        )
+        if r_st.status_code != 200 or "access_token" not in r_st.json():
+            return {"ok": False, "error": "No se pudo generar token de system user", "detalle": r_st.json()}
+
+        system_token = r_st.json()["access_token"]
+
+        # 2) Obtener page tokens del system user vía /me/accounts
+        tokens_por_pagina: dict[str, str] = {}
+        after = None
+        for _ in range(10):
+            params: dict = {"fields": "id,access_token,name", "access_token": system_token, "limit": 50}
+            if after:
+                params["after"] = after
+            r_acc = await hc.get(f"{META_GRAPH_URL}/me/accounts", params=params)
+            if r_acc.status_code == 200:
+                acc_data = r_acc.json()
+                for item in acc_data.get("data", []):
+                    if item.get("access_token"):
+                        tokens_por_pagina[item["id"]] = item["access_token"]
+                after = acc_data.get("paging", {}).get("cursors", {}).get("after")
+                if not after or not acc_data.get("data"):
+                    break
+            else:
+                break
+
+        paginas = db.query(MetaPagina).all()
+        resultados = {}
+        for pg in paginas:
+            pid = pg.page_id
+            page_token = tokens_por_pagina.get(pid)
+            if not page_token:
+                resultados[pid] = {"nombre": pg.nombre, "ok": False, "error": "Sin token de system user para esta página"}
+                continue
+
+            pg.page_token = page_token
+            r_sub = await hc.post(
+                f"{META_GRAPH_URL}/{pid}/subscribed_apps",
+                params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+            )
+            body = r_sub.json()
+            ok = body.get("success", False)
+            if ok:
+                pg.webhook_subscribed = True
+            resultados[pid] = {"nombre": pg.nombre, "ok": ok, "detalle": body}
+
+    db.commit()
+    return {
+        "ok": all(v["ok"] for v in resultados.values()),
+        "pages_found_in_system_user": len(tokens_por_pagina),
+        "resultados": resultados,
+    }
+
+
 # ─── INTERACCIONES — HISTORIAL + GESTIÓN MANUAL ────────────────────────────────
 
 @router.get("/api/redes/interacciones")

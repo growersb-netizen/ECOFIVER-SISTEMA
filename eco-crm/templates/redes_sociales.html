@@ -768,6 +768,34 @@ function renderConfig() {
       💡 También podés sincronizar todas las páginas a la vez con <strong>🔄 Sincronizar</strong> (arriba a la derecha) si tu token global tiene acceso a todas las páginas.
     </div>
 
+    <div style="margin-top:16px;padding:14px;background:var(--bg-hover);border-radius:10px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <div style="font-size:13px;font-weight:600">📡 Suscripción al webhook</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+            ${p.webhook_subscribed
+              ? '✅ Página suscrita — recibirá eventos en tiempo real'
+              : '⚠️ No suscrita — activar para recibir comentarios y mensajes'}
+          </div>
+        </div>
+        <button onclick="suscribirWebhook('${esc(p.page_id)}')" class="btn ${p.webhook_subscribed ? 'btn-ghost' : 'btn-primary'} btn-sm" style="white-space:nowrap">
+          ${p.webhook_subscribed ? '🔄 Renovar' : '🔔 Suscribir'}
+        </button>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <button onclick="mostrarPanelTokenConfig()" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted)">🔑 Renovar permisos de Facebook</button>
+        <div id="panel-token-config" style="display:none;margin-top:8px">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Pegá un User Access Token de <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> con scopes: pages_manage_metadata, pages_messaging, pages_read_engagement</div>
+          <textarea id="inp-token-config" placeholder="EAABsbCS..." rows="2"
+            style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:6px"></textarea>
+          <div style="display:flex;gap:8px">
+            <button onclick="guardarTokenConfig()" class="btn btn-primary btn-sm" style="flex:1">🔄 Actualizar tokens y suscribir todas</button>
+            <button onclick="conectarConFacebook()" class="btn btn-ghost btn-sm" style="background:#1877f2;color:#fff;border-color:#1877f2">f OAuth</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
       <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">ZONA DE PELIGRO</div>
       <button onclick="eliminarPagina('${esc(p.page_id)}', '${esc(p.nombre)}')"
@@ -1180,6 +1208,37 @@ async function suscribirWebhook(pageId) {
 function mostrarPanelTokenManual() {
   const panel = document.getElementById('panel-token-manual');
   if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function mostrarPanelTokenConfig() {
+  const panel = document.getElementById('panel-token-config');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarTokenConfig() {
+  const token = document.getElementById('inp-token-config')?.value?.trim();
+  if (!token) { toast('Pegá el User Access Token primero', 'error'); return; }
+  const btn = document.querySelector('#panel-token-config .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
+  try {
+    const r = await fetch('/api/redes/facebook/oauth-token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({ user_token: token }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    toast(`✅ ${data.paginas_ok} de ${data.paginas_total} páginas conectadas con webhook`, 'success');
+    const inp = document.getElementById('inp-token-config');
+    if (inp) inp.value = '';
+    const panel = document.getElementById('panel-token-config');
+    if (panel) panel.style.display = 'none';
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Actualizar tokens y suscribir todas'; }
+  }
 }
 
 async function guardarTokenManual() {

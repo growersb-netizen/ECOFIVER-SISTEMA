@@ -944,12 +944,15 @@ FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_s
 
 
 def _get_base_url(db: Session) -> str:
-    return (
+    url = (
         os.getenv("RAILWAY_STATIC_URL")
         or os.getenv("PUBLIC_URL")
         or get_config_value("crm_base_url", db)
         or "https://eco-crm-production.up.railway.app"
     )
+    if url and not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    return url.rstrip("/")
 
 
 @router.get("/api/redes/facebook/oauth-url")

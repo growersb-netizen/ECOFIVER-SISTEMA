@@ -876,8 +876,13 @@ async def api_redes_admin_subscribe_via_system_token(
     if not app_id or not app_secret:
         raise HTTPException(400, "Faltan meta_app_id o meta_app_secret en configuración")
 
+    import hmac as _hmac
+    import hashlib as _hashlib
+
     # App access token (no expira, solo requiere app_id y app_secret)
     app_token = f"{app_id}|{app_secret}"
+    # appsecret_proof requerido cuando la app tiene "appsecret_proof for all calls" activado
+    appsecret_proof = _hmac.new(app_secret.encode(), app_token.encode(), _hashlib.sha256).hexdigest()
 
     async with httpx.AsyncClient(timeout=30) as hc:
         # 1) Generar token para el system user 'fly'
@@ -885,6 +890,7 @@ async def api_redes_admin_subscribe_via_system_token(
             f"{META_GRAPH_URL}/{META_BUSINESS_ID}/system_user_access_tokens",
             params={
                 "access_token": app_token,
+                "appsecret_proof": appsecret_proof,
                 "system_user_id": META_SYSTEM_USER_ID,
                 "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list",
             },

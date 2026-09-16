@@ -777,6 +777,40 @@ async def api_redes_audit_refresh_subscribe(
     return {"ok": all_ok, "resultados": resultados}
 
 
+# ─── SUSCRIBIR TODAS LAS PÁGINAS (usa page_tokens ya guardados) ───────────────
+
+@router.post("/api/redes/admin/subscribe-all")
+async def api_redes_admin_subscribe_all(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Suscribe todas las páginas con token al webhook. Requiere query param ?t=<ML_AUDIT_TOKEN>."""
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    paginas = db.query(MetaPagina).filter(
+        MetaPagina.page_token != None, MetaPagina.page_token != ""
+    ).all()
+    if not paginas:
+        return {"ok": False, "error": "No hay páginas con token"}
+
+    resultados = {}
+    async with httpx.AsyncClient(timeout=20) as hc:
+        for pg in paginas:
+            r = await hc.post(
+                f"{META_GRAPH_URL}/{pg.page_id}/subscribed_apps",
+                params={"access_token": pg.page_token, "subscribed_fields": "feed,messages,message_reactions"},
+            )
+            body = r.json()
+            ok = body.get("success", False)
+            if ok:
+                pg.webhook_subscribed = True
+            resultados[pg.page_id] = {"nombre": pg.nombre, "ok": ok, "detalle": body}
+    db.commit()
+    return {"ok": all(v["ok"] for v in resultados.values()), "resultados": resultados}
+
+
 # ─── INTERACCIONES — HISTORIAL + GESTIÓN MANUAL ────────────────────────────────
 
 @router.get("/api/redes/interacciones")

@@ -384,6 +384,12 @@ async def diag_provider():
         except Exception as e:
             result["test_ok"] = False
             result["test_error"] = str(e)[:300]
+            # Capturar body de respuesta HTTP si disponible
+            if hasattr(e, "response"):
+                try:
+                    result["http_response_body"] = e.response.text[:400]
+                except Exception:
+                    pass
     except Exception as e:
         result["factory_error"] = str(e)[:200]
     return result

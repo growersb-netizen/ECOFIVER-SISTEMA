@@ -46,7 +46,7 @@ def get_provider() -> BaseProvider:
 
         elif provider_name == "groq":
             from .groq_provider import GroqProvider
-            model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+            model = os.getenv("GROQ_MODEL", "llama3-8b-8192")
             _instances[provider_name] = GroqProvider(model=model)
 
         elif provider_name == "grok":

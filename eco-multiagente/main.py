@@ -357,62 +357,6 @@ def _ultimo_scraping_resumen():
         return {}
 
 
-# ── Diagnóstico de proveedor IA ───────────────────────────────────────────
-@app.get("/diag/provider")
-async def diag_provider():
-    """Diagnostica el proveedor de IA activo y reporta el error real."""
-    import os as _os
-    result = {
-        "AI_PROVIDER": _os.getenv("AI_PROVIDER", "(no set)"),
-        "OPENROUTER_KEY_SET": bool(_os.getenv("OPENROUTER_API_KEY")),
-        "OPENROUTER_KEY_PREFIX": (_os.getenv("OPENROUTER_API_KEY") or "")[:8],
-        "GEMINI_KEY_SET": bool(_os.getenv("GEMINI_API_KEY")),
-        "GROQ_KEY_SET": bool(_os.getenv("GROQ_API_KEY")),
-    }
-    # Listar modelos Groq disponibles para este key
-    groq_key = _os.getenv("GROQ_API_KEY", "")
-    if groq_key:
-        import httpx as _httpx
-        try:
-            async with _httpx.AsyncClient(timeout=10) as _hc:
-                _r = await _hc.get(
-                    "https://api.groq.com/openai/v1/models",
-                    headers={"Authorization": f"Bearer {groq_key}"}
-                )
-            if _r.status_code == 200:
-                _models = [m["id"] for m in _r.json().get("data", [])]
-                result["groq_models_available"] = _models[:20]
-            else:
-                result["groq_models_error"] = f"{_r.status_code}: {_r.text[:200]}"
-        except Exception as _e:
-            result["groq_models_error"] = str(_e)[:100]
-
-    try:
-        from providers.factory import get_provider
-        provider = get_provider()
-        result["provider_name"] = provider.name
-        try:
-            reply = await provider.generate(
-                system_prompt="Sos un asistente.",
-                history=[],
-                message="Respondé solo: OK",
-            )
-            result["test_ok"] = True
-            result["test_reply"] = reply[:80]
-        except Exception as e:
-            result["test_ok"] = False
-            result["test_error"] = str(e)[:300]
-            # Capturar body de respuesta HTTP si disponible
-            if hasattr(e, "response"):
-                try:
-                    result["http_response_body"] = e.response.text[:400]
-                except Exception:
-                    pass
-    except Exception as e:
-        result["factory_error"] = str(e)[:200]
-    return result
-
-
 # ── Audit log endpoints ───────────────────────────────────────────────────
 @app.get("/audit/log")
 async def audit_log_recientes(n: int = 50):

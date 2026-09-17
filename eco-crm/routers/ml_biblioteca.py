@@ -640,6 +640,7 @@ async def _auto_responder_preguntas_job():
             pub_local = local_pubs.get(item_id_p)
             descripcion_pub = ""
             precio_pub: float = 0.0
+            tipo_precio = "completo"
             if pub_local:
                 descripcion_pub = pub_local.descripcion or ""
                 if not item_titulo and pub_local.titulo:
@@ -648,6 +649,7 @@ async def _auto_responder_preguntas_job():
                     precio_pub = float(pub_local.precio or 0)
                 except (TypeError, ValueError):
                     precio_pub = 0.0
+                tipo_precio = getattr(pub_local, "tipo_precio", None) or "completo"
 
             prompt = ctx_preguntas_ml(
                 item_titulo=item_titulo or "producto EcoFiver",
@@ -655,6 +657,7 @@ async def _auto_responder_preguntas_job():
                 descripcion_pub=descripcion_pub,
                 comprador=comprador_nick,
                 precio_pub=precio_pub,
+                tipo_precio=tipo_precio,
             )
 
             try:

@@ -3233,3 +3233,194 @@ async def duplicar(bid: int, db: Session = Depends(get_db), x_api_key=Header(Non
     db.commit()
     db.refresh(nuevo)
     return {"ok": True, **_dict(nuevo)}
+
+
+# ── SEED: 16 publicaciones cotización piscinas de fibra de vidrio ─────────────
+
+_PISCINAS_SEED = [
+    {"modelo": "Miniportante",                 "medida": "2,50x2,10x0,70m",        "contado": 1990000,  "lista": 3640000,
+     "titulo": "Pileta Fibra Miniportante 2,5x2m - Cotiza Aqui",
+     "extra": "Modelo compacto. Ideal para patios chicos. Profundidad 70cm. Sin necesidad de excavacion profunda."},
+    {"modelo": "Minideck",                     "medida": "3,55x2,10m Deck / 3x2x0,70m piscina", "contado": 2490000, "lista": 4370000,
+     "titulo": "Pileta Fibra Minideck 3x2m Con Deck - Cotiza Aqui",
+     "extra": "Piscina con deck de fibra integrado. Area de relax sin necesidad de obra extra. Profundidad 70cm."},
+    {"modelo": "Autoportante",                 "medida": "4,10x2,10x0,70m",        "contado": 3000000,  "lista": 4370000,
+     "titulo": "Pileta Fibra Autoportante 4x2m - Cotiza Aqui",
+     "extra": "Sin excavacion. Se instala sobre cualquier superficie nivelada. Profundidad 70cm. Montaje rapido en el dia."},
+    {"modelo": "Arco Romano Chico Recto",      "medida": "4,60x2,47x1,20m",        "contado": 3000000,  "lista": 4370000,
+     "titulo": "Pileta Fibra Arco Romano Chico 4,6m - Cotiza Aqui",
+     "extra": "Forma clasica con escalera. Largo 4,60m x 2,47m. Profundidad 1,20m. Capacidad aprox. 10.000 litros."},
+    {"modelo": "Arco Romano Chico C/Desnivel", "medida": "4,60x2,35x1,10 a 1,30m", "contado": 2990000,  "lista": 4350000,
+     "titulo": "Pileta Fibra Arco Romano Desnivel 4,6m - Cotiza",
+     "extra": "Con desnivel progresivo: entrada 1,10m hasta 1,30m en la zona honda. Ideal para chicos y adultos."},
+    {"modelo": "Playa Humeda Chica C/Escalera","medida": "4,10x2,40x1,20m",        "contado": 2850000,  "lista": 4150000,
+     "titulo": "Pileta Fibra Playa Humeda Chica Escalera - Cotiza",
+     "extra": "Playa humeda integrada con escalera. Zona de entrada baja + zona de natacion 1,20m. Largo 4,10m."},
+    {"modelo": "Recta C/Mini Escalera",        "medida": "4,63x2,48x1,25m",        "contado": 3375000,  "lista": 4910000,
+     "titulo": "Pileta Fibra Recta Con Escalera 4,6m - Cotiza Aqui",
+     "extra": "Forma rectangular con mini escalera integrada. 4,63m de largo x 2,48m. Profundidad 1,25m."},
+    {"modelo": "Minimalista Chica",            "medida": "3,97x2,46x1,20m",        "contado": 2800000,  "lista": 4080000,
+     "titulo": "Pileta Fibra Minimalista Chica 4m - Cotiza Aqui",
+     "extra": "Diseño moderno rectangular. 3,97m x 2,46m. Profundidad 1,20m. Lineas rectas, estetica contemporanea."},
+    {"modelo": "Playa Humeda",                 "medida": "5,20x2,45x1,10 a 1,30m", "contado": 3290000,  "lista": 4790000,
+     "titulo": "Pileta Fibra Playa Humeda 5,2m - Cotiza Aqui",
+     "extra": "Playa humeda con desnivel. Zona baja para ninos + zona profunda 1,30m para adultos. Largo 5,20m."},
+    {"modelo": "Minimalista Grande",           "medida": "6,40x3x1,40m",           "contado": 3690000,  "lista": 5370000,
+     "titulo": "Pileta Fibra Minimalista Grande 6,4m - Cotiza",
+     "extra": "Diseño moderno. 6,40m x 3m. Profundidad 1,40m. Lineas rectas, estetica minimalista."},
+    {"modelo": "Arco Romano Mediano C/Desnivel","medida": "7x3,35x1,25 a 1,70m",   "contado": 4490000,  "lista": 7130000,
+     "titulo": "Pileta Fibra Arco Romano Mediano Desnivel 7m",
+     "extra": "7m de largo x 3,35m de ancho. Desnivel de 1,25m a 1,70m en la zona profunda. Capacidad aprox. 28.000 litros."},
+    {"modelo": "Semi Playa Humeda C/Escalera", "medida": "6,70x2,95x1,50m",        "contado": 3990000,  "lista": 5810000,
+     "titulo": "Pileta Fibra Semi Playa Humeda Escalera 6,7m",
+     "extra": "Semi playa con escalera. 6,70m x 2,95m. Profundidad hasta 1,50m. Combina practicidad y comodidad."},
+    {"modelo": "Arco Romano Grande",           "medida": "8,10x3,35x1,25 a 1,80m", "contado": 4800000,  "lista": 6990000,
+     "titulo": "Pileta Fibra Arco Romano Grande 8m - Cotiza Aqui",
+     "extra": "8,10m de largo x 3,35m de ancho. Desnivel 1,25m a 1,80m. Pileta de gran porte para uso familiar intensivo."},
+    {"modelo": "Arco Romano Mediano Recto",    "medida": "6,40x2,94x1,40m",        "contado": 4900000,  "lista": 7130000,
+     "titulo": "Pileta Fibra Arco Romano Mediano 6,4m - Cotiza",
+     "extra": "6,40m de largo x 2,94m de ancho. Profundidad uniforme 1,40m. Ideal para natacion. Capacidad aprox. 24.000 litros."},
+    {"modelo": "Minimalista Mediana",          "medida": "5,50x2,90x1,50m",        "contado": 4425000,  "lista": 6440000,
+     "titulo": "Pileta Fibra Minimalista Mediana 5,5m - Cotiza",
+     "extra": "5,50m x 2,90m. Profundidad 1,50m. Diseño rectangular moderno. Profundidad extra permite saltos desde el borde."},
+    {"modelo": "Playa y Abanico",              "medida": "9,20x3,80x1,25 a 1,80m", "contado": 5500000,  "lista": 8000000,
+     "titulo": "Pileta Fibra Playa y Abanico 9,2m - Cotiza Aqui",
+     "extra": "El modelo mas grande. 9,20m x 3,80m. Playa integrada en abanico + zona profunda 1,80m."},
+]
+
+_ENCABEZADO_REF = """COTIZA TU PISCINA DE FIBRA DE VIDRIO - INSTALACION COMPLETA EN EL DIA
+
+Esta publicacion es para COTIZAR. El precio que ves es una senal para iniciar el proceso. El precio real de la piscina instalada se informa por esta misma seccion de preguntas o esta en la descripcion mas abajo.
+
+PRECIOS DE CONTADO (abonas el dia que la piscina queda instalada en tu domicilio):
+Miniportante 2,50x2,10m - $1.990.000
+Minideck 3x2m Con Deck - $2.490.000
+Autoportante 4,10x2,10m - $3.000.000
+Arco Romano Chico Recto 4,60x2,47m - $3.000.000
+Arco Romano Chico Desnivel 4,60x2,35m - $2.990.000
+Playa Humeda Chica C/Escalera 4,10x2,40m - $2.850.000
+Recta C/Mini Escalera 4,63x2,48m - $3.375.000
+Minimalista Chica 3,97x2,46m - $2.800.000
+Playa Humeda 5,20x2,45m - $3.290.000
+Minimalista Grande 6,40x3m - $3.690.000
+Arco Romano Mediano Desnivel 7x3,35m - $4.490.000
+Semi Playa Humeda C/Escalera 6,70x2,95m - $3.990.000
+Arco Romano Grande 8,10x3,35m - $4.800.000
+Arco Romano Mediano Recto 6,40x2,94m - $4.900.000
+Minimalista Mediana 5,50x2,90m - $4.425.000
+Playa y Abanico 9,20x3,80m - $5.500.000
+
+En 6 cuotas sin interes con tarjeta de credito: consultar precio de lista (aprox. 40-65% mas).
+
+COMO FUNCIONA:
+1. Hace tu consulta con el modelo y tu localidad en la seccion de Preguntas
+2. Te informamos el precio exacto y calculamos el flete
+3. Si confirmas, abonas la senal por esta publicacion de MercadoLibre
+4. Coordinamos fabricacion e instalacion en tu domicilio
+5. Saldas el dia que la piscina queda instalada y funcionando"""
+
+_PIE_REF = """INCLUYE: fabricacion - transporte hasta 60km de Zarate - instalacion completa en el dia - primer puesta en marcha - equipo de filtrado.
+GARANTIA ESCRITA 10 ANOS con certificado de calidad premium.
+Fabricante directo en Zarate, Buenos Aires. Sin intermediarios.
+Equipo propio instala, conecta y deja funcionando en el mismo dia.
+Colores disponibles: blanco, cremita, azul, celeste.
+EcoFiver Eco Modulos y Piscinas"""
+
+
+def _upsert_config_pub(db: Session, clave: str, valor: str):
+    from database.models import ConfiguracionSistema
+    row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
+    if row:
+        row.valor = valor
+    else:
+        db.add(ConfiguracionSistema(clave=clave, valor=valor, categoria="ml_desc", es_secreto=False, estado="activa"))
+
+
+@router.post("/api/ml/seed/piscinas-cotizacion")
+async def seed_piscinas_cotizacion(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Seed único: crea 16 borradores de cotización para piscinas de fibra de vidrio.
+    Configura encabezado/pie de referencia y activa el auto-responder.
+    Idempotente: no duplica si ya existen. Pasa overwrite=true para recrear.
+    """
+    _auth(x_api_key, current_user)
+    data = {}
+    try:
+        data = await request.json()
+    except Exception:
+        pass
+    overwrite = bool(data.get("overwrite", False))
+
+    # ── Config encabezado/pie de referencia ──────────────────────────────────
+    _upsert_config_pub(db, "ml_desc_encabezado_referencia", _ENCABEZADO_REF)
+    _upsert_config_pub(db, "ml_desc_pie_referencia", _PIE_REF)
+    _upsert_config_pub(db, "ml_auto_responder_activo", "true")
+    db.commit()
+
+    # ── Crear borradores ──────────────────────────────────────────────────────
+    existentes = db.query(BorradorML).filter(
+        BorradorML.tipo_precio == "referencia",
+        BorradorML.producto == "PISCINA",
+    ).all()
+
+    if existentes and not overwrite:
+        return {
+            "ok": True,
+            "creados": 0,
+            "ya_existian": len(existentes),
+            "msg": f"Ya existen {len(existentes)} borradores de cotizacion. Pasa overwrite=true para recrearlos.",
+        }
+
+    if overwrite and existentes:
+        for b in existentes:
+            db.delete(b)
+        db.commit()
+
+    creados = []
+    for m in _PISCINAS_SEED:
+        desc = (
+            f"MODELO: {m['modelo']} - Medidas: {m['medida']}\n\n"
+            f"{m['extra']}\n\n"
+            f"PRECIO CONTADO (abonas el dia de la instalacion): ${m['contado']:,.0f}\n"
+            f"PRECIO EN 6 CUOTAS SIN INTERES CON TARJETA: ${m['lista']:,.0f}\n\n"
+            f"Consultanos por tu localidad para calcular el flete."
+        ).replace(",", ".")
+
+        b = BorradorML(
+            origen="seed_cotizacion",
+            titulo=m["titulo"][:60],
+            descripcion=desc,
+            categoria="MLA373513",
+            categoria_nombre="Piletas de Fibra de Vidrio",
+            producto="PISCINA",
+            precio=10000.0,
+            precio_contado=float(m["contado"]),
+            cantidad=1,
+            condicion="new",
+            listing_type="gold_special",
+            cuotas_sin_interes=0,
+            incluir_envio=False,
+            fotos_json="[]",
+            atributos_json="[]",
+            tipo_precio="referencia",
+            modelo_nombre=m["modelo"],
+            estado="borrador",
+            created_by_id=current_user.id if current_user else None,
+        )
+        db.add(b)
+        creados.append(m["modelo"])
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "creados": len(creados),
+        "modelos": creados,
+        "config_actualizada": ["ml_desc_encabezado_referencia", "ml_desc_pie_referencia", "ml_auto_responder_activo"],
+        "siguiente_paso": "Ir a /mercadolibre → pestaña Borradores → revisar los 16 borradores → publicar en lote.",
+    }

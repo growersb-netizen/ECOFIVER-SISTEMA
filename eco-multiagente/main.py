@@ -369,6 +369,24 @@ async def diag_provider():
         "GEMINI_KEY_SET": bool(_os.getenv("GEMINI_API_KEY")),
         "GROQ_KEY_SET": bool(_os.getenv("GROQ_API_KEY")),
     }
+    # Listar modelos Groq disponibles para este key
+    groq_key = _os.getenv("GROQ_API_KEY", "")
+    if groq_key:
+        import httpx as _httpx
+        try:
+            async with _httpx.AsyncClient(timeout=10) as _hc:
+                _r = await _hc.get(
+                    "https://api.groq.com/openai/v1/models",
+                    headers={"Authorization": f"Bearer {groq_key}"}
+                )
+            if _r.status_code == 200:
+                _models = [m["id"] for m in _r.json().get("data", [])]
+                result["groq_models_available"] = _models[:20]
+            else:
+                result["groq_models_error"] = f"{_r.status_code}: {_r.text[:200]}"
+        except Exception as _e:
+            result["groq_models_error"] = str(_e)[:100]
+
     try:
         from providers.factory import get_provider
         provider = get_provider()

@@ -295,8 +295,8 @@ Recta C/Mini Escalera 4,63x2,48m | $3.375.000 | $4.910.000
 Playa Humeda Chica C/Escalera 4,10x2,40m | $2.850.000 | $4.150.000
 Semi Playa Humeda C/Escalera 6,70x2,95m | $3.990.000 | $5.810.000
 Playa y Abanico 9,20x3,80m | $5.500.000 | $8.000.000
-Todos los precios incluyen: instalacion completa en el mismo dia - excavacion del pozo (si es tierra) - sistema de filtrado - traslado hasta 60km de Zarate.
-Colores: blanco, cremita, azul, celeste. Garantia escrita 10 años."""
+Todos los precios incluyen: instalacion completa en el mismo dia - excavacion del pozo (si es tierra) - sistema de filtrado. FLETE NO INCLUIDO: $3.000/km desde Zarate. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
+Colores: blanco, beige, azul, celeste. Garantia escrita 10 años."""
 
 
 def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
@@ -324,11 +324,11 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
 
     if es_cotizacion:
         prod_lines.append(
-            f"TIPO DE PUBLICACIÓN: COTIZACIÓN (seña/señal). "
+            f"TIPO DE PUBLICACIÓN: COTIZACIÓN (seña). "
             f"El precio publicado (${precio_pub:,.0f} ARS) es solo la seña para iniciar el proceso. "
             f"El precio real de la piscina instalada se calcula según el modelo y la localidad del cliente "
             f"(ver tabla de precios más abajo). El saldo se abona el día de la instalación en el domicilio. "
-            f"NO decir que el precio publicado es el precio del producto — es solo la señal de reserva."
+            f"NO decir que el precio publicado es el precio del producto — es solo la seña de reserva."
         )
         prod_lines.append(_PRECIOS_PISCINAS)
     elif precio_pub and precio_pub > 0:
@@ -351,7 +351,7 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
 
     instrucciones_cotizacion = """
 INSTRUCCIONES ESPECIALES — PUBLICACIÓN DE COTIZACIÓN:
-Esta publicación usa precio simbólico como señal. El precio real se coordina por preguntas.
+Esta publicación usa precio simbólico como seña. El precio real se coordina por preguntas.
 Cuando alguien pregunte el precio real: dá el precio de contado del modelo más parecido al que pregunta,
 usando la tabla de precios de arriba. Formato: "$X.XXX.XXX al contado (abonás contra la instalación)
 - En 6 cuotas sin interés con tarjeta queda en $X.XXX.XXX".

@@ -3291,7 +3291,7 @@ _PISCINAS_SEED = [
 
 _ENCABEZADO_REF = """COTIZA TU PISCINA DE FIBRA DE VIDRIO - INSTALACION COMPLETA EN EL DIA
 
-Esta publicacion es para COTIZAR. El precio que ves es una senal para iniciar el proceso. El precio real de la piscina instalada se informa por esta misma seccion de preguntas o esta en la descripcion mas abajo.
+Esta publicacion es para COTIZAR. El precio que ves es la seña para iniciar el proceso. El precio real de la piscina instalada se informa por esta misma seccion de preguntas o esta en la descripcion mas abajo.
 
 PRECIOS DE CONTADO (abonas el dia que la piscina queda instalada en tu domicilio):
 Miniportante 2,50x2,10m - $1.990.000
@@ -3311,20 +3311,22 @@ Arco Romano Mediano Recto 6,40x2,94m - $4.900.000
 Minimalista Mediana 5,50x2,90m - $4.425.000
 Playa y Abanico 9,20x3,80m - $5.500.000
 
+Los precios NO incluyen flete. El traslado se cotiza aparte: $3.000 por km desde Zarate, Buenos Aires. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
 En 6 cuotas sin interes con tarjeta de credito: consultar precio de lista (aprox. 40-65% mas).
 
 COMO FUNCIONA:
 1. Hace tu consulta con el modelo y tu localidad en la seccion de Preguntas
 2. Te informamos el precio exacto y calculamos el flete
-3. Si confirmas, abonas la senal por esta publicacion de MercadoLibre
+3. Si confirmas, abonas la seña por esta publicacion de MercadoLibre
 4. Coordinamos fabricacion e instalacion en tu domicilio
 5. Saldas el dia que la piscina queda instalada y funcionando"""
 
-_PIE_REF = """INCLUYE: fabricacion - transporte hasta 60km de Zarate - instalacion completa en el dia - primer puesta en marcha - equipo de filtrado.
+_PIE_REF = """INCLUYE: fabricacion - instalacion completa en el dia - primer puesta en marcha - equipo de filtrado.
+Flete a coordinar por separado: $3.000 por km desde Zarate, Buenos Aires. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
 GARANTIA ESCRITA 10 ANOS con certificado de calidad premium.
 Fabricante directo en Zarate, Buenos Aires. Sin intermediarios.
 Equipo propio instala, conecta y deja funcionando en el mismo dia.
-Colores disponibles: blanco, cremita, azul, celeste.
+Colores disponibles: blanco, beige, azul, celeste.
 EcoFiver Eco Modulos y Piscinas"""
 
 

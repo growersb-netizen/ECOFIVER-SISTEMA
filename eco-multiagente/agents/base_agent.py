@@ -336,8 +336,8 @@ class BaseAgent:
             # caía en "no puedo responder" ante otros errores.
             logger.warning(f"[{self.name}] {provider.name} falló ({err_str[:80]}), probando fallbacks...")
             _groq_models = [
-                os.getenv("GROQ_MODEL", "llama3-8b-8192"),
-                "llama3-70b-8192",
+                os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                "llama-3.1-8b-instant",
                 "gemma2-9b-it",
             ]
             reply = None

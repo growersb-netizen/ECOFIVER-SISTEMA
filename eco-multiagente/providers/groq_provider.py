@@ -11,7 +11,7 @@ from .base_provider import BaseProvider
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama3-8b-8192"
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 

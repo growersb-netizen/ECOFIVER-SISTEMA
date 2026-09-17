@@ -353,6 +353,38 @@ def _ultimo_scraping_resumen():
         return {}
 
 
+# ── Diagnóstico de proveedor IA ───────────────────────────────────────────
+@app.get("/diag/provider")
+async def diag_provider():
+    """Diagnostica el proveedor de IA activo y reporta el error real."""
+    import os as _os
+    result = {
+        "AI_PROVIDER": _os.getenv("AI_PROVIDER", "(no set)"),
+        "OPENROUTER_KEY_SET": bool(_os.getenv("OPENROUTER_API_KEY")),
+        "OPENROUTER_KEY_PREFIX": (_os.getenv("OPENROUTER_API_KEY") or "")[:8],
+        "GEMINI_KEY_SET": bool(_os.getenv("GEMINI_API_KEY")),
+        "GROQ_KEY_SET": bool(_os.getenv("GROQ_API_KEY")),
+    }
+    try:
+        from providers.factory import get_provider
+        provider = get_provider()
+        result["provider_name"] = provider.name
+        try:
+            reply = await provider.generate(
+                system_prompt="Sos un asistente.",
+                history=[],
+                message="Respondé solo: OK",
+            )
+            result["test_ok"] = True
+            result["test_reply"] = reply[:80]
+        except Exception as e:
+            result["test_ok"] = False
+            result["test_error"] = str(e)[:300]
+    except Exception as e:
+        result["factory_error"] = str(e)[:200]
+    return result
+
+
 # ── Audit log endpoints ───────────────────────────────────────────────────
 @app.get("/audit/log")
 async def audit_log_recientes(n: int = 50):

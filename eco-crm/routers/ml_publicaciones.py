@@ -1397,11 +1397,12 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
 
     # Shipping: me2+gratis para productos de courier (hidromasajes, bañeras, accesorios);
     # not_specified para productos de gran porte (piscinas, módulos, etc.).
-    # local_pick_up=True en todos: habilita "Retiro en persona" siempre.
+    # NOTA: local_pick_up OMITIDO en not_specified — ML requiere me1 cuando está presente
+    # aunque el modo sea not_specified; los 230+ ítems publicados antes no lo tenían.
     if tipo_prod in _TIPOS_CON_ENVIO_GRATIS:
         _shipping = {"mode": "me2", "free_shipping": True, "local_pick_up": True}
     else:
-        _shipping = {"mode": "not_specified", "free_shipping": False, "local_pick_up": True}
+        _shipping = {"mode": "not_specified", "free_shipping": False}
 
     # Payload estándar (marketplace buy_it_now)
     # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente

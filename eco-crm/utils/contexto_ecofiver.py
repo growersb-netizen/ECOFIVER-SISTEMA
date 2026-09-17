@@ -278,23 +278,23 @@ RESTRICCIONES ABSOLUTAS EN RESPUESTAS AL PÚBLICO
 # ─── CONTEXTOS ESPECÍFICOS POR USO ───────────────────────────────────────────
 
 _PRECIOS_PISCINAS = """TABLA DE PRECIOS PISCINAS (sept-2026):
-Modelo | Contado (contra instalacion) | 6 cuotas s/i tarjeta
-Minideck 3x2m Deck | $2.490.000 | $4.370.000
-Miniportante 2,50x2,10m | $1.990.000 | $3.640.000
-Autoportante 4,10x2,10m | $3.000.000 | $4.370.000
-Arco Romano Chico Recto 4,60x2,47m | $3.000.000 | $4.370.000
-Arco Romano Chico C/Desnivel 4,60x2,35m | $2.990.000 | $4.350.000
-Arco Romano Mediano Recto 6,40x2,94m | $4.900.000 | $7.130.000
-Arco Romano Mediano C/Desnivel 7x3,35m | $4.490.000 | $7.130.000
-Arco Romano Grande 8,10x3,35m | $4.800.000 | $6.990.000
-Playa Humeda 5,20x2,45m | $3.290.000 | $4.790.000
-Minimalista Chica 3,97x2,46m | $2.800.000 | $4.080.000
-Minimalista Mediana 5,50x2,90m | $4.425.000 | $6.440.000
-Minimalista Grande 6,40x3m | $3.690.000 | $5.370.000
-Recta C/Mini Escalera 4,63x2,48m | $3.375.000 | $4.910.000
-Playa Humeda Chica C/Escalera 4,10x2,40m | $2.850.000 | $4.150.000
-Semi Playa Humeda C/Escalera 6,70x2,95m | $3.990.000 | $5.810.000
-Playa y Abanico 9,20x3,80m | $5.500.000 | $8.000.000
+Modelo | Contado (contra instalacion)
+Minideck 3x2m Deck | $2.490.000
+Miniportante 2,50x2,10m | $1.990.000
+Autoportante 4,10x2,10m | $3.000.000
+Arco Romano Chico Recto 4,60x2,47m | $3.000.000
+Arco Romano Chico C/Desnivel 4,60x2,35m | $2.990.000
+Arco Romano Mediano Recto 6,40x2,94m | $4.900.000
+Arco Romano Mediano C/Desnivel 7x3,35m | $4.490.000
+Arco Romano Grande 8,10x3,35m | $4.800.000
+Playa Humeda 5,20x2,45m | $3.290.000
+Minimalista Chica 3,97x2,46m | $2.800.000
+Minimalista Mediana 5,50x2,90m | $4.425.000
+Minimalista Grande 6,40x3m | $3.690.000
+Recta C/Mini Escalera 4,63x2,48m | $3.375.000
+Playa Humeda Chica C/Escalera 4,10x2,40m | $2.850.000
+Semi Playa Humeda C/Escalera 6,70x2,95m | $3.990.000
+Playa y Abanico 9,20x3,80m | $5.500.000
 Todos los precios incluyen: instalacion completa en el mismo dia - excavacion del pozo (si es tierra) - sistema de filtrado. FLETE NO INCLUIDO: $3.000/km desde Zarate. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
 Colores: blanco, beige, azul, celeste. Garantia escrita 10 años."""
 
@@ -353,8 +353,7 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
 INSTRUCCIONES ESPECIALES — PUBLICACIÓN DE COTIZACIÓN:
 Esta publicación usa precio simbólico como seña. El precio real se coordina por preguntas.
 Cuando alguien pregunte el precio real: dá el precio de contado del modelo más parecido al que pregunta,
-usando la tabla de precios de arriba. Formato: "$X.XXX.XXX al contado (abonás contra la instalación)
-- En 6 cuotas sin interés con tarjeta queda en $X.XXX.XXX".
+usando la tabla de precios de arriba. Formato: "$X.XXX.XXX al contado (abonás contra la instalación)".
 Cuando no den medidas ni modelo: pedí medida del espacio y localidad en una sola oración.
 Cuando pregunten si es mentira el precio: explicá que la publicación es para cotizar, el precio real
 está en la descripción, y el saldo se abona cuando la piscina ya está instalada.
@@ -375,7 +374,7 @@ OBJETIVO: dar la info concreta que pidieron + un dato de valor + pedirles locali
 INSTRUCCIONES POR TIPO DE PREGUNTA:
 
 PRECIO: Dar el precio del modelo según la tabla. Si no hay modelo específico, pedir medidas y localidad.
-Para cotización: "$X al contado (abonás cuando la piscina está instalada) - En 6 cuotas sin interés con tarjeta queda en $X. Incluye - excavación del pozo - colocación - filtrado - traslado. Instalada en el día. Garantía escrita 10 años."
+Para cotización: "$X al contado (abonás cuando la piscina está instalada). Incluye - excavación del pozo - colocación - filtrado - traslado. Instalada en el día. Garantía escrita 10 años."
 
 FLETE/ENVIO: Instalamos en Buenos Aires (CABA y GBA). Flete incluido hasta 60km de Zárate. Más lejos se cotiza. O retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
 
@@ -384,8 +383,6 @@ INSTALACIÓN: Equipo propio instala, conecta y deja funcionando en el mismo día
 MEDIDAS/ESPECIFICACIONES: Buscar en el catálogo del contexto y dar las medidas exactas. Preguntar por las medidas del espacio disponible.
 
 GARANTIA: 10 años con certificado de calidad premium. Somos fabricantes directos en Zárate.
-
-FINANCIACIÓN/CUOTAS (en cotizacion): El saldo se paga contra la instalación. Con tarjeta: 6 cuotas sin interés. Sin tarjeta: consultanos por financiación propia.
 
 ZONA/COBERTURA: Instalamos en Buenos Aires y GBA. Interior del país: consultar.
 

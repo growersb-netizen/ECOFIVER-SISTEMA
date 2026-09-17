@@ -3312,7 +3312,6 @@ Minimalista Mediana 5,50x2,90m - $4.425.000
 Playa y Abanico 9,20x3,80m - $5.500.000
 
 Los precios NO incluyen flete. El traslado se cotiza aparte: $3.000 por km desde Zarate, Buenos Aires. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
-En 6 cuotas sin interes con tarjeta de credito: consultar precio de lista (aprox. 40-65% mas).
 
 COMO FUNCIONA:
 1. Hace tu consulta con el modelo y tu localidad en la seccion de Preguntas
@@ -3397,8 +3396,7 @@ async def seed_piscinas_cotizacion(
         desc = (
             f"MODELO: {m['modelo']} - Medidas: {m['medida']}\n\n"
             f"{m['extra']}\n\n"
-            f"PRECIO CONTADO (abonas el dia de la instalacion): ${m['contado']:,.0f}\n"
-            f"PRECIO EN 6 CUOTAS SIN INTERES CON TARJETA: ${m['lista']:,.0f}\n\n"
+            f"PRECIO CONTADO (abonas el dia de la instalacion): ${m['contado']:,.0f}\n\n"
             f"Consultanos por tu localidad para calcular el flete."
         ).replace(",", ".")
 

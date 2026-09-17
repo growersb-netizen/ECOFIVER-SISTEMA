@@ -3371,13 +3371,21 @@ async def seed_piscinas_cotizacion(
         BorradorML.producto == "PISCINA",
     ).all()
 
+    actualizar_desc_ml = bool(data.get("actualizar_desc_ml", False))
+
     if existentes and not overwrite:
-        return {
+        resultado = {
             "ok": True,
             "creados": 0,
             "ya_existian": len(existentes),
-            "msg": f"Ya existen {len(existentes)} borradores de cotizacion. Pasa overwrite=true para recrearlos.",
+            "config_actualizada": ["ml_desc_encabezado_referencia", "ml_desc_pie_referencia"],
+            "msg": f"Config actualizado. Ya existen {len(existentes)} borradores publicados.",
         }
+        # ── Actualizar descripciones en ML de los items ya publicados ─────────
+        if actualizar_desc_ml:
+            from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE, _armar_descripcion_ml
+            resultado["desc_ml"] = await _sync_desc_cotizacion_ml(db, existentes)
+        return resultado
 
     if overwrite and existentes:
         for b in existentes:
@@ -3427,3 +3435,31 @@ async def seed_piscinas_cotizacion(
         "config_actualizada": ["ml_desc_encabezado_referencia", "ml_desc_pie_referencia", "ml_auto_responder_activo"],
         "siguiente_paso": "Ir a /mercadolibre → pestaña Borradores → revisar los 16 borradores → publicar en lote.",
     }
+
+
+async def _sync_desc_cotizacion_ml(db, borradores_existentes) -> dict:
+    """Actualiza las descripciones en ML de los borradores de cotización ya publicados."""
+    from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE, _armar_descripcion_ml
+    publicados = [b for b in borradores_existentes if b.item_id and b.estado == "publicada"]
+    if not publicados:
+        return {"ok": 0, "sin_item_id": len(borradores_existentes)}
+    try:
+        token = await _ml_valid_token(db)
+    except Exception as e:
+        return {"error": str(e), "ok": 0}
+    ok = 0
+    errores = []
+    for b in publicados:
+        desc_final = _armar_descripcion_ml(db, b.descripcion or "", tipo="referencia")
+        async with httpx.AsyncClient(timeout=10) as hc:
+            r = await hc.put(
+                f"{ML_BASE}/items/{b.item_id}/description",
+                headers=_ml_headers(token),
+                json={"plain_text": desc_final},
+            )
+        if r.status_code in (200, 201):
+            ok += 1
+        else:
+            errores.append({"item_id": b.item_id, "status": r.status_code, "msg": r.text[:80]})
+        await asyncio.sleep(0.5)
+    return {"ok": ok, "total": len(publicados), "errores": errores}

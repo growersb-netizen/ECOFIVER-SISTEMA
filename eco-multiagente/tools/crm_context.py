@@ -207,12 +207,13 @@ def _build_context_parts(parts: list, data: dict) -> None:
         piscinas = pr.get("piscinas", {})
         modulos  = pr.get("modulos", {})
         if piscinas:
-            lines.append("  Piscinas (precio de lista, contado):")
+            lines.append("  Piscinas — CONTADO (abona contra instalación en domicilio):")
             precios_p = piscinas.get("precios", {})
             for modelo, precio in precios_p.items():
                 lines.append(f"    • {modelo}: ${precio:,.0f}")
+            lines.append("  → En 6 cuotas sin interés con tarjeta: ver doc 'precios_piscinas_contado_lista' en base de conocimiento.")
         if modulos:
-            lines.append("  Módulos (precio de lista, contado):")
+            lines.append("  Módulos (precio contado):")
             precios_m = modulos.get("precios", {})
             for sup, precio in precios_m.items():
                 lines.append(f"    • {sup}: ${precio:,.0f}")

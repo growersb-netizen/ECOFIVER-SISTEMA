@@ -247,6 +247,81 @@ a 2 cuotas de ingreso) — nunca el mismo mes de la firma.
 """,
     },
     {
+        "id": "precios_piscinas_contado_lista",
+        "titulo": "Precios piscinas — contado vs. 6 cuotas sin interés con tarjeta",
+        "agentes": ["valentina", "camila", "nicolas", "tomas", "aurora", "maximo"],
+        "contenido": """=== TABLA DE PRECIOS PISCINAS — VIGENTE 2026 ===
+
+PRECIO CONTADO = se abona el día de la instalación en el domicilio del cliente.
+PRECIO EN CUOTAS = 6 cuotas sin interés con tarjeta de crédito (precio lista).
+En financiación propia (12 a 120 cuotas): usar precio_contado como base para el simulador [SIMULAR:piscina:X].
+
+Modelo                          | Medida                      | CONTADO     | 6 CUOTAS s/i (c/tarjeta)
+--------------------------------|-----------------------------|-------------|---------------------------
+Minideck                        | 3,55x2,10 Deck / 3x2x70    | $2.490.000  | $4.370.000
+Miniportante                    | 2,50x2,10x70                | $1.990.000  | $3.640.000
+Autoportante                    | 4,10x2,10x70                | $3.000.000  | $4.370.000
+Arco Romano Chico Recto         | 4,60x2,47x1,20              | $3.000.000  | $4.370.000
+Arco Romano Chico C/Desnivel    | 4,60x2,35x1,10 a 1,30      | $2.990.000  | $4.350.000
+Arco Romano Mediano Recto       | 6,40x2,94x1,40              | $4.900.000  | $7.130.000
+Arco Romano Mediano C/Desnivel  | 7x3,35x1,25 a 1,70         | $4.490.000  | $7.130.000
+Arco Romano Grande              | 8,10x3,35x1,25 a 1,80      | $4.800.000  | $6.990.000
+Playa Humeda                    | 5,20x2,45x1,10 a 1,30      | $3.290.000  | $4.790.000
+Minimalista Chica               | 3,97x2,46x1,20              | $2.800.000  | $4.080.000
+Minimalista Mediana             | 5,50x2,90x1,50              | $4.425.000  | $6.440.000
+Minimalista Grande              | 6,40x3x1,40                 | $3.690.000  | $5.370.000
+Recta C/Mini Escalera           | 4,63x2,48x1,25              | $3.375.000  | $4.910.000
+Playa Humeda Chica C/Escalera   | 4,10x2,40x1,20              | $2.850.000  | $4.150.000
+Semi Playa Humeda C/Escalera    | 6,70x2,95x1,50              | $3.990.000  | $5.810.000
+Playa y Abanico                 | 9,20x3,80x1,25 a 1,80      | $5.500.000  | $8.000.000
+
+REGLA DE USO:
+- Cuando el cliente paga CONTADO → usar columna CONTADO.
+- Cuando paga con tarjeta en 6 cuotas → usar columna 6 CUOTAS s/i.
+- Cuando paga con financiación propia (12-120 cuotas) → usar precio_contado como base del simulador.
+- El flete se suma aparte (contado: km × tarifa desde Zárate). En financiación: flete BONIFICADO.
+- Instalamos únicamente en Buenos Aires (CABA y GBA). Localidades fuera del GBA: consultar.
+- Colores disponibles: blanco, cremita, azul, celeste.
+""",
+    },
+    {
+        "id": "ml_respuestas_piscinas",
+        "titulo": "MercadoLibre — respuestas cortas para preguntas de la publicación",
+        "agentes": ["camila", "nicolas", "valentina", "tomas", "maximo"],
+        "contenido": """=== RESPUESTAS PARA PREGUNTAS DE MERCADOLIBRE ===
+
+Las publicaciones de ML tienen un precio de señal ($10.000). El cliente contacta por WhatsApp
+después de ver la publicación. El canal WhatsApp es donde se completa la cotización.
+
+ESTILO OBLIGATORIO EN RESPUESTAS A PREGUNTAS ML:
+- Respuestas CORTAS — máximo 3-4 líneas.
+- SIN emojis, SIN listas, SIN saltos de línea (ML no los muestra).
+- Usá " - " para separar ítems dentro de una oración (no bullet points).
+- Siempre terminar pidiendo localidad y medida del espacio, o ya dando el precio si los datos están.
+
+PLANTILLAS POR TIPO DE PREGUNTA:
+
+Cuando NO dan datos (piden info general):
+"Hola! Contame qué medida buscás y para qué localidad, así te doy el precio exacto con la instalación completa incluida."
+
+Cuando dan LOCALIDAD + MEDIDA (ejemplo: Arco Romano Mediano Recto en Quilmes):
+"Hola! La instalación completa de la [MODELO] [MEDIDAS] en [LOCALIDAD] tiene un valor de $[PRECIO_CONTADO] al contado (lo abonás cuando la piscina ya está instalada). En 6 cuotas sin interés con tarjeta queda en $[PRECIO_LISTA]. Incluye - excavación del pozo - colocación - sistema de filtrado - traslado hasta [LOCALIDAD]. Queda instalada y funcionando en el mismo día. Garantía escrita 10 años."
+
+Cuando preguntan si el precio de la publicación es el real / "es mentira el precio":
+"Hola! El precio de la publicación es para tomar contacto. Todos los modelos y precios reales con instalación completa están en la descripción. El saldo se abona cuando la piscina ya está instalada en tu casa."
+
+Cuando preguntan por el interior del país:
+"Hola! Por ahora instalamos únicamente en Buenos Aires (CABA y GBA). Si querés retiro en fábrica consultanos."
+
+Cuando preguntan si tiene financiación:
+"Hola! Sí, tenemos 6 cuotas sin interés con tarjeta de crédito. Para financiación a más plazo (12 a 120 cuotas) sin banco ni scoring consultanos por WhatsApp."
+
+Cuando ya tienen los datos y hay que dar el precio — EJEMPLO REAL:
+Pregunta: "hola cuanto sale la de 6x3 instalada en Quilmes"
+Respuesta: "Hola! La instalación completa de la Minimalista Grande 6,40x3,00 en Quilmes tiene un valor de $3.690.000 al contado (abonás cuando la piscina está instalada). En 6 cuotas sin interés con tarjeta queda en $5.370.000. Incluye - excavación del pozo - colocación - sistema de filtrado - traslado. Instalada y funcionando en el mismo día. Garantía escrita 10 años."
+""",
+    },
+    {
         "id": "estrategia_piscinas_anual",
         "titulo": "Estrategia de venta de piscinas todo el año (clave)",
         "agentes": ["valentina", "camila", "nicolas", "tomas", "aurora", "maximo"],

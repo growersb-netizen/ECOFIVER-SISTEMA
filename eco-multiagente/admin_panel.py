@@ -609,6 +609,7 @@ async def admin_save(request: Request):
     campos = [
         "AI_PROVIDER",
         "OPENROUTER_API_KEY", "OPENROUTER_MODEL",
+        "GROQ_API_KEY", "GROQ_MODEL",
         "GROK_API_KEY", "GROK_MODEL",
         "GEMINI_API_KEY", "GEMINI_MODEL",
         "ANTHROPIC_API_KEY", "CLAUDE_MODEL",

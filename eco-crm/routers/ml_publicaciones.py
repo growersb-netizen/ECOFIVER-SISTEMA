@@ -3506,13 +3506,19 @@ async def sync_piscinas_desc_ml(
     from routers.mercadolibre import _get_user_id as _ml_get_user_id
     user_id = await _ml_get_user_id(token, db)
 
-    # 1. Buscar items activos en categoría piscinas fibra de vidrio
-    async with httpx.AsyncClient(timeout=20) as hc:
-        r = await hc.get(f"{ML_BASE}/users/{user_id}/items/search", headers=hdrs,
-                         params={"category": "MLA373513", "status": "active", "limit": 50})
-    if r.status_code != 200:
-        raise HTTPException(500, f"ML search: {r.status_code} {r.text[:200]}")
-    all_ids = r.json().get("results", [])
+    # 1. Buscar todos los items activos del vendedor (hasta 200)
+    all_ids = []
+    for offset in [0, 50, 100, 150]:
+        async with httpx.AsyncClient(timeout=20) as hc:
+            r = await hc.get(f"{ML_BASE}/users/{user_id}/items/search", headers=hdrs,
+                             params={"status": "active", "limit": 50, "offset": offset})
+        if r.status_code != 200:
+            break
+        batch = r.json().get("results", [])
+        all_ids.extend(batch)
+        if len(batch) < 50:
+            break
+        await asyncio.sleep(0.3)
 
     # 2. Filtrar cotizaciones (precio 10000) con títulos
     cotizacion_items = []

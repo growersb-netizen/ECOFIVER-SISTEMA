@@ -3378,15 +3378,21 @@ async def seed_piscinas_cotizacion(
             "creados": 0,
             "ya_existian": len(existentes),
             "config_actualizada": ["ml_desc_encabezado_referencia", "ml_desc_pie_referencia"],
-            "msg": f"Config actualizado. Ya existen {len(existentes)} borradores publicados.",
+            "msg": f"Config actualizado. Ya existen {len(existentes)} borradores.",
         }
-        # ── Actualizar descripciones en ML de los items ya publicados ─────────
         if actualizar_desc_ml:
-            from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE, _armar_descripcion_ml
             resultado["desc_ml"] = await _sync_desc_cotizacion_ml(db, existentes)
         return resultado
 
+    # Preservar item_id y estado de publicados antes de borrar
+    datos_publicados: dict = {}
     if overwrite and existentes:
+        for b in existentes:
+            if b.item_id:
+                datos_publicados[b.modelo_nombre] = {"item_id": b.item_id, "estado": b.estado}
+        # Sincronizar descripciones ML ANTES de borrar (mientras tenemos los item_ids)
+        if actualizar_desc_ml and datos_publicados:
+            await _sync_desc_cotizacion_ml(db, existentes)
         for b in existentes:
             db.delete(b)
         db.commit()
@@ -3400,6 +3406,7 @@ async def seed_piscinas_cotizacion(
             f"Consultanos por tu localidad para calcular el flete."
         ).replace(",", ".")
 
+        pub = datos_publicados.get(m["modelo"], {})
         b = BorradorML(
             origen="seed_cotizacion",
             titulo=m["titulo"][:60],
@@ -3418,7 +3425,8 @@ async def seed_piscinas_cotizacion(
             atributos_json="[]",
             tipo_precio="referencia",
             modelo_nombre=m["modelo"],
-            estado="borrador",
+            item_id=pub.get("item_id"),
+            estado=pub.get("estado", "borrador"),
             created_by_id=current_user.id if current_user else None,
         )
         db.add(b)
@@ -3426,13 +3434,25 @@ async def seed_piscinas_cotizacion(
 
     db.commit()
 
-    return {
+    # Si piden actualizar ML pero no hubo sync antes (borradores nuevos sin item_id previo)
+    desc_ml_result = None
+    if actualizar_desc_ml and not datos_publicados:
+        nuevos = db.query(BorradorML).filter(
+            BorradorML.tipo_precio == "referencia",
+            BorradorML.producto == "PISCINA",
+        ).all()
+        desc_ml_result = await _sync_desc_cotizacion_ml(db, nuevos)
+
+    resultado = {
         "ok": True,
         "creados": len(creados),
         "modelos": creados,
         "config_actualizada": ["ml_desc_encabezado_referencia", "ml_desc_pie_referencia", "ml_auto_responder_activo"],
         "siguiente_paso": "Ir a /mercadolibre → pestaña Borradores → revisar los 16 borradores → publicar en lote.",
     }
+    if actualizar_desc_ml:
+        resultado["desc_ml"] = desc_ml_result or {"ok": 0, "msg": "sin items publicados para sincronizar"}
+    return resultado
 
 
 async def _sync_desc_cotizacion_ml(db, borradores_existentes) -> dict:
@@ -3461,3 +3481,93 @@ async def _sync_desc_cotizacion_ml(db, borradores_existentes) -> dict:
             errores.append({"item_id": b.item_id, "status": r.status_code, "msg": r.text[:80]})
         await asyncio.sleep(0.5)
     return {"ok": ok, "total": len(publicados), "errores": errores}
+
+
+@router.post("/api/ml/seed/piscinas-cotizacion/sync-ml")
+async def sync_piscinas_desc_ml(
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Busca en ML los items cotización de piscinas publicados (precio=10000, cat MLA373513),
+    actualiza sus descripciones con el texto actual (sin cuotas), y re-vincula los borradores.
+    Usar cuando los borradores perdieron el item_id (ej: overwrite sin sync previo).
+    """
+    _auth(x_api_key, current_user)
+    from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE, _armar_descripcion_ml
+
+    try:
+        token = await _ml_valid_token(db)
+    except Exception as e:
+        raise HTTPException(500, f"ML token: {e}")
+
+    hdrs = _ml_headers(token)
+
+    # 1. Buscar items activos en categoría piscinas fibra de vidrio
+    async with httpx.AsyncClient(timeout=20) as hc:
+        r = await hc.get(f"{ML_BASE}/users/me/items/search", headers=hdrs,
+                         params={"category": "MLA373513", "status": "active", "limit": 50})
+    if r.status_code != 200:
+        raise HTTPException(500, f"ML search: {r.status_code} {r.text[:200]}")
+    all_ids = r.json().get("results", [])
+
+    # 2. Filtrar cotizaciones (precio 10000) con títulos
+    cotizacion_items = []
+    for i in range(0, len(all_ids), 20):
+        chunk = all_ids[i:i + 20]
+        async with httpx.AsyncClient(timeout=15) as hc:
+            r2 = await hc.get(f"{ML_BASE}/items", headers=hdrs,
+                              params={"ids": ",".join(chunk), "attributes": "id,title,price"})
+        if r2.status_code == 200:
+            for entry in r2.json():
+                body = entry.get("body", {})
+                if float(body.get("price", -1)) == 10000.0:
+                    cotizacion_items.append({"id": body["id"], "title": body.get("title", "")})
+        await asyncio.sleep(0.3)
+
+    # 3. Cargar borradores del seed indexados por título
+    borradores_db = db.query(BorradorML).filter(
+        BorradorML.tipo_precio == "referencia", BorradorML.producto == "PISCINA"
+    ).all()
+    borradores_por_titulo = {b.titulo.strip().lower(): b for b in borradores_db}
+
+    ok, errores, re_vinculados = 0, [], 0
+    usados: set = set()
+    for item in cotizacion_items:
+        titulo_ml = item["title"].strip().lower()
+        b = borradores_por_titulo.get(titulo_ml)
+        if not b:
+            # Matching parcial: buscar borrador cuyo título esté contenido en el título ML
+            for key, bv in borradores_por_titulo.items():
+                if key[:35] in titulo_ml or titulo_ml[:35] in key:
+                    b = bv
+                    break
+        if not b:
+            # Último recurso: primer borrador sin vincular
+            for bv in borradores_db:
+                if id(bv) not in usados:
+                    b = bv
+                    break
+        if not b:
+            errores.append({"id": item["id"], "title": item["title"], "msg": "sin borrador"})
+            continue
+
+        usados.add(id(b))
+        desc_final = _armar_descripcion_ml(db, b.descripcion or "", tipo="referencia")
+        async with httpx.AsyncClient(timeout=10) as hc:
+            rp = await hc.put(f"{ML_BASE}/items/{item['id']}/description",
+                              headers=hdrs, json={"plain_text": desc_final})
+        if rp.status_code in (200, 201):
+            ok += 1
+            if not b.item_id:
+                b.item_id = item["id"]
+                b.estado = "publicada"
+                re_vinculados += 1
+        else:
+            errores.append({"id": item["id"], "status": rp.status_code, "msg": rp.text[:100]})
+        await asyncio.sleep(0.4)
+
+    db.commit()
+    return {"ok": ok, "total": len(cotizacion_items), "re_vinculados": re_vinculados,
+            "items_encontrados": [i["id"] for i in cotizacion_items], "errores": errores}

@@ -40,8 +40,6 @@ _LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
 # MLA373483 (Armarios para Exterior) descartada: fuerza gold_special + ME1 + free shipping obligatorio.
 # Todos los módulos/garitas/depósitos pasan a buy_it_now en MLA416584 (Cubículos de Oficina):
 # sin costo de publicación, comisión solo al vender, envío "a coordinar" sin ME1 obligatorio.
-_TIPOS_CLASSIFIED: set = set()  # vacío: ningún tipo usa classified por ahora
-
 # Tipos que van por courier (Mercado Envíos) con envío gratis absorbido en el precio
 _TIPOS_CON_ENVIO_GRATIS = {
     "HIDROMASAJE", "BANERA", "RECEPTACULO",
@@ -57,7 +55,6 @@ async def _run_lote_bg(job_id: str, bids: list):
 
     job = _LOTES[job_id]
     job["estado"] = "en_curso"
-    delay_cl = 120  # segundos entre classified; se ajusta adaptativamente
 
     for i, bid in enumerate(bids):
         if job.get("cancelado"):
@@ -72,42 +69,7 @@ async def _run_lote_bg(job_id: str, bids: list):
                 job["procesados"] = i + 1
                 continue
 
-            es_classified = (b.producto or "").upper() in _TIPOS_CLASSIFIED
-
-            # Para classified: hasta 3 intentos con espera progresiva entre ellos
-            res = None
-            if es_classified:
-                if job.get("cuota_classified_agotada"):
-                    # ML ya rechazó con "not available for category" → no hay cuota libre disponible.
-                    # Todos los siguientes classified fallarán igual; saltear sin reintentar.
-                    res = {
-                        "ok": False,
-                        "error": "Cuota gratuita ML agotada para esta categoría. Intentá mañana o usá un listing type pago.",
-                        "error_tipo": "cuota_classified",
-                    }
-                else:
-                    for espera in [0, delay_cl, int(delay_cl * 1.5)]:
-                        if espera > 0:
-                            job["estado"] = "esperando"
-                            job["esperando_hasta"] = time.time() + espera
-                            await asyncio.sleep(espera)
-                            job["estado"] = "en_curso"
-                        if job.get("cancelado"):
-                            break
-                        res = await _publicar(db, b)
-                        if res["ok"]:
-                            delay_cl = max(int(delay_cl * 0.85), 90)
-                            break
-                        if res.get("error_tipo") == "cuota_classified":
-                            # Cuota agotada: marcar y no reintentar ningún classified más
-                            job["cuota_classified_agotada"] = True
-                            break
-                        if "temporarily" in (res.get("error") or "").lower():
-                            delay_cl = min(int(delay_cl * 1.5), 600)
-                        else:
-                            break
-            else:
-                res = await _publicar(db, b)
+            res = await _publicar(db, b)
 
             if res and res["ok"]:
                 b.estado = "publicada"; b.item_id = res["item_id"]
@@ -143,13 +105,7 @@ async def _run_lote_bg(job_id: str, bids: list):
 
         # Pausa entre ítems (no en el último)
         if i < len(bids) - 1 and not job.get("cancelado"):
-            if es_classified:
-                job["estado"] = "esperando"
-                job["esperando_hasta"] = time.time() + delay_cl
-                await asyncio.sleep(delay_cl)
-                job["estado"] = "en_curso"
-            else:
-                await asyncio.sleep(2)
+            await asyncio.sleep(2)
 
     job["estado"] = "cancelado" if job.get("cancelado") else "completado"
     job["fin"] = time.time()
@@ -975,7 +931,6 @@ CATEGORIAS_FIJAS: dict = {
 _TITULO_KEYWORDS_MINIMAS: dict = {
     "HIDROMASAJE":        (["hidromasaje", "jacuzzi", "spa"],               "Hidromasaje Jacuzzi"),
     "BANERA":             (["bañera", "banera", "jacuzzi", "hidromasaje"],  "Bañera Hidromasaje"),
-    "RECEPTACULO":        (["receptáculo", "receptaculo", "ducha"],         "Receptáculo Ducha"),
     "PISCINA":            (["piscina", "pileta"],                           "Piscina"),
     "MINIPISCINA":        (["piscina", "pileta", "minipiscina"],            "Minipiscina"),
     "MODULO":             (["módulo", "modulo", "cabaña", "cabana"],        "Módulo"),

@@ -576,6 +576,9 @@ async def regenerar_ia_modulos(
     if not bid_list:
         return {"ok": True, "total": 0, "mensaje": "No hay borradores de módulos para regenerar."}
 
+    if _REGEN_JOB.get("estado") == "en_curso":
+        return {"ok": False, "mensaje": "Ya hay una regeneración en curso. Esperá que termine antes de lanzar otra.", "job": _REGEN_JOB}
+
     _REGEN_JOB.update({"estado": "iniciado", "total": len(bid_list), "actualizados": 0, "errores": 0, "idx": 0})
 
     from database.database import SessionLocal as _SL

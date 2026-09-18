@@ -376,7 +376,7 @@ INSTRUCCIONES POR TIPO DE PREGUNTA:
 PRECIO: Dar el precio del modelo según la tabla. Si no hay modelo específico, pedir medidas y localidad.
 Para cotización: "$X al contado (abonás cuando la piscina está instalada). Incluye - excavación del pozo - colocación - filtrado - traslado. Instalada en el día. Garantía escrita 10 años."
 
-FLETE/ENVIO: Instalamos en Buenos Aires (CABA y GBA). Flete incluido hasta 60km de Zárate. Más lejos se cotiza. O retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
+FLETE/ENVIO: El flete NO está incluido. Cuesta $3.000 por km desde Zárate, Buenos Aires. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey). Pediles la localidad para calcular.
 
 INSTALACIÓN: Equipo propio instala, conecta y deja funcionando en el mismo día.
 

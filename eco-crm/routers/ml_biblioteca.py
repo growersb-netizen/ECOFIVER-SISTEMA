@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import FotoML, SetFotosML, PublicacionML, Usuario, ConfiguracionSistema, RespuestaAutoML
+from routers.auth import get_current_user
 from routers.configuracion import _require_config_access
 from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE
 from utils.ai_client import ai_complete
-from utils.contexto_ecofiver import ctx_preguntas_ml
+from utils.contexto_ecofiver import ctx_preguntas_ml, ctx_hidromasajes_ml
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -57,8 +58,14 @@ async def subir_foto_biblioteca(
     current_user: Usuario = Depends(_require_config_access),
 ):
     """Sube una foto a los servidores de ML y la registra en la biblioteca central."""
+    ALLOWED_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    MAX_SIZE = 10 * 1024 * 1024  # 10 MB
+    if file.content_type and file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(400, f"Tipo de archivo no permitido: {file.content_type}. Usar JPEG, PNG, GIF o WEBP.")
     token = await _ml_valid_token(db)
     content = await file.read()
+    if len(content) > MAX_SIZE:
+        raise HTTPException(400, f"Archivo demasiado grande ({len(content)//1024} KB). Máximo 10 MB.")
     content_type = file.content_type or "image/jpeg"
 
     async with httpx.AsyncClient(timeout=30) as c:
@@ -453,7 +460,10 @@ async def aplicar_set(
 
 
 @router.get("/api/ml/fotos/sets/jobs/{job_id}")
-async def estado_job_aplicar(job_id: str):
+async def estado_job_aplicar(
+    job_id: str,
+    current_user: Usuario = Depends(_require_config_access),
+):
     """Consulta el estado de un job de aplicación masiva de fotos."""
     job = _APPLY_JOBS.get(job_id)
     if not job:
@@ -589,7 +599,7 @@ async def _auto_responder_preguntas_job():
             return
 
         # Traer preguntas sin responder (máx 20 por ciclo)
-        params = {"seller_id": user_id, "status": "UNANSWERED", "limit": 20, "sort_fields": "date_created"}
+        params = {"seller_id": user_id, "status": "UNANSWERED", "limit": 20, "sort_fields": "date_created_desc"}
         async with httpx.AsyncClient(timeout=10) as c:
             r = await c.get(f"{ML_BASE}/questions/search", headers=_ml_headers(token), params=params)
 
@@ -651,14 +661,19 @@ async def _auto_responder_preguntas_job():
                     precio_pub = 0.0
                 tipo_precio = getattr(pub_local, "tipo_precio", None) or "completo"
 
-            prompt = ctx_preguntas_ml(
-                item_titulo=item_titulo or "producto EcoFiver",
-                pregunta=texto,
-                descripcion_pub=descripcion_pub,
-                comprador=comprador_nick,
-                precio_pub=precio_pub,
-                tipo_precio=tipo_precio,
-            )
+            _titulo_lower = (item_titulo or "").lower()
+            _es_hidro = any(kw in _titulo_lower for kw in ("hidromasaje", "spa", "jacuzzi", "bañera"))
+            if _es_hidro:
+                prompt = ctx_hidromasajes_ml(pregunta=texto)
+            else:
+                prompt = ctx_preguntas_ml(
+                    item_titulo=item_titulo or "producto EcoFiver",
+                    pregunta=texto,
+                    descripcion_pub=descripcion_pub,
+                    comprador=comprador_nick,
+                    precio_pub=precio_pub,
+                    tipo_precio=tipo_precio,
+                )
 
             try:
                 respuesta = await ai_complete(db, prompt, max_tokens=400, temperature=0.4)

@@ -3485,17 +3485,24 @@ async def _sync_desc_cotizacion_ml(db, borradores_existentes) -> dict:
 
 @router.post("/api/ml/seed/piscinas-cotizacion/sync-ml")
 async def sync_piscinas_desc_ml(
+    request: Request,
     db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """
-    Busca en ML los items cotización de piscinas publicados (precio=10000, cat MLA373513),
+    Busca en ML los items cotización de piscinas publicados (precio=10000),
     actualiza sus descripciones con el texto actual (sin cuotas), y re-vincula los borradores.
-    Usar cuando los borradores perdieron el item_id (ej: overwrite sin sync previo).
+    Body opcional: {"item_ids": ["MLA123", ...]} para pasar IDs directamente sin buscar.
     """
     _auth(x_api_key, current_user)
     from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE, _armar_descripcion_ml
+
+    body_data = {}
+    try:
+        body_data = await request.json()
+    except Exception:
+        pass
 
     try:
         token = await _ml_valid_token(db)
@@ -3506,35 +3513,40 @@ async def sync_piscinas_desc_ml(
     from routers.mercadolibre import _get_user_id as _ml_get_user_id
     user_id = await _ml_get_user_id(token, db)
 
-    # 1. Buscar todos los items activos del vendedor (hasta 200)
-    all_ids = []
-    debug_search = []
-    for offset in [0, 50, 100, 150]:
-        async with httpx.AsyncClient(timeout=20) as hc:
-            r = await hc.get(f"{ML_BASE}/users/{user_id}/items/search", headers=hdrs,
-                             params={"status": "active", "limit": 50, "offset": offset})
-        debug_search.append({"offset": offset, "status": r.status_code, "paging": r.json().get("paging") if r.status_code == 200 else r.text[:100]})
-        if r.status_code != 200:
-            break
-        batch = r.json().get("results", [])
-        all_ids.extend(batch)
-        if len(batch) < 50:
-            break
-        await asyncio.sleep(0.3)
+    # 1a. Si se pasan IDs directamente, usarlos
+    direct_ids = body_data.get("item_ids") or []
+    if direct_ids:
+        cotizacion_items = [{"id": iid, "title": ""} for iid in direct_ids]
+    else:
+        # 1b. Buscar TODOS los items activos del vendedor
+        all_ids = []
+        offset = 0
+        while offset <= 600:
+            async with httpx.AsyncClient(timeout=20) as hc:
+                r = await hc.get(f"{ML_BASE}/users/{user_id}/items/search", headers=hdrs,
+                                 params={"status": "active", "limit": 50, "offset": offset})
+            if r.status_code != 200:
+                break
+            batch = r.json().get("results", [])
+            all_ids.extend(batch)
+            if len(batch) < 50:
+                break
+            offset += 50
+            await asyncio.sleep(0.3)
 
-    # 2. Filtrar cotizaciones (precio 10000) con títulos
-    cotizacion_items = []
-    for i in range(0, len(all_ids), 20):
-        chunk = all_ids[i:i + 20]
-        async with httpx.AsyncClient(timeout=15) as hc:
-            r2 = await hc.get(f"{ML_BASE}/items", headers=hdrs,
-                              params={"ids": ",".join(chunk), "attributes": "id,title,price"})
-        if r2.status_code == 200:
-            for entry in r2.json():
-                body = entry.get("body", {})
-                if float(body.get("price", -1)) == 10000.0:
-                    cotizacion_items.append({"id": body["id"], "title": body.get("title", "")})
-        await asyncio.sleep(0.3)
+        # 2. Filtrar cotizaciones (precio 10000)
+        cotizacion_items = []
+        for i in range(0, len(all_ids), 20):
+            chunk = all_ids[i:i + 20]
+            async with httpx.AsyncClient(timeout=15) as hc:
+                r2 = await hc.get(f"{ML_BASE}/items", headers=hdrs,
+                                  params={"ids": ",".join(chunk), "attributes": "id,title,price"})
+            if r2.status_code == 200:
+                for entry in r2.json():
+                    body = entry.get("body", {})
+                    if float(body.get("price", -1)) == 10000.0:
+                        cotizacion_items.append({"id": body["id"], "title": body.get("title", "")})
+            await asyncio.sleep(0.3)
 
     # 3. Cargar borradores del seed indexados por título
     borradores_db = db.query(BorradorML).filter(
@@ -3581,4 +3593,4 @@ async def sync_piscinas_desc_ml(
     db.commit()
     return {"ok": ok, "total": len(cotizacion_items), "re_vinculados": re_vinculados,
             "items_encontrados": [i["id"] for i in cotizacion_items], "errores": errores,
-            "debug": {"user_id": user_id, "total_ids_activos": len(all_ids), "search": debug_search}}
+            "debug": {"user_id": user_id}}

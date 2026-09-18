@@ -3508,10 +3508,12 @@ async def sync_piscinas_desc_ml(
 
     # 1. Buscar todos los items activos del vendedor (hasta 200)
     all_ids = []
+    debug_search = []
     for offset in [0, 50, 100, 150]:
         async with httpx.AsyncClient(timeout=20) as hc:
             r = await hc.get(f"{ML_BASE}/users/{user_id}/items/search", headers=hdrs,
                              params={"status": "active", "limit": 50, "offset": offset})
+        debug_search.append({"offset": offset, "status": r.status_code, "paging": r.json().get("paging") if r.status_code == 200 else r.text[:100]})
         if r.status_code != 200:
             break
         batch = r.json().get("results", [])
@@ -3578,4 +3580,5 @@ async def sync_piscinas_desc_ml(
 
     db.commit()
     return {"ok": ok, "total": len(cotizacion_items), "re_vinculados": re_vinculados,
-            "items_encontrados": [i["id"] for i in cotizacion_items], "errores": errores}
+            "items_encontrados": [i["id"] for i in cotizacion_items], "errores": errores,
+            "debug": {"user_id": user_id, "total_ids_activos": len(all_ids), "search": debug_search}}

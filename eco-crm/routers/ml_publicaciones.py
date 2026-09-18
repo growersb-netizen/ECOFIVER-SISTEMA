@@ -3503,10 +3503,12 @@ async def sync_piscinas_desc_ml(
         raise HTTPException(500, f"ML token: {e}")
 
     hdrs = _ml_headers(token)
+    from routers.mercadolibre import _get_user_id as _ml_get_user_id
+    user_id = await _ml_get_user_id(token, db)
 
     # 1. Buscar items activos en categoría piscinas fibra de vidrio
     async with httpx.AsyncClient(timeout=20) as hc:
-        r = await hc.get(f"{ML_BASE}/users/me/items/search", headers=hdrs,
+        r = await hc.get(f"{ML_BASE}/users/{user_id}/items/search", headers=hdrs,
                          params={"category": "MLA373513", "status": "active", "limit": 50})
     if r.status_code != 200:
         raise HTTPException(500, f"ML search: {r.status_code} {r.text[:200]}")

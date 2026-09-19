@@ -1808,17 +1808,23 @@ async def crear_garita_v3(
 @router.post("/api/ml/audit/fix-shipping")
 async def fix_shipping_todos(
     t: str = "",
+    x_api_key: Optional[str] = Header(None),
     db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """
     Recorre TODOS los items activos del vendedor y les setea:
       shipping = {mode: not_specified, free_shipping: false}
     Elimina Mercado Envíos y envío gratis de todas las publicaciones.
     Usar después de cambiar la política de envíos para actualizar items ya publicados.
+    Acepta: ?t=ML_AUDIT_TOKEN  O  X-Api-Key header  O  sesión admin.
     """
     import os as _os, asyncio as _asyncio
-    expected = _os.getenv("ML_AUDIT_TOKEN", "")
-    if not expected or t != expected:
+    audit_tok = _os.getenv("ML_AUDIT_TOKEN", "")
+    ok_audit = audit_tok and t == audit_tok
+    ok_apikey = x_api_key and x_api_key == API_KEY
+    ok_user = current_user and "ADMIN" in get_user_roles(current_user)
+    if not (ok_audit or ok_apikey or ok_user):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)

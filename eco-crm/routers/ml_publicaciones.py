@@ -40,13 +40,9 @@ _LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
 # MLA373483 (Armarios para Exterior) descartada: fuerza gold_special + ME1 + free shipping obligatorio.
 # Todos los módulos/garitas/depósitos pasan a buy_it_now en MLA416584 (Cubículos de Oficina):
 # sin costo de publicación, comisión solo al vender, envío "a coordinar" sin ME1 obligatorio.
-# Tipos que van por courier (Mercado Envíos) con envío gratis absorbido en el precio
-_TIPOS_CON_ENVIO_GRATIS = {
-    "HIDROMASAJE", "BANERA", "RECEPTACULO",
-    "REPOSERA_FIBRA", "CUCHA",
-    "ACCESORIO_PISCINA", "ACCESORIO_HIDROMASAJE",
-    "ILUMINACION_PISCINA", "EQUIPO_PISCINA", "REPUESTO_PISCINA",
-}
+# 2026-09: TODOS los productos usan coordinar-con-vendedor (not_specified, sin ME).
+# Ningún producto va por Mercado Envíos — las reposeras de fibra, hidromasajes y piscinas
+# no entran en los bultos de Correo Argentino; la logística siempre se coordina aparte.
 
 
 async def _run_lote_bg(job_id: str, bids: list):
@@ -1353,14 +1349,9 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     # Título con keywords mínimas garantizadas (previene categorización errónea por ML)
     titulo_final = _forzar_keywords_titulo((b.titulo or "").strip(), tipo_prod)
 
-    # Shipping: me2+gratis para productos de courier (hidromasajes, bañeras, accesorios);
-    # not_specified para productos de gran porte (piscinas, módulos, etc.).
-    # NOTA: local_pick_up OMITIDO en not_specified — ML requiere me1 cuando está presente
-    # aunque el modo sea not_specified; los 230+ ítems publicados antes no lo tenían.
-    if tipo_prod in _TIPOS_CON_ENVIO_GRATIS:
-        _shipping = {"mode": "me2", "free_shipping": True, "local_pick_up": True}
-    else:
-        _shipping = {"mode": "not_specified", "free_shipping": False}
+    # Todos los productos: coordinar con vendedor, sin Mercado Envíos, sin envío gratis.
+    # local_pick_up omitido — ML fuerza me1 cuando está presente aunque el modo sea not_specified.
+    _shipping = {"mode": "not_specified", "free_shipping": False}
 
     # Payload estándar (marketplace buy_it_now)
     # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente

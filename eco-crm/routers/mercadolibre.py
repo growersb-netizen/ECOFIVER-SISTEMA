@@ -1805,6 +1805,75 @@ async def crear_garita_v3(
     }
 
 
+@router.post("/api/ml/audit/fix-shipping")
+async def fix_shipping_todos(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Recorre TODOS los items activos del vendedor y les setea:
+      shipping = {mode: not_specified, free_shipping: false}
+    Elimina Mercado Envíos y envío gratis de todas las publicaciones.
+    Usar después de cambiar la política de envíos para actualizar items ya publicados.
+    """
+    import os as _os, asyncio as _asyncio
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+    user_id = await _get_user_id(token, db)
+
+    # Cargar todos los items activos (paginado)
+    todos_ids: list = []
+    offset = 0
+    async with httpx.AsyncClient(timeout=30) as c:
+        while True:
+            r = await c.get(
+                f"{ML_BASE}/users/{user_id}/items/search",
+                headers=_ml_headers(token),
+                params={"status": "active", "limit": 100, "offset": offset},
+            )
+            if r.status_code != 200:
+                break
+            batch = r.json().get("results", [])
+            todos_ids.extend(batch)
+            if len(batch) < 100:
+                break
+            offset += 100
+
+    if not todos_ids:
+        return {"ok": True, "total": 0, "actualizados": 0, "errores": [], "msg": "No hay items activos"}
+
+    _shipping_fix = {"mode": "not_specified", "free_shipping": False}
+    actualizados = 0
+    errores = []
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        for iid in todos_ids:
+            try:
+                r = await c.put(
+                    f"{ML_BASE}/items/{iid}",
+                    headers=_ml_headers(token),
+                    json={"shipping": _shipping_fix},
+                )
+                if r.status_code in (200, 201, 204):
+                    actualizados += 1
+                else:
+                    errores.append({"id": iid, "http": r.status_code, "detalle": r.text[:200]})
+            except Exception as ex:
+                errores.append({"id": iid, "error": str(ex)[:100]})
+            await _asyncio.sleep(0.3)  # throttle suave
+
+    return {
+        "ok": True,
+        "total_activos": len(todos_ids),
+        "actualizados": actualizados,
+        "errores": errores,
+        "shipping_aplicado": _shipping_fix,
+    }
+
+
 # ─── API — PUBLICACIONES ──────────────────────────────────────────────────────
 
 async def _ml_visitas_items(token: str, item_ids: list) -> dict:

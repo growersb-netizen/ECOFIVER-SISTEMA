@@ -93,27 +93,27 @@ async function seedNexfit() {
       continue;
     }
 
-    await prisma.productPrice.upsert({
-      where: {
-        productId_channel_currency: {
-          productId: product.id,
-          channel: "WEB",
-          currency: "ARS",
-        },
-      },
-      create: {
-        productId: product.id,
-        basePrice: price,
-        currency: "ARS",
-        channel: "WEB",
-        country: "AR",
-        active: true,
-      },
-      update: {
-        basePrice: price,
-        active: true,
-      },
+    const existing = await prisma.productPrice.findFirst({
+      where: { productId: product.id, channel: "WEB", currency: "ARS" },
     });
+
+    if (existing) {
+      await prisma.productPrice.update({
+        where: { id: existing.id },
+        data: { basePrice: price, active: true },
+      });
+    } else {
+      await prisma.productPrice.create({
+        data: {
+          productId: product.id,
+          basePrice: price,
+          currency: "ARS",
+          channel: "WEB",
+          country: "AR",
+          active: true,
+        },
+      });
+    }
 
     upserted++;
     if (upserted % 50 === 0) console.log(`   ${upserted} precios procesados...`);

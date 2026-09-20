@@ -95,13 +95,13 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
 }
 
 function categoryArt(slug: string): { bg: string; accent: string; label: string; img?: string } {
-  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE", img: "/images/cat-04.webp" };
-  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS", img: "/images/cat-05.webp" };
-  if (slug.includes("nutri"))                            return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN", img: "/images/cat-06.webp" };
-  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA", img: "/images/cat-07.webp" };
-  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX", img: "/images/cat-08.webp" };
+  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE" };
+  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS" };
+  if (slug.includes("nutri"))                            return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN" };
+  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA" };
+  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX" };
   if (slug.includes("transformacion"))                   return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN", img: "/images/cat-09.webp" };
-  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO", img: "/images/cat-10.webp" };
+  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO" };
   if (slug.includes("mindset") || slug.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET", img: "/images/cat-11.webp" };
   if (slug.includes("receta"))                           return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "RECETAS", img: "/images/cat-12.webp" };
   if (slug.includes("desafio"))                          return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS", img: "/images/cat-13.webp" };

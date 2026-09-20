@@ -5,7 +5,7 @@
  */
 export const messages = {
   app: {
-    name: "Fitness Business OS",
+    name: "NexFit",
     tagline: "Tu negocio fitness, potenciado con IA",
   },
 

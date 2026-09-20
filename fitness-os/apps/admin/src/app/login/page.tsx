@@ -54,7 +54,7 @@ export default function LoginPage() {
             textShadow: "0 0 10px rgba(0,245,255,0.6)",
             marginBottom: "0.5rem",
           }}>
-            FITNESS BUSINESS OS
+            NEXFIT
           </p>
           <h1 style={{
             fontFamily: "'Barlow Condensed', sans-serif",
@@ -194,7 +194,7 @@ export default function LoginPage() {
         </div>
 
         <p style={{ textAlign: "center", color: "#4A5070", fontSize: "0.75rem", marginTop: "1.5rem" }}>
-          Fitness Business OS · Panel de Administración
+          NexFit · Panel de Administración
         </p>
       </div>
     </main>

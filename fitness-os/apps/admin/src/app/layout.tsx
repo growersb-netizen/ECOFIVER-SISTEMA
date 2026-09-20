@@ -4,10 +4,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Fitness Business OS — Admin",
-    template: "%s | Fitness OS Admin",
+    default: "NexFit Admin",
+    template: "%s | NexFit Admin",
   },
-  description: "Panel de administración del Fitness Business OS",
+  description: "Panel de administración de NexFit",
 };
 
 export default function RootLayout({

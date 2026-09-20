@@ -18,8 +18,8 @@ interface ResendResponse {
 }
 
 const RESEND_API_KEY = process.env["RESEND_API_KEY"];
-const FROM_EMAIL = process.env["FROM_EMAIL"] ?? "Fitness Business OS <noreply@fitnessbusiness.com>";
-const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? process.env["STORE_NAME"] ?? "Fitness Business OS";
+const FROM_EMAIL = process.env["FROM_EMAIL"] ?? "NexFit <noreply@nexfit.digital>";
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? process.env["STORE_NAME"] ?? "NexFit";
 
 export async function sendEmail(opts: SendEmailOptions): Promise<{ ok: boolean; id?: string; error?: string }> {
   if (!RESEND_API_KEY) {
@@ -80,7 +80,7 @@ export interface DeliveryEmailData {
  */
 export function buildDeliveryEmail(data: DeliveryEmailData): { subject: string; html: string; text: string } {
   const storeName = data.storeName ?? STORE_NAME;
-  const supportEmail = data.supportEmail ?? process.env["SUPPORT_EMAIL"] ?? "soporte@fitnessbusiness.com";
+  const supportEmail = data.supportEmail ?? process.env["SUPPORT_EMAIL"] ?? "hola@nexfit.digital";
   const webUrl = data.webUrl ?? process.env["APP_WEB_URL"] ?? "https://fitness-os-web.vercel.app";
   const misComprasUrl = `${webUrl}/mis-compras`;
 

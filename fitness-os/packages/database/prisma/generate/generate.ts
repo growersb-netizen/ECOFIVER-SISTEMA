@@ -1,5 +1,5 @@
 /**
- * Generador de productos digitales — Fitness Business OS
+ * Generador de productos digitales — NexFit
  *
  * Genera PDFs + ZIPs para los ~205 productos del catálogo.
  * Ejecutar: pnpm --filter @fitness-os/database generate:products
@@ -52,8 +52,8 @@ async function createZip(sourceDir: string, outputZip: string): Promise<void> {
 // ── README helper ─────────────────────────────────────────────────
 function writeReadme(dir: string, sku: string, name: string, description: string, files: string[]) {
   const content = `
-FITNESS BUSINESS OS — Producto Digital
-=======================================
+NexFit — Producto Digital
+=========================
 
 SKU: ${sku}
 Producto: ${name}
@@ -68,12 +68,12 @@ USO Y LICENCIA
 --------------
 Este contenido digital es para uso personal exclusivo. Prohibida su
 redistribución, venta o distribución sin autorización escrita de
-Fitness Business OS.
+NexFit.
 
-Para soporte: soporte@fitnessbusiness.com
-Website: https://fitnessbusiness.com
+Para soporte: hola@nexfit.digital
+Website: https://nexfit.digital
 
-© Fitness Business OS — Todos los derechos reservados
+© NexFit — Todos los derechos reservados
 `.trim();
   fs.writeFileSync(path.join(dir, "README.txt"), content, "utf-8");
 }
@@ -485,7 +485,7 @@ function buildExtraSections(product: ProductDef): Array<{ title: string; body: s
 // ── Main ───────────────────────────────────────────────────────────
 async function main() {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("  FITNESS BUSINESS OS — Generador de Productos Digitales  ");
+  console.log("  NEXFIT — Generador de Productos Digitales  ");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`📦 Total de productos a generar: ${CATALOG.length}`);
   console.log(`📁 Output: ${PRODUCTS_DIR}`);

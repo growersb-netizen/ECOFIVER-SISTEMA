@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await loadProduct(params.slug);
   if (!product) return { title: "Producto no encontrado" };
 
-  const title = `${product.name} | Fitness Business OS`;
+  const title = `${product.name} | NexFit`;
   const description = product.description?.slice(0, 155) ?? "Programa digital de fitness. Descargá al instante.";
   const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
 

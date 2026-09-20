@@ -48,7 +48,7 @@ export class OpenRouterAdapter {
   constructor() {
     this.apiKey = process.env["OPENROUTER_API_KEY"] ?? "";
     this.siteUrl = process.env["APP_WEB_URL"] ?? "https://fitness-os.vercel.app";
-    this.siteName = "Fitness Business OS";
+    this.siteName = "NexFit";
 
     if (!this.apiKey) {
       console.warn("⚠️  OPENROUTER_API_KEY no configurada — IA en modo mock");

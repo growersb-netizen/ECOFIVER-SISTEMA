@@ -254,7 +254,7 @@ export async function fulfillmentRoutes(fastify: FastifyInstance) {
         error: "Archivo temporalmente no disponible",
         product: product?.name ?? "Producto",
         hint: "Contactá soporte para recibir tu producto",
-        contact: "soporte@fitnessbusiness.com",
+        contact: "hola@nexfit.digital",
       });
     }
   );

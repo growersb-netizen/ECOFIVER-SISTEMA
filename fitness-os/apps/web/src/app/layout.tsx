@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "FITNESS BUSINESS OS";
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NEXFIT";
 
 export const metadata: Metadata = {
   title: {
     default: STORE_NAME,
     template: `%s | ${STORE_NAME}`,
   },
-  description: "Guías, programas y planes digitales de fitness para mujeres",
+  description: "NexFit — Guías, programas y planes digitales de fitness. Descargá al instante.",
 };
 
 export default function RootLayout({

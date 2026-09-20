@@ -255,7 +255,7 @@ export default function CheckoutPage() {
     <div style={{ minHeight: "100vh", background: "#07080F", color: "#E8EDFF", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <nav style={{ background: "#0A0C18", borderBottom: "1px solid #1A1F35", padding: "0 1.5rem", height: 60, display: "flex", alignItems: "center" }}>
         <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1.1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none" }}>
-          FITNESS BUSINESS OS
+          NEXFIT
         </Link>
       </nav>
       <Suspense fallback={<div style={{ padding: "4rem", textAlign: "center", color: "#4A5070" }}>Cargando checkout…</div>}>

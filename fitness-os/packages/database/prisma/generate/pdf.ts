@@ -1,6 +1,6 @@
 /**
  * Módulo de generación de PDFs con pdfkit.
- * Crea documentos con diseño profesional para Fitness Business OS.
+ * Crea documentos con diseño profesional para NexFit.
  */
 
 import PDFDocument from "pdfkit";
@@ -53,7 +53,7 @@ function drawHeaderBar(doc: PDFKit.PDFDocument, title: string, subtitle: string,
 
   doc.fillColor(COLORS.white)
     .fontSize(9)
-    .text("FITNESS BUSINESS OS  |  fitnessbusiness.com", 50, 82, { width: W - 100, align: "left" });
+    .text("NEXFIT  |  nexfit.digital", 50, 82, { width: W - 100, align: "left" });
 
   doc.moveDown(2);
 }
@@ -149,7 +149,7 @@ function drawPageFooter(doc: PDFKit.PDFDocument, productName: string) {
   doc.fillColor(COLORS.gray)
     .font("Helvetica")
     .fontSize(8)
-    .text(`${productName}  —  © Fitness Business OS`, 50, H - 21, { width: W - 100 });
+    .text(`${productName}  —  © NexFit`, 50, H - 21, { width: W - 100 });
   doc.text(`Pág. ${doc.bufferedPageRange().start + 1}`, 50, H - 21, { width: W - 50, align: "right" });
 }
 
@@ -351,7 +351,7 @@ export async function generateWorkoutPDF(opts: GeneratePDFOptions): Promise<void
     doc.fillColor(accent)
       .font("Helvetica-Bold")
       .fontSize(11)
-      .text("FITNESS BUSINESS OS", 50, 60);
+      .text("NEXFIT", 50, 60);
 
     doc.fillColor(COLORS.white)
       .font("Helvetica-Bold")
@@ -542,7 +542,7 @@ export async function generateWorkoutPDF(opts: GeneratePDFOptions): Promise<void
     doc.fillColor(accent).font("Helvetica").fontSize(14)
       .text("El único mal entreno es el que no se hizo.", 50, H / 2, { width: W - 100, align: "center" });
     doc.fillColor(COLORS.grayLight).font("Helvetica").fontSize(10)
-      .text(`${opts.productName}  |  Fitness Business OS  |  fitnessbusiness.com`, 50, H - 80, { width: W - 100, align: "center" });
+      .text(`${opts.productName}  |  NexFit  |  nexfit.digital`, 50, H - 80, { width: W - 100, align: "center" });
 
     doc.flushPages();
     doc.end();
@@ -565,7 +565,7 @@ export async function generateNutritionPDF(opts: GeneratePDFOptions): Promise<vo
     // Portada
     doc.rect(0, 0, W, H).fill(COLORS.primary);
     doc.rect(0, H - 6, W, 6).fill(accent);
-    doc.fillColor(accent).font("Helvetica-Bold").fontSize(11).text("PLAN NUTRICIONAL — FITNESS BUSINESS OS", 50, 60);
+    doc.fillColor(accent).font("Helvetica-Bold").fontSize(11).text("PLAN NUTRICIONAL — NEXFIT", 50, 60);
     doc.fillColor(COLORS.white).font("Helvetica-Bold").fontSize(34)
       .text(opts.productName, 50, 100, { width: W - 100 });
     doc.fillColor(COLORS.grayLight).font("Helvetica").fontSize(14)
@@ -647,7 +647,7 @@ export async function generateRecipeBookPDF(opts: GeneratePDFOptions): Promise<v
     const W = doc.page.width;
     const H = doc.page.height;
     doc.rect(0, 0, W, H).fill(COLORS.primary);
-    doc.fillColor(accent).font("Helvetica-Bold").fontSize(11).text("RECETARIO SALUDABLE — FITNESS BUSINESS OS", 50, 60);
+    doc.fillColor(accent).font("Helvetica-Bold").fontSize(11).text("RECETARIO SALUDABLE — NEXFIT", 50, 60);
     doc.fillColor(COLORS.white).font("Helvetica-Bold").fontSize(34)
       .text(opts.productName, 50, 100, { width: W - 100 });
     doc.fillColor(COLORS.grayLight).font("Helvetica").fontSize(14).text(opts.tagline, 50, 190, { width: W - 100 });
@@ -764,7 +764,7 @@ export async function generateGuidePDF(opts: GeneratePDFOptions): Promise<void> 
     const W = doc.page.width;
     const H = doc.page.height;
     doc.rect(0, 0, W, H).fill(COLORS.primary);
-    doc.fillColor(accent).font("Helvetica-Bold").fontSize(11).text("FITNESS BUSINESS OS", 50, 60);
+    doc.fillColor(accent).font("Helvetica-Bold").fontSize(11).text("NEXFIT", 50, 60);
     doc.fillColor(COLORS.white).font("Helvetica-Bold").fontSize(34)
       .text(opts.productName, 50, 100, { width: W - 100 });
     doc.fillColor(COLORS.grayLight).font("Helvetica").fontSize(14).text(opts.tagline, 50, 190, { width: W - 100 });

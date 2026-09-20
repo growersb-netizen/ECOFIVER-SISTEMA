@@ -1,5 +1,5 @@
 /**
- * Generador de PDFs para Fitness Business OS.
+ * Generador de PDFs para NexFit.
  * Genera guías profesionales en PDF para cada uno de los 205 productos.
  * Usa pdfkit — sin dependencias de headless browser ni binarios nativos.
  */
@@ -292,7 +292,7 @@ export async function generateProductPDF(product: ProductForPDF): Promise<Buffer
       margin: 0,
       info: {
         Title: product.name,
-        Author: "Fitness Business OS",
+        Author: "NexFit",
         Subject: `Guía de ${product.category?.name ?? "Fitness"}`,
         Keywords: `fitness, ${product.level ?? ""}, ${product.sku}`,
       },
@@ -773,7 +773,7 @@ export async function generateProductPDF(product: ProductForPDF): Promise<Buffer
       drawRect(doc, 0, 800, W, 42, C.card);
       drawRect(doc, 0, 800, W, 1, C.border);
       doc.fontSize(8).font("Helvetica").fillColor(hex(C.muted) as unknown as string)
-         .text(`${product.name}  ·  SKU: ${sku}  ·  Fitness Business OS`, 40, 816, {
+         .text(`${product.name}  ·  SKU: ${sku}  ·  NexFit`, 40, 816, {
            width: W - 80, align: "center", lineBreak: false
          });
     }
@@ -799,7 +799,7 @@ export async function generateTrackingPDF(product: ProductForPDF): Promise<Buffe
 
     // Header
     doc.fontSize(8).font("Helvetica").fillColor("#888888")
-       .text("FITNESS BUSINESS OS", 40, 40, { lineBreak: false });
+       .text("NEXFIT", 40, 40, { lineBreak: false });
     doc.fontSize(16).font("Helvetica-Bold").fillColor("#000000")
        .text(`Seguimiento — ${product.name}`, 40, 55, { width: W - 80, lineBreak: true });
     doc.fontSize(9).font("Helvetica").fillColor("#666666")
@@ -856,7 +856,7 @@ export async function generateTrackingPDF(product: ProductForPDF): Promise<Buffe
 
     // Footer
     doc.fontSize(7).font("Helvetica").fillColor("#AAAAAA")
-       .text(`${product.name}  ·  Fitness Business OS`, 40, doc.page.height - 40, {
+       .text(`${product.name}  ·  NexFit`, 40, doc.page.height - 40, {
          width: W - 80, align: "center", lineBreak: false
        });
 

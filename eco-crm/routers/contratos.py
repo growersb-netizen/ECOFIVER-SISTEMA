@@ -79,30 +79,112 @@ TIPOS_PLANTILLA = {
 
 # ─── HELPERS — SECCIONES HTML DINÁMICAS DEL CONTRATO ─────────────────────────
 
+def _fmt_money(v) -> str:
+    """Alias de _fmt_ar — formato argentino de precio."""
+    return _fmt_ar(v)
+
+
 def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
-    """Genera el bloque HTML 'Sistema de Pago' según FINANCIADO o CONGELAMIENTO."""
+    """Genera el bloque HTML 'Sistema de Pago' según FINANCIADO, CONGELAMIENTO o CONTADO."""
+
+    # Los valores en ctx ya vienen formateados como strings (p.ej. "2.500.000")
+    def _sv(key: str) -> str:
+        return str(ctx.get(key) or "")
+
     if tipo_plan == "CONGELAMIENTO":
         return (
             '<div class="section">'
             '<div class="section-header">Sistema de Pago &nbsp;•&nbsp; Congelamiento de Precio — Entrega Programada</div>'
             '<div class="pago-grid">'
             '<div class="pago-cell"><div class="plabel">Valor Total de la Operación</div>'
-            '<div class="pvalue">$ ' + str(ctx.get("valor_total", "")) + '</div></div>'
+            '<div class="pvalue">$ ' + _sv("valor_total") + '</div></div>'
             '<div class="pago-cell"><div class="plabel">Flete incluido</div>'
-            '<div class="pvalue">$ ' + str(ctx.get("flete", "")) + '</div></div>'
+            '<div class="pvalue">$ ' + _sv("flete") + '</div></div>'
             '<div class="pago-cell"><div class="plabel">Cuotas de congelamiento</div>'
-            '<div class="pvalue">' + str(ctx.get("n_cuotas_congelamiento", "")) + ' cuotas de $ '
-            + str(ctx.get("valor_cuota_congelamiento", "")) + '.-</div></div>'
+            '<div class="pvalue">' + _sv("n_cuotas_congelamiento") + ' cuotas de $ '
+            + _sv("valor_cuota_congelamiento") + '.-</div></div>'
             '<div class="pago-cell"><div class="plabel">Saldo contra entrega</div>'
-            '<div class="pvalue">$ ' + str(ctx.get("saldo_contra_entrega", "")) + '.-</div></div>'
+            '<div class="pvalue">$ ' + _sv("saldo_contra_entrega") + '.-</div></div>'
             '</div>'
             '<div class="modalidad-row">'
             '<span style="font-weight:bold;font-size:10px;">Fecha de entrega estimada:&nbsp;&nbsp;'
-            '<strong style="color:#1a3a6b;">' + str(ctx.get("fecha_entrega_estimada", "")) + '</strong></span>'
+            '<strong style="color:#1a3a6b;">' + _sv("fecha_entrega_estimada") + '</strong></span>'
             '<span class="financiado-badge">Entrega Programada</span>'
             '</div>'
             '</div>'
         )
+
+    if tipo_plan == "CONTADO":
+        señia_raw    = ctx.get("señia", ctx.get("pago_inicial", "0"))
+        try:
+            señia_num = float(str(señia_raw).replace(".", "").replace(",", ".") or 0)
+        except Exception:
+            señia_num = 0.0
+        tiene_señia  = señia_num > 0
+        señia        = str(señia_raw) if tiene_señia else ""
+        saldo        = ctx.get("saldo_contra_entrega", "")
+        total        = ctx.get("valor_total", ctx.get("precio_total", ""))
+        modalidad    = ctx.get("modalidad_pago", "Transferencia")
+        fecha_ent    = ctx.get("fecha_entrega_estimada", "")
+        condiciones  = ctx.get("condiciones_entrega",
+                               "La entrega se realizará una vez abonado el saldo contra entrega. "
+                               "La coordinación de fecha y horario se efectuará entre las partes "
+                               "con al menos 72 hs de anticipación.")
+        items        = ctx.get("incluye_items", [])
+        if isinstance(items, str):
+            import json as _json
+            try:
+                items = _json.loads(items)
+            except Exception:
+                items = [i.strip() for i in items.split(",") if i.strip()]
+
+        items_html = "".join(
+            '<div style="display:flex;align-items:baseline;gap:4px;font-size:10px;margin-bottom:2px;">'
+            '<span style="color:#1a3a6b;font-weight:bold;">✔</span>'
+            '<span>' + str(it) + '</span></div>'
+            for it in items
+        ) if items else '<span style="font-size:10px;color:#555;">Consultar detalle completo con el asesor</span>'
+
+        # Fila de seña: solo si se abonó una
+        if tiene_señia:
+            fila_señia = (
+                '<div class="pago-cell"><div class="plabel">Seña / Reserva abonada</div>'
+                '<div class="pvalue" style="color:#c8902a;">$ ' + señia + '</div></div>'
+                '<div class="pago-cell"><div class="plabel">Saldo contra entrega</div>'
+                '<div class="pvalue">$ ' + str(saldo) + '.-</div></div>'
+                '<div class="pago-cell"><div class="plabel">Modalidad de la seña</div>'
+                '<div class="pvalue">' + str(modalidad) + '</div></div>'
+            )
+        else:
+            fila_señia = (
+                '<div class="pago-cell" style="grid-column:span 3"><div class="plabel">Forma de pago</div>'
+                '<div class="pvalue">Pago total contra entrega &nbsp;•&nbsp; ' + str(modalidad) + '</div></div>'
+            )
+
+        return (
+            '<div class="section">'
+            '<div class="section-header">Condiciones de la Operación &nbsp;•&nbsp; Venta de Contado — Entrega Contra Pago</div>'
+            '<div class="pago-grid">'
+            '<div class="pago-cell"><div class="plabel">Precio Total de la Operación</div>'
+            '<div class="pvalue" style="font-size:14px;">$ ' + str(total) + '</div></div>'
+            + fila_señia +
+            '</div>'
+            '<div style="border:1px solid #ddd;border-top:none;padding:5px 8px;">'
+            '<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;font-weight:bold;margin-bottom:4px;">La operación incluye:</div>'
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;">' + items_html + '</div>'
+            '</div>'
+            '<div class="modalidad-row" style="flex-direction:column;align-items:flex-start;gap:3px;">'
+            '<div style="display:flex;align-items:center;gap:12px;width:100%;">'
+            '<span style="font-weight:bold;font-size:10px;">Fecha de entrega estimada:&nbsp;'
+            '<strong style="color:#1a3a6b;">' + str(fecha_ent) + '</strong></span>'
+            '<span class="financiado-badge" style="margin-left:auto;">Contado</span>'
+            '</div>'
+            '<div style="font-size:9px;color:#444;line-height:1.4;margin-top:2px;">'
+            '<strong>Condiciones de entrega:</strong> ' + str(condiciones) + '</div>'
+            '</div>'
+            '</div>'
+        )
+
     # FINANCIADO (default)
     check_ef = ctx.get("check_efectivo", "")
     mark_ef  = ctx.get("mark_efectivo", "")
@@ -113,13 +195,13 @@ def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
         '<div class="section-header">Sistema de Pago &nbsp;•&nbsp; 100% Financiado</div>'
         '<div class="pago-grid">'
         '<div class="pago-cell"><div class="plabel">Valor de mercado</div>'
-        '<div class="pvalue">$ ' + str(ctx.get("valor_mercado", "")) + '</div></div>'
+        '<div class="pvalue">$ ' + _sv("valor_mercado") + '</div></div>'
         '<div class="pago-cell"><div class="plabel">Pago inicial</div>'
-        '<div class="pvalue">$ ' + str(ctx.get("pago_inicial", "")) + '</div></div>'
+        '<div class="pvalue">$ ' + _sv("pago_inicial") + '</div></div>'
         '<div class="pago-cell"><div class="plabel">Cantidad de cuotas propuesta</div>'
-        '<div class="pvalue">' + str(ctx.get("cant_cuotas", "")) + ' cuotas</div></div>'
+        '<div class="pvalue">' + _sv("cant_cuotas") + ' cuotas</div></div>'
         '<div class="pago-cell"><div class="plabel">Cuota ofrecida</div>'
-        '<div class="pvalue">$ ' + str(ctx.get("valor_cuota", ""))
+        '<div class="pvalue">$ ' + _sv("valor_cuota")
         + '.-&nbsp;<span style="font-size:9px;background:#1a3a6b;color:white;padding:1px 6px;border-radius:3px;">M - Fija</span></div></div>'
         '</div>'
         '<div class="modalidad-row">'
@@ -136,7 +218,8 @@ def _seccion_pago_html(tipo_plan: str, ctx: dict) -> str:
 
 def _recibo_box_html(tipo_plan: str, numero_solicitud: str) -> str:
     """Genera (o suprime) el bloque 'Recibo Autorizado' al pie del contrato."""
-    if tipo_plan == "CONGELAMIENTO":
+    if tipo_plan in ("CONGELAMIENTO", "CONTADO"):
+        # Para CONTADO el recibo de seña se genera como documento separado
         return ""
     return (
         '<div class="recibo-box">'
@@ -149,7 +232,9 @@ def _recibo_box_html(tipo_plan: str, numero_solicitud: str) -> str:
     )
 
 
-def _texto_legal(tipo_plan: str) -> str:
+def _texto_legal(tipo_plan: str, ctx: dict = None) -> str:
+    if ctx is None:
+        ctx = {}
     if tipo_plan == "CONGELAMIENTO":
         return (
             "Declaro bajo juramento que los datos procedentemente son verdaderos y en función de ellos, "
@@ -159,6 +244,32 @@ def _texto_legal(tipo_plan: str) -> str:
             "indicada. Por último, reconozco estar en conocimiento que de solicitar la baja de la presente "
             "solicitud en cualquier momento una vez iniciada la misma la empresa tendrá un plazo no menor a "
             "180 días hábiles para la puesta a disposición de los fondos."
+        )
+    if tipo_plan == "CONTADO":
+        señia_raw_legal = ctx.get("señia", "0")
+        try:
+            señia_num_legal = float(str(señia_raw_legal).replace(".", "").replace(",", ".") or 0)
+        except Exception:
+            señia_num_legal = 0.0
+        if señia_num_legal > 0:
+            clausula_seña = (
+                "La seña abonada en este acto confirma la reserva del producto y la fecha de producción. "
+                "El saldo restante deberá ser abonado contra entrega del producto en el domicilio indicado, "
+                "previo coordinación de fecha y horario con la empresa. "
+                "En caso de desistimiento por parte del comprador, la seña abonada no será devuelta. "
+            )
+        else:
+            clausula_seña = (
+                "El pago total de la operación se realizará contra entrega del producto en el domicilio "
+                "indicado, previo coordinación de fecha y horario con la empresa con al menos 72 hs de anticipación. "
+            )
+        return (
+            "Declaro bajo juramento que los datos proporcionados son verdaderos y en función de ellos formalizo "
+            "la presente compra. El precio total de la operación queda fijado en la suma pactada, incluyendo "
+            "todos los ítems detallados en la sección 'La operación incluye'. "
+            + clausula_seña +
+            "La empresa garantiza la entrega en la fecha estimada salvo causas de fuerza mayor debidamente "
+            "notificadas al cliente con anticipación razonable."
         )
     return (
         "Declaro bajo juramento que los datos procedentemente son verdaderos y en función de ellos, "
@@ -172,7 +283,13 @@ def _texto_legal(tipo_plan: str) -> str:
     )
 
 
-def _titulo_contrato(tipo_producto: str) -> str:
+def _titulo_contrato(tipo_producto: str, tipo_plan: str = "FINANCIADO") -> str:
+    if tipo_plan == "CONTADO":
+        if tipo_producto == "MODULO":
+            return "Contrato de Compraventa de Módulo Habitacional"
+        if tipo_producto == "COMBO":
+            return "Contrato de Compraventa de Piscina y Módulo"
+        return "Contrato de Compraventa de Piscina de Fibra de Vidrio"
     if tipo_producto == "MODULO":
         return "Contrato de Financiación de Módulo"
     if tipo_producto == "COMBO":
@@ -503,6 +620,115 @@ async def create_contrato(
     return {"id": contrato.id, "ok": True}
 
 
+# ─── RUTAS ESPECÍFICAS — deben ir ANTES de {contrato_id} ─────────────────────
+
+@router.get("/api/contratos/catalogo-modelos")
+async def get_catalogo_modelos(current_user: Usuario = Depends(require_auth)):
+    """Modelos, colores, medidas y sistemas disponibles para el formulario manual."""
+    try:
+        from routers.catalogo import load_catalogo, _MEDIDAS_PDF as _mpdf
+        cat = load_catalogo()
+    except Exception:
+        cat = {}
+        _mpdf = {}
+
+    medidas_cat = cat.get("piscinas", {}).get("medidas", {})
+    medidas = {**_mpdf, **medidas_cat}
+
+    return {
+        "piscinas": {
+            "modelos": cat.get("piscinas", {}).get("modelos", []),
+            "colores":  cat.get("piscinas", {}).get("colores", ["Blanco", "Beige", "Verde agua", "Celeste", "Azul"]),
+            "medidas":  medidas,
+            "sistemas": [
+                "Sistema de Filtrado Completo + Iluminación",
+                "Sistema de Filtrado Simple",
+                "Sistema C-6 básico",
+                "Sin sistema (solo estructura)",
+            ],
+        },
+        "modulos": {
+            "modelos": list(cat.get("modulos", {}).get("precios", {}).keys()),
+            "precios":  cat.get("modulos", {}).get("precios", {}),
+        },
+    }
+
+
+@router.get("/api/contratos/buscar")
+async def buscar_contratos_manual(
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """Busca contratos por número de solicitud o nombre de cliente (para emitir recibos)."""
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in ("ADMIN", "COORDINADOR_OPERATIVO", "COBRADOR")):
+        raise HTTPException(403, "Sin permisos")
+
+    q = (q or "").strip()
+    query = db.query(Contrato).filter(Contrato.tipo_documento == "CONTRATO")
+    if q:
+        query = query.filter(
+            Contrato.numero_solicitud.ilike(f"%{q}%") |
+            Contrato.cliente_nombre.ilike(f"%{q}%")
+        )
+    rows = query.order_by(Contrato.fecha_generacion.desc()).limit(15).all()
+
+    results = []
+    for c in rows:
+        datos = json.loads(c.datos_json) if c.datos_json else {}
+        venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == c.venta_financiada_id).first()
+        recibos_n = db.query(Contrato).filter(
+            Contrato.venta_financiada_id == c.venta_financiada_id,
+            Contrato.tipo_documento == "RECIBO",
+        ).count()
+
+        def _safe_num(v):
+            if isinstance(v, (int, float)):
+                return float(v)
+            try:
+                return float(str(v).replace(".", "").replace(",", "."))
+            except Exception:
+                return 0.0
+
+        results.append({
+            "numero_solicitud":    c.numero_solicitud or "",
+            "cliente_nombre":      c.cliente_nombre or "",
+            "tipo_contrato":       c.tipo_contrato or "",
+            "tipo_plan":           (venta.forma_pago if venta else "") or "FINANCIADO",
+            "modelo":              datos.get("modelo", ""),
+            "tipo_producto_label": datos.get("tipo_producto_label", ""),
+            "nombre":              datos.get("nombre", ""),
+            "apellido":            datos.get("apellido", ""),
+            "telefono":            datos.get("telefono", ""),
+            "dni":                 datos.get("dni", ""),
+            "cuil":                datos.get("cuil", ""),
+            "domicilio":           datos.get("domicilio", ""),
+            "localidad":           datos.get("localidad", ""),
+            "email":               datos.get("email", ""),
+            "ocupacion":           datos.get("ocupacion", ""),
+            "estado_civil":        datos.get("estado_civil", ""),
+            "largo":               datos.get("largo", ""),
+            "ancho":               datos.get("ancho", ""),
+            "profundidad_min":     datos.get("profundidad_min", ""),
+            "profundidad_max":     datos.get("profundidad_max", ""),
+            "sistema":             datos.get("sistema", ""),
+            "precio_total":        venta.precio_total if venta else 0,
+            "cantidad_cuotas":     venta.cantidad_cuotas if venta else 0,
+            "valor_cuota":         venta.valor_cuota if venta else 0,
+            "n_cuotas_congelamiento":    datos.get("n_cuotas_congelamiento", ""),
+            "valor_cuota_congelamiento": datos.get("valor_cuota_congelamiento", ""),
+            "saldo_contra_entrega":      _safe_num(datos.get("saldo_contra_entrega", 0)),
+            "fecha_entrega_estimada":    datos.get("fecha_entrega_estimada", ""),
+            "venta_financiada_id":       c.venta_financiada_id,
+            "contrato_id":               c.id,
+            "recibos_emitidos":          recibos_n,
+        })
+    return results
+
+
+# ─── FIN rutas específicas — ahora sí rutas con {contrato_id} ────────────────
+
 @router.get("/api/contratos/{contrato_id}")
 async def get_contrato(
     contrato_id: int,
@@ -695,8 +921,8 @@ async def emitir_contrato(
     context.setdefault("fecha_entrega_estimada", "")
     context["seccion_pago_html"] = _seccion_pago_html(_tplan, context)
     context["recibo_box_html"]   = _recibo_box_html(_tplan, context.get("numero_solicitud", ""))
-    context["texto_legal"]       = _texto_legal(_tplan)
-    context["titulo_contrato"]   = _titulo_contrato(venta.producto or "PISCINA")
+    context["texto_legal"]       = _texto_legal(_tplan, context)
+    context["titulo_contrato"]   = _titulo_contrato(venta.producto or "PISCINA", _tplan)
 
     html = render_html("contrato_template.html", context)
 
@@ -1057,7 +1283,7 @@ async def crear_contrato_unificado(
     context.setdefault("fecha_entrega_estimada", "")
     context["seccion_pago_html"] = _seccion_pago_html("FINANCIADO", context)
     context["recibo_box_html"]   = _recibo_box_html("FINANCIADO", numero_solicitud)
-    context["texto_legal"]       = _texto_legal("FINANCIADO")
+    context["texto_legal"]       = _texto_legal("FINANCIADO", context)
     context["titulo_contrato"]   = _titulo_contrato(tipo_producto)
 
     pdf_url = None
@@ -1194,38 +1420,6 @@ async def registrar_pago_por_numero(
 
 # ─── ENDPOINTS MANUALES — PANEL INTERNO ──────────────────────────────────────
 
-@router.get("/api/contratos/catalogo-modelos")
-async def get_catalogo_modelos(current_user: Usuario = Depends(require_auth)):
-    """Modelos, colores, medidas y sistemas disponibles para el formulario manual."""
-    try:
-        from routers.catalogo import load_catalogo, _MEDIDAS_PDF as _mpdf
-        cat = load_catalogo()
-    except Exception:
-        cat = {}
-        _mpdf = {}
-
-    medidas_cat = cat.get("piscinas", {}).get("medidas", {})
-    medidas = {**_mpdf, **medidas_cat}
-
-    return {
-        "piscinas": {
-            "modelos": cat.get("piscinas", {}).get("modelos", []),
-            "colores":  cat.get("piscinas", {}).get("colores", ["Blanco", "Beige", "Verde agua", "Celeste", "Azul"]),
-            "medidas":  medidas,
-            "sistemas": [
-                "Sistema de Filtrado Completo + Iluminación",
-                "Sistema de Filtrado Simple",
-                "Sistema C-6 básico",
-                "Sin sistema (solo estructura)",
-            ],
-        },
-        "modulos": {
-            "modelos": list(cat.get("modulos", {}).get("precios", {}).keys()),
-            "precios":  cat.get("modulos", {}).get("precios", {}),
-        },
-    }
-
-
 @router.post("/api/contratos/emitir-nuevo", status_code=201)
 async def emitir_nuevo_contrato(
     request: Request,
@@ -1268,17 +1462,41 @@ async def emitir_nuevo_contrato(
         cant_cuotas_v     = n_cuotas
         valor_cuota_v     = vcong
         monto_insc        = n_cuotas * vcong
+        señia             = 0.0
+        incluye_items     = []
+        condiciones_ent   = ""
+    elif tipo_plan == "CONTADO":
+        valor_total       = float(body.get("valor_total") or 0)
+        señia             = float(body.get("señia") or body.get("pago_inicial") or 0)
+        saldo_entrega     = float(body.get("saldo_contra_entrega") or (valor_total - señia))
+        flete             = 0.0
+        n_cuotas          = 1
+        vcong             = 0.0
+        pago_ini_contrato = señia
+        cant_cuotas_v     = 1
+        valor_cuota_v     = saldo_entrega
+        precio_total      = valor_total
+        monto_insc        = señia
+        incluye_items     = body.get("incluye_items") or []
+        condiciones_ent   = body.get("condiciones_entrega") or (
+            "La entrega se realizará contra el pago total del saldo acordado. "
+            "La coordinación de fecha y horario se realizará entre las partes "
+            "con al menos 72 hs de anticipación."
+        )
     else:
         valor_total       = float(body.get("valor_mercado") or 0)
         flete             = 0.0
         n_cuotas          = 0
         vcong             = 0.0
         saldo_entrega     = 0.0
+        señia             = 0.0
         pago_ini_contrato = float(body.get("pago_inicial") or 0)
         cant_cuotas_v     = int(body.get("cant_cuotas") or 0)
         valor_cuota_v     = float(body.get("valor_cuota") or 0)
         precio_total      = valor_total
         monto_insc        = pago_ini_contrato
+        incluye_items     = []
+        condiciones_ent   = ""
 
     monto_pago = float(body.get("monto_pago_inicial") or 0)
 
@@ -1376,12 +1594,17 @@ async def emitir_nuevo_contrato(
         "valor_cuota_congelamiento": _fmt_ar(vcong),
         "saldo_contra_entrega":      _fmt_ar(saldo_entrega),
         "fecha_entrega_estimada":    body.get("fecha_entrega_estimada") or "",
+        # CONTADO
+        "señia":                     _fmt_ar(señia),
+        "modalidad_pago":            body.get("modalidad_pago") or body.get("modalidad_pago_inicial") or "Transferencia",
+        "incluye_items":             json.dumps(incluye_items, ensure_ascii=False),
+        "condiciones_entrega":       condiciones_ent,
         "firma_productor_block":     "",
     }
     context["seccion_pago_html"] = _seccion_pago_html(tipo_plan, context)
     context["recibo_box_html"]   = _recibo_box_html(tipo_plan, numero_solicitud)
-    context["texto_legal"]       = _texto_legal(tipo_plan)
-    context["titulo_contrato"]   = _titulo_contrato(tipo_producto)
+    context["texto_legal"]       = _texto_legal(tipo_plan, context)
+    context["titulo_contrato"]   = _titulo_contrato(tipo_producto, tipo_plan)
 
     try:
         html = render_html("contrato_template.html", context)
@@ -1414,80 +1637,6 @@ async def emitir_nuevo_contrato(
             "ok": True, "numero_solicitud": numero_solicitud,
             "venta_financiada_id": venta.id, "pdf_url": None, "error_pdf": str(e),
         }
-
-
-@router.get("/api/contratos/buscar")
-async def buscar_contratos_manual(
-    q: str = "",
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
-):
-    """Busca contratos por número de solicitud o nombre de cliente (para emitir recibos)."""
-    roles = get_user_roles(current_user)
-    if not any(r in roles for r in ("ADMIN", "COORDINADOR_OPERATIVO", "COBRADOR")):
-        raise HTTPException(403, "Sin permisos")
-
-    q = (q or "").strip()
-    query = db.query(Contrato).filter(Contrato.tipo_documento == "CONTRATO")
-    if q:
-        query = query.filter(
-            Contrato.numero_solicitud.ilike(f"%{q}%") |
-            Contrato.cliente_nombre.ilike(f"%{q}%")
-        )
-    rows = query.order_by(Contrato.fecha_generacion.desc()).limit(15).all()
-
-    results = []
-    for c in rows:
-        datos = json.loads(c.datos_json) if c.datos_json else {}
-        venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == c.venta_financiada_id).first()
-        recibos_n = db.query(Contrato).filter(
-            Contrato.venta_financiada_id == c.venta_financiada_id,
-            Contrato.tipo_documento == "RECIBO",
-        ).count()
-
-        def _safe_num(v):
-            if isinstance(v, (int, float)):
-                return float(v)
-            try:
-                return float(str(v).replace(".", "").replace(",", "."))
-            except Exception:
-                return 0.0
-
-        results.append({
-            "numero_solicitud":    c.numero_solicitud or "",
-            "cliente_nombre":      c.cliente_nombre or "",
-            "tipo_contrato":       c.tipo_contrato or "",
-            "tipo_plan":           (venta.forma_pago if venta else "") or "FINANCIADO",
-            "modelo":              datos.get("modelo", ""),
-            "tipo_producto_label": datos.get("tipo_producto_label", ""),
-            "nombre":              datos.get("nombre", ""),
-            "apellido":            datos.get("apellido", ""),
-            "telefono":            datos.get("telefono", ""),
-            "dni":                 datos.get("dni", ""),
-            "cuil":                datos.get("cuil", ""),
-            "domicilio":           datos.get("domicilio", ""),
-            "localidad":           datos.get("localidad", ""),
-            "email":               datos.get("email", ""),
-            "ocupacion":           datos.get("ocupacion", ""),
-            "estado_civil":        datos.get("estado_civil", ""),
-            "largo":               datos.get("largo", ""),
-            "ancho":               datos.get("ancho", ""),
-            "profundidad_min":     datos.get("profundidad_min", ""),
-            "profundidad_max":     datos.get("profundidad_max", ""),
-            "sistema":             datos.get("sistema", ""),
-            "precio_total":        venta.precio_total if venta else 0,
-            "cantidad_cuotas":     venta.cantidad_cuotas if venta else 0,
-            "valor_cuota":         venta.valor_cuota if venta else 0,
-            "n_cuotas_congelamiento":    datos.get("n_cuotas_congelamiento", ""),
-            "valor_cuota_congelamiento": datos.get("valor_cuota_congelamiento", ""),
-            "saldo_contra_entrega":      _safe_num(datos.get("saldo_contra_entrega", 0)),
-            "fecha_entrega_estimada":    datos.get("fecha_entrega_estimada", ""),
-            "venta_financiada_id":       c.venta_financiada_id,
-            "contrato_id":               c.id,
-            "recibos_emitidos":          recibos_n,
-        })
-    return results
-
 
 @router.post("/api/contratos/recibo-por-numero/{numero_solicitud}", status_code=201)
 async def emitir_recibo_manual(

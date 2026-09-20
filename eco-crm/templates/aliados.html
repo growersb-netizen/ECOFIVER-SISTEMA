@@ -44,6 +44,7 @@
   <button class="al-tab" onclick="alTab('verificacion',this)">🔎 Verificación</button>
   <button class="al-tab" onclick="alTab('paquetes',this)">📦 Paquetes</button>
   <button class="al-tab" onclick="alTab('operacion',this)">🔧 Operación de Socios</button>
+  <button class="al-tab" onclick="alTab('calendario',this)">📅 Calendario</button>
 </div>
 
 <!-- ═══ ALIADOS ═══ -->
@@ -62,6 +63,16 @@
     <span id="al-count" style="color:var(--text-muted);font-size:13px"></span>
   </div>
   <div id="al-lista"><div class="al-empty">Cargando...</div></div>
+
+  <!-- ── Diagnóstico y desbloqueo de cuentas de socios ── -->
+  <div style="margin-top:32px;border-top:1px solid var(--border-dark);padding-top:18px">
+    <h3 style="font-size:14px;margin:0 0 6px">🔑 Acceso al panel — diagnóstico de cuentas</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 12px">Si un socio dice que no puede ingresar, buscalo acá. Si aparece "Bloqueado" usá el botón para desbloquear. Si no tiene contraseña, que use "Olvidé mi contraseña" en el panel (le llega OTP por WhatsApp).</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="sc-buscar" class="form-control" placeholder="Nombre, código o email..." style="max-width:280px" oninput="buscarCuentasSocios()">
+    </div>
+    <div id="sc-lista"><div class="al-empty">Ingresá un nombre para buscar.</div></div>
+  </div>
 </div>
 
 <!-- ═══ RANKING ═══ -->
@@ -232,7 +243,10 @@
     acciones que sigue haciendo el equipo a mano.
   </p>
 
-  <h3 style="font-size:14px;margin:18px 0 8px">💰 Financiado — confirmar pago de la seña/inscripción</h3>
+  <h3 style="font-size:14px;margin:18px 0 8px">🔔 Solicitudes de recibo — comprobantes pendientes de verificar</h3>
+  <div id="op-solicitudes-recibo"><div class="al-empty">Cargando...</div></div>
+
+  <h3 style="font-size:14px;margin:24px 0 8px">💰 Financiado — confirmar pago de la seña/inscripción (manual)</h3>
   <div id="op-inscripcion"><div class="al-empty">Cargando...</div></div>
 
   <h3 style="font-size:14px;margin:24px 0 8px">☎️ Financiado — llamada de bienvenida (auditoría)</h3>
@@ -243,6 +257,31 @@
 
   <h3 style="font-size:14px;margin:24px 0 8px">🚚 Contado — registrar entrega y cobro</h3>
   <div id="op-entrega"><div class="al-empty">Cargando...</div></div>
+</div>
+
+<!-- ═══ CALENDARIO DE ENTREGAS ═══ -->
+<div id="pane-calendario" class="al-pane">
+  <!-- KPIs summary -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px" id="cal-kpis">
+    <div class="op-stat"><div class="v" id="cal-k-total">—</div><div class="l">Entregas en período</div></div>
+    <div class="op-stat"><div class="v" id="cal-k-monto" style="color:var(--green)">$0</div><div class="l">Monto total</div></div>
+    <div class="op-stat"><div class="v" id="cal-k-comision" style="color:#60a5fa">$0</div><div class="l">Comisiones estimadas</div></div>
+    <div class="op-stat"><div class="v" id="cal-k-pendiente" style="color:#f59e0b">—</div><div class="l">Cobro pendiente</div></div>
+  </div>
+
+  <!-- Filtros -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+    <button class="btn btn-primary cal-filtro active" data-f="dia"   onclick="calFiltro('dia',this)">Hoy</button>
+    <button class="btn btn-secondary cal-filtro"      data-f="semana" onclick="calFiltro('semana',this)">Esta semana</button>
+    <button class="btn btn-secondary cal-filtro"      data-f="mes"    onclick="calFiltro('mes',this)">Este mes</button>
+    <button class="btn btn-secondary cal-filtro"      data-f="todos"  onclick="calFiltro('todos',this)">Todo</button>
+    <span style="flex:1"></span>
+    <input type="date" class="form-control" id="cal-desde" style="max-width:145px" onchange="calFiltroCustom()">
+    <span style="font-size:13px;color:var(--text-muted)">→</span>
+    <input type="date" class="form-control" id="cal-hasta" style="max-width:145px" onchange="calFiltroCustom()">
+  </div>
+
+  <div id="cal-lista"><div class="al-empty">Cargando…</div></div>
 </div>
 
 <!-- ═══ MODAL NUEVO ALIADO ═══ -->
@@ -287,6 +326,22 @@
         <div style="display:flex;align-items:flex-end"><a href="/portal-aliado" target="_blank" style="color:var(--green);font-size:13px">Ver portal del aliado ↗</a></div>
       </div>
       <label class="form-label">Notas</label><textarea class="form-control" id="ma-notas" rows="2"></textarea>
+      <div style="margin-top:16px;padding:14px;background:rgba(78,195,181,.08);border:1px solid rgba(78,195,181,.3);border-radius:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-weight:700;font-size:13.5px">🔧 Acceso de Admin al programa</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Permite acceder al CRM completo desde el panel de socios</div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
+            <input type="checkbox" id="ma-es-admin-crm" style="width:18px;height:18px;margin:0">
+            <span style="font-size:13px;font-weight:600" id="ma-es-admin-crm-label">No</span>
+          </label>
+        </div>
+        <div id="ma-admin-crm-btn-wrap" style="display:none;margin-top:10px">
+          <button class="btn btn-sm" id="ma-admin-crm-btn" onclick="toggleAdminCrm()" style="background:rgba(78,195,181,.15);border:1px solid rgba(78,195,181,.4);color:var(--teal,#4EC3B5)">Guardar cambio de admin</button>
+          <span id="ma-admin-crm-msg" style="font-size:12px;margin-left:8px"></span>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-nuevo-aliado')">Cancelar</button>
@@ -310,6 +365,7 @@ function alTab(name,btn){
   if(name==='verificacion') cargarVerificacion();
   if(name==='paquetes') cargarPaquetes();
   if(name==='operacion') cargarOperacionSocios();
+  if(name==='calendario') cargarCalendario();
 }
 
 // ── ALIADOS ──
@@ -343,7 +399,26 @@ function editar(a){
   document.getElementById('ma-estado').value=a.estado;
   document.getElementById('ma-contrato').value=a.contrato_firmado?'true':'false';
   const pinEl=document.getElementById('ma-pin'); pinEl.value=''; pinEl.placeholder=a.tiene_pin?'(ya tiene PIN — dejá vacío para no cambiarlo)':'ej. 1234';
+  // Admin CRM toggle
+  const chk = document.getElementById('ma-es-admin-crm');
+  chk.checked = !!a.es_admin_crm;
+  document.getElementById('ma-es-admin-crm-label').textContent = a.es_admin_crm ? 'Sí' : 'No';
+  document.getElementById('ma-admin-crm-btn-wrap').style.display = a.codigo ? 'block' : 'none';
+  document.getElementById('ma-admin-crm-msg').textContent = '';
+  chk.onchange = () => { document.getElementById('ma-es-admin-crm-label').textContent = chk.checked ? 'Sí' : 'No'; };
   openModal('modal-nuevo-aliado');
+}
+async function toggleAdminCrm(){
+  const cod = document.getElementById('ma-codigo-edit').value;
+  const esAdmin = document.getElementById('ma-es-admin-crm').checked;
+  const msg = document.getElementById('ma-admin-crm-msg');
+  const btn = document.getElementById('ma-admin-crm-btn');
+  btn.disabled = true; msg.textContent = 'Guardando…';
+  const r = await AL.send(`/api/admin/aliados/${cod}/set-admin-crm`, 'PUT', {es_admin_crm: esAdmin});
+  const j = await r.json();
+  btn.disabled = false;
+  if(r.ok){ msg.style.color='var(--teal,#4EC3B5)'; msg.textContent='✓ ' + j.mensaje; cargarAliados(); }
+  else { msg.style.color='#f87171'; msg.textContent='Error: ' + (j.detail||'No se pudo guardar'); }
 }
 function ma(f,v){document.getElementById('ma-'+f).value=v||'';}
 async function guardarAliado(){
@@ -505,12 +580,46 @@ async function cargarOperacionSocios(){
   cargarComisionConfig();
   cargarOpPresupuestos();
 
-  const [ins, aud, c48, ent] = await Promise.all([
+  const [solRec, ins, aud, c48, ent] = await Promise.all([
+    AL.get('/api/admin/solicitudes-recibo?estado=PENDIENTE'),
     AL.get('/api/ventas-financiadas/pendientes-inscripcion'),
     AL.get('/api/ventas-financiadas/pendientes-auditoria'),
     AL.get('/api/ventas-contado/pendientes-confirmacion'),
     AL.get('/api/ventas-contado/pendientes-entrega'),
   ]);
+
+  // ── Solicitudes de recibo ──
+  const elSR = document.getElementById('op-solicitudes-recibo');
+  if(!solRec.solicitudes || !solRec.solicitudes.length){
+    elSR.innerHTML = '<div class="al-empty">✅ Sin solicitudes pendientes.</div>';
+  } else {
+    elSR.innerHTML = `<table class="al-table"><thead><tr>
+      <th>Socio</th><th>Cliente / Solicitud</th><th>Producto</th>
+      <th>Monto declarado</th><th>Comprobante</th><th>Notas socio</th><th>Acción</th>
+    </tr></thead><tbody>` +
+    solRec.solicitudes.map(s => `<tr>
+      <td>${s.aliado_codigo}</td>
+      <td>${s.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${s.numero_solicitud}</div></td>
+      <td>${s.producto} ${s.modelo_especifico}</td>
+      <td>
+        <strong>${fmtMoney(s.solicitud_monto)}</strong>
+        <div style="font-size:11px;color:var(--text-muted)">Pagado: ${fmtMoney(s.monto_pagado_actual)} de ${fmtMoney(s.monto_inscripcion)}</div>
+      </td>
+      <td>${s.comprobante_url
+        ? `<a href="${s.comprobante_url}" target="_blank" class="btn btn-sm" style="font-size:12px">📎 Ver</a>`
+        : '<span style="font-size:12px;color:var(--text-muted)">—</span>'}</td>
+      <td style="font-size:12px;max-width:180px;white-space:normal">${s.solicitud_notas||'—'}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-direction:column">
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="number" id="sr-monto-${s.id}" placeholder="Monto a acreditar" value="${s.solicitud_monto||''}" class="form-control" style="width:130px">
+            <button class="btn btn-sm btn-primary" onclick="aprobarSolicitudRecibo(${s.id})">✓ Aprobar</button>
+          </div>
+          <button class="btn btn-sm btn-danger" style="font-size:11.5px" onclick="rechazarSolicitudRecibo(${s.id})">✕ Rechazar</button>
+        </div>
+      </td>
+    </tr>`).join('') + `</tbody></table>`;
+  }
 
   const elIns = document.getElementById('op-inscripcion');
   elIns.innerHTML = !ins.ventas || !ins.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
@@ -518,8 +627,8 @@ async function cargarOperacionSocios(){
     ins.ventas.map(v=>{
       const falta = (v.monto_inscripcion||0) - (v.monto_pagado_inscripcion||0);
       const venceInfo = v.sena_vence_en ? `<div style="font-size:11px;color:var(--warn,#eab308)">Vence: ${new Date(v.sena_vence_en).toLocaleDateString('es-AR')}</div>` : '';
-      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)} · Total ${fmtMoney(v.precio_total)}</div></td>
+      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}<div style="font-size:11px;color:var(--text-muted)">${v.cantidad_cuotas} cuotas de ${fmtMoney(v.valor_cuota)} · Total ${fmtMoney(v.precio_total)}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}</div></td>
       <td>${fmtMoney(v.monto_pagado_inscripcion)} de ${fmtMoney(v.monto_inscripcion)}<div style="font-size:11px;color:var(--text-muted)">Falta ${fmtMoney(falta)}</div>${venceInfo}</td>
       <td><div style="display:flex;gap:6px"><input type="number" id="pago-ins-${v.id}" placeholder="Monto" class="form-control" style="width:110px"><button class="btn btn-sm btn-primary" onclick="registrarPagoInscripcion(${v.id})">Registrar</button></div></td></tr>`;
     }).join('')+`</tbody></table>`;
@@ -529,8 +638,8 @@ async function cargarOperacionSocios(){
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>DJ</th><th></th></tr></thead><tbody>`+
     aud.ventas.map(v=>{
       const djOk = !v.declaracion_jurada_requerida || v.declaracion_jurada_confirmada;
-      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''} · Sol. ${v.numero_solicitud||'—'}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}</td>
+      return `<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">DNI ${v.cliente_dni||'—'} · ${v.cliente_telefono||'sin teléfono'} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''} · Sol. ${v.numero_solicitud||'—'}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}</td>
       <td>${v.declaracion_jurada_requerida ? (v.declaracion_jurada_confirmada?'<span class="al-badge b-verificado">OK</span>':'<span class="al-badge b-pendiente">Falta</span>') : '—'}</td>
       <td>${djOk?`<button class="btn btn-sm btn-primary" onclick="marcarAuditoria(${v.id})">✓ Bienvenida hecha</button>`:'<span style="font-size:12px;color:var(--text-muted)">Esperando DJ del cliente</span>'}</td></tr>`;
     }).join('')+`</tbody></table>`;
@@ -538,15 +647,15 @@ async function cargarOperacionSocios(){
   const elC48 = document.getElementById('op-confirmacion48');
   elC48.innerHTML = !c48.ventas || !c48.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Cargada</th><th></th></tr></thead><tbody>`+
-    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
+    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_email||''} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarConfirmacion48(${v.id})">✓ Ya contacté</button></td></tr>`).join('')+`</tbody></table>`;
 
   const elEnt = document.getElementById('op-entrega');
   elEnt.innerHTML = !ent.ventas || !ent.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
     `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Monto</th><th></th></tr></thead><tbody>`+
-    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td>${fmtMoney(v.precio_final)}</td>
+    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_email||''} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
+      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td>${fmtMoney(v.precio_final)}</td>
       <td><button class="btn btn-sm btn-primary" onclick="marcarEntrega(${v.id})">✓ Entregada y cobrada</button></td></tr>`).join('')+`</tbody></table>`;
 }
 async function registrarPagoInscripcion(id){
@@ -566,6 +675,83 @@ async function registrarPagoInscripcion(id){
 async function marcarAuditoria(id){if(!confirm('¿Confirmás que se hizo la llamada de bienvenida? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-financiadas/'+id+'/auditoria-completada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert((await r.json()).detail||'Error');}
 async function marcarConfirmacion48(id){if(!confirm('¿Confirmás que contactaste al cliente?'))return;const r=await AL.send('/api/ventas-contado/'+id+'/confirmacion-48hs','POST',{});if(r.ok)cargarOperacionSocios();else alert('Error');}
 async function marcarEntrega(id){if(!confirm('¿Confirmás que se entregó y se cobró? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-contado/'+id+'/entregada-cobrada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert('Error');}
+
+async function aprobarSolicitudRecibo(id){
+  const inp = document.getElementById('sr-monto-'+id);
+  const monto = parseFloat(inp ? inp.value : 0);
+  if(!monto||monto<=0){ alert('Ingresá el monto confirmado a acreditar.'); return; }
+  if(!confirm(`¿Confirmás que el pago de ${fmtMoney(monto)} ingresó realmente a la cuenta?`)) return;
+  const r = await AL.send(`/api/admin/solicitudes-recibo/${id}/aprobar`,'POST',{monto_confirmado:monto});
+  if(r.ok){
+    const data = await r.json();
+    const extra = data.recibo_enviado_email ? ` Recibo enviado por email a ${data.email_destino}.` : '';
+    toast&&toast('Pago registrado. ' + (data.inscripcion_completa?'Inscripción completa — recibo generado.':'Pago parcial acumulado.') + extra);
+    cargarOperacionSocios();
+  } else {
+    const err = await r.json().catch(()=>({}));
+    alert('Error: ' + (err.detail||'No se pudo aprobar'));
+  }
+}
+
+async function rechazarSolicitudRecibo(id){
+  const motivo = prompt('Motivo del rechazo (se lo comunicamos al socio por WhatsApp):');
+  if(!motivo||!motivo.trim()){ return; }
+
+  const r = await AL.send(`/api/admin/solicitudes-recibo/${id}/rechazar`,'POST',{motivo});
+  if(r.ok){ toast&&toast('Solicitud rechazada — socio notificado por WA'); cargarOperacionSocios(); }
+  else alert('Error al rechazar');
+}
+
+// ── Diagnóstico de cuentas de socios ──────────────────────────────────────────
+let _scTimer = null;
+function buscarCuentasSocios(){
+  clearTimeout(_scTimer);
+  _scTimer = setTimeout(_buscarCuentasSociosFn, 350);
+}
+async function _buscarCuentasSociosFn(){
+  const q = document.getElementById('sc-buscar').value.trim();
+  const el = document.getElementById('sc-lista');
+  if(!q){ el.innerHTML = '<div class="al-empty">Ingresá un nombre para buscar.</div>'; return; }
+  el.innerHTML = '<div class="al-empty">Buscando...</div>';
+  const data = await AL.get(`/api/admin/socios?q=${encodeURIComponent(q)}`).catch(()=>null);
+  if(!data || !data.socios || !data.socios.length){
+    el.innerHTML = '<div class="al-empty">Sin resultados para "' + q + '"</div>'; return;
+  }
+  el.innerHTML = `<table class="al-table"><thead><tr>
+    <th>Código</th><th>Nombre / Email</th><th>Estado cuenta</th><th>Acceso</th><th></th>
+  </tr></thead><tbody>` + data.socios.map(s => {
+    const estadoCuenta = s.bloqueado
+      ? `<span class="badge badge-red">🔒 Bloqueado${s.bloqueado_hasta ? ' hasta ' + s.bloqueado_hasta.substring(11,16) : ''}</span>`
+      : s.tiene_password
+        ? `<span class="badge badge-green">✓ Con contraseña</span>`
+        : `<span class="badge badge-warn">⚠️ Sin contraseña</span>`;
+    const acceso = [
+      s.whatsapp_verificado ? '✓ WA' : '✗ WA',
+      s.perfil_completo ? '✓ Perfil' : '✗ Perfil',
+    ].join(' · ');
+    const btnDesbloquear = s.bloqueado
+      ? `<button class="btn btn-sm" onclick="desbloquearSocio('${s.codigo}')">🔓 Desbloquear</button>`
+      : '';
+    return `<tr>
+      <td><strong>${s.codigo}</strong></td>
+      <td>${s.nombre}<br><span style="font-size:11px;color:var(--text-muted)">${s.email||s.telefono||''}</span></td>
+      <td>${estadoCuenta}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${acceso}</td>
+      <td>${btnDesbloquear}</td>
+    </tr>`;
+  }).join('') + '</tbody></table>';
+}
+async function desbloquearSocio(codigo){
+  const r = await AL.send(`/api/admin/socios/${codigo}/desbloquear`, 'POST', {});
+  if(r.ok){
+    const data = await r.json();
+    toast && toast(data.mensaje);
+    _buscarCuentasSociosFn();
+  } else {
+    const err = await r.json().catch(()=>({}));
+    alert('Error: ' + (err.detail||'No se pudo desbloquear'));
+  }
+}
 
 async function cargarOpStats(){
   const el = document.getElementById('op-stats');
@@ -675,6 +861,201 @@ async function subirFotoEntrega(){
   } else {
     msg.style.color = '#f87171'; msg.textContent = '❌ Error al subir.';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CALENDARIO DE ENTREGAS (admin)
+// ══════════════════════════════════════════════════════════════════
+const fmtARS = n => '$'+Math.round(n||0).toLocaleString('es-AR');
+
+function _calRango(filtro){
+  const hoy = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  if(filtro === 'dia'){
+    return {desde: iso(hoy), hasta: iso(hoy)};
+  }
+  if(filtro === 'semana'){
+    const lun = new Date(hoy); lun.setDate(hoy.getDate() - hoy.getDay() + (hoy.getDay()===0?-6:1));
+    const dom = new Date(lun); dom.setDate(lun.getDate() + 6);
+    return {desde: iso(lun), hasta: iso(dom)};
+  }
+  if(filtro === 'mes'){
+    const ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const fin = new Date(hoy.getFullYear(), hoy.getMonth()+1, 0);
+    return {desde: iso(ini), hasta: iso(fin)};
+  }
+  return {desde: null, hasta: null}; // todos
+}
+
+async function cargarCalendario(filtro){
+  if(!filtro){
+    const a = document.querySelector('.cal-filtro.active');
+    filtro = a ? a.dataset.f : 'dia';
+  }
+  const rango = _calRango(filtro);
+  // Si hay fechas custom activas en los inputs, usarlas (si el filtro custom está activo)
+  const desdeInput = document.getElementById('cal-desde').value;
+  const hastaInput = document.getElementById('cal-hasta').value;
+
+  let desde = rango.desde, hasta = rango.hasta;
+  // Sólo usar inputs cuando ningún botón quick-filter tiene foco ("todos" sin fechas)
+  if(!document.querySelector('.cal-filtro.active') && desdeInput) desde = desdeInput;
+  if(!document.querySelector('.cal-filtro.active') && hastaInput) hasta = hastaInput;
+
+  let url = '/api/admin/entregas-calendario';
+  const params = [];
+  if(desde) params.push('desde='+desde);
+  if(hasta) params.push('hasta='+hasta);
+  if(params.length) url += '?' + params.join('&');
+
+  const lista = document.getElementById('cal-lista');
+  lista.innerHTML = '<div class="al-empty">Cargando…</div>';
+
+  const ventas = await AL.get(url).catch(()=>[]);
+
+  // KPIs
+  const totalMonto  = ventas.reduce((s,v)=>s+(v.precio_final||0),0);
+  const totalComis  = ventas.reduce((s,v)=>s+(v.comision_estimada||0),0);
+  const pendientes  = ventas.filter(v=>v.cobro_estado !== 'COBRADO').length;
+  document.getElementById('cal-k-total').textContent    = ventas.length;
+  document.getElementById('cal-k-monto').textContent    = fmtARS(totalMonto);
+  document.getElementById('cal-k-comision').textContent = fmtARS(totalComis);
+  document.getElementById('cal-k-pendiente').textContent= pendientes;
+
+  if(!ventas.length){
+    const labels={dia:'para hoy',semana:'esta semana',mes:'este mes',todos:'en el período seleccionado'};
+    lista.innerHTML = `<div class="al-empty">📅 Sin entregas ${labels[filtro]||''}.</div>`;
+    return;
+  }
+
+  // Agrupar por fecha
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const porFecha = {};
+  for(const v of ventas) (porFecha[v.fecha_entrega]=porFecha[v.fecha_entrega]||[]).push(v);
+
+  let html = '';
+  for(const fecha of Object.keys(porFecha).sort()){
+    const esHoy = fecha === hoyStr;
+    const fObj  = new Date(fecha+'T00:00:00');
+    const fFmt  = fObj.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+    const fCap  = fFmt.charAt(0).toUpperCase()+fFmt.slice(1);
+    const items = porFecha[fecha];
+    const subMonto = items.reduce((s,v)=>s+(v.precio_final||0),0);
+
+    html += `<div style="display:flex;align-items:center;gap:12px;margin:20px 0 10px">
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap">${fCap}${esHoy?' <span style="background:#1e40af;color:#fff;font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:6px;margin-left:4px">HOY</span>':''}</div>
+      <div style="flex:1;height:1px;background:var(--border-dark)"></div>
+      <div style="font-size:11.5px;color:var(--text-muted);white-space:nowrap">${items.length} entrega${items.length>1?'s':''} · ${fmtARS(subMonto)}</div>
+    </div>`;
+
+    html += `<div style="display:grid;gap:10px">` + items.map(v => {
+      const cobColor = v.cobrado ? '#4ade80' : (v.cobro_estado==='PROBLEMA'?'#f87171':'#f59e0b');
+      const estadoBadge = `<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:${v.cobrado?'rgba(74,222,128,.15)':'rgba(245,158,11,.15)'};color:${cobColor}">${v.cobro_label}</span>`;
+      return `<div style="background:var(--surface-alt,#1a2540);border:1px solid var(--border-dark);border-radius:10px;padding:12px 16px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start${esHoy?';border-left:3px solid #3b82f6':''}">
+        <div>
+          <div style="font-weight:700;font-size:14px">${esc(v.cliente_nombre)}</div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px">${esc(v.producto)} ${esc(v.modelo_especifico)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px">📍 ${esc(v.cliente_domicilio||v.cliente_localidad||'Sin domicilio')}${v.cliente_telefono?' · 📱'+esc(v.cliente_telefono):''}</div>
+          <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
+            ${estadoBadge}
+            <span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(100,116,139,.15);color:var(--text-muted)">Socio: ${esc(v.aliado_codigo)}</span>
+            ${v.confirmacion_48hs?'<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(74,222,128,.1);color:#4ade80">✓ 48hs confirmada</span>':''}
+          </div>
+        </div>
+        <div style="text-align:right;min-width:130px">
+          <div style="font-size:15px;font-weight:800">${fmtARS(v.precio_final)}</div>
+          <div style="font-size:11.5px;color:#60a5fa;font-weight:600;margin-top:2px">Comis. ${fmtARS(v.comision_estimada)} (${v.comision_pct}%)</div>
+          ${v.flete_calculado?`<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Flete: ${fmtARS(v.flete_calculado)}</div>`:''}
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
+  }
+  lista.innerHTML = html;
+}
+
+function calFiltro(filtro, btn){
+  document.querySelectorAll('.cal-filtro').forEach(b=>{
+    b.classList.remove('active','btn-primary');
+    b.classList.add('btn-secondary');
+  });
+  if(btn){
+    btn.classList.add('active','btn-primary');
+    btn.classList.remove('btn-secondary');
+  }
+  // Limpiar inputs de fecha custom cuando se usa filtro rápido
+  document.getElementById('cal-desde').value = '';
+  document.getElementById('cal-hasta').value = '';
+  cargarCalendario(filtro);
+}
+
+function calFiltroCustom(){
+  // Quitar filtro rápido activo
+  document.querySelectorAll('.cal-filtro').forEach(b=>{
+    b.classList.remove('active','btn-primary');
+    b.classList.add('btn-secondary');
+  });
+  const desde = document.getElementById('cal-desde').value;
+  const hasta = document.getElementById('cal-hasta').value;
+  const lista = document.getElementById('cal-lista');
+  if(!desde && !hasta) return;
+  // Llamar API directamente con los valores de los inputs
+  let url = '/api/admin/entregas-calendario';
+  const params = [];
+  if(desde) params.push('desde='+desde);
+  if(hasta) params.push('hasta='+hasta);
+  if(params.length) url += '?' + params.join('&');
+  lista.innerHTML = '<div class="al-empty">Cargando…</div>';
+  AL.get(url).then(ventas=>{
+    const totalMonto  = ventas.reduce((s,v)=>s+(v.precio_final||0),0);
+    const totalComis  = ventas.reduce((s,v)=>s+(v.comision_estimada||0),0);
+    const pendientes  = ventas.filter(v=>v.cobro_estado !== 'COBRADO').length;
+    document.getElementById('cal-k-total').textContent    = ventas.length;
+    document.getElementById('cal-k-monto').textContent    = fmtARS(totalMonto);
+    document.getElementById('cal-k-comision').textContent = fmtARS(totalComis);
+    document.getElementById('cal-k-pendiente').textContent= pendientes;
+    if(!ventas.length){lista.innerHTML='<div class="al-empty">📅 Sin entregas en el rango seleccionado.</div>';return;}
+    // Reutilizar renderizado agrupado
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const porFecha = {};
+    for(const v of ventas) (porFecha[v.fecha_entrega]=porFecha[v.fecha_entrega]||[]).push(v);
+    let html = '';
+    for(const fecha of Object.keys(porFecha).sort()){
+      const esHoy = fecha === hoyStr;
+      const fObj  = new Date(fecha+'T00:00:00');
+      const fFmt  = fObj.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+      const fCap  = fFmt.charAt(0).toUpperCase()+fFmt.slice(1);
+      const items = porFecha[fecha];
+      const subMonto = items.reduce((s,v)=>s+(v.precio_final||0),0);
+      html += `<div style="display:flex;align-items:center;gap:12px;margin:20px 0 10px">
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap">${fCap}${esHoy?' <span style="background:#1e40af;color:#fff;font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:6px;margin-left:4px">HOY</span>':''}</div>
+        <div style="flex:1;height:1px;background:var(--border-dark)"></div>
+        <div style="font-size:11.5px;color:var(--text-muted);white-space:nowrap">${items.length} entrega${items.length>1?'s':''} · ${fmtARS(subMonto)}</div>
+      </div>`;
+      html += `<div style="display:grid;gap:10px">` + items.map(v => {
+        const cobColor = v.cobrado ? '#4ade80' : (v.cobro_estado==='PROBLEMA'?'#f87171':'#f59e0b');
+        const estadoBadge = `<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:${v.cobrado?'rgba(74,222,128,.15)':'rgba(245,158,11,.15)'};color:${cobColor}">${v.cobro_label}</span>`;
+        return `<div style="background:var(--surface-alt,#1a2540);border:1px solid var(--border-dark);border-radius:10px;padding:12px 16px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start${esHoy?';border-left:3px solid #3b82f6':''}">
+          <div>
+            <div style="font-weight:700;font-size:14px">${esc(v.cliente_nombre)}</div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px">${esc(v.producto)} ${esc(v.modelo_especifico)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">📍 ${esc(v.cliente_domicilio||v.cliente_localidad||'Sin domicilio')}${v.cliente_telefono?' · 📱'+esc(v.cliente_telefono):''}</div>
+            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
+              ${estadoBadge}
+              <span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(100,116,139,.15);color:var(--text-muted)">Socio: ${esc(v.aliado_codigo)}</span>
+              ${v.confirmacion_48hs?'<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(74,222,128,.1);color:#4ade80">✓ 48hs confirmada</span>':''}
+            </div>
+          </div>
+          <div style="text-align:right;min-width:130px">
+            <div style="font-size:15px;font-weight:800">${fmtARS(v.precio_final)}</div>
+            <div style="font-size:11.5px;color:#60a5fa;font-weight:600;margin-top:2px">Comis. ${fmtARS(v.comision_estimada)} (${v.comision_pct}%)</div>
+            ${v.flete_calculado?`<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Flete: ${fmtARS(v.flete_calculado)}</div>`:''}
+          </div>
+        </div>`;
+      }).join('') + `</div>`;
+    }
+    lista.innerHTML = html;
+  }).catch(()=>{ lista.innerHTML='<div class="al-empty">Error al cargar.</div>'; });
 }
 
 document.addEventListener('DOMContentLoaded',()=>{cargarAliados();

@@ -40,15 +40,9 @@ _LOTES: Dict[str, Dict[str, Any]] = {}   # job_id → estado del lote
 # MLA373483 (Armarios para Exterior) descartada: fuerza gold_special + ME1 + free shipping obligatorio.
 # Todos los módulos/garitas/depósitos pasan a buy_it_now en MLA416584 (Cubículos de Oficina):
 # sin costo de publicación, comisión solo al vender, envío "a coordinar" sin ME1 obligatorio.
-_TIPOS_CLASSIFIED: set = set()  # vacío: ningún tipo usa classified por ahora
-
-# Tipos que van por courier (Mercado Envíos) con envío gratis absorbido en el precio
-_TIPOS_CON_ENVIO_GRATIS = {
-    "HIDROMASAJE", "BANERA", "RECEPTACULO",
-    "REPOSERA_FIBRA", "CUCHA",
-    "ACCESORIO_PISCINA", "ACCESORIO_HIDROMASAJE",
-    "ILUMINACION_PISCINA", "EQUIPO_PISCINA", "REPUESTO_PISCINA",
-}
+# 2026-09: TODOS los productos usan coordinar-con-vendedor (not_specified, sin ME).
+# Ningún producto va por Mercado Envíos — las reposeras de fibra, hidromasajes y piscinas
+# no entran en los bultos de Correo Argentino; la logística siempre se coordina aparte.
 
 
 async def _run_lote_bg(job_id: str, bids: list):
@@ -57,7 +51,6 @@ async def _run_lote_bg(job_id: str, bids: list):
 
     job = _LOTES[job_id]
     job["estado"] = "en_curso"
-    delay_cl = 120  # segundos entre classified; se ajusta adaptativamente
 
     for i, bid in enumerate(bids):
         if job.get("cancelado"):
@@ -72,42 +65,7 @@ async def _run_lote_bg(job_id: str, bids: list):
                 job["procesados"] = i + 1
                 continue
 
-            es_classified = (b.producto or "").upper() in _TIPOS_CLASSIFIED
-
-            # Para classified: hasta 3 intentos con espera progresiva entre ellos
-            res = None
-            if es_classified:
-                if job.get("cuota_classified_agotada"):
-                    # ML ya rechazó con "not available for category" → no hay cuota libre disponible.
-                    # Todos los siguientes classified fallarán igual; saltear sin reintentar.
-                    res = {
-                        "ok": False,
-                        "error": "Cuota gratuita ML agotada para esta categoría. Intentá mañana o usá un listing type pago.",
-                        "error_tipo": "cuota_classified",
-                    }
-                else:
-                    for espera in [0, delay_cl, int(delay_cl * 1.5)]:
-                        if espera > 0:
-                            job["estado"] = "esperando"
-                            job["esperando_hasta"] = time.time() + espera
-                            await asyncio.sleep(espera)
-                            job["estado"] = "en_curso"
-                        if job.get("cancelado"):
-                            break
-                        res = await _publicar(db, b)
-                        if res["ok"]:
-                            delay_cl = max(int(delay_cl * 0.85), 90)
-                            break
-                        if res.get("error_tipo") == "cuota_classified":
-                            # Cuota agotada: marcar y no reintentar ningún classified más
-                            job["cuota_classified_agotada"] = True
-                            break
-                        if "temporarily" in (res.get("error") or "").lower():
-                            delay_cl = min(int(delay_cl * 1.5), 600)
-                        else:
-                            break
-            else:
-                res = await _publicar(db, b)
+            res = await _publicar(db, b)
 
             if res and res["ok"]:
                 b.estado = "publicada"; b.item_id = res["item_id"]
@@ -143,13 +101,7 @@ async def _run_lote_bg(job_id: str, bids: list):
 
         # Pausa entre ítems (no en el último)
         if i < len(bids) - 1 and not job.get("cancelado"):
-            if es_classified:
-                job["estado"] = "esperando"
-                job["esperando_hasta"] = time.time() + delay_cl
-                await asyncio.sleep(delay_cl)
-                job["estado"] = "en_curso"
-            else:
-                await asyncio.sleep(2)
+            await asyncio.sleep(2)
 
     job["estado"] = "cancelado" if job.get("cancelado") else "completado"
     job["fin"] = time.time()
@@ -576,6 +528,9 @@ async def regenerar_ia_modulos(
     if not bid_list:
         return {"ok": True, "total": 0, "mensaje": "No hay borradores de módulos para regenerar."}
 
+    if _REGEN_JOB.get("estado") == "en_curso":
+        return {"ok": False, "mensaje": "Ya hay una regeneración en curso. Esperá que termine antes de lanzar otra.", "job": _REGEN_JOB}
+
     _REGEN_JOB.update({"estado": "iniciado", "total": len(bid_list), "actualizados": 0, "errores": 0, "idx": 0})
 
     from database.database import SessionLocal as _SL
@@ -972,7 +927,6 @@ CATEGORIAS_FIJAS: dict = {
 _TITULO_KEYWORDS_MINIMAS: dict = {
     "HIDROMASAJE":        (["hidromasaje", "jacuzzi", "spa"],               "Hidromasaje Jacuzzi"),
     "BANERA":             (["bañera", "banera", "jacuzzi", "hidromasaje"],  "Bañera Hidromasaje"),
-    "RECEPTACULO":        (["receptáculo", "receptaculo", "ducha"],         "Receptáculo Ducha"),
     "PISCINA":            (["piscina", "pileta"],                           "Piscina"),
     "MINIPISCINA":        (["piscina", "pileta", "minipiscina"],            "Minipiscina"),
     "MODULO":             (["módulo", "modulo", "cabaña", "cabana"],        "Módulo"),
@@ -1395,13 +1349,9 @@ async def _publicar(db: Session, b: BorradorML) -> dict:
     # Título con keywords mínimas garantizadas (previene categorización errónea por ML)
     titulo_final = _forzar_keywords_titulo((b.titulo or "").strip(), tipo_prod)
 
-    # Shipping: me2+gratis para productos de courier (hidromasajes, bañeras, accesorios);
-    # not_specified para productos de gran porte (piscinas, módulos, etc.).
-    # local_pick_up=True en todos: habilita "Retiro en persona" siempre.
-    if tipo_prod in _TIPOS_CON_ENVIO_GRATIS:
-        _shipping = {"mode": "me2", "free_shipping": True, "local_pick_up": True}
-    else:
-        _shipping = {"mode": "not_specified", "free_shipping": False, "local_pick_up": True}
+    # Todos los productos: coordinar con vendedor, sin Mercado Envíos, sin envío gratis.
+    # local_pick_up omitido — ML fuerza me1 cuando está presente aunque el modo sea not_specified.
+    _shipping = {"mode": "not_specified", "free_shipping": False}
 
     # Payload estándar (marketplace buy_it_now)
     # Si ML rechaza porque la categoría solo acepta classified, se reintenta automáticamente
@@ -3233,3 +3183,363 @@ async def duplicar(bid: int, db: Session = Depends(get_db), x_api_key=Header(Non
     db.commit()
     db.refresh(nuevo)
     return {"ok": True, **_dict(nuevo)}
+
+
+# ── SEED: 16 publicaciones cotización piscinas de fibra de vidrio ─────────────
+
+_PISCINAS_SEED = [
+    {"modelo": "Miniportante",                 "medida": "2,50x2,10x0,70m",        "contado": 1990000,  "lista": 3640000,
+     "titulo": "Pileta Fibra Miniportante 2,5x2m - Cotiza Aqui",
+     "extra": "Modelo compacto. Ideal para patios chicos. Profundidad 70cm. Sin necesidad de excavacion profunda."},
+    {"modelo": "Minideck",                     "medida": "3,55x2,10m Deck / 3x2x0,70m piscina", "contado": 2490000, "lista": 4370000,
+     "titulo": "Pileta Fibra Minideck 3x2m Con Deck - Cotiza Aqui",
+     "extra": "Piscina con deck de fibra integrado. Area de relax sin necesidad de obra extra. Profundidad 70cm."},
+    {"modelo": "Autoportante",                 "medida": "4,10x2,10x0,70m",        "contado": 3000000,  "lista": 4370000,
+     "titulo": "Pileta Fibra Autoportante 4x2m - Cotiza Aqui",
+     "extra": "Sin excavacion. Se instala sobre cualquier superficie nivelada. Profundidad 70cm. Montaje rapido en el dia."},
+    {"modelo": "Arco Romano Chico Recto",      "medida": "4,60x2,47x1,20m",        "contado": 3000000,  "lista": 4370000,
+     "titulo": "Pileta Fibra Arco Romano Chico 4,6m - Cotiza Aqui",
+     "extra": "Forma clasica con escalera. Largo 4,60m x 2,47m. Profundidad 1,20m. Capacidad aprox. 10.000 litros."},
+    {"modelo": "Arco Romano Chico C/Desnivel", "medida": "4,60x2,35x1,10 a 1,30m", "contado": 2990000,  "lista": 4350000,
+     "titulo": "Pileta Fibra Arco Romano Desnivel 4,6m - Cotiza",
+     "extra": "Con desnivel progresivo: entrada 1,10m hasta 1,30m en la zona honda. Ideal para chicos y adultos."},
+    {"modelo": "Playa Humeda Chica C/Escalera","medida": "4,10x2,40x1,20m",        "contado": 2850000,  "lista": 4150000,
+     "titulo": "Pileta Fibra Playa Humeda Chica Escalera - Cotiza",
+     "extra": "Playa humeda integrada con escalera. Zona de entrada baja + zona de natacion 1,20m. Largo 4,10m."},
+    {"modelo": "Recta C/Mini Escalera",        "medida": "4,63x2,48x1,25m",        "contado": 3375000,  "lista": 4910000,
+     "titulo": "Pileta Fibra Recta Con Escalera 4,6m - Cotiza Aqui",
+     "extra": "Forma rectangular con mini escalera integrada. 4,63m de largo x 2,48m. Profundidad 1,25m."},
+    {"modelo": "Minimalista Chica",            "medida": "3,97x2,46x1,20m",        "contado": 2800000,  "lista": 4080000,
+     "titulo": "Pileta Fibra Minimalista Chica 4m - Cotiza Aqui",
+     "extra": "Diseño moderno rectangular. 3,97m x 2,46m. Profundidad 1,20m. Lineas rectas, estetica contemporanea."},
+    {"modelo": "Playa Humeda",                 "medida": "5,20x2,45x1,10 a 1,30m", "contado": 3290000,  "lista": 4790000,
+     "titulo": "Pileta Fibra Playa Humeda 5,2m - Cotiza Aqui",
+     "extra": "Playa humeda con desnivel. Zona baja para ninos + zona profunda 1,30m para adultos. Largo 5,20m."},
+    {"modelo": "Minimalista Grande",           "medida": "6,40x3x1,40m",           "contado": 3690000,  "lista": 5370000,
+     "titulo": "Pileta Fibra Minimalista Grande 6,4m - Cotiza",
+     "extra": "Diseño moderno. 6,40m x 3m. Profundidad 1,40m. Lineas rectas, estetica minimalista."},
+    {"modelo": "Arco Romano Mediano C/Desnivel","medida": "7x3,35x1,25 a 1,70m",   "contado": 4490000,  "lista": 7130000,
+     "titulo": "Pileta Fibra Arco Romano Mediano Desnivel 7m",
+     "extra": "7m de largo x 3,35m de ancho. Desnivel de 1,25m a 1,70m en la zona profunda. Capacidad aprox. 28.000 litros."},
+    {"modelo": "Semi Playa Humeda C/Escalera", "medida": "6,70x2,95x1,50m",        "contado": 3990000,  "lista": 5810000,
+     "titulo": "Pileta Fibra Semi Playa Humeda Escalera 6,7m",
+     "extra": "Semi playa con escalera. 6,70m x 2,95m. Profundidad hasta 1,50m. Combina practicidad y comodidad."},
+    {"modelo": "Arco Romano Grande",           "medida": "8,10x3,35x1,25 a 1,80m", "contado": 4800000,  "lista": 6990000,
+     "titulo": "Pileta Fibra Arco Romano Grande 8m - Cotiza Aqui",
+     "extra": "8,10m de largo x 3,35m de ancho. Desnivel 1,25m a 1,80m. Pileta de gran porte para uso familiar intensivo."},
+    {"modelo": "Arco Romano Mediano Recto",    "medida": "6,40x2,94x1,40m",        "contado": 4900000,  "lista": 7130000,
+     "titulo": "Pileta Fibra Arco Romano Mediano 6,4m - Cotiza",
+     "extra": "6,40m de largo x 2,94m de ancho. Profundidad uniforme 1,40m. Ideal para natacion. Capacidad aprox. 24.000 litros."},
+    {"modelo": "Minimalista Mediana",          "medida": "5,50x2,90x1,50m",        "contado": 4425000,  "lista": 6440000,
+     "titulo": "Pileta Fibra Minimalista Mediana 5,5m - Cotiza",
+     "extra": "5,50m x 2,90m. Profundidad 1,50m. Diseño rectangular moderno. Profundidad extra permite saltos desde el borde."},
+    {"modelo": "Playa y Abanico",              "medida": "9,20x3,80x1,25 a 1,80m", "contado": 5500000,  "lista": 8000000,
+     "titulo": "Pileta Fibra Playa y Abanico 9,2m - Cotiza Aqui",
+     "extra": "El modelo mas grande. 9,20m x 3,80m. Playa integrada en abanico + zona profunda 1,80m."},
+]
+
+_ENCABEZADO_REF = """COTIZA TU PISCINA DE FIBRA DE VIDRIO - INSTALACION COMPLETA EN EL DIA
+
+Esta publicacion es para COTIZAR. El precio que ves es la seña para iniciar el proceso. El precio real de la piscina instalada se informa por esta misma seccion de preguntas o esta en la descripcion mas abajo.
+
+PRECIOS DE CONTADO (abonas el dia que la piscina queda instalada en tu domicilio):
+Miniportante 2,50x2,10m - $1.990.000
+Minideck 3x2m Con Deck - $2.490.000
+Autoportante 4,10x2,10m - $3.000.000
+Arco Romano Chico Recto 4,60x2,47m - $3.000.000
+Arco Romano Chico Desnivel 4,60x2,35m - $2.990.000
+Playa Humeda Chica C/Escalera 4,10x2,40m - $2.850.000
+Recta C/Mini Escalera 4,63x2,48m - $3.375.000
+Minimalista Chica 3,97x2,46m - $2.800.000
+Playa Humeda 5,20x2,45m - $3.290.000
+Minimalista Grande 6,40x3m - $3.690.000
+Arco Romano Mediano Desnivel 7x3,35m - $4.490.000
+Semi Playa Humeda C/Escalera 6,70x2,95m - $3.990.000
+Arco Romano Grande 8,10x3,35m - $4.800.000
+Arco Romano Mediano Recto 6,40x2,94m - $4.900.000
+Minimalista Mediana 5,50x2,90m - $4.425.000
+Playa y Abanico 9,20x3,80m - $5.500.000
+
+Los precios NO incluyen flete. El traslado se cotiza aparte: $3.000 por km desde Zarate, Buenos Aires. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
+
+COMO FUNCIONA:
+1. Hace tu consulta con el modelo y tu localidad en la seccion de Preguntas
+2. Te informamos el precio exacto y calculamos el flete
+3. Si confirmas, abonas la seña por esta publicacion de MercadoLibre
+4. Coordinamos fabricacion e instalacion en tu domicilio
+5. Saldas el dia que la piscina queda instalada y funcionando"""
+
+_PIE_REF = """INCLUYE: fabricacion - instalacion completa en el dia - primer puesta en marcha - equipo de filtrado.
+Flete a coordinar por separado: $3.000 por km desde Zarate, Buenos Aires. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
+GARANTIA ESCRITA 10 ANOS con certificado de calidad premium.
+Fabricante directo en Zarate, Buenos Aires. Sin intermediarios.
+Equipo propio instala, conecta y deja funcionando en el mismo dia.
+Colores disponibles: blanco, beige, azul, celeste.
+EcoFiver Eco Modulos y Piscinas"""
+
+
+def _upsert_config_pub(db: Session, clave: str, valor: str):
+    from database.models import ConfiguracionSistema
+    row = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
+    if row:
+        row.valor = valor
+    else:
+        db.add(ConfiguracionSistema(clave=clave, valor=valor, categoria="ml_desc", es_secreto=False, estado="activa"))
+
+
+@router.post("/api/ml/seed/piscinas-cotizacion")
+async def seed_piscinas_cotizacion(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Seed único: crea 16 borradores de cotización para piscinas de fibra de vidrio.
+    Configura encabezado/pie de referencia y activa el auto-responder.
+    Idempotente: no duplica si ya existen. Pasa overwrite=true para recrear.
+    """
+    _auth(x_api_key, current_user)
+    data = {}
+    try:
+        data = await request.json()
+    except Exception:
+        pass
+    overwrite = bool(data.get("overwrite", False))
+
+    # ── Config encabezado/pie de referencia ──────────────────────────────────
+    _upsert_config_pub(db, "ml_desc_encabezado_referencia", _ENCABEZADO_REF)
+    _upsert_config_pub(db, "ml_desc_pie_referencia", _PIE_REF)
+    _upsert_config_pub(db, "ml_auto_responder_activo", "true")
+    db.commit()
+
+    # ── Crear borradores ──────────────────────────────────────────────────────
+    existentes = db.query(BorradorML).filter(
+        BorradorML.tipo_precio == "referencia",
+        BorradorML.producto == "PISCINA",
+    ).all()
+
+    actualizar_desc_ml = bool(data.get("actualizar_desc_ml", False))
+
+    if existentes and not overwrite:
+        resultado = {
+            "ok": True,
+            "creados": 0,
+            "ya_existian": len(existentes),
+            "config_actualizada": ["ml_desc_encabezado_referencia", "ml_desc_pie_referencia"],
+            "msg": f"Config actualizado. Ya existen {len(existentes)} borradores.",
+        }
+        if actualizar_desc_ml:
+            resultado["desc_ml"] = await _sync_desc_cotizacion_ml(db, existentes)
+        return resultado
+
+    # Preservar item_id y estado de publicados antes de borrar
+    datos_publicados: dict = {}
+    if overwrite and existentes:
+        for b in existentes:
+            if b.item_id:
+                datos_publicados[b.modelo_nombre] = {"item_id": b.item_id, "estado": b.estado}
+        # Sincronizar descripciones ML ANTES de borrar (mientras tenemos los item_ids)
+        if actualizar_desc_ml and datos_publicados:
+            await _sync_desc_cotizacion_ml(db, existentes)
+        for b in existentes:
+            db.delete(b)
+        db.commit()
+
+    creados = []
+    for m in _PISCINAS_SEED:
+        desc = (
+            f"MODELO: {m['modelo']} - Medidas: {m['medida']}\n\n"
+            f"{m['extra']}\n\n"
+            f"PRECIO CONTADO (abonas el dia de la instalacion): ${m['contado']:,.0f}\n\n"
+            f"Consultanos por tu localidad para calcular el flete."
+        ).replace(",", ".")
+
+        pub = datos_publicados.get(m["modelo"], {})
+        b = BorradorML(
+            origen="seed_cotizacion",
+            titulo=m["titulo"][:60],
+            descripcion=desc,
+            categoria="MLA373513",
+            categoria_nombre="Piletas de Fibra de Vidrio",
+            producto="PISCINA",
+            precio=10000.0,
+            precio_contado=float(m["contado"]),
+            cantidad=1,
+            condicion="new",
+            listing_type="gold_special",
+            cuotas_sin_interes=0,
+            incluir_envio=False,
+            fotos_json="[]",
+            atributos_json="[]",
+            tipo_precio="referencia",
+            modelo_nombre=m["modelo"],
+            item_id=pub.get("item_id"),
+            estado=pub.get("estado", "borrador"),
+            created_by_id=current_user.id if current_user else None,
+        )
+        db.add(b)
+        creados.append(m["modelo"])
+
+    db.commit()
+
+    # Si piden actualizar ML pero no hubo sync antes (borradores nuevos sin item_id previo)
+    desc_ml_result = None
+    if actualizar_desc_ml and not datos_publicados:
+        nuevos = db.query(BorradorML).filter(
+            BorradorML.tipo_precio == "referencia",
+            BorradorML.producto == "PISCINA",
+        ).all()
+        desc_ml_result = await _sync_desc_cotizacion_ml(db, nuevos)
+
+    resultado = {
+        "ok": True,
+        "creados": len(creados),
+        "modelos": creados,
+        "config_actualizada": ["ml_desc_encabezado_referencia", "ml_desc_pie_referencia", "ml_auto_responder_activo"],
+        "siguiente_paso": "Ir a /mercadolibre → pestaña Borradores → revisar los 16 borradores → publicar en lote.",
+    }
+    if actualizar_desc_ml:
+        resultado["desc_ml"] = desc_ml_result or {"ok": 0, "msg": "sin items publicados para sincronizar"}
+    return resultado
+
+
+async def _sync_desc_cotizacion_ml(db, borradores_existentes) -> dict:
+    """Actualiza las descripciones en ML de los borradores de cotización ya publicados."""
+    from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE, _armar_descripcion_ml
+    publicados = [b for b in borradores_existentes if b.item_id and b.estado == "publicada"]
+    if not publicados:
+        return {"ok": 0, "sin_item_id": len(borradores_existentes)}
+    try:
+        token = await _ml_valid_token(db)
+    except Exception as e:
+        return {"error": str(e), "ok": 0}
+    ok = 0
+    errores = []
+    for b in publicados:
+        desc_final = _armar_descripcion_ml(db, b.descripcion or "", tipo="referencia")
+        async with httpx.AsyncClient(timeout=10) as hc:
+            r = await hc.put(
+                f"{ML_BASE}/items/{b.item_id}/description",
+                headers=_ml_headers(token),
+                json={"plain_text": desc_final},
+            )
+        if r.status_code in (200, 201):
+            ok += 1
+        else:
+            errores.append({"item_id": b.item_id, "status": r.status_code, "msg": r.text[:80]})
+        await asyncio.sleep(0.5)
+    return {"ok": ok, "total": len(publicados), "errores": errores}
+
+
+@router.post("/api/ml/seed/piscinas-cotizacion/sync-ml")
+async def sync_piscinas_desc_ml(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Busca en ML los items cotización de piscinas publicados (precio=10000),
+    actualiza sus descripciones con el texto actual (sin cuotas), y re-vincula los borradores.
+    Body opcional: {"item_ids": ["MLA123", ...]} para pasar IDs directamente sin buscar.
+    """
+    _auth(x_api_key, current_user)
+    from routers.mercadolibre import _ml_valid_token, _ml_headers, ML_BASE, _armar_descripcion_ml
+
+    body_data = {}
+    try:
+        body_data = await request.json()
+    except Exception:
+        pass
+
+    try:
+        token = await _ml_valid_token(db)
+    except Exception as e:
+        raise HTTPException(500, f"ML token: {e}")
+
+    hdrs = _ml_headers(token)
+    from routers.mercadolibre import _get_user_id as _ml_get_user_id
+    user_id = await _ml_get_user_id(token, db)
+
+    # 1a. Si se pasan IDs directamente, usarlos
+    direct_ids = body_data.get("item_ids") or []
+    if direct_ids:
+        cotizacion_items = [{"id": iid, "title": ""} for iid in direct_ids]
+    else:
+        # 1b. Buscar TODOS los items activos del vendedor
+        all_ids = []
+        offset = 0
+        while offset <= 600:
+            async with httpx.AsyncClient(timeout=20) as hc:
+                r = await hc.get(f"{ML_BASE}/users/{user_id}/items/search", headers=hdrs,
+                                 params={"status": "active", "limit": 50, "offset": offset})
+            if r.status_code != 200:
+                break
+            batch = r.json().get("results", [])
+            all_ids.extend(batch)
+            if len(batch) < 50:
+                break
+            offset += 50
+            await asyncio.sleep(0.3)
+
+        # 2. Filtrar cotizaciones (precio 10000)
+        cotizacion_items = []
+        for i in range(0, len(all_ids), 20):
+            chunk = all_ids[i:i + 20]
+            async with httpx.AsyncClient(timeout=15) as hc:
+                r2 = await hc.get(f"{ML_BASE}/items", headers=hdrs,
+                                  params={"ids": ",".join(chunk), "attributes": "id,title,price"})
+            if r2.status_code == 200:
+                for entry in r2.json():
+                    body = entry.get("body", {})
+                    if float(body.get("price", -1)) == 10000.0:
+                        cotizacion_items.append({"id": body["id"], "title": body.get("title", "")})
+            await asyncio.sleep(0.3)
+
+    # 3. Cargar borradores del seed indexados por título
+    borradores_db = db.query(BorradorML).filter(
+        BorradorML.tipo_precio == "referencia", BorradorML.producto == "PISCINA"
+    ).all()
+    borradores_por_titulo = {b.titulo.strip().lower(): b for b in borradores_db}
+
+    ok, errores, re_vinculados = 0, [], 0
+    usados: set = set()
+    for item in cotizacion_items:
+        titulo_ml = item["title"].strip().lower()
+        b = borradores_por_titulo.get(titulo_ml)
+        if not b:
+            # Matching parcial: buscar borrador cuyo título esté contenido en el título ML
+            for key, bv in borradores_por_titulo.items():
+                if key[:35] in titulo_ml or titulo_ml[:35] in key:
+                    b = bv
+                    break
+        if not b:
+            # Último recurso: primer borrador sin vincular
+            for bv in borradores_db:
+                if id(bv) not in usados:
+                    b = bv
+                    break
+        if not b:
+            errores.append({"id": item["id"], "title": item["title"], "msg": "sin borrador"})
+            continue
+
+        usados.add(id(b))
+        desc_final = _armar_descripcion_ml(db, b.descripcion or "", tipo="referencia")
+        async with httpx.AsyncClient(timeout=10) as hc:
+            rp = await hc.put(f"{ML_BASE}/items/{item['id']}/description",
+                              headers=hdrs, json={"plain_text": desc_final})
+        if rp.status_code in (200, 201):
+            ok += 1
+            if not b.item_id:
+                b.item_id = item["id"]
+                b.estado = "publicada"
+                re_vinculados += 1
+        else:
+            errores.append({"id": item["id"], "status": rp.status_code, "msg": rp.text[:100]})
+        await asyncio.sleep(0.4)
+
+    db.commit()
+    return {"ok": ok, "total": len(cotizacion_items), "re_vinculados": re_vinculados,
+            "items_encontrados": [i["id"] for i in cotizacion_items], "errores": errores,
+            "debug": {"user_id": user_id}}

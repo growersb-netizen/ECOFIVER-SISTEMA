@@ -323,16 +323,16 @@ def _generar_token_seguimiento(db: Session, entrega: Entrega):
         db.flush()
 
         # Enviar WA de solicitud de testimonio
-        _enviar_wa_testimonio(telefono, entrega.cliente_nombre or "", token)
+        _enviar_wa_testimonio(db, telefono, entrega.cliente_nombre or "", token)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"[SEGUIMIENTO TOKEN] {e}")
 
 
-def _enviar_wa_testimonio(telefono: str, nombre: str, token: str):
-    """Envía mensaje WA invitando al cliente a dejar su opinión."""
+def _enviar_wa_testimonio(db: Session, telefono: str, nombre: str, token: str):
+    """Envía mensaje WA invitando al cliente a dejar su opinión (usa WA Cloud API configurado)."""
     try:
-        import os, requests
+        import os
         base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
         link = f"{base_url}/seguimiento/{token}"
         mensaje = (
@@ -343,11 +343,8 @@ def _enviar_wa_testimonio(telefono: str, nombre: str, token: str):
             f"👉 {link}\n\n"
             f"¡Gracias por confiar en EcoFiver!"
         )
-        wa_url = os.getenv("WA_SEND_URL")
-        wa_key = os.getenv("WA_API_KEY")
-        if wa_url:
-            requests.post(wa_url, json={"phone": telefono, "message": mensaje},
-                         headers={"Authorization": f"Bearer {wa_key}"}, timeout=5)
+        from utils.whatsapp import send_whatsapp_text
+        send_whatsapp_text(db, telefono, mensaje)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"[WA TESTIMONIO] {e}")

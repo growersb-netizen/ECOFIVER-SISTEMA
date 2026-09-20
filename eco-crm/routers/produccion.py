@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from database.database import get_db
 from database.models import (
     OrdenProduccion, EtapaOrden, Empleado, Usuario,
-    VentaContado, VentaFinanciada,
+    VentaContado, VentaFinanciada, OrdenFabricaPiscina, OrdenFabricaModulo,
 )
 from routers.auth import require_auth, get_user_roles
 
@@ -367,7 +367,37 @@ def _orden_to_dict(o: OrdenProduccion, include_etapas: bool = False) -> dict:
 
 
 def _notificar_orden_terminada(db: Session, orden: OrdenProduccion):
-    """Notifica a Rodrigo por WA cuando una orden termina."""
+    """Notifica a Rodrigo por WA cuando una orden termina.
+    También sincroniza OrdenFabricaPiscina/Modulo vinculada a TERMINADA para que
+    Logística vea fab_lista=True en el calendario sin intervención manual.
+    """
+    # Sincronizar OrdenFabrica vinculada → TERMINADA
+    try:
+        venta_id = orden.venta_contado_id or orden.venta_financiada_id
+        if venta_id:
+            producto = (orden.producto or "").upper()
+            if producto in ("PISCINA", "COMBO"):
+                fab = db.query(OrdenFabricaPiscina).filter(
+                    OrdenFabricaPiscina.venta_contado_id == orden.venta_contado_id
+                    if orden.venta_contado_id else
+                    OrdenFabricaPiscina.venta_financiada_id == orden.venta_financiada_id
+                ).first()
+                if fab and fab.estado == "EN_ESPERA":
+                    fab.estado = "TERMINADA"
+            if producto in ("MODULO", "COMBO"):
+                fab_m = db.query(OrdenFabricaModulo).filter(
+                    OrdenFabricaModulo.venta_contado_id == orden.venta_contado_id
+                    if orden.venta_contado_id else
+                    OrdenFabricaModulo.venta_financiada_id == orden.venta_financiada_id
+                ).first()
+                if fab_m and fab_m.estado == "EN_ESPERA":
+                    fab_m.estado = "TERMINADA"
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[PROD→FAB SYNC] {e}")
+
+    # Notificar a Rodrigo por WA
     try:
         from utils.whatsapp import notificar_rodrigo
         msg = (

@@ -98,7 +98,7 @@ def main():
         print("Todos los usuarios procesados correctamente.")
         print()
         print("ACCESO LOURDES:")
-        print(f"  URL: https://eco-crm.fly.dev (o la URL del CRM)")
+        print(f"  URL: https://eco-crm-production.up.railway.app")
         print(f"  Email: {LOURDES['email']}")
         print(f"  Contraseña: {LOURDES['password']}")
         print()

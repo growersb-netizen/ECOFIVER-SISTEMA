@@ -7,7 +7,7 @@ import os
 import json
 import asyncio
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 
@@ -29,6 +29,9 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+if API_KEY == "eco-crm-api-key-2024":
+    import logging as _logging
+    _logging.getLogger(__name__).warning("API_KEY usa valor por defecto inseguro. Setear la variable de entorno API_KEY en producción.")
 ML_BASE = "https://api.mercadolibre.com"
 ML_AUTH = "https://auth.mercadolibre.com.ar"
 ML_DEFAULT_REDIRECT = "https://eco-crm-production.up.railway.app/mercadolibre/callback"
@@ -110,7 +113,7 @@ async def _ml_valid_token(db: Session) -> str:
     vencido = True
     if token and expira:
         try:
-            vencido = datetime.fromisoformat(expira) <= datetime.utcnow() + timedelta(minutes=5)
+            vencido = datetime.fromisoformat(expira).replace(tzinfo=None) <= datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5)
         except Exception:
             vencido = True
     if token and not vencido:
@@ -122,7 +125,7 @@ async def _ml_valid_token(db: Session) -> str:
     csec = get_config_value("ml_client_secret", db)
     if not (refresh and cid and csec):
         if token:
-            return token  # sin refresh disponible, probamos con el que hay
+            raise HTTPException(400, "Token ML vencido y no hay refresh token. Reconectá MercadoLibre desde Configuración → Conectar.")
         raise HTTPException(400, "MercadoLibre no está conectado. Andá a MercadoLibre → Conectar.")
 
     async with httpx.AsyncClient(timeout=15) as c:
@@ -143,7 +146,7 @@ def _guardar_tokens(db: Session, j: dict):
         _ml_save(db, "ml_refresh_token", j["refresh_token"], secreto=True)
     if j.get("user_id"):
         _ml_save(db, "ml_user_id", str(j["user_id"]), secreto=False)
-    exp = datetime.utcnow() + timedelta(seconds=int(j.get("expires_in", 21600)))
+    exp = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=int(j.get("expires_in", 21600)))
     _ml_save(db, "ml_token_expira", exp.isoformat(), secreto=False)
 
 # Categorías ML de emergencia (si falla el predictor Y no hay cache en BD)
@@ -530,6 +533,8 @@ async def migracion_preparar(
 
     IRREVERSIBLE — descargar backup primero con GET /api/ml/migracion/backup.
     """
+    if "ADMIN" not in get_user_roles(current_user):
+        raise HTTPException(403, "Solo administradores pueden preparar la migración")
     data = await request.json()
     if not data.get("confirmar"):
         raise HTTPException(400, "Requerido: {\"confirmar\": true}")
@@ -697,8 +702,8 @@ async def ml_audit_status_pub(
 ):
     """Endpoint temporal sin auth — solo acepta token secreto de consulta."""
     import json as _json, os as _os
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Forbidden")
     row_flag = db.query(ConfiguracionSistema).filter(
@@ -725,8 +730,8 @@ async def ml_items_por_estado(
 ):
     """Diagnóstico: cuenta cuántos items hay en ML para cada estado."""
     import os as _os
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Forbidden")
     try:
@@ -762,8 +767,8 @@ async def ml_cobertura_modelos(
 ):
     """Diagnóstico: descarga todos los títulos activos y analiza cobertura por modelo."""
     import os as _os, re as _re
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Forbidden")
     try:
@@ -887,8 +892,8 @@ async def publicar_faltantes(
 ):
     """Crea en ML las publicaciones faltantes: módulos ECO/FULL 6/12/18 m² + viviendas modulares."""
     import os as _os, asyncio as _asyncio
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)
@@ -997,8 +1002,8 @@ async def activar_bronze(t: str = "", db: Session = Depends(get_db)):
     y los cambia a listing_type=bronze para activarlos sin pago.
     """
     import os as _os, asyncio as _asyncio
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)
@@ -1045,15 +1050,7 @@ async def activar_bronze(t: str = "", db: Session = Depends(get_db)):
         pass
 
     if not items_encontrados:
-        # Fallback: intentar con IDs conocidos de la sesión anterior
-        conocidos = [
-            "MLA3840370662", "MLA3840370670", "MLA3840370678",
-            "MLA3840370686", "MLA3840370694", "MLA3840370702",
-            "MLA3840370710", "MLA3840370718", "MLA3840370726",
-            "MLA3840370734", "MLA3840370742",
-        ]
-        for iid in conocidos:
-            items_encontrados.append({"id": iid, "estado_busqueda": "fallback_conocido"})
+        return {"user_id": user_id, "items_encontrados": 0, "total_activados": 0, "resultados": [], "msg": "No se encontraron items en categoría MLA413502"}
 
     # 3. Para cada item, obtener estado y cambiar a bronze si está bloqueado por pago
     resultados = []
@@ -1128,13 +1125,12 @@ async def check_items(t: str = "", ids: str = "", db: Session = Depends(get_db))
     Útil para verificar items en estado payment_pending que no aparecen en búsquedas.
     """
     import os as _os, asyncio as _asyncio
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     if not ids:
-        # Usar IDs conocidos de la sesión anterior (módulos creados con 402)
-        ids = "MLA3840370662,MLA3840370670,MLA3840370678,MLA3840370686,MLA3840370694,MLA3840370702,MLA3840370710,MLA3840370718,MLA3840370726,MLA3840370734,MLA3840370742"
+        return {"resultados": [], "msg": "Proporcionar ids como query param o en body"}
 
     token = await _ml_valid_token(db)
     item_ids = [i.strip() for i in ids.split(",") if i.strip()]
@@ -1173,8 +1169,8 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
     Usa buying_mode=buy_it_now y gold_special (mismo esquema que piscinas activas).
     """
     import os as _os, asyncio as _asyncio
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)
@@ -1331,7 +1327,8 @@ async def publicar_productos_fisicos(t: str = "", db: Session = Depends(get_db))
 @router.get("/api/ml/audit/ver-item")
 async def ver_item(item_id: str, t: str = "", db: Session = Depends(get_db)):
     import os as _os
-    if t != _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026"):
+    _audit_tok = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not _audit_tok or t != _audit_tok:
         raise HTTPException(status_code=403, detail="Forbidden")
     token = await _ml_valid_token(db)
     async with httpx.AsyncClient(timeout=15) as c:
@@ -1355,8 +1352,8 @@ async def arreglar_garita(
     y opcionalmente reemplaza la foto.
     """
     import os as _os
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)
@@ -1465,8 +1462,8 @@ async def actualizar_foto_item(
 ):
     """Reemplaza la foto de un item existente en ML subiendo una nueva imagen."""
     import os as _os
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
     if not imagen:
         return {"ok": False, "error": "Falta campo 'imagen' (multipart)"}
@@ -1511,8 +1508,8 @@ async def publicar_garita_imagen(
     Acepta multipart/form-data con el campo 'imagen'.
     """
     import os as _os
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)
@@ -1618,8 +1615,8 @@ async def crear_garita_v2(
     Pausa la publicación anterior indicada en pausar_anterior.
     """
     import os as _os
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)
@@ -1723,7 +1720,8 @@ async def crear_garita_v3(
     Pausa MLA3849145362 (v2 en categoría incorrecta) y MLA2029025317 (v1).
     """
     import os as _os
-    if t != _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026"):
+    _audit_tok = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not _audit_tok or t != _audit_tok:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     token = await _ml_valid_token(db)
@@ -1804,6 +1802,81 @@ async def crear_garita_v3(
         "status": item.get("status"),
         "permalink": item.get("permalink"),
         "pausadas": pausadas,
+    }
+
+
+@router.post("/api/ml/audit/fix-shipping")
+async def fix_shipping_todos(
+    t: str = "",
+    x_api_key: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """
+    Recorre TODOS los items activos del vendedor y les setea:
+      shipping = {mode: not_specified, free_shipping: false}
+    Elimina Mercado Envíos y envío gratis de todas las publicaciones.
+    Usar después de cambiar la política de envíos para actualizar items ya publicados.
+    Acepta: ?t=ML_AUDIT_TOKEN  O  X-Api-Key header  O  sesión admin.
+    """
+    import os as _os, asyncio as _asyncio
+    audit_tok = _os.getenv("ML_AUDIT_TOKEN", "")
+    ok_audit = audit_tok and t == audit_tok
+    ok_apikey = x_api_key and x_api_key == API_KEY
+    ok_user = current_user and "ADMIN" in get_user_roles(current_user)
+    if not (ok_audit or ok_apikey or ok_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    token = await _ml_valid_token(db)
+    user_id = await _get_user_id(token, db)
+
+    # Cargar todos los items activos (paginado)
+    todos_ids: list = []
+    offset = 0
+    async with httpx.AsyncClient(timeout=30) as c:
+        while True:
+            r = await c.get(
+                f"{ML_BASE}/users/{user_id}/items/search",
+                headers=_ml_headers(token),
+                params={"status": "active", "limit": 100, "offset": offset},
+            )
+            if r.status_code != 200:
+                break
+            batch = r.json().get("results", [])
+            todos_ids.extend(batch)
+            if len(batch) < 100:
+                break
+            offset += 100
+
+    if not todos_ids:
+        return {"ok": True, "total": 0, "actualizados": 0, "errores": [], "msg": "No hay items activos"}
+
+    _shipping_fix = {"mode": "not_specified", "free_shipping": False}
+    actualizados = 0
+    errores = []
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        for iid in todos_ids:
+            try:
+                r = await c.put(
+                    f"{ML_BASE}/items/{iid}",
+                    headers=_ml_headers(token),
+                    json={"shipping": _shipping_fix},
+                )
+                if r.status_code in (200, 201, 204):
+                    actualizados += 1
+                else:
+                    errores.append({"id": iid, "http": r.status_code, "detalle": r.text[:200]})
+            except Exception as ex:
+                errores.append({"id": iid, "error": str(ex)[:100]})
+            await _asyncio.sleep(0.3)  # throttle suave
+
+    return {
+        "ok": True,
+        "total_activos": len(todos_ids),
+        "actualizados": actualizados,
+        "errores": errores,
+        "shipping_aplicado": _shipping_fix,
     }
 
 
@@ -5231,7 +5304,12 @@ async def recalcular_precios(
     background_tasks.add_task(
         _recalcular_precios_bg, job_id, token, ganancia_pct, sku_prefixes
     )
-    return {"ok": True, "job_id": job_id}
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "aviso": "Los precios de cotización (piscinas $10.000 seña) NO se actualizan aquí. "
+                 "Para sincronizar sus descripciones usar POST /api/ml/seed/piscinas-cotizacion/sync-ml",
+    }
 
 
 @router.get("/api/ml/publicaciones/recalcular-precios/estado/{job_id}")

@@ -56,17 +56,23 @@
         <div class="cuota">{{cantidad_cuotas}} cuotas de $ {{valor_cuota}}</div>
       </div>
       <div class="field" style="text-align:right">
-        <div class="l">Inscripción (ya abonada)</div>
+        <div class="l">{{estado_inscripcion_label}}</div>
         <div class="v" style="font-size:16px">$ {{monto_inscripcion}}</div>
       </div>
     </div>
   </div>
 
+  {% if vigencia_aviso %}
+  <div style="background:#FEF3CD;border:1.5px solid #F59E0B;border-radius:8px;padding:14px 18px;margin:14px 0;font-size:11px;line-height:1.6;color:#78350F;">
+    ⚠️ <strong>Condición de vigencia:</strong> {{vigencia_aviso}}
+  </div>
+  {% endif %}
+
   <div class="aviso">
-    ⚠️ Este es un <strong>plan de financiación</strong>, no una compra al contado. Para solicitar la entrega e
-    instalación del producto es necesario haber abonado hasta el <strong>50% del valor nominal</strong> del producto
-    adquirido. Desde la cuota {{cuota_minima_licitacion}} es posible licitar para adelantar la entrega mediante una
-    integración de capital, sin alterar el resto del cronograma de pagos.
+    📋 Este es un <strong>plan de financiación directa de fábrica</strong> — sin banco ni tarjeta de crédito.
+    Para solicitar la entrega e instalación del producto es necesario haber abonado hasta el <strong>50% del valor nominal</strong>
+    del producto adquirido. Desde la cuota {{cuota_minima_licitacion}} es posible licitar para adelantar la entrega
+    mediante una integración de capital, sin alterar el resto del cronograma de pagos.
   </div>
 
   <p class="legal">
@@ -74,7 +80,8 @@
     Eco Zárate Limitada (CUIT 30-71807393-2), a través de su Socio Comercial {{socio_codigo}} ({{socio_nombre}}).
     La cuota se ajusta periódicamente según el índice ICC (Índice del Costo de la Construcción) para módulos y
     piscinas financiadas. El plan queda sujeto a la confirmación de los datos por parte del cliente y a la
-    verificación del equipo de EcoFiver.
+    verificación del equipo de EcoFiver. <strong>El presente documento adquiere vigencia contractual plena a partir
+    del momento en que se acredite el pago completo de la inscripción indicada.</strong>
   </p>
 
   <div class="firma">

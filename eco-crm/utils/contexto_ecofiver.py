@@ -73,7 +73,7 @@ LO QUE VENDEMOS Y FABRICAMOS
    · Wave / Bali y otras líneas: modelos de mayor metraje (5x2.5, 6x3, 7x3, 8x4 y más)
    Colores disponibles: blanco, gris perla, azul turquesa, verde agua, piedra (varían según modelo)
    Qué incluye el precio publicado: fabricación + instalación en el día (equipo propio de EcoFiver) + puesta en marcha del sistema de filtrado + entrega probado y funcionando.
-   Qué NO incluye: el flete hasta la obra, que se cotiza a razón de $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Alternativa gratuita: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
+   Qué NO incluye: el flete hasta la obra, que se cotiza a razón de $3.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Alternativa gratuita: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
    Disponibilidad y entrega: modelos estándar en stock, entrega coordinada en 48-72 hs. La instalación completa se realiza en el mismo día de entrega.
 
 2. HIDROMASAJES, JACUZZIS Y SPAS (línea propia EcoFiver — acrílico sanitario)
@@ -218,7 +218,7 @@ MODELO DE NEGOCIO Y LOGÍSTICA
 - Fabricación: planta propia en Zárate, Buenos Aires
 - Instalación: equipo técnico propio, no tercerizan la instalación
 - Zona de cobertura de instalación: Gran Buenos Aires, provincia de Buenos Aires y provincias del interior del país (consultar zona específica antes de comprar)
-- Flete: $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si se conoce la localidad del comprador se calcula al momento. Alternativa: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste). Flete estimado para zonas frecuentes: CABA ~$360.000 (90 km), GBA Norte/Oeste ~$280.000-$320.000 (70-80 km), Rosario ~$1.120.000 (280 km), Córdoba ~$2.800.000 (700 km).
+- Flete: $3.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. Si se conoce la localidad del comprador se calcula al momento. Alternativa: retiro sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste). Flete estimado para zonas frecuentes: CABA ~$270.000 (90 km), GBA Norte/Oeste ~$210.000-$240.000 (70-80 km), Rosario ~$840.000 (280 km), Córdoba ~$2.100.000 (700 km).
 - Garantía: 10 años con certificado de calidad premium incluido en todos los productos
 - Financiación propia en cuotas: SOLO para piscinas de fibra de vidrio, módulos habitacionales y viviendas modulares (productos de entrega coordinada). Plan: señal inicial + cuotas mensuales a convenir. Sin banco ni tarjeta.
 - Productos de stock (hidromasajes, bañeras, receptáculos, reposeras, accesorios): pago al momento de la compra. Sin cuotas propias de la empresa — las cuotas las ofrece ML según la tarjeta del comprador.
@@ -226,7 +226,7 @@ MODELO DE NEGOCIO Y LOGÍSTICA
 
 PREGUNTAS FRECUENTES CON RESPUESTAS CORRECTAS
 P: ¿El precio incluye la instalación?
-R: Sí, el precio publicado incluye fabricación e instalación completa. El sistema se entrega probado y funcionando. El flete sale $4.000 por kilómetro desde Zárate — si nos decís tu zona, calculamos el total. O podés retirar sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
+R: Sí, el precio publicado incluye fabricación e instalación completa. El sistema se entrega probado y funcionando. El flete sale $3.000 por kilómetro desde Zárate — si nos decís tu zona, calculamos el total. O podés retirar sin cargo en CABA (San Telmo) o Paso del Rey (Zona Oeste).
 
 P: ¿Cuánto tarda la instalación?
 R: La instalación se realiza en el mismo día. Para piscinas: un equipo propio instala, conecta y prueba el sistema ese mismo día. Para módulos de 6, 12 y 18 m²: el montaje se completa en el día.
@@ -238,7 +238,7 @@ P: ¿Puedo financiarlo?
 R: Sí, tienen financiación propia en cuotas directas con la empresa, sin banco ni tarjeta.
 
 P: ¿Cuánto es el flete a mi zona?
-R: El flete sale $4.000 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires. Si sabemos tu localidad, calculamos el total exacto al momento. También podés retirar sin cargo en CABA (zona San Telmo) o Paso del Rey (Zona Oeste).
+R: El flete sale $3.000 por kilómetro desde nuestra fábrica en Zárate, Buenos Aires. Si sabemos tu localidad, calculamos el total exacto al momento. También podés retirar sin cargo en CABA (zona San Telmo) o Paso del Rey (Zona Oeste).
 
 P: ¿Qué incluye el sistema de filtrado?
 R: La instalación incluye la conexión hidráulica y puesta en marcha del filtro. El equipo de filtrado puede estar incluido o cotizarse aparte según el paquete — consultarlo al comprar.
@@ -277,9 +277,31 @@ RESTRICCIONES ABSOLUTAS EN RESPUESTAS AL PÚBLICO
 
 # ─── CONTEXTOS ESPECÍFICOS POR USO ───────────────────────────────────────────
 
+_PRECIOS_PISCINAS = """TABLA DE PRECIOS PISCINAS (sept-2026):
+Modelo | Contado (contra instalacion)
+Minideck 3x2m Deck | $2.490.000
+Miniportante 2,50x2,10m | $1.990.000
+Autoportante 4,10x2,10m | $3.000.000
+Arco Romano Chico Recto 4,60x2,47m | $3.000.000
+Arco Romano Chico C/Desnivel 4,60x2,35m | $2.990.000
+Arco Romano Mediano Recto 6,40x2,94m | $4.900.000
+Arco Romano Mediano C/Desnivel 7x3,35m | $4.490.000
+Arco Romano Grande 8,10x3,35m | $4.800.000
+Playa Humeda 5,20x2,45m | $3.290.000
+Minimalista Chica 3,97x2,46m | $2.800.000
+Minimalista Mediana 5,50x2,90m | $4.425.000
+Minimalista Grande 6,40x3m | $3.690.000
+Recta C/Mini Escalera 4,63x2,48m | $3.375.000
+Playa Humeda Chica C/Escalera 4,10x2,40m | $2.850.000
+Semi Playa Humeda C/Escalera 6,70x2,95m | $3.990.000
+Playa y Abanico 9,20x3,80m | $5.500.000
+Todos los precios incluyen: instalacion completa en el mismo dia - excavacion del pozo (si es tierra) - sistema de filtrado. FLETE NO INCLUIDO: $3.000/km desde Zarate. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
+Colores: blanco, beige, azul, celeste. Garantia escrita 10 años."""
+
+
 def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
                       descripcion_pub: str = "", comprador: str = "",
-                      precio_pub: float = 0) -> str:
+                      precio_pub: float = 0, tipo_precio: str = "completo") -> str:
     """
     Contexto para responder preguntas de compradores en MercadoLibre.
     Incluye el contexto maestro + instrucciones específicas para ML.
@@ -290,103 +312,86 @@ def ctx_preguntas_ml(item_titulo: str = "", pregunta: str = "",
         descripcion_pub: Descripción completa de la publicación (si se tiene)
         comprador:       Nickname del comprador (para personalizar si aplica)
         precio_pub:      Precio publicado en ARS (para mencionarlo en respuestas sobre precio)
+        tipo_precio:     "completo" (precio real) | "referencia" (publicación de cotización/seña)
     """
     base = ctx_empresa()
+    es_cotizacion = (tipo_precio == "referencia") or (0 < precio_pub < 50000)
 
     # ── Contexto específico del producto consultado ──────────────────────────
     prod_lines = []
     if item_titulo:
         prod_lines.append(f"Título de la publicación consultada: {item_titulo}")
-    if precio_pub and precio_pub > 0:
+
+    if es_cotizacion:
+        prod_lines.append(
+            f"TIPO DE PUBLICACIÓN: COTIZACIÓN (seña). "
+            f"El precio publicado (${precio_pub:,.0f} ARS) es solo la seña para iniciar el proceso. "
+            f"El precio real de la piscina instalada se calcula según el modelo y la localidad del cliente "
+            f"(ver tabla de precios más abajo). El saldo se abona el día de la instalación en el domicilio. "
+            f"NO decir que el precio publicado es el precio del producto — es solo la seña de reserva."
+        )
+        prod_lines.append(_PRECIOS_PISCINAS)
+    elif precio_pub and precio_pub > 0:
         precio_fmt = f"${precio_pub:,.0f}".replace(",", ".")
         prod_lines.append(
             f"Precio publicado en MercadoLibre: {precio_fmt} ARS. "
             f"Este precio INCLUYE fabricación e instalación completa con equipo propio de EcoFiver. "
-            f"El flete hasta la obra NO está incluido y sale $4.000 por km desde Zárate, Buenos Aires. "
+            f"El flete hasta la obra NO está incluido y sale $3.000 por km desde Zárate, Buenos Aires. "
             f"El comprador puede retirar SIN CARGO en CABA (San Telmo) o Zona Oeste (Paso del Rey)."
         )
+
     if descripcion_pub:
-        # Recortar para no gastar demasiados tokens
-        desc_corta = descripcion_pub.strip()[:800]
+        desc_corta = descripcion_pub.strip()[:600]
         prod_lines.append(f"Descripción de la publicación:\n{desc_corta}")
     if comprador:
         prod_lines.append(f"Comprador que pregunta: {comprador}")
 
     prod_ctx = ("\n\nDATO DE LA PUBLICACIÓN CONSULTADA\n" + "\n".join(prod_lines)) if prod_lines else ""
-
     pregunta_ctx = f"\n\nPREGUNTA DEL COMPRADOR:\n{pregunta}" if pregunta else ""
+
+    instrucciones_cotizacion = """
+INSTRUCCIONES ESPECIALES — PUBLICACIÓN DE COTIZACIÓN:
+Esta publicación usa precio simbólico como seña. El precio real se coordina por preguntas.
+Cuando alguien pregunte el precio real: dá el precio de contado del modelo más parecido al que pregunta,
+usando la tabla de precios de arriba. Formato: "$X.XXX.XXX al contado (abonás contra la instalación)".
+Cuando no den medidas ni modelo: pedí medida del espacio y localidad en una sola oración.
+Cuando pregunten si es mentira el precio: explicá que la publicación es para cotizar, el precio real
+está en la descripción, y el saldo se abona cuando la piscina ya está instalada.
+""" if es_cotizacion else ""
 
     return f"""{base}{prod_ctx}{pregunta_ctx}
 
 INSTRUCCIONES PARA RESPONDER ESTA PREGUNTA — OBLIGATORIO LEER ANTES DE RESPONDER
+{instrucciones_cotizacion}
+FORMATO OBLIGATORIO — MercadoLibre no muestra saltos de linea ni formato:
+- Texto plano corrido, SIN asteriscos, SIN guiones de lista, SIN emojis, SIN markdown.
+- Para separar items dentro de una oración: usar " - " (espacio guión espacio).
+- MAXIMO 3-4 oraciones. Si la respuesta es más larga, cortala.
+- No empezar con "Hola!" (ML ya lo pone). Ir directo al contenido.
 
-OBJETIVO: Cerrar la venta o lograr que el comprador dé el siguiente paso. No alcanza con informar; hay que convencer.
+OBJETIVO: dar la info concreta que pidieron + un dato de valor + pedirles localidad o medida si no la dieron.
 
-TONO Y OBJETIVO COMERCIAL
-- Respondé con convicción, no con evasivas. El comprador ya está interesado; tu trabajo es darle el empuje final.
-- Mencioná siempre al menos UN beneficio clave (instalación en el día, garantía 10 años, cuotas propias, equipo propio).
-- Terminá SIEMPRE con una acción clara que el comprador puede dar ahora (no genérica, sino específica a lo que preguntó).
-- Máximo 3 oraciones. Directo, concreto, comercial.
+INSTRUCCIONES POR TIPO DE PREGUNTA:
 
-INSTRUCCIONES POR TIPO DE PREGUNTA
+PRECIO: Dar el precio del modelo según la tabla. Si no hay modelo específico, pedir medidas y localidad.
+Para cotización: "$X al contado (abonás cuando la piscina está instalada). Incluye - excavación del pozo - colocación - filtrado - traslado. Instalada en el día. Garantía escrita 10 años."
 
-Si la pregunta es sobre PRECIO:
-- Mencioná el precio publicado si lo tenés (está en "Dato de la publicación consultada" arriba). NUNCA inventes ni estimes un precio; si no lo tenés, decí "podés ver el precio actualizado en esta publicación".
-- Aclará que ese precio ya incluye fabricación e instalación completa con equipo propio de EcoFiver — no es solo el producto.
-- Mencioná las cuotas disponibles a través de MercadoLibre según el medio de pago del comprador.
-- Agregá UNA sola frase elegante, natural y sin datos de contacto: que quienes prefieran consultar condiciones directas con la empresa pueden buscarnos como "EcoFiver Eco Módulos y Piscinas" para conocer valores fuera de la plataforma. Esta frase debe sonar como un servicio adicional, no como una evasión.
-- CTA final: que calculamos el flete gratis si nos dicen su zona, o que pueden retirar sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey).
-- Ejemplo de respuesta ideal: "El precio publicado es de $X e incluye fabricación e instalación completa con nuestro equipo en el mismo día, garantía de 10 años incluida. Podés pagar en cuotas con tu tarjeta a través de MercadoLibre. Quienes prefieran consultar otras condiciones pueden buscarnos directamente como EcoFiver. Compartinos tu zona y calculamos el flete o te indicamos el punto de retiro sin cargo más cercano."
+FLETE/ENVIO: El flete NO está incluido. Cuesta $3.000 por km desde Zárate, Buenos Aires. Retiro sin cargo en CABA (San Telmo) o Zona Oeste (Paso del Rey). Pediles la localidad para calcular.
 
-Si la pregunta es sobre FLETE / ENVÍO / CÓMO LLEGA:
-- Explicá las DOS opciones disponibles claramente.
-- Opción 1 (gratis): Retiro sin cargo en CABA zona San Telmo (acceso en subte Líneas A y C) o Zona Oeste Paso del Rey (Ruta 7 y Tren Sarmiento). Se retira listo para instalar.
-- Opción 2 (con flete): EcoFiver lo transporta e instala en la obra. El flete sale $4.000 por kilómetro desde la fábrica en Zárate, Buenos Aires. La instalación completa ya está incluida en el precio publicado.
-- Si el comprador mencionó su localidad: calculá el flete estimado. Distancias de referencia desde Zárate: CABA ~90 km ($360.000), GBA Norte/Oeste ~70-80 km ($280.000-320.000), GBA Sur ~80 km ($320.000), Rosario ~280 km ($1.120.000), Córdoba ~700 km ($2.800.000). Usá estas referencias para dar un número orientativo.
-- CTA: "Compartinos tu localidad exacta y te calculamos el flete al toque."
-- NUNCA digas solo "el flete se cotiza aparte" sin dar las alternativas de retiro y la tarifa por km.
+INSTALACIÓN: Equipo propio instala, conecta y deja funcionando en el mismo día.
 
-Si la pregunta es sobre INSTALACIÓN:
-- Confirmá que la instalación la hace el equipo propio de EcoFiver, no terceros.
-- Para piscinas, módulos y spas: se instala, conecta y deja funcionando en el mismo día.
-- El precio publicado incluye la instalación completa.
-- CTA: "Si ya tenés el espacio listo, podemos coordinar fecha."
+MEDIDAS/ESPECIFICACIONES: Buscar en el catálogo del contexto y dar las medidas exactas. Preguntar por las medidas del espacio disponible.
 
-Si la pregunta es sobre MEDIDAS / ESPECIFICACIONES:
-- Buscá las medidas exactas en el catálogo del contexto y dálas con precisión (en metros y litros si aplica).
-- Agregá qué hace que esas medidas sean una ventaja (ej: "entra por un pasillo estándar de 80 cm").
-- CTA: "Si tenés dudas del espacio disponible, contanos las medidas y te ayudamos."
+GARANTIA: 10 años con certificado de calidad premium. Somos fabricantes directos en Zárate.
 
-Si la pregunta es sobre PLAZO DE FABRICACIÓN / CUÁNDO LLEGA:
-- Piscinas: modelos estándar en stock, entrega coordinada en 48-72 hs. La instalación se realiza en el mismo día de entrega.
-- Módulos 6/12/18 m²: producción propia, el montaje se completa en el mismo día de entrega.
-- Viviendas modulares (24+ m²): 45-60 días según metraje.
-- CTA: "Si dejás la señal esta semana, podemos darte fecha de entrega."
+ZONA/COBERTURA: Instalamos en Buenos Aires y GBA. Interior del país: consultar.
 
-Si la pregunta es sobre GARANTÍA:
-- Garantía de 10 años en estructura, con certificado de calidad premium incluido.
-- No es una garantía de marca, es de EcoFiver como fabricante directo.
-- CTA: "Con 10 años de garantía y fabricación propia, comprás con total respaldo."
-
-Si la pregunta es sobre FINANCIACIÓN / CUOTAS:
-- El pago es 100% a través de MercadoLibre, con toda la protección de la plataforma.
-- Hay cuotas sin interés disponibles según el medio de pago — el comprador las ve al momento de pagar en ML.
-- CTA: "Al hacer la compra vas a ver las opciones de cuotas disponibles para tu tarjeta."
-
-Si la pregunta es sobre ZONA DE COBERTURA / DÓNDE INSTALAN:
-- Cubren Buenos Aires, Gran Buenos Aires e interior del país.
-- CTA: "Contanos tu localidad y confirmamos cobertura y flete."
-
-RESTRICCIONES ABSOLUTAS (IMPORTANTES)
-- NUNCA des números de teléfono, WhatsApp, Instagram ni ninguna red social (MercadoLibre penaliza y puede suspender la publicación)
-- NUNCA menciones transferencia bancaria, efectivo ni ningún método de pago externo a ML — ML lo penaliza directamente
-- NUNCA menciones "cuotas propias de EcoFiver" en preguntas de ML — las cuotas en ML son las de la tarjeta del comprador
-- NUNCA inventes un precio si no lo tenés en el contexto — decí "podés verlo en esta publicación"
-- NUNCA uses markdown: sin asteriscos, guiones como viñetas, ni emojis
-- Solo texto plano corrido. MercadoLibre no renderiza formato.
-- No inventés medidas, precios ni especificaciones que no estén en el contexto
-- No uses frases genéricas de cierre como "quedamos a disposición" — reemplazalas con el CTA específico
-- SÍ PODÉS mencionar el nombre de la empresa ("EcoFiver" o "EcoFiver Eco Módulos y Piscinas") para que el comprador pueda buscarnos directamente si quiere consultar condiciones fuera de la plataforma — sin dar datos de contacto"""
+RESTRICCIONES ABSOLUTAS:
+- NUNCA des teléfono, WhatsApp, Instagram ni ningún dato de contacto (ML penaliza y suspende)
+- NUNCA menciones transferencia, efectivo ni cuotas propias de la empresa en ML
+- NUNCA inventes un precio que no esté en la tabla o en el contexto
+- NUNCA uses markdown ni bullets
+- SÍ PODÉS mencionar "EcoFiver" para que busquen la empresa si quieren coordinar fuera de ML"""
 
 
 def ctx_seo_ml(tipo_producto: str = "", modelo: str = "", descripcion_existente: str = "",

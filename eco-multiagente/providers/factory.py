@@ -45,8 +45,8 @@ def get_provider() -> BaseProvider:
             _instances[provider_name] = OpenRouterProvider(model=model)
 
         elif provider_name == "groq":
-            from .groq_provider import GroqProvider
-            model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+            from .groq_provider import GroqProvider, DEFAULT_MODEL as GROQ_DEFAULT
+            model = os.getenv("GROQ_MODEL", GROQ_DEFAULT)
             _instances[provider_name] = GroqProvider(model=model)
 
         elif provider_name == "grok":

@@ -326,7 +326,7 @@ async function addModelo() {
 async function deleteModelo(nombre) {
   if (!confirm(`¿Eliminar modelo "${nombre}"?`)) return;
   try {
-    await API.del(`/api/catalogo/piscinas/modelos/${encodeURIComponent(nombre)}`);
+    await API.delete(`/api/catalogo/piscinas/modelos/${encodeURIComponent(nombre)}`);
     showToast('Modelo eliminado', 'success');
     reloadPage();
   } catch(e) { showToast(e.message, 'error'); }
@@ -348,7 +348,7 @@ async function addColor() {
 async function deleteColor(nombre) {
   if (!confirm(`¿Eliminar color "${nombre}"?`)) return;
   try {
-    await API.del(`/api/catalogo/piscinas/colores/${encodeURIComponent(nombre)}`);
+    await API.delete(`/api/catalogo/piscinas/colores/${encodeURIComponent(nombre)}`);
     showToast('Color eliminado', 'success');
     reloadPage();
   } catch(e) { showToast(e.message, 'error'); }
@@ -370,7 +370,7 @@ async function addSup() {
 async function deleteSup(m2) {
   if (!confirm(`¿Eliminar superficie ${m2}m²?`)) return;
   try {
-    await API.del(`/api/catalogo/modulos/superficies/${m2}`);
+    await API.delete(`/api/catalogo/modulos/superficies/${m2}`);
     showToast('Superficie eliminada', 'success');
     reloadPage();
   } catch(e) { showToast(e.message, 'error'); }
@@ -392,7 +392,7 @@ async function addCustom() {
 async function deleteCustom(nombre) {
   if (!confirm(`¿Eliminar modelo "${nombre}"?`)) return;
   try {
-    await API.del(`/api/catalogo/modulos/modelos-custom/${encodeURIComponent(nombre)}`);
+    await API.delete(`/api/catalogo/modulos/modelos-custom/${encodeURIComponent(nombre)}`);
     showToast('Modelo eliminado', 'success');
     reloadPage();
   } catch(e) { showToast(e.message, 'error'); }
@@ -769,7 +769,7 @@ async function guardarPrecioGenerico(catNombre, prodNombre) {
 async function eliminarProductoGenerico(catNombre, prodNombre) {
   if (!confirm(`¿Eliminar el producto "${prodNombre}" de la categoría "${catNombre}"?`)) return;
   try {
-    await API.del(`/api/catalogo/categorias/${encodeURIComponent(catNombre)}/productos/${encodeURIComponent(prodNombre)}`);
+    await API.delete(`/api/catalogo/categorias/${encodeURIComponent(catNombre)}/productos/${encodeURIComponent(prodNombre)}`);
     if (CATS_DATA[catNombre]?.productos) delete CATS_DATA[catNombre].productos[prodNombre];
     renderCategoriasGenericas();
     showToast('Producto eliminado', 'success');
@@ -786,7 +786,7 @@ async function eliminarCategoriaGenerica(catNombre) {
     : `¿Eliminar la categoría "${cat?.titulo || catNombre}"?`;
   if (!confirm(msg)) return;
   try {
-    await API.del(`/api/catalogo/categorias/${encodeURIComponent(catNombre)}`);
+    await API.delete(`/api/catalogo/categorias/${encodeURIComponent(catNombre)}`);
     delete CATS_DATA[catNombre];
     renderCategoriasGenericas();
     showToast('Categoría eliminada', 'success');
@@ -969,7 +969,7 @@ async function guardarCombo() {
 }
 async function deleteCombo(nombre) {
   if (!confirm(`¿Eliminar el combo "${nombre}"?`)) return;
-  try { await API.del('/api/catalogo/combos/' + encodeURIComponent(nombre)); cargarCombos(); showToast('Combo eliminado', 'success'); }
+  try { await API.delete('/api/catalogo/combos/' + encodeURIComponent(nombre)); cargarCombos(); showToast('Combo eliminado', 'success'); }
   catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
@@ -979,21 +979,7 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-const API = {
-  async _req(method, url, body) {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    const r = await fetch(url, opts);
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
-    return data;
-  },
-  get:  (url)       => API._req('GET',    url),
-  post: (url, body) => API._req('POST',   url, body),
-  put:  (url, body) => API._req('PUT',    url, body),
-  del:  (url)       => API._req('DELETE', url),
-};
-
+// API viene de main.js (global)
 function showToast(msg, type = 'info') {
   let t = document.getElementById('toast-container');
   if (!t) {

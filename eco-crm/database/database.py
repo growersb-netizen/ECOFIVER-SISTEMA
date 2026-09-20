@@ -184,6 +184,12 @@ def run_migrations():
             "ALTER TABLE aliados ADD COLUMN origen_registro TEXT",
             "ALTER TABLE aliados ADD COLUMN comisiones_aceptadas_en DATETIME",
             "ALTER TABLE aliados ADD COLUMN interes_venta TEXT",
+            # ── VentaContado: domicilio/email del cliente + flete (canal Aliados) ──
+            "ALTER TABLE ventas_contado ADD COLUMN cliente_domicilio TEXT",
+            "ALTER TABLE ventas_contado ADD COLUMN cliente_email TEXT",
+            # ── VentaFinanciada: flete (canal Aliados) ─────────────────────────
+            "ALTER TABLE ventas_financiadas ADD COLUMN distancia_km REAL",
+            "ALTER TABLE ventas_financiadas ADD COLUMN flete_calculado REAL",
             "ALTER TABLE materiales_socio ADD COLUMN origen TEXT DEFAULT 'manual'",
             "ALTER TABLE ventas_financiadas ADD COLUMN monto_pagado_inscripcion REAL DEFAULT 0",
             "ALTER TABLE ventas_financiadas ADD COLUMN primera_sena_en DATETIME",
@@ -202,6 +208,7 @@ def run_migrations():
             "ALTER TABLE ventas_financiadas ADD COLUMN licitacion_solicitada_en DATETIME",
             "ALTER TABLE ventas_contado ADD COLUMN aliado_codigo TEXT",
             "ALTER TABLE ventas_contado ADD COLUMN confirmacion_48hs_en DATETIME",
+            "ALTER TABLE ventas_contado ADD COLUMN contrato_generado_en DATETIME",
             "ALTER TABLE comisiones ADD COLUMN venta_financiada_id INTEGER",
             "ALTER TABLE comisiones ADD COLUMN venta_contado_id INTEGER",
             "ALTER TABLE comisiones ADD COLUMN factura_path TEXT",
@@ -211,6 +218,15 @@ def run_migrations():
             "ALTER TABLE meta_paginas ADD COLUMN auto_eliminar_negativos BOOLEAN DEFAULT 0",
             "ALTER TABLE meta_paginas ADD COLUMN webhook_subscribed BOOLEAN DEFAULT 0",
             "ALTER TABLE meta_paginas ADD COLUMN numero_whatsapp TEXT DEFAULT '1144498854'",
+            # ── Solicitud de recibo por el socio ─────────────────────────────────
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_en DATETIME",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_monto REAL",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_comprobante TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_notas TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_estado TEXT",
+            "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_notas_admin TEXT",
+            # ── Aliados: rol de admin del programa (acceso al CRM desde el panel) ──
+            "ALTER TABLE aliados ADD COLUMN es_admin_crm BOOLEAN DEFAULT 0",
         ]
         for stmt in migrations:
             try:

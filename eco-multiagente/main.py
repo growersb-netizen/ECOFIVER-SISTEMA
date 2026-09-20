@@ -15,12 +15,16 @@ from dotenv import load_dotenv
 _env_base = Path(os.getenv("DATA_DIR", "")) if os.getenv("DATA_DIR") else Path(__file__).parent
 _ENV_PATH = _env_base / ".env"
 if _ENV_PATH.exists():
-    # Railway/Fly secrets tienen prioridad. El .env del volumen solo completa
-    # variables que NO vienen ya seteadas desde el entorno (secrets).
+    # El .env (configurado via panel admin) tiene prioridad sobre Railway env vars
+    # para los valores que estén explícitamente seteados — permite que el panel
+    # cambie AI_PROVIDER, GROQ_MODEL, etc. sin necesitar acceso a Railway.
+    # Railway env vars siguen siendo el fallback para claves no seteadas en .env.
     from dotenv import dotenv_values as _dotenv_values
     for _k, _v in _dotenv_values(str(_ENV_PATH)).items():
-        if _k not in os.environ:
-            os.environ[_k] = _v or ""
+        if _v:  # solo override si el .env tiene un valor no-vacío
+            os.environ[_k] = _v
+        elif _k not in os.environ:
+            os.environ[_k] = ""
 else:
     load_dotenv(override=False)
 # ─────────────────────────────────────────────────────────────────────────────

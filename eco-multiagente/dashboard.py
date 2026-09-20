@@ -979,7 +979,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         <p style="font-size:13px;color:#666;margin-bottom:12px">
           Renata también publica sola dos veces por día. Para ver el historial completo, el calendario de contenido y el flujo de aprobación, usá el módulo Ecopost del CRM.
         </p>
-        <a href="https://eco-crm-dawn-fog-5476.fly.dev/ecopost" target="_blank" class="btn btn-outline" style="text-decoration:none">📚 Abrir Ecopost del CRM →</a>
+        <a href="https://eco-crm-production.up.railway.app/ecopost" target="_blank" class="btn btn-outline" style="text-decoration:none">📚 Abrir Ecopost del CRM →</a>
       </div>
     </div>
   </div>
@@ -1358,7 +1358,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
               <div class="field-row">
                 <div class="field">
                   <label>CRM_BASE_URL <span id="dot-crm"></span></label>
-                  <input type="text" name="CRM_BASE_URL" id="cfg-crm-url" placeholder="https://eco-crm-dawn-fog-5476.fly.dev">
+                  <input type="text" name="CRM_BASE_URL" id="cfg-crm-url" placeholder="https://eco-crm-production.up.railway.app">
                 </div>
                 <div class="field">
                   <label>CRM_API_KEY</label>
@@ -1439,7 +1439,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
               <div class="field-row">
                 <div class="field">
                   <label>BASE_URL</label>
-                  <input type="text" name="BASE_URL" id="cfg-base-url" placeholder="https://eco-multiagente.fly.dev">
+                  <input type="text" name="BASE_URL" id="cfg-base-url" placeholder="https://eco-multiagente.up.railway.app">
                 </div>
                 <div class="field">
                   <label>PORT</label>
@@ -1582,6 +1582,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
           <label>Tipo de producto</label>
           <select id="flete-tipo">
             <option value="general" id="opt-flete-general">General</option>
+            <option value="arco romano grande" id="opt-flete-alto1">Arco Romano Grande</option>
+            <option value="playa y abanico" id="opt-flete-alto2">Playa y Abanico</option>
+            <option value="hidromasaje" id="opt-flete-hidro">Hidromasajes / jacuzzis</option>
             <option value="miniportante" id="opt-flete-mini">Miniportante</option>
           </select>
         </div>
@@ -2004,8 +2007,14 @@ function buildCatalogo() {
   // Actualizar labels del calculador de flete con tarifas del catálogo
   const optG = document.getElementById('opt-flete-general');
   const optM = document.getElementById('opt-flete-mini');
+  const optA1 = document.getElementById('opt-flete-alto1');
+  const optA2 = document.getElementById('opt-flete-alto2');
+  const optH = document.getElementById('opt-flete-hidro');
   if (optG) optG.textContent = `General ($${CATALOGO.flete_por_km.toLocaleString('es-AR')}/km)`;
   if (optM) optM.textContent = `Miniportante ($${CATALOGO.flete_miniportante_por_km.toLocaleString('es-AR')}/km)`;
+  if (optA1) optA1.textContent = `Arco Romano Grande ($${(CATALOGO.flete_alto_por_km||5000).toLocaleString('es-AR')}/km)`;
+  if (optA2) optA2.textContent = `Playa y Abanico ($${(CATALOGO.flete_alto_por_km||5000).toLocaleString('es-AR')}/km)`;
+  if (optH) optH.textContent = `Hidromasajes / jacuzzis ($${(CATALOGO.flete_hidromasajes_por_km||2000).toLocaleString('es-AR')}/km)`;
 
   // Módulos
   document.getElementById('modulos-config').innerHTML = `
@@ -2016,13 +2025,23 @@ function buildCatalogo() {
         <div class="hint">Separados por coma</div>
       </div>
       <div class="field">
-        <label>Flete por km (general)</label>
+        <label>Flete por km (general — piscinas resto y módulos)</label>
         <input type="number" id="flete-km" value="${CATALOGO.flete_por_km}">
       </div>
     </div>
     <div class="field-row">
       <div class="field">
-        <label>Flete Miniportante por km</label>
+        <label>Flete por km (Arco Romano Grande / Playa y Abanico)</label>
+        <input type="number" id="flete-km-alto" value="${CATALOGO.flete_alto_por_km||5000}">
+      </div>
+      <div class="field">
+        <label>Flete por km (Hidromasajes / jacuzzis)</label>
+        <input type="number" id="flete-km-hidro" value="${CATALOGO.flete_hidromasajes_por_km||2000}">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Flete Miniportante por km <span class="hint">(tarifa histórica, sin reconfirmar)</span></label>
         <input type="number" id="flete-km-mini" value="${CATALOGO.flete_miniportante_por_km}">
       </div>
       <div class="field">
@@ -2070,6 +2089,8 @@ async function saveCatalogo() {
     password: sessionStorage.getItem('eco_admin_pw') || '',
     piscinas, modulos_m2,
     flete_por_km: parseInt(document.getElementById('flete-km').value),
+    flete_alto_por_km: parseInt(document.getElementById('flete-km-alto').value),
+    flete_hidromasajes_por_km: parseInt(document.getElementById('flete-km-hidro').value),
     flete_miniportante_por_km: parseInt(document.getElementById('flete-km-mini').value),
     combo_descuento_pct: parseInt(document.getElementById('combo-desc').value),
     planes_financiacion: planes,
@@ -3229,7 +3250,10 @@ async def dashboard_save_catalogo(request: Request):
         "piscinas": body.get("piscinas", []),
         "modulos_m2": body.get("modulos_m2", []),
         "flete_por_km": body.get("flete_por_km", 3000),
+        "flete_alto_por_km": body.get("flete_alto_por_km", 5000),
+        "flete_hidromasajes_por_km": body.get("flete_hidromasajes_por_km", 2000),
         "flete_miniportante_por_km": body.get("flete_miniportante_por_km", 2000),
+        "flete_financiado": body.get("flete_financiado", 0),
         "ciudad_origen": "Zarate",
         "combo_descuento_pct": body.get("combo_descuento_pct", 25),
         "combo_solo_financiacion": True,

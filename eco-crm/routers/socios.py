@@ -22,7 +22,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -34,7 +34,7 @@ from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
     ScoringBCRA, Usuario, ComisionConfig, Presupuesto,
 )
-from routers.auth import require_auth, get_user_roles, get_current_user
+from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
 from utils.whatsapp import send_whatsapp_text, send_whatsapp_otp, notificar_rodrigo
 
@@ -132,6 +132,25 @@ def _generar_codigo_aliado(db: Session) -> str:
     elif ultimo:
         n = (ultimo.id or 0) + 1
     return f"AL-{n:03d}"
+
+
+def _parse_fecha_entrega(valor) -> "datetime | None":
+    """Parsea una fecha de entrega enviada como string ISO (YYYY-MM-DD o YYYY-MM-DDTHH:MM)
+    y devuelve un datetime aware (UTC). Devuelve None si el valor es vacío o inválido."""
+    from datetime import timezone
+    if not valor:
+        return None
+    try:
+        s = str(valor).strip()
+        if "T" in s:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        else:
+            dt = datetime.fromisoformat(s)  # YYYY-MM-DD → datetime a medianoche
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
 
 
 def _normalizar_telefono(tel: str) -> str:
@@ -443,6 +462,7 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "tiene_password": bool(socio.password_hash),
         "comisiones_aceptadas": bool(socio.comisiones_aceptadas_en),
         "interes_venta": socio.interes_venta,
+        "es_admin_crm": bool(socio.es_admin_crm),
     }
 
 
@@ -807,19 +827,19 @@ async def admin_descargar_presupuesto(
 # Contado: SIEMPRE se cobra, nunca se bonifica. Financiado: se calcula igual,
 # pero puede ofrecerse bonificado como argumento de cierre (decisión humana al
 # cerrar la operación — el sistema no lo pone en $0 automáticamente).
-FLETE_KM_ALTO = 5500
-FLETE_KM_BAJO = 3500
-_MODELOS_FLETE_ALTO_PISCINA = {"Playa y Abanico", "Arco Romano Grande", "Playa y Abanico Chica", "Playa y Abanico Mediana", "Playa y Abanico Grande", "Arco Romano Grande Recto", "Arco Romano Grande Curvo"}
+FLETE_KM_BASE = 3000            # piscinas (resto de modelos) y módulos, cualquier tamaño
+FLETE_KM_ALTO = 5000            # solo piscinas Arco Romano Grande (8.10m) y Playa y Abanico (9.20m)
+FLETE_KM_HIDROMASAJES = 2000    # hidromasajes / jacuzzis
+_MODELOS_FLETE_ALTO_PISCINA = {"Arco Romano Grande", "Playa y Abanico"}
 
 
 def _flete_por_km(tipo: str, modelo_o_m2) -> int:
-    if tipo.upper() == "MODULO":
-        try:
-            m2 = float(modelo_o_m2)
-        except (TypeError, ValueError):
-            return FLETE_KM_BAJO
-        return FLETE_KM_ALTO if m2 >= 18 else FLETE_KM_BAJO
-    return FLETE_KM_ALTO if str(modelo_o_m2) in _MODELOS_FLETE_ALTO_PISCINA else FLETE_KM_BAJO
+    tipo_norm = (tipo or "").upper()
+    if tipo_norm in ("HIDROMASAJE", "HIDROMASAJES"):
+        return FLETE_KM_HIDROMASAJES
+    if tipo_norm == "PISCINA" and str(modelo_o_m2) in _MODELOS_FLETE_ALTO_PISCINA:
+        return FLETE_KM_ALTO
+    return FLETE_KM_BASE
 
 
 @router.get("/api/socio/ficha-producto")
@@ -1614,6 +1634,7 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
     if not cliente_nombre:
         raise HTTPException(400, "Falta el nombre del cliente")
 
+    producto = (data.get("producto") or "").upper()
     nivel_instalacion = (data.get("nivel_instalacion") or "con").strip()
     nota_instalacion = {
         "con": "Instalación incluida.",
@@ -1621,20 +1642,41 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         "sin_equipo": "Formato casco SOLO, sin instalación y sin equipo de filtrado — la coordina el socio o un instalador de su zona.",
     }.get(nivel_instalacion, "Instalación incluida.")
 
+    distancia_km = data.get("distancia_km")
+    flete_calculado = None
+    if distancia_km:
+        try:
+            distancia_km = float(distancia_km)
+            modelo_o_m2 = data.get("superficie_m2") if producto == "MODULO" else data.get("modelo_especifico")
+            flete_calculado = round(_flete_por_km(producto, modelo_o_m2) * distancia_km)
+        except (TypeError, ValueError):
+            distancia_km = None
+
     venta = VentaContado(
         cliente_nombre=cliente_nombre,
         cliente_telefono=_normalizar_telefono(data.get("cliente_telefono") or ""),
         cliente_localidad=(data.get("cliente_localidad") or "").strip(),
-        producto=(data.get("producto") or "").upper(),
+        cliente_domicilio=(data.get("cliente_domicilio") or "").strip() or None,
+        cliente_email=(data.get("cliente_email") or "").strip() or None,
+        producto=producto,
         modelo_especifico=(data.get("modelo_especifico") or "").strip(),
+        color=(data.get("color") or "").strip() or None,
         superficie_m2=data.get("superficie_m2"),
+        distancia_km=distancia_km,
+        flete_calculado=flete_calculado,
         precio_final=float(data.get("precio_final") or 0),
         forma_pago="CONTADO",
         estado="COORDINADO",
         modalidad_cobro="CONTRAENTREGA",  # se cobra contra la entrega en el domicilio
         cobro_estado="PENDIENTE",
+        con_banio=bool(data.get("con_banio")),
+        con_cocina=bool(data.get("con_cocina")),
+        con_puerta_ingreso=bool(data.get("con_puerta_ingreso")),
+        con_ventana_balcon=bool(data.get("con_ventana_balcon")),
+        sobre_piso=(data.get("sobre_piso") or "").strip() or None,
         notas=f"Venta de socio comercial {socio.codigo}. {nota_instalacion} {data.get('notas', '')}".strip(),
         aliado_codigo=socio.codigo,
+        fecha_instalacion=_parse_fecha_entrega(data.get("fecha_entrega")),
     )
     db.add(venta)
     db.commit()
@@ -1646,22 +1688,132 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         "sin_equipo": "⚠️ SIN instalación y SIN equipo de filtrado (casco solo) — la coordina el socio o un instalador de su zona",
     }.get(nivel_instalacion, "Con instalación incluida")
 
+    particularidades = ", ".join(filter(None, [
+        "con baño" if venta.con_banio else None,
+        "con cocina" if venta.con_cocina else None,
+        "con puerta de ingreso" if venta.con_puerta_ingreso else None,
+        "con ventana/balcón" if venta.con_ventana_balcon else None,
+        f"sobre {venta.sobre_piso.lower()}" if venta.sobre_piso else None,
+    ])) or "—"
+
     notificar_rodrigo(
         db,
         f"🟣 *Nueva venta de contado*\n"
         f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
         f"Cliente: {cliente_nombre}\n"
         f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
-        f"Localidad: {venta.cliente_localidad or '—'}\n"
-        f"Producto: {venta.producto} {venta.modelo_especifico}\n"
+        f"Email cliente: {venta.cliente_email or '—'}\n"
+        f"Domicilio: {venta.cliente_domicilio or '—'} · Localidad: {venta.cliente_localidad or '—'}\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico}{' · Color: '+venta.color if venta.color else ''}\n"
+        f"{'Particularidades módulo: ' + particularidades + chr(10) if venta.producto == 'MODULO' else ''}"
         f"Instalación: {nivel_label}\n"
-        f"Monto: ${venta.precio_final:,.0f}\n"
+        f"Monto: ${venta.precio_final:,.0f}"
+        f"{f' · Flete estimado: ${flete_calculado:,.0f} ({distancia_km:.0f} km)' if flete_calculado else ' · Flete: a coordinar (falta distancia)'}\n"
         f"Cobro: contraentrega en el domicilio del cliente\n"
         f"⏰ Contactar al cliente dentro de las 48hs para confirmar fecha y detalles.\n"
         f"Venta ID: {venta.id}",
     )
 
-    return {"ok": True, "venta_id": venta.id, "mensaje": "Venta cargada. El equipo va a contactar al cliente dentro de las 48hs."}
+    return {"ok": True, "venta_id": venta.id, "flete_calculado": flete_calculado, "mensaje": "Venta cargada. El equipo va a contactar al cliente dentro de las 48hs."}
+
+
+@router.put("/api/socio/ventas/contado/{venta_id}")
+async def editar_venta_contado_socio(
+    venta_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    El socio puede editar una venta de contado propia mientras esté en estado
+    COORDINADO. Una vez que el equipo confirma (48hs o INSTALADA) ya no se puede
+    modificar para preservar la integridad del circuito.
+    """
+    _require_verificado(socio)
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo,
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.estado not in ("COORDINADO", "PENDIENTE"):
+        raise HTTPException(400, f"La venta ya está en estado '{venta.estado}' y no puede modificarse. Contactá al equipo para cambios.")
+
+    data = await request.json()
+
+    # Campos editables por el socio
+    if "cliente_nombre" in data:
+        venta.cliente_nombre = (data["cliente_nombre"] or "").strip()
+    if "cliente_telefono" in data:
+        venta.cliente_telefono = _normalizar_telefono(data.get("cliente_telefono") or "")
+    if "cliente_localidad" in data:
+        venta.cliente_localidad = (data["cliente_localidad"] or "").strip()
+    if "cliente_domicilio" in data:
+        venta.cliente_domicilio = (data["cliente_domicilio"] or "").strip() or None
+    if "cliente_email" in data:
+        venta.cliente_email = (data["cliente_email"] or "").strip() or None
+    if "modelo_especifico" in data:
+        venta.modelo_especifico = (data["modelo_especifico"] or "").strip()
+    if "color" in data:
+        venta.color = (data["color"] or "").strip() or None
+    if "precio_final" in data:
+        venta.precio_final = float(data["precio_final"] or 0)
+    if "distancia_km" in data and data["distancia_km"]:
+        try:
+            venta.distancia_km = float(data["distancia_km"])
+            venta.flete_calculado = round(_flete_por_km(venta.producto, venta.modelo_especifico) * venta.distancia_km)
+        except (TypeError, ValueError):
+            pass
+    if "notas" in data:
+        venta.notas = (data["notas"] or "").strip()
+    if "fecha_entrega" in data:
+        venta.fecha_instalacion = _parse_fecha_entrega(data.get("fecha_entrega"))
+
+    db.commit()
+    return {"ok": True, "venta_id": venta.id, "estado": venta.estado}
+
+
+@router.delete("/api/socio/ventas/contado/{venta_id}")
+async def eliminar_venta_contado_socio(
+    venta_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    El socio puede eliminar una venta de contado propia solo si está en estado
+    COORDINADO (antes de que el equipo empiece a gestionar). También elimina la
+    Entrega y OrdenFabrica/OrdenProduccion asociadas si existen.
+    """
+    _require_verificado(socio)
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo,
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.estado not in ("COORDINADO", "PENDIENTE"):
+        raise HTTPException(400, f"La venta ya está en estado '{venta.estado}'. Para anularla contactá al equipo.")
+
+    import logging
+    log = logging.getLogger(__name__)
+
+    try:
+        # Eliminar registros asociados en cascada (orden importa)
+        from database.models import Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, OrdenProduccion
+
+        db.query(OrdenProduccion).filter(OrdenProduccion.venta_contado_id == venta_id).delete()
+        db.query(OrdenFabricaPiscina).filter(OrdenFabricaPiscina.venta_contado_id == venta_id).delete()
+        db.query(OrdenFabricaModulo).filter(OrdenFabricaModulo.venta_contado_id == venta_id).delete()
+        db.query(Entrega).filter(Entrega.venta_contado_id == venta_id).delete()
+        db.delete(venta)
+        db.commit()
+        log.info(f"[SOCIO {socio.codigo}] Venta contado #{venta_id} eliminada")
+    except Exception as e:
+        db.rollback()
+        log.error(f"[SOCIO DELETE] Error: {e}")
+        raise HTTPException(500, f"Error al eliminar la venta: {e}")
+
+    return {"ok": True, "eliminada": venta_id}
 
 
 @router.post("/api/ventas-contado/{venta_id}/confirmacion-48hs")
@@ -1749,14 +1901,27 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         .order_by(ScoringBCRA.id.desc()).first()
     )
 
+    distancia_km = data.get("distancia_km")
+    flete_calculado = None
+    if distancia_km:
+        try:
+            distancia_km = float(distancia_km)
+            flete_calculado = round(_flete_por_km(tipo_norm, modelo) * distancia_km)
+        except (TypeError, ValueError):
+            distancia_km = None
+
     venta = VentaFinanciada(
         cliente_nombre=cliente_nombre,
         cliente_dni=cliente_dni,
         cliente_telefono=_normalizar_telefono(data.get("cliente_telefono") or ""),
         cliente_localidad=(data.get("cliente_localidad") or "").strip(),
+        cliente_domicilio=(data.get("cliente_domicilio") or "").strip() or None,
         cliente_email=(data.get("cliente_email") or "").strip(),
         producto=tipo_norm,
         modelo_especifico=modelo,
+        color=(data.get("color") or "").strip() or None,
+        distancia_km=distancia_km,
+        flete_calculado=flete_calculado,
         forma_pago="FINANCIADO",
         precio_total=precio_lista,
         monto_inscripcion=monto_inscripcion,
@@ -1778,10 +1943,11 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
         f"Cliente: {cliente_nombre} (DNI {cliente_dni})\n"
         f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
-        f"Localidad: {venta.cliente_localidad or '—'}\n"
         f"Email: {venta.cliente_email or '—'}\n"
-        f"Producto: {venta.producto} {venta.modelo_especifico} — {cantidad_cuotas} cuotas\n"
+        f"Domicilio: {venta.cliente_domicilio or '—'} · Localidad: {venta.cliente_localidad or '—'}\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico}{' · Color: '+venta.color if venta.color else ''} — {cantidad_cuotas} cuotas\n"
         f"Precio total: ${precio_lista:,.0f} · Inscripción: ${monto_inscripcion:,.0f} · Cuota: ${valor_cuota:,.0f}\n"
+        f"{f'Flete estimado: ${flete_calculado:,.0f} ({distancia_km:.0f} km)' if flete_calculado else 'Flete: a coordinar (falta distancia)'}\n"
         f"{'⚠️ Situación BCRA ' + str(venta.scoring_situacion) + ' — requiere declaración jurada del cliente' if venta.declaracion_jurada_requerida else ''}\n"
         f"→ Falta que el cliente pague la inscripción y confirme el plan.\n"
         f"Venta ID: {venta.id}",
@@ -1790,7 +1956,7 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
     return {
         "ok": True, "venta_id": venta.id, "precio_lista": precio_lista,
         "cuotas": cantidad_cuotas, "valor_cuota": valor_cuota, "monto_inscripcion": monto_inscripcion,
-        "declaracion_jurada_requerida": venta.declaracion_jurada_requerida,
+        "declaracion_jurada_requerida": venta.declaracion_jurada_requerida, "flete_calculado": flete_calculado,
         "mensaje": "Venta cargada. En cuanto el cliente pague la inscripción completa, descargá el contrato desde tu panel.",
     }
 
@@ -1799,9 +1965,26 @@ def _money(v):
     return f"{(v or 0):,.0f}".replace(",", ".")
 
 
-async def _generar_contrato_pdf(venta: VentaFinanciada, socio_codigo: str, socio_nombre: str, db: Session) -> str:
-    """Genera (o regenera) el PDF del resumen del plan + el link de confirmación. Devuelve el número de solicitud."""
+async def _generar_contrato_pdf(
+    venta: VentaFinanciada,
+    socio_codigo: str,
+    socio_nombre: str,
+    db: Session,
+    pago_acreditado: bool = False,
+) -> str:
+    """
+    Genera (o regenera) el PDF del contrato de financiación usando el mismo
+    contrato_template.html que el flujo admin — mismo formato, misma presentación.
+
+    pago_acreditado=True  → sin aviso de vigencia (hay seña/inscripción registrada).
+    pago_acreditado=False → agrega nota al pie: vigencia sujeta al pago de la inscripción.
+
+    Devuelve el número de solicitud.
+    """
     from utils.documentos import render_html, html_to_pdf
+    from routers.contratos import (_seccion_pago_html, _texto_legal,
+                                   _titulo_contrato, _fmt_ar, _recibo_box_html)
+    from routers.catalogo import _MEDIDAS_PDF
 
     if not venta.link_confirmacion_token:
         venta.link_confirmacion_token = secrets.token_urlsafe(24)
@@ -1811,23 +1994,87 @@ async def _generar_contrato_pdf(venta: VentaFinanciada, socio_codigo: str, socio
         venta.numero_solicitud = siguiente_numero_solicitud(db)
     db.commit()
 
-    html = render_html("resumen_plan_socio.html", {
-        "numero_solicitud": venta.numero_solicitud,
-        "fecha": datetime.now().strftime("%d/%m/%Y"),
-        "cliente_nombre": venta.cliente_nombre,
-        "cliente_dni": venta.cliente_dni,
-        "cliente_telefono": venta.cliente_telefono,
-        "cliente_localidad": venta.cliente_localidad,
-        "producto": venta.producto,
-        "modelo": venta.modelo_especifico,
-        "precio_total": _money(venta.precio_total),
-        "cantidad_cuotas": venta.cantidad_cuotas,
-        "valor_cuota": _money(venta.valor_cuota),
-        "monto_inscripcion": _money(venta.monto_inscripcion),
-        "cuota_minima_licitacion": _cuota_minima_licitacion(venta.producto),
-        "socio_codigo": socio_codigo,
-        "socio_nombre": socio_nombre,
-    })
+    tipo_producto       = (venta.producto or "PISCINA").upper()
+    tipo_producto_label = "Piscina de Fibra de Vidrio" if tipo_producto == "PISCINA" else "Módulo Habitacional"
+    tipologia           = "Fibra de Vidrio"             if tipo_producto == "PISCINA" else "Estructural"
+
+    medidas = _MEDIDAS_PDF.get(venta.modelo_especifico or "", {})
+
+    nombre_completo = venta.cliente_nombre or "—"
+    partes   = nombre_completo.rsplit(" ", 1)
+    nombre   = partes[0] if len(partes) > 1 else nombre_completo
+    apellido = partes[1] if len(partes) > 1 else ""
+
+    # Nota de vigencia → se adjunta al texto legal cuando no hay pago aún
+    vigencia_nota = (
+        ""
+        if pago_acreditado else
+        "\n\n⚠ CONDICIÓN DE VIGENCIA: Este documento tiene vigencia contractual plena únicamente a "
+        "partir del pago completo de la inscripción indicada. Hasta ese momento, las condiciones "
+        "quedan reservadas y sujetas a disponibilidad."
+    )
+
+    ctx = {
+        "titulo_contrato":       _titulo_contrato(tipo_producto, "FINANCIADO"),
+        "numero_solicitud":      venta.numero_solicitud,
+        "fecha_contrato":        datetime.now().strftime("%d/%m/%Y"),
+        # ── cliente ──────────────────────────────────────────────────────────
+        "nombre":                nombre,
+        "apellido":              apellido,
+        "dni":                   venta.cliente_dni       or "—",
+        "cuil":                  venta.cliente_cuil      or "—",
+        "fecha_nacimiento":      "—",
+        "estado_civil":          venta.cliente_estado_civil or "—",
+        "email":                 venta.cliente_email     or "—",
+        "telefono":              venta.cliente_telefono  or "—",
+        "telefono_alt":          "—",
+        "domicilio":             venta.cliente_domicilio or "—",
+        "piso":                  "—",
+        "depto":                 "—",
+        "localidad":             venta.cliente_localidad or "—",
+        "provincia":             "—",
+        "lugar_nacimiento":      "—",
+        "ocupacion":             venta.cliente_ocupacion or "—",
+        # ── cónyuge (en blanco — el socio completa a mano si aplica) ─────────
+        "conyuge_nombre":        "—",
+        "conyuge_apellido":      "—",
+        "conyuge_dni":           "—",
+        "conyuge_nacimiento":    "—",
+        "conyuge_telefono":      "—",
+        "conyuge_email":         "—",
+        # ── producto ─────────────────────────────────────────────────────────
+        "modelo":                venta.modelo_especifico or "—",
+        "tipo_producto_label":   tipo_producto_label,
+        "tipologia":             tipologia,
+        "largo":                 str(medidas.get("largo_m",           "—")),
+        "ancho":                 str(medidas.get("ancho_m",           "—")),
+        "profundidad_min":       str(medidas.get("profundidad_min_m", "—")),
+        "profundidad_max":       str(medidas.get("profundidad_max_m", "—")),
+        "sistema":               ("Sistema de Filtrado Completo + Iluminación"
+                                  if tipo_producto == "PISCINA" else "—"),
+        "observaciones":         (f"Color: {venta.color}" if venta.color
+                                  else "Consultar con el asesor comercial"),
+        # ── pago FINANCIADO ───────────────────────────────────────────────────
+        "valor_mercado":         _fmt_ar(venta.precio_total),
+        "pago_inicial":          _fmt_ar(venta.monto_inscripcion),
+        "cant_cuotas":           str(venta.cantidad_cuotas or "—"),
+        "valor_cuota":           _fmt_ar(venta.valor_cuota),
+        "check_efectivo":        "",
+        "mark_efectivo":         "",
+        "check_transferencia":   "checked",
+        "mark_transferencia":    "✔",
+        # ── firma ─────────────────────────────────────────────────────────────
+        "firma_productor_block": (
+            f'<div class="sig-block"><div class="sig-line-draw"></div>'
+            f'<div class="sig-label">Asesor / Socio Comercial</div>'
+            f'<div class="sig-sublabel">{socio_nombre} — Cód. {socio_codigo}</div></div>'
+        ),
+    }
+    ctx["seccion_pago_html"] = _seccion_pago_html("FINANCIADO", ctx)
+    ctx["texto_legal"]       = _texto_legal("FINANCIADO", ctx) + vigencia_nota
+    ctx["recibo_box_html"]   = _recibo_box_html("FINANCIADO", venta.numero_solicitud or "")
+
+    html = render_html("contrato_template.html", ctx)
     pdf_path = Path("data/contratos") / f"plan_{venta.numero_solicitud.replace('/', '-')}_{venta.id}.pdf"
     await html_to_pdf(html, pdf_path)
     return venta.numero_solicitud
@@ -1878,7 +2125,7 @@ async def _registrar_pago_inscripcion(venta: VentaFinanciada, monto: float, db: 
         venta.sena_vence_en = venta.primera_sena_en + timedelta(days=30)
         db.commit()
         socio_row = db.query(Aliado).filter(Aliado.codigo == venta.aliado_codigo).first()
-        await _generar_contrato_pdf(venta, venta.aliado_codigo, socio_row.nombre if socio_row else "", db)
+        await _generar_contrato_pdf(venta, venta.aliado_codigo, socio_row.nombre if socio_row else "", db, pago_acreditado=True)
         resultado["contrato_generado"] = True
         _notificar_socio(
             db, venta.aliado_codigo,
@@ -1967,20 +2214,33 @@ async def descargar_recibo_pdf(venta_id: int, socio: Aliado = Depends(require_so
 @router.post("/api/socio/ventas/{venta_id}/generar-contrato")
 async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """
-    Descarga manual del contrato — normalmente ya se generó solo al recibir
-    la seña (primer pago hacia la inscripción). Este endpoint sirve como
-    respaldo si por algún motivo todavía no se generó.
+    Genera (o regenera) el resumen del plan para la venta financiada.
+
+    El contrato puede generarse EN CUALQUIER MOMENTO — el socio lo necesita
+    ANTES de que el cliente pague para poder cerrar la operación. El documento
+    aclara que tiene vigencia contractual a partir del pago completo de la
+    inscripción. El recibo se emite por separado cuando el equipo registra el
+    pago completo.
     """
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
     if not venta:
         raise HTTPException(404, "Venta no encontrada")
-    if not (venta.primera_sena_en or venta.inscripcion_pagada_en):
-        raise HTTPException(409, "Todavía no se registró ningún pago hacia la inscripción")
 
-    await _generar_contrato_pdf(venta, socio.codigo, socio.nombre, db)
+    # Determinar estado de pago para personalizar el mensaje del PDF
+    pagado = bool(venta.primera_sena_en or venta.inscripcion_pagada_en)
+
+    await _generar_contrato_pdf(venta, socio.codigo, socio.nombre, db, pago_acreditado=pagado)
 
     base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
     link_confirmacion = f"{base_url}/socio/confirmar/{venta.link_confirmacion_token}"
+
+    if pagado:
+        mensaje = "Contrato regenerado. El cliente ya tiene pago acreditado — podés descargarlo y compartirlo."
+    else:
+        mensaje = (
+            "Resumen del plan generado. Compartilo con el cliente para que revise las condiciones y confirme. "
+            "El contrato tiene vigencia contractual desde el momento en que se acredite el pago completo de la inscripción."
+        )
 
     return {
         "ok": True,
@@ -1988,7 +2248,8 @@ async def generar_contrato_socio(venta_id: int, socio: Aliado = Depends(require_
         "link_confirmacion": link_confirmacion,
         "contrato_pdf_url": f"/api/socio/ventas/{venta.id}/contrato-pdf",
         "declaracion_jurada_requerida": venta.declaracion_jurada_requerida,
-        "mensaje": "Descargá el resumen del plan y mandale el link al cliente para que confirme su adhesión.",
+        "pago_acreditado": pagado,
+        "mensaje": mensaje,
     }
 
 
@@ -2002,6 +2263,162 @@ async def descargar_contrato_pdf(venta_id: int, socio: Aliado = Depends(require_
     if not pdf_path.exists():
         raise HTTPException(404, "Todavía no se generó el PDF — volvé a generar el contrato")
     return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"Plan_{venta.numero_solicitud}.pdf")
+
+
+# ─── Contrato de compraventa CONTADO (venta de socio) ────────────────────────
+
+async def _generar_contrato_contado_pdf_socio(venta: VentaContado, socio: Aliado, db: Session) -> Path:
+    """Genera el PDF del contrato de compraventa para una VentaContado de socio."""
+    import json as _json
+    from utils.documentos import render_html, html_to_pdf
+    from routers.contratos import (_seccion_pago_html, _texto_legal,
+                                   _titulo_contrato, _fmt_ar)
+    from routers.catalogo import _MEDIDAS_PDF
+
+    tipo_producto       = (venta.producto or "PISCINA").upper()
+    tipo_producto_label = "Piscina de Fibra de Vidrio" if tipo_producto == "PISCINA" else "Módulo Habitacional"
+    tipologia           = "Fibra de Vidrio"             if tipo_producto == "PISCINA" else "Estructural"
+
+    medidas = _MEDIDAS_PDF.get(venta.modelo_especifico or "", {})
+    largo   = medidas.get("largo_m",          "—")
+    ancho   = medidas.get("ancho_m",          "—")
+    pmin    = medidas.get("profundidad_min_m", "—")
+    pmax    = medidas.get("profundidad_max_m", "—")
+
+    # ítems incluidos: inferidos de los campos guardados
+    notas_lower = (venta.notas or "").lower()
+    items = ["Fabricación completa del producto",
+             "Flete hasta el domicilio del cliente"]
+    if "sin_instalacion" not in notas_lower and "sin instalaci" not in notas_lower:
+        items.append("Instalación y puesta en marcha")
+        items.append("Sistema de filtrado completo")
+    items.append("Garantía estructural 10 años")
+    if venta.con_banio:          items.append("Módulo con baño completo")
+    if venta.con_cocina:         items.append("Módulo con cocina")
+    if venta.con_puerta_ingreso: items.append("Puerta de ingreso")
+    if venta.con_ventana_balcon: items.append("Ventana / balcón")
+
+    nombre_completo = venta.cliente_nombre or "—"
+    partes   = nombre_completo.rsplit(" ", 1)
+    nombre   = partes[0] if len(partes) > 1 else nombre_completo
+    apellido = partes[1] if len(partes) > 1 else ""
+
+    valor_total = venta.precio_final or 0
+    fecha_hoy   = datetime.now().strftime("%d/%m/%Y")
+    doc_num     = f"SC-{socio.codigo}-{venta.id}"
+
+    ctx = {
+        "titulo_contrato":       _titulo_contrato(tipo_producto, "CONTADO"),
+        "numero_solicitud":      doc_num,
+        "fecha_contrato":        fecha_hoy,
+        # cliente
+        "nombre":                nombre,
+        "apellido":              apellido,
+        "dni":                   "—",
+        "cuil":                  "—",
+        "fecha_nacimiento":      "—",
+        "estado_civil":          "—",
+        "email":                 venta.cliente_email    or "—",
+        "telefono":              venta.cliente_telefono or "—",
+        "telefono_alt":          "—",
+        "domicilio":             venta.cliente_domicilio or "—",
+        "piso":                  "—",
+        "depto":                 "—",
+        "localidad":             venta.cliente_localidad or "—",
+        "provincia":             "—",
+        "lugar_nacimiento":      "—",
+        "ocupacion":             "—",
+        # cónyuge (en blanco)
+        "conyuge_nombre":        "—",
+        "conyuge_apellido":      "—",
+        "conyuge_dni":           "—",
+        "conyuge_nacimiento":    "—",
+        "conyuge_telefono":      "—",
+        "conyuge_email":         "—",
+        # producto
+        "modelo":                venta.modelo_especifico or "—",
+        "tipo_producto_label":   tipo_producto_label,
+        "tipologia":             tipologia,
+        "largo":                 str(largo),
+        "ancho":                 str(ancho),
+        "profundidad_min":       str(pmin),
+        "profundidad_max":       str(pmax),
+        "sistema":               ("Sistema de Filtrado Completo + Iluminación"
+                                  if tipo_producto == "PISCINA" else "—"),
+        "observaciones":         f"Color: {venta.color}" if venta.color else "Consultar con el asesor comercial",
+        # pago CONTADO
+        "valor_total":           _fmt_ar(valor_total),
+        "señia":                 "0",
+        "saldo_contra_entrega":  _fmt_ar(valor_total),
+        "modalidad_pago":        "Contra entrega",
+        "op_numero_pago":        "",
+        "incluye_items":         _json.dumps(items),
+        "condiciones_entrega":   (
+            "El pago total de la operación se realizará contra entrega del producto en el domicilio "
+            "indicado, previo coordinación de fecha y horario con la empresa con al menos 72 hs de "
+            "anticipación. El equipo se contactará dentro de las 48 hs para confirmar detalles."
+        ),
+        "fecha_entrega_estimada": "A coordinar con el equipo de logística",
+        "firma_productor_block":  (
+            f'<div class="sig-block"><div class="sig-line-draw"></div>'
+            f'<div class="sig-label">Asesor / Socio Comercial</div>'
+            f'<div class="sig-sublabel">{socio.nombre} — Cód. {socio.codigo}</div></div>'
+        ),
+    }
+    ctx["seccion_pago_html"] = _seccion_pago_html("CONTADO", ctx)
+    ctx["texto_legal"]       = _texto_legal("CONTADO", ctx)
+    ctx["recibo_box_html"]   = ""
+
+    # Nota: render_html ya usa FileSystemLoader apuntado a templates/documentos/
+    # — la ruta correcta es solo el nombre del archivo, sin el prefijo "documentos/"
+    html_content = render_html("contrato_template.html", ctx)
+    Path("data/contratos").mkdir(parents=True, exist_ok=True)
+    pdf_path = Path("data/contratos") / f"contado_{venta.id}.pdf"
+    await html_to_pdf(html_content, pdf_path)
+
+    venta.contrato_generado_en = datetime.now()
+    db.commit()
+    return pdf_path
+
+
+@router.post("/api/socio/ventas/contado/{venta_id}/generar-contrato")
+async def generar_contrato_contado_socio(
+    venta_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Genera el PDF del contrato de compraventa para una venta contado del socio."""
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    await _generar_contrato_contado_pdf_socio(venta, socio, db)
+    return {
+        "ok": True,
+        "contrato_pdf_url": f"/api/socio/ventas/contado/{venta.id}/contrato-pdf",
+    }
+
+
+@router.get("/api/socio/ventas/contado/{venta_id}/contrato-pdf")
+async def descargar_contrato_contado_pdf(
+    venta_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import FileResponse
+    venta = db.query(VentaContado).filter(
+        VentaContado.id == venta_id,
+        VentaContado.aliado_codigo == socio.codigo
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    pdf_path = Path("data/contratos") / f"contado_{venta.id}.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(404, "Todavía no se generó el PDF — hacé click en Generar contrato")
+    filename = f"Contrato_{venta.cliente_nombre.replace(' ', '_')}_{venta.id}.pdf"
+    return FileResponse(str(pdf_path), media_type="application/pdf", filename=filename)
 
 
 # ─── Confirmación pública del cliente (sin login) ─────────────────────────────
@@ -2165,8 +2582,10 @@ def _venta_fin_dict(v: VentaFinanciada) -> dict:
     return {
         "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
         "cliente_dni": v.cliente_dni, "cliente_telefono": v.cliente_telefono,
-        "cliente_localidad": v.cliente_localidad, "cliente_email": v.cliente_email,
-        "producto": v.producto, "modelo_especifico": v.modelo_especifico,
+        "cliente_localidad": v.cliente_localidad, "cliente_domicilio": v.cliente_domicilio,
+        "cliente_email": v.cliente_email,
+        "producto": v.producto, "modelo_especifico": v.modelo_especifico, "color": v.color,
+        "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
         "cantidad_cuotas": v.cantidad_cuotas, "valor_cuota": v.valor_cuota,
         "precio_total": v.precio_total, "monto_inscripcion": v.monto_inscripcion,
         "monto_pagado_inscripcion": v.monto_pagado_inscripcion or 0,
@@ -2183,7 +2602,12 @@ def _venta_cont_dict(v: VentaContado) -> dict:
     return {
         "id": v.id, "aliado_codigo": v.aliado_codigo, "cliente_nombre": v.cliente_nombre,
         "cliente_telefono": v.cliente_telefono, "cliente_localidad": v.cliente_localidad,
-        "producto": v.producto, "modelo_especifico": v.modelo_especifico,
+        "cliente_domicilio": v.cliente_domicilio, "cliente_email": v.cliente_email,
+        "producto": v.producto, "modelo_especifico": v.modelo_especifico, "color": v.color,
+        "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
+        "con_banio": v.con_banio, "con_cocina": v.con_cocina,
+        "con_puerta_ingreso": v.con_puerta_ingreso, "con_ventana_balcon": v.con_ventana_balcon,
+        "sobre_piso": v.sobre_piso,
         "precio_final": v.precio_final, "notas": v.notas or "",
         "created_at": v.created_at.isoformat() if v.created_at else None,
     }
@@ -2252,14 +2676,22 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
     return {
         "contado": [{
             "id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto,
-            "modelo_especifico": v.modelo_especifico, "precio_final": v.precio_final,
-            "cobro_estado": v.cobro_estado,
+            "modelo_especifico": v.modelo_especifico, "color": v.color, "precio_final": v.precio_final,
+            "cliente_domicilio": v.cliente_domicilio, "cliente_localidad": v.cliente_localidad,
+            "cliente_telefono": v.cliente_telefono, "cliente_email": v.cliente_email,
+            "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
+            "cobro_estado": v.cobro_estado, "notas": v.notas,
             "confirmacion_48hs": bool(v.confirmacion_48hs_en),
+            "contrato_generado": bool(v.contrato_generado_en),
+            "fecha_entrega": v.fecha_instalacion.date().isoformat() if v.fecha_instalacion else None,
             "created_at": v.created_at.isoformat() if v.created_at else None,
         } for v in contado],
         "financiado": [{
             "id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto,
-            "modelo_especifico": v.modelo_especifico, "cantidad_cuotas": v.cantidad_cuotas,
+            "modelo_especifico": v.modelo_especifico, "color": v.color,
+            "cliente_domicilio": v.cliente_domicilio, "cliente_localidad": v.cliente_localidad,
+            "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
+            "cantidad_cuotas": v.cantidad_cuotas,
             "valor_cuota": v.valor_cuota, "estado_plan": v.estado_plan,
             "cuotas_pagas": v.cuotas_pagas or 0,
             "cuota_minima_licitacion": _cuota_minima_licitacion(v.producto),
@@ -2273,6 +2705,9 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
             "recibo_generado": bool(v.recibo_generado_en),
             "contrato_generado": bool(v.contrato_generado_en),
             "link_confirmacion_token": v.link_confirmacion_token,
+            "solicitud_recibo_estado": v.solicitud_recibo_estado,   # PENDIENTE/APROBADO/RECHAZADO/None
+            "solicitud_recibo_notas_admin": v.solicitud_recibo_notas_admin,
+            "solicitud_recibo_monto": v.solicitud_recibo_monto,
             "cliente_confirmo": bool(v.link_confirmacion_confirmada_en),
             "declaracion_jurada_requerida": v.declaracion_jurada_requerida,
             "declaracion_jurada_confirmada": bool(v.declaracion_jurada_confirmada_en),
@@ -2551,8 +2986,481 @@ async def ranking_socios(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SOLICITUD DE RECIBO (socio sube comprobante → admin aprueba → se emite recibo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+COMPROBANTES_DIR = Path("data/comprobantes")
+COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@router.post("/api/socio/ventas/{venta_id}/solicitar-recibo")
+async def solicitar_recibo(
+    venta_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    El socio adjunta el comprobante de pago y solicita que el equipo lo verifique
+    y emita el recibo. El archivo puede ser imagen o PDF (max 10 MB).
+    La solicitud queda en estado PENDIENTE hasta que admin la apruebe o rechace.
+    """
+    _require_verificado(socio)
+    from fastapi import UploadFile, File, Form
+    from fastapi.datastructures import FormData
+
+    venta = db.query(VentaFinanciada).filter(
+        VentaFinanciada.id == venta_id,
+        VentaFinanciada.aliado_codigo == socio.codigo,
+    ).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.inscripcion_pagada_en:
+        raise HTTPException(400, "La inscripción ya está registrada como pagada y el recibo fue emitido.")
+    if venta.solicitud_recibo_estado == "PENDIENTE":
+        raise HTTPException(409, "Ya hay una solicitud de recibo en revisión. Esperá la respuesta del equipo.")
+
+    form: FormData = await request.form()
+    monto_raw = form.get("monto", "")
+    notas = str(form.get("notas", "") or "").strip()
+    comprobante_file = form.get("comprobante")
+
+    try:
+        monto = float(str(monto_raw).replace(",", ".") or 0)
+    except (ValueError, TypeError):
+        raise HTTPException(400, "El monto debe ser un número válido")
+    if monto <= 0:
+        raise HTTPException(400, "El monto debe ser mayor a 0")
+    if not comprobante_file:
+        raise HTTPException(400, "Debés adjuntar el comprobante de pago")
+
+    # Leer y guardar el archivo
+    contenido = await comprobante_file.read()
+    if len(contenido) > 10 * 1024 * 1024:
+        raise HTTPException(400, "El archivo no puede superar los 10 MB")
+
+    ext = Path(comprobante_file.filename or "comp.jpg").suffix.lower() or ".jpg"
+    if ext not in (".jpg", ".jpeg", ".png", ".pdf", ".webp", ".heic"):
+        raise HTTPException(400, "Formato no permitido. Usá JPG, PNG o PDF.")
+
+    COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
+    fname = f"vf{venta.id}_{int(datetime.now().timestamp())}{ext}"
+    fpath = COMPROBANTES_DIR / fname
+    fpath.write_bytes(contenido)
+
+    venta.solicitud_recibo_en          = datetime.now()
+    venta.solicitud_recibo_monto       = monto
+    venta.solicitud_recibo_comprobante = str(fpath)
+    venta.solicitud_recibo_notas       = notas
+    venta.solicitud_recibo_estado      = "PENDIENTE"
+    venta.solicitud_recibo_notas_admin = None
+    db.commit()
+
+    # Notificar al equipo por WA
+    num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+    notificar_rodrigo(
+        db,
+        f"💰 *Solicitud de recibo — revisión requerida*\n"
+        f"Socio: {socio.codigo} ({socio.nombre})\n"
+        f"Venta: {num_sol} · {venta.cliente_nombre}\n"
+        f"Monto declarado: ${monto:,.0f}\n"
+        f"Notas socio: {notas or '—'}\n"
+        f"Revisá y aprobá en: /api/admin/solicitudes-recibo",
+    )
+    return {"ok": True, "mensaje": "Solicitud enviada. El equipo la va a revisar y te confirma en breve."}
+
+
+@router.get("/api/admin/solicitudes-recibo")
+async def admin_solicitudes_recibo(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    estado: str = "PENDIENTE",
+):
+    """Lista solicitudes de recibo filtradas por estado (PENDIENTE/APROBADO/RECHAZADO)."""
+    _require_gestion_interna(x_api_key, current_user)
+    ventas = db.query(VentaFinanciada).filter(
+        VentaFinanciada.solicitud_recibo_estado == estado
+    ).order_by(VentaFinanciada.solicitud_recibo_en.desc()).all()
+    return {"solicitudes": [{
+        "id": v.id,
+        "numero_solicitud": v.numero_solicitud or f"VF-{v.id}",
+        "aliado_codigo": v.aliado_codigo,
+        "cliente_nombre": v.cliente_nombre,
+        "producto": v.producto,
+        "modelo_especifico": v.modelo_especifico,
+        "monto_inscripcion": v.monto_inscripcion,
+        "monto_pagado_actual": v.monto_pagado_inscripcion or 0,
+        "solicitud_monto": v.solicitud_recibo_monto,
+        "solicitud_notas": v.solicitud_recibo_notas,
+        "solicitud_en": v.solicitud_recibo_en.isoformat() if v.solicitud_recibo_en else None,
+        "tiene_comprobante": bool(v.solicitud_recibo_comprobante),
+        "comprobante_url": f"/api/admin/solicitudes-recibo/{v.id}/comprobante" if v.solicitud_recibo_comprobante else None,
+        "estado": v.solicitud_recibo_estado,
+        "notas_admin": v.solicitud_recibo_notas_admin,
+    } for v in ventas]}
+
+
+@router.get("/api/admin/solicitudes-recibo/{venta_id}/comprobante")
+async def admin_ver_comprobante(
+    venta_id: int,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Descarga el comprobante de pago adjunto por el socio."""
+    from fastapi.responses import FileResponse
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta or not venta.solicitud_recibo_comprobante:
+        raise HTTPException(404, "Comprobante no encontrado")
+    fpath = Path(venta.solicitud_recibo_comprobante)
+    if not fpath.exists():
+        raise HTTPException(404, "Archivo no encontrado en disco")
+    media = "application/pdf" if fpath.suffix.lower() == ".pdf" else "image/jpeg"
+    return FileResponse(str(fpath), media_type=media, filename=fpath.name)
+
+
+@router.post("/api/admin/solicitudes-recibo/{venta_id}/aprobar")
+async def admin_aprobar_recibo(
+    venta_id: int,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Admin confirma que el pago ingresó: registra el monto, genera el recibo PDF
+    y lo envía por email al socio (que se lo pasa al cliente).
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.solicitud_recibo_estado != "PENDIENTE":
+        raise HTTPException(400, f"La solicitud está en estado '{venta.solicitud_recibo_estado}', no PENDIENTE")
+
+    data = await request.json()
+    monto_confirmado = float(data.get("monto_confirmado") or venta.solicitud_recibo_monto or 0)
+    if monto_confirmado <= 0:
+        raise HTTPException(400, "El monto confirmado debe ser mayor a 0")
+
+    # Registrar el pago (esto genera el recibo si se completa la inscripción)
+    resultado = await _registrar_pago_inscripcion(venta, monto_confirmado, db)
+
+    # Actualizar estado de la solicitud
+    venta.solicitud_recibo_estado = "APROBADO"
+    db.commit()
+
+    # Buscar el aliado para enviar el email con el recibo
+    socio_row = db.query(Aliado).filter(Aliado.codigo == venta.aliado_codigo).first()
+    email_destino = socio_row.email if socio_row else None
+
+    recibo_enviado = False
+    if resultado.get("inscripcion_completa") and email_destino:
+        # El recibo se acaba de generar — enviarlo por mail al socio
+        pdf_path = Path("data/contratos") / f"recibo_{(venta.numero_solicitud or str(venta.id)).replace('/', '-')}_{venta.id}.pdf"
+        if pdf_path.exists():
+            from utils.email import send_email_with_attachment
+            num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+            recibo_enviado = send_email_with_attachment(
+                db,
+                to=email_destino,
+                subject=f"EcoFiver — Recibo de inscripción {num_sol}",
+                body=(
+                    f"Hola {socio_row.nombre},\n\n"
+                    f"El pago de inscripción de {venta.cliente_nombre} fue confirmado exitosamente.\n"
+                    f"Adjuntamos el recibo oficial para que se lo entregues al cliente.\n\n"
+                    f"Solicitud: {num_sol}\n"
+                    f"Cliente: {venta.cliente_nombre}\n"
+                    f"Monto acreditado: ${monto_confirmado:,.0f}\n\n"
+                    f"¡Gracias por tu trabajo!\nEquipo EcoFiver"
+                ),
+                attachment_path=pdf_path,
+                attachment_name=f"Recibo_{num_sol.replace('/', '-')}.pdf",
+            )
+
+    # También notificar por WA al socio
+    num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+    if socio_row:
+        _notificar_socio(
+            db, venta.aliado_codigo,
+            f"✅ *Pago confirmado — solicitud {num_sol}*\n"
+            f"El pago de ${monto_confirmado:,.0f} de {venta.cliente_nombre} fue verificado y acreditado.\n"
+            + (f"El recibo fue enviado a tu email ({email_destino})." if recibo_enviado else
+               f"Podés descargar el recibo desde tu panel de ventas."),
+        )
+
+    return {
+        "ok": True,
+        "inscripcion_completa": resultado.get("inscripcion_completa", False),
+        "recibo_enviado_email": recibo_enviado,
+        "email_destino": email_destino,
+        "monto_total_pagado": resultado.get("monto_pagado_inscripcion"),
+        "mensaje": (
+            f"Pago de ${monto_confirmado:,.0f} registrado. "
+            + ("Inscripción completa — recibo generado y enviado al socio." if resultado.get("inscripcion_completa") else
+               f"Acumulado: ${resultado.get('monto_pagado_inscripcion',0):,.0f} de ${venta.monto_inscripcion:,.0f}.")
+        ),
+    }
+
+
+@router.post("/api/admin/solicitudes-recibo/{venta_id}/rechazar")
+async def admin_rechazar_recibo(
+    venta_id: int,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Admin rechaza la solicitud con un motivo. Notifica al socio por WA."""
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    if venta.solicitud_recibo_estado != "PENDIENTE":
+        raise HTTPException(400, f"La solicitud está en estado '{venta.solicitud_recibo_estado}'")
+
+    data = await request.json()
+    motivo = (data.get("motivo") or "").strip()
+    if not motivo:
+        raise HTTPException(400, "Indicá el motivo del rechazo para notificar al socio")
+
+    venta.solicitud_recibo_estado      = "RECHAZADO"
+    venta.solicitud_recibo_notas_admin = motivo
+    db.commit()
+
+    num_sol = venta.numero_solicitud or f"VF-{venta.id}"
+    _notificar_socio(
+        db, venta.aliado_codigo,
+        f"❌ *Solicitud de recibo rechazada — {num_sol}*\n"
+        f"Cliente: {venta.cliente_nombre}\n"
+        f"Motivo: {motivo}\n"
+        f"Por favor cargá una nueva solicitud con el comprobante correcto.",
+    )
+    return {"ok": True, "mensaje": "Solicitud rechazada. El socio fue notificado por WhatsApp."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN — GESTIÓN DE CUENTAS DE SOCIOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/admin/socios/{codigo}/desbloquear")
+async def admin_desbloquear_socio(
+    codigo: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Desbloquea la cuenta de un socio que quedó bloqueada por demasiados intentos
+    de login fallidos. También resetea el contador de intentos.
+    Útil cuando el socio dice que no puede ingresar.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    socio = db.query(Aliado).filter(
+        Aliado.codigo == codigo.strip().upper()
+    ).first()
+    if not socio:
+        raise HTTPException(404, f"Socio {codigo} no encontrado")
+
+    socio.bloqueado_hasta  = None
+    socio.intentos_fallidos = 0
+    db.commit()
+
+    return {
+        "ok": True,
+        "codigo": socio.codigo,
+        "nombre": socio.nombre,
+        "estado": socio.estado,
+        "tiene_password": bool(socio.password_hash),
+        "whatsapp_verificado": bool(socio.whatsapp_verificado),
+        "mensaje": f"Cuenta de {socio.nombre} desbloqueada. Si el problema persiste, usá 'Olvidé mi contraseña' en el panel.",
+    }
+
+
+@router.get("/api/admin/socios")
+async def admin_listar_socios(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    q: str = "",
+):
+    """Lista todos los socios con su estado de acceso (para diagnóstico desde admin)."""
+    _require_gestion_interna(x_api_key, current_user)
+    query = db.query(Aliado)
+    if q:
+        query = query.filter(
+            (Aliado.nombre.ilike(f"%{q}%")) |
+            (Aliado.codigo.ilike(f"%{q}%")) |
+            (Aliado.email.ilike(f"%{q}%"))
+        )
+    socios = query.order_by(Aliado.id.desc()).all()
+    ahora = datetime.now()
+    return {"socios": [{
+        "codigo": s.codigo,
+        "nombre": s.nombre,
+        "email": s.email or "",
+        "telefono": s.telefono or "",
+        "estado": s.estado or "postulante",
+        "tiene_password": bool(s.password_hash),
+        "whatsapp_verificado": bool(s.whatsapp_verificado),
+        "perfil_completo": bool(s.perfil_completo),
+        "bloqueado": bool(s.bloqueado_hasta and s.bloqueado_hasta > ahora),
+        "bloqueado_hasta": s.bloqueado_hasta.isoformat() if s.bloqueado_hasta and s.bloqueado_hasta > ahora else None,
+        "intentos_fallidos": s.intentos_fallidos or 0,
+    } for s in socios]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PÁGINA DEL PANEL
 # ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/admin/entregas-calendario")
+async def admin_entregas_calendario(
+    desde: str = None,
+    hasta: str = None,
+    x_api_key: str = Header(None),
+    current_user=Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve todas las ventas de contado de socios que tienen fecha de entrega,
+    opcionalmente filtradas por rango de fechas (ISO YYYY-MM-DD).
+    Incluye comisión estimada calculada con el % vigente.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+
+    query = db.query(VentaContado).filter(
+        VentaContado.aliado_codigo.isnot(None),
+        VentaContado.fecha_instalacion.isnot(None),
+    )
+    if desde:
+        try:
+            d = datetime.strptime(desde, "%Y-%m-%d")
+            query = query.filter(VentaContado.fecha_instalacion >= d)
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            h = datetime.strptime(hasta, "%Y-%m-%d") + timedelta(hours=23, minutes=59, seconds=59)
+            query = query.filter(VentaContado.fecha_instalacion <= h)
+        except ValueError:
+            pass
+
+    ventas = query.order_by(VentaContado.fecha_instalacion.asc()).all()
+
+    resultado = []
+    for v in ventas:
+        pct = obtener_porcentaje_comision(db, "contado", v.producto or "PISCINA")
+        comision_est = round((v.precio_final or 0) * pct, 2)
+        estado_label = {
+            "COORDINADO": "Coordinada",
+            "ENTREGADO": "Entregada",
+            "CANCELADO": "Cancelada",
+        }.get(v.estado or "", v.estado or "—")
+        cobro_label = {
+            "PENDIENTE": "Cobro pendiente",
+            "COBRADO": "Cobrada ✓",
+            "PROBLEMA": "Problema de cobro",
+        }.get(v.cobro_estado or "", "—")
+        resultado.append({
+            "id": v.id,
+            "fecha_entrega": v.fecha_instalacion.strftime("%Y-%m-%d"),
+            "cliente_nombre": v.cliente_nombre,
+            "cliente_telefono": v.cliente_telefono or "",
+            "cliente_localidad": v.cliente_localidad or "",
+            "cliente_domicilio": v.cliente_domicilio or "",
+            "producto": v.producto or "",
+            "modelo_especifico": v.modelo_especifico or "",
+            "precio_final": v.precio_final or 0,
+            "flete_calculado": v.flete_calculado or 0,
+            "comision_estimada": comision_est,
+            "comision_pct": round(pct * 100, 2),
+            "estado": v.estado or "",
+            "estado_label": estado_label,
+            "cobro_estado": v.cobro_estado or "",
+            "cobro_label": cobro_label,
+            "aliado_codigo": v.aliado_codigo or "",
+            "confirmacion_48hs": bool(v.confirmacion_48hs_en),
+            "cobrado": v.cobro_estado == "COBRADO",
+            "created_at": v.created_at.strftime("%Y-%m-%d") if v.created_at else "",
+        })
+    return resultado
+
+
+@router.get("/socio/acceso-admin", response_class=HTMLResponse)
+async def socio_acceso_admin(
+    response: Response,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    Permite a un socio con es_admin_crm=True acceder al panel de administración.
+    Genera una sesión de admin CRM vinculada al socio y redirige a /aliados.
+    """
+    import json as _json, os as _os
+
+    if not socio.es_admin_crm:
+        raise HTTPException(403, "No tenés permisos de administrador del programa.")
+
+    # Buscar o crear el usuario CRM vinculado a este socio admin
+    email_admin = f"socio.admin.{socio.codigo.lower().replace('-', '')}@ecofiver.crm"
+    usuario_admin = db.query(Usuario).filter(Usuario.email == email_admin).first()
+    if not usuario_admin:
+        import hashlib as _hl
+        random_pass = _hl.sha256(_os.urandom(32)).hexdigest()
+        usuario_admin = Usuario(
+            nombre=f"{socio.nombre} (Socio Admin)",
+            email=email_admin,
+            password_hash=hash_password(random_pass),
+            roles_json=_json.dumps(["ADMIN"]),
+            activo=True,
+            es_agente_ia=False,
+        )
+        db.add(usuario_admin)
+        db.commit()
+        db.refresh(usuario_admin)
+
+    # Crear token de sesión admin
+    from datetime import timedelta
+    token = create_access_token(
+        {"sub": str(usuario_admin.id)},
+        expires_delta=timedelta(days=30),
+    )
+
+    # Redirigir al panel admin con el cookie de sesión seteado
+    redirect = RedirectResponse(url="/aliados", status_code=302)
+    redirect.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+        max_age=30 * 24 * 3600,
+    )
+    return redirect
+
+
+@router.put("/api/admin/aliados/{codigo}/set-admin-crm")
+async def set_socio_admin_crm(
+    codigo: str,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Otorga o revoca el rol de admin del programa a un aliado."""
+    _require_gestion_interna(x_api_key, current_user)
+    data = await request.json()
+    aliado = db.query(Aliado).filter(Aliado.codigo == codigo).first()
+    if not aliado:
+        raise HTTPException(404, "Aliado no encontrado")
+    aliado.es_admin_crm = bool(data.get("es_admin_crm", False))
+    db.commit()
+    estado = "habilitado" if aliado.es_admin_crm else "revocado"
+    return {"ok": True, "mensaje": f"Acceso admin del programa {estado} para {aliado.nombre}.", "es_admin_crm": aliado.es_admin_crm}
+
 
 @router.get("/panel-socio", response_class=HTMLResponse)
 async def panel_socio_page(request: Request):

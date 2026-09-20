@@ -335,9 +335,11 @@ class BaseAgent:
             # (Groq → OpenRouter → Grok). Antes solo se hacía con 429/503 y por eso a veces
             # caía en "no puedo responder" ante otros errores.
             logger.warning(f"[{self.name}] {provider.name} falló ({err_str[:80]}), probando fallbacks...")
+            # Modelos disponibles según el diagnóstico de la cuenta Groq configurada
             _groq_models = [
-                os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-                "llama-3.1-8b-instant",
+                "qwen/qwen3.8-27b",
+                "groq/compound-mini",
+                "groq/compound",
             ]
             reply = None
             for gm in _groq_models:
@@ -354,15 +356,15 @@ class BaseAgent:
                 except Exception as fe:
                     logger.warning(f"[{self.name}] Groq/{gm} falló: {fe}")
 
-            # Si Groq también falló, intentar OpenRouter y luego Grok (xAI)
+            # Si Groq también falló, intentar OpenRouter con modelo gratuito (sin créditos)
             if reply is None and os.getenv("OPENROUTER_API_KEY"):
                 try:
                     from providers.openrouter_provider import OpenRouterProvider
-                    reply = await OpenRouterProvider().generate(
+                    reply = await OpenRouterProvider(model="meta-llama/llama-3.1-8b-instruct:free").generate(
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    logger.info(f"[{self.name}] Fallback OpenRouter OK")
+                    logger.info(f"[{self.name}] Fallback OpenRouter:free OK")
                 except Exception as fe:
-                    logger.warning(f"[{self.name}] OpenRouter falló: {fe}")
+                    logger.warning(f"[{self.name}] OpenRouter:free falló: {fe}")
 
             if reply is None and (os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")):
                 try:

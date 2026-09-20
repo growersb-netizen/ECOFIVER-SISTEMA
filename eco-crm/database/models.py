@@ -255,6 +255,8 @@ class VentaContado(Base):
     cliente_nombre = Column(String(150), nullable=False)
     cliente_telefono = Column(String(30))
     cliente_localidad = Column(String(100))
+    cliente_domicilio = Column(String(300), nullable=True)   # calle y altura, para flete/entrega real
+    cliente_email = Column(String(150), nullable=True)
     producto = Column(String(20))
     modelo_especifico = Column(String(150))
     color = Column(String(50), nullable=True)
@@ -298,6 +300,9 @@ class VentaContado(Base):
     vendedor           = relationship("Usuario", foreign_keys=[vendedor_id])
     equipo_instalador  = relationship("EquipoInstalador", foreign_keys=[equipo_instalador_id])
 
+    # Contrato firmable — generado cuando el socio lo solicita
+    contrato_generado_en = Column(DateTime(timezone=True), nullable=True)
+
 
 class VentaFinanciada(Base):
     __tablename__ = "ventas_financiadas"
@@ -310,6 +315,8 @@ class VentaFinanciada(Base):
     modelo_especifico = Column(String(150))
     color = Column(String(50), nullable=True)
     superficie_m2 = Column(Float, nullable=True)
+    distancia_km = Column(Float, nullable=True)
+    flete_calculado = Column(Float, nullable=True)
     forma_pago = Column(String(20))
     precio_total = Column(Float, default=0)
     anticipo = Column(Float, default=0)
@@ -353,6 +360,14 @@ class VentaFinanciada(Base):
     link_confirmacion_confirmada_en = Column(DateTime(timezone=True), nullable=True)  # cliente aceptó por el link
     auditoria_bienvenida_en = Column(DateTime(timezone=True), nullable=True)  # llamada del equipo — dispara comisión
     licitacion_solicitada_en = Column(DateTime(timezone=True), nullable=True)  # pedido de entrega anticipada
+
+    # ── Solicitud de recibo por el socio (comprobante de pago pendiente de aprobación admin) ──
+    solicitud_recibo_en           = Column(DateTime(timezone=True), nullable=True)
+    solicitud_recibo_monto        = Column(Float, nullable=True)          # monto que el socio declara haber pagado
+    solicitud_recibo_comprobante  = Column(String(500), nullable=True)    # path al archivo subido
+    solicitud_recibo_notas        = Column(Text, nullable=True)           # notas del socio
+    solicitud_recibo_estado       = Column(String(20), nullable=True)     # PENDIENTE / APROBADO / RECHAZADO
+    solicitud_recibo_notas_admin  = Column(Text, nullable=True)           # motivo de rechazo (admin)
 
     asesor_apertura = relationship("Usuario", foreign_keys=[asesor_apertura_id])
     supervisor_cierre = relationship("Usuario", foreign_keys=[supervisor_cierre_id])
@@ -1354,6 +1369,9 @@ class Aliado(Base):
     # ── Calificación del lead: qué le interesa vender (PISCINAS | MODULOS | AMBOS) ──
     interes_venta = Column(String(20), nullable=True)
 
+    # ── Rol de administrador del programa (acceso al CRM admin desde el panel) ──
+    es_admin_crm = Column(Boolean, default=False)
+
 
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,
@@ -1618,7 +1636,7 @@ class MetaPagina(Base):
     auto_reply_mensajes = Column(Boolean, default=False)      # auto-responder mensajes privados (Messenger)
     auto_eliminar_negativos = Column(Boolean, default=False)  # eliminar comentarios negativos
     webhook_subscribed = Column(Boolean, default=False)       # página suscrita al webhook
-    numero_whatsapp = Column(String(30), default="1144498854")  # número al que redirige
+    numero_whatsapp = Column(String(30), default=None)  # número al que redirige la IA
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 

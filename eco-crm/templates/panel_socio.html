@@ -79,6 +79,25 @@
   .pill.bad{background:var(--bad-bg);color:var(--bad)}
 
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+
+  /* ── Cronograma de entregas ── */
+  .crono-filtro{padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;transition:background .15s}
+  .crono-filtro.active{background:var(--navy,#1a3a6b)!important;color:#fff!important;border-color:var(--navy,#1a3a6b)!important}
+  .crono-dia-header{display:flex;align-items:center;gap:12px;margin:20px 0 10px}
+  .crono-dia-fecha{font-size:13px;font-weight:700;color:var(--navy,#1a3a6b);white-space:nowrap}
+  .crono-dia-linea{flex:1;height:1px;background:var(--border)}
+  .crono-dia-badge{font-size:11px;padding:2px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text-muted);white-space:nowrap}
+  .crono-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
+  .crono-card.hoy{border-left:4px solid var(--teal,#2563EB)}
+  .crono-card.cobrada{opacity:.65}
+  .crono-card-left{}
+  .crono-cliente{font-weight:700;font-size:14px;margin-bottom:2px}
+  .crono-producto{font-size:12.5px;color:var(--text-muted);margin-bottom:4px}
+  .crono-card-right{text-align:right;min-width:120px}
+  .crono-monto{font-size:15px;font-weight:800;color:var(--navy,#1a3a6b)}
+  .crono-comision{font-size:11.5px;color:var(--teal,#2563EB);font-weight:600;margin-top:2px}
+  .crono-hoy-badge{background:#dbeafe;color:#1e40af;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:6px;margin-left:6px;vertical-align:middle}
+  .crono-empty{text-align:center;color:var(--text-muted);padding:40px 20px;font-size:14px}
   @media (max-width:700px){.grid2{grid-template-columns:1fr}}
   .biblio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
   .biblio-card{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--surface)}
@@ -243,6 +262,7 @@
     <a class="nav-item" data-section="simulador" onclick="nav('simulador')">🧮 Simulador de cuotas</a>
     <a class="nav-item" data-section="ventas" onclick="nav('ventas')">💼 Cargar venta</a>
     <a class="nav-item" data-section="mis-ventas" onclick="nav('mis-ventas')">📦 Mis ventas</a>
+    <a class="nav-item" data-section="cronograma" onclick="nav('cronograma')">📅 Cronograma de entregas</a>
     <a class="nav-item" data-section="comisiones" onclick="nav('comisiones')">💰 Mis comisiones</a>
     <a class="nav-item" data-section="ranking" onclick="nav('ranking')">🏆 Ranking</a>
     <a class="nav-item" data-section="empresa" onclick="nav('empresa')">🏭 Mi Empresa</a>
@@ -250,6 +270,10 @@
     <a class="nav-item" data-section="capacitacion" onclick="nav('capacitacion')">🎓 Capacitación</a>
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
     <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
+    <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-admin" target="_blank"
+       style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:var(--teal);font-weight:700">
+      🔧 Panel Admin CRM
+    </a>
     <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
   </div>
 
@@ -353,11 +377,17 @@
           <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px" id="c-nota-instalacion">La instalación está incluida en la mayoría de los productos. Fuera del área de cobertura directa, se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona.</p>
           <label>Nombre del cliente</label><input id="c-nombre">
           <label>Teléfono</label><input id="c-tel">
+          <label>Email <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="c-email" type="email">
+          <label>Domicilio (calle y altura)</label><input id="c-domicilio" placeholder="Necesario para coordinar la entrega">
           <label>Localidad</label><input id="c-loc">
           <label>Categoría</label>
           <select id="c-categoria" onchange="poblarProductoVenta('c')"></select>
           <label>Producto</label>
           <select id="c-modelo" onchange="actualizarPrecioVenta('c')"></select>
+          <div id="c-color-wrap" class="hidden">
+            <label>Color</label>
+            <select id="c-color"></select>
+          </div>
           <div id="c-nivel-instalacion-wrap" class="hidden">
             <label>Nivel de instalación</label>
             <select id="c-nivel-instalacion" onchange="actualizarPrecioVenta('c')">
@@ -366,7 +396,26 @@
               <option value="sin_equipo">Sin instalación y sin equipo</option>
             </select>
           </div>
+          <div id="c-modulo-part-wrap" class="hidden">
+            <label>Particularidades del módulo</label>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:13px">
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-banio" style="width:auto"> Con baño</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-cocina" style="width:auto"> Con cocina</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-puerta" style="width:auto"> Puerta de ingreso</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;margin:0"><input type="checkbox" id="c-con-ventana" style="width:auto"> Ventana/balcón</label>
+            </div>
+            <label>Se instala sobre</label>
+            <select id="c-sobre-piso">
+              <option value="">Sin especificar</option>
+              <option value="PISO">Piso (platea/contrapiso)</option>
+              <option value="TIERRA">Tierra</option>
+            </select>
+          </div>
+          <label>Distancia estimada desde Zárate (km) <span style="color:var(--text-muted);font-weight:400">(para calcular el flete)</span></label>
+          <input id="c-km" type="number" placeholder="Ej: 120">
           <label>Precio final</label><input id="c-precio" type="number">
+          <label>Fecha de entrega estimada <span style="color:var(--text-muted);font-weight:400">(opcional — para el calendario)</span></label>
+          <input id="c-fecha-entrega" type="date" style="width:100%;box-sizing:border-box">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarContado()">Cargar venta de contado</button>
           <div class="msg" id="c-msg"></div>
         </div>
@@ -376,6 +425,8 @@
           <label>Nombre del cliente</label><input id="f-nombre">
           <label>DNI</label><input id="f-dni">
           <label>Teléfono</label><input id="f-tel">
+          <label>Email <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="f-email" type="email">
+          <label>Domicilio (calle y altura)</label><input id="f-domicilio" placeholder="Necesario para coordinar la entrega">
           <label>Localidad</label><input id="f-loc">
           <label>Categoría</label>
           <select id="f-prod" onchange="poblarProductoVenta('f')">
@@ -384,6 +435,12 @@
           </select>
           <label>Producto</label>
           <select id="f-modelo"></select>
+          <div id="f-color-wrap" class="hidden">
+            <label>Color</label>
+            <select id="f-color"></select>
+          </div>
+          <label>Distancia estimada desde Zárate (km) <span style="color:var(--text-muted);font-weight:400">(para calcular el flete)</span></label>
+          <input id="f-km" type="number" placeholder="Ej: 120">
           <label>Cuotas</label><input id="f-cuotas" type="number" value="24">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarFinanciado()">Cargar venta financiada</button>
           <div class="msg" id="f-msg"></div>
@@ -398,6 +455,31 @@
       <div id="tabla-financiado">Cargando…</div>
       <h3 style="font-size:14px;margin-top:24px">Contado</h3>
       <div id="tabla-contado"></div>
+    </section>
+
+    <!-- CRONOGRAMA DE ENTREGAS -->
+    <section class="section" id="sec-cronograma">
+      <h2>Cronograma de entregas</h2>
+      <p style="color:var(--text-muted);font-size:13.5px;margin-top:-6px;margin-bottom:20px">
+        Tus ventas de contado ordenadas por fecha de entrega acordada con el cliente.
+      </p>
+
+      <div id="cronograma-filtros" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+        <button class="btn-ghost crono-filtro active" data-f="todos" onclick="filtrarCronograma('todos',this)">Todas</button>
+        <button class="btn-ghost crono-filtro" data-f="proximas" onclick="filtrarCronograma('proximas',this)">Próximas</button>
+        <button class="btn-ghost crono-filtro" data-f="semana" onclick="filtrarCronograma('semana',this)">Esta semana</button>
+        <button class="btn-ghost crono-filtro" data-f="mes" onclick="filtrarCronograma('mes',this)">Este mes</button>
+        <button class="btn-ghost crono-filtro" data-f="pasadas" onclick="filtrarCronograma('pasadas',this)">Pasadas</button>
+      </div>
+
+      <!-- KPIs rápidos -->
+      <div class="kpis" id="crono-kpis" style="margin-bottom:20px">
+        <div class="kpi"><div class="v" id="ck-total">—</div><div class="l">Entregas con fecha</div></div>
+        <div class="kpi"><div class="v" id="ck-proximas">—</div><div class="l">Próximas 30 días</div></div>
+        <div class="kpi"><div class="v" id="ck-comision" style="color:var(--teal,#2563EB)">$0</div><div class="l">Comisión estimada (próximas)</div></div>
+      </div>
+
+      <div id="crono-lista">Cargando…</div>
     </section>
 
     <!-- COMISIONES -->
@@ -713,7 +795,12 @@ async function doLogout(){
 async function cargarApp(){
   try{
     SOCIO = await api('/api/socio/me');
-  }catch(e){ return; }
+  }catch(e){
+    // Si hay un error real (no solo "no autenticado"), lo relanzamos para que
+    // doLogin() pueda mostrárselo al usuario en lugar de quedar en silencio.
+    if(e && e.message && e.message !== 'No autenticado') throw e;
+    return;
+  }
   document.getElementById('auth-screens').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
   const tilde = SOCIO.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
@@ -725,6 +812,10 @@ async function cargarApp(){
   document.getElementById('p-cuit').value = SOCIO.cuit_monotributo || '';
   document.getElementById('p-interes').value = SOCIO.interes_venta || 'AMBOS';
   actualizarEstadoVerificacionPerfil();
+  // Mostrar enlace al panel admin si el socio tiene ese rol
+  if(SOCIO.es_admin_crm){
+    document.getElementById('nav-admin-crm').classList.remove('hidden');
+  }
   cargarComisiones();
   cargarCatalogo();
   cargarProgreso();
@@ -816,12 +907,142 @@ function nav(section){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+section).classList.add('active');
   if(section==='mis-ventas') cargarMisVentas();
+  if(section==='cronograma') cargarCronograma();
   if(section==='comisiones') cargarComisionesTabla();
   if(section==='simulador') cargarMisPresupuestos();
   if(section==='ranking') cargarRanking();
   if(section==='biblioteca') cargarBiblioteca();
   if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
   if(section==='ayuda') cargarFaq();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CRONOGRAMA DE ENTREGAS
+// ══════════════════════════════════════════════════════════════════
+let _cronoData = [];  // cache de todas las ventas contado con fecha
+
+async function cargarCronograma(){
+  const lista = document.getElementById('crono-lista');
+  lista.textContent = 'Cargando…';
+  try{
+    const data = await api('/api/socio/ventas');
+    // Sólo ventas contado con fecha_entrega cargada
+    _cronoData = (data.contado || [])
+      .filter(v => v.fecha_entrega)
+      .sort((a, b) => a.fecha_entrega < b.fecha_entrega ? -1 : 1);
+    _renderCronograma();
+  }catch(e){
+    lista.innerHTML = `<div class="crono-empty">No pudimos cargar el cronograma.</div>`;
+  }
+}
+
+function _filtrarCronoVentas(filtro){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fin7 = new Date(hoy); fin7.setDate(fin7.getDate() + 7);
+  const finMes = new Date(hoy.getFullYear(), hoy.getMonth()+1, 0);
+
+  return _cronoData.filter(v => {
+    const fe = new Date(v.fecha_entrega + 'T00:00:00');
+    if(filtro === 'proximas') return fe >= hoy;
+    if(filtro === 'semana')   return fe >= hoy && fe <= fin7;
+    if(filtro === 'mes')      return fe >= hoy && fe <= finMes;
+    if(filtro === 'pasadas')  return fe < hoy;
+    return true; // todos
+  });
+}
+
+function filtrarCronograma(filtro, btn){
+  document.querySelectorAll('.crono-filtro').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  _renderCronograma(filtro);
+}
+
+function _renderCronograma(filtro){
+  // Leer filtro activo si no se pasa
+  if(!filtro){
+    const activo = document.querySelector('.crono-filtro.active');
+    filtro = activo ? activo.dataset.f : 'todos';
+  }
+
+  const ventas = _filtrarCronoVentas(filtro);
+  const lista = document.getElementById('crono-lista');
+  const hoyStr = new Date().toISOString().split('T')[0];
+
+  // KPIs
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fin30 = new Date(hoy); fin30.setDate(fin30.getDate() + 30);
+  const proximas = _cronoData.filter(v => { const f = new Date(v.fecha_entrega+'T00:00:00'); return f >= hoy && f <= fin30; });
+  document.getElementById('ck-total').textContent    = _cronoData.length;
+  document.getElementById('ck-proximas').textContent = proximas.length;
+  // Comisión estimada de próximas: precio * % (obtenido del socio)
+  // El API ya incluye comisiones en /api/socio/comisiones; calculamos aquí con precio directo
+  // (sin el % exacto disponible client-side, mostramos la suma de precio para orientar)
+  // Si hay comisiones del servidor, bien; si no, dejamos en blanco
+  const comEst = proximas.reduce((s, v) => s + (v.precio_final || 0) * 0.05, 0);
+  document.getElementById('ck-comision').textContent = fmt(comEst);
+
+  if(!ventas.length){
+    const msgs = {
+      proximas:'No hay entregas próximas con fecha cargada.',
+      semana:'No hay entregas esta semana.',
+      mes:'No hay entregas este mes.',
+      pasadas:'No hay entregas pasadas registradas.',
+      todos:'Todavía no cargaste ventas de contado con fecha de entrega acordada.',
+    };
+    lista.innerHTML = `<div class="crono-empty">📅 ${msgs[filtro]||msgs.todos}</div>`;
+    return;
+  }
+
+  // Agrupar por fecha
+  const porFecha = {};
+  for(const v of ventas){
+    (porFecha[v.fecha_entrega] = porFecha[v.fecha_entrega] || []).push(v);
+  }
+
+  let html = '';
+  for(const fecha of Object.keys(porFecha).sort()){
+    const esHoy   = fecha === hoyStr;
+    const esFutura = fecha > hoyStr;
+    const fechaObj = new Date(fecha + 'T00:00:00');
+    const fechaFmt = fechaObj.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+    const fechaCap = fechaFmt.charAt(0).toUpperCase() + fechaFmt.slice(1);
+    const items    = porFecha[fecha];
+
+    html += `<div class="crono-dia-header">
+      <div class="crono-dia-fecha">${fechaCap}${esHoy?'<span class="crono-hoy-badge">HOY</span>':''}</div>
+      <div class="crono-dia-linea"></div>
+      <div class="crono-dia-badge">${items.length} entrega${items.length>1?'s':''}</div>
+    </div>`;
+
+    for(const v of items){
+      const cobrada  = v.cobro_estado === 'COBRADO';
+      const confirmada = !!v.confirmacion_48hs;
+      const estadoBadge = cobrada
+        ? '<span class="pill ok">Entregada ✓</span>'
+        : (confirmada
+           ? '<span class="pill warn">Confirmada</span>'
+           : '<span class="pill warn">Coordinada</span>');
+      const detalle = [v.color, v.cliente_localidad].filter(Boolean).join(' · ');
+      const comisionEst = fmt((v.precio_final || 0) * 0.05);
+
+      html += `<div class="crono-card${esHoy?' hoy':''}${cobrada?' cobrada':''}">
+        <div class="crono-card-left">
+          <div class="crono-cliente">${v.cliente_nombre}${esHoy?'<span class="crono-hoy-badge">HOY</span>':''}</div>
+          <div class="crono-producto">${v.producto} ${v.modelo_especifico}${detalle?` · ${detalle}`:''}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${v.cliente_domicilio||v.cliente_localidad||'Sin domicilio'}</div>
+          ${v.cliente_telefono?`<div style="font-size:12px;margin-top:2px">📱 ${v.cliente_telefono}</div>`:''}
+          <div style="margin-top:8px">${estadoBadge}</div>
+        </div>
+        <div class="crono-card-right">
+          <div class="crono-monto">${fmt(v.precio_final)}</div>
+          <div class="crono-comision">Comisión est. ${comisionEst}</div>
+          ${v.flete_calculado?`<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Flete: ${fmt(v.flete_calculado)}</div>`:''}
+        </div>
+      </div>`;
+    }
+  }
+
+  lista.innerHTML = html;
 }
 
 async function cargarProgreso(){
@@ -1085,8 +1306,19 @@ function poblarProductoVenta(prefix){
   const items = obtenerItemsCategoria(categoria);
   const selModelo = document.getElementById(prefix+'-modelo');
   selModelo.innerHTML = items.map(it => `<option value="${it.nombre.replace(/"/g,'&quot;')}">${it.nombre}</option>`).join('') || '<option value="">Sin productos cargados</option>';
+
+  const esPiscina = categoria === 'piscinas';
+  const colorWrap = document.getElementById(prefix+'-color-wrap');
+  if(colorWrap){
+    colorWrap.classList.toggle('hidden', !esPiscina);
+    if(esPiscina){
+      const colores = (CATALOGO.piscinas.colores||[]);
+      document.getElementById(prefix+'-color').innerHTML = colores.map(c => `<option>${c}</option>`).join('') || '<option value="">Consultar</option>';
+    }
+  }
   if(prefix === 'c'){
-    document.getElementById('c-nivel-instalacion-wrap').classList.toggle('hidden', categoria !== 'piscinas');
+    document.getElementById('c-nivel-instalacion-wrap').classList.toggle('hidden', !esPiscina);
+    document.getElementById('c-modulo-part-wrap').classList.toggle('hidden', categoria !== 'modulos');
     actualizarPrecioVenta('c');
   }
 }
@@ -1114,17 +1346,30 @@ async function cargarContado(){
   const msg = document.getElementById('c-msg'); msg.className='msg'; msg.textContent='';
   try{
     const categoria = document.getElementById('c-categoria').value;
+    const esPiscina = categoria === 'piscinas';
+    const esModulo = categoria === 'modulos';
     const body = {
       cliente_nombre: document.getElementById('c-nombre').value,
       cliente_telefono: document.getElementById('c-tel').value,
+      cliente_email: document.getElementById('c-email').value,
+      cliente_domicilio: document.getElementById('c-domicilio').value,
       cliente_localidad: document.getElementById('c-loc').value,
       producto: CATEGORIA_A_PRODUCTO[categoria] || categoria.toUpperCase(),
       modelo_especifico: document.getElementById('c-modelo').value,
+      color: esPiscina ? document.getElementById('c-color').value : '',
+      distancia_km: document.getElementById('c-km').value || null,
       precio_final: parseFloat(document.getElementById('c-precio').value || 0),
-      nivel_instalacion: categoria === 'piscinas' ? document.getElementById('c-nivel-instalacion').value : 'con',
+      nivel_instalacion: esPiscina ? document.getElementById('c-nivel-instalacion').value : 'con',
+      con_banio: esModulo && document.getElementById('c-con-banio').checked,
+      con_cocina: esModulo && document.getElementById('c-con-cocina').checked,
+      con_puerta_ingreso: esModulo && document.getElementById('c-con-puerta').checked,
+      con_ventana_balcon: esModulo && document.getElementById('c-con-ventana').checked,
+      sobre_piso: esModulo ? document.getElementById('c-sobre-piso').value : '',
+      fecha_entrega: document.getElementById('c-fecha-entrega').value || null,
     };
     const data = await api('/api/socio/ventas/contado', {method:'POST', body: JSON.stringify(body)});
-    msg.className='msg ok'; msg.textContent = data.mensaje;
+    msg.className='msg ok';
+    msg.textContent = data.mensaje + (data.flete_calculado ? ` Flete estimado: ${fmt(data.flete_calculado)}.` : '');
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
@@ -1164,18 +1409,24 @@ async function cargarFinanciado(){
   const msg = document.getElementById('f-msg'); msg.className='msg'; msg.textContent='';
   try{
     let modelo = document.getElementById('f-modelo').value;
+    const esPiscina = document.getElementById('f-prod').value === 'PISCINA';
     const body = {
       cliente_nombre: document.getElementById('f-nombre').value,
       cliente_dni: document.getElementById('f-dni').value,
       cliente_telefono: document.getElementById('f-tel').value,
+      cliente_email: document.getElementById('f-email').value,
+      cliente_domicilio: document.getElementById('f-domicilio').value,
       cliente_localidad: document.getElementById('f-loc').value,
       producto: document.getElementById('f-prod').value,
       modelo_especifico: modelo,
+      color: esPiscina ? document.getElementById('f-color').value : '',
+      distancia_km: document.getElementById('f-km').value || null,
       cantidad_cuotas: parseInt(document.getElementById('f-cuotas').value || 0),
     };
     const data = await api('/api/socio/ventas/financiado', {method:'POST', body: JSON.stringify(body)});
     msg.className='msg ok';
-    msg.textContent = `${data.mensaje} Cuota: ${fmt(data.valor_cuota)} — Inscripción: ${fmt(data.monto_inscripcion)}`;
+    msg.textContent = `${data.mensaje} Cuota: ${fmt(data.valor_cuota)} — Inscripción: ${fmt(data.monto_inscripcion)}`
+      + (data.flete_calculado ? ` Flete estimado: ${fmt(data.flete_calculado)}.` : '');
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
@@ -1185,10 +1436,11 @@ async function cargarMisVentas(){
 
   let hf = '<table><tr><th>Cliente</th><th>Producto</th><th>Línea de tiempo</th><th>Solicitud</th><th></th></tr>';
   for(const v of data.financiado){
+    // Orden correcto del flujo: contrato primero (para cerrar la venta), luego pago
     const pasos = [
       {l:'Cargada', ok:true},
+      {l:'Contrato generado', ok:v.contrato_generado},
       {l:'Seña recibida', ok:v.sena_recibida},
-      {l:'Contrato', ok:v.contrato_generado},
       {l:'Inscripción completa', ok:v.inscripcion_pagada},
       {l:'Cliente confirmó', ok:v.cliente_confirmo},
       {l:'Bienvenida', ok:v.auditoria_completada},
@@ -1200,33 +1452,74 @@ async function cargarMisVentas(){
     }
     let accion = '';
     if(v.contrato_generado){
+      // Ya generado: mostrar descarga + botón regenerar
       accion = `<a href="/api/socio/ventas/${v.id}/contrato-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">📄 Contrato</a>`;
+      accion += ` <button class="btn-ghost" style="font-size:12px;padding:5px 8px;opacity:.7" onclick="generarContrato(${v.id})" title="Regenerar PDF">↻</button>`;
     } else {
-      accion = `<button class="btn-teal" onclick="generarContrato(${v.id})">Generar contrato</button>`;
+      // Aún no generado: el socio puede generarlo en cualquier momento para cerrar la venta
+      accion = `<button class="btn-teal" style="font-size:12.5px" onclick="generarContrato(${v.id})">📄 Generar contrato</button>`;
     }
     if(v.recibo_generado){
       accion += ` <a href="/api/socio/ventas/${v.id}/recibo-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">🧾 Recibo</a>`;
+    } else if(!v.inscripcion_pagada){
+      // Recibo no emitido: mostrar botón según estado de la solicitud
+      if(v.solicitud_recibo_estado === 'PENDIENTE'){
+        accion += ` <span class="pill warn" title="El equipo está verificando tu comprobante">⏳ Recibo en revisión</span>`;
+      } else if(v.solicitud_recibo_estado === 'RECHAZADO'){
+        accion += ` <button class="btn-ghost" style="font-size:12px;padding:5px 9px;color:#d63031" onclick="abrirSolicitudRecibo(${v.id})" title="Rechazado: ${(v.solicitud_recibo_notas_admin||'').replace(/'/g, "\\'")}">⚠️ Reintentar recibo</button>`;
+      } else {
+        // Sin solicitud activa: mostrar botón principal
+        accion += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirSolicitudRecibo(${v.id})">💳 Solicitar recibo</button>`;
+      }
     }
+    // Link de confirmación disponible apenas se genera el contrato (no requiere pago previo)
     if(v.link_confirmacion_token && !v.cliente_confirmo){
-      accion += ` <span class="copyable">${location.origin}/socio/confirmar/${v.link_confirmacion_token}</span>`;
+      accion += ` <button class="btn-ghost" style="font-size:12px;padding:5px 8px" onclick="copiarLink('/socio/confirmar/${v.link_confirmacion_token}')" title="Copiar link de confirmación">🔗 Link cliente</button>`;
     }
     if(v.puede_licitar && !v.licitacion_solicitada){
       accion += ` <button class="btn-ghost" onclick="solicitarLicitacion(${v.id})">🏗️ Solicitar entrega anticipada</button>`;
     } else if(v.licitacion_solicitada){
       accion += ' <span class="pill ok">Licitación solicitada</span>';
     }
-    hf += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td style="white-space:normal">${timeline}${progreso}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
+    const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
+    const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
+    hf += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td style="white-space:normal">${timeline}${progreso}</td><td>${v.numero_solicitud||'—'}</td><td>${accion}</td></tr>`;
   }
   hf += '</table>';
   document.getElementById('tabla-financiado').innerHTML = hf || 'Todavía no cargaste ventas financiadas.';
 
-  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>Estado</th></tr>';
-  for(const v of data.contado){
-    const pill = v.cobro_estado==='COBRADO' ? '<span class="pill ok">Entregada y cobrada</span>' : (v.confirmacion_48hs ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
-    hc += `<tr><td>${v.cliente_nombre}</td><td>${v.producto} ${v.modelo_especifico}</td><td>${fmt(v.precio_final)}</td><td>${pill}</td></tr>`;
+  // Ordenar ventas contado: primero las que tienen fecha (por fecha asc), luego las sin fecha
+  const contadoOrdenado = [...(data.contado||[])].sort((a,b)=>{
+    if(a.fecha_entrega && b.fecha_entrega) return a.fecha_entrega < b.fecha_entrega ? -1 : 1;
+    if(a.fecha_entrega) return -1;
+    if(b.fecha_entrega) return 1;
+    return 0;
+  });
+  let hc = '<table><tr><th>Cliente</th><th>Producto</th><th>Monto</th><th>📅 Entrega</th><th>Estado</th><th></th></tr>';
+  for(const v of contadoOrdenado){
+    const cobrado = v.cobro_estado==='COBRADO';
+    const confirmada = !!v.confirmacion_48hs;
+    const pill = cobrado ? '<span class="pill ok">Entregada y cobrada</span>' : (confirmada ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
+    const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
+    const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
+    const fechaEntregaCell = v.fecha_entrega
+      ? `<span style="font-weight:600">${v.fecha_entrega}</span>`
+      : `<span style="color:var(--text-muted);font-size:12px">—</span>`;
+    const puedeModificar = !cobrado && !confirmada;
+    let accionC = '';
+    if(v.contrato_generado){
+      accionC = `<a href="/api/socio/ventas/contado/${v.id}/contrato-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">📄 Contrato</a>`;
+    } else {
+      accionC = `<button class="btn-teal" style="font-size:12.5px;padding:6px 12px" onclick="generarContratoContado(${v.id})">Generar contrato</button>`;
+    }
+    if(puedeModificar){
+      accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirEditarVenta(${JSON.stringify(v).replace(/"/g,'&quot;')})">✏️ Editar</button>`;
+      accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px;color:#d63031" onclick="eliminarVentaContado(${v.id},'${(v.cliente_nombre||'').replace(/'/g,"\\'")}')">🗑️</button>`;
+    }
+    hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td style="white-space:nowrap">${fechaEntregaCell}</td><td>${pill}</td><td style="white-space:nowrap">${accionC}</td></tr>`;
   }
   hc += '</table>';
-  document.getElementById('tabla-contado').innerHTML = hc;
+  document.getElementById('tabla-contado').innerHTML = hc || 'Todavía no cargaste ventas de contado.';
 }
 
 async function solicitarLicitacion(ventaId){
@@ -1238,12 +1531,102 @@ async function solicitarLicitacion(ventaId){
 }
 
 async function generarContrato(ventaId){
+  const btn = event && event.target;
+  if(btn){ btn.disabled = true; btn.textContent = 'Generando…'; }
   try{
     const data = await api(`/api/socio/ventas/${ventaId}/generar-contrato`, {method:'POST'});
     window.open(data.contrato_pdf_url, '_blank');
-    alert('Se descargó el resumen del plan en PDF.\n\nMandale este link al cliente para que confirme:\n' + data.link_confirmacion);
+    const msg = data.pago_acreditado
+      ? `✅ Contrato regenerado con pago acreditado.\n\nLink de confirmación:\n${data.link_confirmacion}`
+      : `📄 Contrato generado.\n\n${data.mensaje}\n\nLink de confirmación para el cliente:\n${data.link_confirmacion}\n\nCopialoy enviáselo para que confirme su adhesión al plan.`;
+    alert(msg);
     cargarMisVentas();
-  }catch(e){ alert(e.message); }
+  }catch(e){
+    alert('Error al generar el contrato: ' + e.message);
+    if(btn){ btn.disabled = false; btn.textContent = '📄 Generar contrato'; }
+  }
+}
+
+function copiarLink(path){
+  const url = location.origin + path;
+  navigator.clipboard.writeText(url).then(
+    () => { alert('Link copiado al portapapeles:\n' + url); },
+    () => { prompt('Copiá el link manualmente:', url); }
+  );
+}
+
+async function generarContratoContado(ventaId){
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Generando…';
+  try{
+    const data = await api(`/api/socio/ventas/contado/${ventaId}/generar-contrato`, {method:'POST'});
+    window.open(data.contrato_pdf_url, '_blank');
+    cargarMisVentas();
+  }catch(e){
+    alert('No se pudo generar el contrato: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Generar contrato';
+  }
+}
+
+// ── Editar / Eliminar venta contado ─────────────────────────────────────────
+let _editandoVentaId = null;
+
+function abrirEditarVenta(v){
+  _editandoVentaId = v.id;
+  document.getElementById('edit-cliente-nombre').value   = v.cliente_nombre || '';
+  document.getElementById('edit-cliente-telefono').value = v.cliente_telefono || '';
+  document.getElementById('edit-cliente-localidad').value= v.cliente_localidad || '';
+  document.getElementById('edit-cliente-domicilio').value= v.cliente_domicilio || '';
+  document.getElementById('edit-cliente-email').value    = v.cliente_email || '';
+  document.getElementById('edit-modelo').value           = v.modelo_especifico || '';
+  document.getElementById('edit-color').value            = v.color || '';
+  document.getElementById('edit-precio').value           = v.precio_final || '';
+  document.getElementById('edit-distancia').value        = v.distancia_km || '';
+  document.getElementById('edit-notas').value            = v.notas || '';
+  document.getElementById('edit-fecha-entrega').value    = v.fecha_entrega || '';
+  document.getElementById('modal-editar-venta').style.display = 'flex';
+}
+
+function cerrarEditarVenta(){
+  document.getElementById('modal-editar-venta').style.display = 'none';
+  _editandoVentaId = null;
+}
+
+async function guardarEdicionVenta(){
+  if(!_editandoVentaId) return;
+  const body = {
+    cliente_nombre:    document.getElementById('edit-cliente-nombre').value.trim(),
+    cliente_telefono:  document.getElementById('edit-cliente-telefono').value.trim(),
+    cliente_localidad: document.getElementById('edit-cliente-localidad').value.trim(),
+    cliente_domicilio: document.getElementById('edit-cliente-domicilio').value.trim(),
+    cliente_email:     document.getElementById('edit-cliente-email').value.trim(),
+    modelo_especifico: document.getElementById('edit-modelo').value.trim(),
+    color:             document.getElementById('edit-color').value.trim(),
+    precio_final:      parseFloat(document.getElementById('edit-precio').value)||null,
+    distancia_km:      parseFloat(document.getElementById('edit-distancia').value)||null,
+    notas:             document.getElementById('edit-notas').value.trim(),
+    fecha_entrega:     document.getElementById('edit-fecha-entrega').value || null,
+  };
+  const btn = document.getElementById('btn-guardar-edicion');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try{
+    await api(`/api/socio/ventas/contado/${_editandoVentaId}`, {method:'PUT', body: JSON.stringify(body)});
+    cerrarEditarVenta();
+    cargarMisVentas();
+  }catch(e){
+    alert('No se pudo guardar: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Guardar cambios';
+  }
+}
+
+async function eliminarVentaContado(id, nombre){
+  if(!confirm(`¿Eliminar la venta de "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try{
+    await api(`/api/socio/ventas/contado/${id}`, {method:'DELETE'});
+    cargarMisVentas();
+  }catch(e){
+    alert('No se pudo eliminar: ' + e.message);
+  }
 }
 
 async function cargarComisiones(){
@@ -1373,6 +1756,167 @@ async function subirDoc(tipo){
 
 // Intento de sesión ya iniciada al cargar la página
 cargarApp();
+
+// ── Solicitud de recibo con comprobante ─────────────────────────────────────
+let _solicitudReciboVentaId = null;
+
+function abrirSolicitudRecibo(ventaId){
+  _solicitudReciboVentaId = ventaId;
+  document.getElementById('sr-monto').value = '';
+  document.getElementById('sr-notas').value = '';
+  document.getElementById('sr-archivo').value = '';
+  document.getElementById('sr-archivo-label').textContent = 'Seleccionar archivo…';
+  document.getElementById('sr-msg').textContent = '';
+  document.getElementById('sr-msg').className = 'msg';
+  document.getElementById('modal-solicitud-recibo').style.display = 'flex';
+}
+
+function cerrarSolicitudRecibo(){
+  document.getElementById('modal-solicitud-recibo').style.display = 'none';
+  _solicitudReciboVentaId = null;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('sr-archivo');
+  if(inp) inp.addEventListener('change', () => {
+    const f = inp.files[0];
+    document.getElementById('sr-archivo-label').textContent = f ? f.name : 'Seleccionar archivo…';
+  });
+});
+
+async function enviarSolicitudRecibo(){
+  const msg = document.getElementById('sr-msg');
+  msg.className = 'msg'; msg.textContent = '';
+  const monto = document.getElementById('sr-monto').value;
+  const notas = document.getElementById('sr-notas').value;
+  const archivo = document.getElementById('sr-archivo').files[0];
+  if(!monto || parseFloat(monto) <= 0){ msg.className='msg error'; msg.textContent='Ingresá el monto pagado.'; return; }
+  if(!archivo){ msg.className='msg error'; msg.textContent='Adjuntá el comprobante de pago.'; return; }
+
+  const btn = document.getElementById('btn-enviar-solicitud');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  const fd = new FormData();
+  fd.append('monto', monto);
+  fd.append('notas', notas);
+  fd.append('comprobante', archivo);
+
+  try{
+    const resp = await fetch(`/api/socio/ventas/${_solicitudReciboVentaId}/solicitar-recibo`, {
+      method: 'POST',
+      headers: {'Authorization': `Bearer ${sessionStorage.getItem('socio_token')||''}`},
+      credentials: 'include',
+      body: fd,
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.detail || 'Error al enviar');
+    msg.className = 'msg ok'; msg.textContent = data.mensaje;
+    setTimeout(() => { cerrarSolicitudRecibo(); cargarMisVentas(); }, 2500);
+  }catch(e){
+    msg.className='msg error'; msg.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'Enviar solicitud';
+  }
+}
 </script>
+
+<!-- ── Modal: Solicitar recibo (comprobante de pago) ────────────────────── -->
+<div id="modal-solicitud-recibo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--surface);border-radius:12px;width:100%;max-width:480px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+    <h3 style="margin:0 0 6px;font-size:17px">💳 Solicitar emisión de recibo</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 18px;line-height:1.5">
+      Adjuntá el comprobante de pago (transferencia, depósito o ticket de Mercado Pago).
+      El equipo lo va a verificar y, una vez confirmado, te enviamos el recibo oficial por email para que se lo entregues al cliente.
+    </p>
+    <div style="display:grid;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Monto abonado ($) *</label>
+        <input id="sr-monto" class="input" type="number" min="1" step="1000" style="width:100%;box-sizing:border-box" placeholder="Ej: 150000">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Comprobante de pago * <span style="font-weight:400">(JPG, PNG o PDF · máx 10 MB)</span></label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 14px;border:1.5px dashed var(--border);border-radius:8px;font-size:13px">
+          <span>📎</span>
+          <span id="sr-archivo-label" style="flex:1;color:var(--text-muted)">Seleccionar archivo…</span>
+          <input id="sr-archivo" type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" style="display:none">
+        </label>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Notas para el equipo <span style="font-weight:400">(opcional)</span></label>
+        <textarea id="sr-notas" class="input" rows="2" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="Ej: transferencia del 03/09, banco Santander…"></textarea>
+      </div>
+    </div>
+    <div class="msg" id="sr-msg" style="margin-top:12px"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="cerrarSolicitudRecibo()">Cancelar</button>
+      <button id="btn-enviar-solicitud" class="btn-primary" onclick="enviarSolicitudRecibo()">Enviar solicitud</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Editar venta contado ──────────────────────────────────────── -->
+<div id="modal-editar-venta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--surface);border-radius:12px;width:100%;max-width:520px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">
+    <h3 style="margin:0 0 18px;font-size:17px">✏️ Editar venta de contado</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin-top:-10px;margin-bottom:18px">Solo podés editar la venta mientras el equipo todavía no la confirmó (48 hs).</p>
+    <div style="display:grid;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Nombre del cliente *</label>
+        <input id="edit-cliente-nombre" class="input" style="width:100%;box-sizing:border-box" placeholder="Nombre completo">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Teléfono</label>
+          <input id="edit-cliente-telefono" class="input" style="width:100%;box-sizing:border-box" placeholder="549…">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Email</label>
+          <input id="edit-cliente-email" class="input" style="width:100%;box-sizing:border-box" placeholder="cliente@mail.com" type="email">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Localidad</label>
+          <input id="edit-cliente-localidad" class="input" style="width:100%;box-sizing:border-box" placeholder="Ciudad / partido">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Domicilio</label>
+          <input id="edit-cliente-domicilio" class="input" style="width:100%;box-sizing:border-box" placeholder="Calle y número">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Modelo</label>
+          <input id="edit-modelo" class="input" style="width:100%;box-sizing:border-box" placeholder="Ej: Minimalista Grande">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Color</label>
+          <input id="edit-color" class="input" style="width:100%;box-sizing:border-box" placeholder="Ej: Azul">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Precio final ($)</label>
+          <input id="edit-precio" class="input" style="width:100%;box-sizing:border-box" type="number" min="0" step="1000">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Distancia km (flete)</label>
+          <input id="edit-distancia" class="input" style="width:100%;box-sizing:border-box" type="number" min="0" step="1">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Fecha de entrega estimada</label>
+        <input id="edit-fecha-entrega" type="date" class="input" style="width:100%;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Notas</label>
+        <textarea id="edit-notas" class="input" rows="2" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="Aclaraciones internas…"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="cerrarEditarVenta()">Cancelar</button>
+      <button id="btn-guardar-edicion" class="btn-primary" onclick="guardarEdicionVenta()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

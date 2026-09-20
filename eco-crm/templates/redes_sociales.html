@@ -111,7 +111,24 @@
   <!-- Sidebar: lista de páginas -->
   <div class="redes-sidebar">
     <div class="card" style="padding:14px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text-muted);letter-spacing:.05em">PÁGINAS</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.05em">PÁGINAS</div>
+        <button onclick="abrirAgregarPagina()" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px">+ Agregar</button>
+      </div>
+      <!-- Formulario inline agregar página (oculto por defecto) -->
+      <div id="form-agregar-pagina" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Nueva página</div>
+        <input id="add-pg-nombre" type="text" placeholder="Nombre de la página *" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;margin-bottom:6px">
+        <input id="add-pg-id" type="text" placeholder="Page ID * (ej: 123456789)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:6px">
+        <input id="add-pg-token" type="password" placeholder="Page Access Token * — requerido para publicar y borrar" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid #f59e0b;background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:4px">
+        <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">
+          Obtené el token en: <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:#1877f2">developers.facebook.com/tools/explorer</a> → seleccioná App y Página → Generate Access Token
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="agregarPagina()" class="btn btn-primary btn-sm" style="flex:1;font-size:12px">Agregar</button>
+          <button onclick="cerrarAgregarPagina()" class="btn btn-ghost btn-sm" style="font-size:12px">Cancelar</button>
+        </div>
+      </div>
       <div id="paginas-lista">
         <div style="color:var(--text-muted);font-size:13px;padding:24px 0;text-align:center">Cargando…</div>
       </div>
@@ -128,6 +145,7 @@
       <button onclick="setTab('config')" id="tab-config" class="tab-btn">⚙️ Página</button>
       <button onclick="setTab('auto')" id="tab-auto" class="tab-btn">🤖 Automatización</button>
       <button onclick="setTab('inbox')" id="tab-inbox" class="tab-btn">💬 Inbox</button>
+      <button onclick="setTab('publish')" id="tab-publish" class="tab-btn">📤 Publicar</button>
     </div>
 
     <!-- Aviso sin página seleccionada -->
@@ -187,9 +205,71 @@
       </div>
     </div>
 
+    <!-- ── PUBLICAR ──────────────────────────────────────────── -->
+    <div id="panel-publish" style="display:none">
+      <div class="card" style="padding:20px">
+        <!-- Selector de páginas -->
+        <div style="margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.05em;margin-bottom:8px">PÁGINAS DESTINO</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+            <button onclick="togglePubTodas()" id="btn-pub-todas" class="btn btn-primary btn-sm">✓ Todas las páginas</button>
+            <span id="pub-seleccion-info" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <div id="pub-paginas-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:190px;overflow-y:auto;padding:2px 0"></div>
+        </div>
+
+        <!-- Texto -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.05em;margin-bottom:6px">TEXTO</div>
+          <textarea id="pub-texto" rows="4" placeholder="Escribí el texto de la publicación..."
+            style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:13px;resize:vertical;line-height:1.55;font-family:inherit"></textarea>
+        </div>
+
+        <!-- Imagen URL -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.05em;margin-bottom:6px">IMAGEN — URL pública (opcional)</div>
+          <div style="display:flex;gap:8px">
+            <input id="pub-imagen-url" type="url" placeholder="https://..."
+              style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:13px"
+              oninput="updatePubImgPreview()">
+            <button onclick="document.getElementById('pub-imagen-url').value='';updatePubImgPreview()" class="btn btn-ghost btn-sm">✕</button>
+          </div>
+          <div id="pub-img-wrap" style="display:none;margin-top:8px">
+            <img id="pub-img-thumb" style="max-height:130px;border-radius:8px;border:1px solid var(--border)" alt="Preview de imagen"
+              onerror="document.getElementById('pub-img-wrap').style.display='none'">
+          </div>
+        </div>
+
+        <!-- Toggle Instagram -->
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-hover);border-radius:8px;margin-bottom:16px">
+          <div>
+            <div style="font-size:13px;font-weight:500">📸 Publicar también en Instagram</div>
+            <div style="font-size:11px;color:var(--text-muted)">Solo para páginas con IG Business vinculado + imagen cargada</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:42px;height:22px;flex-shrink:0;cursor:pointer">
+            <input type="checkbox" id="sw-pub-ig" onchange="updateSwIG(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+            <span id="sw-ig-track" style="position:absolute;inset:0;border-radius:22px;background:var(--border);transition:.2s;cursor:pointer">
+              <span id="sw-ig-thumb" style="position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Resultados previos -->
+        <div id="pub-resultados" style="display:none;margin-bottom:14px"></div>
+
+        <!-- Botón -->
+        <button onclick="publicarEnPaginas()" id="btn-publicar" class="btn btn-primary" style="width:100%;font-size:14px;padding:11px">
+          📤 Publicar ahora
+        </button>
+      </div>
+    </div>
+
     <!-- ── INBOX ───────────────────────────────────────────── -->
     <div id="panel-inbox" style="display:none">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <select id="inbox-filtro-pagina" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px;max-width:180px">
+          <option value="">Todas las páginas</option>
+        </select>
         <select id="inbox-filtro-tipo" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px">
           <option value="">Todos los tipos</option>
           <option value="comentario">Comentarios</option>
@@ -197,11 +277,14 @@
         </select>
         <select id="inbox-filtro-accion" onchange="cargarInbox()" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:6px">
           <option value="pendiente">Pendientes</option>
-          <option value="">Todos</option>
+          <option value="">Todos los estados</option>
           <option value="respondido">Respondidos</option>
           <option value="eliminado">Eliminados</option>
         </select>
         <button onclick="cargarInbox()" class="btn btn-ghost btn-sm">🔄 Actualizar</button>
+        <button onclick="importarDesdeFA()" class="btn btn-primary btn-sm" id="btn-importar-fb" title="Trae mensajes y comentarios existentes desde Facebook">
+          📥 Importar desde FB
+        </button>
       </div>
       <div id="inbox-loading" style="color:var(--text-muted);padding:32px;text-align:center">Cargando interacciones…</div>
       <div id="inbox-list"></div>
@@ -262,13 +345,14 @@ function showBlock(id) { const el = document.getElementById(id); if (el) el.styl
 /* ─── tabs ───────────────────────────────────────────────────────────────── */
 function setTab(tab) {
   _curTab = tab;
-  ['feed','ig','stats','config','auto','inbox'].forEach(t => {
+  ['feed','ig','stats','config','auto','inbox','publish'].forEach(t => {
     document.getElementById('tab-' + t)?.classList.toggle('tab-active', t === tab);
     const p = document.getElementById('panel-' + t);
     if (p) p.style.display = t === tab ? 'block' : 'none';
   });
   if (_pageId) _loadTab(tab);
   if (tab === 'inbox') cargarInbox();
+  if (tab === 'publish') renderPublish();
 }
 
 function _loadTab(tab) {
@@ -276,14 +360,20 @@ function _loadTab(tab) {
   else if (tab === 'ig')    cargarIG(false);
   else if (tab === 'stats') cargarStats();
   else if (tab === 'config') renderConfig();
-  else if (tab === 'auto') renderAuto();
+  else if (tab === 'auto')   renderAuto();
+  else if (tab === 'publish') renderPublish();
   else if (tab === 'inbox') cargarInbox();
 }
 
 /* ─── páginas ────────────────────────────────────────────────────────────── */
+let _pendientesPorPagina = {};
+
 async function cargarPaginas() {
   try {
-    _paginas = await _get('/api/redes/paginas');
+    [_paginas, _pendientesPorPagina] = await Promise.all([
+      _get('/api/redes/paginas'),
+      _get('/api/redes/interacciones/resumen').catch(() => ({})),
+    ]);
     if (!_paginas) return;
 
     // KPIs
@@ -294,13 +384,35 @@ async function cargarPaginas() {
 
     const lista = document.getElementById('paginas-lista');
     if (!_paginas.length) {
-      lista.innerHTML = `<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px">
-        Sin páginas.<br><small>Hacé clic en <strong>Sincronizar</strong> para importar desde Meta.</small>
-      </div>`;
+      lista.innerHTML = `
+        <div style="padding:16px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)">🔗 Conectar Facebook</div>
+
+          <button onclick="conectarConFacebook()" class="btn btn-primary" style="width:100%;font-size:13px;margin-bottom:10px;background:#1877f2;border-color:#1877f2">
+            <span style="font-size:16px;vertical-align:middle;margin-right:6px">f</span> Conectar con Facebook (OAuth)
+          </button>
+
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:14px">— o pegá el token manualmente —</div>
+
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;line-height:1.5">
+            <strong>User Access Token</strong> del administrador de la página.<br>
+            Obtenelo en <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:#1877f2">Graph API Explorer →</a>
+            con permisos <code style="font-size:10px">pages_manage_metadata, pages_messaging, pages_read_engagement</code>
+          </div>
+          <textarea id="inp-meta-token" placeholder="EAABsbCS..." rows="3"
+            style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:8px"></textarea>
+          <button onclick="guardarTokenYSincronizar()" class="btn btn-primary" style="width:100%;font-size:13px">
+            🔄 Guardar token y suscribir páginas
+          </button>
+        </div>`;
       return;
     }
 
-    lista.innerHTML = _paginas.map(p => `
+    lista.innerHTML = _paginas.map(p => {
+      const pendientes = _pendientesPorPagina[p.page_id] || 0;
+      const wa = p.numero_whatsapp || '';
+      const autoActivo = p.auto_reply_comentarios || p.auto_reply_mensajes || p.auto_eliminar_negativos;
+      return `
       <div class="page-card" id="pcard-${esc(p.page_id)}" onclick="selectPage('${esc(p.page_id)}')">
         <div class="page-avatar">
           ${p.picture
@@ -309,14 +421,32 @@ async function cargarPaginas() {
         </div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.nombre)}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:1px">
-            <span style="color:#1877f2">&#9671;</span> ${fmt(p.fan_count)}
-            ${p.ig_user_id ? `&nbsp;<span style="color:#e1306c">&#9671;</span> ${fmt(p.ig_followers)}` : ''}
+          <div style="font-size:11px;color:var(--text-muted);margin-top:1px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span><span style="color:#1877f2">&#9671;</span> ${fmt(p.fan_count)}</span>
+            ${p.ig_user_id ? `<span><span style="color:#e1306c">&#9671;</span> ${fmt(p.ig_followers)}</span>` : ''}
           </div>
-          ${!p.activa ? '<span style="font-size:10px;color:#f59e0b">⏸ inactiva</span>' : ''}
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+            <span title="WhatsApp vinculado" style="${wa ? '' : 'color:#f59e0b'}">📲 ${wa ? esc(wa) : 'sin configurar'}</span>
+            ${autoActivo ? '<span style="color:#16a34a" title="IA activa">🤖</span>' : ''}
+            ${!p.activa ? '<span style="color:#f59e0b">⏸</span>' : ''}
+            ${!p.page_token_ok ? '<span style="color:#ef4444" title="Sin token">⚠️</span>' : ''}
+          </div>
         </div>
+        ${pendientes > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 7px;flex-shrink:0;align-self:flex-start">${pendientes}</span>` : ''}
       </div>
-    `).join('');
+    `}).join('');
+
+    // Poblar selector de páginas del inbox
+    const sel = document.getElementById('inbox-filtro-pagina');
+    if (sel) {
+      const curVal = sel.value;
+      sel.innerHTML = '<option value="">Todas las páginas</option>' +
+        _paginas.map(p => `<option value="${esc(p.page_id)}">${esc(p.nombre)}</option>`).join('');
+      sel.value = curVal;
+    }
+
+    // Si el tab publish está activo, re-renderizarlo
+    if (_curTab === 'publish') renderPublish();
 
     // Auto-select primera activa
     const primera = _paginas.find(p => p.activa) || _paginas[0];
@@ -389,7 +519,9 @@ async function cargarFeed(append = false) {
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
           ${post.permalink ? `<a href="${esc(post.permalink)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="font-size:11px">🔗 Ver</a>` : ''}
-          <button onclick="eliminarPost('${esc(post.id)}')" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Borrar</button>
+          <button onclick="verComentariosPost('${esc(post.id)}', '${esc(post.message?.substring(0,40) || '')}...')" class="btn btn-ghost btn-sm" style="font-size:11px">💬 ${post.comments}</button>
+          <button onclick="editarPost('${esc(post.id)}', '${esc((post.message||'').replace(/'/g,"&#39;"))}')" class="btn btn-ghost btn-sm" style="font-size:11px">✏️ Editar</button>
+          <button onclick="eliminarPost('${esc(post.id)}', '${esc(_pageId)}')" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Borrar</button>
         </div>
       </div>
     `).join('');
@@ -452,6 +584,10 @@ async function cargarIG(append = false) {
           </div>
           ${isVideo    ? '<div class="ig-badge">🎥</div>' : ''}
           ${isCarousel ? '<div class="ig-badge">⊞</div>'  : ''}
+          <button onclick="event.stopPropagation();eliminarIgPost('${esc(p.id)}')"
+            style="position:absolute;bottom:6px;right:6px;background:rgba(239,68,68,.85);color:#fff;border:none;border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;z-index:2">
+            🗑
+          </button>
         </div>
       `;
     }).join('');
@@ -593,10 +729,104 @@ function renderConfig() {
       </div>
     </div>
 
-    <div style="margin-top:20px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:12px;color:var(--text-muted)">
-      💡 Para agregar nuevas páginas, vincinalas al System User en Meta Business Suite y luego hacé clic en <strong>Sincronizar</strong>.
+    ${!p.page_token_ok ? `
+    <div style="background:#f59e0b15;border:1.5px solid #f59e0b50;border-radius:10px;padding:16px;margin-bottom:4px">
+      <div style="font-weight:700;font-size:14px;color:#f59e0b;margin-bottom:8px">⚠️ Esta página no tiene Page Access Token</div>
+      <div style="font-size:12px;color:var(--text);margin-bottom:10px;line-height:1.6">
+        Sin este token no podés eliminar posts, responder comentarios ni activar la IA automática.<br>
+        <strong>Cómo conseguirlo (2 minutos):</strong>
+        <ol style="margin:8px 0 0 16px;padding:0;line-height:1.8">
+          <li>Entrá a <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:#1877f2">developers.facebook.com/tools/explorer</a></li>
+          <li>Seleccioná tu App → elegí la página <strong>${esc(p.nombre)}</strong></li>
+          <li>Hacé clic en <strong>Generate Access Token</strong></li>
+          <li>Copiá el token y pegalo abajo → <strong>Guardar</strong></li>
+        </ol>
+      </div>
+    </div>` : ''}
+
+    <div class="cfg-row" style="${!p.page_token_ok ? 'border:1.5px solid #f59e0b50;border-radius:10px;padding:12px;background:var(--bg-hover)' : ''}">
+      <div class="cfg-label" style="${!p.page_token_ok ? 'color:#f59e0b;font-weight:700' : ''}">
+        ${!p.page_token_ok ? '🔑 Page Access Token (requerido)' : 'Page Access Token'}
+      </div>
+      <div style="display:flex;gap:8px">
+        <input id="cfg-page-token" type="password" value="${esc(p.page_token_ok ? '••••••••' : '')}"
+          placeholder="${p.page_token_ok ? 'Token cargado — haz clic para reemplazar' : 'Pegá acá el Page Access Token de esta página'}"
+          onfocus="if(this.value==='••••••••')this.value=''"
+          style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid ${p.page_token_ok ? 'var(--border)' : '#f59e0b'};background:var(--bg-card);font-size:13px;font-family:monospace;color:var(--text)">
+        <button onclick="guardarPageToken('${esc(p.page_id)}')" class="btn btn-primary btn-sm" style="${!p.page_token_ok ? 'background:#f59e0b;border-color:#f59e0b' : ''}">
+          ${!p.page_token_ok ? '💾 Guardar token' : 'Guardar'}
+        </button>
+      </div>
+      <div style="font-size:11px;margin-top:4px">
+        ${p.page_token_ok
+          ? '<span style="color:#16a34a;font-weight:600">✅ Token cargado — publicar, borrar y responder están habilitados</span>'
+          : '<span style="color:#f59e0b;font-weight:600">Sin token — publicar, borrar posts y responder con IA no funcionan</span>'}
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:12px;color:var(--text-muted)">
+      💡 También podés sincronizar todas las páginas a la vez con <strong>🔄 Sincronizar</strong> (arriba a la derecha) si tu token global tiene acceso a todas las páginas.
+    </div>
+
+    <div style="margin-top:16px;padding:14px;background:var(--bg-hover);border-radius:10px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <div style="font-size:13px;font-weight:600">📡 Suscripción al webhook</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+            ${p.webhook_subscribed
+              ? '✅ Página suscrita — recibirá eventos en tiempo real'
+              : '⚠️ No suscrita — activar para recibir comentarios y mensajes'}
+          </div>
+        </div>
+        <button onclick="suscribirWebhook('${esc(p.page_id)}')" class="btn ${p.webhook_subscribed ? 'btn-ghost' : 'btn-primary'} btn-sm" style="white-space:nowrap">
+          ${p.webhook_subscribed ? '🔄 Renovar' : '🔔 Suscribir'}
+        </button>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <button onclick="mostrarPanelTokenConfig()" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted)">🔑 Renovar permisos de Facebook</button>
+        <div id="panel-token-config" style="display:none;margin-top:8px">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Pegá un User Access Token de <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> con scopes: pages_manage_metadata, pages_messaging, pages_read_engagement</div>
+          <textarea id="inp-token-config" placeholder="EAABsbCS..." rows="2"
+            style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:6px"></textarea>
+          <div style="display:flex;gap:8px">
+            <button onclick="guardarTokenConfig()" class="btn btn-primary btn-sm" style="flex:1">🔄 Actualizar tokens y suscribir todas</button>
+            <button onclick="conectarConFacebook()" class="btn btn-ghost btn-sm" style="background:#1877f2;color:#fff;border-color:#1877f2">f OAuth</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">ZONA DE PELIGRO</div>
+      <button onclick="eliminarPagina('${esc(p.page_id)}', '${esc(p.nombre)}')"
+        class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444440;font-size:12px">
+        🗑 Eliminar página del sistema
+      </button>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+        Solo elimina el registro del CRM — no afecta la página en Facebook
+      </div>
     </div>
   `;
+}
+
+async function guardarPageToken(pageId) {
+  const token = document.getElementById('cfg-page-token')?.value.trim();
+  if (!token) { toast('Pegá el Page Access Token primero', 'error'); return; }
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ page_token: token }),
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error'); }
+    const p = _paginas.find(x => x.page_id === pageId);
+    if (p) p.page_token_ok = true;
+    toast('✅ Page Token guardado');
+    renderConfig();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function guardarIgId(pageId) {
@@ -636,15 +866,27 @@ async function toggleActiva(pageId, activa) {
 }
 
 /* ─── eliminar post ──────────────────────────────────────────────────────── */
-async function eliminarPost(postId) {
+async function eliminarPost(postId, pageId) {
   const ok = await showConfirm('Esta acción es permanente y no se puede deshacer.', '¿Eliminar publicación?');
   if (!ok) return;
 
   try {
-    const r = await fetch('/api/redes/posts/' + encodeURIComponent(postId), {
+    const pg = _paginas.find(p => p.page_id === pageId);
+    if (pg && !pg.page_token_ok) {
+      toast(`La página "${pg.nombre}" no tiene token configurado. Andá a Config → pegá el Page Access Token.`, 'error');
+      return;
+    }
+    const qs = pageId ? `?page_id=${encodeURIComponent(pageId)}` : '';
+    const r = await fetch('/api/redes/posts/' + encodeURIComponent(postId) + qs, {
       method: 'DELETE', credentials: 'include',
     });
-    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error al eliminar'); }
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) {
+      let msg = j.detail || 'Error al eliminar';
+      if (msg.includes('token de página') || msg.includes('page token'))
+        msg += ' — Andá a Config de esta página y sincronizá el token.';
+      throw new Error(msg);
+    }
     const el = document.getElementById('post-' + postId.replace(/[^a-z0-9]/gi,'_'));
     if (el) { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(), 300); }
     toast('Publicación eliminada');
@@ -662,13 +904,71 @@ async function syncPaginas() {
     const r = await fetch('/api/meta/paginas/sync', { method: 'POST', credentials: 'include' });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.detail || 'Error al sincronizar');
-    toast(`✅ ${j.synced} página${j.synced !== 1 ? 's' : ''} sincronizada${j.synced !== 1 ? 's' : ''}`);
+    const conToken = (j.pages || []).filter(p => p.token_ok).length;
+    const sinToken = j.synced - conToken;
+    let msg = `✅ ${j.synced} página${j.synced !== 1 ? 's' : ''} sincronizada${j.synced !== 1 ? 's' : ''}`;
+    if (sinToken > 0) msg += ` — ⚠️ ${sinToken} sin token (configurá manualmente en Config)`;
+    toast(msg, sinToken > 0 ? 'warning' : 'success');
     await cargarPaginas();
   } catch(e) {
     toast(e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = '🔄 Sincronizar';
+  }
+}
+
+/* ─── guardar token y sincronizar en un paso ────────────────────────────── */
+async function conectarConFacebook() {
+  try {
+    const r = await fetch('/api/redes/facebook/oauth-url', { credentials: 'include' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error generando URL de OAuth');
+    // Abrir en nueva pestaña — después del OAuth, la callback page llama al backend
+    window.open(data.url, '_blank', 'width=600,height=700,scrollbars=yes');
+    toast('Se abrió la ventana de autorización de Facebook. Autorizá la app y las páginas se conectarán automáticamente.', 'info');
+    // Polling: recargar páginas cada 5s por 60s en caso de que el callback completo retorne
+    let tries = 0;
+    const poll = setInterval(async () => {
+      tries++;
+      const ps = await fetch('/api/redes/paginas', { credentials: 'include' }).then(r => r.json()).catch(() => []);
+      const conToken = (ps || []).filter(p => p.page_token_ok);
+      if (conToken.length > 0 || tries > 12) {
+        clearInterval(poll);
+        if (conToken.length > 0) {
+          toast(`✅ ${conToken.length} página(s) conectadas con webhook`, 'success');
+          await cargarPaginas();
+        }
+      }
+    }, 5000);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function guardarTokenYSincronizar() {
+  const token = document.getElementById('inp-meta-token')?.value?.trim();
+  if (!token) { toast('Pegá el User Access Token primero', 'error'); return; }
+
+  const btn = document.querySelector('#paginas-lista button:last-of-type');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
+
+  try {
+    // Usar el nuevo endpoint que extrae page_tokens y suscribe webhooks en un paso
+    const r = await fetch('/api/redes/facebook/oauth-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ user_token: token }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error procesando token');
+
+    toast(`✅ ${data.paginas_ok} de ${data.paginas_total} páginas conectadas con webhook`, 'success');
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Guardar token y suscribir páginas'; }
   }
 }
 
@@ -705,8 +1005,8 @@ async function renderAuto() {
     try { _fbConfig = await _get('/api/redes/facebook/config'); } catch(e) { _fbConfig = {}; }
   }
 
-  const wa = pg.numero_whatsapp || '1144498854';
-  const waUrl = 'https://wa.me/' + (wa.startsWith('54') ? wa : '54'+wa);
+  const wa = pg.numero_whatsapp || '';
+  const waUrl = wa ? ('https://wa.me/' + (wa.startsWith('54') ? wa : '54'+wa)) : null;
 
   el.innerHTML = `
     <div style="display:grid;gap:14px">
@@ -730,10 +1030,29 @@ async function renderAuto() {
               style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);font-size:13px;color:var(--text)">
             <button onclick="guardarAutoConfig('${esc(pg.page_id)}')" class="btn btn-primary btn-sm">Guardar</button>
           </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Link generado: <a href="${waUrl}" target="_blank" style="color:var(--accent)">${waUrl}</a></div>
+          ${waUrl ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Link generado: <a href="${waUrl}" target="_blank" style="color:var(--accent)">${waUrl}</a></div>` : `<div style="font-size:11px;color:#f59e0b;margin-top:4px">⚠️ Ingresá el número para generar el link WA</div>`}
         </div>
 
-        <!-- Suscribir webhook -->
+        <!-- Conectar Facebook si no hay token + Suscribir webhook -->
+        ${!pg.page_token_ok ? `
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px">🔑 Sin token de página</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+            Para suscribir el webhook y recibir eventos necesitás autorizar el acceso desde tu cuenta de Facebook administradora.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="conectarConFacebook()" class="btn btn-primary btn-sm" style="background:#1877f2;border-color:#1877f2">
+              <span style="font-size:14px;vertical-align:middle;margin-right:4px">f</span> Conectar con Facebook (OAuth)
+            </button>
+            <button onclick="mostrarPanelTokenManual()" class="btn btn-ghost btn-sm">✏️ Pegar token manual</button>
+          </div>
+          <div id="panel-token-manual" style="display:none;margin-top:10px">
+            <textarea id="inp-token-manual" placeholder="User Access Token de Meta (EAA...)" rows="2"
+              style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:6px"></textarea>
+            <button onclick="guardarTokenManual()" class="btn btn-primary btn-sm" style="width:100%">🔄 Guardar y suscribir todas las páginas</button>
+          </div>
+        </div>
+        ` : `
         <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <div>
             <div style="font-size:13px;font-weight:600">📡 Suscripción al webhook</div>
@@ -747,6 +1066,19 @@ async function renderAuto() {
             ${pg.webhook_subscribed ? '🔄 Renovar suscripción' : '🔔 Suscribir al webhook'}
           </button>
         </div>
+        <div style="margin-top:10px">
+          <button onclick="mostrarPanelTokenManual()" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted)">🔑 Renovar permisos de Facebook</button>
+          <div id="panel-token-manual" style="display:none;margin-top:8px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Pegá un User Access Token de <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> (EcoFiver app, con scopes: pages_manage_metadata, pages_messaging, pages_read_engagement)</div>
+            <textarea id="inp-token-manual" placeholder="EAABsbCS..." rows="2"
+              style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:6px"></textarea>
+            <div style="display:flex;gap:8px">
+              <button onclick="guardarTokenManual()" class="btn btn-primary btn-sm" style="flex:1">🔄 Actualizar tokens y suscribir todas</button>
+              <button onclick="conectarConFacebook()" class="btn btn-ghost btn-sm" style="background:#1877f2;color:#fff;border-color:#1877f2">f OAuth</button>
+            </div>
+          </div>
+        </div>
+        `}
       </div>
 
       <!-- Info de configuración del webhook -->
@@ -861,15 +1193,126 @@ async function suscribirWebhook(pageId) {
     toast('✅ Webhook suscrito exitosamente');
     renderAuto();
   } catch(e) {
-    toast(e.message, 'error');
+    // OAuthException code 190 → token sin permisos de admin de página
+    const msg = e.message || '';
+    const esAdmin = /190|admin|imperson/i.test(msg);
+    const msgAmigable = esAdmin
+      ? '❌ El token no tiene permisos de administrador sobre esta página.\n\nNecesitás un Page Access Token del usuario administrador de la página, no del System User.\nObtené uno en: Meta for Developers → Herramientas → Graph API Explorer → seleccioná la página.'
+      : msg;
+    alert(msgAmigable);
     btn.disabled = false;
     btn.textContent = '🔔 Suscribir al webhook';
+  }
+}
+
+function mostrarPanelTokenManual() {
+  const panel = document.getElementById('panel-token-manual');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function mostrarPanelTokenConfig() {
+  const panel = document.getElementById('panel-token-config');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarTokenConfig() {
+  const token = document.getElementById('inp-token-config')?.value?.trim();
+  if (!token) { toast('Pegá el User Access Token primero', 'error'); return; }
+  const btn = document.querySelector('#panel-token-config .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
+  try {
+    const r = await fetch('/api/redes/facebook/oauth-token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({ user_token: token }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    toast(`✅ ${data.paginas_ok} de ${data.paginas_total} páginas conectadas con webhook`, 'success');
+    const inp = document.getElementById('inp-token-config');
+    if (inp) inp.value = '';
+    const panel = document.getElementById('panel-token-config');
+    if (panel) panel.style.display = 'none';
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Actualizar tokens y suscribir todas'; }
+  }
+}
+
+async function guardarTokenManual() {
+  const token = document.getElementById('inp-token-manual')?.value?.trim();
+  if (!token) { toast('Pegá el User Access Token primero', 'error'); return; }
+  const btn = document.querySelector('#panel-token-manual button');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
+  try {
+    const r = await fetch('/api/redes/facebook/oauth-token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({ user_token: token }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    toast(`✅ ${data.paginas_ok} de ${data.paginas_total} páginas conectadas con webhook`, 'success');
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Guardar y suscribir todas las páginas'; }
   }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    INBOX — comentarios y mensajes
    ═══════════════════════════════════════════════════════════════════════════ */
+
+async function importarDesdeFA() {
+  const btn = document.getElementById('btn-importar-fb');
+  const pageId = document.getElementById('inbox-filtro-pagina')?.value || '';
+  btn.disabled = true; btn.textContent = '⏳ Importando…';
+  try {
+    let url, r, j;
+    if (!pageId) {
+      // Importar todas las páginas con token (endpoint bulk)
+      r = await fetch('/api/redes/importar-inbox-all', { method: 'POST', credentials: 'include' });
+      j = await r.json().catch(()=>({}));
+      if (!r.ok) throw new Error(j.detail || 'Error al importar');
+      let msg = `✅ ${j.total_importados} interacciones importadas de ${j.paginas} página${j.paginas !== 1 ? 's' : ''}`;
+      // Mostrar errores por página si los hay
+      const errs = Object.values(j.resultados || {}).flatMap(pg => pg.errores || []);
+      if (errs.length) {
+        msg += `\n⚠️ Algunos errores: ${errs.slice(0,3).join(' | ')}`;
+        if (errs.some(e => e.includes('pages_messaging') || e.includes('permission')))
+          msg += '\n💡 Para mensajes privados, la app de Meta necesita el permiso "pages_messaging".';
+        toast(msg, 'warning');
+      } else {
+        toast(msg, 'success');
+      }
+    } else {
+      // Importar página específica
+      r = await fetch(`/api/redes/paginas/${encodeURIComponent(pageId)}/importar-inbox`, {
+        method: 'POST', credentials: 'include',
+      });
+      j = await r.json().catch(()=>({}));
+      if (!r.ok) throw new Error(j.detail || 'Error al importar');
+      let msg = `✅ ${j.importados} interaccion${j.importados !== 1 ? 'es' : ''} importada${j.importados !== 1 ? 's' : ''}`;
+      if (j.errores && j.errores.length) {
+        msg += ` — ⚠️ ${j.errores.join(' | ')}`;
+        if (j.errores.some(e => e.includes('pages_messaging') || e.includes('permission')))
+          msg += ' 💡 Revisá el permiso "pages_messaging" en tu app de Meta.';
+        toast(msg, 'warning');
+      } else {
+        toast(msg, 'success');
+      }
+    }
+    cargarInbox();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📥 Importar desde FB';
+  }
+}
 
 async function cargarInbox() {
   const listEl = document.getElementById('inbox-list');
@@ -879,11 +1322,12 @@ async function cargarInbox() {
   loadEl.style.display = 'block';
   listEl.innerHTML = '';
 
-  const tipo   = document.getElementById('inbox-filtro-tipo')?.value || '';
-  const accion = document.getElementById('inbox-filtro-accion')?.value || '';
+  const filtPagina = document.getElementById('inbox-filtro-pagina')?.value || '';
+  const tipo       = document.getElementById('inbox-filtro-tipo')?.value || '';
+  const accion     = document.getElementById('inbox-filtro-accion')?.value || '';
 
-  let url = `/api/redes/interacciones?limit=60`;
-  if (_pageId) url += `&page_id=${_pageId}`;
+  let url = `/api/redes/interacciones?limit=100`;
+  if (filtPagina) url += `&page_id=${filtPagina}`;
   if (tipo)   url += `&tipo=${tipo}`;
   if (accion) url += `&accion=${accion}`;
 
@@ -892,25 +1336,39 @@ async function cargarInbox() {
     loadEl.style.display = 'none';
 
     if (!data || !data.length) {
-      listEl.innerHTML = '<div style="color:var(--text-muted);padding:32px;text-align:center;font-size:13px">Sin interacciones registradas</div>';
+      listEl.innerHTML = `<div style="padding:32px;text-align:center">
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:12px">Sin interacciones registradas</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          El inbox muestra mensajes y comentarios recibidos desde que se configuró el webhook.<br>
+          Para ver conversaciones y comentarios ya existentes en Facebook:
+        </div>
+        <button onclick="importarDesdeFA()" class="btn btn-primary btn-sm">
+          📥 Importar mensajes y comentarios desde Facebook
+        </button>
+      </div>`;
       return;
     }
 
     const ACCION_COLOR = { respondido:'#16a34a', eliminado:'#ef4444', pendiente:'#f59e0b', error:'#8b5cf6', ignorado:'#6b7280' };
-    const TIPO_ICON = { comentario:'💬', mensaje:'✉️', eliminado:'🗑️' };
+    const TIPO_LABEL = { comentario:'💬 Comentario público', mensaje:'✉️ Mensaje privado' };
 
     listEl.innerHTML = data.map(i => {
       const color = ACCION_COLOR[i.accion] || '#6b7280';
-      const icon  = TIPO_ICON[i.tipo] || '📌';
+      const tipoLabel = TIPO_LABEL[i.tipo] || i.tipo;
       const esPendiente = i.accion === 'pendiente';
       const esComentario = i.tipo === 'comentario';
+      const pg = _paginas.find(p => p.page_id === i.page_id);
+      const pgNombre = pg ? pg.nombre : i.page_id;
+      const wa = pg ? (pg.numero_whatsapp || '') : '';
+      const waUrl = wa ? ('https://wa.me/' + (wa.startsWith('54') ? wa : '54' + wa)) : null;
       return `
         <div class="post-card" id="inbox-${i.id}" style="flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span style="font-size:16px">${icon}</span>
+              <span style="font-size:12px;font-weight:600;background:${esComentario ? '#1877f220' : '#e1306c20'};color:${esComentario ? '#1877f2' : '#e1306c'};padding:2px 8px;border-radius:6px">${tipoLabel}</span>
               <span style="font-weight:600;font-size:13px">${esc(i.usuario_nombre || i.usuario_id || '—')}</span>
               <span style="font-size:11px;color:var(--text-muted)">${fmtFecha(i.created_at)}</span>
+              <span style="font-size:10px;color:var(--text-muted);background:var(--bg-hover);padding:2px 6px;border-radius:4px">${esc(pgNombre)}</span>
               ${i.sentimiento === 'negativo' ? '<span style="background:#ef444420;color:#ef4444;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">⚠️ NEGATIVO</span>' : ''}
             </div>
             <span style="font-size:11px;background:${color}20;color:${color};padding:3px 8px;border-radius:5px;font-weight:600;white-space:nowrap">
@@ -925,15 +1383,33 @@ async function cargarInbox() {
               <strong>Respuesta enviada:</strong> ${esc(i.respuesta_enviada)}
             </div>
           ` : ''}
+          <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
+            <span>📲 Deriva a:</span>
+            ${waUrl
+              ? `<a href="${waUrl}" target="_blank" rel="noopener" style="color:#25d366;font-weight:600;text-decoration:none">${esc(wa)}</a>`
+              : `<span style="color:#f59e0b;font-weight:500">sin WhatsApp configurado</span>`
+            }
+          </div>
+          ${i.respuesta_enviada ? `
+            <div style="font-size:12px;color:var(--text-muted);padding:8px 12px;border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:color-mix(in srgb,var(--accent) 6%,transparent)">
+              <strong>Respuesta enviada:</strong> ${esc(i.respuesta_enviada)}
+            </div>
+          ` : ''}
           ${esPendiente ? `
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-              <div style="flex:1;min-width:180px;display:flex;gap:6px">
-                <input id="reply-${i.id}" type="text" placeholder="Escribir respuesta…"
+              <button onclick="responderConIA(${i.id})" class="btn btn-primary btn-sm" style="font-size:11px;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-color:transparent;white-space:nowrap">
+                🤖 Responder con IA + WA
+              </button>
+              <div style="flex:1;min-width:160px;display:flex;gap:6px">
+                <input id="reply-${i.id}" type="text" placeholder="Respuesta manual…"
                   style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);font-size:12px;color:var(--text)"
                   onkeydown="if(event.key==='Enter')enviarRespuesta(${i.id})">
-                <button onclick="enviarRespuesta(${i.id})" class="btn btn-primary btn-sm" style="font-size:11px;white-space:nowrap">✉️ Responder</button>
+                <button onclick="enviarRespuesta(${i.id})" class="btn btn-ghost btn-sm" style="font-size:11px;white-space:nowrap">Enviar</button>
               </div>
-              ${esComentario ? `<button onclick="eliminarComentarioInbox(${i.id})" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Eliminar</button>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${esComentario ? `<button onclick="eliminarComentarioInbox(${i.id})" class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑 Eliminar comentario</button>` : ''}
+              <button onclick="ignorarInteraccion(${i.id})" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted)">✗ Ignorar</button>
             </div>
           ` : ''}
         </div>
@@ -980,6 +1456,403 @@ async function eliminarComentarioInbox(id) {
     toast(e.message, 'error');
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PUBLICAR EN PÁGINAS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let _pubTodas = true;
+let _pubSeleccionadas = new Set();
+
+function renderPublish() {
+  _pubSeleccionadas = new Set(_paginas.map(p => p.page_id));
+  _renderPubPaginas();
+}
+
+function _renderPubPaginas() {
+  const lista = document.getElementById('pub-paginas-lista');
+  if (!lista) return;
+
+  lista.innerHTML = _paginas.map(p => {
+    const checked = _pubTodas || _pubSeleccionadas.has(p.page_id);
+    const disabled = _pubTodas;
+    const highlighted = !_pubTodas && checked;
+    return `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;
+      background:${highlighted ? 'color-mix(in srgb,var(--accent) 10%,transparent)' : 'var(--bg-hover)'};
+      border:1px solid ${highlighted ? 'var(--accent)' : 'transparent'}">
+      <input type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}
+        onchange="togglePubPagina('${esc(p.page_id)}', this.checked)"
+        style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
+      <div class="page-avatar" style="width:26px;height:26px;font-size:12px;flex-shrink:0">
+        ${p.picture ? `<img src="${esc(p.picture)}" onerror="this.parentElement.innerHTML='📄'">` : '📄'}
+      </div>
+      <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.nombre)}</span>
+      ${!p.page_token_ok ? '<span style="font-size:10px;color:#f59e0b;flex-shrink:0">sin token</span>' : ''}
+    </label>`;
+  }).join('');
+
+  const info = document.getElementById('pub-seleccion-info');
+  if (info) {
+    const count = _pubTodas ? _paginas.length : _pubSeleccionadas.size;
+    info.textContent = `${count} página${count !== 1 ? 's' : ''}`;
+  }
+}
+
+function togglePubTodas() {
+  _pubTodas = !_pubTodas;
+  const btn = document.getElementById('btn-pub-todas');
+  if (btn) {
+    btn.textContent = _pubTodas ? '✓ Todas las páginas' : 'Elegir páginas';
+    btn.className = _pubTodas ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  }
+  if (_pubTodas) _pubSeleccionadas = new Set(_paginas.map(p => p.page_id));
+  _renderPubPaginas();
+}
+
+function togglePubPagina(pageId, checked) {
+  if (checked) _pubSeleccionadas.add(pageId); else _pubSeleccionadas.delete(pageId);
+  _renderPubPaginas();
+}
+
+function updatePubImgPreview() {
+  const url = document.getElementById('pub-imagen-url')?.value.trim();
+  const wrap = document.getElementById('pub-img-wrap');
+  const thumb = document.getElementById('pub-img-thumb');
+  if (url && wrap && thumb) {
+    thumb.src = url;
+    wrap.style.display = 'block';
+  } else if (wrap) {
+    wrap.style.display = 'none';
+  }
+}
+
+function updateSwIG(checked) {
+  const track = document.getElementById('sw-ig-track');
+  const thumb = document.getElementById('sw-ig-thumb');
+  if (track) track.style.background = checked ? 'var(--accent)' : 'var(--border)';
+  if (thumb) thumb.style.left = checked ? '22px' : '2px';
+}
+
+async function publicarEnPaginas() {
+  const texto = (document.getElementById('pub-texto')?.value || '').trim();
+  const imagen_url = (document.getElementById('pub-imagen-url')?.value || '').trim();
+  const publicar_ig = document.getElementById('sw-pub-ig')?.checked || false;
+
+  if (!texto && !imagen_url) {
+    toast('Escribí un texto o pegá una URL de imagen', 'error');
+    return;
+  }
+  if (!_pubTodas && _pubSeleccionadas.size === 0) {
+    toast('Seleccioná al menos una página', 'error');
+    return;
+  }
+
+  const page_ids = _pubTodas ? 'all' : [..._pubSeleccionadas];
+  const btn = document.getElementById('btn-publicar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; }
+
+  const resEl = document.getElementById('pub-resultados');
+  if (resEl) resEl.style.display = 'none';
+
+  try {
+    const r = await fetch('/api/redes/publicar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ texto, imagen_url, page_ids, publicar_ig }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error al publicar');
+
+    const rows = Object.entries(data.resultados || {}).map(([pid, v]) => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 12px;border-radius:6px;background:var(--bg-hover);margin-bottom:4px;gap:8px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500">${esc(v.nombre || pid)}</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600;color:${v.ok ? '#16a34a' : '#ef4444'}">
+            ${v.ok ? '✅ Publicado' : '❌ ' + esc(v.error || 'Error')}
+          </span>
+          ${v.ig_ok ? '<span style="font-size:11px;color:#e1306c">📸 IG OK</span>' : ''}
+          ${v.ig_error ? `<span style="font-size:11px;color:#f59e0b" title="${esc(v.ig_error)}">📸 IG ✗</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    if (resEl) {
+      resEl.innerHTML = `
+        <div style="border:1px solid var(--border);border-radius:8px;padding:12px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:${data.publicados > 0 ? '#16a34a' : '#ef4444'}">
+            ${data.publicados} de ${data.total} páginas publicadas
+          </div>
+          ${rows}
+        </div>`;
+      resEl.style.display = 'block';
+    }
+
+    if (data.publicados > 0) {
+      toast(`✅ Publicado en ${data.publicados} página${data.publicados !== 1 ? 's' : ''}`);
+    } else {
+      toast('Sin páginas publicadas — verificá los tokens', 'error');
+    }
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Publicar ahora'; }
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GESTIÓN DE POSTS (EDITAR, COMENTARIOS)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function editarPost(postId, textoActual) {
+  const nuevo = prompt('Editá el texto de la publicación:', textoActual.replace(/&#39;/g, "'"));
+  if (nuevo === null) return;
+  if (!nuevo.trim()) { toast('El texto no puede estar vacío', 'error'); return; }
+
+  fetch(`/api/redes/posts/${encodeURIComponent(postId)}/editar`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ mensaje: nuevo, page_id: _pageId }),
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.ok || j.success) { toast('✅ Publicación actualizada'); cargarFeed(false); }
+    else throw new Error(j.detail || 'Error al editar');
+  })
+  .catch(e => toast(e.message, 'error'));
+}
+
+async function verComentariosPost(postId, titulo) {
+  // Crear/reutilizar modal
+  let modal = document.getElementById('modal-comentarios');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-comentarios';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);border-radius:12px;padding:24px;width:min(600px,100%);max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div id="modal-coments-titulo" style="font-weight:700;font-size:15px"></div>
+          <button onclick="document.getElementById('modal-comentarios').style.display='none'" class="btn btn-ghost btn-sm">✕ Cerrar</button>
+        </div>
+        <div id="modal-coments-body" style="overflow-y:auto;flex:1"></div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  document.getElementById('modal-coments-titulo').textContent = `Comentarios — ${titulo}`;
+  document.getElementById('modal-coments-body').innerHTML =
+    '<div style="color:var(--text-muted);padding:32px;text-align:center">Cargando comentarios…</div>';
+
+  try {
+    const data = await _get(`/api/redes/paginas/${_pageId}/post/${encodeURIComponent(postId)}/comentarios`);
+    if (!data) return;
+
+    if (data.error) {
+      document.getElementById('modal-coments-body').innerHTML =
+        `<div style="color:#f59e0b;padding:20px;text-align:center">${esc(data.error)}</div>`;
+      return;
+    }
+
+    if (!data.comentarios.length) {
+      document.getElementById('modal-coments-body').innerHTML =
+        '<div style="color:var(--text-muted);padding:32px;text-align:center">Sin comentarios todavía</div>';
+      return;
+    }
+
+    document.getElementById('modal-coments-body').innerHTML = data.comentarios.map(c => `
+      <div style="padding:12px;border-radius:8px;background:var(--bg-hover);margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <span style="font-weight:600;font-size:13px">${esc(c.autor_nombre || '—')}</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--text-muted)">${fmtFecha(c.created_at)}</span>
+            ${c.es_negativo ? '<span style="background:#ef444420;color:#ef4444;font-size:10px;padding:2px 5px;border-radius:4px;font-weight:600">⚠️</span>' : ''}
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.5;margin-bottom:8px">${esc(c.mensaje)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="display:flex;gap:4px;flex:1;min-width:160px">
+            <input type="text" placeholder="Responder…" id="rep-post-${esc(c.id).replace(/[^a-z0-9]/gi,'_')}"
+              style="flex:1;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);font-size:12px;color:var(--text)"
+              onkeydown="if(event.key==='Enter')responderComentarioPost('${esc(postId)}','${esc(c.id)}','rep-post-${esc(c.id).replace(/[^a-z0-9]/gi,'_')}')">
+            <button onclick="responderComentarioPost('${esc(postId)}','${esc(c.id)}','rep-post-${esc(c.id).replace(/[^a-z0-9]/gi,'_')}')"
+              class="btn btn-primary btn-sm" style="font-size:11px">Responder</button>
+          </div>
+          <button onclick="eliminarComentarioDirecto('${esc(c.id)}', this)"
+            class="btn btn-sm" style="background:#ef44441a;color:#ef4444;border:1px solid #ef444430;font-size:11px">🗑</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('modal-coments-body').innerHTML =
+      `<div style="color:#f59e0b;padding:20px;text-align:center">${esc(e.message)}</div>`;
+  }
+}
+
+async function responderComentarioPost(postId, commentId, inputId) {
+  const input = document.getElementById(inputId);
+  const texto = input?.value.trim();
+  if (!texto) { toast('Escribí una respuesta', 'error'); return; }
+  try {
+    const r = await fetch('/api/redes/comentario/responder-directo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ comment_id: commentId, respuesta: texto, page_id: _pageId }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    if (input) input.value = '';
+    toast('✅ Respuesta enviada');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function eliminarComentarioDirecto(commentId, btnEl) {
+  const ok = await showConfirm('El comentario se eliminará de Facebook.', '¿Eliminar comentario?');
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/redes/posts/${encodeURIComponent(commentId)}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    btnEl?.closest('[style*="border-radius:8px"]')?.remove();
+    toast('🗑️ Comentario eliminado');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function eliminarIgPost(mediaId) {
+  const ok = await showConfirm('La publicación se eliminará permanentemente de Instagram.', '¿Eliminar post de Instagram?');
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/redes/ig/posts/${encodeURIComponent(mediaId)}?page_id=${_pageId || ''}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error al eliminar');
+    toast('🗑️ Post de Instagram eliminado');
+    cargarIG(false);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ELIMINAR PÁGINA DEL SISTEMA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function eliminarPagina(pageId, nombre) {
+  const ok = await showConfirm(
+    `Se eliminará "${nombre}" del CRM. La página en Facebook no se verá afectada.`,
+    '¿Eliminar página del sistema?'
+  );
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    toast(`🗑️ Página "${nombre}" eliminada del sistema`);
+    _pageId = null;
+    hide('panel-feed'); hide('panel-ig'); hide('panel-stats');
+    hide('panel-config'); hide('panel-auto'); hide('panel-inbox'); hide('panel-publish');
+    show('no-page-msg');
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IGNORAR INTERACCIÓN
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function ignorarInteraccion(id) {
+  try {
+    const r = await fetch(`/api/redes/interacciones/${id}/ignorar`, {
+      method: 'POST', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error');
+    const el = document.getElementById('inbox-' + id);
+    if (el) { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+
+async function responderConIA(id) {
+  const btn = document.querySelector(`[onclick="responderConIA(${id})"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+  try {
+    const r = await fetch(`/api/redes/interacciones/${id}/responder-ia`, {
+      method: 'POST', credentials: 'include',
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.ok) throw new Error(j.detail || 'Error al responder con IA');
+    toast('✅ Respuesta enviada con IA', 'success');
+    const el = document.getElementById('inbox-' + id);
+    if (el) { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Responder con IA + WA'; }
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AGREGAR PÁGINA MANUALMENTE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function abrirAgregarPagina() {
+  const f = document.getElementById('form-agregar-pagina');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function cerrarAgregarPagina() {
+  const f = document.getElementById('form-agregar-pagina');
+  if (f) f.style.display = 'none';
+  ['add-pg-nombre','add-pg-id','add-pg-token'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+async function agregarPagina() {
+  const nombre = document.getElementById('add-pg-nombre')?.value.trim();
+  const page_id = document.getElementById('add-pg-id')?.value.trim();
+  const page_token = document.getElementById('add-pg-token')?.value.trim();
+
+  if (!nombre || !page_id) { toast('Nombre y Page ID son obligatorios', 'error'); return; }
+
+  try {
+    const r = await fetch('/api/redes/paginas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ nombre, page_id, page_token: page_token || null }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || 'Error');
+    toast(`✅ Página "${nombre}" agregada`);
+    cerrarAgregarPagina();
+    await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
 
 /* ─── init ───────────────────────────────────────────────────────────────── */
 setTab('feed');

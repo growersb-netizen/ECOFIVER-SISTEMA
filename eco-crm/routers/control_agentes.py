@@ -5,7 +5,7 @@ Permite enviar instrucciones al orquestador, monitorear el estado de los agentes
 y ejecutar flujos predefinidos desde una interfaz centralizada dentro del CRM.
 
 Configuración necesaria en ConfiguracionSistema:
-  orquestador_url       → URL base del sistema multiagente (ej: https://eco-multiagente.fly.dev)
+  orquestador_url       → URL base del sistema multiagente (ej: https://eco-multiagente.up.railway.app)
   orquestador_endpoint  → Endpoint de comandos (default: /api/comando)
   orquestador_api_key   → API Key para autenticación
 """

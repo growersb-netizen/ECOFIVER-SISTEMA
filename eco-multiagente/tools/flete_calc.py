@@ -2,7 +2,15 @@
 Calculador de flete desde Zárate hacia localidades de Argentina.
 Retorna monto aproximado con disclaimer obligatorio.
 Las tarifas por km se leen del catálogo para que sean configurables desde el panel.
+
+Tarifas vigentes ($/km desde Zárate):
+  - General (piscinas resto de modelos + módulos): $3.000
+  - Piscinas grandes (Arco Romano Grande 8.10m, Playa y Abanico 9.20m): $5.000
+  - Hidromasajes / jacuzzis: $2.000
+  - Miniportante: tarifa histórica separada (ver catálogo), sin reconfirmar
 """
+
+MODELOS_FLETE_ALTO = {"arco romano grande", "playa y abanico"}
 
 # Tabla de distancias aproximadas (km) desde Zárate
 # Fuente: estimaciones por ruta nacional/provincial
@@ -132,7 +140,10 @@ def calcular_flete(localidad: str, producto: str = "general") -> dict:
 
     Args:
         localidad: nombre de la localidad (no la dirección exacta)
-        producto: "miniportante" cobra $2.000/km, el resto $3.000/km
+        producto: nombre del modelo/categoría — "miniportante" usa su tarifa
+            histórica separada; "hidromasaje"/"jacuzzi" usan $2.000/km;
+            "arco romano grande" / "playa y abanico" usan $5.000/km;
+            cualquier otro valor (piscinas resto + módulos) usa $3.000/km
 
     Returns:
         dict con monto_aproximado, disclaimer y localidad.
@@ -161,9 +172,20 @@ def calcular_flete(localidad: str, producto: str = "general") -> dict:
 
     # Leer tarifas del catálogo en cada llamada (permite cambios desde el panel sin reiniciar)
     from agents.catalogo import CATALOGO
-    tarifa_general      = CATALOGO.get("flete_por_km", 3000)
-    tarifa_miniportante = CATALOGO.get("flete_miniportante_por_km", 2000)
-    tarifa = tarifa_miniportante if "miniportante" in producto.lower() else tarifa_general
+    tarifa_general       = CATALOGO.get("flete_por_km", 3000)
+    tarifa_alto          = CATALOGO.get("flete_alto_por_km", 5000)
+    tarifa_hidromasajes  = CATALOGO.get("flete_hidromasajes_por_km", 2000)
+    tarifa_miniportante  = CATALOGO.get("flete_miniportante_por_km", 2000)
+
+    producto_key = producto.lower().strip()
+    if "miniportante" in producto_key:
+        tarifa = tarifa_miniportante
+    elif "hidromasaje" in producto_key or "jacuzzi" in producto_key:
+        tarifa = tarifa_hidromasajes
+    elif producto_key in MODELOS_FLETE_ALTO:
+        tarifa = tarifa_alto
+    else:
+        tarifa = tarifa_general
     monto = distancia * tarifa
 
     return {

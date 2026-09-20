@@ -94,20 +94,21 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
   );
 }
 
-function categoryArt(slug: string): { bg: string; accent: string; label: string } {
-  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS" };
-  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX" };
-  if (slug.includes("nutri") || slug.includes("receta")) return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN" };
-  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE" };
-  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO" };
-  if (slug.includes("mindset") || slug.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET" };
-  if (slug.includes("desafio"))                          return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS" };
-  if (slug.includes("hombre"))                           return { bg: "linear-gradient(135deg,#040A0E 0%,#081420 60%,#00C8FF22 100%)", accent: "#00C8FF", label: "PARA HOMBRES" };
-  if (slug.includes("vip") || slug.includes("bundle") || slug.includes("pack")) return { bg: "linear-gradient(135deg,#0A0800 0%,#1A1200 60%,#FFD70025 100%)", accent: "#FFD700", label: "VIP / PACK" };
-  if (slug.includes("transformacion"))                   return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN" };
-  if (slug.includes("fuerza") || slug.includes("musc"))  return { bg: "linear-gradient(135deg,#060008 0%,#120020 60%,#AA00FF22 100%)", accent: "#AA00FF", label: "FUERZA" };
-  if (slug.includes("rendimiento") || slug.includes("deport")) return { bg: "linear-gradient(135deg,#000A08 0%,#001A12 60%,#00FF8728 100%)", accent: "#00FF87", label: "RENDIMIENTO" };
-  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA" };
+function categoryArt(slug: string): { bg: string; accent: string; label: string; img?: string } {
+  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE", img: "/images/cat-04.webp" };
+  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS", img: "/images/cat-05.webp" };
+  if (slug.includes("nutri"))                            return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN", img: "/images/cat-06.webp" };
+  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA", img: "/images/cat-07.webp" };
+  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX", img: "/images/cat-08.webp" };
+  if (slug.includes("transformacion"))                   return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN", img: "/images/cat-09.webp" };
+  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO", img: "/images/cat-10.webp" };
+  if (slug.includes("mindset") || slug.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET", img: "/images/cat-11.webp" };
+  if (slug.includes("receta"))                           return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "RECETAS", img: "/images/cat-12.webp" };
+  if (slug.includes("desafio"))                          return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS", img: "/images/cat-13.webp" };
+  if (slug.includes("vip") || slug.includes("bundle") || slug.includes("pack")) return { bg: "linear-gradient(135deg,#0A0800 0%,#1A1200 60%,#FFD70025 100%)", accent: "#FFD700", label: "VIP / PACK", img: "/images/cat-14.webp" };
+  if (slug.includes("hombre"))                           return { bg: "linear-gradient(135deg,#040A0E 0%,#081420 60%,#00C8FF22 100%)", accent: "#00C8FF", label: "PARA HOMBRES", img: "/images/cat-15.webp" };
+  if (slug.includes("fuerza") || slug.includes("musc"))  return { bg: "linear-gradient(135deg,#060008 0%,#120020 60%,#AA00FF22 100%)", accent: "#AA00FF", label: "FUERZA", img: "/images/cat-16.webp" };
+  if (slug.includes("rendimiento") || slug.includes("deport")) return { bg: "linear-gradient(135deg,#000A08 0%,#001A12 60%,#00FF8728 100%)", accent: "#00FF87", label: "RENDIMIENTO", img: "/images/cat-17.webp" };
   return { bg: "linear-gradient(135deg,#06080F 0%,#0D1020 60%,#DE316318 100%)", accent: "#DE3163", label: "FITNESS" };
 }
 
@@ -133,9 +134,20 @@ function StoreCard({ product }: { product: StoreProduct }) {
           position: "relative", overflow: "hidden",
           borderBottom: `1px solid ${art.accent}22`,
         }}>
+          {art.img && (
+            <img
+              src={art.img}
+              alt={art.label}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.75 }}
+            />
+          )}
+          {/* Overlay gradient for text legibility */}
+          {art.img && (
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)", pointerEvents: "none" }} />
+          )}
           {/* Geometric art */}
-          <div style={{ position: "absolute", bottom: -20, right: -20, width: 100, height: 100, borderRadius: "50%", border: `2px solid ${art.accent}25`, pointerEvents: "none" }} />
-          <div style={{ position: "absolute", top: -12, left: -12, width: 60, height: 60, borderRadius: "50%", border: `1px solid ${art.accent}18`, pointerEvents: "none" }} />
+          {!art.img && <div style={{ position: "absolute", bottom: -20, right: -20, width: 100, height: 100, borderRadius: "50%", border: `2px solid ${art.accent}25`, pointerEvents: "none" }} />}
+          {!art.img && <div style={{ position: "absolute", top: -12, left: -12, width: 60, height: 60, borderRadius: "50%", border: `1px solid ${art.accent}18`, pointerEvents: "none" }} />}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${art.accent}77 0%, transparent 100%)` }} />
           <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: art.accent, opacity: 0.8, position: "absolute", bottom: 8, left: 10 }}>
             {art.label}

@@ -117,8 +117,9 @@ export default async function ProductPage({ params }: Props) {
         padding: "0 1rem", height: 56,
         display: "flex", alignItems: "center", gap: "1rem",
       }}>
-        <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none", whiteSpace: "nowrap" }}>
-          {STORE_NAME}
+        <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <img src="/images/logo-1.webp" alt={STORE_NAME} style={{ height: 32, width: 32, objectFit: "contain", borderRadius: 4 }} />
+          <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1rem", letterSpacing: "0.08em", color: NEON, whiteSpace: "nowrap" }}>{STORE_NAME}</span>
         </Link>
         <div style={{ flex: 1 }} />
         <Link href="/tienda" style={{ color: "#A0AAC8", textDecoration: "none", fontSize: "0.82rem", whiteSpace: "nowrap" }}>← Tienda</Link>

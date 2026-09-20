@@ -199,8 +199,9 @@ export default async function TiendaPage({ searchParams }: { searchParams: Searc
         padding: "0 1rem", height: 56,
         display: "flex", alignItems: "center", gap: "1rem",
       }}>
-        <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none", whiteSpace: "nowrap" }}>
-          {STORE_NAME}
+        <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <img src="/images/logo-1.webp" alt={STORE_NAME} style={{ height: 32, width: 32, objectFit: "contain", borderRadius: 4 }} />
+          <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1rem", letterSpacing: "0.08em", color: NEON, whiteSpace: "nowrap" }}>{STORE_NAME}</span>
         </Link>
         <div style={{ flex: 1 }} />
         <span style={{ color: CEREZA, fontSize: "0.82rem", fontWeight: 600 }}>Tienda</span>

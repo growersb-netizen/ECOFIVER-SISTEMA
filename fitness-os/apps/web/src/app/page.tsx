@@ -165,58 +165,65 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* Panel visual derecho — categorías como grid limpio */}
+        {/* Hero image panel */}
         <div style={{
+          borderRadius: 16,
+          overflow: "hidden",
+          position: "relative",
+          minHeight: 420,
           background: "#0D0F1A",
           border: "1px solid #1A1F35",
-          borderRadius: 16,
-          padding: "2rem",
         }}>
-          <p style={{
-            color: MUTED, fontSize: "0.72rem",
-            fontWeight: 700, letterSpacing: "0.14em",
-            textTransform: "uppercase", margin: "0 0 1.25rem",
+          <img
+            src="/images/hero-1.webp"
+            alt="Entrenamiento NexFit"
+            style={{
+              width: "100%", height: "100%",
+              objectFit: "cover", objectPosition: "center",
+              position: "absolute", inset: 0,
+              display: "block",
+            }}
+          />
+          {/* dark overlay so any overlay text is legible */}
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "linear-gradient(160deg, rgba(6,8,15,0.15) 0%, rgba(6,8,15,0.65) 100%)",
+          }} />
+          {/* floating category count badge */}
+          <div style={{
+            position: "absolute", bottom: "1.5rem", left: "1.5rem", right: "1.5rem",
+            background: "rgba(6,8,15,0.82)", backdropFilter: "blur(12px)",
+            border: "1px solid rgba(222,49,99,0.3)",
+            borderRadius: 12, padding: "1rem 1.25rem",
           }}>
-            Categorías disponibles
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {(categories.slice(0, 8)).map((cat, i) => (
-              <Link key={cat.id} href={`/tienda?categoria=${cat.slug}`} style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: "0.65rem 0.85rem",
-                background: "#07080F",
-                border: "1px solid #1A1F35",
-                borderRadius: 8,
-                textDecoration: "none",
-                transition: "border-color 0.15s",
-              }}
-                className="cat-link"
-              >
-                <span style={{ color: TEXT, fontSize: "0.88rem", fontWeight: 500 }}>
+            <p style={{ color: CEREZA, fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", margin: "0 0 0.6rem" }}>
+              Categorías disponibles
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+              {categories.slice(0, 6).map((cat) => (
+                <Link key={cat.id} href={`/tienda?categoria=${cat.slug}`} style={{
+                  padding: "0.22rem 0.7rem", borderRadius: 20,
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#D0D8F0", fontSize: "0.75rem", fontWeight: 500,
+                  textDecoration: "none", whiteSpace: "nowrap",
+                }}>
                   {cat.name}
-                </span>
-                {cat._count && (
-                  <span style={{
-                    color: MUTED, fontSize: "0.75rem",
-                    background: "#1A1F35",
-                    padding: "1px 7px", borderRadius: 4,
-                  }}>
-                    {cat._count.products}
-                  </span>
-                )}
-              </Link>
-            ))}
+                </Link>
+              ))}
+              {categories.length > 6 && (
+                <Link href="/tienda" style={{
+                  padding: "0.22rem 0.7rem", borderRadius: 20,
+                  background: `rgba(222,49,99,0.18)`,
+                  border: `1px solid ${CEREZA}44`,
+                  color: CEREZA, fontSize: "0.75rem", fontWeight: 700,
+                  textDecoration: "none", whiteSpace: "nowrap",
+                }}>
+                  +{categories.length - 6} más →
+                </Link>
+              )}
+            </div>
           </div>
-          {categories.length > 8 && (
-            <Link href="/tienda" style={{
-              display: "block", marginTop: "1rem",
-              color: CEREZA, fontSize: "0.82rem",
-              fontWeight: 600, textDecoration: "none",
-              textAlign: "center",
-            }}>
-              Ver todas las categorías →
-            </Link>
-          )}
         </div>
       </section>
 
@@ -321,27 +328,31 @@ export default async function HomePage() {
   );
 }
 
+// ── Category visual art — CSS-based branded thumbnails ──────────────
+function categoryArt(slug: string): { bg: string; accent: string; label: string } {
+  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS" };
+  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX" };
+  if (slug.includes("nutri") || slug.includes("receta")) return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN" };
+  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE" };
+  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO" };
+  if (slug.includes("mindset") || slug.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET" };
+  if (slug.includes("desafio"))                          return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS" };
+  if (slug.includes("hombre"))                           return { bg: "linear-gradient(135deg,#040A0E 0%,#081420 60%,#00C8FF22 100%)", accent: "#00C8FF", label: "PARA HOMBRES" };
+  if (slug.includes("vip") || slug.includes("bundle") || slug.includes("pack")) return { bg: "linear-gradient(135deg,#0A0800 0%,#1A1200 60%,#FFD70025 100%)", accent: "#FFD700", label: "VIP / PACK" };
+  if (slug.includes("transformacion"))                   return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN" };
+  if (slug.includes("fuerza") || slug.includes("musc"))  return { bg: "linear-gradient(135deg,#060008 0%,#120020 60%,#AA00FF22 100%)", accent: "#AA00FF", label: "FUERZA" };
+  if (slug.includes("rendimiento") || slug.includes("deport")) return { bg: "linear-gradient(135deg,#000A08 0%,#001A12 60%,#00FF8728 100%)", accent: "#00FF87", label: "RENDIMIENTO" };
+  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA" };
+  return { bg: "linear-gradient(135deg,#06080F 0%,#0D1020 60%,#DE316318 100%)", accent: "#DE3163", label: "FITNESS" };
+}
+
 // ── ProductCard — diseño de e-commerce real ─────────────────────────
 function ProductCard({ product }: { product: StoreProduct }) {
   const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
   const levelColors: Record<string, string> = { principiante: NEON, intermedio: CYAN, avanzado: CEREZA };
   const levelColor = product.level ? (levelColors[product.level] ?? CYAN) : CYAN;
   const isBundle = product.productType === "BUNDLE";
-
-  // Emoji por categoría (placeholder hasta tener imágenes reales)
-  const emoji = (() => {
-    const slug = product.category?.slug ?? "";
-    if (slug.includes("glut") || slug.includes("pierna")) return "🍑";
-    if (slug.includes("yoga") || slug.includes("flex"))    return "🧘";
-    if (slug.includes("nutri") || slug.includes("receta")) return "🥗";
-    if (slug.includes("abdomen") || slug.includes("core")) return "⚡";
-    if (slug.includes("postparto"))  return "💪";
-    if (slug.includes("mindset"))    return "🧠";
-    if (slug.includes("desafio"))    return "🔥";
-    if (slug.includes("hombre"))     return "🏋️";
-    if (slug.includes("pack") || slug.includes("bundle")) return "⭐";
-    return "🏋️";
-  })();
+  const art = categoryArt(product.category?.slug ?? "");
 
   return (
     <Link href={`/tienda/${product.slug}`} style={{ textDecoration: "none", display: "block" }}>
@@ -356,41 +367,54 @@ function ProductCard({ product }: { product: StoreProduct }) {
       }}
         className="product-card"
       >
-        {/* Cover — limpio, sin gradiente doble */}
+        {/* Cover — CSS art branded per category */}
         <div style={{
           height: 160,
-          background: "#0A0C18",
+          background: art.bg,
           display: "flex", alignItems: "center", justifyContent: "center",
           position: "relative",
-          borderBottom: "1px solid #1A1F35",
+          borderBottom: `1px solid ${art.accent}22`,
+          overflow: "hidden",
         }}>
-          <span style={{ fontSize: "2.5rem", opacity: 0.9 }}>{emoji}</span>
-
-          {/* Badges — top-left y top-right, nunca los dos a la vez en conflicto */}
+          {/* Geometric accent circle */}
           <div style={{
-            position: "absolute", top: 10, left: 10,
-            display: "flex", gap: "0.4rem",
+            position: "absolute", bottom: -24, right: -24,
+            width: 120, height: 120, borderRadius: "50%",
+            border: `2px solid ${art.accent}30`,
+            pointerEvents: "none",
+          }} />
+          <div style={{
+            position: "absolute", top: -16, left: -16,
+            width: 80, height: 80, borderRadius: "50%",
+            border: `1px solid ${art.accent}20`,
+            pointerEvents: "none",
+          }} />
+          {/* Category label */}
+          <span style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: "0.68rem", fontWeight: 800,
+            letterSpacing: "0.18em", textTransform: "uppercase",
+            color: art.accent, opacity: 0.85,
+            position: "absolute", bottom: 10, left: 12,
           }}>
+            {art.label}
+          </span>
+          {/* Accent line */}
+          <div style={{
+            position: "absolute", bottom: 0, left: 0, right: 0,
+            height: 2, background: `linear-gradient(90deg, ${art.accent}88 0%, transparent 100%)`,
+          }} />
+
+          {/* Badges */}
+          <div style={{ position: "absolute", top: 10, left: 10, display: "flex", gap: "0.4rem" }}>
             {isBundle && (
-              <span style={{
-                padding: "2px 8px", borderRadius: 4,
-                fontSize: "0.65rem", fontWeight: 700,
-                background: `${CEREZA}20`, color: CEREZA,
-                border: `1px solid ${CEREZA}44`,
-                letterSpacing: "0.06em",
-              }}>
+              <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: "0.65rem", fontWeight: 700, background: `${CEREZA}20`, color: CEREZA, border: `1px solid ${CEREZA}44`, letterSpacing: "0.06em" }}>
                 PACK
               </span>
             )}
           </div>
           {product.level && (
-            <span style={{
-              position: "absolute", top: 10, right: 10,
-              padding: "2px 7px", borderRadius: 4,
-              fontSize: "0.65rem", fontWeight: 700,
-              background: `${levelColor}18`, color: levelColor,
-              border: `1px solid ${levelColor}35`,
-            }}>
+            <span style={{ position: "absolute", top: 10, right: 10, padding: "2px 7px", borderRadius: 4, fontSize: "0.65rem", fontWeight: 700, background: `${levelColor}18`, color: levelColor, border: `1px solid ${levelColor}35` }}>
               {product.level}
             </span>
           )}

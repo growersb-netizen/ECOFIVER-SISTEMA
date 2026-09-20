@@ -94,22 +94,29 @@ async function ProductGrid({ searchParams }: { searchParams: SearchParams }) {
   );
 }
 
+function categoryArt(slug: string): { bg: string; accent: string; label: string } {
+  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS" };
+  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX" };
+  if (slug.includes("nutri") || slug.includes("receta")) return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN" };
+  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE" };
+  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO" };
+  if (slug.includes("mindset") || slug.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET" };
+  if (slug.includes("desafio"))                          return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS" };
+  if (slug.includes("hombre"))                           return { bg: "linear-gradient(135deg,#040A0E 0%,#081420 60%,#00C8FF22 100%)", accent: "#00C8FF", label: "PARA HOMBRES" };
+  if (slug.includes("vip") || slug.includes("bundle") || slug.includes("pack")) return { bg: "linear-gradient(135deg,#0A0800 0%,#1A1200 60%,#FFD70025 100%)", accent: "#FFD700", label: "VIP / PACK" };
+  if (slug.includes("transformacion"))                   return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN" };
+  if (slug.includes("fuerza") || slug.includes("musc"))  return { bg: "linear-gradient(135deg,#060008 0%,#120020 60%,#AA00FF22 100%)", accent: "#AA00FF", label: "FUERZA" };
+  if (slug.includes("rendimiento") || slug.includes("deport")) return { bg: "linear-gradient(135deg,#000A08 0%,#001A12 60%,#00FF8728 100%)", accent: "#00FF87", label: "RENDIMIENTO" };
+  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA" };
+  return { bg: "linear-gradient(135deg,#06080F 0%,#0D1020 60%,#DE316318 100%)", accent: "#DE3163", label: "FITNESS" };
+}
+
 function StoreCard({ product }: { product: StoreProduct }) {
   const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
   const levelColor = product.level === "principiante" ? NEON : product.level === "intermedio" ? CYAN : CEREZA;
   const audience = getAudienceTag(product);
   const audienceColor = audience === "Para Hombres" ? CYAN : audience === "Para Mujeres" ? CEREZA : NEON;
-
-  const emoji =
-    product.category?.slug?.includes("glut") || product.category?.slug?.includes("pierna") ? "🍑" :
-    product.category?.slug?.includes("yoga") || product.category?.slug?.includes("flex") ? "🧘" :
-    product.category?.slug?.includes("nutri") || product.category?.slug?.includes("receta") ? "🥗" :
-    product.category?.slug?.includes("abdomen") || product.category?.slug?.includes("core") ? "⚡" :
-    product.category?.slug?.includes("postparto") ? "💪" :
-    product.category?.slug?.includes("mindset") ? "🧠" :
-    product.category?.slug?.includes("desafio") ? "🔥" :
-    product.category?.slug?.includes("casa") ? "🏠" :
-    product.category?.slug?.includes("vip") || product.category?.slug?.includes("bundle") ? "⭐" : "🏋️";
+  const art = categoryArt(product.category?.slug ?? "");
 
   return (
     <Link href={`/tienda/${product.slug}`} style={{ textDecoration: "none", display: "block" }}>
@@ -120,8 +127,19 @@ function StoreCard({ product }: { product: StoreProduct }) {
       }}
         className="store-card"
       >
-        <div style={{ height: 140, background: `linear-gradient(135deg, #0A0C18 0%, ${CEREZA}0B 50%, ${NEON}07 100%)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-          <span style={{ fontSize: "2.25rem" }}>{emoji}</span>
+        <div style={{
+          height: 140, background: art.bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          position: "relative", overflow: "hidden",
+          borderBottom: `1px solid ${art.accent}22`,
+        }}>
+          {/* Geometric art */}
+          <div style={{ position: "absolute", bottom: -20, right: -20, width: 100, height: 100, borderRadius: "50%", border: `2px solid ${art.accent}25`, pointerEvents: "none" }} />
+          <div style={{ position: "absolute", top: -12, left: -12, width: 60, height: 60, borderRadius: "50%", border: `1px solid ${art.accent}18`, pointerEvents: "none" }} />
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${art.accent}77 0%, transparent 100%)` }} />
+          <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: art.accent, opacity: 0.8, position: "absolute", bottom: 8, left: 10 }}>
+            {art.label}
+          </span>
           {product.level && (
             <span style={{ position: "absolute", top: 8, right: 8, padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, background: `${levelColor}22`, color: levelColor, border: `1px solid ${levelColor}44` }}>
               {product.level}

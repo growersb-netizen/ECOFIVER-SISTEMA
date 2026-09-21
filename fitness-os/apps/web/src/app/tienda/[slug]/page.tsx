@@ -62,13 +62,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 function categoryArt(slug?: string): { bg: string; accent: string; label: string; img?: string } {
   const s = slug ?? "";
-  if (s.includes("abdomen") || s.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE" };
-  if (s.includes("glut") || s.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS" };
-  if (s.includes("nutri"))                          return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN" };
-  if (s.includes("casa"))                           return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA" };
-  if (s.includes("yoga") || s.includes("flex"))     return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX" };
+  if (s.includes("abdomen") || s.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE", img: "/images/cat-04.webp" };
+  if (s.includes("glut") || s.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS", img: "/images/cat-05.webp" };
+  if (s.includes("nutri"))                          return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN", img: "/images/cat-06.webp" };
+  if (s.includes("casa"))                           return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA", img: "/images/cat-07.webp" };
+  if (s.includes("yoga") || s.includes("flex"))     return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX", img: "/images/cat-08.webp" };
   if (s.includes("transformacion"))                 return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN", img: "/images/cat-09.webp" };
-  if (s.includes("postparto"))                      return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO" };
+  if (s.includes("postparto"))                      return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO", img: "/images/cat-10.webp" };
   if (s.includes("mindset") || s.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET", img: "/images/cat-11.webp" };
   if (s.includes("receta"))                         return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "RECETAS", img: "/images/cat-12.webp" };
   if (s.includes("desafio"))                        return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS", img: "/images/cat-13.webp" };
@@ -136,48 +136,44 @@ export default async function ProductPage({ params }: Props) {
           <span style={{ color: BODY, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "40vw" }}>{product.name}</span>
         </div>
 
-        {/* Hero cover — mobile visible */}
+        {/* Hero cover — imagen de fondo + categoría + título superpuestos */}
         <div style={{
-          height: 200, borderRadius: 14,
+          height: 240, borderRadius: 14,
           background: art.bg,
-          display: "flex", alignItems: "center", justifyContent: "center",
           marginBottom: "1.5rem",
           border: `1px solid ${art.accent}33`,
           position: "relative", overflow: "hidden",
+          display: "flex", flexDirection: "column", justifyContent: "flex-end",
         }}>
           {art.img && (
             <img
               src={art.img}
               alt={art.label}
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.7, borderRadius: 14 }}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.75, borderRadius: 14 }}
             />
           )}
-          {art.img && (
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.6) 100%)", borderRadius: 14, pointerEvents: "none" }} />
-          )}
+          {/* Gradient más pronunciado en la parte inferior para legibilidad del texto */}
+          <div style={{ position: "absolute", inset: 0, background: art.img ? "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.82) 100%)" : "none", borderRadius: 14, pointerEvents: "none" }} />
           {!art.img && <div style={{ position: "absolute", bottom: -30, right: -30, width: 160, height: 160, borderRadius: "50%", border: `2px solid ${art.accent}25`, pointerEvents: "none" }} />}
           {!art.img && <div style={{ position: "absolute", top: -20, left: -20, width: 100, height: 100, borderRadius: "50%", border: `1px solid ${art.accent}18`, pointerEvents: "none" }} />}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${art.accent}88 0%, transparent 100%)` }} />
-          <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1rem", fontWeight: 800, letterSpacing: "0.2em", color: art.img ? "#fff" : art.accent, opacity: art.img ? 0.9 : 0.7, textTransform: "uppercase", position: "relative" }}>
-            {art.label}
-          </span>
+          {/* Texto superpuesto en la parte inferior */}
+          <div style={{ position: "relative", padding: "0 1.1rem 1rem" }}>
+            {product.category && (
+              <span style={{ display: "inline-block", marginBottom: "0.35rem", padding: "2px 9px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, background: `${CEREZA}30`, color: art.img ? "#fff" : CEREZA, border: `1px solid ${art.img ? "rgba(255,255,255,0.25)" : CEREZA + "44"}`, textTransform: "uppercase", letterSpacing: "0.08em", backdropFilter: "blur(4px)" }}>
+                {product.category.name}
+              </span>
+            )}
+            <h1 style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: "clamp(1.5rem, 5vw, 2.5rem)", fontWeight: 800, lineHeight: 1.05,
+              margin: 0, color: art.img ? "#fff" : TEXT,
+              textShadow: art.img ? "0 2px 8px rgba(0,0,0,0.6)" : "none",
+            }}>
+              {product.name}
+            </h1>
+          </div>
         </div>
-
-        {/* Category & Title */}
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-          {product.category && (
-            <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: "0.7rem", fontWeight: 700, background: `${CEREZA}18`, color: CEREZA, border: `1px solid ${CEREZA}44`, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {product.category.name}
-            </span>
-          )}
-        </div>
-        <h1 style={{
-          fontFamily: "'Barlow Condensed', sans-serif",
-          fontSize: "clamp(1.75rem, 6vw, 3rem)", fontWeight: 800, lineHeight: 1.05,
-          margin: "0 0 1rem", color: TEXT,
-        }}>
-          {product.name}
-        </h1>
 
         {/* Two-column layout: stacks to 1 col on mobile */}
         <div style={{

@@ -87,7 +87,6 @@ def _aliado_dict(a: Aliado) -> dict:
         "fecha_alta": a.fecha_alta.isoformat() if a.fecha_alta else None,
         "contrato_firmado": bool(a.contrato_firmado),
         "operativo": (a.estado == "activo" and bool(a.contrato_firmado)),
-        "tiene_pin": bool(a.pin),
         "notas": a.notas or "",
         "es_admin_crm": bool(a.es_admin_crm),
     }
@@ -188,7 +187,6 @@ async def crear_aliado(
         zona=(data.get("zona") or "").strip(),
         estado=estado,
         contrato_firmado=bool(data.get("contrato_firmado", False)),
-        pin=(data.get("pin") or "").strip() or None,
         notas=data.get("notas", ""),
     )
     db.add(aliado)
@@ -326,8 +324,6 @@ async def actualizar_aliado(
             setattr(a, campo, data[campo])
     if "contrato_firmado" in data:
         a.contrato_firmado = bool(data["contrato_firmado"])
-    if "pin" in data:
-        a.pin = (data["pin"] or "").strip() or None
 
     db.commit()
     db.refresh(a)
@@ -856,59 +852,3 @@ async def postulacion_aliado(request: Request, db: Session = Depends(get_db)):
     db.refresh(aliado)
     return {"ok": True, "codigo": aliado.codigo, "estado": "postulante"}
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PORTAL DEL ALIADO — solo lectura, login por código + PIN (público)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@router.get("/portal-aliado", response_class=HTMLResponse)
-async def portal_aliado_page(request: Request):
-    """Página pública de login del portal del aliado."""
-    return templates.TemplateResponse("portal_aliado.html", {"request": request})
-
-
-@router.post("/api/public/aliado-portal")
-async def aliado_portal_data(request: Request, db: Session = Depends(get_db)):
-    """
-    PÚBLICO: valida código + PIN del aliado y devuelve, en solo lectura,
-    sus leads cargados (con estado) y el resumen de comisiones.
-    """
-    data = await request.json()
-    cod = (data.get("codigo") or "").strip().upper()
-    pin = (data.get("pin") or "").strip()
-    if not cod or not pin:
-        raise HTTPException(400, "Ingresá código y PIN")
-
-    a = db.query(Aliado).filter(Aliado.codigo == cod).first()
-    if not a or not a.pin or a.pin != pin:
-        raise HTTPException(401, "Código o PIN incorrecto")
-
-    leads = db.query(Lead).filter(Lead.aliado_codigo == cod).order_by(Lead.created_at.desc()).all()
-    comisiones = db.query(Comision).filter(Comision.aliado_codigo == cod).order_by(Comision.id.desc()).all()
-
-    return {
-        "ok": True,
-        "aliado": {
-            "codigo": a.codigo,
-            "nombre": a.nombre,
-            "estado": a.estado,
-            "operativo": (a.estado == "activo" and bool(a.contrato_firmado)),
-        },
-        "leads": [{
-            "nombre": l.nombre,
-            "localidad": l.localidad or "",
-            "estado": l.estado,
-            "estado_verificacion": l.estado_verificacion or "pendiente",
-            "created_at": l.created_at.isoformat() if l.created_at else None,
-        } for l in leads],
-        "comisiones": {
-            "pendiente": round(sum(c.monto or 0 for c in comisiones if c.estado == "pendiente"), 2),
-            "liquidado": round(sum(c.monto or 0 for c in comisiones if c.estado == "liquidada"), 2),
-            "items": [{
-                "solicitud_numero": c.solicitud_numero or "",
-                "tipo": c.tipo,
-                "monto": c.monto or 0,
-                "estado": c.estado,
-            } for c in comisiones],
-        },
-    }

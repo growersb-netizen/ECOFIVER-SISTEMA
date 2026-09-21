@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event as _sa_event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
@@ -20,8 +20,6 @@ else:
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 if _is_sqlite:
-    from sqlalchemy import event as _sa_event
-
     @_sa_event.listens_for(engine, "connect")
     def _set_sqlite_pragmas(dbapi_conn, _record):
         """WAL: lecturas y escrituras concurrentes sin bloqueo. busy_timeout=30s."""
@@ -33,6 +31,67 @@ if _is_sqlite:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# ── Audit log universal ────────────────────────────────────────────────────────
+_SKIP_AUDIT = {"audit_logs"}
+_SKIP_FIELDS = {"password_hash", "token_operario", "agente_key",
+                "codigo_verificacion", "codigo_verificacion_email"}
+
+
+@_sa_event.listens_for(SessionLocal, "before_flush")
+def _audit_flush(session, flush_context, instances):
+    import json
+    from sqlalchemy import inspect as _ins
+
+    try:
+        from database.models import AuditLog
+    except ImportError:
+        return
+
+    logs = []
+
+    for obj in list(session.new):
+        tbl = getattr(obj, "__tablename__", "")
+        if tbl in _SKIP_AUDIT:
+            continue
+        logs.append(AuditLog(
+            table_name=tbl,
+            record_id=getattr(obj, "id", None),
+            action="INSERT",
+        ))
+
+    for obj in list(session.dirty):
+        tbl = getattr(obj, "__tablename__", "")
+        if tbl in _SKIP_AUDIT:
+            continue
+        state = _ins(obj)
+        changes = {}
+        for attr in state.attrs:
+            if attr.key in _SKIP_FIELDS:
+                continue
+            hist = attr.history
+            if hist.has_changes() and (hist.deleted or hist.added):
+                changes[attr.key] = {"v": (hist.added[0] if hist.added else None)}
+        if changes:
+            logs.append(AuditLog(
+                table_name=tbl,
+                record_id=getattr(obj, "id", None),
+                action="UPDATE",
+                changed_fields=json.dumps(changes, default=str),
+            ))
+
+    for obj in list(session.deleted):
+        tbl = getattr(obj, "__tablename__", "")
+        if tbl in _SKIP_AUDIT:
+            continue
+        logs.append(AuditLog(
+            table_name=tbl,
+            record_id=getattr(obj, "id", None),
+            action="DELETE",
+        ))
+
+    for log in logs:
+        session.add(log)
 
 
 def get_db():

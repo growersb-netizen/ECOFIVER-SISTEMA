@@ -1331,7 +1331,6 @@ class Aliado(Base):
     estado = Column(String(20), default="postulante", index=True)
     fecha_alta = Column(DateTime(timezone=True), server_default=func.now())
     contrato_firmado = Column(Boolean, default=False)    # bloquea operativa si es False
-    pin = Column(String(12), nullable=True)              # legado: PIN del portal de solo lectura anterior
     notas = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -1684,6 +1683,20 @@ class SetFotosML(Base):
     foto_ids_json  = Column(Text, default="[]")             # JSON list de FotoML.id (orden importa)
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
     updated_at     = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class AuditLog(Base):
+    """Registro inmutable de cambios en tablas críticas."""
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    table_name = Column(String(100), nullable=False, index=True)
+    record_id = Column(Integer, nullable=True, index=True)
+    action = Column(String(10), nullable=False)         # INSERT | UPDATE | DELETE
+    changed_fields = Column(Text, nullable=True)        # JSON {campo: {v: nuevo_valor}}
+    usuario_id = Column(Integer, nullable=True)
+    usuario_nombre = Column(String(150), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
 class RespuestaAutoML(Base):

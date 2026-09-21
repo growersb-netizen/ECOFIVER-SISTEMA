@@ -380,6 +380,14 @@ CONFIG_DEFS: dict = {
         "test_id": None,
         "placeholder": "ECO2026",
     },
+    # ── Indexación ICAC mensual ───────────────────────────────────────────────
+    "cac_pct_mes": {
+        "label": "📈 ICAC del mes — % de indexación de cuotas (ej: 3.5)",
+        "categoria": "finanzas",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "3.5",
+    },
 }
 
 
@@ -581,7 +589,37 @@ async def update_config(
         db.add(entry)
 
     db.commit()
-    return {"ok": True, "clave": clave, "estado": entry.estado}
+
+    extra: dict = {}
+    # ── CAC atómico: al guardar el % mensual, aplica indexación automáticamente ──
+    if clave == "cac_pct_mes" and valor:
+        try:
+            pct = float(valor)
+            if pct > 0:
+                from database.models import VentaFinanciada
+                from datetime import datetime
+                ahora = datetime.now()
+                ventas = db.query(VentaFinanciada).filter(
+                    VentaFinanciada.producto == "MODULO",
+                    VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"]),
+                ).all()
+                afectados = []
+                for v in ventas:
+                    pct_v = v.cac_excepcion_pct if v.cac_excepcion_pct is not None else pct
+                    anterior = v.valor_cuota or 0
+                    nueva = round(anterior * (1 + pct_v / 100))
+                    v.valor_cuota = nueva
+                    v.cac_pct = pct_v
+                    v.ultima_indexacion = ahora
+                    etiqueta = f"+{pct_v}% (excepción)" if v.cac_excepcion_pct is not None else f"+{pct_v}%"
+                    v.notas = (v.notas or "").strip() + f"\n[ICAC {ahora:%m/%Y}: {etiqueta}] ${anterior:,.0f}→${nueva:,.0f}"
+                    afectados.append({"id": v.id, "cuota_anterior": anterior, "cuota_nueva": nueva})
+                db.commit()
+                extra = {"icac_aplicado": True, "contratos_indexados": len(afectados)}
+        except (ValueError, TypeError):
+            pass
+
+    return {"ok": True, "clave": clave, "estado": entry.estado, **extra}
 
 
 @router.post("/api/config/{clave}/test")

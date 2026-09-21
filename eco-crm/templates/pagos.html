@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Formas de pago — EcoFiver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#f6f8f4;--surface:#ffffff;--border:#dde8d6;
+    --green:#2e7d52;--green-light:#e8f5ed;--green-dark:#1a5c38;
+    --text:#1a2b1f;--muted:#6b7f6e;--accent:#3a9e64;
+    --radius:14px;--shadow:0 2px 12px rgba(0,60,20,.08);
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0f1a12;--surface:#1a2b1f;--border:#2a3d2e;
+    --green:#4abe7a;--green-light:#1a2e20;--green-dark:#6ed49a;
+    --text:#e8f0eb;--muted:#8aaa8e;--accent:#4abe7a;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f1a12;--surface:#1a2b1f;--border:#2a3d2e;
+    --green:#4abe7a;--green-light:#1a2e20;--green-dark:#6ed49a;
+    --text:#e8f0eb;--muted:#8aaa8e;--accent:#4abe7a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 40px}
+  .hero{background:var(--green);color:#fff;padding:28px 20px 24px;text-align:center}
+  .hero h1{font-size:22px;font-weight:700;margin-bottom:4px}
+  .hero p{font-size:14px;opacity:.85}
+  .wrap{max-width:480px;margin:0 auto;padding:20px 16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+        padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .card-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .card-icon{width:40px;height:40px;border-radius:10px;background:var(--green-light);
+             display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .card-title{font-size:15px;font-weight:600;color:var(--text)}
+  .card-sub{font-size:12px;color:var(--muted);margin-top:1px}
+  .data-row{display:flex;align-items:center;justify-content:space-between;
+            padding:10px 0;border-bottom:1px solid var(--border)}
+  .data-row:last-child{border-bottom:none}
+  .data-label{font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+  .data-value{font-size:15px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;text-align:right;word-break:break-all;max-width:220px}
+  .copy-btn{background:var(--green-light);border:none;border-radius:7px;padding:6px 10px;
+            font-size:12px;font-weight:600;color:var(--green-dark);cursor:pointer;flex-shrink:0;margin-left:10px;
+            transition:opacity .15s}
+  .copy-btn:active{opacity:.7}
+  .empty{font-size:13px;color:var(--muted);font-style:italic}
+  .cta-btn{display:block;width:100%;background:var(--green);color:#fff;border:none;border-radius:var(--radius);
+           padding:15px;font-size:15px;font-weight:600;text-align:center;text-decoration:none;cursor:pointer;
+           transition:background .15s}
+  .cta-btn:hover{background:var(--green-dark)}
+  .footer{text-align:center;font-size:12px;color:var(--muted);margin-top:24px}
+  .copied-toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);
+                background:#1a2b1f;color:#fff;padding:10px 20px;border-radius:20px;
+                font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:100}
+  .copied-toast.show{opacity:1}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🌿 EcoFiver — Formas de pago</h1>
+  <p>Elegí cómo realizar tu pago de forma segura</p>
+</div>
+
+<div class="wrap">
+
+  <!-- Transferencia bancaria -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">🏦</div>
+      <div>
+        <div class="card-title">Transferencia bancaria</div>
+        <div class="card-sub">CBU / Alias — acreditación inmediata</div>
+      </div>
+    </div>
+
+    {% if cbu %}
+    <div class="data-row">
+      <div>
+        <div class="data-label">CBU</div>
+        <div class="data-value" id="val-cbu">{{ cbu }}</div>
+      </div>
+      <button class="copy-btn" onclick="copiar('val-cbu','CBU')">Copiar</button>
+    </div>
+    {% endif %}
+
+    {% if alias %}
+    <div class="data-row">
+      <div>
+        <div class="data-label">Alias</div>
+        <div class="data-value" id="val-alias">{{ alias }}</div>
+      </div>
+      <button class="copy-btn" onclick="copiar('val-alias','Alias')">Copiar</button>
+    </div>
+    {% endif %}
+
+    {% if not cbu and not alias %}
+    <p class="empty">Datos de transferencia en proceso de configuración — consultanos por WhatsApp.</p>
+    {% endif %}
+
+    {% if titular %}
+    <div class="data-row">
+      <div>
+        <div class="data-label">Titular</div>
+        <div class="data-value">{{ titular }}</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- MercadoPago -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">💳</div>
+      <div>
+        <div class="card-title">MercadoPago</div>
+        <div class="card-sub">Tarjeta de crédito, débito o saldo MP</div>
+      </div>
+    </div>
+    {% if mp_link %}
+    <a href="{{ mp_link }}" target="_blank" class="cta-btn" style="margin-top:4px">
+      Pagar con MercadoPago →
+    </a>
+    {% else %}
+    <p class="empty">Link de pago MP en proceso de configuración — consultanos por WhatsApp.</p>
+    {% endif %}
+  </div>
+
+  <!-- Cuotas propias -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">📅</div>
+      <div>
+        <div class="card-title">Cuotas directas EcoFiver</div>
+        <div class="card-sub">Sin banco ni tarjeta — señal + cuotas mensuales</div>
+      </div>
+    </div>
+    <p style="font-size:13.5px;color:var(--muted);line-height:1.6">
+      Financiamos directamente sin intermediarios. Abonás una seña inicial y el resto en cuotas
+      mensuales fijas. Sin intereses de terceros. Consultanos para armar tu plan personalizado.
+    </p>
+  </div>
+
+  <!-- WhatsApp CTA -->
+  {% if wa %}
+  <a href="https://wa.me/{{ wa }}" target="_blank" class="cta-btn">
+    💬 Consultar por WhatsApp
+  </a>
+  {% endif %}
+
+  <p class="footer">EcoFiver · Módulos y Piscinas · <a href="https://www.ecomodulos.com.ar" target="_blank">ecomodulos.com.ar</a></p>
+</div>
+
+<div class="copied-toast" id="toast">¡Copiado!</div>
+
+<script>
+function copiar(id, nombre){
+  const txt = document.getElementById(id).textContent.trim();
+  navigator.clipboard.writeText(txt).then(()=>{
+    const t = document.getElementById('toast');
+    t.textContent = nombre + ' copiado';
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2000);
+  }).catch(()=>{
+    const r = document.createRange();
+    r.selectNode(document.getElementById(id));
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(r);
+    document.execCommand('copy');
+    const t = document.getElementById('toast');
+    t.textContent = nombre + ' copiado';
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2000);
+  });
+}
+</script>
+</body>
+</html>

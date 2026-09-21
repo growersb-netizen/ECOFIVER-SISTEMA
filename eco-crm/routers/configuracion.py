@@ -297,6 +297,27 @@ CONFIG_DEFS: dict = {
         "test_id": None,
         "placeholder": "https://www.ecomodulos.com.ar",
     },
+    "empresa_cbu": {
+        "label": "CBU para transferencias",
+        "categoria": "empresa",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "0000000000000000000000",
+    },
+    "empresa_alias": {
+        "label": "Alias CBU",
+        "categoria": "empresa",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "ECOFIVER.PAGOS",
+    },
+    "empresa_mp_link": {
+        "label": "Link de pago MercadoPago",
+        "categoria": "empresa",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "https://mpago.la/...",
+    },
     # ── Distribución de Leads ──
     "leads_modo_distribucion": {
         "label": "Modo de distribución de leads",

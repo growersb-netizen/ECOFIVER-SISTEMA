@@ -12,7 +12,8 @@ from database.database import get_db
 from database.models import (
     Lead, Videollamada, VentaContado, VentaFinanciada,
     OrdenFabricaPiscina, OrdenFabricaModulo, Empleado, Asistencia,
-    LiquidacionSemanal, Notificacion, Reclamo, Usuario, Contrato
+    LiquidacionSemanal, Notificacion, Reclamo, Usuario, Contrato,
+    Pago, ConfiguracionSistema,
 )
 from routers.auth import require_auth, get_user_roles, require_auth_or_apikey
 from routers.ventas_financiadas import dias_atraso
@@ -125,6 +126,22 @@ async def _get_dashboard_impl(
 
         reclamos_abiertos = db.query(Reclamo).filter(Reclamo.estado.in_(["NUEVO", "EN_GESTION"])).count()
 
+        # ── Métricas de salud financiera ──────────────────────────────────────
+        monto_cobrado_mes = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
+            Pago.fecha_pago >= inicio_mes
+        ).scalar() or 0
+        monto_esperado_mes = sum(v.valor_cuota or 0 for v in ventas_fin)
+        efectividad_cobro = round(monto_cobrado_mes / monto_esperado_mes * 100, 1) if monto_esperado_mes > 0 else None
+
+        mora_critica = sum(1 for v in ventas_fin if dias_atraso(v) > 10)
+
+        cac_config = db.query(ConfiguracionSistema).filter(
+            ConfiguracionSistema.clave == "cac_pct_mes"
+        ).first()
+        alerta_cac = not (
+            cac_config and cac_config.updated_at and cac_config.updated_at >= inicio_mes
+        )
+
         return {
             "leads_hoy": leads_hoy,
             "leads_ayer": leads_ayer,
@@ -143,6 +160,9 @@ async def _get_dashboard_impl(
             "ventas_semana": ventas_semana,
             "ventas_dia": ventas_dia,
             "reclamos_abiertos": reclamos_abiertos,
+            "efectividad_cobro": efectividad_cobro,
+            "mora_critica": mora_critica,
+            "alerta_cac": alerta_cac,
         }
 
     elif "ASESOR_APERTURA" in roles:

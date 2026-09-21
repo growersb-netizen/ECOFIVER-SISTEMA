@@ -349,6 +349,7 @@
         <label>Email <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
         <input id="sim2-cliente-email" type="email">
         <button class="btn-teal" style="margin-top:12px;width:100%" onclick="simGenerarPresupuesto()">Generar y descargar PDF</button>
+        <button class="btn-ghost" style="margin-top:8px;width:100%" onclick="simCompartirWhatsApp()">📲 Compartir por WhatsApp</button>
         <div class="msg" id="sim2-presupuesto-msg"></div>
       </div>
 
@@ -626,6 +627,7 @@
 const API = '';
 let SOCIO = null;
 let CATALOGO = null;
+let _simResult = null;
 
 function showScreen(name){
   ['login','registro','olvide'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
@@ -1207,13 +1209,17 @@ function simItemActual(){
 
 function simCalcular(){
   const el = document.getElementById('sim2-resultado');
-  const {producto, precioContado, precioLista} = simItemActual();
+  const {categoria, producto, precioContado, precioLista} = simItemActual();
+  _simResult = null;
   if(!producto){ el.textContent = 'Elegí una categoría y un producto.'; return; }
   const financiado = document.getElementById('sim2-forma-pago').value === 'financiado';
   if(!financiado){
-    el.innerHTML = precioContado != null
-      ? `<div class="kpi"><div class="v">${fmt(precioContado)}</div><div class="l">Precio de contado</div></div>`
-      : `<p>Este producto no tiene precio de contado cargado — consultar.</p>`;
+    if(precioContado != null){
+      _simResult = {producto, financiado: false, precioContado};
+      el.innerHTML = `<div class="kpi"><div class="v">${fmt(precioContado)}</div><div class="l">Precio de contado</div></div>`;
+    } else {
+      el.innerHTML = `<p>Este producto no tiene precio de contado cargado — consultar.</p>`;
+    }
     return;
   }
   if(!precioLista){ el.innerHTML = '<p>Este producto no tiene precio de lista cargado para financiar.</p>'; return; }
@@ -1222,8 +1228,29 @@ function simCalcular(){
   const cuotaMensual = Math.round(precioLista / (cuotas + factor));
   const ingresoInicial = Math.round(cuotaMensual * factor);
   const total = ingresoInicial + cuotaMensual * cuotas;
+  _simResult = {producto, financiado: true, cuotas, cuotaMensual, ingresoInicial};
   el.innerHTML = `<div class="kpi"><div class="v">${fmt(cuotaMensual)}/mes</div><div class="l">${cuotas} cuotas</div></div>
     <p style="margin-top:12px;font-size:13.5px">Precio de lista: ${fmt(precioLista)}<br>Ingreso inicial: ${fmt(ingresoInicial)}<br>Total financiado: ${fmt(total)}</p>`;
+}
+
+function simCompartirWhatsApp(){
+  if(!_simResult){ alert('Primero calculá el precio con el simulador.'); return; }
+  const nombre = (document.getElementById('sim2-cliente-nombre').value.trim() + ' ' +
+                  document.getElementById('sim2-cliente-apellido').value.trim()).trim() || 'cliente';
+  const tel = document.getElementById('sim2-cliente-whatsapp').value.trim();
+  const codigo = SOCIO ? SOCIO.codigo : '';
+  const linkBase = window.location.origin + '/pagos?aliado=' + encodeURIComponent(codigo);
+  let detalle;
+  if(_simResult.financiado){
+    detalle = `Entrega de ${fmt(_simResult.ingresoInicial)} y ${_simResult.cuotas} cuotas de ${fmt(_simResult.cuotaMensual)}`;
+  } else {
+    detalle = `Precio de contado: ${fmt(_simResult.precioContado)}`;
+  }
+  const msg = `Hola ${nombre}! 🌿 El presupuesto para tu ${_simResult.producto} es: ${detalle}. Podés reservar tu lugar acá: ${linkBase}`;
+  const waUrl = tel
+    ? `https://wa.me/549${tel.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(waUrl, '_blank');
 }
 
 async function simGenerarPresupuesto(){

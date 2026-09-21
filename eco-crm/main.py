@@ -235,6 +235,29 @@ app.include_router(ml_biblioteca.router)    # ML — Biblioteca fotos, sets, ren
 
 templates_main = Jinja2Templates(directory="templates")
 
+
+@app.get("/pagos", include_in_schema=False)
+async def pagos_landing(request: Request):
+    """Landing pública de formas de pago — sin autenticación."""
+    from routers.configuracion import get_config_value
+    from database.database import SessionLocal
+    db = SessionLocal()
+    try:
+        def _cfg(k):
+            return get_config_value(k, db) or ""
+        ctx = {
+            "request": request,
+            "cbu": _cfg("empresa_cbu"),
+            "alias": _cfg("empresa_alias"),
+            "mp_link": _cfg("empresa_mp_link"),
+            "titular": _cfg("empresa_nombre") or "EcoFiver",
+            "wa": (_cfg("empresa_wa_principal") or "").replace("+", "").replace(" ", ""),
+        }
+    finally:
+        db.close()
+    return templates_main.TemplateResponse("pagos.html", ctx)
+
+
 @app.get("/manual", include_in_schema=False)
 async def manual_page(
     request: Request,

@@ -24,7 +24,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from backup import run_backup
 from routers.leads import rotar_leads_inactivos
-from database.database import engine, get_db, run_migrations
+from database.database import engine, get_db, run_migrations, _is_sqlite
 from database.models import Base
 from database.seed import seed_database, seed_config_defaults, seed_rr_defaults
 
@@ -42,9 +42,15 @@ from routers import ml_audit
 
 log = logging.getLogger(__name__)
 
-# Create tables + migrate existing ones
-Base.metadata.create_all(bind=engine)
-run_migrations()
+# Schema setup: SQLite uses create_all + raw ALTERs; PostgreSQL uses Alembic
+if _is_sqlite:
+    Base.metadata.create_all(bind=engine)
+    run_migrations()
+else:
+    from alembic.config import Config as _AlembicConfig
+    from alembic import command as _alembic_command
+    _alembic_cfg = _AlembicConfig("alembic.ini")
+    _alembic_command.upgrade(_alembic_cfg, "head")
 
 # Ensure directories exist
 Path("data/contratos").mkdir(parents=True, exist_ok=True)  # persistente (/app/data)

@@ -129,7 +129,12 @@ def siguiente_numero_solicitud(db: Session) -> str:
     el primer número emitido por este flujo es 000-13860153.
     No editable a mano: es la única vía de asignación.
     """
-    contador = db.query(SolicitudContador).filter(SolicitudContador.id == 1).first()
+    contador = (
+        db.query(SolicitudContador)
+        .filter(SolicitudContador.id == 1)
+        .with_for_update()
+        .first()
+    )
     if not contador:
         # Semilla defensiva por si la migración no llegó a correr
         contador = SolicitudContador(id=1, prefijo="000", ultimo_numero=13860152)

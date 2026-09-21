@@ -1,5 +1,5 @@
 /**
- * Home — Tienda Fitness Business OS
+ * Home — Tienda NexFit
  * Diseño profesional: un color dominante (Cereza), tipografía con intención,
  * sin efectos futuristas genéricos.
  */
@@ -19,7 +19,7 @@ const BODY  = "#B8C4E0";
 const MUTED = "#7A87A8";
 const DIM   = "#4A5570";
 
-const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "FITNESS BUSINESS OS";
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NEXFIT";
 
 async function getFeaturedProducts(): Promise<StoreProduct[]> {
   try {

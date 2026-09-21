@@ -240,7 +240,7 @@ SOPORTE:
 Ante cualquier consulta, respondemos por WhatsApp o email dentro de las 24 horas.
 
 ---
-Generado automáticamente · Fitness Business OS
+Generado automáticamente · NexFit
 `;
 }
 
@@ -674,7 +674,7 @@ export function generateGuideHTML(product: ProductData): string {
 
 <!-- PORTADA -->
 <div class="cover">
-  <div class="brand">Fitness Business OS</div>
+  <div class="brand">NexFit</div>
   <h1>${name}</h1>
   <p class="subtitle">${product.description ? product.description.substring(0, 120) + (product.description.length > 120 ? "…" : "") : "Tu guía completa de transformación"}</p>
   <div class="badges">
@@ -690,7 +690,7 @@ ${bodyContent}
 
 <!-- PIE DE PÁGINA -->
 <div style="margin-top: 60px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #aaa; font-size: 11px; font-family: Arial, sans-serif;">
-  © Fitness Business OS · ${product.sku} · Todos los derechos reservados
+  © NexFit · ${product.sku} · Todos los derechos reservados
 </div>
 
 </body>

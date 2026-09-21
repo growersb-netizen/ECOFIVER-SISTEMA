@@ -132,7 +132,7 @@ export default function DashboardPage() {
         {/* Brand */}
         <div style={{ marginBottom: "2rem", paddingLeft: "0.5rem" }}>
           <p style={{ fontSize: "0.65rem", letterSpacing: "0.2em", color: "#00F5FF", textTransform: "uppercase", marginBottom: "2px" }}>
-            FITNESS BUSINESS OS
+            NEXFIT
           </p>
           <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "#00FF87", margin: 0 }}>
             PANEL ADMIN

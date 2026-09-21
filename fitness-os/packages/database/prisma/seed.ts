@@ -15,7 +15,7 @@ async function main() {
 
   // ── Tenant principal ─────────────────────────────────────────────
   const tenantSlug = process.env["SEED_TENANT_SLUG"] ?? "fitness-os";
-  const tenantName = process.env["SEED_TENANT_NAME"] ?? "Fitness Business OS";
+  const tenantName = process.env["SEED_TENANT_NAME"] ?? "NexFit";
 
   const tenant = await prisma.tenant.upsert({
     where: { slug: tenantSlug },

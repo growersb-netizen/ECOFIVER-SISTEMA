@@ -338,7 +338,7 @@ export default function CouponsPage() {
       {/* Sidebar */}
       <aside style={{ width: 220, flexShrink: 0, background: "#0A0B14", borderRight: "1px solid #1E2240", display: "flex", flexDirection: "column", padding: "1.5rem 1rem", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ marginBottom: "2rem", paddingLeft: "0.5rem" }}>
-          <p style={{ fontSize: "0.65rem", letterSpacing: "0.2em", color: CYAN, textTransform: "uppercase", marginBottom: "2px" }}>FITNESS BUSINESS OS</p>
+          <p style={{ fontSize: "0.65rem", letterSpacing: "0.2em", color: CYAN, textTransform: "uppercase", marginBottom: "2px" }}>NEXFIT</p>
           <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: NEON, margin: 0 }}>PANEL ADMIN</p>
         </div>
         <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>

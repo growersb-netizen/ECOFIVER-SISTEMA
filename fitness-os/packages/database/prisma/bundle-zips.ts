@@ -130,7 +130,7 @@ async function main() {
 
   if (!arg) {
     console.log(`
-FITNESS BUSINESS OS — Empaquetador de ZIPs para descarga manual
+NEXFIT — Empaquetador de ZIPs para descarga manual
 ════════════════════════════════════════════════════════════════
 
 Uso:

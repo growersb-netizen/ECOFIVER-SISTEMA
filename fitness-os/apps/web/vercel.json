@@ -5,6 +5,8 @@
   "framework": "nextjs",
   "env": {
     "NEXT_PUBLIC_API_URL": "https://fitness-api-production-fff4.up.railway.app",
-    "NEXT_PUBLIC_TENANT_SLUG": "fitness-business-os"
+    "NEXT_PUBLIC_TENANT_SLUG": "fitness-business-os",
+    "NEXT_PUBLIC_STORE_NAME": "NexFit",
+    "NEXT_PUBLIC_SUPPORT_EMAIL": "hola@nexfit.digital"
   }
 }

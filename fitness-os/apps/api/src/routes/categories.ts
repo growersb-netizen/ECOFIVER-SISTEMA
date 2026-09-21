@@ -38,8 +38,8 @@ export async function categoryRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // Solo devolver raíces (sin padre)
-    const roots = categories.filter((c) => c.parentId === null);
+    // Solo devolver raíces (sin padre) con al menos 1 producto
+    const roots = categories.filter((c) => c.parentId === null && c._count.products > 0);
     return reply.send({ data: roots });
   });
 

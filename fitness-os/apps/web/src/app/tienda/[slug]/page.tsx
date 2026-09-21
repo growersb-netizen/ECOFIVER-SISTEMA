@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await loadProduct(params.slug);
   if (!product) return { title: "Producto no encontrado" };
 
-  const title = `${product.name} | NexFit`;
+  const title = `${product.name} | ${STORE_NAME}`;
   const description = product.description?.slice(0, 155) ?? "Programa digital de fitness. Descargá al instante.";
   const price = product.prices?.find(p => p.channel === "WEB" || !p.channel) ?? product.prices?.[0];
 
@@ -76,6 +76,7 @@ function categoryArt(slug?: string): { bg: string; accent: string; label: string
   if (s.includes("hombre"))                         return { bg: "linear-gradient(135deg,#040A0E 0%,#081420 60%,#00C8FF22 100%)", accent: "#00C8FF", label: "PARA HOMBRES", img: "/images/cat-15.webp" };
   if (s.includes("fuerza") || s.includes("musc"))   return { bg: "linear-gradient(135deg,#060008 0%,#120020 60%,#AA00FF22 100%)", accent: "#AA00FF", label: "FUERZA", img: "/images/cat-16.webp" };
   if (s.includes("rendimiento") || s.includes("deport")) return { bg: "linear-gradient(135deg,#000A08 0%,#001A12 60%,#00FF8728 100%)", accent: "#00FF87", label: "RENDIMIENTO", img: "/images/cat-17.webp" };
+  if (s.includes("guia") || s.includes("entrenamiento"))  return { bg: "linear-gradient(135deg,#040810 0%,#081020 60%,#FF980022 100%)", accent: "#FF9800", label: "GUÍAS", img: "/images/cat-01.webp" };
   return { bg: "linear-gradient(135deg,#06080F 0%,#0D1020 60%,#DE316318 100%)", accent: "#DE3163", label: "FITNESS" };
 }
 

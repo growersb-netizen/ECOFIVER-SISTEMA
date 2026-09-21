@@ -8,6 +8,8 @@ import Link from "next/link";
 
 const NEON = "#00FF87";
 const PINK = "#FF2D9C";
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NexFit";
+const SUPPORT_EMAIL = process.env["NEXT_PUBLIC_SUPPORT_EMAIL"] ?? "hola@nexfit.digital";
 
 const REASONS: Record<string, string> = {
   cc_rejected_bad_filled_security_code: "El código de seguridad de la tarjeta es incorrecto.",
@@ -104,8 +106,8 @@ function FailureContent() {
 
       <p style={{ color: "#3A3F55", fontSize: "0.8rem", marginTop: "2.5rem" }}>
         ¿Necesitás ayuda? Escribinos a{" "}
-        <a href="mailto:hola@nexfit.digital" style={{ color: "#4A5070" }}>
-          hola@nexfit.digital
+        <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#4A5070" }}>
+          {SUPPORT_EMAIL}
         </a>
       </p>
     </div>
@@ -124,7 +126,7 @@ export default function CheckoutFailurePage() {
     }}>
       <nav style={{ background: "#0A0C18", borderBottom: "1px solid #1A1F35", padding: "0 1.5rem", height: 60, display: "flex", alignItems: "center" }}>
         <Link href="/" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1.1rem", letterSpacing: "0.08em", color: NEON, textDecoration: "none" }}>
-          NEXFIT
+          {STORE_NAME}
         </Link>
       </nav>
       <div style={{ flex: 1, display: "flex", alignItems: "center", padding: "4rem 1rem" }}>
@@ -133,7 +135,7 @@ export default function CheckoutFailurePage() {
         </Suspense>
       </div>
       <div style={{ padding: "1.5rem", textAlign: "center", borderTop: "1px solid #1A1F35", color: "#3A3F55", fontSize: "0.78rem" }}>
-        NexFit · Soporte: hola@nexfit.digital
+        {STORE_NAME} · Soporte: {SUPPORT_EMAIL}
       </div>
     </div>
   );

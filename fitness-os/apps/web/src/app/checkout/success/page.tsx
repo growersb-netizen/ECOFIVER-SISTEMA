@@ -13,7 +13,8 @@ const BODY   = "#B8C4E0";
 const MUTED  = "#7A87A8";
 const DIM    = "#4A5570";
 
-const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NEXFIT";
+const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NexFit";
+const SUPPORT_EMAIL = process.env["NEXT_PUBLIC_SUPPORT_EMAIL"] ?? "hola@nexfit.digital";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -153,7 +154,7 @@ export default function CheckoutSuccessPage() {
         borderTop: "1px solid #1A1F35",
         color: DIM, fontSize: "0.78rem",
       }}>
-        {STORE_NAME} · <span style={{ color: MUTED }}>hola@nexfit.digital</span>
+        {STORE_NAME} · <span style={{ color: MUTED }}>{SUPPORT_EMAIL}</span>
       </div>
     </div>
   );

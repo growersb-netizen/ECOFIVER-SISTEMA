@@ -9,7 +9,8 @@ import Link from "next/link";
 
 const API_URL     = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
 const TENANT_SLUG = process.env["NEXT_PUBLIC_TENANT_SLUG"] ?? "";
-const STORE_NAME  = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NEXFIT";
+const STORE_NAME  = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NexFit";
+const SUPPORT_EMAIL = process.env["NEXT_PUBLIC_SUPPORT_EMAIL"] ?? "hola@nexfit.digital";
 const NEON   = "#00FF87";
 const CYAN   = "#00F5FF";
 const CEREZA = "#DE3163";
@@ -186,7 +187,7 @@ export default function MisComprasPage() {
             <p style={{ color: "#3A3F55", fontSize: "0.85rem" }}>
               ¿Compraste con otro email? Intentá con el email que usaste en el pago.
               <br />Si el problema persiste, contactanos:{" "}
-              <a href="mailto:hola@nexfit.digital" style={{ color: CYAN }}>hola@nexfit.digital</a>
+              <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: CYAN }}>{SUPPORT_EMAIL}</a>
             </p>
           </div>
         )}
@@ -269,14 +270,14 @@ export default function MisComprasPage() {
 
             <p style={{ color: "#3A3F55", fontSize: "0.78rem", marginTop: "2rem", textAlign: "center" }}>
               Los links de descarga son válidos por 72 horas. ¿Problemas?{" "}
-              <a href="mailto:hola@nexfit.digital" style={{ color: "#4A5070" }}>Contactanos</a>
+              <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#4A5070" }}>Contactanos</a>
             </p>
           </div>
         )}
       </main>
 
       <div style={{ padding: "1.5rem", textAlign: "center", borderTop: "1px solid #1A1F35", color: DIM, fontSize: "0.78rem" }}>
-        {STORE_NAME} · <span style={{ color: MUTED }}>hola@nexfit.digital</span>
+        {STORE_NAME} · <span style={{ color: MUTED }}>{SUPPORT_EMAIL}</span>
       </div>
     </div>
   );

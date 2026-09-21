@@ -23,8 +23,23 @@ const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NEXFIT";
 
 async function getFeaturedProducts(): Promise<StoreProduct[]> {
   try {
-    const data = await getPublishedProducts({ pageSize: 8 });
-    return data.products ?? data.data ?? [];
+    // Load 1 product from each category so the grid shows visual variety
+    const catSlugs = [
+      "fuerza-musculacion",
+      "para-hombres",
+      "programas-transformacion",
+      "postparto-recuperacion",
+      "desafios-30-dias",
+      "mindset-habitos",
+      "recetas-fit",
+      "rendimiento-deportivo",
+    ];
+    const results = await Promise.allSettled(
+      catSlugs.map(cat => getPublishedProducts({ categorySlug: cat, pageSize: 1 }))
+    );
+    return results
+      .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof getPublishedProducts>>> => r.status === "fulfilled")
+      .flatMap(r => r.value.data ?? (r.value as any).products ?? []);
   } catch { return []; }
 }
 
@@ -83,19 +98,40 @@ export default async function HomePage() {
 
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <section style={{
-        padding: "5rem 2rem 5rem",
-        maxWidth: 1200, margin: "0 auto",
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: "4rem",
-        alignItems: "center",
-      }}
-        className="hero-section"
-      >
-        {/* Texto */}
-        <div>
-          {/* Raya de color + subtítulo — reemplaza los ✦ genéricos */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
+        position: "relative",
+        minHeight: "min(82vh, 660px)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-end",
+        overflow: "hidden",
+        background: "#06080F",
+      }}>
+        {/* Imagen de fondo */}
+        <img
+          src="/images/hero-1.webp"
+          alt=""
+          aria-hidden="true"
+          style={{
+            position: "absolute", inset: 0,
+            width: "100%", height: "100%",
+            objectFit: "cover", objectPosition: "center 30%",
+            display: "block",
+          }}
+        />
+        {/* Overlay gradiente: arriba transparente, abajo oscuro */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(to bottom, rgba(6,8,15,0.08) 0%, rgba(6,8,15,0.42) 40%, rgba(6,8,15,0.88) 75%, #06080F 100%)",
+          pointerEvents: "none",
+        }} />
+        {/* Contenido sobre la imagen */}
+        <div style={{
+          position: "relative",
+          padding: "0 2rem 4rem",
+          maxWidth: 1200, margin: "0 auto", width: "100%",
+          boxSizing: "border-box",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
             <div style={{ width: 32, height: 3, background: CEREZA, borderRadius: 2 }} />
             <span style={{ color: CEREZA, fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
               Contenido digital para fitness
@@ -104,12 +140,14 @@ export default async function HomePage() {
 
           <h1 style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: "clamp(3rem, 6vw, 5.5rem)",
+            fontSize: "clamp(3.5rem, 8vw, 7rem)",
             fontWeight: 800,
-            lineHeight: 0.95,
-            margin: "0 0 1.75rem",
-            color: TEXT,
+            lineHeight: 0.92,
+            margin: "0 0 1.5rem",
+            color: "#fff",
             letterSpacing: "-0.01em",
+            textShadow: "0 2px 28px rgba(0,0,0,0.45)",
+            maxWidth: 720,
           }}>
             PROGRAMAS<br />
             QUE DAN<br />
@@ -117,9 +155,10 @@ export default async function HomePage() {
           </h1>
 
           <p style={{
-            color: BODY, fontSize: "1rem",
-            lineHeight: 1.7, maxWidth: 420,
-            margin: "0 0 2.5rem",
+            color: "rgba(255,255,255,0.82)", fontSize: "1.05rem",
+            lineHeight: 1.7, maxWidth: 490,
+            margin: "0 0 2rem",
+            textShadow: "0 1px 8px rgba(0,0,0,0.5)",
           }}>
             Guías y programas de fitness en formato digital. Descargá al instante,
             trabajá a tu ritmo. Creados por especialistas.
@@ -136,21 +175,22 @@ export default async function HomePage() {
             </Link>
             <Link href="/mis-compras" style={{
               padding: "0.8rem 1.75rem",
-              background: "transparent",
-              border: "1px solid #2A3050",
-              borderRadius: 6, color: BODY,
+              background: "rgba(255,255,255,0.1)",
+              border: "1px solid rgba(255,255,255,0.22)",
+              borderRadius: 6, color: "rgba(255,255,255,0.88)",
               textDecoration: "none", fontWeight: 600, fontSize: "0.95rem",
+              backdropFilter: "blur(4px)",
             }}>
               Mis compras
             </Link>
           </div>
 
-          {/* Stats — reemplaza los trust badges con emojis */}
+          {/* Stats */}
           <div style={{
-            display: "flex", gap: "2.5rem",
+            display: "flex", gap: "2.5rem", flexWrap: "wrap",
             marginTop: "2.5rem",
             paddingTop: "2.5rem",
-            borderTop: "1px solid #1A1F35",
+            borderTop: "1px solid rgba(255,255,255,0.12)",
           }}>
             {[
               { value: "200+", label: "Programas" },
@@ -166,70 +206,9 @@ export default async function HomePage() {
                 }}>
                   {s.value}
                 </p>
-                <p style={{ color: MUTED, fontSize: "0.78rem", margin: 0 }}>{s.label}</p>
+                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.78rem", margin: 0 }}>{s.label}</p>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Hero image panel */}
-        <div style={{
-          borderRadius: 16,
-          overflow: "hidden",
-          position: "relative",
-          minHeight: 420,
-          background: "#0D0F1A",
-          border: "1px solid #1A1F35",
-        }}>
-          <img
-            src="/images/hero-1.webp"
-            alt="Entrenamiento NexFit"
-            style={{
-              width: "100%", height: "100%",
-              objectFit: "cover", objectPosition: "center",
-              position: "absolute", inset: 0,
-              display: "block",
-            }}
-          />
-          {/* dark overlay so any overlay text is legible */}
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(160deg, rgba(6,8,15,0.15) 0%, rgba(6,8,15,0.65) 100%)",
-          }} />
-          {/* floating category count badge */}
-          <div style={{
-            position: "absolute", bottom: "1.5rem", left: "1.5rem", right: "1.5rem",
-            background: "rgba(6,8,15,0.82)", backdropFilter: "blur(12px)",
-            border: "1px solid rgba(222,49,99,0.3)",
-            borderRadius: 12, padding: "1rem 1.25rem",
-          }}>
-            <p style={{ color: CEREZA, fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", margin: "0 0 0.6rem" }}>
-              Categorías disponibles
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-              {categories.slice(0, 6).map((cat) => (
-                <Link key={cat.id} href={`/tienda?categoria=${cat.slug}`} style={{
-                  padding: "0.22rem 0.7rem", borderRadius: 20,
-                  background: "rgba(255,255,255,0.07)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  color: "#D0D8F0", fontSize: "0.75rem", fontWeight: 500,
-                  textDecoration: "none", whiteSpace: "nowrap",
-                }}>
-                  {cat.name}
-                </Link>
-              ))}
-              {categories.length > 6 && (
-                <Link href="/tienda" style={{
-                  padding: "0.22rem 0.7rem", borderRadius: 20,
-                  background: `rgba(222,49,99,0.18)`,
-                  border: `1px solid ${CEREZA}44`,
-                  color: CEREZA, fontSize: "0.75rem", fontWeight: 700,
-                  textDecoration: "none", whiteSpace: "nowrap",
-                }}>
-                  +{categories.length - 6} más →
-                </Link>
-              )}
-            </div>
           </div>
         </div>
       </section>
@@ -317,39 +296,30 @@ export default async function HomePage() {
       </footer>
 
       <style>{`
-        /* Hero: dos columnas en desktop, una en mobile */
-        .hero-section {
-          grid-template-columns: 1fr !important;
-        }
-        @media (min-width: 900px) {
-          .hero-section {
-            grid-template-columns: 1fr 1fr !important;
-          }
-        }
-        /* Hover cat links */
-        .cat-link:hover {
-          border-color: ${CEREZA}55 !important;
+        @media (max-width: 600px) {
+          .hero-content h1 { font-size: 3.2rem !important; }
         }
       `}</style>
     </>
   );
 }
 
-// ── Category visual art — CSS-based branded thumbnails ──────────────
-function categoryArt(slug: string): { bg: string; accent: string; label: string } {
-  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS" };
-  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX" };
-  if (slug.includes("nutri") || slug.includes("receta")) return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN" };
-  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE" };
-  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO" };
-  if (slug.includes("mindset") || slug.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET" };
-  if (slug.includes("desafio"))                          return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS" };
-  if (slug.includes("hombre"))                           return { bg: "linear-gradient(135deg,#040A0E 0%,#081420 60%,#00C8FF22 100%)", accent: "#00C8FF", label: "PARA HOMBRES" };
-  if (slug.includes("vip") || slug.includes("bundle") || slug.includes("pack")) return { bg: "linear-gradient(135deg,#0A0800 0%,#1A1200 60%,#FFD70025 100%)", accent: "#FFD700", label: "VIP / PACK" };
-  if (slug.includes("transformacion"))                   return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN" };
-  if (slug.includes("fuerza") || slug.includes("musc"))  return { bg: "linear-gradient(135deg,#060008 0%,#120020 60%,#AA00FF22 100%)", accent: "#AA00FF", label: "FUERZA" };
-  if (slug.includes("rendimiento") || slug.includes("deport")) return { bg: "linear-gradient(135deg,#000A08 0%,#001A12 60%,#00FF8728 100%)", accent: "#00FF87", label: "RENDIMIENTO" };
-  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA" };
+// ── Category visual art ──────────────────────────────────────────────
+function categoryArt(slug: string): { bg: string; accent: string; label: string; img?: string } {
+  if (slug.includes("abdomen") || slug.includes("core")) return { bg: "linear-gradient(135deg,#0A0A04 0%,#1A1800 60%,#FFDD0020 100%)", accent: "#FFD700", label: "ABDOMEN & CORE", img: "/images/cat-04.webp" };
+  if (slug.includes("glut") || slug.includes("pierna"))  return { bg: "linear-gradient(135deg,#0A0418 0%,#2A0830 60%,#DE316322 100%)", accent: "#FF6B9D", label: "GLÚTEOS & PIERNAS", img: "/images/cat-05.webp" };
+  if (slug.includes("nutri"))                            return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "NUTRICIÓN", img: "/images/cat-06.webp" };
+  if (slug.includes("casa"))                             return { bg: "linear-gradient(135deg,#08080A 0%,#101018 60%,#8888FF22 100%)", accent: "#8888FF", label: "EN CASA", img: "/images/cat-07.webp" };
+  if (slug.includes("yoga") || slug.includes("flex"))    return { bg: "linear-gradient(135deg,#040A14 0%,#071830 60%,#00F5FF18 100%)", accent: "#00F5FF", label: "YOGA & FLEX", img: "/images/cat-08.webp" };
+  if (slug.includes("transformacion"))                   return { bg: "linear-gradient(135deg,#06000E 0%,#100018 60%,#DE316328 100%)", accent: "#DE3163", label: "TRANSFORMACIÓN", img: "/images/cat-09.webp" };
+  if (slug.includes("postparto"))                        return { bg: "linear-gradient(135deg,#0A040E 0%,#1A0824 60%,#C97BFF22 100%)", accent: "#C97BFF", label: "POSTPARTO", img: "/images/cat-10.webp" };
+  if (slug.includes("mindset") || slug.includes("habit")) return { bg: "linear-gradient(135deg,#04080E 0%,#081420 60%,#00BFFF20 100%)", accent: "#00BFFF", label: "MINDSET", img: "/images/cat-11.webp" };
+  if (slug.includes("receta"))                           return { bg: "linear-gradient(135deg,#030E06 0%,#062010 60%,#00FF8720 100%)", accent: "#00FF87", label: "RECETAS", img: "/images/cat-12.webp" };
+  if (slug.includes("desafio"))                          return { bg: "linear-gradient(135deg,#0E0400 0%,#200800 60%,#FF450020 100%)", accent: "#FF4500", label: "DESAFÍOS", img: "/images/cat-13.webp" };
+  if (slug.includes("vip") || slug.includes("bundle") || slug.includes("pack")) return { bg: "linear-gradient(135deg,#0A0800 0%,#1A1200 60%,#FFD70025 100%)", accent: "#FFD700", label: "VIP / PACK", img: "/images/cat-14.webp" };
+  if (slug.includes("hombre"))                           return { bg: "linear-gradient(135deg,#040A0E 0%,#081420 60%,#00C8FF22 100%)", accent: "#00C8FF", label: "PARA HOMBRES", img: "/images/cat-15.webp" };
+  if (slug.includes("fuerza") || slug.includes("musc"))  return { bg: "linear-gradient(135deg,#060008 0%,#120020 60%,#AA00FF22 100%)", accent: "#AA00FF", label: "FUERZA", img: "/images/cat-16.webp" };
+  if (slug.includes("rendimiento") || slug.includes("deport")) return { bg: "linear-gradient(135deg,#000A08 0%,#001A12 60%,#00FF8728 100%)", accent: "#00FF87", label: "RENDIMIENTO", img: "/images/cat-17.webp" };
   return { bg: "linear-gradient(135deg,#06080F 0%,#0D1020 60%,#DE316318 100%)", accent: "#DE3163", label: "FITNESS" };
 }
 
@@ -374,34 +344,40 @@ function ProductCard({ product }: { product: StoreProduct }) {
       }}
         className="product-card"
       >
-        {/* Cover — CSS art branded per category */}
+        {/* Cover — foto de categoría con overlay */}
         <div style={{
           height: 160,
           background: art.bg,
-          display: "flex", alignItems: "center", justifyContent: "center",
           position: "relative",
           borderBottom: `1px solid ${art.accent}22`,
           overflow: "hidden",
         }}>
-          {/* Geometric accent circle */}
+          {art.img && (
+            <img
+              src={art.img}
+              alt=""
+              aria-hidden="true"
+              style={{
+                position: "absolute", inset: 0,
+                width: "100%", height: "100%",
+                objectFit: "cover", objectPosition: "center",
+                display: "block",
+              }}
+            />
+          )}
+          {/* Overlay oscuro para legibilidad */}
           <div style={{
-            position: "absolute", bottom: -24, right: -24,
-            width: 120, height: 120, borderRadius: "50%",
-            border: `2px solid ${art.accent}30`,
-            pointerEvents: "none",
-          }} />
-          <div style={{
-            position: "absolute", top: -16, left: -16,
-            width: 80, height: 80, borderRadius: "50%",
-            border: `1px solid ${art.accent}20`,
-            pointerEvents: "none",
+            position: "absolute", inset: 0,
+            background: art.img
+              ? "linear-gradient(to bottom, rgba(6,8,15,0.25) 0%, rgba(6,8,15,0.72) 100%)"
+              : "transparent",
           }} />
           {/* Category label */}
           <span style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: "0.68rem", fontWeight: 800,
             letterSpacing: "0.18em", textTransform: "uppercase",
-            color: art.accent, opacity: 0.85,
+            color: art.accent,
             position: "absolute", bottom: 10, left: 12,
           }}>
             {art.label}
@@ -411,7 +387,6 @@ function ProductCard({ product }: { product: StoreProduct }) {
             position: "absolute", bottom: 0, left: 0, right: 0,
             height: 2, background: `linear-gradient(90deg, ${art.accent}88 0%, transparent 100%)`,
           }} />
-
           {/* Badges */}
           <div style={{ position: "absolute", top: 10, left: 10, display: "flex", gap: "0.4rem" }}>
             {isBundle && (

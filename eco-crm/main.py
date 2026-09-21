@@ -304,6 +304,73 @@ async def _resumen_diario_rodrigo():
         log.error(f"[RESUMEN 8AM] Error: {e}")
 
 
+_MENSAJES_COBRANZA = {
+    3:  (
+        "Hola {nombre}! 👋 Te recordamos que el *{fecha}* vence tu próxima cuota del plan EcoFiver. "
+        "Ante cualquier consulta, estamos a tu disposición. ¡Muchas gracias!"
+    ),
+    0:  (
+        "Hola {nombre}! 📅 Hoy es la fecha de vencimiento de tu cuota del plan EcoFiver. "
+        "Si ya realizaste el pago, podés ignorar este mensaje. "
+        "Si necesitás coordinar la forma de pago, no dudes en contactarnos."
+    ),
+    -2: (
+        "Hola {nombre}! 👋 Tu cuota del plan EcoFiver aún no figura acreditada. "
+        "Te pedimos que te comuniques con nosotros para coordinar el pago y mantener tu plan activo. ¡Gracias!"
+    ),
+}
+
+
+async def _recordatorio_cobranza(dias_delta: int):
+    """
+    Envía recordatorios WA a clientes con cuota próxima o vencida.
+      dias_delta =  3 → T-3 (alerta preventiva, 09:00 ART)
+      dias_delta =  0 → día 0 de vencimiento (10:00 ART)
+      dias_delta = -2 → T+2 post-vencimiento (11:00 ART)
+    REGLA DE ORO: los mensajes no mencionan intereses ni recargos.
+    """
+    template = _MENSAJES_COBRANZA.get(dias_delta)
+    if not template:
+        return
+    try:
+        from database.database import SessionLocal
+        from database.models import VentaFinanciada
+        from routers.ventas_financiadas import calcular_proximo_vencimiento
+        from utils.whatsapp import send_whatsapp_text
+        from datetime import date as _date
+
+        db = SessionLocal()
+        hoy = _date.today()
+        ventas = db.query(VentaFinanciada).filter(
+            VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"]),
+            VentaFinanciada.cliente_telefono.isnot(None),
+        ).all()
+
+        enviados = 0
+        for v in ventas:
+            proximo = calcular_proximo_vencimiento(v)
+            if not proximo:
+                continue
+            if (proximo.date() - hoy).days != dias_delta:
+                continue
+            telefono = (v.cliente_telefono or "").strip()
+            if not telefono:
+                continue
+            nombre = (v.cliente_nombre or "Cliente").split()[0]
+            fecha_str = proximo.strftime("%d/%m/%Y")
+            mensaje = template.format(nombre=nombre, fecha=fecha_str)
+            try:
+                send_whatsapp_text(db, telefono, mensaje)
+                enviados += 1
+            except Exception as e_wa:
+                log.warning(f"[COBRANZA-WA] Error enviando a venta {v.id}: {e_wa}")
+
+        db.close()
+        log.info(f"[COBRANZA-WA] delta={dias_delta:+d} — {enviados} mensajes enviados")
+    except Exception as e:
+        log.error(f"[COBRANZA-WA] Error en recordatorio (delta={dias_delta}): {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     # Generar claves VAPID si no existen
@@ -370,8 +437,41 @@ async def startup_event():
         replace_existing=True,
         misfire_grace_time=300,
     )
+    # Cobranza: recordatorio T-3 → 09:00 ART
+    scheduler.add_job(
+        _recordatorio_cobranza,
+        trigger=CronTrigger(hour=9, minute=0, timezone="America/Argentina/Buenos_Aires"),
+        id="cobranza_t_menos_3",
+        name="Cobranza — Recordatorio T-3 días",
+        args=[3],
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    # Cobranza: recordatorio día 0 → 10:00 ART
+    scheduler.add_job(
+        _recordatorio_cobranza,
+        trigger=CronTrigger(hour=10, minute=0, timezone="America/Argentina/Buenos_Aires"),
+        id="cobranza_dia_0",
+        name="Cobranza — Recordatorio día de vencimiento",
+        args=[0],
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    # Cobranza: seguimiento T+2 → 11:00 ART
+    scheduler.add_job(
+        _recordatorio_cobranza,
+        trigger=CronTrigger(hour=11, minute=0, timezone="America/Argentina/Buenos_Aires"),
+        id="cobranza_t_mas_2",
+        name="Cobranza — Seguimiento T+2 días",
+        args=[-2],
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
     scheduler.start()
-    log.info("[SCHEDULER] Backup 03:00 + Leads + Resumen 08:00 + ML Renovación 02:15 + Auto-responder /20min + Ecopost /5min — activos")
+    log.info(
+        "[SCHEDULER] Backup 03:00 + Leads + Resumen 08:00 + ML Renovación 02:15 + "
+        "Auto-responder /20min + Ecopost /5min + Cobranza WA 09/10/11hs — activos"
+    )
 
     # Auditoría y optimización de publicaciones ML (corre una vez por versión).
     # Espera 5 min para que el app termine de inicializar y el token ML esté listo.

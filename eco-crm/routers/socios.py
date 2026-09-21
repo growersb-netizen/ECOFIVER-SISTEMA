@@ -32,7 +32,7 @@ from pathlib import Path
 from database.database import get_db
 from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
-    ScoringBCRA, Usuario, ComisionConfig, Presupuesto,
+    ScoringBCRA, Usuario, ComisionConfig, Presupuesto, Lead,
 )
 from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
@@ -737,6 +737,23 @@ async def crear_presupuesto(request: Request, socio: Aliado = Depends(require_so
         presu.precio_contado = precio_contado
 
     db.add(presu)
+
+    # get_or_create Lead — evita duplicados usando WhatsApp como identificador único
+    lead_existente = db.query(Lead).filter(
+        Lead.telefono == cliente_whatsapp,
+        Lead.aliado_codigo == socio.codigo,
+    ).first()
+    if not lead_existente:
+        db.add(Lead(
+            nombre=f"{cliente_nombre} {cliente_apellido}".strip(),
+            telefono=cliente_whatsapp,
+            localidad=cliente_localidad or None,
+            origen="PRESUPUESTO_SOCIO",
+            aliado_codigo=socio.codigo,
+            estado="NUEVO",
+            producto_interes=categoria.upper() if categoria else "SIN_DEFINIR",
+        ))
+
     db.commit()
     db.refresh(presu)
 
@@ -1486,6 +1503,12 @@ async def _guardar_doc_socio(socio_codigo: str, tag: str, archivo: UploadFile) -
 async def subir_doc_monotributo(archivo: UploadFile = File(...), socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     socio.doc_monotributo_path = await _guardar_doc_socio(socio.codigo, "monotributo", archivo)
     db.commit()
+    notificar_rodrigo(
+        db,
+        f"📎 *Documento de monotributo subido*\n"
+        f"Socio: {socio.codigo} ({socio.nombre})\n"
+        f"Requiere revisión y aprobación del perfil.",
+    )
     return {"ok": True}
 
 
@@ -1493,6 +1516,12 @@ async def subir_doc_monotributo(archivo: UploadFile = File(...), socio: Aliado =
 async def subir_doc_dni(archivo: UploadFile = File(...), socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     socio.doc_dni_path = await _guardar_doc_socio(socio.codigo, "dni", archivo)
     db.commit()
+    notificar_rodrigo(
+        db,
+        f"📎 *Documento de DNI subido*\n"
+        f"Socio: {socio.codigo} ({socio.nombre})\n"
+        f"Requiere revisión y aprobación del perfil.",
+    )
     return {"ok": True}
 
 

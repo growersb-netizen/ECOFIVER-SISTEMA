@@ -309,17 +309,22 @@
     let texto = "Hola! Soy " + nombre + " de " + localidad + ". Me interesa: " + interes + ". Mi WhatsApp: " + telefono + ".";
     if (mensaje) texto += " Detalle: " + mensaje;
 
-    // Guardar el lead en el CRM real, sin bloquear el flujo de WhatsApp
-    // si el CRM no responde (fire-and-forget, con timeout corto).
+    // Guardar el lead en el CRM real, sin bloquear el flujo de WhatsApp.
+    // Timeout 10 s + 1 reintento automático a los 2 s si falla.
     try {
-      const controller = new AbortController();
-      setTimeout(function () { controller.abort(); }, 3000);
-      fetch(CRM_LEAD_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: nombre, telefono: telefono, localidad: localidad, interes: interes, mensaje: mensaje, origen: "LANDING_PLAN_18_PASOS" }),
-        signal: controller.signal
-      }).catch(function () { /* silencioso: WhatsApp sigue funcionando igual */ });
+      var _crmPayload = JSON.stringify({ nombre: nombre, telefono: telefono, localidad: localidad, interes: interes, mensaje: mensaje, origen: "LANDING_PLAN_18_PASOS" });
+      (function _enviarLead(intento) {
+        var ctrl = new AbortController();
+        setTimeout(function () { ctrl.abort(); }, 10000);
+        fetch(CRM_LEAD_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: _crmPayload,
+          signal: ctrl.signal
+        }).catch(function () {
+          if (intento < 2) { setTimeout(function () { _enviarLead(intento + 1); }, 2000); }
+        });
+      })(1);
     } catch (err) { /* fetch no disponible o CRM caído: no bloquea nada */ }
 
     if (typeof fbq === 'function') { fbq('track', 'Lead', { content_name: interes }); }

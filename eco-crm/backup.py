@@ -6,7 +6,8 @@ Uso scheduler: importado desde main.py via APScheduler (cron 03:00 ART)
 
 Estrategia:
   - Copia /app/data/eco_crm.db → /app/data/backups/eco_crm_YYYYMMDD_HHMMSS.db
-  - Mantiene solo los últimos 7 backups (borra los más viejos)
+  - Sube el backup al bucket de Cloudflare R2 (backups/crm/) para redundancia externa
+  - Mantiene solo los últimos 7 backups locales (borra los más viejos)
   - Registra cada operación en consola con timestamp
 """
 
@@ -21,6 +22,34 @@ logger = logging.getLogger(__name__)
 DB_PATH     = Path(os.getenv("DB_PATH",     "/app/data/eco_crm.db"))
 BACKUP_DIR  = Path(os.getenv("BACKUP_DIR",  "/app/data/backups"))
 MAX_BACKUPS = int(os.getenv("MAX_BACKUPS",  "7"))
+
+
+def _upload_r2(local_path: Path) -> None:
+    """Sube el backup a Cloudflare R2. Falla silenciosamente para no bloquear el backup local."""
+    try:
+        import boto3
+        account_id = os.getenv("R2_ACCOUNT_ID", "")
+        bucket     = os.getenv("R2_BUCKET_NAME", "")
+        key_id     = os.getenv("R2_ACCESS_KEY_ID", "")
+        key_secret = os.getenv("R2_SECRET_ACCESS_KEY", "")
+        if not all([account_id, bucket, key_id, key_secret]):
+            logger.warning("[BACKUP-R2] Credenciales R2 no configuradas — omitiendo subida remota")
+            print("[BACKUP-R2] Credenciales R2 no configuradas — omitiendo subida remota")
+            return
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
+            aws_access_key_id=key_id,
+            aws_secret_access_key=key_secret,
+            region_name="auto",
+        )
+        object_key = f"backups/crm/{local_path.name}"
+        s3.upload_file(str(local_path), bucket, object_key)
+        logger.info(f"[BACKUP-R2] ☁  Subido a R2: {object_key}")
+        print(f"[BACKUP-R2] ☁  Subido a R2: {object_key}")
+    except Exception as e:
+        logger.warning(f"[BACKUP-R2] ⚠  No se pudo subir a R2: {e}")
+        print(f"[BACKUP-R2] ⚠  No se pudo subir a R2: {e}")
 
 
 def run_backup() -> bool:
@@ -49,6 +78,9 @@ def run_backup() -> bool:
         logger.error(f"[BACKUP] ✗  Error al copiar la base: {e}")
         print(f"[BACKUP] ✗  Error al copiar la base: {e}")
         return False
+
+    # ── 3b. Subir a Cloudflare R2 (backup externo — falla silenciosamente) ───
+    _upload_r2(dest)
 
     # ── 4. Rotar: mantener solo los últimos MAX_BACKUPS ──────────────────────
     try:

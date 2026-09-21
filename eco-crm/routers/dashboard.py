@@ -78,6 +78,12 @@ async def _get_dashboard_impl(
         ).all()
         cuotas_vencidas = sum(1 for v in ventas_fin if dias_atraso(v) > 0)
         monto_vencido = sum(v.valor_cuota or 0 for v in ventas_fin if dias_atraso(v) > 0)
+        total_atrasados = cuotas_vencidas
+        total_al_dia = sum(1 for v in ventas_fin if v.estado_plan == "ACTIVO" and dias_atraso(v) <= 0)
+        cac_mes_cargado = any(
+            v.ultima_indexacion is not None and v.ultima_indexacion >= inicio_mes
+            for v in ventas_fin
+        )
 
         ordenes_piscinas = db.query(OrdenFabricaPiscina).filter(
             OrdenFabricaPiscina.estado.in_(["EN_ESPERA", "EN_PROCESO"])
@@ -126,6 +132,9 @@ async def _get_dashboard_impl(
             "ventas_mes": ventas_mes,
             "cuotas_vencidas": cuotas_vencidas,
             "monto_vencido": monto_vencido,
+            "total_atrasados": total_atrasados,
+            "total_al_dia": total_al_dia,
+            "cac_mes_cargado": cac_mes_cargado,
             "ordenes_fabrica": ordenes_piscinas + ordenes_modulos,
             "presentes_hoy": presentes_hoy,
             "liquidacion_pendiente": liquidacion_pendiente,

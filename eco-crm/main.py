@@ -52,6 +52,26 @@ else:
     _alembic_cfg = _AlembicConfig("alembic.ini")
     _alembic_command.upgrade(_alembic_cfg, "head")
 
+    # Auto-migrate SQLite data → PG once (idempotente via flag file)
+    _MIGRATION_FLAG = Path("data/.sqlite_migrated")
+    _SQLITE_SRC = Path("data/eco_crm.db")
+    if not _MIGRATION_FLAG.exists() and _SQLITE_SRC.exists():
+        log.info("Iniciando migración automática SQLite → PostgreSQL…")
+        try:
+            import subprocess, sys
+            result = subprocess.run(
+                [sys.executable, "migrate_sqlite_to_pg.py",
+                 "--sqlite-path", str(_SQLITE_SRC)],
+                capture_output=True, text=True, timeout=300,
+            )
+            if result.returncode == 0:
+                _MIGRATION_FLAG.touch()
+                log.info("Migración SQLite→PG completada. Flag creado.")
+            else:
+                log.error(f"Migración falló:\n{result.stdout}\n{result.stderr}")
+        except Exception as _exc:
+            log.error(f"Error al correr migración: {_exc}")
+
 # Ensure directories exist
 Path("data/contratos").mkdir(parents=True, exist_ok=True)  # persistente (/app/data)
 Path("data").mkdir(parents=True, exist_ok=True)

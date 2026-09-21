@@ -21,11 +21,11 @@ const CreateCategorySchema = z.object({
 export async function categoryRoutes(fastify: FastifyInstance) {
   const prisma = fastify.prisma;
 
-  fastify.addHook("preHandler", fastify.authenticate);
-
+  // GET es público — el tenant middleware resuelve tenantId desde X-Tenant-Slug
   fastify.get("/", async (request: FastifyRequest, reply) => {
+    if (!request.tenantId) return reply.code(400).send({ error: "Tenant requerido (X-Tenant-Slug)" });
     const categories = await prisma.category.findMany({
-      where: { tenantId: request.tenantId! },
+      where: { tenantId: request.tenantId!, active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       include: {
         children: {
@@ -45,7 +45,7 @@ export async function categoryRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     "/",
-    { preHandler: [requireRole("CONTENT_MANAGER")] },
+    { preHandler: [fastify.authenticate, requireRole("CONTENT_MANAGER")] },
     async (request: FastifyRequest, reply) => {
       const body = CreateCategorySchema.safeParse(request.body);
       if (!body.success) return reply.code(400).send({ error: "Datos inválidos" });
@@ -72,7 +72,7 @@ export async function categoryRoutes(fastify: FastifyInstance) {
 
   fastify.patch(
     "/:id",
-    { preHandler: [requireRole("CONTENT_MANAGER")] },
+    { preHandler: [fastify.authenticate, requireRole("CONTENT_MANAGER")] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       const body = CreateCategorySchema.partial().safeParse(request.body);
       if (!body.success) return reply.code(400).send({ error: "Datos inválidos" });

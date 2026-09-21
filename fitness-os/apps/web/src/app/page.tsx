@@ -21,21 +21,23 @@ const DIM   = "#4A5570";
 
 const STORE_NAME = process.env["NEXT_PUBLIC_STORE_NAME"] ?? "NEXFIT";
 
-async function getFeaturedProducts(): Promise<StoreProduct[]> {
+async function getFeaturedProducts(categorySlugs?: string[]): Promise<StoreProduct[]> {
   try {
-    // Load 1 product from each category so the grid shows visual variety
-    const catSlugs = [
-      "fuerza-musculacion",
-      "para-hombres",
-      "programas-transformacion",
-      "postparto-recuperacion",
-      "desafios-30-dias",
-      "mindset-habitos",
-      "recetas-fit",
-      "rendimiento-deportivo",
-    ];
+    const slugs = categorySlugs?.length
+      ? categorySlugs
+      : [
+          "fuerza-musculacion",
+          "para-hombres",
+          "programas-transformacion",
+          "postparto-recuperacion",
+          "desafios-30-dias",
+          "mindset-habitos",
+          "recetas-fit",
+          "rendimiento-deportivo",
+          "programas-vip",
+        ];
     const results = await Promise.allSettled(
-      catSlugs.map(cat => getPublishedProducts({ categorySlug: cat, pageSize: 1 }))
+      slugs.map(cat => getPublishedProducts({ categorySlug: cat, pageSize: 1 }))
     );
     return results
       .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof getPublishedProducts>>> => r.status === "fulfilled")
@@ -51,7 +53,9 @@ async function getCats(): Promise<StoreCategory[]> {
 }
 
 export default async function HomePage() {
-  const [products, categories] = await Promise.all([getFeaturedProducts(), getCats()]);
+  const categories = await getCats();
+  const catSlugs = categories.length > 0 ? categories.map(c => c.slug) : undefined;
+  const products = await getFeaturedProducts(catSlugs);
 
   return (
     <>

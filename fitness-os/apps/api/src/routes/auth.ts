@@ -10,6 +10,7 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { hash, verify } from "argon2";
+import { requireRole } from "../plugins/rbac.js";
 
 // ── Schemas ────────────────────────────────────────────────────────
 const RegisterSchema = z.object({
@@ -282,13 +283,59 @@ export async function authRoutes(fastify: FastifyInstance) {
           avatarUrl: true,
           active: true,
           createdAt: true,
-          tenant: { select: { id: true, slug: true, name: true } },
+          tenant: { select: { id: true, slug: true, name: true, primaryColor: true, supportEmail: true, domain: true, logoUrl: true } },
         },
       });
 
       if (!user) return reply.code(404).send({ error: "Usuario no encontrado" });
 
       return reply.send({ user });
+    }
+  );
+
+  // PATCH /api/v1/auth/me — actualizar nombre del perfil
+  fastify.patch(
+    "/me",
+    { preHandler: [fastify.authenticate] },
+    async (request: FastifyRequest, reply) => {
+      const body = z.object({
+        name: z.string().min(1).max(100).optional(),
+        avatarUrl: z.string().url().optional().nullable(),
+      }).safeParse(request.body);
+      if (!body.success) return reply.code(400).send({ error: "Datos inválidos" });
+
+      const updated = await prisma.user.update({
+        where: { id: request.user.sub },
+        data: { ...body.data },
+        select: { id: true, name: true, email: true, role: true, avatarUrl: true },
+      });
+
+      return reply.send({ user: updated });
+    }
+  );
+
+  // PATCH /api/v1/auth/tenant — actualizar configuración del tenant
+  fastify.patch(
+    "/tenant",
+    { preHandler: [fastify.authenticate, requireRole("MANAGER")] },
+    async (request: FastifyRequest, reply) => {
+      const body = z.object({
+        name: z.string().min(1).max(100).optional(),
+        domain: z.string().optional().nullable(),
+        logoUrl: z.string().url().optional().nullable(),
+        primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+        supportEmail: z.string().email().optional(),
+      }).safeParse(request.body);
+      if (!body.success) return reply.code(400).send({ error: "Datos inválidos" });
+
+      const tenantId = request.tenantId!;
+      const updated = await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { ...body.data },
+        select: { id: true, slug: true, name: true, primaryColor: true, supportEmail: true, domain: true, logoUrl: true },
+      });
+
+      return reply.send({ tenant: updated });
     }
   );
 }

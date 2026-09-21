@@ -131,21 +131,44 @@ export default function SettingsPage() {
     e.preventDefault();
     setSaving(true);
     setSaved(null);
-    // En esta versión guardamos solo localmente (endpoint pendiente)
-    await new Promise(r => setTimeout(r, 600));
-    setSaving(false);
-    setSaved("profile");
-    setTimeout(() => setSaved(null), 3000);
+    try {
+      const token = localStorage.getItem("fitness_access_token");
+      const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+      const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Tenant-Slug": process.env["NEXT_PUBLIC_TENANT_SLUG"] ?? "" },
+        body: JSON.stringify({ name: displayName }),
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      setSaved("profile");
+    } catch {
+      setSaved("error");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaved(null), 3000);
+    }
   }
 
   async function handleSaveTenant(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setSaved(null);
-    await new Promise(r => setTimeout(r, 600));
-    setSaving(false);
-    setSaved("tenant");
-    setTimeout(() => setSaved(null), 3000);
+    try {
+      const token = localStorage.getItem("fitness_access_token");
+      const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+      const res = await fetch(`${apiUrl}/api/v1/auth/tenant`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Tenant-Slug": process.env["NEXT_PUBLIC_TENANT_SLUG"] ?? "" },
+        body: JSON.stringify({ name: tenantName, primaryColor, supportEmail }),
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      setSaved("tenant");
+    } catch {
+      setSaved("error");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaved(null), 3000);
+    }
   }
 
   if (loading) {
@@ -214,7 +237,7 @@ export default function SettingsPage() {
               border: "none", borderRadius: 8, color: "#06080F", fontWeight: 800,
               fontSize: "0.88rem", cursor: "pointer",
             }}>
-              {saving && saved !== "tenant" ? "Guardando..." : saved === "profile" ? "✓ Guardado" : "Guardar perfil"}
+              {saving && saved !== "tenant" ? "Guardando..." : saved === "profile" ? "✓ Guardado" : saved === "error" ? "✗ Error al guardar" : "Guardar perfil"}
             </button>
           </form>
         </Section>
@@ -247,7 +270,7 @@ export default function SettingsPage() {
               border: "none", borderRadius: 8, color: "#06080F", fontWeight: 800,
               fontSize: "0.88rem", cursor: "pointer",
             }}>
-              {saving && saved !== "profile" ? "Guardando..." : saved === "tenant" ? "✓ Guardado" : "Guardar configuración"}
+              {saving && saved !== "profile" ? "Guardando..." : saved === "tenant" ? "✓ Guardado" : saved === "error" ? "✗ Error al guardar" : "Guardar configuración"}
             </button>
           </form>
         </Section>

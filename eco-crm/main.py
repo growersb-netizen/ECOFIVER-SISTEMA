@@ -135,6 +135,15 @@ try:
             else:
                 _db_cfg.add(_ConfigModel(clave=_clave, valor=_stored, es_secreto=_es_secreto, categoria="whatsapp", estado="activa"))
         _db_cfg.commit()
+
+        # Chequeo de salud: SMTP configurado?
+        import os as _os2
+        if not (_os2.getenv("SMTP_USER") and _os2.getenv("SMTP_PASSWORD")):
+            log.warning(
+                "[STARTUP] SMTP no configurado — los mails de verificación y "
+                "bienvenida no se enviarán. Configurar SMTP_USER y SMTP_PASSWORD "
+                "en las variables de entorno o desde /configuracion."
+            )
     finally:
         _db_cfg.close()
 except Exception:

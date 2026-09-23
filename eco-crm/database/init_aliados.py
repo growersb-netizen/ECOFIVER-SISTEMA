@@ -69,21 +69,29 @@ def init_aliados(db: Session) -> None:
         nombre = (s.get("nombre") or "").strip()
         if not email or not nombre:
             continue
-        if not db.query(Aliado).filter(Aliado.email == email).first():
-            codigo = _next_codigo(db)
-            nuevo = Aliado(
-                codigo=codigo,
-                nombre=nombre,
-                email=email,
-                password_hash=_hash,
-                estado="activo",
-                whatsapp_verificado=False,
-                email_verificado=True,
-                primer_login=True,
-            )
-            db.add(nuevo)
-            db.flush()
-            log.info(f"[init_aliados] Creado socio {codigo} — {nombre}")
+        existing = db.query(Aliado).filter(Aliado.email == email).first()
+        if existing:
+            # Actualizar teléfono si viene en el JSON y el aliado no lo tiene
+            tel = (s.get("telefono") or "").strip()
+            if tel and not existing.telefono:
+                existing.telefono = tel
+            continue
+        codigo = _next_codigo(db)
+        tel = (s.get("telefono") or "").strip()
+        nuevo = Aliado(
+            codigo=codigo,
+            nombre=nombre,
+            email=email,
+            telefono=tel or None,
+            password_hash=_hash,
+            estado="activo",
+            whatsapp_verificado=False,
+            email_verificado=True,
+            primer_login=True,
+        )
+        db.add(nuevo)
+        db.flush()
+        log.info(f"[init_aliados] Creado socio {codigo} — {nombre}")
 
     # 3. Activar postulantes/en_evaluacion
     pendientes = db.query(Aliado).filter(

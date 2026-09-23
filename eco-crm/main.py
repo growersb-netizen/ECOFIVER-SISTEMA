@@ -27,6 +27,7 @@ from routers.leads import rotar_leads_inactivos
 from database.database import engine, get_db, run_migrations, _is_sqlite
 from database.models import Base
 from database.seed import seed_database, seed_config_defaults, seed_rr_defaults
+from database.init_aliados import init_aliados as _init_aliados
 
 from routers import (
     auth, leads, videollamadas, ventas_contado, ventas_financiadas,
@@ -82,6 +83,17 @@ Path("data/ecopost_videos").mkdir(parents=True, exist_ok=True)   # videos Ecopos
 seed_database()
 seed_config_defaults()
 seed_rr_defaults()
+
+# Aliados: admin + socios fundadores + activaciones pendientes (idempotente)
+try:
+    from database.database import SessionLocal as _SessionLocalAliados
+    _db_al = _SessionLocalAliados()
+    try:
+        _init_aliados(_db_al)
+    finally:
+        _db_al.close()
+except Exception:
+    log.exception("No se pudo inicializar aliados")
 
 # Guías reales de la Biblioteca de contenidos del panel de socios (idempotente)
 try:

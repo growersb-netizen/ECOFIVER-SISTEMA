@@ -1371,6 +1371,9 @@ class Aliado(Base):
     # ── Rol de administrador del programa (acceso al CRM admin desde el panel) ──
     es_admin_crm = Column(Boolean, default=False)
 
+    # ── Primer login: muestra bienvenida + guía + fuerza cambio de contraseña ──
+    primer_login = Column(Boolean, default=False)
+
 
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,

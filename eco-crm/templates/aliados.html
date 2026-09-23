@@ -321,6 +321,10 @@
           </select>
         </div>
       </div>
+      <div class="form-row" style="margin-top:4px">
+        <div><label class="form-label">Email</label><input class="form-control" id="ma-email" type="email" placeholder="para login en el panel"></div>
+        <div><label class="form-label">Contraseña</label><input class="form-control" id="ma-password" type="password" placeholder="mínimo 6 caracteres (dejar vacío = sin cambio)"></div>
+      </div>
       <label class="form-label">Notas</label><textarea class="form-control" id="ma-notas" rows="2"></textarea>
       <div style="margin-top:16px;padding:14px;background:rgba(78,195,181,.08);border:1px solid rgba(78,195,181,.3);border-radius:10px">
         <div style="display:flex;align-items:center;justify-content:space-between">
@@ -386,12 +390,12 @@ async function cargarAliados(){
         <button class="btn btn-sm" onclick="verComisiones('${a.codigo}')">💸</button>
       </td></tr>`).join('')+`</tbody></table>`;
 }
-function nuevoAliado(){document.getElementById('ma-codigo-edit').value='';document.getElementById('ma-titulo').textContent='🤝 Nuevo aliado';['nombre','telefono','dni','cuit','zona','cbu','notas'].forEach(f=>ma(f,''));document.getElementById('ma-estado').value='postulante';document.getElementById('ma-contrato').value='false';}
+function nuevoAliado(){document.getElementById('ma-codigo-edit').value='';document.getElementById('ma-titulo').textContent='🤝 Nuevo aliado';['nombre','telefono','dni','cuit','zona','cbu','notas','email','password'].forEach(f=>ma(f,''));document.getElementById('ma-estado').value='postulante';document.getElementById('ma-contrato').value='false';}
 function editar(a){
   document.getElementById('ma-titulo').textContent='✏️ Editar '+a.codigo;
   document.getElementById('ma-codigo-edit').value=a.codigo;
   ma('nombre',a.nombre);ma('telefono',a.telefono);ma('dni',a.dni);ma('cuit',a.cuit_monotributo);
-  ma('zona',a.zona);ma('cbu',a.cbu_alias);ma('notas',a.notas);
+  ma('zona',a.zona);ma('cbu',a.cbu_alias);ma('notas',a.notas);ma('email',a.email);ma('password','');
   document.getElementById('ma-estado').value=a.estado;
   document.getElementById('ma-contrato').value=a.contrato_firmado?'true':'false';
   // Admin CRM toggle
@@ -418,8 +422,11 @@ async function toggleAdminCrm(){
 function ma(f,v){document.getElementById('ma-'+f).value=v||'';}
 async function guardarAliado(){
   const cod=document.getElementById('ma-codigo-edit').value;
+  const _pw = val('ma-password');
   const body={nombre:val('ma-nombre'),telefono:val('ma-telefono'),dni:val('ma-dni'),
     cuit_monotributo:val('ma-cuit'),zona:val('ma-zona'),cbu_alias:val('ma-cbu'),notas:val('ma-notas'),
+    email:val('ma-email')||null,
+    ...(_pw ? {password:_pw} : {}),
     estado:val('ma-estado'),contrato_firmado:val('ma-contrato')==='true'};
   if(!body.nombre){alert('El nombre es obligatorio');return;}
   const r=cod?await AL.send('/api/aliados/'+cod,'PUT',body):await AL.send('/api/aliados','POST',body);

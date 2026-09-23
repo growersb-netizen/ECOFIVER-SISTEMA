@@ -12,6 +12,9 @@ Autenticación dual en todos los endpoints:
 import os
 from datetime import datetime, timedelta
 from typing import Optional
+from passlib.context import CryptContext
+
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -177,10 +180,17 @@ async def crear_aliado(
     if dni and db.query(Aliado).filter(Aliado.dni == dni, Aliado.dni != "").first():
         raise HTTPException(409, f"Ya existe un aliado con DNI {dni}")
 
+    email = (data.get("email") or "").strip().lower() or None
+    if email and db.query(Aliado).filter(Aliado.email == email).first():
+        raise HTTPException(409, f"Ya existe un aliado con ese email")
+
+    password_raw = (data.get("password") or "").strip()
+
     aliado = Aliado(
         codigo=codigo,
         nombre=nombre,
         dni=dni,
+        email=email,
         cuit_monotributo=(data.get("cuit_monotributo") or "").strip(),
         telefono=(data.get("telefono") or "").strip(),
         cbu_alias=(data.get("cbu_alias") or "").strip(),
@@ -188,6 +198,9 @@ async def crear_aliado(
         estado=estado,
         contrato_firmado=bool(data.get("contrato_firmado", False)),
         notas=data.get("notas", ""),
+        password_hash=_pwd.hash(password_raw) if password_raw else None,
+        whatsapp_verificado=False,
+        email_verificado=bool(email),
     )
     db.add(aliado)
     db.commit()
@@ -324,6 +337,15 @@ async def actualizar_aliado(
             setattr(a, campo, data[campo])
     if "contrato_firmado" in data:
         a.contrato_firmado = bool(data["contrato_firmado"])
+    if "email" in data:
+        new_email = (data["email"] or "").strip().lower() or None
+        if new_email and new_email != a.email:
+            dup = db.query(Aliado).filter(Aliado.email == new_email, Aliado.codigo != a.codigo).first()
+            if dup:
+                raise HTTPException(409, "Ya existe un aliado con ese email")
+        a.email = new_email
+    if "password" in data and data["password"]:
+        a.password_hash = _pwd.hash(data["password"].strip())
 
     db.commit()
     db.refresh(a)

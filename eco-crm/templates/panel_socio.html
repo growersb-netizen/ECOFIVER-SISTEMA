@@ -184,6 +184,73 @@
   </div>
 </div>
 
+<!-- ═══════════════ POP-UP: bienvenida primer login (contraseña temporal) ═══════════════ -->
+<div class="modal-overlay hidden" id="modal-bienvenida">
+  <div class="modal-box">
+    <h2 style="margin:0 0 4px;font-size:19px">¡Bienvenido/a a EcoFiver! 🌿</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px">Tu cuenta fue creada por el equipo. Para continuar, cambiá la contraseña temporal.</p>
+    <label>Nueva contraseña</label>
+    <input id="bv-pass" type="password" minlength="6" placeholder="mínimo 6 caracteres">
+    <label style="margin-top:10px">Repetir contraseña</label>
+    <input id="bv-pass2" type="password" minlength="6" placeholder="repetí la nueva contraseña">
+    <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doBienvenidaPassword()">Cambiar contraseña y continuar</button>
+    <div class="msg" id="bv-msg"></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);text-align:center">
+      <span style="font-size:12px;color:var(--text-muted)">¿Querés ver primero la guía de uso?</span><br>
+      <button class="btn-ghost" style="margin-top:6px;font-size:13px" onclick="abrirGuia()">📖 Ver guía del panel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: Guía de uso del Panel de Socios ═══════════════ -->
+<div class="modal-overlay hidden" id="modal-guia" style="align-items:flex-start;padding-top:40px">
+  <div class="modal-box" style="max-width:600px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;font-size:19px">📖 Guía del Panel de Socios</h2>
+      <button class="btn-ghost" style="padding:4px 10px" onclick="cerrarGuia()">✕</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px;font-size:14px">
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>🏠 Dashboard</strong><br>
+        Resumen de tu actividad: ventas, comisiones pendientes y cobradas, y tu ranking dentro del programa.
+      </div>
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>🧮 Simulador de cuotas</strong><br>
+        Calculá precios en tiempo real para cualquier producto. Al generar el presupuesto PDF, el lead queda registrado automáticamente. Usá el botón <em>"Compartir por WhatsApp"</em> para mandar el presupuesto al cliente con un clic.
+      </div>
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>📦 Catálogo</strong><br>
+        Todos los productos disponibles con fotos, precios y características. Podés filtrarlo por categoría.
+      </div>
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>📊 Mis ventas</strong><br>
+        Seguí el estado de cada venta que cargaste: pendiente de confirmación, en producción, entregada. Podés ver el detalle de cuotas de cada cliente.
+      </div>
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>💸 Comisiones</strong><br>
+        <strong>Contado:</strong> 3% del valor de venta, se libera al entregar y cobrar.<br>
+        <strong>Financiado:</strong> 50% del valor de la primera cuota, se libera tras la llamada de bienvenida al cliente.<br>
+        Los pagos se realizan por transferencia bancaria.
+      </div>
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>📚 Biblioteca</strong><br>
+        Material de ventas, fotos de entregas, flyers, y documentación del programa para que puedas compartir con tus clientes.
+      </div>
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>💬 WhatsApp con Franco</strong><br>
+        Tu asistente administrativo disponible 24/7. Consultá el estado de tus ventas, pedí ayuda con una operación o reportá un problema. Franco es el nexo directo con el equipo EcoFiver.
+      </div>
+      <div style="padding:12px;background:rgba(78,195,181,.08);border-radius:8px;border-left:3px solid var(--accent)">
+        <strong>🔒 Mi cuenta</strong><br>
+        Completá tus datos (DNI, zona, CUIT), verificá tu WhatsApp y cargá tu documentación de monotributista para activar tu perfil completo y desbloquear todas las funciones.
+      </div>
+    </div>
+
+    <button class="btn-primary" style="margin-top:20px;width:100%" onclick="cerrarGuia()">Entendido, vamos a vender 🚀</button>
+  </div>
+</div>
+
 <!-- ═══════════════ POP-UP: crear contraseña (primer ingreso tras verificar WhatsApp) ═══════════════ -->
 <div class="modal-overlay hidden" id="modal-crear-password">
   <div class="modal-box">
@@ -270,6 +337,7 @@
     <a class="nav-item" data-section="capacitacion" onclick="nav('capacitacion')">🎓 Capacitación</a>
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
     <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
+    <a class="nav-item" onclick="abrirGuia()" style="color:var(--teal)">📖 Guía de uso</a>
     <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-admin" target="_blank"
        style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:var(--teal);font-weight:700">
       🔧 Panel Admin CRM
@@ -712,8 +780,40 @@ async function doCrearPassword(){
 }
 
 function avanzarOnboarding(){
+  if(SOCIO.primer_login){ abrirModalBienvenida(); return; }
   if(!SOCIO.comisiones_aceptadas) abrirModalComisiones();
   else if(!SOCIO.verificado) abrirModalVerificacion();
+}
+
+function abrirModalBienvenida(){
+  document.getElementById('bv-pass').value='';
+  document.getElementById('bv-pass2').value='';
+  document.getElementById('bv-msg').className='msg';
+  document.getElementById('bv-msg').textContent='';
+  document.getElementById('modal-bienvenida').classList.remove('hidden');
+}
+
+async function doBienvenidaPassword(){
+  const msg=document.getElementById('bv-msg'); msg.className='msg'; msg.textContent='';
+  const p1=document.getElementById('bv-pass').value;
+  const p2=document.getElementById('bv-pass2').value;
+  if(p1.length<6){msg.className='msg error';msg.textContent='Mínimo 6 caracteres';return;}
+  if(p1!==p2){msg.className='msg error';msg.textContent='Las contraseñas no coinciden';return;}
+  try{
+    await api('/api/socio/crear-password',{method:'POST',body:JSON.stringify({password:p1})});
+    SOCIO.tiene_password=true;
+    SOCIO.primer_login=false;
+    document.getElementById('modal-bienvenida').classList.add('hidden');
+    if(!SOCIO.comisiones_aceptadas) abrirModalComisiones();
+    else if(!SOCIO.verificado) abrirModalVerificacion();
+  }catch(e){msg.className='msg error';msg.textContent=e.message;}
+}
+
+function abrirGuia(){
+  document.getElementById('modal-guia').classList.remove('hidden');
+}
+function cerrarGuia(){
+  document.getElementById('modal-guia').classList.add('hidden');
 }
 
 async function abrirModalComisiones(){

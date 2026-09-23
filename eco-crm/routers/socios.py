@@ -17,7 +17,7 @@ import re
 import json
 import random
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -230,7 +230,7 @@ async def socio_registro(request: Request, db: Session = Depends(get_db)):
         email_verificado=False,
         perfil_completo=False,
         codigo_verificacion=otp,
-        codigo_verificacion_expira=datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS),
+        codigo_verificacion_expira=datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS),
         origen_registro=origen_registro,
         notas="Registro directo vía plataforma de socios",
     )
@@ -267,7 +267,7 @@ async def socio_solicitar_codigo(request: Request, db: Session = Depends(get_db)
 
     otp = f"{random.randint(0, 999999):06d}"
     socio.codigo_verificacion = otp
-    socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+    socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
     send_whatsapp_otp(db, socio.telefono, otp)
     return {"ok": True, "codigo": socio.codigo}
@@ -293,8 +293,11 @@ async def socio_verificar(request: Request, response: Response, db: Session = De
         raise HTTPException(404, "Socio no encontrado")
     if not socio.codigo_verificacion or socio.codigo_verificacion != otp:
         raise HTTPException(400, "Código incorrecto")
-    if socio.codigo_verificacion_expira and socio.codigo_verificacion_expira < datetime.now():
-        raise HTTPException(400, "El código venció — pedí uno nuevo")
+    _exp = socio.codigo_verificacion_expira
+    if _exp:
+        _exp_aw = _exp if _exp.tzinfo else _exp.replace(tzinfo=timezone.utc)
+        if _exp_aw < datetime.now(timezone.utc):
+            raise HTTPException(400, "El código venció — pedí uno nuevo")
 
     socio.whatsapp_verificado = True
     socio.codigo_verificacion = None
@@ -315,6 +318,7 @@ async def socio_crear_password(request: Request, socio: Aliado = Depends(require
     if len(password) < 6:
         raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
     socio.password_hash = pwd_context.hash(password)
+    socio.primer_login = False  # ya cambió la contraseña temporal
     db.commit()
     return {"ok": True}
 
@@ -365,7 +369,7 @@ async def socio_reenviar_codigo(request: Request, db: Session = Depends(get_db))
 
     otp = f"{random.randint(0, 999999):06d}"
     socio.codigo_verificacion = otp
-    socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+    socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
     send_whatsapp_otp(db, socio.telefono, otp)
     return {"ok": True}
@@ -401,7 +405,7 @@ async def socio_olvide_password(request: Request, db: Session = Depends(get_db))
     if socio and socio.telefono:
         otp = f"{random.randint(0, 999999):06d}"
         socio.codigo_verificacion = otp
-        socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+        socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
         db.commit()
         send_whatsapp_otp(db, socio.telefono, otp)
 
@@ -424,8 +428,11 @@ async def socio_resetear_password(request: Request, db: Session = Depends(get_db
 
     if not socio or not socio.codigo_verificacion or socio.codigo_verificacion != otp:
         raise HTTPException(400, "Código incorrecto")
-    if socio.codigo_verificacion_expira and socio.codigo_verificacion_expira < datetime.now():
-        raise HTTPException(400, "El código venció — pedí uno nuevo")
+    _exp3 = socio.codigo_verificacion_expira
+    if _exp3:
+        _exp3_aw = _exp3 if _exp3.tzinfo else _exp3.replace(tzinfo=timezone.utc)
+        if _exp3_aw < datetime.now(timezone.utc):
+            raise HTTPException(400, "El código venció — pedí uno nuevo")
 
     socio.password_hash = pwd_context.hash(password_nueva)
     socio.codigo_verificacion = None
@@ -463,6 +470,7 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "comisiones_aceptadas": bool(socio.comisiones_aceptadas_en),
         "interes_venta": socio.interes_venta,
         "es_admin_crm": bool(socio.es_admin_crm),
+        "primer_login": bool(socio.primer_login),
     }
 
 
@@ -528,7 +536,7 @@ async def enviar_codigo_whatsapp(request: Request, socio: Aliado = Depends(requi
         raise HTTPException(400, "No tenés un WhatsApp cargado")
     otp = f"{random.randint(0, 999999):06d}"
     socio.codigo_verificacion = otp
-    socio.codigo_verificacion_expira = datetime.now() + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+    socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
     send_whatsapp_otp(db, socio.telefono, otp)
     return {"ok": True}
@@ -542,8 +550,11 @@ async def confirmar_codigo_whatsapp(request: Request, socio: Aliado = Depends(re
         return {"ok": True, "ya_verificado": True}
     if not socio.codigo_verificacion or socio.codigo_verificacion != otp:
         raise HTTPException(400, "Código incorrecto")
-    if socio.codigo_verificacion_expira and socio.codigo_verificacion_expira < datetime.now():
-        raise HTTPException(400, "El código venció — pedí uno nuevo")
+    _exp4 = socio.codigo_verificacion_expira
+    if _exp4:
+        _exp4_aw = _exp4 if _exp4.tzinfo else _exp4.replace(tzinfo=timezone.utc)
+        if _exp4_aw < datetime.now(timezone.utc):
+            raise HTTPException(400, "El código venció — pedí uno nuevo")
     socio.whatsapp_verificado = True
     socio.codigo_verificacion = None
     socio.codigo_verificacion_expira = None
@@ -1105,16 +1116,26 @@ def seed_biblioteca_socios(db: Session):
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMISIONES — porcentaje configurable desde el panel de admin, por tipo de
-# venta y opcionalmente por producto/modelo. Default de hoy: 5% en contado
-# (cualquier producto) y 100% de la primera cuota en financiado.
+# venta y opcionalmente por producto/modelo. Default: 3% en contado
+# (cualquier producto) y 50% del valor de la primera cuota en financiado.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def seed_comision_config(db: Session):
-    """Crea los valores por defecto una sola vez (si la tabla está vacía)."""
-    if db.query(ComisionConfig).first():
-        return
-    db.add(ComisionConfig(tipo_venta="contado", producto=None, modelo=None, porcentaje=0.05))
-    db.add(ComisionConfig(tipo_venta="financiado", producto=None, modelo=None, porcentaje=1.0))
+    """Crea o actualiza los valores default de comisión (upsert idempotente)."""
+    _DEFAULTS = [
+        ("contado",    None, None, 0.03),
+        ("financiado", None, None, 0.50),
+    ]
+    for tipo, producto, modelo, pct in _DEFAULTS:
+        row = db.query(ComisionConfig).filter(
+            ComisionConfig.tipo_venta == tipo,
+            ComisionConfig.producto == producto,
+            ComisionConfig.modelo == modelo,
+        ).first()
+        if row:
+            row.porcentaje = pct
+        else:
+            db.add(ComisionConfig(tipo_venta=tipo, producto=producto, modelo=modelo, porcentaje=pct))
     db.commit()
 
 
@@ -1281,9 +1302,9 @@ QUIZ_AUTOEVALUACION = [
     {"pregunta": "¿Quién cierra una venta, contado o financiada: el Socio o el equipo de EcoFiver?", "respuesta": "El Socio Comercial — hace la operación completa, de punta a punta."},
     {"pregunta": "¿Con qué herramienta cotizás precios y cuotas?", "respuesta": "Con el catálogo y el simulador de tu panel — nunca de memoria."},
     {"pregunta": "¿Tenés horario fijo de trabajo?", "respuesta": "No. Es un vínculo comercial, sin obligación de horario ni de asistencia."},
-    {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "El 100% del valor de la primera cuota del plan. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
+    {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "El 50% del valor de la primera cuota del plan. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
     {"pregunta": "¿Cuándo se libera tu comisión en una venta financiada?", "respuesta": "Cuando el equipo hace la llamada de bienvenida (auditoría) y confirma que el cliente entendió el plan."},
-    {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "El 5% del precio de venta — se libera contra entrega y cobro. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
+    {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "El 3% del precio de venta — se libera contra entrega y cobro. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
     {"pregunta": "¿Necesitás Monotributo para operar?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones."},
     {"pregunta": "¿La instalación está incluida en una venta de contado?", "respuesta": "En general sí. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo del Socio o de un instalador de su zona."},
     {"pregunta": "¿Desde qué cuota se puede pedir la entrega anticipada (licitación)?", "respuesta": "Desde la cuota 6 en viviendas, y desde la cuota 3 en piscinas."},
@@ -2500,7 +2521,7 @@ async def completar_auditoria_bienvenida(
     """
     El equipo confirma que hizo la llamada de bienvenida: el cliente entendió
     el plan y la condición del 50%. Libera la comisión (% configurable desde
-    el panel de admin, ver ComisionConfig; hoy es el 100% de una cuota).
+    el panel de admin, ver ComisionConfig; hoy es el 50% del valor de la primera cuota).
     Si la venta requiere declaración jurada, exige que ya esté confirmada.
     """
     _require_gestion_interna(x_api_key, current_user)

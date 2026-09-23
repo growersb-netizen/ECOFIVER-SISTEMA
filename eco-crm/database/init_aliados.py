@@ -96,7 +96,7 @@ def init_aliados(db: Session) -> None:
             a.primer_login = True
         log.info(f"[init_aliados] Activado {a.codigo} ({a.nombre})")
 
-    # 4. Socios activos sin contraseña
+    # 4. Socios activos sin contraseña → asignar temporal
     sin_pass = db.query(Aliado).filter(
         Aliado.estado == "activo",
         Aliado.password_hash == None,  # noqa: E711
@@ -105,6 +105,13 @@ def init_aliados(db: Session) -> None:
         a.password_hash = _hash
         a.primer_login = True
         log.info(f"[init_aliados] Contraseña temporal asignada a {a.codigo} ({a.nombre})")
+
+    # 5. Resincronizar contraseña temporal para quienes aún no la cambiaron
+    #    (primer_login=True → todavía tienen la temp, se actualiza si cambió INIT_TEMP_PASSWORD)
+    pendientes_pw = db.query(Aliado).filter(Aliado.primer_login == True).all()  # noqa: E712
+    for a in pendientes_pw:
+        a.password_hash = _hash
+        log.info(f"[init_aliados] Contraseña re-sincronizada para {a.codigo} ({a.nombre})")
 
     db.commit()
     log.info("[init_aliados] Completado")

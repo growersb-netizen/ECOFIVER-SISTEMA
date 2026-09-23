@@ -1,11 +1,22 @@
 """
 Inicialización idempotente de Aliados.
-- Garantiza que growersb@gmail.com sea admin CRM.
-- Crea los socios fundadores (primer batch) si no existen.
+Los datos sensibles (emails, nombres, contraseña) se leen de variables de entorno:
+
+  ADMIN_ALIADO_EMAIL     — email del usuario que debe tener es_admin_crm=True
+  INIT_SOCIOS_JSON       — JSON array: [{"nombre":"...", "email":"..."}, ...]
+  INIT_TEMP_PASSWORD     — contraseña temporal para los socios seed/activados (default: EcoFiver2026!)
+
+Qué hace en cada arranque (idempotente):
+- Garantiza que ADMIN_ALIADO_EMAIL sea admin CRM.
+- Crea los socios de INIT_SOCIOS_JSON si no existen (por email).
 - Activa todos los aliados registrados (postulante/en_evaluacion) y les asigna
   contraseña temporal si aún no tienen una.
+- Socios activos sin contraseña también reciben la contraseña temporal.
 """
+import json
 import logging
+import os
+
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
@@ -13,19 +24,6 @@ from database.models import Aliado
 
 log = logging.getLogger(__name__)
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-TEMP_PASSWORD = "EcoFiver2026!"
-
-_SOCIOS_SEED = [
-    {"nombre": "Gustavo González",       "email": "gustavo11gonzalez6@gmail.com"},
-    {"nombre": "Carlos Osvaldo Vega",    "email": "sstaffuno@gmail.com"},
-    {"nombre": "Andrés Alberto Samudio", "email": "samudioandres088@gmail.com"},
-    {"nombre": "José Antonio González",  "email": "josegonzalez823@gmail.com"},
-    {"nombre": "Guillermo Jofre",        "email": "giofre.gegsol@gmail.com"},
-    {"nombre": "Diego Fratini",          "email": "diegofratini@gmail.com"},
-]
-
-ADMIN_EMAIL = "growersb@gmail.com"
 
 
 def _next_codigo(db: Session) -> str:
@@ -43,25 +41,40 @@ def _next_codigo(db: Session) -> str:
 
 
 def init_aliados(db: Session) -> None:
-    # 1. Admin growersb
-    admin = db.query(Aliado).filter(Aliado.email == ADMIN_EMAIL).first()
-    if admin:
-        if not admin.es_admin_crm:
-            admin.es_admin_crm = True
-            log.info(f"[init_aliados] {ADMIN_EMAIL} → es_admin_crm=True")
-    else:
-        log.info(f"[init_aliados] {ADMIN_EMAIL} no encontrado — se creará si se registra")
+    admin_email = os.getenv("ADMIN_ALIADO_EMAIL", "").strip().lower()
+    temp_password = os.getenv("INIT_TEMP_PASSWORD", "EcoFiver2026!")
+    socios_raw = os.getenv("INIT_SOCIOS_JSON", "[]")
+
+    try:
+        socios_seed = json.loads(socios_raw)
+    except Exception:
+        log.warning("[init_aliados] INIT_SOCIOS_JSON inválido — se omite seed de socios")
+        socios_seed = []
+
+    _hash = _pwd.hash(temp_password)
+
+    # 1. Admin
+    if admin_email:
+        admin = db.query(Aliado).filter(Aliado.email == admin_email).first()
+        if admin:
+            if not admin.es_admin_crm:
+                admin.es_admin_crm = True
+                log.info(f"[init_aliados] {admin_email} → es_admin_crm=True")
+        else:
+            log.info(f"[init_aliados] {admin_email} aún no está registrado — se seteará cuando se registre")
 
     # 2. Socios fundadores (idempotente por email)
-    _hash = _pwd.hash(TEMP_PASSWORD)
-    for s in _SOCIOS_SEED:
-        existing = db.query(Aliado).filter(Aliado.email == s["email"]).first()
-        if not existing:
+    for s in socios_seed:
+        email = (s.get("email") or "").strip().lower()
+        nombre = (s.get("nombre") or "").strip()
+        if not email or not nombre:
+            continue
+        if not db.query(Aliado).filter(Aliado.email == email).first():
             codigo = _next_codigo(db)
             nuevo = Aliado(
                 codigo=codigo,
-                nombre=s["nombre"],
-                email=s["email"],
+                nombre=nombre,
+                email=email,
                 password_hash=_hash,
                 estado="activo",
                 whatsapp_verificado=False,
@@ -69,10 +82,10 @@ def init_aliados(db: Session) -> None:
                 primer_login=True,
             )
             db.add(nuevo)
-            db.flush()  # para que el próximo _next_codigo vea el ID
-            log.info(f"[init_aliados] Creado socio {codigo} — {s['nombre']}")
+            db.flush()
+            log.info(f"[init_aliados] Creado socio {codigo} — {nombre}")
 
-    # 3. Activar todos los registrados sin activar; asignar contraseña temporal si no tienen
+    # 3. Activar postulantes/en_evaluacion
     pendientes = db.query(Aliado).filter(
         Aliado.estado.in_(["postulante", "en_evaluacion"])
     ).all()
@@ -83,7 +96,7 @@ def init_aliados(db: Session) -> None:
             a.primer_login = True
         log.info(f"[init_aliados] Activado {a.codigo} ({a.nombre})")
 
-    # 4. Socios activos sin contraseña → asignar temporal
+    # 4. Socios activos sin contraseña
     sin_pass = db.query(Aliado).filter(
         Aliado.estado == "activo",
         Aliado.password_hash == None,  # noqa: E711

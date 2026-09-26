@@ -543,6 +543,28 @@ async def create_lead(
             # Por ahora notificamos si hay wa_notif_asesor config
             _notificar_asesor_lead_nuevo(db, u, lead)
 
+    # Notificación especial para pedidos desde la tienda web
+    if data.get("origen") == "PEDIDO_WEB":
+        try:
+            from utils.whatsapp import notificar_rodrigo
+            fecha = data.get("fecha_instalacion", "")[:10] if data.get("fecha_instalacion") else ""
+            msg = (
+                f"🛒 *NUEVO PEDIDO WEB*\n\n"
+                f"📦 Producto: {data.get('modelo_especifico', data.get('producto_interes', ''))}\n"
+                f"💰 Precio: ${data.get('precio_contado', ''):,}\n"
+                f"📅 Fecha deseada: {fecha}\n"
+                f"💳 Pago: {data.get('forma_pago', '')}\n\n"
+                f"👤 {data.get('nombre', '')}\n"
+                f"📱 {data.get('telefono', '')}\n"
+                f"✉️ {data.get('email', '')}\n"
+                f"🪪 DNI: {data.get('dni_cliente', '')}\n"
+                f"📍 {data.get('direccion', '')}, {data.get('localidad', '')}, {data.get('partido', '')} CP {data.get('codigo_postal', '')}\n\n"
+                f"Ver en CRM: https://eco-crm-production.up.railway.app/leads"
+            )
+            notificar_rodrigo(db, msg)
+        except Exception as e:
+            log.warning(f"[PEDIDO_WEB] Error notificando: {e}")
+
     return {"id": lead.id, "ok": True, "asesor_asignado": asesor_nombre}
 
 

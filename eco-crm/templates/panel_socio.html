@@ -610,6 +610,8 @@
         <button class="btn-ghost biblio-filtro" data-tipo="imagen" onclick="filtrarBiblioteca('imagen')">🖼️ Fotos</button>
         <button class="btn-ghost biblio-filtro" data-tipo="foto_entrega" onclick="filtrarBiblioteca('foto_entrega')">📦 Entregas</button>
         <button class="btn-ghost biblio-filtro" data-tipo="copy" onclick="filtrarBiblioteca('copy')">📋 Copys</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="video" onclick="filtrarBiblioteca('video')">🎬 Videos</button>
+        <button class="btn-ghost biblio-filtro" data-tipo="flyer" onclick="filtrarBiblioteca('flyer')">🎨 Flyers</button>
       </div>
       <div class="biblio-grid" id="biblio-grid">Cargando…</div>
     </section>
@@ -1837,11 +1839,13 @@ function renderBiblioteca(){
   el.innerHTML = items.map((m, i) => `
     <div class="biblio-card">
       ${(m.tipo === 'imagen' || m.tipo === 'foto_entrega') && m.url ? `<img src="${m.url}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;margin-bottom:10px;background:var(--bg)">` : ''}
+      ${m.tipo === 'video' ? `<div style="width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:32px">🎬</div>` : ''}
+      ${m.tipo === 'flyer' && m.url ? `<img src="${m.url}" loading="lazy" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;margin-bottom:10px;background:var(--bg)">` : ''}
       <div class="tag-cat">${m.categoria}${m.tipo === 'copy' ? ' · copy listo para pegar' : ''}</div>
       <h4>${m.titulo || m.tipo}</h4>
       <p>${(m.descripcion||'').replace(/\n/g,'<br>')}</p>
       ${m.tipo === 'copy' ? `<button class="btn-ghost" onclick="copiarTexto(this, ${JSON.stringify(m.descripcion)})">📋 Copiar texto</button>` : ''}
-      ${m.url ? `<a href="${m.url}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px">${m.tipo === 'imagen' ? 'Ver tamaño completo' : 'Ver / descargar'}</a>` : ''}
+      ${m.url ? `<a href="${m.url}" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:8px 14px">${m.tipo === 'imagen' || m.tipo === 'foto_entrega' ? 'Ver tamaño completo' : m.tipo === 'video' ? '▶️ Ver / descargar video' : 'Ver / descargar'}</a>` : ''}
     </div>`).join('') || '<p style="color:var(--text-muted)">Todavía no hay material en esta categoría.</p>';
 }
 

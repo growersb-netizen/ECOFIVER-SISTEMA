@@ -1417,6 +1417,52 @@ async def borrar_material_socio(
     return {"ok": True}
 
 
+@router.post("/api/admin/reimportar-biblioteca")
+async def reimportar_biblioteca(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Recupera archivos subidos al volumen que perdieron su registro en DB.
+    Crea un MaterialSocio por cada archivo en BIBLIOTECA_DIR que no esté
+    ya referenciado. categoria/tipo se infieren por la ruta; todos quedan
+    activos y con origen='manual' para poder editarlos manualmente después."""
+    _require_gestion_interna(x_api_key, current_user)
+
+    exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".pdf"}
+    existentes = {
+        os.path.basename(m.archivo_path)
+        for m in db.query(MaterialSocio).filter(MaterialSocio.archivo_path.isnot(None)).all()
+    }
+
+    creados = []
+    for f in sorted(BIBLIOTECA_DIR.iterdir()):
+        if f.suffix.lower() not in exts:
+            continue
+        if f.name in existentes:
+            continue
+        ext = f.suffix.lower()
+        if ext in {".mp4"}:
+            tipo = "video"
+        elif ext in {".pdf"}:
+            tipo = "documento"
+        else:
+            tipo = "foto_entrega"
+        m = MaterialSocio(
+            tipo=tipo,
+            categoria="general",
+            titulo=f.name,
+            descripcion="Importado automáticamente desde el volumen.",
+            archivo_path=str(f),
+            origen="manual",
+            activo=True,
+        )
+        db.add(m)
+        creados.append(f.name)
+
+    db.commit()
+    return {"ok": True, "creados": len(creados), "archivos": creados}
+
+
 @router.post("/api/materiales-socio/sincronizar-catalogo")
 async def sincronizar_catalogo_endpoint(
     db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),

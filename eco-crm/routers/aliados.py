@@ -201,6 +201,7 @@ async def crear_aliado(
         password_hash=_pwd.hash(password_raw) if password_raw else None,
         whatsapp_verificado=False,
         email_verificado=bool(email),
+        primer_login=bool(data.get("primer_login", False)),
     )
     db.add(aliado)
     db.commit()
@@ -346,6 +347,8 @@ async def actualizar_aliado(
         a.email = new_email
     if "password" in data and data["password"]:
         a.password_hash = _pwd.hash(data["password"].strip())
+    if "primer_login" in data:
+        a.primer_login = bool(data["primer_login"])
 
     db.commit()
     db.refresh(a)

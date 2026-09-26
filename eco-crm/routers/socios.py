@@ -1409,7 +1409,7 @@ async def editar_material_socio(
     if not m:
         raise HTTPException(404, "No encontrado")
     data = await request.json()
-    for campo in ("titulo", "descripcion", "categoria"):
+    for campo in ("titulo", "descripcion", "categoria", "tipo"):
         if campo in data:
             setattr(m, campo, data[campo])
     db.commit()

@@ -637,6 +637,8 @@ async def diag_endpoint():
             "wa_token": _cfg("wa_token"),
             "sqlite_migrated_flag": __import__("pathlib").Path("data/.sqlite_migrated").exists(),
             "sqlite_file_exists": __import__("pathlib").Path("data/eco_crm.db").exists(),
+            "biblioteca_archivos": sorted(_os.listdir("data/biblioteca_socios")) if __import__("pathlib").Path("data/biblioteca_socios").exists() else [],
+            "data_dirs": sorted(_os.listdir("data")) if __import__("pathlib").Path("data").exists() else [],
         }
     finally:
         _db.close()

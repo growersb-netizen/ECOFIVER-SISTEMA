@@ -601,6 +601,47 @@ async def health_check():
     return {"status": "ok", "sistema": "EcoFiver CRM", "version": "1.0.0"}
 
 
+@app.get("/api/diag", include_in_schema=False)
+async def diag_endpoint():
+    """Diagnóstico de estado de tablas y config — temporal."""
+    import os as _os
+    from database.database import SessionLocal as _SL
+    from database.models import (
+        Aliado, VentaFinanciada, VentaContado, ConfiguracionSistema, MaterialSocio
+    )
+    from database.encryption import decrypt_value as _dv
+    _db = _SL()
+    try:
+        def _cfg(k):
+            e = _db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == k).first()
+            if not e: return "NO_EXISTE"
+            val = _dv(e.valor) if e.es_secreto else (e.valor or "")
+            return f"OK(len={len(val)})" if val else "VACIO"
+        return {
+            "aliados": _db.query(Aliado).count(),
+            "aliados_activos": _db.query(Aliado).filter(Aliado.estado == "activo").count(),
+            "aliados_primer_login": _db.query(Aliado).filter(Aliado.primer_login == True).count(),
+            "aliados_admin": [a.email for a in _db.query(Aliado).filter(Aliado.es_admin_crm == True).all()],
+            "ventas_financiadas": _db.query(VentaFinanciada).count(),
+            "ventas_contado": _db.query(VentaContado).count(),
+            "materiales_socio": _db.query(MaterialSocio).count(),
+            "materiales_por_origen": {
+                row[0]: row[1] for row in
+                _db.execute(__import__("sqlalchemy").text("SELECT origen, COUNT(*) FROM materiales_socio GROUP BY origen")).fetchall()
+            },
+            "ml_client_id": _cfg("ml_client_id"),
+            "ml_access_token": _cfg("ml_access_token"),
+            "ml_refresh_token": _cfg("ml_refresh_token"),
+            "gemini_api_key": _cfg("gemini_api_key"),
+            "openrouter_api_key": _cfg("openrouter_api_key"),
+            "wa_token": _cfg("wa_token"),
+            "sqlite_migrated_flag": __import__("pathlib").Path("data/.sqlite_migrated").exists(),
+            "sqlite_file_exists": __import__("pathlib").Path("data/eco_crm.db").exists(),
+        }
+    finally:
+        _db.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))

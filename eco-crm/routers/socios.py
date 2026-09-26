@@ -1340,6 +1340,20 @@ async def socio_biblioteca_archivo(material_id: int, socio: Aliado = Depends(req
     return FileResponse(m.archivo_path)
 
 
+@router.get("/api/admin/biblioteca/{material_id}/archivo")
+async def admin_biblioteca_archivo(
+    material_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    _require_gestion_interna(x_api_key, current_user)
+    from fastapi.responses import FileResponse
+    m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
+    if not m or not m.archivo_path or not os.path.exists(m.archivo_path):
+        raise HTTPException(404, "Archivo no encontrado")
+    return FileResponse(m.archivo_path)
+
+
 @router.post("/api/materiales-socio")
 async def crear_material_socio(
     tipo: str = Form(...), categoria: str = Form("general"), titulo: str = Form(""),

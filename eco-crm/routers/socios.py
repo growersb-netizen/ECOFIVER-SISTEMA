@@ -188,7 +188,7 @@ def _notificar_socio(db: Session, aliado_codigo: Optional[str], mensaje: str):
 
 DEFAULT_PASSWORD = "ECO1234"
 
-PANEL_URL = "https://eco-crm-production.up.railway.app/socio/login"
+PANEL_URL = "https://eco-crm-production.up.railway.app/panel-socio"
 LANDING_ALIADOS_URL = "landing-aliados-ecofiver.vercel.app"
 
 

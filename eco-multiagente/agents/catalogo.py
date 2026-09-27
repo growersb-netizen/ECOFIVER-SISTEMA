@@ -16,7 +16,7 @@ CATALOGO = {
         {"id": 7,  "modelo": "Arco Romano Mediano C/Desnivel",  "medida": "7x3,35x1,25 a 1,70",           "precio_contado": 4490000,  "precio_lista": 7130000},
         {"id": 8,  "modelo": "Arco Romano Grande",              "medida": "8,10x3,35x1,25 a 1,80",        "precio_contado": 4800000,  "precio_lista": 6990000},
         {"id": 9,  "modelo": "Playa Humeda",                    "medida": "5,20x2,45x1,10 a 1,30",        "precio_contado": 3290000,  "precio_lista": 4790000},
-        {"id": 10, "modelo": "Minimalista Chica",               "medida": "3,97x2,46x1,20",               "precio_contado": 2800000,  "precio_lista": 4080000},
+        {"id": 10, "modelo": "Minimalista Chica",               "medida": "3,97x2,46x1,20",               "precio_contado": 3000000,  "precio_lista": 4080000},
         {"id": 11, "modelo": "Minimalista Mediana",             "medida": "5,50x2,90x1,50",               "precio_contado": 4425000,  "precio_lista": 6440000},
         {"id": 12, "modelo": "Minimalista Grande",              "medida": "6,40x3x1,40",                  "precio_contado": 3690000,  "precio_lista": 5370000},
         {"id": 13, "modelo": "Recta C/Mini Escalera",           "medida": "4,63x2,48x1,25",               "precio_contado": 3375000,  "precio_lista": 4910000},
@@ -37,14 +37,27 @@ CATALOGO = {
     "flete_financiado": 0,       # BONIFICADO en financiación (piscinas, módulos, combos)
     "fabrica_direccion": "Av. Antártida Argentina 3105, Zárate, Buenos Aires",
     "ciudad_origen": "Zárate",
-    "combo_descuento_pct": 25,
     "combo_solo_financiacion": True,
+    # Combos cerrados octubre 2026: precio = m²vivienda×$690.000 + contado piscina
+    "combos_octubre": [
+        {"nombre": "Vivienda 36 m² + Piscina Minimalista 4 m",        "precio_promo": 27840000},
+        {"nombre": "Vivienda 45 m² + Piscina Playa Húmeda 5,20 m",    "precio_promo": 34340000},
+        {"nombre": "Vivienda 60 m² + Piscina Minimalista 6,40 m",     "precio_promo": 45090000},
+        {"nombre": "Vivienda 72 m² + Piscina Playa y Abanico 9,20 m", "precio_promo": 55180000},
+    ],
+    "combos_bonificaciones_octubre": [
+        "Instalación eléctrica", "Instalación de baños",
+        "Bordes atérmicos para la piscina", "Flete a todo el país",
+    ],
     "planes_financiacion": {
-        "12":  {"cuotas": 12},
-        "18":  {"cuotas": 18},
         "24":  {"cuotas": 24},
         "36":  {"cuotas": 36},
+        "48":  {"cuotas": 48},
         "60":  {"cuotas": 60},
+        "72":  {"cuotas": 72},
+        "84":  {"cuotas": 84},
+        "96":  {"cuotas": 96},
+        "108": {"cuotas": 108},
         "120": {"cuotas": 120},
     },
     # Ingreso = N cuotas del plan elegido (no porcentaje fijo)

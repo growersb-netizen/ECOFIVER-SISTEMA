@@ -34,7 +34,7 @@
     { nombre: "Arco Romano Mediano C/Desnivel",     medidas: "7x3,35x1,25 a 1,70",          contado: 4900000, lista: 7130000 },
     { nombre: "Arco Romano Grande",                 medidas: "8,10x3,35x1,25 a 1,80",       contado: 4800000, lista: 6990000 },
     { nombre: "Playa Húmeda",                       medidas: "5,20x2,45x1,10 a 1,30",       contado: 3290000, lista: 4790000 },
-    { nombre: "Minimalista Chica",                  medidas: "3,97x2,46x1,20",              contado: 2800000, lista: 4080000 },
+    { nombre: "Minimalista Chica",                  medidas: "3,97x2,46x1,20",              contado: 3000000, lista: 4080000 },
     { nombre: "Minimalista Mediana",                medidas: "5,50x2,90x1,50",              contado: 4425000, lista: 6440000 },
     { nombre: "Minimalista Grande",                 medidas: "6,40x3x1,40",                 contado: 3690000, lista: 5370000 },
     { nombre: "Recta C/Mini Escalera",               medidas: "4,63x2,48x1,25",              contado: 3375000, lista: 4910000 },
@@ -83,7 +83,10 @@
     "hero-plan18": null, // se arma dinámicamente
     "promo-mundial": null, // se arma dinámicamente
     "cooperativa": "Hola! Quiero hablar con la cooperativa sobre financiar mi vivienda, una piscina, o ambas cosas.",
-    "combo-quincho-piscina": null, // se arma dinámicamente
+    "combo-1": null, // se arma dinámicamente
+    "combo-2": null,
+    "combo-3": null,
+    "combo-4": null,
     "producto-piscina": "Hola! Quiero información para financiar una piscina.",
     "producto-modulo": "Hola! Quiero información sobre el Plan 18 Pasos para financiar un módulo habitable.",
     "simulador-modulo": null, // se arma dinámicamente
@@ -99,7 +102,7 @@
   function actualizarLinksWhatsapp() {
     document.querySelectorAll("[data-wa-cta]").forEach(function (el) {
       const key = el.getAttribute("data-wa-cta");
-      if (key === "simulador-modulo" || key === "simulador-piscina" || key === "promo-mundial" || key === "combo-quincho-piscina" || key === "hero-plan18") return; // se arman aparte
+      if (key === "simulador-modulo" || key === "simulador-piscina" || key === "promo-mundial" || key === "combo-1" || key === "combo-2" || key === "combo-3" || key === "combo-4" || key === "hero-plan18") return; // se arman aparte
       el.setAttribute("href", waLink(MENSAJES_WA[key] || MENSAJES_WA.hero));
     });
     document.querySelectorAll("[data-wa-display]").forEach(function (el) {
@@ -155,38 +158,34 @@
   }
 
   // ────────────────────────────────────────────────────────────
-  // Combo destacado: Quincho 18 m² + Piscina Playa y Abanico
-  // Mismas reglas que el combo general: se suma el valor nominal
-  // (quincho a $690.000/m² + piscina a precio de lista), sin
-  // descuento, financiado con ingreso equivalente a 2 cuotas.
+  // Combos Octubre 2026 — 4 combos cerrados vivienda + piscina
+  // Precio promo = m² vivienda × $690.000 + precio contado piscina.
+  // Cuotas precalculadas: precio / (n + 2). Ingreso = 2 cuotas plan.
   // ────────────────────────────────────────────────────────────
-  const COMBO_QUINCHO_M2 = 18;
-  const COMBO_PISCINA_INDEX = 15; // Playa y Abanico (9,20x3,80x1,25 a 1,80)
-  const COMBO_CUOTAS_MOSTRADAS = [36, 60, 120];
+  var COMBOS_OCTUBRE = [
+    { id: 1, nombre: "Vivienda 36 m² + Piscina Minimalista 4 m",       total: 27840000 },
+    { id: 2, nombre: "Vivienda 45 m² + Piscina Playa Húmeda 5,20 m",   total: 34340000 },
+    { id: 3, nombre: "Vivienda 60 m² + Piscina Minimalista 6,40 m",    total: 45090000 },
+    { id: 4, nombre: "Vivienda 72 m² + Piscina Playa y Abanico 9,20 m", total: 55180000 },
+  ];
 
-  function pintarCombo() {
-    const totalEl = document.getElementById("combo-total");
-    if (!totalEl) return;
+  function pintarCombos() {
+    COMBOS_OCTUBRE.forEach(function (combo) {
+      var c120 = combo.total / 122;
+      var c60  = combo.total / 62;
+      var el120 = document.getElementById("combo-" + combo.id + "-c120");
+      var el60  = document.getElementById("combo-" + combo.id + "-c60");
+      if (el120) el120.textContent = formatearPesos(c120);
+      if (el60)  el60.textContent  = formatearPesos(c60);
 
-    const piscina = PISCINAS[COMBO_PISCINA_INDEX];
-    const quinchoTotal = COMBO_QUINCHO_M2 * MODULO_PRECIO_M2_FINANCIADO;
-    const comboTotal = quinchoTotal + piscina.lista;
-
-    totalEl.textContent = formatearPesos(comboTotal);
-
-    COMBO_CUOTAS_MOSTRADAS.forEach(function (n) {
-      const el = document.getElementById("combo-cuota-" + n);
-      if (el) el.textContent = formatearPesos(comboTotal / (n + 2));
+      var cta = document.querySelector('[data-wa-cta="combo-' + combo.id + '"]');
+      if (cta) {
+        var msg = "Hola! Me interesa el combo " + combo.nombre + ". Precio promo octubre $" +
+          formatearPesos(combo.total) + ". Por ejemplo $" + formatearPesos(c120) +
+          "/mes en 120 cuotas. Quiero armar mi plan.";
+        cta.setAttribute("href", waLink(msg));
+      }
     });
-
-    const comboCta = document.querySelector('[data-wa-cta="combo-quincho-piscina"]');
-    if (comboCta) {
-      const cuota60 = comboTotal / 62;
-      const msg = "Hola! Quiero el combo Quincho 18 m² + Piscina " + piscina.nombre + " (" + piscina.medidas +
-        "). Total a financiar $" + formatearPesos(comboTotal) + ", por ejemplo $" + formatearPesos(cuota60) +
-        "/mes en 60 cuotas. Quiero armar mi plan.";
-      comboCta.setAttribute("href", waLink(msg));
-    }
   }
 
   // ────────────────────────────────────────────────────────────
@@ -411,7 +410,7 @@
   actualizarLinksWhatsapp();
   pintarPlan18Pasos();
   pintarPromoMundial();
-  pintarCombo();
+  pintarCombos();
   calcularModulo();
   calcularPiscina();
 })();

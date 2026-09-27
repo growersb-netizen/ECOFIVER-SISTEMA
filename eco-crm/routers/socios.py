@@ -1076,6 +1076,23 @@ _GUIAS_SEED = [
         ),
     },
     {
+        "tipo": "guia", "categoria": "ventas", "orden": 9,
+        "titulo": "Combos Octubre 2026 — cómo presentarlos a un cliente",
+        "descripcion": (
+            "En octubre tenemos 4 combos cerrados de vivienda + piscina con precio promocional. "
+            "Son solo en financiación y tienen 4 extras incluidos sin cargo:\n\n"
+            "✅ Instalación eléctrica · Instalación de baños · Bordes atérmicos para la piscina · Flete a todo el país\n\n"
+            "Los 4 combos disponibles:\n"
+            "1. *Vivienda 36 m² + Piscina Minimalista 4 m* → $27.840.000 promo oct. | 120 cuotas desde $228.197/mes\n"
+            "2. *Vivienda 45 m² + Piscina Playa Húmeda 5,20 m* → $34.340.000 promo oct. | 120 cuotas desde $281.475/mes\n"
+            "3. *Vivienda 60 m² + Piscina Minimalista 6,40 m* → $45.090.000 promo oct. | 120 cuotas desde $369.590/mes\n"
+            "4. *Vivienda 72 m² + Piscina Playa y Abanico 9,20 m* → $55.180.000 promo oct. | 120 cuotas desde $452.295/mes\n\n"
+            "📌 Cómo explicarlo: el cliente elige el combo que más se ajusta a su terreno, no tiene que armar ni "
+            "combinar nada. El ingreso es siempre equivalente a 2 cuotas del plan que elija. "
+            "Cuotas en pesos ajustadas por ICC — no por dólar."
+        ),
+    },
+    {
         "tipo": "guia", "categoria": "ventas", "orden": 8,
         "titulo": "Los dos sistemas de módulos — cómo explicarlos a un cliente",
         "descripcion": (
@@ -1203,6 +1220,21 @@ _COPYS_SEED = [
          "• *Terminaciones*: llave en mano, sin contratar carpintero, electricista ni albañil por separado.\n"
          "• *Financiación*: directa de fábrica, sin banco ni garante, cuotas accesibles.\n"
          "El resultado es una vivienda real, construida con sistema industrializado y garantía de fábrica."
+     )},
+    # ── Combos Octubre 2026 ──
+    {"tipo": "copy", "categoria": "combos", "orden": 60,
+     "titulo": "Combos Octubre — Vivienda + Piscina (4 opciones)",
+     "descripcion": (
+         "🔗 *Promo Octubre 2026 — Solo en financiación*\n\n"
+         "4 combos cerrados de vivienda modular + piscina de fibra. "
+         "Precio promocional calculado para este mes. Un solo plan, hasta 120 cuotas ICC.\n\n"
+         "Incluye sin cargo: instalación eléctrica, instalación de baños, "
+         "bordes atérmicos para la piscina y flete a todo el país.\n\n"
+         "🏠 Vivienda 36 m² + Piscina Minimalista 4 m → *$27.840.000*\n"
+         "🏠 Vivienda 45 m² + Piscina Playa Húmeda 5,20 m → *$34.340.000*\n"
+         "🏠 Vivienda 60 m² + Piscina Minimalista 6,40 m → *$45.090.000*\n"
+         "🏠 Vivienda 72 m² + Piscina Playa y Abanico 9,20 m → *$55.180.000*\n\n"
+         "El ingreso equivale a 2 cuotas del plan elegido. Financiación directa, sin banco ni garante."
      )},
     # ── Objeciones / cierre ──
     {"tipo": "copy", "categoria": "ventas", "orden": 30,
@@ -3120,7 +3152,7 @@ FAQ_SOCIOS = [
     {"pregunta": "¿Qué es la inscripción de una venta financiada?", "respuesta": "El equivalente a 2 cuotas del plan elegido. El cliente puede pagarla completa de una vez, o en partes: la primera parte (la seña, el monto que el cliente elija) genera el contrato automáticamente, y tiene 30 días para completar el 100% — recién ahí se emite el recibo y el plan queda activo."},
     {"pregunta": "¿Qué pasa si el cliente no completa la inscripción dentro de los 30 días?", "respuesta": "El plazo queda registrado en tu panel para que hagas el seguimiento con el cliente. Escribinos si necesitás una excepción puntual."},
     {"pregunta": "¿Cómo le explico el plan de pagos a un cliente nuevo?", "respuesta": "Mostrale el catálogo con el precio de lista y usá el Simulador de cuotas para calcular la cuota exacta según el plazo que elija. El plan queda formalizado con el contrato, que se genera automáticamente en cuanto el cliente hace su primer pago hacia la inscripción."},
-    {"pregunta": "¿Puedo cargar una venta de cualquier categoría del catálogo?", "respuesta": "De contado, sí — piscinas, módulos, combos, hidromasajes, bañeras, receptáculos, accesorios, baños químicos, garitas, cuchas, reposeras y depósitos de jardín. Financiado está disponible solo para piscinas y módulos, que es donde ofrecemos financiación propia."},
+    {"pregunta": "¿Puedo cargar una venta de cualquier categoría del catálogo?", "respuesta": "De contado, sí — piscinas, módulos, combos, hidromasajes, bañeras, receptáculos, accesorios, baños químicos, garitas, cuchas, reposeras y depósitos de jardín. Financiado está disponible para piscinas, viviendas modulares y combos vivienda + piscina."},
     {"pregunta": "¿Cómo sé si mi perfil está \"Verificado\"?", "respuesta": "Vas a ver un tilde ✓ junto a tu nombre en el panel y en el ranking. Se activa automáticamente cuando completás tu DNI y zona, y verificás tu WhatsApp — recién ahí podés cargar ventas y empezar a generar comisiones."},
     {"pregunta": "¿La foto que subo del catálogo o de una entrega la puede usar cualquier socio?", "respuesta": "Sí. Todo el material de la Biblioteca (fotos del catálogo, contenido de marketing, fotos de entregas reales, copys y guías) está disponible para todos los socios verificados, listo para usar en tus publicaciones."},
 ]

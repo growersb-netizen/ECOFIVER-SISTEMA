@@ -694,7 +694,7 @@ async def socio_catalogo(socio: Aliado = Depends(require_socio)):
     return resultado
 
 
-CATEGORIAS_FINANCIABLES = ("piscinas", "modulos", "combos")
+CATEGORIAS_FINANCIABLES = ("piscinas", "viviendas", "combos")
 
 
 def _resolver_item_catalogo(cat: dict, categoria: str, producto: str) -> Optional[dict]:
@@ -783,8 +783,8 @@ async def crear_presupuesto(request: Request, socio: Aliado = Depends(require_so
             cuotas = int(cuotas)
         except (TypeError, ValueError):
             raise HTTPException(400, "Indicá la cantidad de cuotas")
-        if cuotas < 1:
-            raise HTTPException(400, "La cantidad de cuotas debe ser mayor a 0")
+        if not (24 <= cuotas <= 120):
+            raise HTTPException(400, "La cantidad de cuotas debe estar entre 24 y 120")
         factor = 2.0
         cuota_mensual = round(precio_lista / (cuotas + factor))
         ingreso_inicial = round(cuota_mensual * factor)
@@ -942,7 +942,7 @@ async def ficha_producto_pdf(tipo: str, modelo: str, socio: Aliado = Depends(req
 
     factor = 2.0
     filas = ""
-    for n in (12, 24, 36, 48, 60):
+    for n in (24, 36, 48, 60, 72, 84, 96, 108, 120):
         cuota = precio_lista / (n + factor)
         ingreso = cuota * factor
         filas += f"<tr><td>{n}</td><td>$ {_money(cuota)}</td><td>$ {_money(ingreso)}</td><td>$ {_money(ingreso + cuota * n)}</td></tr>"
@@ -1005,13 +1005,14 @@ _GUIAS_SEED = [
         "tipo": "guia", "categoria": "ventas", "orden": 2,
         "titulo": "Cómo explicarle el plan de pagos a un cliente financiado",
         "descripcion": (
-            "1) Cotizá con el Simulador de tu panel: precio de lista, cantidad de cuotas y valor de cada una. "
-            "2) Explicale que la inscripción equivale a 2 cuotas del plan — la puede pagar completa de una vez, "
-            "o en partes: la primera parte (la seña, el monto que él elija) ya genera el contrato, y tiene 30 "
-            "días para completar el resto. 3) En cuanto hace ese primer pago, descargás el contrato desde tu "
-            "panel y se lo mandás — lo confirma con un link, sin papeles. 4) Al completar el 100% de la "
-            "inscripción, se emite un recibo y el plan queda activo. 5) Nuestro equipo hace una llamada de "
-            "bienvenida para confirmar todo, y ahí se libera tu comisión."
+            "1) Cotizá con el Simulador de tu panel: precio de lista, cuotas disponibles (24 a 120 meses) y "
+            "valor de cada cuota. 2) Explicale que la inscripción equivale a 2 cuotas del plan — la puede "
+            "abonar de una vez o en partes, con el primer pago ya se inicia el proceso. "
+            "3) Cargá la venta en el panel — el equipo toma contacto con el cliente para avanzar. "
+            "4) Cuándo puede pedir entrega anticipada integrando capital: piscinas desde cuota 3, "
+            "viviendas y combos desde cuota 6. Adjudicación (inicio de producción): desde cuota 12 en "
+            "viviendas y combos según el plan. El cliente sigue abonando hasta terminar, integrar capital "
+            "solo adelanta la entrega, no cancela el resto."
         ),
     },
     {
@@ -1433,11 +1434,11 @@ QUIZ_AUTOEVALUACION = [
     {"pregunta": "¿Con qué herramienta cotizás precios y cuotas?", "respuesta": "Con el catálogo y el simulador de tu panel — nunca de memoria."},
     {"pregunta": "¿Tenés horario fijo de trabajo?", "respuesta": "No. Es un vínculo comercial, sin obligación de horario ni de asistencia."},
     {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "Media cuota del plan: el 50% del valor de una cuota. Si el plan tiene cuotas de $300.000, tu comisión es $150.000. El detalle siempre está disponible en \"Mis comisiones\"."},
-    {"pregunta": "¿Cuándo se libera tu comisión en una venta financiada?", "respuesta": "Cuando el equipo hace la llamada de bienvenida (auditoría) y confirma que el cliente entendió el plan."},
+    {"pregunta": "¿Cuándo se libera tu comisión en una venta financiada?", "respuesta": "Cuando el equipo confirma que el plan está activo. Aparece como pendiente en tu panel hasta que te la transfieran."},
     {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "El 3% del precio de venta — se libera contra entrega y cobro. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
     {"pregunta": "¿Necesitás Monotributo para operar?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones."},
     {"pregunta": "¿La instalación está incluida en una venta de contado?", "respuesta": "En general sí. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo del Socio o de un instalador de su zona."},
-    {"pregunta": "¿Desde qué cuota se puede pedir la entrega anticipada (licitación)?", "respuesta": "Desde la cuota 6 en viviendas, y desde la cuota 3 en piscinas."},
+    {"pregunta": "¿Desde qué cuota se puede solicitar la entrega anticipada integrando capital?", "respuesta": "Piscinas: desde cuota 3. Viviendas y combos: desde cuota 6. Adjudicación (inicio de producción): desde cuota 12 en viviendas y combos según el plan."},
     {"pregunta": "¿A quién le escribís si tenés dudas sobre una venta en curso?", "respuesta": "Al WhatsApp del programa de Socios Comerciales, donde te atiende el equipo de EcoFiver."},
 ]
 
@@ -2125,11 +2126,22 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         raise HTTPException(400, "Faltan datos obligatorios (cliente, DNI, modelo, cuotas)")
 
     cat = load_catalogo()
-    tipo_norm = "PISCINA" if producto == "PISCINA" else "MODULO"
-    precios = cat[tipo_norm.lower() + "s"].get("precios_lista", {})
+    if producto == "PISCINA":
+        cat_key = "piscinas"
+        tipo_norm = "PISCINA"
+    elif producto == "VIVIENDA":
+        cat_key = "viviendas"
+        tipo_norm = "VIVIENDA"
+    else:
+        raise HTTPException(400, "Solo piscinas y viviendas modulares tienen plan financiado")
+
+    precios = cat[cat_key].get("precios_lista", {})
     precio_lista = precios.get(modelo)
     if not precio_lista:
         raise HTTPException(404, f"Modelo '{modelo}' no encontrado en el catálogo")
+
+    if not (24 <= cantidad_cuotas <= 120):
+        raise HTTPException(400, "La cantidad de cuotas debe estar entre 24 y 120")
 
     factor = 2.0
     valor_cuota = round(precio_lista / (cantidad_cuotas + factor))
@@ -2167,7 +2179,7 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         monto_inscripcion=monto_inscripcion,
         cantidad_cuotas=cantidad_cuotas,
         valor_cuota=valor_cuota,
-        estado_plan="PENDIENTE_INSCRIPCION",
+        estado_plan="INGRESADO",
         notas=f"Venta de socio comercial {socio.codigo}.",
         aliado_codigo=socio.codigo,
         scoring_situacion=ultimo_scoring.situacion if ultimo_scoring else None,
@@ -2188,16 +2200,15 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         f"Producto: {venta.producto} {venta.modelo_especifico}{' · Color: '+venta.color if venta.color else ''} — {cantidad_cuotas} cuotas\n"
         f"Precio total: ${precio_lista:,.0f} · Inscripción: ${monto_inscripcion:,.0f} · Cuota: ${valor_cuota:,.0f}\n"
         f"{f'Flete estimado: ${flete_calculado:,.0f} ({distancia_km:.0f} km)' if flete_calculado else 'Flete: a coordinar (falta distancia)'}\n"
-        f"{'⚠️ Situación BCRA ' + str(venta.scoring_situacion) + ' — requiere declaración jurada del cliente' if venta.declaracion_jurada_requerida else ''}\n"
-        f"→ Falta que el cliente pague la inscripción y confirme el plan.\n"
+        f"{'⚠️ Situación BCRA ' + str(venta.scoring_situacion) + ' — requiere declaración jurada' if venta.declaracion_jurada_requerida else ''}\n"
         f"Venta ID: {venta.id}",
     )
 
     return {
         "ok": True, "venta_id": venta.id, "precio_lista": precio_lista,
         "cuotas": cantidad_cuotas, "valor_cuota": valor_cuota, "monto_inscripcion": monto_inscripcion,
-        "declaracion_jurada_requerida": venta.declaracion_jurada_requerida, "flete_calculado": flete_calculado,
-        "mensaje": "Venta cargada. En cuanto el cliente pague la inscripción completa, descargá el contrato desde tu panel.",
+        "flete_calculado": flete_calculado,
+        "mensaje": "Venta registrada. El equipo va a estar en contacto con el cliente para avanzar con el plan.",
     }
 
 
@@ -2661,46 +2672,7 @@ async def descargar_contrato_contado_pdf(
     return FileResponse(str(pdf_path), media_type="application/pdf", filename=filename)
 
 
-# ─── Confirmación pública del cliente (sin login) ─────────────────────────────
-
-@router.get("/socio/confirmar/{token}", response_class=HTMLResponse)
-async def pagina_confirmacion_cliente(token: str, request: Request, db: Session = Depends(get_db)):
-    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
-    if not venta:
-        return HTMLResponse("<h1>Link inválido o vencido</h1>", status_code=404)
-    return templates.TemplateResponse("confirmar_plan.html", {"request": request, "venta": venta, "token": token})
-
-
-@router.post("/api/public/confirmar-plan/{token}")
-async def confirmar_plan_cliente(token: str, db: Session = Depends(get_db)):
-    """
-    El cliente confirma: entendió que es un plan y que debe abonar hasta el
-    50% del valor nominal para pedir entrega/instalación. Dispara el aviso
-    al equipo para la llamada de bienvenida (auditoría).
-    """
-    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
-    if not venta:
-        raise HTTPException(404, "Link inválido")
-    if venta.link_confirmacion_confirmada_en:
-        return {"ok": True, "ya_confirmado": True}
-
-    venta.link_confirmacion_confirmada_en = datetime.now()
-    db.commit()
-
-    notificar_rodrigo(
-        db,
-        f"🟢 *Cliente confirmó su plan — Socio {venta.aliado_codigo}*\n"
-        f"Cliente: {venta.cliente_nombre} (DNI {venta.cliente_dni})\n"
-        f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
-        f"Localidad: {venta.cliente_localidad or '—'}\n"
-        f"Producto: {venta.producto} {venta.modelo_especifico} — {venta.cantidad_cuotas} cuotas\n"
-        f"Solicitud N° {venta.numero_solicitud}\n"
-        f"{'⚠️ Requiere declaración jurada (situación BCRA ' + str(venta.scoring_situacion) + ')' if venta.declaracion_jurada_requerida else ''}\n"
-        f"→ Falta la llamada de bienvenida (auditoría) para liberar la comisión.\n"
-        f"Venta ID: {venta.id}",
-    )
-    _notificar_socio(db, venta.aliado_codigo, f"🎉 {venta.cliente_nombre} confirmó su plan. En breve nuestro equipo lo llama para la bienvenida y ahí se libera tu comisión.")
-    return {"ok": True}
+# ─── Confirmación pública del cliente (deshabilitado) ────────────────────────
 
 
 @router.post("/api/ventas-financiadas/{venta_id}/auditoria-completada")
@@ -2774,27 +2746,27 @@ async def confirmar_declaracion_jurada(token: str, db: Session = Depends(get_db)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LICITACIÓN — entrega anticipada por integración de capital
+# ENTREGA ANTICIPADA — integración de capital antes del final del plan
 # ═══════════════════════════════════════════════════════════════════════════════
-# Vivienda modular: se puede licitar desde la cuota 6. Piscina: desde la cuota 3.
-# El cliente sigue abonando mes a mes hasta terminar el plan — licitar adelanta
-# la entrega, no cancela el resto de las cuotas.
-CUOTA_MINIMA_LICITACION = {"MODULO": 6, "PISCINA": 3}
+# Piscinas: desde cuota 3. Viviendas y combos: desde cuota 6.
+# Adjudicación (asignación de producción): desde cuota 12 en viviendas y combos.
+# El cliente sigue abonando hasta terminar el plan — integrar capital adelanta la entrega.
+CUOTA_MINIMA_ENTREGA_ANTICIPADA = {"VIVIENDA": 6, "PISCINA": 3, "COMBO": 6}
 
 
-def _cuota_minima_licitacion(producto: str) -> int:
-    return CUOTA_MINIMA_LICITACION.get((producto or "").upper(), 6)
+def _cuota_minima_entrega_anticipada(producto: str) -> int:
+    return CUOTA_MINIMA_ENTREGA_ANTICIPADA.get((producto or "").upper(), 6)
 
 
-@router.post("/api/socio/ventas/{venta_id}/solicitar-licitacion")
-async def solicitar_licitacion(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
-    """El cliente pidió, vía integración de capital, adelantar la entrega de su vivienda/piscina."""
+@router.post("/api/socio/ventas/{venta_id}/solicitar-entrega-anticipada")
+async def solicitar_entrega_anticipada(venta_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """El cliente integra capital para adelantar la entrega de su vivienda/piscina."""
     venta = db.query(VentaFinanciada).filter(VentaFinanciada.id == venta_id, VentaFinanciada.aliado_codigo == socio.codigo).first()
     if not venta:
         raise HTTPException(404, "Venta no encontrada")
-    umbral = _cuota_minima_licitacion(venta.producto)
+    umbral = _cuota_minima_entrega_anticipada(venta.producto)
     if (venta.cuotas_pagas or 0) < umbral:
-        raise HTTPException(409, f"Recién se puede licitar desde la cuota {umbral} — este plan lleva {venta.cuotas_pagas or 0} pagas")
+        raise HTTPException(409, f"La entrega anticipada está disponible desde la cuota {umbral} — este plan lleva {venta.cuotas_pagas or 0} pagas")
     if venta.licitacion_solicitada_en:
         return {"ok": True, "ya_solicitada": True}
 
@@ -2802,7 +2774,7 @@ async def solicitar_licitacion(venta_id: int, socio: Aliado = Depends(require_so
     db.commit()
     notificar_rodrigo(
         db,
-        f"🏗️ *Pedido de licitación — Socio {socio.codigo}*\n"
+        f"🏗️ *Pedido de entrega anticipada — Socio {socio.codigo}*\n"
         f"Cliente: {venta.cliente_nombre} (DNI {venta.cliente_dni})\n"
         f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
         f"Localidad: {venta.cliente_localidad or '—'}\n"
@@ -2934,9 +2906,9 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
             "cantidad_cuotas": v.cantidad_cuotas,
             "valor_cuota": v.valor_cuota, "estado_plan": v.estado_plan,
             "cuotas_pagas": v.cuotas_pagas or 0,
-            "cuota_minima_licitacion": _cuota_minima_licitacion(v.producto),
-            "puede_licitar": (v.cuotas_pagas or 0) >= _cuota_minima_licitacion(v.producto),
-            "licitacion_solicitada": bool(v.licitacion_solicitada_en),
+            "cuota_minima_entrega_anticipada": _cuota_minima_entrega_anticipada(v.producto),
+            "puede_entrega_anticipada": (v.cuotas_pagas or 0) >= _cuota_minima_entrega_anticipada(v.producto),
+            "entrega_anticipada_solicitada": bool(v.licitacion_solicitada_en),
             "monto_inscripcion": v.monto_inscripcion,
             "monto_pagado_inscripcion": v.monto_pagado_inscripcion or 0,
             "sena_recibida": bool(v.primera_sena_en),
@@ -3140,8 +3112,8 @@ FAQ_SOCIOS = [
     {"pregunta": "¿Cómo cargo una venta?", "respuesta": "Desde la sección \"Cargar venta\" de tu panel, elegís contado o financiado y completás los datos del cliente."},
     {"pregunta": "¿Cuándo cobro mi comisión?", "respuesta": "Financiado: cuando el equipo hace la llamada de bienvenida al cliente. Contado: cuando se entrega y se cobra el producto. En ambos casos vas a ver la comisión como \"pendiente\" hasta que te la transfiramos."},
     {"pregunta": "¿Puedo vender en cualquier parte del país?", "respuesta": "Sí, el programa opera en todo el territorio nacional. Fuera del área de cobertura de instalación directa, el producto se entrega en formato casco y la instalación queda a cargo tuyo o de un instalador de tu zona — ideal si trabajás junto a instaladores."},
-    {"pregunta": "¿Qué pasa si mi cliente tiene mala situación crediticia?", "respuesta": "Si el Scoring da situación 5 o 6, no se bloquea la venta — se le pide al cliente una declaración jurada adicional antes de la auditoría."},
-    {"pregunta": "¿Qué es la licitación?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede pedir adelantar la entrega mediante una integración de capital. Ese aporte se descuenta del saldo total, y el cliente sigue abonando el saldo restante mes a mes hasta completarlo."},
+    {"pregunta": "¿Qué pasa si mi cliente tiene mala situación crediticia?", "respuesta": "Si el Scoring da situación 5 o 6, no se bloquea la venta — se le pide al cliente una declaración jurada adicional antes de continuar con el plan."},
+    {"pregunta": "¿Qué es la entrega anticipada?", "respuesta": "Desde la cuota 6 (vivienda) o la cuota 3 (piscina), tu cliente puede integrar capital para adelantar la entrega. Ese aporte se descuenta del saldo total, y el cliente sigue abonando el resto mes a mes hasta completarlo."},
     {"pregunta": "¿Necesito Monotributo?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones. Podés cargar la constancia después desde tu perfil."},
     {"pregunta": "¿Con quién hablo si tengo una duda?", "respuesta": "Comunicate al WhatsApp del programa de Socios Comerciales — el equipo te responde consultas de precio, estado de tus ventas y comisiones."},
     {"pregunta": "¿Cuáles son los 3 precios de contado de una piscina y cuándo uso cada uno?", "respuesta": "\"Con instalación\" es el precio estándar dentro del área de cobertura directa — usalo siempre que puedas. \"Casco + equipo, sin instalación\" y \"casco solo, sin instalación ni equipo\" son para clientes fuera de esa zona: el producto se entrega igual a cualquier parte del país, pero la instalación la coordinás vos, tu equipo, o un instalador de la zona del cliente."},

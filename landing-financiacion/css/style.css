@@ -1030,7 +1030,6 @@ h1, h2, h3, h4 {
 @media (max-width: 980px) {
   .main-nav { display: none; }
   .menu-toggle { display: flex; }
-  .btn-login { display: none; }
   .product-grid { grid-template-columns: 1fr; }
   .combo-card { grid-template-columns: 1fr; }
   .combo-photo { min-height: 240px; }
@@ -1042,6 +1041,13 @@ h1, h2, h3, h4 {
   .coop-trust-bar { grid-template-columns: 1fr 1fr; gap: 22px; }
   .coop-trust-item { border-left: none; border-top: 1px solid var(--border); padding-top: 16px; }
   .coop-trust-item:nth-child(-n+2) { border-top: none; padding-top: 0; }
+}
+
+@media (max-width: 640px) {
+  /* En pantallas chicas: botón login compacto, WA solo ícono */
+  .btn-login { padding: 8px 12px; font-size: 12px; }
+  .btn-whatsapp .wa-label { display: none; }
+  .btn-whatsapp { padding: 10px 12px; }
 }
 
 @media (max-width: 560px) {

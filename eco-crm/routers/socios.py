@@ -1069,7 +1069,30 @@ _GUIAS_SEED = [
             "cargados correctamente? 4) Si es una piscina fuera del área de cobertura directa, ¿elegiste bien "
             "el nivel de instalación (con instalación / casco + equipo / casco solo)? 5) En financiado, ¿le "
             "explicaste al cliente que la inscripción equivale a 2 cuotas y que puede pagarla en partes? "
-            "Con estos 5 puntos resueltos, cargá la venta con confianza — el resto lo maneja el sistema."
+            "6) ¿Identificaste correctamente si el producto es un Módulo Habitacional (6/12/18 m²) o una "
+            "Vivienda Modular Wood Frame (desde 24 m²)? Son sistemas distintos con precios y procesos distintos. "
+            "Con estos puntos resueltos, cargá la venta con confianza — el resto lo maneja el sistema."
+        ),
+    },
+    {
+        "tipo": "guia", "categoria": "ventas", "orden": 8,
+        "titulo": "Los dos sistemas de módulos — cómo explicarlos a un cliente",
+        "descripcion": (
+            "EcoFiver tiene dos líneas de módulos con características y usos completamente distintos:\n\n"
+            "🏠 *MÓDULOS HABITACIONALES (6, 12 y 18 m²)*\n"
+            "Estructura de madera, revestimiento exterior en chapa PrFV — resistente a la intemperie sin "
+            "mantenimiento. Dos versiones:\n"
+            "• ECO: interior libre, el cliente lo personaliza a su gusto.\n"
+            "• FULL: interior terminado en sistema seco (Durlock + masilla), listo para pintar.\n"
+            "Ideales para: oficina, estudio, galpón, depósito o ampliación en su terreno. "
+            "Entrega y montaje en el mismo día.\n\n"
+            "🏡 *VIVIENDAS MODULARES WOOD FRAME (desde 24 m²)*\n"
+            "Sistema constructivo industrializado de mayor escala. Entrega llave en mano con terminaciones "
+            "completas: estructura, cerramientos, eléctrica, sanitaria, revestimientos. "
+            "Ideales para: vivienda principal, ampliación de categoría, quincho premium o duplex. "
+            "Financiación directa de fábrica, sin banco ni garante.\n\n"
+            "📌 Regla práctica: si el cliente quiere espacio de trabajo o almacenamiento → Módulo Habitacional. "
+            "Si quiere vivir adentro o hacer quincho con terminaciones completas → Vivienda Modular."
         ),
     },
 ]
@@ -1120,27 +1143,65 @@ _COPYS_SEED = [
          "esquineras) ideales para baños, terrazas o SPA en casa. Se pueden sumar accesorios: blower de burbujas, "
          "iluminación LED, grifería integrada y ozonizador. Te armo la cotización completa con lo que necesites."
      )},
-    # ── Módulos habitacionales ──
+    # ── Módulos Habitacionales (6 / 12 / 18 m²) ──
     {"tipo": "copy", "categoria": "modulos", "orden": 20,
-     "titulo": "Módulos habitacionales — 6, 12, 18 y 24 m²",
+     "titulo": "Módulos Habitacionales — ECO y FULL (6, 12 y 18 m²)",
      "descripcion": (
-         "🏠 Módulos de fábrica en 4 tamaños (6, 12, 18 y 24 m²), en versión BASE o PREMIUM. Incluyen aberturas, "
-         "pintura completa e instalación eléctrica interna. Sirven como vivienda, ampliación, depósito u oficina. "
-         "Entrega y montaje en el mismo día para 6/12/18 m² — te cotizo el tamaño y la versión que necesites."
+         "🏠 Estructura de madera sobre base con pilotes y placa OSB. Exterior en chapa PrFV (fibra de vidrio "
+         "reforzada) — sin mantenimiento, sin pintura, soporta la intemperie. Disponibles en dos versiones:\n"
+         "• *ECO*: interior libre para personalizar — ideal para quien quiere terminarlo a su gusto o adaptarlo "
+         "a un uso específico.\n"
+         "• *FULL*: interior ya terminado en sistema Durlock (cinta tramada y masilla corrida), listo para "
+         "recibir pintura y ocupar sin obra adicional.\n"
+         "Entrega y montaje en el día. Usos: oficina, estudio, galpón de herramientas, local, ampliación."
      )},
     {"tipo": "copy", "categoria": "modulos", "orden": 21,
-     "titulo": "Módulo depósito — solución rápida y económica",
+     "titulo": "Módulo ECO — cómo presentarlo",
      "descripcion": (
-         "📦 ¿Necesitás un espacio extra ya? El módulo de 6 m² es nuestra opción más accesible: depósito, "
-         "herramientas, oficina de obra o cuarto extra. Entrega y montaje en el mismo día. Preguntame el precio "
-         "contado o en cuotas propias."
+         "📦 El ECO es la versión más práctica y de entrada: estructura sólida, exterior en chapa PrFV y "
+         "barrera de viento y vapor. El interior queda libre — el cliente lo termina como quiere: "
+         "pintura directa, revestimiento, o simplemente lo usa tal cual para depósito u oficina de obra. "
+         "Sin personalización previa, sin demoras, sin costo extra. "
+         "Tamaños: 6, 12 y 18 m² — entrega y montaje en el mismo día."
      )},
     {"tipo": "copy", "categoria": "modulos", "orden": 22,
-     "titulo": "Vivienda modular — ampliá o mudate a estrenar",
+     "titulo": "Módulo FULL — cómo presentarlo",
      "descripcion": (
-         "🏡 Nuestros módulos de 18 y 24 m² funcionan como vivienda modular completa: dormitorio, ampliación "
-         "familiar o casa chica llave en mano. Fabricación propia, financiación directa y garantía de 10 años. "
-         "Pedime el simulador para ver el plan de cuotas que más te convenga."
+         "🏠 El FULL es la versión lista para usar: todo lo del ECO más interior terminado en sistema seco — "
+         "placa Durlock, cinta tramada y masilla corrida. Sin obra, sin escombros, sin sorpresas. "
+         "El cliente llega con la pintura y lo ocupa. Ideal para quien quiere el espacio funcionando "
+         "de inmediato, con terminaciones prolijas sin tener que contratar nadie más. "
+         "Tamaños: 6, 12 y 18 m² — entrega y montaje en el mismo día."
+     )},
+    # ── Viviendas Modulares Wood Frame (desde 24 m²) ──
+    {"tipo": "copy", "categoria": "viviendas", "orden": 40,
+     "titulo": "Viviendas Modulares Wood Frame — desde 24 m²",
+     "descripcion": (
+         "🏡 Sistema constructivo Wood Frame de alta performance para proyectos de mayor escala. "
+         "Disponible desde 24 hasta 72 m², entregados llave en mano con terminaciones completas: "
+         "estructura, cerramientos, instalación eléctrica y sanitaria, revestimientos interiores y exteriores. "
+         "Para quienes buscan una vivienda real, una ampliación de categoría o un quincho premium — "
+         "con el estándar de una construcción de primera y sin los tiempos de la obra tradicional."
+     )},
+    {"tipo": "copy", "categoria": "viviendas", "orden": 41,
+     "titulo": "Viviendas Modulares — los 3 usos más vendidos",
+     "descripcion": (
+         "🏘 *Vivienda principal*: desde 24 m² para una o dos personas hasta 72 m² para familia completa. "
+         "Planta libre, adaptable, llave en mano. Sin plazos de obra, sin imprevistos de materiales.\n\n"
+         "🔨 *Ampliación de categoría*: sumala a una propiedad existente como dormitorio en suite, "
+         "estar independiente o espacio de trabajo. Se integra a cualquier diseño, terminaciones de primera.\n\n"
+         "🎉 *Quincho o espacio social*: los modelos desde 36 m² son ideales como espacio techado y "
+         "habitable para reuniones y entretenimiento. Cero obra, cero tiempo de secado."
+     )},
+    {"tipo": "copy", "categoria": "viviendas", "orden": 42,
+     "titulo": "Viviendas Modulares — argumento frente a la construcción tradicional",
+     "descripcion": (
+         "🏗 Comparado con obra tradicional:\n"
+         "• *Plazo*: sin meses de obra ni imprevistos — el tiempo de entrega es fijo desde el pedido.\n"
+         "• *Costo cerrado*: precio acordado, sin variaciones por materiales o mano de obra.\n"
+         "• *Terminaciones*: llave en mano, sin contratar carpintero, electricista ni albañil por separado.\n"
+         "• *Financiación*: directa de fábrica, sin banco ni garante, cuotas accesibles.\n"
+         "El resultado es una vivienda real, construida con sistema industrializado y garantía de fábrica."
      )},
     # ── Objeciones / cierre ──
     {"tipo": "copy", "categoria": "ventas", "orden": 30,
@@ -1159,11 +1220,26 @@ _COPYS_SEED = [
 ]
 
 
+# Títulos que fueron reemplazados por versiones corregidas — se eliminan en el próximo seed.
+_TITULOS_OBSOLETOS = [
+    "Módulos habitacionales — 6, 12, 18 y 24 m²",
+    "Módulo depósito — solución rápida y económica",
+    "Vivienda modular — ampliá o mudate a estrenar",
+]
+
+
 def seed_biblioteca_socios(db: Session):
-    """Carga las guías y los copys reales una sola vez (idempotente por título)."""
+    """Upsert de guías y copys por título. Elimina entradas con títulos obsoletos."""
+    # Purgar obsoletos
+    for titulo in _TITULOS_OBSOLETOS:
+        db.query(MaterialSocio).filter(MaterialSocio.titulo == titulo).delete()
+    # Upsert por título
     for g in _GUIAS_SEED + _COPYS_SEED:
         existe = db.query(MaterialSocio).filter(MaterialSocio.titulo == g["titulo"]).first()
-        if not existe:
+        if existe:
+            for k, v in g.items():
+                setattr(existe, k, v)
+        else:
             db.add(MaterialSocio(**g))
     db.commit()
 
@@ -3480,6 +3556,26 @@ async def admin_desbloquear_socio(
         "tiene_password": bool(socio.password_hash),
         "whatsapp_verificado": bool(socio.whatsapp_verificado),
         "mensaje": f"Cuenta de {socio.nombre} desbloqueada. Si el problema persiste, usá 'Olvidé mi contraseña' en el panel.",
+    }
+
+
+@router.post("/api/admin/biblioteca/re-seed")
+async def admin_reseed_biblioteca(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Fuerza un upsert completo de la biblioteca de socios.
+    Elimina entradas con títulos obsoletos y actualiza todas las guías y copys
+    del seed con el contenido más reciente. Las entradas creadas manualmente
+    (con títulos que no existen en el seed) no se tocan.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    seed_biblioteca_socios(db)
+    return {
+        "ok": True,
+        "mensaje": f"Re-seed completado: {len(_GUIAS_SEED + _COPYS_SEED)} entradas actualizadas, {len(_TITULOS_OBSOLETOS)} títulos obsoletos eliminados.",
     }
 
 

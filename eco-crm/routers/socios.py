@@ -204,7 +204,7 @@ def _mensaje_bienvenida_socio(nombre: str, email: str) -> str:
         "*Línea oficial:* +54 11 6873-3406\n"
         "*Web:* www.ecomodulosypiscinas.com.ar\n"
         f"*Programa de socios:* {LANDING_ALIADOS_URL}\n"
-        "*Puntos de retiro:* San Telmo (CABA) · Paso del Rey (Zona Oeste)\n"
+        "*Puntos de retiro:* Zárate (fábrica) · San Telmo (CABA) · Paso del Rey (Zona Oeste)\n"
         "*Garantía de fábrica:* 10 años en todos los productos\n\n"
         "─────────────────────────\n"
         "🔐 *TUS CREDENCIALES DE ACCESO*\n"

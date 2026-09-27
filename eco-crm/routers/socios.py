@@ -186,14 +186,61 @@ def _notificar_socio(db: Session, aliado_codigo: Optional[str], mensaje: str):
 # REGISTRO — reemplaza a la postulación con aprobación
 # ═══════════════════════════════════════════════════════════════════════════════
 
+DEFAULT_PASSWORD = "ECO1234"
+
+PANEL_URL = "https://eco-crm-production.up.railway.app/socio/login"
+LANDING_ALIADOS_URL = "landing-aliados-ecofiver.vercel.app"
+
+
+def _mensaje_bienvenida_socio(nombre: str, email: str) -> str:
+    primer_nombre = nombre.strip().split()[0].capitalize()
+    return (
+        f"¡Hola {primer_nombre}! 🌿 Bienvenida/o al equipo de socios *EcoFiver*.\n\n"
+        "─────────────────────────\n"
+        "🏭 *DATOS DE LA EMPRESA*\n"
+        "─────────────────────────\n"
+        "*Razón social:* Cooperativa de Trabajo Ecozarate Ltda\n"
+        "*CUIT:* 30-71807393-2\n"
+        "*Línea oficial:* +54 11 6873-3406\n"
+        "*Web:* www.ecomodulosypiscinas.com.ar\n"
+        f"*Programa de socios:* {LANDING_ALIADOS_URL}\n"
+        "*Puntos de retiro:* San Telmo (CABA) · Paso del Rey (Zona Oeste)\n"
+        "*Garantía de fábrica:* 10 años en todos los productos\n\n"
+        "─────────────────────────\n"
+        "🔐 *TUS CREDENCIALES DE ACCESO*\n"
+        "─────────────────────────\n"
+        f"*Panel:* {PANEL_URL}\n"
+        f"*Email:* {email}\n"
+        f"*Contraseña inicial:* {DEFAULT_PASSWORD}\n\n"
+        "⚠️ Al ingresar por primera vez te pedimos que cambies la contraseña y completes tu perfil (DNI + zona). "
+        "Es rápido y necesario para empezar a generar comisiones.\n\n"
+        "─────────────────────────\n"
+        "📋 *PRIMEROS PASOS*\n"
+        "─────────────────────────\n"
+        f"1. Entrá al panel con tu email y la clave {DEFAULT_PASSWORD}\n"
+        "2. Creá tu nueva contraseña personal\n"
+        "3. Completá DNI y zona\n"
+        "4. ¡Ya podés cotizar y cargar ventas!\n\n"
+        "─────────────────────────\n"
+        "💼 *QUÉ ENCONTRÁS EN EL PANEL*\n"
+        "─────────────────────────\n"
+        "✅ Catálogo completo con precios actualizados\n"
+        "✅ Simulador de cuotas para planes financiados\n"
+        "✅ Generador de presupuestos en PDF\n"
+        "✅ Registro de ventas y seguimiento de comisiones\n"
+        "✅ Biblioteca de fotos, videos y copys para redes sociales\n\n"
+        "*Comisiones:* 3% en contado · 50% del valor de la 1ra cuota en financiado\n\n"
+        "Cualquier consulta respondé este mensaje. ¡Éxitos con las ventas! 💪"
+    )
+
+
 @router.post("/api/public/socio-registro")
 async def socio_registro(request: Request, db: Session = Depends(get_db)):
     """
-    Registro directo y automático — sin aprobación humana. El único requisito
-    para arrancar es Nombre, WhatsApp y Email; el resto (DNI, zona, etc.) se
-    completa después de verificar. No pide contraseña acá: se verifica el
-    WhatsApp con un código y, ya adentro, se le pide crear su contraseña
-    para los próximos ingresos (ver /socio-verificar y /api/socio/crear-password).
+    Registro directo y automático — sin aprobación humana. Al registrarse,
+    el socio recibe por WhatsApp sus credenciales de acceso (email + contraseña
+    inicial ECO1234) y la información completa de la empresa. Al ingresar por
+    primera vez se le solicita cambiar la contraseña y completar el perfil.
     """
     data = await request.json()
 
@@ -219,18 +266,17 @@ async def socio_registro(request: Request, db: Session = Depends(get_db)):
     ]
     origen_registro = "&".join(origen_partes)
 
-    otp = f"{random.randint(0, 999999):06d}"
     socio = Aliado(
         codigo=_generar_codigo_aliado(db),
         nombre=nombre,
         telefono=telefono,
         email=email,
-        estado="activo",  # registro directo, sin aprobación
-        whatsapp_verificado=False,
+        estado="activo",
+        password_hash=pwd_context.hash(DEFAULT_PASSWORD),
+        primer_login=True,
+        whatsapp_verificado=True,   # confirmado al recibir el mensaje
         email_verificado=False,
         perfil_completo=False,
-        codigo_verificacion=otp,
-        codigo_verificacion_expira=datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS),
         origen_registro=origen_registro,
         notas="Registro directo vía plataforma de socios",
     )
@@ -238,7 +284,15 @@ async def socio_registro(request: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(socio)
 
-    send_whatsapp_otp(db, telefono, otp)
+    send_whatsapp_text(db, telefono, _mensaje_bienvenida_socio(nombre, email))
+    notificar_rodrigo(
+        db,
+        f"🤝 *Nuevo socio registrado*\n"
+        f"Nombre: {nombre}\n"
+        f"Email: {email}\n"
+        f"WhatsApp: {telefono}\n"
+        f"Código: {socio.codigo}",
+    )
     return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
 
 
@@ -356,7 +410,7 @@ async def socio_login(request: Request, response: Response, db: Session = Depend
 
     token = _crear_token_socio(socio.id)
     response.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=SOCIO_TOKEN_EXPIRE_HOURS * 3600, samesite="lax")
-    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
+    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre, "primer_login": bool(socio.primer_login)}
 
 
 @router.post("/api/public/socio-reenviar-codigo")
@@ -3354,6 +3408,46 @@ async def admin_rechazar_recibo(
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADMIN — GESTIÓN DE CUENTAS DE SOCIOS
 # ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/admin/socios/{codigo}/activar")
+async def admin_activar_socio(
+    codigo: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Activa un socio existente que no tenga acceso al panel: pone estado='activo',
+    asigna la contraseña inicial ECO1234 y envía el mensaje de bienvenida por
+    WhatsApp con sus credenciales. Útil para socios creados por el sistema viejo
+    (estado='postulante') o que nunca recibieron sus credenciales.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    socio = db.query(Aliado).filter(
+        Aliado.codigo == codigo.strip().upper()
+    ).first()
+    if not socio:
+        raise HTTPException(404, f"Socio {codigo} no encontrado")
+
+    socio.estado = "activo"
+    socio.password_hash = pwd_context.hash(DEFAULT_PASSWORD)
+    socio.primer_login = True
+    socio.whatsapp_verificado = True
+    socio.bloqueado_hasta = None
+    socio.intentos_fallidos = 0
+    db.commit()
+
+    if socio.telefono and socio.email:
+        send_whatsapp_text(db, socio.telefono, _mensaje_bienvenida_socio(socio.nombre, socio.email))
+
+    return {
+        "ok": True,
+        "codigo": socio.codigo,
+        "nombre": socio.nombre,
+        "estado": socio.estado,
+        "mensaje": f"Cuenta de {socio.nombre} activada. Se envió el mensaje de bienvenida por WhatsApp con las credenciales.",
+    }
+
 
 @router.post("/api/admin/socios/{codigo}/desbloquear")
 async def admin_desbloquear_socio(

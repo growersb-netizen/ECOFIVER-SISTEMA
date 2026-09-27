@@ -1070,3 +1070,211 @@ h1, h2, h3, h4 {
 /* ─── Animación de aparición al hacer scroll ─────────────────── */
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 .reveal-visible { opacity: 1; transform: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SISTEMA VISUAL PREMIUM — oro, glassmorphism, orbs, grid
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --gold:        #e5b84b;
+  --gold-light:  #f0d080;
+  --gold-dark:   #b8860b;
+  --gold-glow:   rgba(229, 184, 75, 0.22);
+}
+
+/* ─── Grid pattern para secciones oscuras ───────────────────── */
+.promo-hero,
+.section-dark,
+.section-simulador,
+.section-footer {
+  position: relative;
+}
+.promo-hero::before,
+.section-dark::before,
+.section-simulador::before,
+.section-footer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(78,195,181,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(78,195,181,.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Orbs de luz ───────────────────────────────────────────── */
+.light-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  pointer-events: none;
+  z-index: 0;
+  animation: orb-pulse 8s ease-in-out infinite;
+}
+.orb-teal  { background: radial-gradient(circle, rgba(78,195,181,.28) 0%, transparent 70%); }
+.orb-gold  { background: radial-gradient(circle, rgba(229,184,75,.22) 0%, transparent 70%); }
+
+@keyframes orb-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .7; transform: scale(1.08); }
+}
+
+/* ─── Botón iniciar sesión ──────────────────────────────────── */
+.btn-login {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold);
+  border: 1.5px solid var(--gold);
+  background: transparent;
+  transition: background .2s, color .2s, box-shadow .2s;
+  white-space: nowrap;
+}
+.btn-login:hover {
+  background: var(--gold);
+  color: var(--ink);
+  box-shadow: 0 0 18px var(--gold-glow);
+}
+
+/* ─── Marca metalizada ──────────────────────────────────────── */
+.brand-mark {
+  background: linear-gradient(135deg, #f0d080 10%, #e5b84b 40%, #b8860b 65%, #e5b84b 85%, #f0d080 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.4));
+}
+
+/* ─── Badge oro (eyebrow / promo) ───────────────────────────── */
+.badge-gold,
+.promo-badge-mundial {
+  background: linear-gradient(135deg, #1a3560, #0b2350);
+  border: 1.5px solid var(--gold);
+  box-shadow: 0 0 18px var(--gold-glow), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.promo-badge-label { color: var(--gold-light); }
+.promo-badge-title {
+  background: linear-gradient(90deg, #f0d080, #e5b84b, #b8860b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── h1 con sombra 3D ──────────────────────────────────────── */
+.promo-h1 {
+  text-shadow:
+    0 2px 0 rgba(0,0,0,.45),
+    0 4px 12px rgba(0,0,0,.35),
+    0 0 40px rgba(78,195,181,.08);
+}
+
+/* ─── Highlight dorado en el h1 ────────────────────────────── */
+.promo-h1 .hl {
+  background: linear-gradient(90deg, #f0d080, #e5b84b, var(--teal-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Chips con borde dorado ────────────────────────────────── */
+.promo-chip {
+  border-color: rgba(229,184,75,.35);
+  background: rgba(229,184,75,.06);
+}
+.promo-chip:hover {
+  border-color: var(--gold);
+  background: rgba(229,184,75,.12);
+}
+
+/* ─── HR metálico ───────────────────────────────────────────── */
+.hr-metallic,
+hr.metallic {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), var(--teal), var(--gold), transparent);
+  opacity: .5;
+  margin: 32px 0;
+}
+
+/* ─── Números de pasos metálicos ────────────────────────────── */
+.step-number {
+  background: linear-gradient(135deg, #f0d080 10%, #e5b84b 50%, #b8860b 90%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
+}
+
+/* ─── Badges de combo / sección ─────────────────────────────── */
+.combo-badge,
+.section-badge {
+  background: linear-gradient(135deg, rgba(229,184,75,.15), rgba(229,184,75,.06));
+  border: 1px solid rgba(229,184,75,.4);
+  color: var(--gold-light);
+  letter-spacing: .06em;
+}
+
+/* ─── Glassmorphism cards sobre fondo oscuro ─────────────────── */
+.card-glass-dark {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(229,184,75,.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.card-glass-dark:hover {
+  border-color: rgba(229,184,75,.45);
+  box-shadow: 0 12px 40px rgba(0,0,0,.4), 0 0 24px var(--gold-glow);
+  transform: translateY(-2px);
+}
+
+/* ─── Trust dot dorado ──────────────────────────────────────── */
+.trust-dot-gold {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold-dark));
+  box-shadow: 0 0 6px var(--gold-glow);
+  flex-shrink: 0;
+}
+
+/* ─── Valores cooperativa con borde dorado ──────────────────── */
+.coop-trust-item {
+  border-left-color: rgba(229,184,75,.3);
+}
+.coop-trust-value {
+  background: linear-gradient(135deg, #f0d080, #e5b84b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Precio card dorado highlight ──────────────────────────── */
+.promo-price-value {
+  text-shadow: 0 0 30px rgba(78,195,181,.2);
+}
+
+/* ─── Tarjetas de combo sobre sección oscura ─────────────────── */
+.section-dark .combo-card {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(229,184,75,.18);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.section-dark .combo-card:hover {
+  border-color: var(--gold);
+  box-shadow: 0 0 28px var(--gold-glow);
+}
+
+/* ─── Sección CTA final con orbs ────────────────────────────── */
+.section-footer .section-footer-cta {
+  position: relative;
+  z-index: 1;
+}

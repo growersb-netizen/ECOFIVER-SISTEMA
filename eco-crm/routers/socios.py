@@ -229,7 +229,7 @@ def _mensaje_bienvenida_socio(nombre: str, email: str) -> str:
         "✅ Generador de presupuestos en PDF\n"
         "✅ Registro de ventas y seguimiento de comisiones\n"
         "✅ Biblioteca de fotos, videos y copys para redes sociales\n\n"
-        "*Comisiones:* 3% en contado · 50% del valor de la 1ra cuota en financiado\n\n"
+        "*Comisiones:* 3% del precio en contado · media cuota del plan en financiado\n\n"
         "Cualquier consulta respondé este mensaje. ¡Éxitos con las ventas! 💪"
     )
 
@@ -1356,7 +1356,7 @@ QUIZ_AUTOEVALUACION = [
     {"pregunta": "¿Quién cierra una venta, contado o financiada: el Socio o el equipo de EcoFiver?", "respuesta": "El Socio Comercial — hace la operación completa, de punta a punta."},
     {"pregunta": "¿Con qué herramienta cotizás precios y cuotas?", "respuesta": "Con el catálogo y el simulador de tu panel — nunca de memoria."},
     {"pregunta": "¿Tenés horario fijo de trabajo?", "respuesta": "No. Es un vínculo comercial, sin obligación de horario ni de asistencia."},
-    {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "El 50% del valor de la primera cuota del plan. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
+    {"pregunta": "¿Cómo se calcula tu comisión en una venta financiada?", "respuesta": "Media cuota del plan: el 50% del valor de una cuota. Si el plan tiene cuotas de $300.000, tu comisión es $150.000. El detalle siempre está disponible en \"Mis comisiones\"."},
     {"pregunta": "¿Cuándo se libera tu comisión en una venta financiada?", "respuesta": "Cuando el equipo hace la llamada de bienvenida (auditoría) y confirma que el cliente entendió el plan."},
     {"pregunta": "¿Cómo se calcula tu comisión en una venta de contado?", "respuesta": "El 3% del precio de venta — se libera contra entrega y cobro. El detalle actualizado siempre está disponible en \"Mis comisiones\"."},
     {"pregunta": "¿Necesitás Monotributo para operar?", "respuesta": "Eventualmente sí, para poder facturar tus comisiones."},

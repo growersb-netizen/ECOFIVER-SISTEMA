@@ -1043,13 +1043,6 @@ h1, h2, h3, h4 {
   .coop-trust-item:nth-child(-n+2) { border-top: none; padding-top: 0; }
 }
 
-@media (max-width: 640px) {
-  /* En pantallas chicas: botón login compacto, WA solo ícono */
-  .btn-login { padding: 8px 12px; font-size: 12px; }
-  .btn-whatsapp .wa-label { display: none; }
-  .btn-whatsapp { padding: 10px 12px; }
-}
-
 @media (max-width: 560px) {
   .section { padding: 60px 0; }
   .combo-price-grid { grid-template-columns: 1fr; }
@@ -1126,19 +1119,6 @@ h1, h2, h3, h4 {
 @keyframes orb-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: .7; transform: scale(1.08); }
-}
-
-/* ─── Login link en drawer mobile ──────────────────────────── */
-.nav-login-mobile {
-  display: none; /* solo visible cuando el nav está abierto en mobile */
-  color: var(--gold-light) !important;
-  font-weight: 700;
-  border-top: 1px solid rgba(229,184,75,.2);
-  padding-top: 14px !important;
-  margin-top: 4px;
-}
-.main-nav.open .nav-login-mobile {
-  display: block;
 }
 
 /* ─── Botón iniciar sesión ──────────────────────────────────── */

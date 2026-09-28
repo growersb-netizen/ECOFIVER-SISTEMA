@@ -726,7 +726,7 @@ async def aplicar_icac(
         raise HTTPException(400, "pct debe ser mayor a 0")
 
     ventas = db.query(VentaFinanciada).filter(
-        VentaFinanciada.producto == "MODULO",
+        VentaFinanciada.producto.in_(["MODULO", "VIVIENDA"]),
         VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"]),
     ).all()
 

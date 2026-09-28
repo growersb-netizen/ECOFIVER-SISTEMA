@@ -247,7 +247,7 @@ h1, h2, h3, h4 {
   margin-bottom: 12px;
   text-shadow: 0 4px 20px rgba(0,0,0,.5);
 }
-.promo-h1 .hl { color: #8fd3ff; font-size: 0.5em; display: block; margin-top: 5px; letter-spacing: .2px; }
+.promo-h1 .hl { color: #F6B40E; font-size: 0.78em; display: block; margin-top: 6px; letter-spacing: .2px; text-shadow: 0 2px 14px rgba(246,180,14,.45); }
 
 .plan18-lead { font-size: 15.5px; color: rgba(255,255,255,.86); max-width: 460px; line-height: 1.45; margin-bottom: 14px; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
 
@@ -552,7 +552,7 @@ h1, h2, h3, h4 {
 
 .combo-price-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
 .combo-price-item {
@@ -602,7 +602,104 @@ h1, h2, h3, h4 {
   font-weight: 700;
 }
 .combo-features strong { color: var(--text); }
-.combo-disclaimer { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.combo-disclaimer { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-top: 20px; }
+
+/* ─── Combos grid (layout nuevo, sin foto) ───────────────── */
+.combos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px;
+  margin-top: 8px;
+}
+
+.combo-bonifs {
+  background: linear-gradient(135deg, rgba(78,195,181,.09), rgba(46,134,193,.06));
+  border: 1px solid rgba(78,195,181,.28);
+  border-radius: var(--radius-sm);
+  padding: 16px 22px;
+  margin-bottom: 24px;
+}
+
+.combo-bonif-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--green-dark);
+  display: block;
+  margin-bottom: 10px;
+}
+
+.combo-bonif-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+.combo-bonif-list li {
+  font-size: 14px;
+  color: var(--text-soft);
+  padding-left: 18px;
+  position: relative;
+}
+
+.combo-bonif-list li::before {
+  content: '✓';
+  position: absolute; left: 0; top: 0;
+  color: var(--teal);
+  font-weight: 700;
+}
+
+.combo-card-sm {
+  display: flex !important;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 20px 24px;
+}
+
+.combo-card-sm .combo-badge {
+  position: static;
+  display: inline-flex;
+  align-self: flex-start;
+}
+
+.combo-card-sm h3 {
+  font-size: 20px;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.combo-piscina {
+  display: block;
+  font-size: 0.73em;
+  color: var(--teal);
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.combo-medidas {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  letter-spacing: .3px;
+  font-variant-numeric: tabular-nums;
+  margin-top: -4px;
+}
+
+.combo-promo-price {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 27px;
+  color: var(--ink);
+  letter-spacing: -.3px;
+}
+
+.combo-ingreso {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border);
+  padding-top: 11px;
+  margin-top: auto;
+}
 
 /* ─── Simulador ──────────────────────────────────────────── */
 .section-simulador {
@@ -691,9 +788,9 @@ h1, h2, h3, h4 {
 .sim-result-detail strong { color: #fff; }
 .sim-plan18-nota {
   font-size: 13.5px;
-  color: #0b2350;
-  background: rgba(78,195,181,.12);
-  border: 1px solid rgba(78,195,181,.3);
+  color: #e8f8f6;
+  background: rgba(78,195,181,.18);
+  border: 1px solid rgba(78,195,181,.4);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   margin-top: 14px;
@@ -1041,6 +1138,10 @@ h1, h2, h3, h4 {
   .coop-trust-bar { grid-template-columns: 1fr 1fr; gap: 22px; }
   .coop-trust-item { border-left: none; border-top: 1px solid var(--border); padding-top: 16px; }
   .coop-trust-item:nth-child(-n+2) { border-top: none; padding-top: 0; }
+}
+
+@media (max-width: 640px) {
+  .combos-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {

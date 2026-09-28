@@ -2127,10 +2127,15 @@ function obtenerItemsCategoria(categoria){
     return Object.keys(CATALOGO.modulos.precios||{}).map(m => ({nombre:m, precio_contado: CATALOGO.modulos.precios[m]}));
   }
   if(categoria === 'viviendas'){
-    const supViviendas = new Set((CATALOGO.modulos.superficies_viviendas||[]).map(s => s+''));
-    return Object.keys(CATALOGO.modulos.precios_lista||{})
-      .filter(m => supViviendas.size === 0 || (CATALOGO.modulos.superficies_viviendas||[]).some(s => m.includes(s+'m') || m.includes(s+' ')))
-      .map(m => ({nombre:m, precio_lista: CATALOGO.modulos.precios_lista[m]}));
+    const precios = CATALOGO.modulos.precios_lista || {};
+    const supViviendas = (CATALOGO.modulos.superficies_viviendas || []);
+    const todos = Object.keys(precios);
+    const filtrados = todos.filter(m => {
+      const ml = m.toLowerCase();
+      if(ml.includes('vivienda') || ml.includes('wood')) return true;
+      return supViviendas.some(s => new RegExp('\\b' + s + '\\s*m', 'i').test(m));
+    });
+    return (filtrados.length ? filtrados : todos).map(m => ({nombre:m, precio_lista: precios[m]}));
   }
   if(categoria === 'combos'){
     return Object.entries(CATALOGO.combos||{}).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));

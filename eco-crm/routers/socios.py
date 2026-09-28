@@ -2210,7 +2210,7 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
         cat_key = "piscinas"
         tipo_norm = "PISCINA"
     elif producto == "VIVIENDA":
-        cat_key = "viviendas"
+        cat_key = "modulos"
         tipo_norm = "VIVIENDA"
     else:
         raise HTTPException(400, "Solo piscinas y viviendas modulares tienen plan financiado")
@@ -2466,6 +2466,7 @@ async def _registrar_pago_inscripcion(venta: VentaFinanciada, monto: float, db: 
     if venta.monto_pagado_inscripcion >= (venta.monto_inscripcion or 0) and not venta.inscripcion_pagada_en:
         venta.inscripcion_pagada_en = datetime.now()
         venta.estado_plan = "ACTIVO"
+        venta.estado_admision = "PENDIENTE_BIENVENIDA"  # retiene la venta fuera de cobranza hasta que se complete la llamada de bienvenida
         db.commit()
         await _generar_recibo_pdf(venta, db)
         venta.recibo_generado_en = datetime.now()
@@ -2774,6 +2775,7 @@ async def completar_auditoria_bienvenida(
         raise HTTPException(409, "Falta la declaración jurada del cliente antes de cerrar la auditoría")
 
     venta.auditoria_bienvenida_en = datetime.now()
+    venta.estado_admision = None  # libera la venta a la cartera de cobranza
     db.commit()
 
     comision = None

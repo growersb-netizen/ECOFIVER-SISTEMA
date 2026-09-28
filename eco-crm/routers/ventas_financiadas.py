@@ -112,6 +112,23 @@ def venta_to_dict(v: VentaFinanciada) -> dict:
         "cac_excepcion_pct": v.cac_excepcion_pct,
         "created_at": v.created_at.isoformat() if v.created_at else "",
         "alerta": "ROJA" if atraso > 0 else ("AMARILLA" if proximo_vcto and (proximo_vcto - datetime.now()).days <= 3 else None),
+        # ── Bloque Socio Comercial (canal aliados) ──
+        "aliado_codigo": v.aliado_codigo,
+        "monto_inscripcion": v.monto_inscripcion,
+        "monto_pagado_inscripcion": v.monto_pagado_inscripcion or 0,
+        "primera_sena_en": v.primera_sena_en.isoformat() if v.primera_sena_en else None,
+        "sena_vence_en": v.sena_vence_en.isoformat() if v.sena_vence_en else None,
+        "inscripcion_pagada_en": v.inscripcion_pagada_en.isoformat() if v.inscripcion_pagada_en else None,
+        "recibo_generado_en": v.recibo_generado_en.isoformat() if v.recibo_generado_en else None,
+        "contrato_generado_en": v.contrato_generado_en.isoformat() if v.contrato_generado_en else None,
+        "link_confirmacion_confirmada_en": v.link_confirmacion_confirmada_en.isoformat() if v.link_confirmacion_confirmada_en else None,
+        "auditoria_bienvenida_en": v.auditoria_bienvenida_en.isoformat() if v.auditoria_bienvenida_en else None,
+        "solicitud_recibo_estado": v.solicitud_recibo_estado,
+        "solicitud_recibo_monto": v.solicitud_recibo_monto,
+        "solicitud_recibo_en": v.solicitud_recibo_en.isoformat() if v.solicitud_recibo_en else None,
+        "declaracion_jurada_requerida": bool(v.declaracion_jurada_requerida),
+        "declaracion_jurada_confirmada_en": v.declaracion_jurada_confirmada_en.isoformat() if v.declaracion_jurada_confirmada_en else None,
+        "licitacion_solicitada_en": v.licitacion_solicitada_en.isoformat() if v.licitacion_solicitada_en else None,
     }
 
 

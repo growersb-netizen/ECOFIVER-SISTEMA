@@ -69,6 +69,7 @@ class EstadoAdmision(str, enum.Enum):
 
 
 class EstadoPlan(str, enum.Enum):
+    INGRESADO = "INGRESADO"
     ACTIVO = "ACTIVO"
     ATRASADO = "ATRASADO"
     CANCELADO = "CANCELADO"

@@ -8,10 +8,11 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import VentaFinanciada, GestionCobranza, Usuario
+from database.models import VentaFinanciada, GestionCobranza, Usuario, Comision
 from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.ventas_financiadas import venta_to_dict, dias_atraso, calcular_proximo_vencimiento
 from routers.contratos import UMBRAL_REDONDEO_INSCRIPCION
+from routers.socios import obtener_porcentaje_comision, _notificar_socio
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -353,10 +354,36 @@ async def confirmar_bienvenida(
     data = await request.json()
     notas_extra = (data.get("notas") or "").strip()
 
-    venta.estado_admision = "BIENVENIDA_OK"
+    venta.estado_admision = None  # libera la venta a la cartera de cobranza
+    if not venta.auditoria_bienvenida_en:
+        venta.auditoria_bienvenida_en = datetime.now()
     if notas_extra:
         fecha_str = datetime.now().strftime("%d/%m/%Y")
         venta.notas = ((venta.notas or "") + f"\n[Bienvenida {fecha_str}] {notas_extra}").strip()
-
     db.commit()
-    return {"ok": True, "venta_id": venta_id}
+
+    # Generar comisión si corresponde a un socio y no fue generada antes
+    comision_monto = None
+    ya_tenia_comision = db.query(Comision).filter(
+        Comision.venta_financiada_id == venta.id, Comision.tipo == "entrada"
+    ).first()
+    if venta.aliado_codigo and not ya_tenia_comision:
+        pct = obtener_porcentaje_comision(db, "financiado", venta.producto, venta.modelo_especifico)
+        comision = Comision(
+            aliado_codigo=venta.aliado_codigo,
+            solicitud_numero=venta.numero_solicitud or "",
+            tipo="entrada",
+            monto=round((venta.valor_cuota or 0) * pct, 2),
+            estado="pendiente",
+            venta_financiada_id=venta.id,
+        )
+        db.add(comision)
+        db.commit()
+        comision_monto = comision.monto
+        _notificar_socio(
+            db, venta.aliado_codigo,
+            f"✅ Hicimos la bienvenida a {venta.cliente_nombre}. Se liberó tu comisión de "
+            f"${comision.monto:,.0f}".replace(",", ".") + " — la vas a ver como pendiente en tu panel.",
+        )
+
+    return {"ok": True, "venta_id": venta_id, "comision_generada": comision_monto}

@@ -2753,7 +2753,42 @@ async def descargar_contrato_contado_pdf(
     return FileResponse(str(pdf_path), media_type="application/pdf", filename=filename)
 
 
-# ─── Confirmación pública del cliente (deshabilitado) ────────────────────────
+# ─── Confirmación pública del cliente ───────────────────────────────────────
+
+
+@router.get("/socio/confirmar/{token}", response_class=HTMLResponse)
+async def pagina_confirmar_plan(token: str, request: Request, db: Session = Depends(get_db)):
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
+    if not venta:
+        return HTMLResponse("<h1>Link inválido o expirado</h1>", status_code=404)
+    return templates.TemplateResponse("confirmar_plan.html", {
+        "request": request, "venta": venta, "token": token,
+    })
+
+
+@router.post("/api/public/confirmar-plan/{token}")
+async def confirmar_plan_cliente(token: str, db: Session = Depends(get_db)):
+    venta = db.query(VentaFinanciada).filter(VentaFinanciada.link_confirmacion_token == token).first()
+    if not venta:
+        raise HTTPException(404, "Link inválido")
+    if venta.link_confirmacion_confirmada_en:
+        return {"ok": True, "ya_confirmado": True}
+    venta.link_confirmacion_confirmada_en = datetime.now()
+    db.commit()
+    notificar_rodrigo(
+        db,
+        f"✅ *Cliente confirmó su plan*\n"
+        f"Cliente: {venta.cliente_nombre}\n"
+        f"Solicitud: {venta.numero_solicitud or f'VF-{venta.id}'}\n"
+        f"Producto: {venta.producto} {venta.modelo_especifico}\n"
+        f"Ya puede pasar a llamada de bienvenida.",
+    )
+    if venta.aliado_codigo:
+        _notificar_socio(
+            db, venta.aliado_codigo,
+            f"🎉 {venta.cliente_nombre} confirmó su adhesión al plan. El equipo va a hacer la llamada de bienvenida en las próximas horas.",
+        )
+    return {"ok": True}
 
 
 @router.post("/api/ventas-financiadas/{venta_id}/auditoria-completada")

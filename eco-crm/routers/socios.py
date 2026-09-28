@@ -2422,6 +2422,9 @@ async def _generar_recibo_pdf(venta: VentaFinanciada, db: Session) -> None:
     """Genera el PDF del recibo de inscripción completa."""
     from utils.documentos import render_html, html_to_pdf
 
+    _tp = (venta.producto or "PISCINA").upper()
+    _prod_label = {"PISCINA": "Piscina de Fibra de Vidrio", "VIVIENDA": "Vivienda Modular"}.get(_tp, "Módulo Habitacional")
+
     html = render_html("recibo_pago.html", {
         "numero_solicitud": venta.numero_solicitud or str(venta.id),
         "fecha": datetime.now().strftime("%d/%m/%Y"),
@@ -2429,7 +2432,7 @@ async def _generar_recibo_pdf(venta: VentaFinanciada, db: Session) -> None:
         "cliente_dni": venta.cliente_dni,
         "cliente_telefono": venta.cliente_telefono,
         "cliente_localidad": venta.cliente_localidad,
-        "producto": venta.producto,
+        "producto": _prod_label,
         "modelo": venta.modelo_especifico,
         "cantidad_cuotas": venta.cantidad_cuotas,
         "valor_cuota": _money(venta.valor_cuota),
@@ -3089,10 +3092,9 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
 
 
 def _tabla_comisiones_vigentes(db: Session) -> list:
-    """Tabla resuelta (con overrides aplicados) para PISCINA y MODULO — lo que
-    ve el socio en el modal de aceptación y en 'Mis comisiones'."""
+    """Tabla resuelta (con overrides aplicados) para PISCINA, MODULO y VIVIENDA."""
     filas = []
-    for producto, label in (("PISCINA", "Piscinas"), ("MODULO", "Módulos")):
+    for producto, label in (("PISCINA", "Piscinas"), ("MODULO", "Módulos"), ("VIVIENDA", "Viviendas modulares")):
         pct_contado = obtener_porcentaje_comision(db, "contado", producto)
         pct_financiado = obtener_porcentaje_comision(db, "financiado", producto)
         filas.append({

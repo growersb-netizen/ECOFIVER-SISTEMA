@@ -3446,6 +3446,7 @@ async def get_preguntas(
     result = []
     for p in preguntas:
         item_id = p.get("item_id", "")
+        from_data = p.get("from") or {}
         result.append({
             "id": p.get("id"),
             "item_id": item_id,
@@ -3453,6 +3454,7 @@ async def get_preguntas(
             "texto": p.get("text", ""),
             "fecha": p.get("date_created", ""),
             "estado": p.get("status", ""),
+            "from_nickname": from_data.get("nickname", ""),
             "respuesta": p.get("answer", {}).get("text", "") if p.get("answer") else "",
         })
 

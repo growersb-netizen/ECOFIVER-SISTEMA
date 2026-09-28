@@ -1651,6 +1651,7 @@
 <script>
 const TABS_ML = ['dashboard','publicaciones','borradores','preguntas','biblioteca','config-ml'];
 let currentItemId = null;
+let _preguntasRefreshTimer = null;
 
 // toast() está definido en main.js; este alias cubre las llamadas a showToast()
 function showToast(msg, type = 'success') { toast(msg, type); }
@@ -1665,7 +1666,16 @@ function showTab(name, el) {
   document.querySelectorAll('.tabs .tab').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   if (name === 'config-ml') loadMLConfig();
-  if (name === 'preguntas') loadPreguntas();
+  if (name === 'preguntas') {
+    loadPreguntas();
+    // Auto-refresh cada 60 s mientras la tab está activa
+    if (!_preguntasRefreshTimer) {
+      _preguntasRefreshTimer = setInterval(loadPreguntas, 60000);
+    }
+  } else {
+    // Detener auto-refresh al salir de la tab
+    if (_preguntasRefreshTimer) { clearInterval(_preguntasRefreshTimer); _preguntasRefreshTimer = null; }
+  }
   if (name === 'dashboard') loadDashboardML();
   if (name === 'borradores') { borCargarTasas(); borCargar(); }
   if (name === 'biblioteca') loadBiblioteca();

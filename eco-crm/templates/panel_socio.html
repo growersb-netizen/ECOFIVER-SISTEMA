@@ -1929,10 +1929,10 @@ async function subirFactura(comisionId){
 
 async function cargarRanking(){
   const data = await api('/api/socio/ranking?periodo=mes').catch(()=>({ranking:[]}));
-  let h = '<table><tr><th>#</th><th>Socio</th><th>Zona</th><th>Facturado (mes)</th></tr>';
+  let h = '<table><tr><th>#</th><th>Socio</th><th>Zona</th><th>Ventas (mes)</th></tr>';
   for(const f of data.ranking){
     const tilde = f.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
-    h += `<tr><td>${f.medalla||f.puesto}</td><td>${f.nombre}${tilde}</td><td>${f.zona||'—'}</td><td>${fmt(f.monto_facturado)}</td></tr>`;
+    h += `<tr><td>${f.medalla||f.puesto}</td><td>${f.nombre}${tilde}</td><td>${f.zona||'—'}</td><td>${f.cantidad_ventas||0}</td></tr>`;
   }
   h += '</table>';
   document.getElementById('tabla-ranking').innerHTML = h;

@@ -850,8 +850,20 @@ function renderOpSocios(){
       <td>${s.perfil_completo?'<span class="al-badge b-verificado">Perfil OK</span>':'<span class="al-badge b-pendiente">Perfil</span>'} ${s.whatsapp_verificado?'<span class="al-badge b-verificado">WA OK</span>':'<span class="al-badge b-pendiente">WA</span>'}</td>
       <td>${s.ventas_contado} contado / ${s.ventas_financiado} financ.</td>
       <td>$${Math.round(s.comision_pendiente).toLocaleString('es-AR')} pend. / $${Math.round(s.comision_liquidada).toLocaleString('es-AR')} liq.</td>
-      <td><button class="btn btn-sm btn-danger" onclick="borrarSocio('${s.codigo}','${esc(s.nombre)}')">🗑️</button></td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-sm btn-secondary" onclick="nuevoAliado(${JSON.stringify(s).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
+        ${s.telefono?`<button class="btn btn-sm btn-secondary" onclick="enviarBienvenidaWA('${s.codigo}','${esc(s.nombre)}')" title="Enviar acceso por WA">📲</button>`:''}
+        <button class="btn btn-sm btn-danger" onclick="borrarSocio('${s.codigo}','${esc(s.nombre)}')">🗑️</button>
+      </td>
     </tr>`).join('') + `</tbody></table>`;
+}
+
+async function enviarBienvenidaWA(codigo, nombre){
+  if(!confirm(`¿Enviar mensaje de bienvenida con acceso al panel a ${nombre} (${codigo})?`)) return;
+  const r = await AL.send('/api/aliados/'+codigo+'/enviar-bienvenida','POST',{});
+  const j = await r.json().catch(()=>({}));
+  if(r.ok){ toast&&toast('✅ Bienvenida enviada por WA'); }
+  else alert(j.detail||'Error al enviar');
 }
 
 async function borrarSocio(codigo, nombre){

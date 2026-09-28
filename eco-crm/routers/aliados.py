@@ -186,13 +186,15 @@ async def crear_aliado(
 
     password_raw = (data.get("password") or "").strip()
 
+    telefono_str = (data.get("telefono") or "").strip()
+
     aliado = Aliado(
         codigo=codigo,
         nombre=nombre,
         dni=dni,
         email=email,
         cuit_monotributo=(data.get("cuit_monotributo") or "").strip(),
-        telefono=(data.get("telefono") or "").strip(),
+        telefono=telefono_str,
         cbu_alias=(data.get("cbu_alias") or "").strip(),
         zona=(data.get("zona") or "").strip(),
         estado=estado,
@@ -206,6 +208,25 @@ async def crear_aliado(
     db.add(aliado)
     db.commit()
     db.refresh(aliado)
+
+    if telefono_str and data.get("enviar_bienvenida", True):
+        try:
+            import os
+            from utils.whatsapp import send_whatsapp_text
+            panel_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app") + "/panel-socio"
+            primer_nombre = aliado.nombre.split()[0]
+            msg = (
+                f"👋 Hola {primer_nombre}, ¡bienvenido/a al equipo de socios EcoFiver!\n\n"
+                f"Tu código de socio es *{aliado.codigo}*.\n\n"
+                f"Accedé a tu panel aquí:\n{panel_url}\n\n"
+                f"Para ingresar usá tu número de WhatsApp: te llegará un código de verificación. "
+                f"También podés ingresar con tu email{(' (' + aliado.email + ')') if aliado.email else ''}.\n\n"
+                f"¡Cualquier duda estamos acá! 💪"
+            )
+            send_whatsapp_text(db, telefono_str, msg)
+        except Exception:
+            pass
+
     return {"ok": True, **_aliado_dict(aliado)}
 
 
@@ -372,6 +393,38 @@ async def actualizar_aliado(
     db.commit()
     db.refresh(a)
     return {"ok": True, **_aliado_dict(a)}
+
+
+@router.post("/api/aliados/{codigo}/enviar-bienvenida")
+async def enviar_bienvenida_aliado(
+    codigo: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Reenvía el mensaje de bienvenida con credenciales al WhatsApp del aliado."""
+    _auth(x_api_key, current_user)
+    _solo_gestion(current_user, x_api_key)
+    a = db.query(Aliado).filter(Aliado.codigo == codigo.upper()).first()
+    if not a:
+        raise HTTPException(404, "Aliado no encontrado")
+    if not a.telefono:
+        raise HTTPException(400, "El aliado no tiene teléfono registrado")
+    import os
+    from utils.whatsapp import send_whatsapp_text
+    panel_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app") + "/panel-socio"
+    primer_nombre = a.nombre.split()[0]
+    msg = (
+        f"👋 Hola {primer_nombre}, ¡bienvenido/a al equipo de socios EcoFiver!\n\n"
+        f"Tu código de socio es *{a.codigo}*.\n\n"
+        f"Accedé a tu panel aquí:\n{panel_url}\n\n"
+        f"Para ingresar usá tu número de WhatsApp: te llegará un código de verificación. "
+        f"También podés ingresar con tu email{(' (' + a.email + ')') if a.email else ''}.\n\n"
+        f"¡Cualquier duda estamos acá! 💪"
+    )
+    send_whatsapp_text(db, a.telefono, msg)
+    return {"ok": True, "mensaje": "Bienvenida enviada"}
 
 
 @router.get("/api/aliados/{codigo}/ventas")

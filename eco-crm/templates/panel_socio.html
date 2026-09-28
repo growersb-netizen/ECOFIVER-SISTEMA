@@ -866,7 +866,7 @@
         </div>
         <div class="card">
           <h3 style="margin-top:0;font-size:15px">Financiado</h3>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Disponible para piscinas y módulos, con instalación incluida.</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Disponible para piscinas de fibra y viviendas modulares, con instalación incluida.</p>
           <label>Nombre del cliente</label><input id="f-nombre">
           <label>DNI</label><input id="f-dni">
           <label>Teléfono</label><input id="f-tel">
@@ -875,8 +875,8 @@
           <label>Localidad</label><input id="f-loc">
           <label>Categoría</label>
           <select id="f-prod" onchange="poblarProductoVenta('f')">
-            <option value="PISCINA">Piscina</option>
-            <option value="MODULO">Módulo</option>
+            <option value="PISCINA">Piscina de fibra</option>
+            <option value="VIVIENDA">Vivienda modular</option>
           </select>
           <label>Producto</label>
           <select id="f-modelo"></select>
@@ -2126,6 +2126,12 @@ function obtenerItemsCategoria(categoria){
   if(categoria === 'modulos'){
     return Object.keys(CATALOGO.modulos.precios||{}).map(m => ({nombre:m, precio_contado: CATALOGO.modulos.precios[m]}));
   }
+  if(categoria === 'viviendas'){
+    const supViviendas = new Set((CATALOGO.modulos.superficies_viviendas||[]).map(s => s+''));
+    return Object.keys(CATALOGO.modulos.precios_lista||{})
+      .filter(m => supViviendas.size === 0 || (CATALOGO.modulos.superficies_viviendas||[]).some(s => m.includes(s+'m') || m.includes(s+' ')))
+      .map(m => ({nombre:m, precio_lista: CATALOGO.modulos.precios_lista[m]}));
+  }
   if(categoria === 'combos'){
     return Object.entries(CATALOGO.combos||{}).map(([nombre,d]) => ({nombre, precio_contado:(d||{}).precio_contado}));
   }
@@ -2141,7 +2147,10 @@ function poblarCategoriasVenta(){
 }
 
 function poblarProductoVenta(prefix){
-  const categoria = prefix === 'f' ? (document.getElementById('f-prod').value === 'PISCINA' ? 'piscinas' : 'modulos') : document.getElementById('c-categoria').value;
+  const fProd = prefix === 'f' ? document.getElementById('f-prod').value : null;
+  const categoria = prefix === 'f'
+    ? (fProd === 'PISCINA' ? 'piscinas' : 'viviendas')
+    : document.getElementById('c-categoria').value;
   const items = obtenerItemsCategoria(categoria);
   const selModelo = document.getElementById(prefix+'-modelo');
   selModelo.innerHTML = items.map(it => `<option value="${it.nombre.replace(/"/g,'&quot;')}">${it.nombre}</option>`).join('') || '<option value="">Sin productos cargados</option>';

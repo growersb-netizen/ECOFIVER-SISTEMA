@@ -296,6 +296,7 @@ class VentaContado(Base):
     # ── Venta cargada por un Socio Comercial (canal Aliados) ──────────────────
     aliado_codigo               = Column(String(20), ForeignKey("aliados.codigo"), nullable=True, index=True)
     confirmacion_48hs_en        = Column(DateTime(timezone=True), nullable=True)  # equipo confirmó fecha/detalles
+    en_produccion_desde         = Column(DateTime(timezone=True), nullable=True)  # producto entró a fabricación
 
     vendedor           = relationship("Usuario", foreign_keys=[vendedor_id])
     equipo_instalador  = relationship("EquipoInstalador", foreign_keys=[equipo_instalador_id])

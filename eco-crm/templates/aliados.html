@@ -77,16 +77,16 @@
 
 <!-- ═══ RANKING ═══ -->
 <div id="pane-ranking" class="al-pane">
-  <div class="al-filters">
-    <select class="form-control" id="rk-periodo" onchange="cargarRanking()" style="max-width:200px">
-      <option value="semana">Esta semana</option>
-      <option value="mes">Este mes</option>
-      <option value="trimestre">Trimestre</option>
-      <option value="anio">Año</option>
-      <option value="total">Histórico</option>
-    </select>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div>
+      <h3 style="font-size:14px;margin:0 0 10px">🏆 Ranking semana</h3>
+      <div id="rk-semana"><div class="al-empty">Cargando...</div></div>
+    </div>
+    <div>
+      <h3 style="font-size:14px;margin:0 0 10px">📅 Ranking mes</h3>
+      <div id="rk-mes"><div class="al-empty">Cargando...</div></div>
+    </div>
   </div>
-  <div id="rk-lista"><div class="al-empty">Cargando...</div></div>
 </div>
 
 <!-- ═══ COMISIONES ═══ -->
@@ -124,22 +124,68 @@
   <div id="pq-lista"><div class="al-empty">Cargando...</div></div>
 </div>
 
-<!-- ═══ OPERACIÓN DE SOCIOS — los 3 puntos humanos del flujo nuevo ═══ -->
+<!-- ═══ OPERACIÓN DE SOCIOS ═══ -->
 <div id="pane-operacion" class="al-pane">
+
+  <!-- ── RESUMEN RÁPIDO ── -->
+  <div id="op-pipeline-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px"></div>
+
+  <!-- ── PIPELINE CONTADO ── -->
+  <div style="border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px">
+    <h3 style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin:0 0 14px">📦 Ventas de contado — pipeline</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#0ea5e9;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #0ea5e9">📞 Contactar cliente (48hs)</div>
+        <div id="op-confirmacion48"><div class="al-empty">Cargando...</div></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#f59e0b;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #f59e0b">🏭 Marcar en producción</div>
+        <div id="op-produccion"><div class="al-empty">Cargando...</div></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#10b981;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #10b981">🚚 Entrega y cobro</div>
+        <div id="op-entrega"><div class="al-empty">Cargando...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PIPELINE FINANCIADO ── -->
+  <div style="border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:28px">
+    <h3 style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin:0 0 14px">💳 Ventas financiadas — pipeline</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#8b5cf6;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #8b5cf6">🔔 Verificar comprobante</div>
+        <div id="op-solicitudes-recibo"><div class="al-empty">Cargando...</div></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#f59e0b;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #f59e0b">💰 Confirmar seña / inscripción</div>
+        <div id="op-inscripcion"><div class="al-empty">Cargando...</div></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#10b981;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #10b981">☎️ Llamada de bienvenida</div>
+        <div id="op-auditoria"><div class="al-empty">Cargando...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── GESTIÓN ── separador ────────────────────────────────────────── -->
+  <hr style="border:none;border-top:1px solid var(--border);margin:0 0 20px">
 
   <h3 style="font-size:14px;margin:0 0 10px">📊 Resumen del programa</h3>
   <div class="op-stats" id="op-stats"><div class="al-empty">Cargando...</div></div>
 
-  <h3 style="font-size:14px;margin:24px 0 8px">📋 Presupuestos generados (leads capturados)</h3>
-  <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
-    Cada presupuesto que un socio genera desde su simulador queda acá, con los datos completos del cliente.
-  </p>
-  <div id="op-presupuestos-tabla"><div class="al-empty">Cargando...</div></div>
+  <h3 style="font-size:14px;margin:24px 0 8px">👥 Socios registrados</h3>
+  <div class="al-filters">
+    <input class="form-control" id="op-socios-search" placeholder="🔍 Buscar nombre / código / email" oninput="renderOpSocios()" style="max-width:280px">
+    <label style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
+      <input type="checkbox" id="op-solo-verificados" onchange="renderOpSocios()"> Solo verificados
+    </label>
+  </div>
+  <div id="op-socios-tabla"><div class="al-empty">Cargando...</div></div>
 
-  <h3 style="font-size:14px;margin:24px 0 8px">💰 Comisiones — porcentaje por producto/modelo</h3>
+  <h3 style="font-size:14px;margin:28px 0 8px">💰 Comisiones — porcentaje por producto/modelo</h3>
   <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
-    Definí el % de comisión del socio. Dejar "Modelo" vacío aplica a todo el producto; dejar "Producto" vacío
-    también define el default general de ese tipo de venta. La fila más específica siempre gana.
+    Definí el % de comisión del socio. La fila más específica siempre gana.
   </p>
   <div id="comision-vigentes-admin" style="margin-bottom:14px"><div class="al-empty">Cargando...</div></div>
   <div class="form-row">
@@ -163,19 +209,15 @@
   <span id="cc-msg" style="font-size:13px;margin-left:10px"></span>
   <div id="comision-config-tabla" style="margin-top:14px"><div class="al-empty">Cargando...</div></div>
 
-  <h3 style="font-size:14px;margin:28px 0 8px">👥 Socios registrados</h3>
-  <div class="al-filters">
-    <input class="form-control" id="op-socios-search" placeholder="🔍 Buscar nombre / código / email" oninput="renderOpSocios()" style="max-width:280px">
-    <label style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
-      <input type="checkbox" id="op-solo-verificados" onchange="renderOpSocios()"> Solo verificados
-    </label>
-  </div>
-  <div id="op-socios-tabla"><div class="al-empty">Cargando...</div></div>
+  <h3 style="font-size:14px;margin:28px 0 8px">📋 Presupuestos generados (leads capturados)</h3>
+  <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
+    Cada presupuesto que un socio genera desde su simulador queda acá, con los datos completos del cliente.
+  </p>
+  <div id="op-presupuestos-tabla"><div class="al-empty">Cargando...</div></div>
 
   <h3 style="font-size:14px;margin:28px 0 8px">🖼️ Biblioteca de contenidos</h3>
   <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
-    Las fotos del catálogo y el contenido de Ecopost ya aprobado (flyers, fotos y videos con su copy) se
-    sincronizan solos. Usá esto para subir contenido extra: documentos, fotos de entregas, material puntual.
+    Las fotos del catálogo y el contenido de Ecopost ya aprobado se sincronizan solos. Usá esto para subir contenido extra.
   </p>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
     <button class="btn btn-secondary" onclick="sincronizarBibliotecaCatalogo()">🔄 Sincronizar fotos del catálogo</button>
@@ -205,16 +247,12 @@
     <div style="grid-column:1/-1"><label class="form-label">Descripción</label><textarea class="form-control" id="op-mat-descripcion" rows="2"></textarea></div>
   </div>
   <div class="form-row">
-    <div style="grid-column:1/-1"><label class="form-label">Link externo (opcional, si no subís archivo)</label><input class="form-control" id="op-mat-url" placeholder="https://..."></div>
+    <div style="grid-column:1/-1"><label class="form-label">Link externo (opcional)</label><input class="form-control" id="op-mat-url" placeholder="https://..."></div>
   </div>
   <button class="btn btn-primary" onclick="subirMaterialSocio()">Subir a la Biblioteca</button>
   <span id="op-mat-msg" style="font-size:13px;margin-left:10px"></span>
 
   <h3 style="font-size:14px;margin:28px 0 8px">📦 Fotos de entrega — carga rápida diaria</h3>
-  <p style="color:var(--text-muted);font-size:13px;margin:-4px 0 12px">
-    Cargá la foto de cada entrega del día para que quede disponible en la Biblioteca de todos los socios,
-    organizada por producto y zona.
-  </p>
   <div class="form-row">
     <div><label class="form-label">Foto</label><input class="form-control" type="file" id="op-ent-archivo"></div>
     <div><label class="form-label">Categoría del producto</label>
@@ -237,26 +275,6 @@
   </div>
   <button class="btn btn-primary" onclick="subirFotoEntrega()">Subir foto de entrega</button>
   <span id="op-ent-msg" style="font-size:13px;margin-left:10px"></span>
-
-  <p style="color:var(--text-muted);font-size:13px;margin:28px 0 14px">
-    Las ventas las cargan los propios socios desde su panel. Estas 4 colas son las únicas
-    acciones que sigue haciendo el equipo a mano.
-  </p>
-
-  <h3 style="font-size:14px;margin:18px 0 8px">🔔 Solicitudes de recibo — comprobantes pendientes de verificar</h3>
-  <div id="op-solicitudes-recibo"><div class="al-empty">Cargando...</div></div>
-
-  <h3 style="font-size:14px;margin:24px 0 8px">💰 Financiado — confirmar pago de la seña/inscripción (manual)</h3>
-  <div id="op-inscripcion"><div class="al-empty">Cargando...</div></div>
-
-  <h3 style="font-size:14px;margin:24px 0 8px">☎️ Financiado — llamada de bienvenida (auditoría)</h3>
-  <div id="op-auditoria"><div class="al-empty">Cargando...</div></div>
-
-  <h3 style="font-size:14px;margin:24px 0 8px">📞 Contado — contacto dentro de las 48hs</h3>
-  <div id="op-confirmacion48"><div class="al-empty">Cargando...</div></div>
-
-  <h3 style="font-size:14px;margin:24px 0 8px">🚚 Contado — registrar entrega y cobro</h3>
-  <div id="op-entrega"><div class="al-empty">Cargando...</div></div>
 </div>
 
 <!-- ═══ CALENDARIO DE ENTREGAS ═══ -->
@@ -442,16 +460,25 @@ async function aprobar(cod){
 }
 
 // ── RANKING ──
+function _renderRanking(filas, elId){
+  const el=document.getElementById(elId);
+  const activos=filas.filter(f=>f.cantidad_ventas>0);
+  if(!activos.length){el.innerHTML='<div class="al-empty">Sin ventas en el período.</div>';return;}
+  el.innerHTML=`<table class="al-table"><thead><tr><th></th><th>Aliado</th><th>Ventas</th><th>Contado</th><th>Financiado</th></tr></thead><tbody>`+
+    activos.map((f,i)=>`<tr>
+      <td style="font-size:16px">${f.medalla||`<span style="color:var(--text-muted);font-size:13px">${i+1}</span>`}</td>
+      <td><strong>${f.nombre}</strong><div style="font-size:11px;color:var(--text-muted)">${f.codigo}${f.zona?' · '+f.zona:''}</div></td>
+      <td><strong style="font-size:15px">${f.cantidad_ventas}</strong></td>
+      <td>${f.ventas_contado}</td>
+      <td>${f.ventas_financiado}</td></tr>`).join('')+`</tbody></table>`;
+}
 async function cargarRanking(){
-  const p=document.getElementById('rk-periodo').value;
-  const d=await AL.get('/api/aliados/ranking?periodo='+p); const el=document.getElementById('rk-lista');
-  if(!d.ranking||!d.ranking.length){el.innerHTML='<div class="al-empty">Sin datos en el período.</div>';return;}
-  el.innerHTML=`<table class="al-table"><thead><tr><th>#</th><th>Aliado</th><th>Leads</th><th>Verificados</th><th>Comisiones</th><th>$ Total</th><th>$ Pendiente</th></tr></thead><tbody>`+
-    d.ranking.map(f=>`<tr><td><strong>${f.puesto}</strong></td>
-      <td>${f.nombre}<div style="font-size:11px;color:var(--text-muted)">${f.codigo} · ${f.zona||''}</div></td>
-      <td>${f.leads_cargados}</td><td>${f.leads_verificados}</td><td>${f.comisiones_generadas}</td>
-      <td>$${(f.monto_total||0).toLocaleString('es-AR')}</td>
-      <td style="color:#fbbf24">$${(f.monto_pendiente||0).toLocaleString('es-AR')}</td></tr>`).join('')+`</tbody></table>`;
+  const [ds, dm] = await Promise.all([
+    AL.get('/api/aliados/ranking?periodo=semana'),
+    AL.get('/api/aliados/ranking?periodo=mes'),
+  ]);
+  _renderRanking(ds.ranking||[], 'rk-semana');
+  _renderRanking(dm.ranking||[], 'rk-mes');
 }
 
 // ── COMISIONES ──
@@ -581,13 +608,29 @@ async function cargarOperacionSocios(){
   cargarComisionConfig();
   cargarOpPresupuestos();
 
-  const [solRec, ins, aud, c48, ent] = await Promise.all([
+  const [solRec, ins, aud, c48, prod, ent] = await Promise.all([
     AL.get('/api/admin/solicitudes-recibo?estado=PENDIENTE'),
     AL.get('/api/ventas-financiadas/pendientes-inscripcion'),
     AL.get('/api/ventas-financiadas/pendientes-auditoria'),
     AL.get('/api/ventas-contado/pendientes-confirmacion'),
+    AL.get('/api/ventas-contado/pendientes-produccion'),
     AL.get('/api/ventas-contado/pendientes-entrega'),
   ]);
+
+  // ── Resumen visual de conteos ──
+  const etapas = [
+    {label:'Contactar (48hs)', n: c48.total||0, color:'#0ea5e9', icon:'📞'},
+    {label:'En producción', n: prod.total||0, color:'#f59e0b', icon:'🏭'},
+    {label:'Entregar y cobrar', n: ent.total||0, color:'#10b981', icon:'🚚'},
+    {label:'Verificar comprobante', n: solRec.solicitudes?.length||0, color:'#8b5cf6', icon:'🔔'},
+    {label:'Seña / inscripción', n: ins.total||0, color:'#f59e0b', icon:'💰'},
+    {label:'Bienvenida', n: aud.total||0, color:'#10b981', icon:'☎️'},
+  ];
+  document.getElementById('op-pipeline-summary').innerHTML = etapas.map(e=>`
+    <div style="background:${e.n?e.color+'22':'var(--surface)'};border:1px solid ${e.n?e.color:'var(--border)'};border-radius:8px;padding:10px 16px;min-width:140px;flex:1">
+      <div style="font-size:20px">${e.icon} <strong style="font-size:18px;color:${e.n?e.color:'var(--text-muted)'}">${e.n}</strong></div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${e.label}</div>
+    </div>`).join('');
 
   // ── Solicitudes de recibo ──
   const elSR = document.getElementById('op-solicitudes-recibo');
@@ -645,19 +688,32 @@ async function cargarOperacionSocios(){
       <td>${djOk?`<button class="btn btn-sm btn-primary" onclick="marcarAuditoria(${v.id})">✓ Bienvenida hecha</button>`:'<span style="font-size:12px;color:var(--text-muted)">Esperando DJ del cliente</span>'}</td></tr>`;
     }).join('')+`</tbody></table>`;
 
+  function _pipeCard(v, btnLabel, btnAction, extraInfo){
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="font-weight:600;font-size:13px">${v.cliente_nombre}${v.aliado_codigo?` <span style="font-size:11px;color:var(--text-muted)">[${v.aliado_codigo}]</span>`:''}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:2px 0">${v.producto} ${v.modelo_especifico||''}${v.color?' · '+v.color:''}</div>
+      ${v.cliente_telefono?`<div style="font-size:12px"><a href="https://wa.me/54${v.cliente_telefono.replace(/\D/g,'')}" target="_blank">📱 ${v.cliente_telefono}</a></div>`:''}
+      ${v.cliente_localidad?`<div style="font-size:11.5px;color:var(--text-muted)">${v.cliente_domicilio||''} ${v.cliente_localidad}</div>`:''}
+      ${extraInfo?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${extraInfo}</div>`:''}
+      <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%" onclick="${btnAction}(${v.id})">${btnLabel}</button>
+    </div>`;
+  }
+
   const elC48 = document.getElementById('op-confirmacion48');
   elC48.innerHTML = !c48.ventas || !c48.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
-    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Cargada</th><th></th></tr></thead><tbody>`+
-    c48.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_email||''} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td style="font-size:12px">${v.created_at?new Date(v.created_at).toLocaleString('es-AR'):'—'}</td>
-      <td><button class="btn btn-sm btn-primary" onclick="marcarConfirmacion48(${v.id})">✓ Ya contacté</button></td></tr>`).join('')+`</tbody></table>`;
+    c48.ventas.map(v=>_pipeCard(v,'✓ Ya contacté','marcarConfirmacion48',
+      v.created_at?'Cargada: '+new Date(v.created_at).toLocaleDateString('es-AR'):'')).join('');
+
+  const elProd = document.getElementById('op-produccion');
+  elProd.innerHTML = !prod.ventas || !prod.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
+    prod.ventas.map(v=>_pipeCard(v,'🏭 Marcar en producción','marcarEnProduccion',
+      v.confirmacion_48hs_en?'Contactado: '+new Date(v.confirmacion_48hs_en).toLocaleDateString('es-AR'):'')).join('');
 
   const elEnt = document.getElementById('op-entrega');
   elEnt.innerHTML = !ent.ventas || !ent.ventas.length ? '<div class="al-empty">✅ Nada pendiente.</div>' :
-    `<table class="al-table"><thead><tr><th>Socio</th><th>Cliente</th><th>Producto</th><th>Monto</th><th></th></tr></thead><tbody>`+
-    ent.ventas.map(v=>`<tr><td>${v.aliado_codigo}</td><td>${v.cliente_nombre}<div style="font-size:11px;color:var(--text-muted)">${v.cliente_telefono||'sin teléfono'} · ${v.cliente_email||''} · ${v.cliente_domicilio||''} ${v.cliente_localidad||''}</div></td>
-      <td>${v.producto} ${v.modelo_especifico}${v.color?' · '+v.color:''}${v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado)+' ('+(v.distancia_km||0)+' km)':''}<div style="font-size:11px;color:var(--text-muted)">${v.notas||''}</div></td><td>${fmtMoney(v.precio_final)}</td>
-      <td><button class="btn btn-sm btn-primary" onclick="marcarEntrega(${v.id})">✓ Entregada y cobrada</button></td></tr>`).join('')+`</tbody></table>`;
+    ent.ventas.map(v=>_pipeCard(v,'✅ Entregada y cobrada','marcarEntrega',
+      fmtMoney(v.precio_final)+(v.flete_calculado?' · Flete '+fmtMoney(v.flete_calculado):'')+
+      (v.fecha_entrega?' · '+v.fecha_entrega:''))).join('');
 }
 async function registrarPagoInscripcion(id){
   const input = document.getElementById('pago-ins-'+id);
@@ -675,6 +731,7 @@ async function registrarPagoInscripcion(id){
 }
 async function marcarAuditoria(id){if(!confirm('¿Confirmás que se hizo la llamada de bienvenida? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-financiadas/'+id+'/auditoria-completada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert((await r.json()).detail||'Error');}
 async function marcarConfirmacion48(id){if(!confirm('¿Confirmás que contactaste al cliente?'))return;const r=await AL.send('/api/ventas-contado/'+id+'/confirmacion-48hs','POST',{});if(r.ok)cargarOperacionSocios();else alert('Error');}
+async function marcarEnProduccion(id){if(!confirm('¿Confirmás que este producto ingresó a producción/fabricación? Se notifica al socio.'))return;const r=await AL.send('/api/ventas-contado/'+id+'/en-produccion','POST',{});if(r.ok){toast&&toast('Producción marcada ✓');cargarOperacionSocios();}else alert('Error');}
 async function marcarEntrega(id){if(!confirm('¿Confirmás que se entregó y se cobró? Esto libera la comisión del socio.'))return;const r=await AL.send('/api/ventas-contado/'+id+'/entregada-cobrada','POST',{});if(r.ok){toast&&toast('Comisión liberada ✓');cargarOperacionSocios();}else alert('Error');}
 
 async function aprobarSolicitudRecibo(id){

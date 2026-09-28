@@ -2136,6 +2136,22 @@ async def confirmar_48hs_contado(
     return {"ok": True}
 
 
+@router.post("/api/ventas-contado/{venta_id}/en-produccion")
+async def marcar_en_produccion(
+    venta_id: int, db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """El equipo confirma que el producto entró a fabricación/producción."""
+    _require_gestion_interna(x_api_key, current_user)
+    venta = db.query(VentaContado).filter(VentaContado.id == venta_id).first()
+    if not venta:
+        raise HTTPException(404, "Venta no encontrada")
+    venta.en_produccion_desde = datetime.now()
+    db.commit()
+    _notificar_socio(db, venta.aliado_codigo, f"🏭 El {venta.producto.capitalize()} de {venta.cliente_nombre} ya entró en producción. Te avisamos cuando esté listo para entregar.")
+    return {"ok": True}
+
+
 @router.post("/api/ventas-contado/{venta_id}/entregada-cobrada")
 async def marcar_entregada_cobrada(
     venta_id: int, db: Session = Depends(get_db),
@@ -2152,6 +2168,7 @@ async def marcar_entregada_cobrada(
         raise HTTPException(404, "Venta no encontrada")
     venta.cobro_estado = "COBRADO"
     venta.cobro_fecha = datetime.now()
+    venta.estado = "COBRADO"
     db.commit()
 
     if venta.aliado_codigo:
@@ -2922,8 +2939,26 @@ async def pendientes_confirmacion_48hs(
     """Ventas de contado cargadas por un socio, esperando el contacto de las 48hs."""
     _require_gestion_interna(x_api_key, current_user)
     ventas = (db.query(VentaContado)
-              .filter(VentaContado.aliado_codigo.isnot(None), VentaContado.confirmacion_48hs_en.is_(None))
+              .filter(VentaContado.confirmacion_48hs_en.is_(None), VentaContado.cobro_estado != "COBRADO")
               .order_by(VentaContado.created_at.asc()).all())
+    return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}
+
+
+@router.get("/api/ventas-contado/pendientes-produccion")
+async def pendientes_produccion(
+    db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Ventas confirmadas que aún no entraron a producción."""
+    _require_gestion_interna(x_api_key, current_user)
+    ventas = (db.query(VentaContado)
+              .filter(
+                  VentaContado.aliado_codigo.isnot(None),
+                  VentaContado.confirmacion_48hs_en.isnot(None),
+                  VentaContado.en_produccion_desde.is_(None),
+                  VentaContado.cobro_estado != "COBRADO",
+              )
+              .order_by(VentaContado.confirmacion_48hs_en.asc()).all())
     return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}
 
 
@@ -2932,11 +2967,15 @@ async def pendientes_entrega_cobro(
     db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
-    """Ventas de contado ya confirmadas, esperando registrar entrega + cobro."""
+    """Ventas en producción o confirmadas, esperando registrar entrega + cobro."""
     _require_gestion_interna(x_api_key, current_user)
     ventas = (db.query(VentaContado)
-              .filter(VentaContado.aliado_codigo.isnot(None), VentaContado.confirmacion_48hs_en.isnot(None), VentaContado.cobro_estado != "COBRADO")
-              .order_by(VentaContado.confirmacion_48hs_en.asc()).all())
+              .filter(
+                  VentaContado.aliado_codigo.isnot(None),
+                  VentaContado.en_produccion_desde.isnot(None),
+                  VentaContado.cobro_estado != "COBRADO",
+              )
+              .order_by(VentaContado.en_produccion_desde.asc()).all())
     return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}
 
 
@@ -2957,6 +2996,7 @@ async def mis_ventas(socio: Aliado = Depends(require_socio), db: Session = Depen
             "distancia_km": v.distancia_km, "flete_calculado": v.flete_calculado,
             "cobro_estado": v.cobro_estado, "notas": v.notas,
             "confirmacion_48hs": bool(v.confirmacion_48hs_en),
+            "en_produccion": bool(v.en_produccion_desde),
             "contrato_generado": bool(v.contrato_generado_en),
             "fecha_entrega": v.fecha_instalacion.date().isoformat() if v.fecha_instalacion else None,
             "created_at": v.created_at.isoformat() if v.created_at else None,
@@ -3212,8 +3252,40 @@ async def socio_capacitacion(socio: Aliado = Depends(require_socio), db: Session
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# RANKING — solo ventas con plata real ya movida
+# RANKING — por cantidad de ventas cargadas (contado cuenta desde creación)
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def _build_ranking(db: Session, desde: datetime) -> list:
+    filas = {}
+    for a in db.query(Aliado).filter(Aliado.estado == "activo").all():
+        partes = a.nombre.strip().split()
+        nombre_mostrado = partes[0] if len(partes) == 1 else f"{partes[0]} {partes[-1][0]}."
+        filas[a.codigo] = {
+            "codigo": a.codigo, "nombre": nombre_mostrado, "zona": a.zona or "",
+            "cantidad_ventas": 0, "verificado": _esta_verificado(a),
+        }
+    # Contado: cuenta desde el momento en que el socio carga la venta
+    for v in db.query(VentaContado).filter(
+        VentaContado.aliado_codigo.isnot(None), VentaContado.created_at >= desde
+    ).all():
+        if v.aliado_codigo in filas:
+            filas[v.aliado_codigo]["cantidad_ventas"] += 1
+    # Financiado: cuenta cuando el cliente paga la inscripción
+    for v in db.query(VentaFinanciada).filter(
+        VentaFinanciada.aliado_codigo.isnot(None),
+        VentaFinanciada.inscripcion_pagada_en.isnot(None),
+        VentaFinanciada.inscripcion_pagada_en >= desde,
+    ).all():
+        if v.aliado_codigo in filas:
+            filas[v.aliado_codigo]["cantidad_ventas"] += 1
+
+    ranking = sorted(filas.values(), key=lambda x: x["cantidad_ventas"], reverse=True)
+    medallas = {1: "🥇", 2: "🥈", 3: "🥉"}
+    for i, f in enumerate(ranking, 1):
+        f["puesto"] = i
+        f["medalla"] = medallas.get(i)
+    return ranking
+
 
 @router.get("/api/socio/ranking")
 async def ranking_socios(
@@ -3222,42 +3294,24 @@ async def ranking_socios(
     socio: Optional[Aliado] = Depends(get_current_socio),
 ):
     """
-    Ranking nacional: nombre + inicial de apellido, zona, monto facturado.
-    Accesible con sesión de socio (panel) O con la API key (Franco, para el
-    resumen de los viernes) — nunca sin ninguna de las dos.
-    Cuenta financiado con inscripción ya pagada, y contado ya cobrado —
-    no hace falta esperar la auditoría/48hs para aparecer en el ranking.
+    Ranking por CANTIDAD de ventas. Contado cuenta desde que el socio la carga;
+    financiado desde que la inscripción está pagada.
+    Accesible con sesión de socio O API key.
     """
     if not socio and not (x_api_key and x_api_key == API_KEY):
         raise HTTPException(401, "No autenticado")
 
-    dias = {"semana": 7, "mes": 30, "trimestre": 90, "año": 365}.get(periodo, 30)
-    desde = datetime.now() - timedelta(days=dias)
-
-    filas = {}
-    for a in db.query(Aliado).filter(Aliado.estado == "activo").all():
-        partes = a.nombre.strip().split()
-        nombre_mostrado = partes[0] if len(partes) == 1 else f"{partes[0]} {partes[-1][0]}."
-        filas[a.codigo] = {
-            "codigo": a.codigo, "nombre": nombre_mostrado, "zona": a.zona or "",
-            "monto_facturado": 0.0, "verificado": _esta_verificado(a),
+    if periodo == "ambos":
+        desde_semana = datetime.now() - timedelta(days=7)
+        desde_mes = datetime.now() - timedelta(days=30)
+        return {
+            "semana": _build_ranking(db, desde_semana),
+            "mes": _build_ranking(db, desde_mes),
         }
 
-    for v in db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo.isnot(None), VentaFinanciada.inscripcion_pagada_en.isnot(None), VentaFinanciada.inscripcion_pagada_en >= desde).all():
-        if v.aliado_codigo in filas:
-            filas[v.aliado_codigo]["monto_facturado"] += (v.precio_total or 0)
-
-    for v in db.query(VentaContado).filter(VentaContado.aliado_codigo.isnot(None), VentaContado.cobro_estado == "COBRADO", VentaContado.cobro_fecha.isnot(None), VentaContado.cobro_fecha >= desde).all():
-        if v.aliado_codigo in filas:
-            filas[v.aliado_codigo]["monto_facturado"] += (v.precio_final or 0)
-
-    ranking = sorted(filas.values(), key=lambda x: x["monto_facturado"], reverse=True)
-    medallas = {1: "🥇", 2: "🥈", 3: "🥉"}
-    for i, f in enumerate(ranking, 1):
-        f["puesto"] = i
-        f["monto_facturado"] = round(f["monto_facturado"], 2)
-        f["medalla"] = medallas.get(i)
-    return {"periodo": periodo, "ranking": ranking}
+    dias = {"semana": 7, "mes": 30, "trimestre": 90, "año": 365}.get(periodo, 30)
+    desde = datetime.now() - timedelta(days=dias)
+    return {"periodo": periodo, "ranking": _build_ranking(db, desde)}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -131,6 +131,8 @@
   .pill.ok{background:linear-gradient(135deg,rgba(27,122,90,.2),rgba(78,195,181,.12));border:1px solid rgba(78,195,181,.4);color:var(--teal-light)}
   .pill.warn{background:rgba(154,103,0,.15);border:1px solid rgba(229,184,75,.4);color:var(--gold-light)}
   .pill.bad{background:rgba(179,38,30,.12);border:1px solid rgba(179,38,30,.3);color:#f28b82}
+  .pill.info{background:rgba(14,165,233,.12);border:1px solid rgba(14,165,233,.4);color:#38bdf8}
+  .pill.muted{background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.3);color:var(--text-muted)}
   .card,.venta-card{
     border:1px solid rgba(229,184,75,.12);
     box-shadow:0 4px 16px rgba(11,35,80,.1);
@@ -1239,11 +1241,14 @@ function _renderCronograma(filtro){
     for(const v of items){
       const cobrada  = v.cobro_estado === 'COBRADO';
       const confirmada = !!v.confirmacion_48hs;
+      const enProduccion = !!v.en_produccion;
       const estadoBadge = cobrada
-        ? '<span class="pill ok">Entregada ✓</span>'
-        : (confirmada
-           ? '<span class="pill warn">Confirmada</span>'
-           : '<span class="pill warn">Coordinada</span>');
+        ? '<span class="pill ok">✅ Entregada y cobrada</span>'
+        : (enProduccion
+           ? '<span class="pill info">🏭 En producción</span>'
+           : (confirmada
+              ? '<span class="pill warn">📞 Coordinada</span>'
+              : '<span class="pill muted">⏳ Esperando contacto</span>'));
       const detalle = [v.color, v.cliente_localidad].filter(Boolean).join(' · ');
       const comisionEst = fmt((v.precio_final || 0) * 0.05);
 
@@ -1746,7 +1751,14 @@ async function cargarMisVentas(){
   for(const v of contadoOrdenado){
     const cobrado = v.cobro_estado==='COBRADO';
     const confirmada = !!v.confirmacion_48hs;
-    const pill = cobrado ? '<span class="pill ok">Entregada y cobrada</span>' : (confirmada ? '<span class="pill warn">Confirmada — pendiente entrega</span>' : '<span class="pill warn">Esperando contacto (48hs)</span>');
+    const enProd = !!v.en_produccion;
+    const pill = cobrado
+      ? '<span class="pill ok">✅ Entregada y cobrada</span>'
+      : (enProd
+         ? '<span class="pill info">🏭 En producción</span>'
+         : (confirmada
+            ? '<span class="pill warn">📞 Coordinada — pendiente producción</span>'
+            : '<span class="pill muted">⏳ Esperando contacto (48hs)</span>'));
     const detalle = [v.color, v.cliente_domicilio, v.cliente_localidad].filter(Boolean).join(' · ');
     const flete = v.flete_calculado ? `Flete est.: ${fmt(v.flete_calculado)} (${v.distancia_km||0} km)` : '';
     const fechaEntregaCell = v.fecha_entrega
@@ -1754,13 +1766,8 @@ async function cargarMisVentas(){
       : `<span style="color:var(--text-muted);font-size:12px">—</span>`;
     const puedeModificar = !cobrado && !confirmada;
     let accionC = '';
-    if(v.contrato_generado){
-      accionC = `<a href="/api/socio/ventas/contado/${v.id}/contrato-pdf" target="_blank" class="btn-ghost" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:12.5px">📄 Contrato</a>`;
-    } else {
-      accionC = `<button class="btn-teal" style="font-size:12.5px;padding:6px 12px" onclick="generarContratoContado(${v.id})">Generar contrato</button>`;
-    }
     if(puedeModificar){
-      accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirEditarVenta(${JSON.stringify(v).replace(/"/g,'&quot;')})">✏️ Editar</button>`;
+      accionC += `<button class="btn-ghost" style="font-size:12.5px;padding:5px 10px" onclick="abrirEditarVenta(${JSON.stringify(v).replace(/"/g,'&quot;')})">✏️ Editar</button>`;
       accionC += ` <button class="btn-ghost" style="font-size:12.5px;padding:5px 10px;color:#d63031" onclick="eliminarVentaContado(${v.id},'${(v.cliente_nombre||'').replace(/'/g,"\\'")}')">🗑️</button>`;
     }
     hc += `<tr><td>${v.cliente_nombre}${detalle?`<div style="font-size:11px;color:var(--text-muted)">${detalle}</div>`:''}</td><td>${v.producto} ${v.modelo_especifico}${flete?`<div style="font-size:11px;color:var(--text-muted)">${flete}</div>`:''}</td><td>${fmt(v.precio_final)}</td><td style="white-space:nowrap">${fechaEntregaCell}</td><td>${pill}</td><td style="white-space:nowrap">${accionC}</td></tr>`;

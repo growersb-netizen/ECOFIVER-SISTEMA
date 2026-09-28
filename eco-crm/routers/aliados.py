@@ -25,7 +25,7 @@ from sqlalchemy import func as sqlfunc
 from database.database import get_db
 from database.models import (
     Aliado, Comision, AuditoriaPaquete, SolicitudContador,
-    Lead, Usuario, VentaContado,
+    Lead, Usuario, VentaContado, VentaFinanciada,
 )
 from routers.auth import get_current_user, get_user_roles, require_auth
 
@@ -279,20 +279,34 @@ async def ranking_aliados(
             q_com = q_com.filter(Comision.created_at >= desde)
         comisiones = q_com.all()
 
+        q_vc = db.query(VentaContado).filter(VentaContado.aliado_codigo == a.codigo)
+        if desde is not None:
+            q_vc = q_vc.filter(VentaContado.created_at >= desde)
+        ventas_contado = q_vc.count()
+
+        q_vf = db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo == a.codigo)
+        if desde is not None:
+            q_vf = q_vf.filter(VentaFinanciada.created_at >= desde)
+        ventas_financiado = q_vf.count()
+
         filas.append({
             "codigo": a.codigo,
             "nombre": a.nombre,
             "zona": a.zona or "",
+            "ventas_contado": ventas_contado,
+            "ventas_financiado": ventas_financiado,
+            "cantidad_ventas": ventas_contado + ventas_financiado,
             "leads_cargados": len(leads),
-            "leads_verificados": sum(1 for l in leads if (l.estado_verificacion or "") == "verificado"),
             "comisiones_generadas": len(comisiones),
             "monto_total": round(sum(c.monto or 0 for c in comisiones), 2),
             "monto_pendiente": round(sum(c.monto or 0 for c in comisiones if c.estado == "pendiente"), 2),
         })
 
-    filas.sort(key=lambda x: (x["leads_verificados"], x["monto_total"]), reverse=True)
+    filas.sort(key=lambda x: x["cantidad_ventas"], reverse=True)
+    medallas = {1: "🥇", 2: "🥈", 3: "🥉"}
     for i, f in enumerate(filas, 1):
         f["puesto"] = i
+        f["medalla"] = medallas.get(i)
     return {"periodo": periodo, "desde": desde.isoformat() if desde else None, "ranking": filas}
 
 

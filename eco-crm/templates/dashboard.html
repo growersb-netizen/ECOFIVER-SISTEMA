@@ -22,8 +22,10 @@
   <a href="/ventas-contado" class="qa-card"><span class="qa-ico">💰</span><span class="qa-lbl">Ventas</span></a>
   <a href="/logistica" class="qa-card"><span class="qa-ico">🚚</span><span class="qa-lbl">Entregas</span></a>
   <a href="/fabrica" class="qa-card"><span class="qa-ico">🏭</span><span class="qa-lbl">Órdenes fábrica</span></a>
-  <a href="/cobranzas" class="qa-card"><span class="qa-ico">💳</span><span class="qa-lbl">Cobranzas</span></a>
   <a href="/control-agentes" class="qa-card"><span class="qa-ico">🧠</span><span class="qa-lbl">Control IA</span></a>
+  {% if 'COBRANZAS' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+  <a href="/cobranzas" class="qa-card"><span class="qa-ico">💳</span><span class="qa-lbl">Cobranzas</span></a>
+  {% endif %}
   {% elif 'COORDINADOR_OPERATIVO' in roles %}
   <a href="/logistica" class="qa-card"><span class="qa-ico">🚚</span><span class="qa-lbl">Entregas</span></a>
   <a href="/logistica?tab=entregas" class="qa-card"><span class="qa-ico">📋</span><span class="qa-lbl">Pendientes coord.</span></a>

@@ -2326,8 +2326,15 @@ async def _generar_contrato_pdf(
     db.commit()
 
     tipo_producto       = (venta.producto or "PISCINA").upper()
-    tipo_producto_label = "Piscina de Fibra de Vidrio" if tipo_producto == "PISCINA" else "Módulo Habitacional"
-    tipologia           = "Fibra de Vidrio"             if tipo_producto == "PISCINA" else "Estructural"
+    if tipo_producto == "PISCINA":
+        tipo_producto_label = "Piscina de Fibra de Vidrio"
+        tipologia           = "Fibra de Vidrio"
+    elif tipo_producto == "VIVIENDA":
+        tipo_producto_label = "Vivienda Modular"
+        tipologia           = "Estructural"
+    else:
+        tipo_producto_label = "Módulo Habitacional"
+        tipologia           = "Estructural"
 
     medidas = _MEDIDAS_PDF.get(venta.modelo_especifico or "", {})
 
@@ -2608,8 +2615,15 @@ async def _generar_contrato_contado_pdf_socio(venta: VentaContado, socio: Aliado
     from routers.catalogo import _MEDIDAS_PDF
 
     tipo_producto       = (venta.producto or "PISCINA").upper()
-    tipo_producto_label = "Piscina de Fibra de Vidrio" if tipo_producto == "PISCINA" else "Módulo Habitacional"
-    tipologia           = "Fibra de Vidrio"             if tipo_producto == "PISCINA" else "Estructural"
+    if tipo_producto == "PISCINA":
+        tipo_producto_label = "Piscina de Fibra de Vidrio"
+        tipologia           = "Fibra de Vidrio"
+    elif tipo_producto == "VIVIENDA":
+        tipo_producto_label = "Vivienda Modular"
+        tipologia           = "Estructural"
+    else:
+        tipo_producto_label = "Módulo Habitacional"
+        tipologia           = "Estructural"
 
     medidas = _MEDIDAS_PDF.get(venta.modelo_especifico or "", {})
     largo   = medidas.get("largo_m",          "—")
@@ -2815,18 +2829,22 @@ async def completar_auditoria_bienvenida(
 
     comision = None
     if venta.aliado_codigo:
-        pct = obtener_porcentaje_comision(db, "financiado", venta.producto, venta.modelo_especifico)
-        comision = Comision(
-            aliado_codigo=venta.aliado_codigo,
-            solicitud_numero=venta.numero_solicitud or "",
-            tipo="entrada",
-            monto=round((venta.valor_cuota or 0) * pct, 2),
-            estado="pendiente",
-            venta_financiada_id=venta.id,
-        )
-        db.add(comision)
-        db.commit()
-        _notificar_socio(db, venta.aliado_codigo, f"✅ Hicimos la bienvenida a {venta.cliente_nombre}. Se liberó tu comisión de ${comision.monto:,.0f}".replace(",", ".") + " — la vas a ver como pendiente en tu panel hasta que te la transfiramos.")
+        ya_tenia_comision = db.query(Comision).filter(
+            Comision.venta_financiada_id == venta.id, Comision.tipo == "entrada"
+        ).first()
+        if not ya_tenia_comision:
+            pct = obtener_porcentaje_comision(db, "financiado", venta.producto, venta.modelo_especifico)
+            comision = Comision(
+                aliado_codigo=venta.aliado_codigo,
+                solicitud_numero=venta.numero_solicitud or "",
+                tipo="entrada",
+                monto=round((venta.valor_cuota or 0) * pct, 2),
+                estado="pendiente",
+                venta_financiada_id=venta.id,
+            )
+            db.add(comision)
+            db.commit()
+            _notificar_socio(db, venta.aliado_codigo, f"✅ Hicimos la bienvenida a {venta.cliente_nombre}. Se liberó tu comisión de ${comision.monto:,.0f}".replace(",", ".") + " — la vas a ver como pendiente en tu panel hasta que te la transfiramos.")
 
     return {"ok": True, "comision_generada": comision.monto if comision else None}
 

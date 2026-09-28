@@ -290,6 +290,8 @@ def _titulo_contrato(tipo_producto: str, tipo_plan: str = "FINANCIADO") -> str:
         if tipo_producto == "COMBO":
             return "Contrato de Compraventa de Piscina y Módulo"
         return "Contrato de Compraventa de Piscina de Fibra de Vidrio"
+    if tipo_producto == "VIVIENDA":
+        return "Contrato de Financiación de Vivienda Modular"
     if tipo_producto == "MODULO":
         return "Contrato de Financiación de Módulo"
     if tipo_producto == "COMBO":

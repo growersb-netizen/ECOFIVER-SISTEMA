@@ -429,6 +429,7 @@ async def list_leads(
     asesor_apertura_id: Optional[int] = None,  # alias por compatibilidad
     origen: Optional[str] = None,
     rellamados: Optional[int] = None,  # 1 = solo base RELLAMADOS, 0 = excluir
+    con_socio: Optional[str] = None,   # "si" = con aliado_codigo, "no" = sin aliado_codigo
     search: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
@@ -457,6 +458,10 @@ async def list_leads(
         q = q.filter(Lead.en_rellamados == True)
     elif rellamados == 0:
         q = q.filter(or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False))
+    if con_socio == "si":
+        q = q.filter(Lead.aliado_codigo.isnot(None), Lead.aliado_codigo != "")
+    elif con_socio == "no":
+        q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
     if search:
         q = q.filter(or_(
             Lead.nombre.ilike(f"%{search}%"),
@@ -920,9 +925,9 @@ async def update_lead(
 
     for field in ["nombre", "telefono", "localidad", "producto_interes", "modelo_especifico",
                   "forma_pago", "estado", "asesor_apertura_id", "supervisor_cierre_id",
-                  "origen", "notas"]:
+                  "origen", "notas", "aliado_codigo"]:
         if field in data:
-            setattr(lead, field, data[field])
+            setattr(lead, field, data[field] or None if field == "aliado_codigo" else data[field])
 
     if "proximo_seguimiento" in data:
         try:
@@ -990,6 +995,36 @@ async def delete_lead(
     db.delete(lead)
     db.commit()
     return {"ok": True}
+
+
+@router.patch("/api/leads/{lead_id}/asignar-aliado")
+async def asignar_aliado(
+    lead_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_roles("ADMIN"))
+):
+    """Asigna (o desasigna) un lead a un socio comercial para que lo contacte."""
+    from database.models import Aliado
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(404, "Lead no encontrado")
+    data = await request.json()
+    codigo = (data.get("aliado_codigo") or "").strip().upper() or None
+    if codigo:
+        al = db.query(Aliado).filter(Aliado.codigo == codigo).first()
+        if not al:
+            raise HTTPException(400, f"Socio '{codigo}' inexistente")
+        if al.estado != "activo":
+            raise HTTPException(400, f"Socio '{codigo}' no está activo")
+        if not al.contrato_firmado:
+            raise HTTPException(400, f"Socio '{codigo}' no tiene contrato firmado")
+    lead.aliado_codigo = codigo
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    nota = f"[{ts}] 🤝 {'Asignado a socio ' + codigo if codigo else 'Desasignado de socio'} por {current_user.nombre}"
+    lead.notas = (lead.notas or "") + f"\n{nota}"
+    db.commit()
+    return {"ok": True, "aliado_codigo": codigo}
 
 
 @router.get("/api/leads/{lead_id}/interacciones")

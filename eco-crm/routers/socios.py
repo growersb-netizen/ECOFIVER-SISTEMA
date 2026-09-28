@@ -1475,6 +1475,37 @@ QUIZ_AUTOEVALUACION = [
 ]
 
 
+@router.get("/api/socio/leads")
+async def socio_leads(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """Leads asignados a este socio para que los contacte directamente."""
+    _require_verificado(socio)
+    leads = (
+        db.query(Lead)
+        .filter(Lead.aliado_codigo == socio.codigo)
+        .order_by(Lead.created_at.desc())
+        .all()
+    )
+    return {
+        "total": len(leads),
+        "leads": [
+            {
+                "id": l.id,
+                "nombre": l.nombre,
+                "telefono": l.telefono,
+                "localidad": l.localidad or "",
+                "producto_interes": l.producto_interes or "SIN_DEFINIR",
+                "modelo_especifico": l.modelo_especifico or "",
+                "forma_pago": l.forma_pago or "SIN_DEFINIR",
+                "estado": l.estado or "NUEVO",
+                "notas": l.notas or "",
+                "created_at": l.created_at.isoformat() if l.created_at else "",
+                "proximo_seguimiento": l.proximo_seguimiento.isoformat() if l.proximo_seguimiento else None,
+            }
+            for l in leads
+        ],
+    }
+
+
 @router.get("/api/socio/quiz")
 async def socio_quiz(socio: Aliado = Depends(require_socio)):
     """Autoevaluación educativa — no bloquea ni aprueba nada."""
@@ -3764,6 +3795,29 @@ async def set_socio_admin_crm(
     db.commit()
     estado = "habilitado" if aliado.es_admin_crm else "revocado"
     return {"ok": True, "mensaje": f"Acceso admin del programa {estado} para {aliado.nombre}.", "es_admin_crm": aliado.es_admin_crm}
+
+
+@router.get("/admin/preview-socio/{aliado_codigo}", response_class=RedirectResponse)
+async def admin_preview_socio(
+    aliado_codigo: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """Permite a un admin CRM abrir el panel de socios como cualquier aliado (modo preview)."""
+    roles = get_user_roles(current_user)
+    if "ADMIN" not in roles:
+        raise HTTPException(403, "Solo administradores pueden usar el modo preview de socios")
+    aliado = db.query(Aliado).filter(
+        Aliado.codigo == aliado_codigo.upper(),
+        Aliado.estado == "activo",
+    ).first()
+    if not aliado:
+        raise HTTPException(404, f"Socio '{aliado_codigo}' no encontrado o no activo")
+    token = _crear_token_socio(aliado.id)
+    redirect = RedirectResponse(url="/panel-socio", status_code=303)
+    redirect.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=3600, samesite="lax")
+    return redirect
 
 
 @router.get("/panel-socio", response_class=HTMLResponse)

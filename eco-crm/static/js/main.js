@@ -887,7 +887,7 @@ function renderLeadsList() {
   const tbody = document.getElementById('leads-tbody');
   if (!tbody) return;
 
-  const cols = typeof isAdmin !== 'undefined' && isAdmin ? 9 : 8;
+  const cols = typeof isAdmin !== 'undefined' && isAdmin ? 10 : 9;
 
   if (!leadsData.length) {
     tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text-muted)">No hay leads</td></tr>`;
@@ -950,6 +950,7 @@ function renderLeadsList() {
       <td>${l.producto_interes || '—'}</td>
       <td>${badge(FORMA_PAGO, l.forma_pago)}</td>
       <td style="font-size:13px">${l.asesor_apertura_nombre || '—'}</td>
+      <td style="font-size:12px">${l.aliado_codigo ? `<span style="background:rgba(229,184,75,.15);color:#b8860b;font-weight:700;padding:2px 7px;border-radius:10px;font-size:11px">${l.aliado_codigo}</span>` : '—'}</td>
       <td style="font-size:12px;color:var(--text-muted)">${formatDate(l.created_at)}</td>
     </tr>`;
   }).join('');

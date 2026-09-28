@@ -365,6 +365,7 @@
     <a class="nav-item" data-section="simulador" onclick="nav('simulador')">🧮 Simulador de cuotas</a>
     <a class="nav-item" data-section="ventas" onclick="nav('ventas')">💼 Cargar venta</a>
     <a class="nav-item" data-section="mis-ventas" onclick="nav('mis-ventas')">📦 Mis ventas</a>
+    <a class="nav-item" data-section="mis-leads" onclick="nav('mis-leads')">🎯 Mis leads asignados</a>
     <a class="nav-item" data-section="cronograma" onclick="nav('cronograma')">📅 Cronograma de entregas</a>
     <a class="nav-item" data-section="comisiones" onclick="nav('comisiones')">💰 Mis comisiones</a>
     <a class="nav-item" data-section="ranking" onclick="nav('ranking')">🏆 Ranking</a>
@@ -560,6 +561,20 @@
       <div id="tabla-financiado">Cargando…</div>
       <h3 style="font-size:14px;margin-top:24px">Contado</h3>
       <div id="tabla-contado"></div>
+    </section>
+
+    <!-- MIS LEADS ASIGNADOS -->
+    <section class="section" id="sec-mis-leads">
+      <div class="section-header">
+        <h2>Mis leads asignados</h2>
+        <button class="btn-ghost" onclick="cargarMisLeads()" style="font-size:13px">↺ Actualizar</button>
+      </div>
+      <p style="color:var(--text-muted);font-size:13.5px;margin-top:-6px;margin-bottom:20px">
+        Personas que el equipo EcoFiver te asignó para que las contactes. Presentate como Socio Comercial y coordiná una consulta.
+      </p>
+      <div id="mis-leads-contenido">
+        <p style="color:var(--text-muted)">Cargando…</p>
+      </div>
     </section>
 
     <!-- CRONOGRAMA DE ENTREGAS -->
@@ -1047,6 +1062,7 @@ function nav(section){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+section).classList.add('active');
   if(section==='mis-ventas') cargarMisVentas();
+  if(section==='mis-leads') cargarMisLeads();
   if(section==='cronograma') cargarCronograma();
   if(section==='comisiones') cargarComisionesTabla();
   if(section==='simulador') cargarMisPresupuestos();
@@ -1054,6 +1070,72 @@ function nav(section){
   if(section==='biblioteca') cargarBiblioteca();
   if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
   if(section==='ayuda') cargarFaq();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MIS LEADS ASIGNADOS
+// ══════════════════════════════════════════════════════════════════
+const LEAD_ESTADO_LABEL = {
+  NUEVO:'Nuevo', CONTACTADO:'Contactado', EN_SEGUIMIENTO:'En seguimiento',
+  VIDEOLLAMADA_AGENDADA:'Videollamada agendada', CERRADO_GANADO:'Vendido',
+  CERRADO_PERDIDO:'No avanzó', SIN_CONTACTO:'Sin contacto',
+};
+const LEAD_ESTADO_COLOR = {
+  NUEVO:'var(--teal)', CONTACTADO:'#3b82f6', EN_SEGUIMIENTO:'#f59e0b',
+  VIDEOLLAMADA_AGENDADA:'#8b5cf6', CERRADO_GANADO:'#22c55e',
+  CERRADO_PERDIDO:'#ef4444', SIN_CONTACTO:'#6b7280',
+};
+const FORMA_PAGO_LABEL = { FINANCIADO:'Financiado', CONTADO:'Contado', SIN_DEFINIR:'A definir' };
+
+async function cargarMisLeads(){
+  const cont = document.getElementById('mis-leads-contenido');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  try {
+    const data = await api('/api/socio/leads');
+    if (!data.leads || data.leads.length === 0) {
+      cont.innerHTML = `
+        <div style="text-align:center;padding:48px 20px;color:var(--text-muted)">
+          <div style="font-size:40px;margin-bottom:12px">🎯</div>
+          <p>No tenés leads asignados todavía.</p>
+          <p style="font-size:13px">Cuando el equipo EcoFiver te asigne un interesado, aparecerá acá con sus datos de contacto.</p>
+        </div>`;
+      return;
+    }
+    const rows = data.leads.map(l => {
+      const estadoLabel = LEAD_ESTADO_LABEL[l.estado] || l.estado;
+      const estadoColor = LEAD_ESTADO_COLOR[l.estado] || 'var(--text-muted)';
+      const forma = FORMA_PAGO_LABEL[l.forma_pago] || l.forma_pago;
+      const fecha = l.created_at ? new Date(l.created_at).toLocaleDateString('es-AR') : '';
+      const waLink = l.telefono
+        ? `<a href="https://wa.me/${l.telefono.replace(/\D/g,'')}" target="_blank" rel="noopener"
+             style="color:var(--teal);text-decoration:none;font-weight:700">
+             📱 WhatsApp
+           </a>`
+        : l.telefono;
+      return `
+        <div class="venta-card" style="margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:700;font-size:15px">${l.nombre}</div>
+              <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${l.localidad || ''}</div>
+            </div>
+            <span style="font-size:12px;font-weight:700;color:${estadoColor};background:${estadoColor}22;padding:3px 10px;border-radius:12px;white-space:nowrap">${estadoLabel}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:12px;font-size:13px">
+            <div><span style="color:var(--text-muted)">Teléfono:</span><br><strong>${l.telefono || '—'}</strong> ${l.telefono ? waLink : ''}</div>
+            <div><span style="color:var(--text-muted)">Interés:</span><br><strong>${l.producto_interes || '—'}${l.modelo_especifico ? ' · ' + l.modelo_especifico : ''}</strong></div>
+            <div><span style="color:var(--text-muted)">Forma de pago:</span><br><strong>${forma}</strong></div>
+            <div><span style="color:var(--text-muted)">Asignado:</span><br><strong>${fecha}</strong></div>
+          </div>
+          ${l.notas ? `<div style="margin-top:10px;font-size:12.5px;color:var(--text-muted);background:rgba(0,0,0,.03);border-radius:6px;padding:8px 10px;border-left:3px solid var(--teal)">${l.notas.replace(/\n/g,'<br>')}</div>` : ''}
+        </div>`;
+    }).join('');
+    cont.innerHTML = `
+      <div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">${data.total} lead${data.total !== 1 ? 's' : ''} asignado${data.total !== 1 ? 's' : ''}</div>
+      ${rows}`;
+  } catch(e) {
+    cont.innerHTML = '<p style="color:#ef4444">Error al cargar leads. Intentá de nuevo.</p>';
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════

@@ -208,6 +208,7 @@ app.include_router(agentes.router)   # antes de leads para que /sin-respuesta no
 app.include_router(dashboard.router)
 app.include_router(leads.router)
 app.include_router(videollamadas.router)
+app.include_router(socios.router)           # antes de ventas_contado/financiadas para que sus rutas literales (pendientes-*) no colisionen con los path params {venta_id: int}
 app.include_router(ventas_contado.router)
 app.include_router(ventas_financiadas.router)
 app.include_router(cobranzas.router)
@@ -241,7 +242,6 @@ app.include_router(testimonial.router)  # público: /testimonial/{token}
 app.include_router(inbox.router)        # bandeja de entrada WhatsApp
 app.include_router(public_landing.router)  # público, sin API key: /api/public/landing-lead
 app.include_router(aliados.router)          # canal Aliados Comerciales (Franco)
-app.include_router(socios.router)           # Plataforma de Socios Comerciales (registro autoservicio)
 app.include_router(cobranza_historica.router)  # Cobranza histórica Construsol — independiente de EcoFiver
 app.include_router(ml_publicaciones.router) # MercadoLibre — cola de publicaciones
 app.include_router(negocio.router)          # Configuración del negocio

@@ -361,6 +361,11 @@ async def actualizar_aliado(
         a.email = new_email
     if "password" in data and data["password"]:
         a.password_hash = _pwd.hash(data["password"].strip())
+        a.intentos_fallidos = 0
+        a.bloqueado_hasta = None
+    if "desbloquear" in data and data["desbloquear"]:
+        a.intentos_fallidos = 0
+        a.bloqueado_hasta = None
     if "primer_login" in data:
         a.primer_login = bool(data["primer_login"])
 

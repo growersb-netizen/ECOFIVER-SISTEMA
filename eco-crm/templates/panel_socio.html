@@ -615,8 +615,222 @@
 
     <!-- RANKING -->
     <section class="section" id="sec-ranking">
-      <h2>Ranking nacional</h2>
-      <div id="tabla-ranking">Cargando…</div>
+      <style>
+        .rk-root { max-width: 680px; }
+
+        /* ── Tu posición ── */
+        .rk-mi-pos {
+          background: var(--navy);
+          border-radius: 14px;
+          padding: 18px 22px;
+          margin-bottom: 28px;
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          position: relative;
+          overflow: hidden;
+        }
+        .rk-mi-pos::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse at 80% 50%, rgba(78,195,181,.18) 0%, transparent 70%);
+          pointer-events: none;
+        }
+        .rk-mi-badge {
+          font-family: Georgia, serif;
+          font-size: 38px;
+          font-weight: 800;
+          color: var(--teal);
+          line-height: 1;
+          min-width: 52px;
+          text-align: center;
+        }
+        .rk-mi-info { flex: 1; }
+        .rk-mi-nombre { color: #fff; font-weight: 700; font-size: 16px; margin: 0 0 2px; }
+        .rk-mi-sub { color: #8ea3c4; font-size: 13px; }
+        .rk-mi-gap {
+          background: rgba(78,195,181,.12);
+          border: 1px solid rgba(78,195,181,.28);
+          border-radius: 8px;
+          padding: 8px 14px;
+          text-align: center;
+          color: var(--teal);
+          font-size: 12px;
+          font-weight: 700;
+          white-space: nowrap;
+          line-height: 1.4;
+        }
+        .rk-mi-gap strong { display: block; font-size: 20px; font-family: Georgia, serif; }
+
+        /* ── Períodos ── */
+        .rk-tabs { display: flex; gap: 6px; margin-bottom: 24px; }
+        .rk-tab {
+          padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 700;
+          cursor: pointer; border: 1px solid var(--border); background: var(--surface);
+          color: var(--text-muted); transition: all .18s;
+        }
+        .rk-tab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+        /* ── Podio ── */
+        .rk-podium {
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          gap: 0;
+          margin-bottom: 32px;
+          padding: 0 8px;
+          perspective: 900px;
+        }
+        .rk-pod {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          flex: 1;
+          max-width: 180px;
+        }
+        .rk-pod-card {
+          width: 100%;
+          padding: 14px 10px 10px;
+          text-align: center;
+          position: relative;
+          border-radius: 12px 12px 0 0;
+        }
+        .rk-pod-avatar {
+          width: 44px; height: 44px;
+          border-radius: 50%;
+          margin: 0 auto 8px;
+          display: flex; align-items: center; justify-content: center;
+          font-family: Georgia, serif; font-size: 18px; font-weight: 800;
+        }
+        .rk-pod-nombre {
+          font-weight: 700; font-size: 13.5px;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          margin-bottom: 2px;
+        }
+        .rk-pod-zona { font-size: 11px; margin-bottom: 6px; }
+        .rk-pod-count {
+          font-family: Georgia, serif; font-weight: 800; font-size: 28px;
+          line-height: 1;
+        }
+        .rk-pod-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+        /* Plataforma 3D */
+        .rk-pod-platform {
+          width: 100%;
+          position: relative;
+          display: flex; align-items: center; justify-content: center;
+          font-family: Georgia, serif; font-weight: 800; font-size: 22px;
+          border-radius: 6px 6px 0 0;
+        }
+        .rk-pod-platform::after {
+          content: '';
+          position: absolute;
+          bottom: -7px; right: -7px;
+          width: 100%; height: 100%;
+          border-radius: 6px 6px 0 0;
+          z-index: -1;
+        }
+
+        /* Gold */
+        .rk-pod-1 .rk-pod-card  { background: linear-gradient(160deg, #fdf3d4 0%, #f5e19a 100%); }
+        .rk-pod-1 .rk-pod-avatar { background: var(--gold); color: var(--navy); }
+        .rk-pod-1 .rk-pod-nombre { color: var(--navy); }
+        .rk-pod-1 .rk-pod-zona   { color: #7a6010; }
+        .rk-pod-1 .rk-pod-count  { color: var(--gold-dark); }
+        .rk-pod-1 .rk-pod-label  { color: #9a7a18; }
+        .rk-pod-1 .rk-pod-platform {
+          height: 80px;
+          background: linear-gradient(180deg, #e5b84b 0%, #c9970d 100%);
+          color: #7a4a00;
+          box-shadow: 6px 6px 0 0 #8a5a00, 0 8px 24px rgba(229,184,75,.45);
+        }
+        .rk-pod-1 .rk-pod-platform::after { background: #7a4a00; }
+
+        /* Silver */
+        .rk-pod-2 .rk-pod-card  { background: linear-gradient(160deg, #f2f4f7 0%, #dde3ec 100%); }
+        .rk-pod-2 .rk-pod-avatar { background: #b0bec8; color: #fff; }
+        .rk-pod-2 .rk-pod-nombre { color: var(--navy); }
+        .rk-pod-2 .rk-pod-zona   { color: #6a7a8a; }
+        .rk-pod-2 .rk-pod-count  { color: #4a5a6a; }
+        .rk-pod-2 .rk-pod-label  { color: #6a7a8a; }
+        .rk-pod-2 .rk-pod-platform {
+          height: 56px;
+          background: linear-gradient(180deg, #c8d0da 0%, #a8b4c2 100%);
+          color: #4a5a6a;
+          box-shadow: 5px 5px 0 0 #708090, 0 6px 18px rgba(140,160,180,.35);
+        }
+        .rk-pod-2 .rk-pod-platform::after { background: #708090; }
+
+        /* Bronze */
+        .rk-pod-3 .rk-pod-card  { background: linear-gradient(160deg, #f7f0ea 0%, #ecdbbf 100%); }
+        .rk-pod-3 .rk-pod-avatar { background: #c8956a; color: #fff; }
+        .rk-pod-3 .rk-pod-nombre { color: var(--navy); }
+        .rk-pod-3 .rk-pod-zona   { color: #8a6040; }
+        .rk-pod-3 .rk-pod-count  { color: #7a4820; }
+        .rk-pod-3 .rk-pod-label  { color: #8a6040; }
+        .rk-pod-3 .rk-pod-platform {
+          height: 40px;
+          background: linear-gradient(180deg, #d4a76a 0%, #b8824a 100%);
+          color: #5a3010;
+          box-shadow: 5px 5px 0 0 #7a4020, 0 5px 14px rgba(160,110,50,.3);
+        }
+        .rk-pod-3 .rk-pod-platform::after { background: #7a4020; }
+
+        /* El socio actual destaca */
+        .rk-pod.es-yo .rk-pod-card { outline: 2px solid var(--teal); }
+        .rk-pod.es-yo .rk-pod-platform { outline: 2px solid var(--teal); }
+
+        /* ── Tabla resto ── */
+        .rk-lista { display: flex; flex-direction: column; gap: 6px; }
+        .rk-row {
+          display: flex; align-items: center; gap: 12px;
+          padding: 11px 16px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          transition: transform .14s, box-shadow .14s;
+          cursor: default;
+        }
+        .rk-row:hover {
+          transform: translateX(4px);
+          box-shadow: -3px 0 0 var(--teal), 0 2px 12px rgba(0,0,0,.07);
+        }
+        .rk-row.es-yo {
+          background: #EAF8F6;
+          border-color: var(--teal);
+          box-shadow: -3px 0 0 var(--teal);
+        }
+        .rk-row-num {
+          font-family: Georgia, serif; font-weight: 800; font-size: 17px;
+          color: var(--text-muted); min-width: 28px; text-align: center;
+        }
+        .rk-row-nombre { font-weight: 700; font-size: 14px; flex: 1; color: var(--text); }
+        .rk-row-zona { font-size: 12px; color: var(--text-muted); }
+        .rk-row-count {
+          font-family: Georgia, serif; font-weight: 800; font-size: 18px;
+          color: var(--navy);
+        }
+        .rk-row-label { font-size: 11px; color: var(--text-muted); text-align: right; }
+      </style>
+
+      <div class="rk-root">
+        <h2 style="margin-bottom:6px">Ranking nacional</h2>
+        <p style="color:var(--text-muted);font-size:13px;margin:0 0 20px">Por cantidad de ventas. Contado: desde que la cargás. Financiado: desde que se paga la inscripción.</p>
+
+        <!-- Tu posición -->
+        <div id="rk-mi-posicion"></div>
+
+        <!-- Pestañas período -->
+        <div class="rk-tabs">
+          <button class="rk-tab active" onclick="rkPeriodo('mes',this)">Este mes</button>
+          <button class="rk-tab" onclick="rkPeriodo('semana',this)">Esta semana</button>
+          <button class="rk-tab" onclick="rkPeriodo('trimestre',this)">Trimestre</button>
+        </div>
+
+        <!-- Contenido -->
+        <div id="rk-contenido"><div style="color:var(--text-muted);font-size:14px">Cargando…</div></div>
+      </div>
     </section>
 
     <!-- MI EMPRESA -->
@@ -1927,15 +2141,107 @@ async function subirFactura(comisionId){
   cargarComisionesTabla();
 }
 
+let _rkPeriodoActual = 'mes';
+
+function rkPeriodo(p, btn){
+  _rkPeriodoActual = p;
+  document.querySelectorAll('.rk-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  cargarRanking();
+}
+
 async function cargarRanking(){
-  const data = await api('/api/socio/ranking?periodo=mes').catch(()=>({ranking:[]}));
-  let h = '<table><tr><th>#</th><th>Socio</th><th>Zona</th><th>Ventas (mes)</th></tr>';
-  for(const f of data.ranking){
-    const tilde = f.verificado ? ' <span class="verificado-tilde" title="Perfil verificado">✓</span>' : '';
-    h += `<tr><td>${f.medalla||f.puesto}</td><td>${f.nombre}${tilde}</td><td>${f.zona||'—'}</td><td>${f.cantidad_ventas||0}</td></tr>`;
+  const contenedor = document.getElementById('rk-contenido');
+  const miPos = document.getElementById('rk-mi-posicion');
+  contenedor.innerHTML = '<div style="color:var(--text-muted);font-size:14px">Cargando…</div>';
+  miPos.innerHTML = '';
+
+  const data = await api('/api/socio/ranking?periodo=' + _rkPeriodoActual).catch(()=>({ranking:[]}));
+  const ranking = data.ranking || [];
+
+  if(!ranking.length){
+    contenedor.innerHTML = '<p style="color:var(--text-muted);font-size:14px">Sin datos para este período.</p>';
+    return;
   }
-  h += '</table>';
-  document.getElementById('tabla-ranking').innerHTML = h;
+
+  // Posición del socio actual
+  const mio = ranking.find(f => f.codigo === SOCIO.codigo);
+  if(mio){
+    const anterior = ranking[mio.puesto - 2]; // puesto es 1-based
+    const gap = anterior ? (anterior.cantidad_ventas - mio.cantidad_ventas) : null;
+    const etiquetaPeriodo = _rkPeriodoActual === 'mes' ? 'mes' : _rkPeriodoActual === 'semana' ? 'semana' : 'trimestre';
+    miPos.innerHTML = `
+      <div class="rk-mi-pos">
+        <div class="rk-mi-badge">${mio.medalla || '#'+mio.puesto}</div>
+        <div class="rk-mi-info">
+          <div class="rk-mi-nombre">${mio.nombre}${mio.verificado ? ' <span class="verificado-tilde">✓</span>' : ''}</div>
+          <div class="rk-mi-sub">${mio.zona||'Sin zona'} · ${mio.cantidad_ventas} venta${mio.cantidad_ventas!==1?'s':''} este ${etiquetaPeriodo}</div>
+        </div>
+        ${gap !== null && gap > 0 ? `
+        <div class="rk-mi-gap">
+          <strong>+${gap}</strong>
+          para subir al puesto ${mio.puesto - 1}
+        </div>` : gap === 0 || gap === null && mio.puesto === 1 ? `
+        <div class="rk-mi-gap" style="background:rgba(229,184,75,.18);border-color:var(--gold);color:var(--gold-dark)">
+          <strong>🥇</strong>
+          Líder del ranking
+        </div>` : ''}
+      </div>`;
+  }
+
+  // Podio top 3
+  const top3 = ranking.slice(0, Math.min(3, ranking.length));
+  // Reordenar: 2º izq, 1º centro, 3º der
+  const orden = top3.length === 3 ? [top3[1], top3[0], top3[2]] :
+                top3.length === 2 ? [top3[1], top3[0]] : [top3[0]];
+  const clasesPodio = top3.length === 3 ? ['rk-pod-2','rk-pod-1','rk-pod-3'] :
+                      top3.length === 2 ? ['rk-pod-2','rk-pod-1'] : ['rk-pod-1'];
+
+  let podioHtml = '<div class="rk-podium">';
+  orden.forEach((f, i) => {
+    const esYo = f.codigo === SOCIO.codigo ? ' es-yo' : '';
+    const iniciales = (f.nombre||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const alturas = top3.length === 3 ? [56,80,40] : top3.length === 2 ? [56,80] : [80];
+    podioHtml += `
+      <div class="rk-pod ${clasesPodio[i]}${esYo}">
+        <div class="rk-pod-card">
+          <div class="rk-pod-avatar">${iniciales}</div>
+          <div class="rk-pod-nombre" title="${f.nombre}">${f.nombre}</div>
+          <div class="rk-pod-zona">${f.zona||'—'}</div>
+          <div class="rk-pod-count">${f.cantidad_ventas}</div>
+          <div class="rk-pod-label">ventas</div>
+        </div>
+        <div class="rk-pod-platform" style="height:${alturas[i]}px">
+          ${f.medalla || '#'+f.puesto}
+        </div>
+      </div>`;
+  });
+  podioHtml += '</div>';
+
+  // Lista resto (puesto 4+)
+  const resto = ranking.slice(3);
+  let listaHtml = '';
+  if(resto.length){
+    listaHtml = '<div class="rk-lista">';
+    for(const f of resto){
+      const esYo = f.codigo === SOCIO.codigo ? ' es-yo' : '';
+      listaHtml += `
+        <div class="rk-row${esYo}">
+          <div class="rk-row-num">${f.puesto}</div>
+          <div>
+            <div class="rk-row-nombre">${f.nombre}${f.verificado ? ' <span class="verificado-tilde" title="Verificado">✓</span>' : ''}</div>
+            <div class="rk-row-zona">${f.zona||'—'}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div class="rk-row-count">${f.cantidad_ventas}</div>
+            <div class="rk-row-label">ventas</div>
+          </div>
+        </div>`;
+    }
+    listaHtml += '</div>';
+  }
+
+  contenedor.innerHTML = podioHtml + listaHtml;
 }
 
 let BIBLIOTECA_ITEMS = [];

@@ -1475,6 +1475,159 @@ QUIZ_AUTOEVALUACION = [
 ]
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# GESTIÓN DE LEADS — solo socios con es_admin_crm (Stefania)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _require_admin_socio(socio: Aliado):
+    if not socio.es_admin_crm:
+        raise HTTPException(403, "Sin permisos de administración")
+
+
+def _lead_dict_admin(l: Lead) -> dict:
+    return {
+        "id": l.id,
+        "nombre": l.nombre,
+        "telefono": l.telefono,
+        "localidad": l.localidad or "",
+        "producto_interes": l.producto_interes or "SIN_DEFINIR",
+        "forma_pago": l.forma_pago or "SIN_DEFINIR",
+        "estado": l.estado or "NUEVO",
+        "aliado_codigo": l.aliado_codigo or "",
+        "notas": l.notas or "",
+        "created_at": l.created_at.isoformat() if l.created_at else "",
+    }
+
+
+@router.get("/api/socio/admin/socios-activos")
+async def admin_socios_activos(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """Lista de socios activos para el selector de asignación."""
+    _require_admin_socio(socio)
+    items = (
+        db.query(Aliado)
+        .filter(Aliado.estado == "activo", Aliado.id != socio.id)
+        .order_by(Aliado.nombre)
+        .all()
+    )
+    return {"socios": [{"codigo": a.codigo, "nombre": a.nombre, "zona": a.zona or ""} for a in items]}
+
+
+@router.get("/api/socio/admin/leads")
+async def admin_leads(
+    sin_asignar: bool = False,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Todos los leads (o solo los sin asignar) para el panel de admin."""
+    _require_admin_socio(socio)
+    q = db.query(Lead)
+    if sin_asignar:
+        q = q.filter((Lead.aliado_codigo == None) | (Lead.aliado_codigo == ""))
+    leads = q.order_by(Lead.created_at.desc()).limit(500).all()
+    return {"total": len(leads), "leads": [_lead_dict_admin(l) for l in leads]}
+
+
+@router.post("/api/socio/admin/leads")
+async def admin_crear_lead(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Crea un lead individual y lo asigna opcionalmente a un socio."""
+    _require_admin_socio(socio)
+    data = await request.json()
+    nombre = (data.get("nombre") or "").strip()
+    telefono = _normalizar_telefono(data.get("telefono") or "")
+    if not nombre or not telefono:
+        raise HTTPException(400, "Nombre y teléfono son obligatorios")
+
+    lead = Lead(
+        nombre=nombre,
+        telefono=telefono,
+        localidad=(data.get("localidad") or "").strip() or None,
+        producto_interes=(data.get("producto_interes") or "SIN_DEFINIR").upper(),
+        forma_pago=(data.get("forma_pago") or "SIN_DEFINIR").upper(),
+        estado="NUEVO",
+        origen="SOCIO_ADMIN",
+        aliado_codigo=(data.get("aliado_codigo") or "").strip().upper() or None,
+        notas=(data.get("notas") or "").strip(),
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+    return {"ok": True, "lead": _lead_dict_admin(lead)}
+
+
+@router.post("/api/socio/admin/leads/bulk")
+async def admin_leads_bulk(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    Carga masiva de leads. Acepta JSON array de objetos con al menos
+    {nombre, telefono} y opcionalmente localidad/producto_interes/forma_pago/aliado_codigo.
+    Omite duplicados por teléfono (ya existentes en la DB).
+    """
+    _require_admin_socio(socio)
+    data = await request.json()
+    items = data if isinstance(data, list) else data.get("leads", [])
+    if not items:
+        raise HTTPException(400, "Lista vacía")
+
+    creados, omitidos = 0, 0
+    for row in items:
+        nombre = (row.get("nombre") or "").strip()
+        telefono = _normalizar_telefono(row.get("telefono") or "")
+        if not nombre or not telefono:
+            omitidos += 1
+            continue
+        if db.query(Lead).filter(Lead.telefono == telefono).first():
+            omitidos += 1
+            continue
+        lead = Lead(
+            nombre=nombre,
+            telefono=telefono,
+            localidad=(row.get("localidad") or "").strip() or None,
+            producto_interes=(row.get("producto_interes") or "SIN_DEFINIR").upper(),
+            forma_pago=(row.get("forma_pago") or "SIN_DEFINIR").upper(),
+            estado="NUEVO",
+            origen="SOCIO_ADMIN",
+            aliado_codigo=(row.get("aliado_codigo") or "").strip().upper() or None,
+            notas=(row.get("notas") or "").strip(),
+        )
+        db.add(lead)
+        creados += 1
+    db.commit()
+    return {"ok": True, "creados": creados, "omitidos": omitidos}
+
+
+@router.post("/api/socio/admin/leads/asignar")
+async def admin_asignar_leads(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Asigna un array de lead_ids a un aliado_codigo."""
+    _require_admin_socio(socio)
+    data = await request.json()
+    lead_ids = data.get("lead_ids") or []
+    aliado_codigo = (data.get("aliado_codigo") or "").strip().upper()
+    if not lead_ids or not aliado_codigo:
+        raise HTTPException(400, "lead_ids y aliado_codigo son obligatorios")
+    aliado = db.query(Aliado).filter(Aliado.codigo == aliado_codigo).first()
+    if not aliado:
+        raise HTTPException(404, "Socio no encontrado")
+
+    actualizados = (
+        db.query(Lead)
+        .filter(Lead.id.in_(lead_ids))
+        .update({"aliado_codigo": aliado_codigo}, synchronize_session=False)
+    )
+    db.commit()
+    return {"ok": True, "asignados": actualizados, "socio": aliado.nombre}
+
+
 @router.get("/api/socio/leads")
 async def socio_leads(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """Leads asignados a este socio para que los contacte directamente."""

@@ -481,6 +481,35 @@
   .tag-cat { font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--teal); font-weight:700 }
   .biblio-filtro.active { background:var(--navy); color:#fff; border-color:transparent; box-shadow:0 4px 12px rgba(11,35,80,.3) }
 
+  /* ── GESTIÓN DE LEADS ADMIN ── */
+  .leads-tabs { display:flex; gap:6px; margin-bottom:18px; border-bottom:2px solid var(--border); padding-bottom:0 }
+  .leads-tab {
+    padding:8px 18px; font-size:13.5px; font-weight:600; cursor:pointer;
+    border:none; background:none; color:var(--text-muted); border-bottom:2.5px solid transparent;
+    margin-bottom:-2px; transition:color .15s,border-color .15s;
+  }
+  .leads-tab.active { color:var(--navy); border-bottom-color:var(--teal) }
+  .leads-tab-panel { display:none }
+  .leads-tab-panel.active { display:block }
+  .leads-table { width:100%; border-collapse:collapse; font-size:13px }
+  .leads-table th { background:rgba(11,35,80,.06); padding:8px 10px; text-align:left; font-weight:700; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px }
+  .leads-table td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:middle }
+  .leads-table tr:hover td { background:rgba(78,195,181,.04) }
+  .leads-table tr.selected td { background:rgba(78,195,181,.10) }
+  .bulk-import-area {
+    width:100%; min-height:120px; padding:12px; border:1.5px solid rgba(11,35,80,.15);
+    border-radius:8px; font-size:13px; font-family:monospace; resize:vertical;
+    background:#fff; color:var(--text);
+  }
+  .bulk-import-area:focus { outline:none; border-color:var(--teal) }
+  .assign-bar {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:rgba(78,195,181,.07); border:1px solid rgba(78,195,181,.25);
+    border-radius:10px; padding:12px 16px; margin-bottom:14px;
+  }
+  .assign-bar select { flex:1; min-width:180px; padding:8px 10px; border:1px solid rgba(11,35,80,.15); border-radius:8px; font-size:13.5px; background:#fff; color:var(--text) }
+  .leads-count-badge { background:var(--navy); color:#fff; border-radius:10px; padding:2px 8px; font-size:11px; font-weight:700 }
+
   /* ── CATÁLOGO ── */
   .cat-cat {
     background:rgba(255,255,255,.82); border:1px solid rgba(229,184,75,.15);
@@ -736,8 +765,12 @@
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
     <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
     <a class="nav-item" onclick="abrirGuia()" style="color:var(--teal)">📖 Guía de uso</a>
-    <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-admin" target="_blank"
+    <a class="nav-item hidden" id="nav-leads-admin" data-section="leads-admin" onclick="nav('leads-admin')"
        style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:var(--teal);font-weight:700">
+      🎯 Gestión de Leads
+    </a>
+    <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-admin" target="_blank"
+       style="color:var(--teal);font-weight:700">
       🔧 Panel Admin CRM
     </a>
     <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
@@ -1301,6 +1334,124 @@
       <div class="biblio-grid" id="biblio-grid">Cargando…</div>
     </section>
 
+    <!-- GESTIÓN DE LEADS — solo admin (es_admin_crm) -->
+    <section class="section hidden" id="sec-leads-admin">
+      <h2>🎯 Gestión de Leads</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Cargá leads uno por uno o en bloque, y asignálos a los socios que van a trabajarlos.</p>
+
+      <!-- TABS -->
+      <div class="leads-tabs">
+        <button class="leads-tab active" onclick="leadsTab('cargar')">➕ Cargar leads</button>
+        <button class="leads-tab" onclick="leadsTab('asignar')">🔀 Asignar leads</button>
+      </div>
+
+      <!-- TAB: CARGAR -->
+      <div class="leads-tab-panel active" id="ltab-cargar">
+
+        <!-- Individual -->
+        <div class="card" style="margin-bottom:18px">
+          <h3 style="margin:0 0 14px;font-size:15px">Lead individual</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:12.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Nombre *</label>
+              <input type="text" id="ln-nombre" placeholder="Juan Pérez" style="width:100%;padding:9px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px">
+            </div>
+            <div>
+              <label style="font-size:12.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Teléfono / WhatsApp *</label>
+              <input type="text" id="ln-tel" placeholder="+54 9 11 1234-5678" style="width:100%;padding:9px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px">
+            </div>
+            <div>
+              <label style="font-size:12.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Localidad</label>
+              <input type="text" id="ln-loc" placeholder="Ej: Lomas de Zamora" style="width:100%;padding:9px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px">
+            </div>
+            <div>
+              <label style="font-size:12.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Producto</label>
+              <select id="ln-prod" style="width:100%;padding:9px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px;background:#fff">
+                <option value="SIN_DEFINIR">Sin definir</option>
+                <option value="PISCINAS">Piscinas</option>
+                <option value="MODULOS">Módulos</option>
+                <option value="VIVIENDAS">Viviendas</option>
+                <option value="COMBOS">Combos</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Forma de pago</label>
+              <select id="ln-pago" style="width:100%;padding:9px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px;background:#fff">
+                <option value="SIN_DEFINIR">Sin definir</option>
+                <option value="CONTADO">Contado</option>
+                <option value="FINANCIADO">Financiado</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Asignar a socio (opcional)</label>
+              <select id="ln-socio" style="width:100%;padding:9px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px;background:#fff">
+                <option value="">— Sin asignar —</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label style="font-size:12.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Notas</label>
+            <input type="text" id="ln-notas" placeholder="Observaciones del lead" style="width:100%;padding:9px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+            <button class="btn-primary" onclick="crearLeadIndividual()">✅ Guardar lead</button>
+            <span id="ln-msg" class="msg" style="font-size:13px"></span>
+          </div>
+        </div>
+
+        <!-- Carga masiva -->
+        <div class="card">
+          <h3 style="margin:0 0 6px;font-size:15px">Carga masiva</h3>
+          <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 12px">
+            Pegá una lista de leads, un lead por línea. Formato: <code>Nombre, Teléfono, Localidad, Producto</code>
+            (solo nombre y teléfono son obligatorios). También podés pegar un JSON array.
+          </p>
+          <textarea class="bulk-import-area" id="bulk-texto" placeholder="Juan Pérez, 5491112345678, Lomas de Zamora, PISCINAS&#10;María González, 5491198765432, San Isidro&#10;Pedro Díaz, 5491155443322, Quilmes, MODULOS"></textarea>
+          <div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:12.5px;font-weight:600;color:var(--text-muted)">Asignar todos a:</label>
+            <select id="bulk-socio" style="padding:8px 12px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px;background:#fff;min-width:200px">
+              <option value="">— Sin asignar —</option>
+            </select>
+            <button class="btn-primary" onclick="cargarLeadsBulk()">⬆ Importar leads</button>
+            <span id="bulk-msg" class="msg" style="font-size:13px"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: ASIGNAR -->
+      <div class="leads-tab-panel" id="ltab-asignar">
+        <div class="assign-bar">
+          <div style="font-size:13.5px;font-weight:600;color:var(--navy)">
+            Asignar seleccionados <span class="leads-count-badge" id="sel-count">0</span>
+          </div>
+          <select id="assign-socio" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid rgba(11,35,80,.15);border-radius:8px;font-size:13.5px;background:#fff">
+            <option value="">— Elegir socio —</option>
+          </select>
+          <button class="btn-primary" onclick="asignarLeadsSeleccionados()">🔀 Asignar</button>
+          <label style="font-size:12.5px;margin-left:auto">
+            <input type="checkbox" id="filtro-sin-asignar" onchange="recargarTablaLeads()" style="margin-right:4px">
+            Solo sin asignar
+          </label>
+          <span id="assign-msg" class="msg" style="font-size:13px"></span>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="leads-table" id="leads-tabla">
+            <thead><tr>
+              <th style="width:36px"><input type="checkbox" id="sel-all" onchange="toggleSelAll(this)"></th>
+              <th>Nombre</th>
+              <th>Teléfono</th>
+              <th>Localidad</th>
+              <th>Producto</th>
+              <th>Socio asignado</th>
+              <th>Estado</th>
+              <th style="width:80px">Acción</th>
+            </tr></thead>
+            <tbody id="leads-tbody"><tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- CAPACITACIÓN — separada de la biblioteca de marketing a propósito -->
     <section class="section" id="sec-capacitacion">
       <h2>Capacitación</h2>
@@ -1602,10 +1753,11 @@ async function cargarApp(){
   document.getElementById('p-cuit').value = SOCIO.cuit_monotributo || '';
   document.getElementById('p-interes').value = SOCIO.interes_venta || 'AMBOS';
   actualizarEstadoVerificacionPerfil();
-  // Mostrar enlace al panel admin si el socio tiene ese rol
+  // Mostrar herramientas admin si el socio tiene ese rol
   if(SOCIO.es_admin_crm){
     document.getElementById('nav-admin-crm').classList.remove('hidden');
     mostrarUploadPanel();
+    iniciarLeadsAdmin();
   }
   cargarComisiones();
   cargarCatalogo();
@@ -1716,6 +1868,7 @@ function nav(section){
   if(section==='simulador') cargarMisPresupuestos();
   if(section==='ranking') cargarRanking();
   if(section==='biblioteca') cargarBiblioteca();
+  if(section==='leads-admin') recargarTablaLeads();
   if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
   if(section==='ayuda') cargarFaq();
 }
@@ -2833,6 +2986,179 @@ async function subirBiblioteca(){
     btn.disabled = false;
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// GESTIÓN DE LEADS — solo admins
+// ══════════════════════════════════════════════════════════════════
+let _sociosLista = [];   // cache para selectores
+let _leadsData   = [];   // cache tabla de asignación
+
+function leadsTab(tab){
+  document.querySelectorAll('.leads-tab').forEach((b,i) => b.classList.toggle('active', ['cargar','asignar'][i] === tab));
+  document.querySelectorAll('.leads-tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('ltab-'+tab).classList.add('active');
+  if(tab === 'asignar') recargarTablaLeads();
+}
+
+async function iniciarLeadsAdmin(){
+  // Cargar lista de socios para los selectores
+  try{
+    const d = await api('/api/socio/admin/socios-activos');
+    _sociosLista = d.socios || [];
+    const opts = '<option value="">— Sin asignar —</option>' +
+      _sociosLista.map(s => `<option value="${s.codigo}">${s.nombre}${s.zona?' · '+s.zona:''}</option>`).join('');
+    ['ln-socio','bulk-socio','assign-socio'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.innerHTML = opts;
+    });
+    document.getElementById('assign-socio').options[0].text = '— Elegir socio —';
+  } catch(e){}
+  // Mostrar sección y nav
+  document.getElementById('sec-leads-admin').classList.remove('hidden');
+  document.getElementById('nav-leads-admin').classList.remove('hidden');
+}
+
+async function recargarTablaLeads(){
+  const soloSinAsignar = document.getElementById('filtro-sin-asignar')?.checked;
+  const tbody = document.getElementById('leads-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">Cargando…</td></tr>';
+  try{
+    const d = await api('/api/socio/admin/leads' + (soloSinAsignar ? '?sin_asignar=true' : ''));
+    _leadsData = d.leads || [];
+    renderTablaLeads();
+  } catch(e){
+    tbody.innerHTML = '<tr><td colspan="8" style="color:var(--bad)">Error al cargar leads.</td></tr>';
+  }
+}
+
+function renderTablaLeads(){
+  const tbody = document.getElementById('leads-tbody');
+  if(!_leadsData.length){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">No hay leads.</td></tr>';
+    return;
+  }
+  const socioMap = Object.fromEntries(_sociosLista.map(s => [s.codigo, s.nombre]));
+  tbody.innerHTML = _leadsData.map(l => `
+    <tr id="lrow-${l.id}">
+      <td><input type="checkbox" class="lead-chk" data-id="${l.id}" onchange="actualizarContadorSel()"></td>
+      <td><strong>${l.nombre}</strong></td>
+      <td><a href="https://wa.me/${l.telefono}" target="_blank" style="color:var(--teal)">${l.telefono}</a></td>
+      <td>${l.localidad||'—'}</td>
+      <td><span class="pill">${l.producto_interes||'—'}</span></td>
+      <td>${l.aliado_codigo ? `<span class="pill ok">${socioMap[l.aliado_codigo]||l.aliado_codigo}</span>` : '<span style="color:var(--text-muted);font-size:12px">Sin asignar</span>'}</td>
+      <td><span class="pill ${l.estado==='NUEVO'?'warn':'ok'}">${l.estado}</span></td>
+      <td>
+        <select class="row-asigna" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;max-width:130px" onchange="asignarLeadIndividual(${l.id},this.value,this)">
+          <option value="">Asignar…</option>
+          ${_sociosLista.map(s=>`<option value="${s.codigo}" ${l.aliado_codigo===s.codigo?'selected':''}>${s.nombre}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`).join('');
+}
+
+function actualizarContadorSel(){
+  const n = document.querySelectorAll('.lead-chk:checked').length;
+  document.getElementById('sel-count').textContent = n;
+}
+
+function toggleSelAll(cb){
+  document.querySelectorAll('.lead-chk').forEach(c => { c.checked = cb.checked });
+  actualizarContadorSel();
+}
+
+async function asignarLeadIndividual(leadId, codigoSocio, sel){
+  if(!codigoSocio) return;
+  try{
+    await api('/api/socio/admin/leads/asignar', {
+      method:'POST',
+      body: JSON.stringify({ lead_ids:[leadId], aliado_codigo:codigoSocio })
+    });
+    const l = _leadsData.find(x => x.id === leadId);
+    if(l) l.aliado_codigo = codigoSocio;
+    const row = document.getElementById('lrow-'+leadId);
+    if(row) row.querySelector('td:nth-child(6)').innerHTML =
+      `<span class="pill ok">${_sociosLista.find(s=>s.codigo===codigoSocio)?.nombre||codigoSocio}</span>`;
+  } catch(e){ sel.value = ''; alert('Error al asignar: ' + e.message); }
+}
+
+async function asignarLeadsSeleccionados(){
+  const ids = [...document.querySelectorAll('.lead-chk:checked')].map(c => parseInt(c.dataset.id));
+  const codigo = document.getElementById('assign-socio').value;
+  const msg = document.getElementById('assign-msg');
+  if(!ids.length){ msg.className='msg error'; msg.textContent='Seleccioná al menos un lead.'; return; }
+  if(!codigo){ msg.className='msg error'; msg.textContent='Elegí un socio.'; return; }
+  try{
+    const d = await api('/api/socio/admin/leads/asignar', {
+      method:'POST',
+      body: JSON.stringify({ lead_ids:ids, aliado_codigo:codigo })
+    });
+    msg.className='msg ok'; msg.textContent=`✅ ${d.asignados} lead(s) asignados a ${d.socio}.`;
+    recargarTablaLeads();
+    document.getElementById('sel-all').checked = false;
+    actualizarContadorSel();
+  } catch(e){ msg.className='msg error'; msg.textContent=e.message; }
+}
+
+async function crearLeadIndividual(){
+  const msg = document.getElementById('ln-msg');
+  const nombre = document.getElementById('ln-nombre').value.trim();
+  const tel    = document.getElementById('ln-tel').value.trim();
+  if(!nombre||!tel){ msg.className='msg error'; msg.textContent='Nombre y teléfono son obligatorios.'; return; }
+  try{
+    await api('/api/socio/admin/leads', { method:'POST', body: JSON.stringify({
+      nombre, telefono:tel,
+      localidad: document.getElementById('ln-loc').value.trim(),
+      producto_interes: document.getElementById('ln-prod').value,
+      forma_pago: document.getElementById('ln-pago').value,
+      aliado_codigo: document.getElementById('ln-socio').value || null,
+      notas: document.getElementById('ln-notas').value.trim(),
+    })});
+    msg.className='msg ok'; msg.textContent='✅ Lead guardado.';
+    ['ln-nombre','ln-tel','ln-loc','ln-notas'].forEach(id => document.getElementById(id).value='');
+    document.getElementById('ln-prod').value='SIN_DEFINIR';
+    document.getElementById('ln-pago').value='SIN_DEFINIR';
+    document.getElementById('ln-socio').value='';
+    setTimeout(()=>{ msg.textContent=''; msg.className='msg'; }, 2500);
+  } catch(e){ msg.className='msg error'; msg.textContent=e.message; }
+}
+
+async function cargarLeadsBulk(){
+  const msg  = document.getElementById('bulk-msg');
+  const txt  = document.getElementById('bulk-texto').value.trim();
+  const codigoSocio = document.getElementById('bulk-socio').value || null;
+  if(!txt){ msg.className='msg error'; msg.textContent='Pegá la lista primero.'; return; }
+
+  let leads = [];
+  // Intentar JSON primero
+  try{
+    const parsed = JSON.parse(txt);
+    leads = Array.isArray(parsed) ? parsed : [];
+  } catch(e){
+    // CSV / líneas: Nombre, Teléfono[, Localidad[, Producto]]
+    leads = txt.split('\n').map(line => {
+      const parts = line.split(',').map(p => p.trim());
+      if(parts.length < 2) return null;
+      return {
+        nombre: parts[0], telefono: parts[1],
+        localidad: parts[2] || '',
+        producto_interes: parts[3] || 'SIN_DEFINIR',
+        aliado_codigo: codigoSocio,
+      };
+    }).filter(Boolean);
+  }
+  if(!leads.length){ msg.className='msg error'; msg.textContent='No se encontraron leads válidos.'; return; }
+  if(codigoSocio) leads = leads.map(l => ({...l, aliado_codigo: codigoSocio}));
+
+  try{
+    const d = await api('/api/socio/admin/leads/bulk', {
+      method:'POST', body: JSON.stringify(leads)
+    });
+    msg.className='msg ok'; msg.textContent=`✅ ${d.creados} lead(s) importados. ${d.omitidos>0?d.omitidos+' omitidos (duplicados o sin datos).':''}`;
+    document.getElementById('bulk-texto').value='';
+    document.getElementById('bulk-socio').value='';
+  } catch(e){ msg.className='msg error'; msg.textContent=e.message; }
+}
+
 
 async function guardarPerfil(){
   const msg = document.getElementById('p-msg'); msg.className='msg'; msg.textContent='';

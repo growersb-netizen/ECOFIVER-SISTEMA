@@ -47,6 +47,51 @@ async def aliados_page(request: Request, current_user: Usuario = Depends(require
 API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
 
 ESTADOS_ALIADO = ("postulante", "en_evaluacion", "activo", "inactivo", "suspendido", "rechazado")
+
+_PANEL_SOCIO_URL = "https://eco-crm-production.up.railway.app/panel-socio"
+_DEFAULT_PASSWORD = "ECO1234"
+
+
+def _msg_bienvenida_aliado(nombre: str, email: str, codigo: str) -> str:
+    primer_nombre = nombre.strip().split()[0].capitalize()
+    return (
+        f"¡Hola {primer_nombre}! 🌿 Bienvenida/o al equipo de socios *EcoFiver*.\n\n"
+        "─────────────────────────\n"
+        "🏭 *DATOS DE LA EMPRESA*\n"
+        "─────────────────────────\n"
+        "*Razón social:* Cooperativa de Trabajo Ecozarate Ltda\n"
+        "*CUIT:* 30-71807393-2\n"
+        "*Línea oficial:* +54 11 6873-3406\n"
+        "*Web:* www.ecomodulosypiscinas.com.ar\n"
+        "*Puntos de retiro:* Zárate (fábrica) · San Telmo (CABA) · Paso del Rey (Zona Oeste)\n"
+        "*Garantía de fábrica:* 10 años en todos los productos\n\n"
+        "─────────────────────────\n"
+        "🔐 *TUS CREDENCIALES DE ACCESO*\n"
+        "─────────────────────────\n"
+        f"*Panel:* {_PANEL_SOCIO_URL}\n"
+        f"*Tu código:* {codigo}\n"
+        f"*Email:* {email}\n"
+        f"*Contraseña inicial:* {_DEFAULT_PASSWORD}\n\n"
+        "⚠️ Al ingresar por primera vez te pedimos que cambies la contraseña y completes tu perfil (DNI + zona). "
+        "Es rápido y necesario para empezar a generar comisiones.\n\n"
+        "─────────────────────────\n"
+        "📋 *PRIMEROS PASOS*\n"
+        "─────────────────────────\n"
+        f"1. Entrá al panel con tu email y la clave {_DEFAULT_PASSWORD}\n"
+        "2. Creá tu nueva contraseña personal\n"
+        "3. Completá DNI y zona\n"
+        "4. ¡Ya podés cotizar y cargar ventas!\n\n"
+        "─────────────────────────\n"
+        "💼 *QUÉ ENCONTRÁS EN EL PANEL*\n"
+        "─────────────────────────\n"
+        "✅ Catálogo completo con precios actualizados\n"
+        "✅ Simulador de cuotas para planes financiados\n"
+        "✅ Generador de presupuestos en PDF\n"
+        "✅ Registro de ventas y seguimiento de comisiones\n"
+        "✅ Biblioteca de fotos, videos y copys para redes sociales\n\n"
+        "*Comisiones:* 3% del precio en contado · media cuota del plan en financiado\n\n"
+        "Cualquier consulta respondé este mensaje. ¡Éxitos con las ventas! 💪"
+    )
 ESTADOS_VERIFICACION = ("pendiente", "verificado", "rechazado")
 TIPOS_COMISION = ("entrada", "cuota_3", "contado")
 RESULTADOS_PAQUETE = ("OK", "FALTA", "RECHAZO", "sin_respuesta")
@@ -213,8 +258,7 @@ async def crear_aliado(
     if telefono_str and data.get("enviar_bienvenida", True):
         try:
             from utils.whatsapp import send_whatsapp_text
-            from routers.socios import _mensaje_bienvenida_socio
-            msg = _mensaje_bienvenida_socio(aliado.nombre, aliado.email or "")
+            msg = _msg_bienvenida_aliado(aliado.nombre, aliado.email or "", aliado.codigo)
             send_whatsapp_text(db, telefono_str, msg)
         except Exception:
             pass  # WA falla en primer contacto (error 131047); reenviar desde el panel una vez que el socio escriba
@@ -404,8 +448,7 @@ async def enviar_bienvenida_aliado(
     if not a.telefono:
         raise HTTPException(400, "El aliado no tiene teléfono registrado")
     from utils.whatsapp import send_whatsapp_text
-    from routers.socios import _mensaje_bienvenida_socio
-    msg = _mensaje_bienvenida_socio(a.nombre, a.email or "")
+    msg = _msg_bienvenida_aliado(a.nombre, a.email or "", a.codigo)
     ok = send_whatsapp_text(db, a.telefono, msg)
     if not ok:
         raise HTTPException(502, "No se pudo enviar el mensaje de WhatsApp. Verificá que el socio te haya escrito primero (WA no permite texto libre en primer contacto).")

@@ -1745,6 +1745,44 @@ async def socio_subir_biblioteca(
     return {"ok": True, "subidos": len(creados), "materiales": creados}
 
 
+@router.put("/api/socio/biblioteca/{material_id}")
+async def socio_editar_material(
+    material_id: int, request: Request,
+    socio: Aliado = Depends(require_socio), db: Session = Depends(get_db),
+):
+    if not socio.es_admin_crm:
+        raise HTTPException(403, "Sin permisos")
+    m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
+    if not m:
+        raise HTTPException(404, "No encontrado")
+    data = await request.json()
+    for field in ("titulo", "categoria", "descripcion"):
+        if field in data:
+            setattr(m, field, data[field])
+    db.commit()
+    return _material_dict(m)
+
+
+@router.delete("/api/socio/biblioteca/{material_id}")
+async def socio_borrar_material(
+    material_id: int,
+    socio: Aliado = Depends(require_socio), db: Session = Depends(get_db),
+):
+    if not socio.es_admin_crm:
+        raise HTTPException(403, "Sin permisos")
+    m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
+    if not m:
+        raise HTTPException(404, "No encontrado")
+    if m.archivo_path and os.path.exists(m.archivo_path):
+        try:
+            os.remove(m.archivo_path)
+        except OSError:
+            pass
+    db.delete(m)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/api/admin/biblioteca/{material_id}/archivo")
 async def admin_biblioteca_archivo(
     material_id: int, db: Session = Depends(get_db),

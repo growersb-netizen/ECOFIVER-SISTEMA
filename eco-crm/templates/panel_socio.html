@@ -285,15 +285,51 @@
   #catalogo-contenido,#tabla-financiado,#tabla-contado,#tabla-comisiones,#tabla-ranking { overflow-x:auto }
   #catalogo-contenido table,#tabla-financiado table,#tabla-contado table,#tabla-comisiones table,#tabla-ranking table { min-width:520px }
 
+  /* ── MOBILE TOP BAR ── */
+  .mob-topbar {
+    display:none;
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    height:52px; background:var(--navy);
+    border-bottom:1px solid rgba(229,184,75,.2);
+    align-items:center; padding:0 14px; gap:10px;
+    box-shadow:0 2px 12px rgba(0,0,0,.35);
+  }
+  .mob-hamburger {
+    width:36px; height:36px; border:none; background:transparent; cursor:pointer;
+    display:flex; flex-direction:column; justify-content:center; align-items:center; gap:5px; flex-shrink:0;
+  }
+  .mob-hamburger span {
+    display:block; width:22px; height:2px; background:rgba(207,224,245,.85);
+    border-radius:2px; transition:all .22s ease;
+  }
+  .mob-topbar-brand { font-size:15px; font-weight:800; color:#fff; letter-spacing:1px; flex:1; text-align:center }
+  .mob-topbar-brand span { color:var(--teal-light) }
+  .mob-topbar-section { font-size:11px; font-weight:600; color:var(--gold-light); white-space:nowrap; max-width:110px; overflow:hidden; text-overflow:ellipsis }
+
+  /* ── SIDEBAR DRAWER (mobile) ── */
+  .mob-backdrop {
+    display:none; position:fixed; inset:0; z-index:299;
+    background:rgba(0,0,0,.55); backdrop-filter:blur(2px);
+  }
+  .mob-backdrop.open { display:block }
+
   @media (max-width:800px) {
-    .app-shell{ flex-direction:column }
-    .sidebar{ width:100%;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;padding:8px 10px;gap:3px;-webkit-overflow-scrolling:touch }
-    .sidebar::before{ display:none }
-    .sidebar .brand,.sidebar .socio-info{ display:none }
-    .nav-item{ flex:0 0 auto;white-space:nowrap;font-size:12.5px;padding:7px 10px;border-left:none;border-bottom:2px solid transparent }
-    .nav-item.active{ border-bottom:2px solid var(--gold);border-left:none;background:rgba(229,184,75,.12) }
-    .nav-item.active::after{ display:none }
-    .nav-logout{ flex:0 0 auto;white-space:nowrap;margin-top:0;padding:7px 10px }
+    .app-shell{ flex-direction:column; padding-top:52px }
+    .mob-topbar{ display:flex }
+    .sidebar{
+      position:fixed; top:0; left:-290px; bottom:0; z-index:300;
+      width:270px; flex-direction:column; flex-wrap:nowrap; overflow-y:auto;
+      padding:16px 10px 24px; gap:2px;
+      transition:left .25s cubic-bezier(.25,.46,.45,.94);
+      box-shadow:4px 0 24px rgba(0,0,0,.4);
+    }
+    .sidebar.open{ left:0 }
+    .sidebar::before{ display:block }
+    .sidebar .brand,.sidebar .socio-info{ display:block }
+    .nav-item{ flex:none; white-space:normal; font-size:13.5px; padding:9px 14px; border-left:2px solid transparent; border-bottom:none }
+    .nav-item.active{ border-bottom:none; border-left:2px solid var(--gold); background:linear-gradient(90deg,rgba(229,184,75,.18) 0%,rgba(229,184,75,.05) 100%) }
+    .nav-item.active::after{ display:block }
+    .nav-logout{ flex:none; white-space:normal; margin-top:auto; padding:8px 14px }
     main.content{ padding:16px }
     .kpis{ grid-template-columns:repeat(2,1fr) }
   }
@@ -469,6 +505,20 @@
   .upload-progress { height:6px; border-radius:3px; background:var(--bg); overflow:hidden; margin-bottom:8px; display:none }
   .upload-progress-bar { height:100%; background:var(--teal); transition:width .3s; width:0% }
   .upload-status { font-size:13px; color:var(--text-muted); min-height:20px }
+  /* ── GESTIÓN BIBLIOTECA (admin) ── */
+  .gestion-panel { margin-bottom:20px }
+  .gestion-panel summary { cursor:pointer; font-size:13.5px; font-weight:700; color:var(--teal); padding:8px 0; user-select:none }
+  .gestion-tabla { margin-top:10px; border:1px solid var(--border); border-radius:10px; overflow:hidden }
+  .gestion-row { display:grid; grid-template-columns:36px 1fr 1fr 90px; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); font-size:12.5px }
+  .gestion-row:last-child { border-bottom:none }
+  .gestion-row.header { background:rgba(11,35,80,.04); font-weight:700; color:var(--text-muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.4px }
+  .gestion-row input, .gestion-row select { width:100%; padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:#fff }
+  .gestion-actions { display:flex; gap:4px }
+  .gestion-save { background:var(--teal); color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:11.5px; cursor:pointer; font-weight:700 }
+  .gestion-del { background:rgba(239,68,68,.1); color:#ef4444; border:1px solid rgba(239,68,68,.25); border-radius:6px; padding:4px 8px; font-size:11.5px; cursor:pointer; font-weight:700 }
+  .gestion-tipo { padding:2px 7px; border-radius:12px; font-size:10.5px; font-weight:700; text-transform:uppercase }
+  .gestion-tipo.f { background:rgba(229,184,75,.15); color:#b8860b }
+  .gestion-tipo.v { background:rgba(78,195,181,.15); color:#0e7f72 }
   .biblio-card {
     border:1px solid rgba(229,184,75,.12); border-radius:12px; padding:14px;
     background:rgba(255,255,255,.85); backdrop-filter:blur(6px);
@@ -746,8 +796,18 @@
 </div>
 
 <!-- ═══════════════ APP (post-login) ═══════════════ -->
+<!-- Mobile top bar -->
+<div class="mob-topbar" id="mob-topbar">
+  <button class="mob-hamburger" id="mob-menu-btn" onclick="toggleMobileMenu()" aria-label="Menú">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="mob-topbar-brand">ECO<span>FIVER</span></div>
+  <div class="mob-topbar-section" id="mob-section-label">Inicio</div>
+</div>
+<div class="mob-backdrop" id="mob-backdrop" onclick="closeMobileMenu()"></div>
+
 <div id="app-shell" class="app-shell hidden">
-  <div class="sidebar">
+  <div class="sidebar" id="main-sidebar">
     <div class="brand"><div class="logo">ECO<span>FIVER</span></div></div>
     <div class="socio-info" id="sidebar-socio-info"></div>
     <a class="nav-item active" data-section="inicio" onclick="nav('inicio')">🏠 Inicio</a>
@@ -1297,8 +1357,8 @@
       <!-- PANEL DE SUBIDA — solo visible para socios con es_admin_crm -->
       <div class="upload-panel hidden" id="upload-panel">
         <h3>📤 Subir contenido a la Biblioteca</h3>
-        <label>Descripción / Localidad</label>
-        <input type="text" id="up-titulo" placeholder="Ej: Entrega en Villa del Parque, CABA">
+        <label>Descripción / Localidad <span style="color:#ef4444">*</span></label>
+        <input type="text" id="up-titulo" placeholder="Ej: Entrega en Villa del Parque, CABA — piscina azul 5m" required>
         <label>Categoría</label>
         <select id="up-categoria">
           <option value="general">General</option>
@@ -1322,6 +1382,16 @@
           <button class="btn-primary" id="up-btn" onclick="subirBiblioteca()">⬆ Subir archivos</button>
         </div>
       </div>
+
+      <!-- GESTIÓN DE SUBIDAS — solo admin -->
+      <details class="gestion-panel hidden" id="gestion-uploads">
+        <summary>✏️ Organizar subidas sin clasificar <span id="gestion-count" style="background:rgba(239,68,68,.12);color:#ef4444;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:6px"></span></summary>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:6px 0 10px">Editá el título y la categoría de cada archivo que subiste. El título es lo que ven los socios.</p>
+        <div class="gestion-tabla">
+          <div class="gestion-row header"><div>Tipo</div><div>Título</div><div>Categoría</div><div>Acciones</div></div>
+          <div id="gestion-lista"><div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">Cargando…</div></div>
+        </div>
+      </details>
 
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn-ghost biblio-filtro active" data-tipo="todos" onclick="filtrarBiblioteca('todos')">Todo</button>
@@ -1871,6 +1941,25 @@ function nav(section){
   if(section==='leads-admin') recargarTablaLeads();
   if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
   if(section==='ayuda') cargarFaq();
+  // Actualizar label móvil y cerrar drawer
+  const activeNav = document.querySelector(`.nav-item[data-section="${section}"]`);
+  const lbl = document.getElementById('mob-section-label');
+  if(lbl && activeNav) lbl.textContent = activeNav.textContent.replace(/^[^\w]+/,'').trim().split(' ').slice(0,3).join(' ');
+  closeMobileMenu();
+}
+
+function toggleMobileMenu(){
+  const s = document.getElementById('main-sidebar');
+  const b = document.getElementById('mob-backdrop');
+  if(!s) return;
+  const open = s.classList.toggle('open');
+  b.classList.toggle('open', open);
+}
+function closeMobileMenu(){
+  const s = document.getElementById('main-sidebar');
+  const b = document.getElementById('mob-backdrop');
+  if(s) s.classList.remove('open');
+  if(b) b.classList.remove('open');
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2893,6 +2982,8 @@ let _upFiles = [];
 function mostrarUploadPanel(){
   const p = document.getElementById('upload-panel');
   if(p) p.classList.remove('hidden');
+  const g = document.getElementById('gestion-uploads');
+  if(g){ g.classList.remove('hidden'); cargarGestionMateriales(); }
   // drag & drop
   const dz = document.getElementById('up-dropzone');
   if(dz){
@@ -2951,6 +3042,14 @@ async function subirBiblioteca(){
   if(!_upFiles.length){ status.textContent = 'Seleccioná al menos un archivo.'; return; }
 
   const titulo = document.getElementById('up-titulo').value.trim();
+  if(!titulo){
+    const inp = document.getElementById('up-titulo');
+    inp.focus();
+    inp.style.borderColor = '#ef4444';
+    setTimeout(()=> inp.style.borderColor = '', 2500);
+    status.textContent = '⚠️ Agregá una descripción antes de subir (ej: Entrega en Mendoza — módulo 2 ambientes).';
+    return;
+  }
   const categoria = document.getElementById('up-categoria').value;
 
   btn.disabled = true;
@@ -2985,6 +3084,69 @@ async function subirBiblioteca(){
   } finally{
     btn.disabled = false;
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GESTIÓN BIBLIOTECA — editar/borrar subidas (solo admins)
+// ══════════════════════════════════════════════════════════════════
+const GESTION_CAT_OPTS = ['general','piscinas','modulos','viviendas','combos','redes'];
+
+async function cargarGestionMateriales(){
+  const lista = document.getElementById('gestion-lista');
+  const cnt   = document.getElementById('gestion-count');
+  if(!lista) return;
+  try{
+    const r = await fetch('/api/admin/materiales-socio', { headers:{'X-API-Key':'eco-crm-api-key-2024'}, credentials:'include' });
+    if(!r.ok) return;
+    const data = await r.json();
+    // Solo foto_entrega y video sin título significativo (UUID o vacío)
+    const UUID_RE = /^[0-9a-f-]{20,}$/i;
+    const sinClasif = data.materiales.filter(m =>
+      (m.tipo === 'foto_entrega' || m.tipo === 'video') &&
+      (!m.titulo || UUID_RE.test(m.titulo) || m.titulo.startsWith('IMG_'))
+    );
+    cnt.textContent = sinClasif.length || '';
+    if(!sinClasif.length){
+      lista.innerHTML = '<div style="padding:16px;text-align:center;color:var(--teal);font-size:13px">✅ Todo clasificado</div>';
+      return;
+    }
+    lista.innerHTML = sinClasif.map(m => `
+      <div class="gestion-row" id="grow-${m.id}">
+        <div><span class="gestion-tipo ${m.tipo==='video'?'v':'f'}">${m.tipo==='video'?'VID':'FOTO'}</span></div>
+        <div><input type="text" id="gtit-${m.id}" value="${(m.titulo||'').replace(/"/g,'&quot;')}" placeholder="Descripción de la imagen/video"></div>
+        <div><select id="gcat-${m.id}">${GESTION_CAT_OPTS.map(c=>`<option value="${c}"${m.categoria===c?' selected':''}>${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}</select></div>
+        <div class="gestion-actions">
+          <button class="gestion-save" onclick="guardarMaterial(${m.id})">✓</button>
+          <button class="gestion-del" onclick="borrarMaterial(${m.id})">🗑</button>
+        </div>
+      </div>`).join('');
+  } catch(e){ lista.innerHTML = '<div style="padding:12px;color:#ef4444;font-size:13px">Error al cargar</div>'; }
+}
+
+async function guardarMaterial(id){
+  const titulo    = document.getElementById('gtit-'+id)?.value.trim();
+  const categoria = document.getElementById('gcat-'+id)?.value;
+  if(!titulo){ alert('Agregá un título'); return; }
+  const r = await fetch(`/api/socio/biblioteca/${id}`, {
+    method:'PUT', credentials:'include',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ titulo, categoria })
+  });
+  if(r.ok){
+    const row = document.getElementById('grow-'+id);
+    if(row){ row.style.background='rgba(78,195,181,.1)'; setTimeout(()=>{ row.remove(); cargarGestionMateriales(); }, 800); }
+  } else { alert('Error al guardar'); }
+}
+
+async function borrarMaterial(id){
+  if(!confirm('¿Borrar este archivo de la biblioteca?')) return;
+  const r = await fetch(`/api/socio/biblioteca/${id}`, { method:'DELETE', credentials:'include' });
+  if(r.ok){
+    const row = document.getElementById('grow-'+id);
+    if(row) row.remove();
+    cargarGestionMateriales();
+    cargarBiblioteca();
+  } else { alert('Error al borrar'); }
 }
 
 // ══════════════════════════════════════════════════════════════════

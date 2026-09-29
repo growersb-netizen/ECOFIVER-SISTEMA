@@ -184,7 +184,8 @@ async def crear_aliado(
     if email and db.query(Aliado).filter(Aliado.email == email).first():
         raise HTTPException(409, f"Ya existe un aliado con ese email")
 
-    password_raw = (data.get("password") or "").strip()
+    DEFAULT_PASSWORD = "ECO1234"
+    password_raw = (data.get("password") or "").strip() or DEFAULT_PASSWORD
 
     telefono_str = (data.get("telefono") or "").strip()
 
@@ -200,10 +201,10 @@ async def crear_aliado(
         estado=estado,
         contrato_firmado=bool(data.get("contrato_firmado", False)),
         notas=data.get("notas", ""),
-        password_hash=_pwd.hash(password_raw) if password_raw else None,
+        password_hash=_pwd.hash(password_raw),
         whatsapp_verificado=False,
         email_verificado=bool(email),
-        primer_login=bool(data.get("primer_login", False)),
+        primer_login=True,  # siempre True al crear desde admin — fuerza cambio de pass
     )
     db.add(aliado)
     db.commit()
@@ -211,23 +212,14 @@ async def crear_aliado(
 
     if telefono_str and data.get("enviar_bienvenida", True):
         try:
-            import os
             from utils.whatsapp import send_whatsapp_text
-            panel_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app") + "/panel-socio"
-            primer_nombre = aliado.nombre.split()[0]
-            msg = (
-                f"👋 Hola {primer_nombre}, ¡bienvenido/a al equipo de socios EcoFiver!\n\n"
-                f"Tu código de socio es *{aliado.codigo}*.\n\n"
-                f"Accedé a tu panel aquí:\n{panel_url}\n\n"
-                f"Para ingresar usá tu número de WhatsApp: te llegará un código de verificación. "
-                f"También podés ingresar con tu email{(' (' + aliado.email + ')') if aliado.email else ''}.\n\n"
-                f"¡Cualquier duda estamos acá! 💪"
-            )
+            from routers.socios import _mensaje_bienvenida_socio
+            msg = _mensaje_bienvenida_socio(aliado.nombre, aliado.email or "")
             send_whatsapp_text(db, telefono_str, msg)
         except Exception:
-            pass
+            pass  # WA falla en primer contacto (error 131047); reenviar desde el panel una vez que el socio escriba
 
-    return {"ok": True, **_aliado_dict(aliado)}
+    return {"ok": True, "password_inicial": DEFAULT_PASSWORD, **_aliado_dict(aliado)}
 
 
 @router.get("/api/aliados")
@@ -411,19 +403,12 @@ async def enviar_bienvenida_aliado(
         raise HTTPException(404, "Aliado no encontrado")
     if not a.telefono:
         raise HTTPException(400, "El aliado no tiene teléfono registrado")
-    import os
     from utils.whatsapp import send_whatsapp_text
-    panel_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app") + "/panel-socio"
-    primer_nombre = a.nombre.split()[0]
-    msg = (
-        f"👋 Hola {primer_nombre}, ¡bienvenido/a al equipo de socios EcoFiver!\n\n"
-        f"Tu código de socio es *{a.codigo}*.\n\n"
-        f"Accedé a tu panel aquí:\n{panel_url}\n\n"
-        f"Para ingresar usá tu número de WhatsApp: te llegará un código de verificación. "
-        f"También podés ingresar con tu email{(' (' + a.email + ')') if a.email else ''}.\n\n"
-        f"¡Cualquier duda estamos acá! 💪"
-    )
-    send_whatsapp_text(db, a.telefono, msg)
+    from routers.socios import _mensaje_bienvenida_socio
+    msg = _mensaje_bienvenida_socio(a.nombre, a.email or "")
+    ok = send_whatsapp_text(db, a.telefono, msg)
+    if not ok:
+        raise HTTPException(502, "No se pudo enviar el mensaje de WhatsApp. Verificá que el socio te haya escrito primero (WA no permite texto libre en primer contacto).")
     return {"ok": True, "mensaje": "Bienvenida enviada"}
 
 

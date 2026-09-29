@@ -95,6 +95,37 @@ try:
 except Exception:
     log.exception("No se pudo inicializar aliados")
 
+# ── RESET TEMPORAL vía env var ADMIN_PWD_RESET ──────────────────────────────
+# Si la var de entorno ADMIN_PWD_RESET está seteada, resetea el admin y los
+# aliados AL-020..AL-024 con esa contraseña, luego loguea OK.
+# Una vez usado, borrar la var en Railway y hacer redeploy.
+_reset_env = os.getenv("ADMIN_PWD_RESET", "").strip()
+if _reset_env:
+    try:
+        from database.database import SessionLocal as _SLReset
+        from database.models import Usuario as _Usuario, Aliado as _Aliado
+        from passlib.context import CryptContext as _CryptCtx
+        _pwd_reset = _CryptCtx(schemes=["bcrypt"], deprecated="auto")
+        _db_reset = _SLReset()
+        try:
+            _admin = _db_reset.query(_Usuario).filter(_Usuario.email == "rodrigo@ecomodulos.com").first()
+            if _admin:
+                _admin.password_hash = _pwd_reset.hash(_reset_env)
+                log.info("[RESET] Admin password actualizado via env var.")
+            for _code in ["AL-020", "AL-021", "AL-022", "AL-023", "AL-024"]:
+                _al = _db_reset.query(_Aliado).filter(_Aliado.codigo == _code).first()
+                if _al:
+                    _al.password_hash = _pwd_reset.hash("ECO1234")
+                    _al.primer_login = True
+                    log.info(f"[RESET] {_code} → ECO1234")
+            _db_reset.commit()
+            log.info("[RESET] Completado. Borrar ADMIN_PWD_RESET de Railway.")
+        finally:
+            _db_reset.close()
+    except Exception:
+        log.exception("[RESET] Error en reset temporal")
+# ── FIN RESET TEMPORAL ───────────────────────────────────────────────────────
+
 # Guías reales de la Biblioteca de contenidos del panel de socios (idempotente)
 try:
     from database.database import SessionLocal

@@ -441,6 +441,34 @@
 
   /* ── BIBLIOTECA ── */
   .biblio-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px }
+  /* ── UPLOAD PANEL (solo admin) ── */
+  .upload-panel {
+    background:linear-gradient(135deg,rgba(78,195,181,.07) 0%,rgba(11,35,80,.04) 100%);
+    border:1.5px dashed rgba(78,195,181,.35); border-radius:14px;
+    padding:20px 22px; margin-bottom:20px;
+  }
+  .upload-panel h3 { margin:0 0 14px; font-size:15px; color:var(--navy) }
+  .upload-panel label { display:block; font-size:12.5px; font-weight:600; color:var(--text-muted); margin-bottom:4px }
+  .upload-panel input[type=text], .upload-panel select {
+    width:100%; padding:9px 12px; border:1px solid rgba(11,35,80,.15);
+    border-radius:8px; font-size:13.5px; background:#fff; color:var(--text); margin-bottom:12px;
+  }
+  .upload-dropzone {
+    border:2px dashed rgba(78,195,181,.4); border-radius:10px; padding:24px 16px;
+    text-align:center; cursor:pointer; transition:border-color .2s,background .2s;
+    background:rgba(255,255,255,.6); margin-bottom:12px; position:relative;
+  }
+  .upload-dropzone:hover, .upload-dropzone.drag-over { border-color:var(--teal); background:rgba(78,195,181,.07) }
+  .upload-dropzone input[type=file] { position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100% }
+  .upload-dropzone .drop-icon { font-size:28px; margin-bottom:6px }
+  .upload-dropzone .drop-txt { font-size:13px; color:var(--text-muted) }
+  .upload-preview-list { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px }
+  .upload-thumb { position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; background:var(--bg); border:1px solid var(--border) }
+  .upload-thumb img, .upload-thumb video { width:100%; height:100%; object-fit:cover }
+  .upload-thumb .rm-thumb { position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center }
+  .upload-progress { height:6px; border-radius:3px; background:var(--bg); overflow:hidden; margin-bottom:8px; display:none }
+  .upload-progress-bar { height:100%; background:var(--teal); transition:width .3s; width:0% }
+  .upload-status { font-size:13px; color:var(--text-muted); min-height:20px }
   .biblio-card {
     border:1px solid rgba(229,184,75,.12); border-radius:12px; padding:14px;
     background:rgba(255,255,255,.85); backdrop-filter:blur(6px);
@@ -1232,6 +1260,36 @@
     <section class="section" id="sec-biblioteca">
       <h2>Biblioteca de contenidos</h2>
       <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Fotos, videos y copys listos para pegar en tus publicaciones o mensajes. Las guías y capacitaciones están en su propia sección.</p>
+
+      <!-- PANEL DE SUBIDA — solo visible para socios con es_admin_crm -->
+      <div class="upload-panel hidden" id="upload-panel">
+        <h3>📤 Subir contenido a la Biblioteca</h3>
+        <label>Descripción / Localidad</label>
+        <input type="text" id="up-titulo" placeholder="Ej: Entrega en Villa del Parque, CABA">
+        <label>Categoría</label>
+        <select id="up-categoria">
+          <option value="general">General</option>
+          <option value="piscinas">Piscinas</option>
+          <option value="modulos">Módulos habitacionales</option>
+          <option value="viviendas">Viviendas</option>
+          <option value="combos">Combos</option>
+          <option value="redes">Redes sociales</option>
+        </select>
+        <label>Archivos (imágenes y videos — podés seleccionar varios a la vez)</label>
+        <div class="upload-dropzone" id="up-dropzone">
+          <input type="file" id="up-files" multiple accept="image/*,video/*" onchange="onFilesSelected(this.files)">
+          <div class="drop-icon">🖼️🎬</div>
+          <div class="drop-txt">Arrastrá archivos acá o hacé clic para seleccionarlos</div>
+        </div>
+        <div class="upload-preview-list" id="up-preview"></div>
+        <div class="upload-progress" id="up-progress"><div class="upload-progress-bar" id="up-bar"></div></div>
+        <div class="upload-status" id="up-status"></div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn-ghost" onclick="limpiarUpload()">🗑 Limpiar</button>
+          <button class="btn-primary" id="up-btn" onclick="subirBiblioteca()">⬆ Subir archivos</button>
+        </div>
+      </div>
+
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn-ghost biblio-filtro active" data-tipo="todos" onclick="filtrarBiblioteca('todos')">Todo</button>
         <button class="btn-ghost biblio-filtro" data-tipo="imagen" onclick="filtrarBiblioteca('imagen')">🖼️ Fotos</button>
@@ -1547,6 +1605,7 @@ async function cargarApp(){
   // Mostrar enlace al panel admin si el socio tiene ese rol
   if(SOCIO.es_admin_crm){
     document.getElementById('nav-admin-crm').classList.remove('hidden');
+    mostrarUploadPanel();
   }
   cargarComisiones();
   cargarCatalogo();
@@ -2671,6 +2730,108 @@ async function copiarTexto(btn, texto){
   try{ await navigator.clipboard.writeText(texto); btn.textContent = '✅ Copiado'; }
   catch(e){ btn.textContent = 'No se pudo copiar'; }
   setTimeout(() => { btn.textContent = '📋 Copiar texto'; }, 1800);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// UPLOAD PANEL — solo admins
+// ══════════════════════════════════════════════════════════════════
+let _upFiles = [];
+
+function mostrarUploadPanel(){
+  const p = document.getElementById('upload-panel');
+  if(p) p.classList.remove('hidden');
+  // drag & drop
+  const dz = document.getElementById('up-dropzone');
+  if(dz){
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over') });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('drag-over');
+      onFilesSelected(e.dataTransfer.files);
+    });
+  }
+}
+
+function onFilesSelected(fileList){
+  for(const f of fileList){
+    if(!_upFiles.find(x => x.name === f.name && x.size === f.size)) _upFiles.push(f);
+  }
+  renderUploadPreview();
+}
+
+function renderUploadPreview(){
+  const cont = document.getElementById('up-preview');
+  cont.innerHTML = _upFiles.map((f, i) => {
+    const esVideo = f.type.startsWith('video/');
+    const src = URL.createObjectURL(f);
+    return `<div class="upload-thumb">
+      ${esVideo
+        ? `<video src="${src}" muted preload="metadata"></video>`
+        : `<img src="${src}" alt="${f.name}">`
+      }
+      <button class="rm-thumb" onclick="quitarArchivo(${i})" title="Quitar">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function quitarArchivo(idx){
+  _upFiles.splice(idx, 1);
+  renderUploadPreview();
+}
+
+function limpiarUpload(){
+  _upFiles = [];
+  document.getElementById('up-files').value = '';
+  document.getElementById('up-titulo').value = '';
+  document.getElementById('up-preview').innerHTML = '';
+  document.getElementById('up-status').textContent = '';
+  document.getElementById('up-progress').style.display = 'none';
+  document.getElementById('up-bar').style.width = '0%';
+}
+
+async function subirBiblioteca(){
+  const btn = document.getElementById('up-btn');
+  const status = document.getElementById('up-status');
+  const prog = document.getElementById('up-progress');
+  const bar = document.getElementById('up-bar');
+
+  if(!_upFiles.length){ status.textContent = 'Seleccioná al menos un archivo.'; return; }
+
+  const titulo = document.getElementById('up-titulo').value.trim();
+  const categoria = document.getElementById('up-categoria').value;
+
+  btn.disabled = true;
+  prog.style.display = 'block';
+  bar.style.width = '5%';
+  status.textContent = `Subiendo ${_upFiles.length} archivo(s)…`;
+
+  const fd = new FormData();
+  fd.append('titulo', titulo);
+  fd.append('categoria', categoria);
+  for(const f of _upFiles) fd.append('archivos', f);
+
+  try{
+    const r = await fetch('/api/socio/biblioteca/subir', {
+      method:'POST', credentials:'include', body: fd
+    });
+    bar.style.width = '90%';
+    if(!r.ok){
+      const err = await r.json().catch(()=>({}));
+      throw new Error(err.detail || 'Error al subir');
+    }
+    const data = await r.json();
+    bar.style.width = '100%';
+    status.textContent = `✅ ${data.subidos} archivo(s) subido(s) correctamente.`;
+    setTimeout(() => {
+      limpiarUpload();
+      cargarBiblioteca();
+    }, 1200);
+  } catch(e){
+    status.textContent = '❌ ' + e.message;
+    bar.style.width = '0%';
+  } finally{
+    btn.disabled = false;
+  }
 }
 
 async function guardarPerfil(){

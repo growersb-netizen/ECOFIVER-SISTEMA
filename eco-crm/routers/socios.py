@@ -18,7 +18,7 @@ import json
 import random
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header, UploadFile, File, Form
@@ -1532,6 +1532,64 @@ async def socio_biblioteca_archivo(material_id: int, socio: Aliado = Depends(req
     if not m or not m.archivo_path or not os.path.exists(m.archivo_path):
         raise HTTPException(404, "Archivo no encontrado")
     return FileResponse(m.archivo_path)
+
+
+@router.post("/api/socio/biblioteca/subir")
+async def socio_subir_biblioteca(
+    request: Request,
+    titulo: str = Form(""),
+    categoria: str = Form("general"),
+    archivos: List[UploadFile] = File(...),
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Subida masiva de imágenes/videos a la Biblioteca — solo socios con es_admin_crm."""
+    if not socio.es_admin_crm:
+        raise HTTPException(403, "Sin permisos para subir contenido a la Biblioteca")
+    if not archivos:
+        raise HTTPException(400, "No se recibieron archivos")
+
+    ALLOWED_MIME = {
+        "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic",
+        "video/mp4", "video/quicktime", "video/mpeg", "video/webm", "video/x-msvideo",
+    }
+    MAX_SIZE = 200 * 1024 * 1024  # 200 MB por archivo
+
+    creados = []
+    for archivo in archivos:
+        mime = archivo.content_type or ""
+        if mime not in ALLOWED_MIME:
+            raise HTTPException(400, f"Tipo de archivo no permitido: {archivo.filename} ({mime})")
+        contenido = await archivo.read()
+        if len(contenido) > MAX_SIZE:
+            raise HTTPException(400, f"El archivo {archivo.filename} supera 200 MB")
+
+        ext = os.path.splitext(archivo.filename or "")[1].lower() or ".bin"
+        fname = f"{secrets.token_hex(10)}{ext}"
+        path = str(BIBLIOTECA_DIR / fname)
+        with open(path, "wb") as f:
+            f.write(contenido)
+
+        es_video = mime.startswith("video/")
+        tipo = "video" if es_video else "foto_entrega"
+        nombre_archivo = os.path.splitext(archivo.filename or "")[0]
+        titulo_final = titulo.strip() or nombre_archivo or "Sin título"
+
+        m = MaterialSocio(
+            tipo=tipo,
+            categoria=categoria.strip() or "general",
+            titulo=titulo_final,
+            descripcion="",
+            archivo_path=path,
+            activo=True,
+            orden=0,
+        )
+        db.add(m)
+        db.flush()
+        creados.append(_material_dict(m))
+
+    db.commit()
+    return {"ok": True, "subidos": len(creados), "materiales": creados}
 
 
 @router.get("/api/admin/biblioteca/{material_id}/archivo")

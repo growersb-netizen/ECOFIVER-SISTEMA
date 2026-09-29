@@ -3042,14 +3042,6 @@ async function subirBiblioteca(){
   if(!_upFiles.length){ status.textContent = 'Seleccioná al menos un archivo.'; return; }
 
   const titulo = document.getElementById('up-titulo').value.trim();
-  if(!titulo){
-    const inp = document.getElementById('up-titulo');
-    inp.focus();
-    inp.style.borderColor = '#ef4444';
-    setTimeout(()=> inp.style.borderColor = '', 2500);
-    status.textContent = '⚠️ Agregá una descripción antes de subir (ej: Entrega en Mendoza — módulo 2 ambientes).';
-    return;
-  }
   const categoria = document.getElementById('up-categoria').value;
 
   btn.disabled = true;

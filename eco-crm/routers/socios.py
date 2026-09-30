@@ -1077,13 +1077,14 @@ async def lista_precios_modulos_pdf(socio: Aliado = Depends(require_socio)):
     precios_lista = modulos.get("precios_lista", {})
     modelos_custom = modulos.get("modelos_custom", [])
 
-    todos = list(precios_contado.keys())
+    # Solo módulos habitacionales hasta 18m² (ECO y FULL)
+    todos = [m for m in precios_contado.keys() if any(s in m for s in ("ECO", "FULL"))]
 
     filas = ""
     for m in todos:
         pc = precios_contado.get(m)
         pl = precios_lista.get(m)
-        tipo = "Habitacional" if any(s in m for s in ("ECO", "FULL")) else "Vivienda"
+        tipo = "Línea ECO" if "ECO" in m else "Línea FULL"
         filas += f"""<tr>
             <td class="nm">{m}</td>
             <td class="tipo">{tipo}</td>

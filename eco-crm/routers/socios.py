@@ -961,6 +961,204 @@ async def ficha_producto_pdf(tipo: str, modelo: str, socio: Aliado = Depends(req
     return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"Ficha_{titulo}.pdf")
 
 
+@router.get("/api/socio/lista-precios/piscinas")
+async def lista_precios_piscinas_pdf(socio: Aliado = Depends(require_socio)):
+    """Genera y descarga la lista de precios de contado de piscinas en PDF."""
+    from utils.documentos import html_to_pdf
+    from datetime import date
+
+    def _m(v):
+        return f"$ {(v or 0):,.0f}".replace(",", ".")
+
+    cat = load_catalogo()
+    piscinas = cat["piscinas"]
+    modelos = piscinas.get("modelos", [])
+    precios_contado = piscinas.get("precios", {})
+    precios_lista = piscinas.get("precios_lista", {})
+    precios_si = piscinas.get("precios_sin_instalacion", {})
+    precios_se = piscinas.get("precios_sin_instalacion_sin_equipo", {})
+    medidas = piscinas.get("medidas", {})
+
+    from routers.catalogo import _MEDIDAS_PDF
+    medidas_all = {**_MEDIDAS_PDF, **medidas}
+
+    filas = ""
+    for m in modelos:
+        pc = precios_contado.get(m)
+        pl = precios_lista.get(m)
+        psi = precios_si.get(m)
+        pse = precios_se.get(m)
+        med = medidas_all.get(m, {})
+        dim = ""
+        if med:
+            dim = f"{med.get('largo_m','?')} × {med.get('ancho_m','?')} × {med.get('profundidad_min_m','?')} m"
+        filas += f"""<tr>
+            <td class="nm">{m}</td>
+            <td class="dim">{dim}</td>
+            <td class="p pc">{_m(pc) if pc else '—'}</td>
+            <td class="p">{_m(psi) if psi else '—'}</td>
+            <td class="p">{_m(pse) if pse else '—'}</td>
+            <td class="p pl">{_m(pl) if pl else '—'}</td>
+        </tr>"""
+
+    hoy = date.today().strftime("%d/%m/%Y")
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'Inter', sans-serif; font-size: 11px; color: #1a1a2e; background: #fff; padding: 28px 32px; }}
+  .header {{ display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; border-bottom: 3px solid #0077b6; padding-bottom: 14px; }}
+  .brand {{ font-size: 22px; font-weight: 700; color: #0077b6; letter-spacing: -0.5px; }}
+  .brand span {{ color: #00b4d8; }}
+  .meta {{ text-align: right; color: #555; font-size: 10.5px; line-height: 1.6; }}
+  h1 {{ font-size: 15px; font-weight: 700; color: #0077b6; margin-bottom: 4px; }}
+  .sub {{ font-size: 10.5px; color: #555; margin-bottom: 18px; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  th {{ background: #0077b6; color: #fff; padding: 7px 8px; text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }}
+  th.p {{ text-align: right; }}
+  td {{ padding: 6px 8px; border-bottom: 1px solid #e8edf2; vertical-align: middle; }}
+  tr:nth-child(even) td {{ background: #f4f9fc; }}
+  td.nm {{ font-weight: 600; color: #0077b6; }}
+  td.dim {{ color: #666; font-size: 10px; }}
+  td.p {{ text-align: right; font-variant-numeric: tabular-nums; }}
+  td.pc {{ font-weight: 700; color: #023e8a; }}
+  td.pl {{ color: #888; font-size: 10px; }}
+  .footer {{ margin-top: 20px; padding-top: 12px; border-top: 1px solid #dde4ea; display: flex; justify-content: space-between; color: #888; font-size: 9.5px; }}
+  .nota {{ background: #e7f5ff; border-left: 3px solid #0077b6; padding: 8px 12px; margin-bottom: 18px; font-size: 10px; color: #023e8a; line-height: 1.5; }}
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="brand">ECO<span>FIVER</span></div>
+    <div style="font-size:10px;color:#555;margin-top:2px">Piscinas de fibra de vidrio · Módulos habitacionales</div>
+  </div>
+  <div class="meta">Lista de precios de contado<br>Vigente al {hoy}<br>Precios en pesos argentinos (ARS)</div>
+</div>
+<h1>Lista de precios — Piscinas de fibra</h1>
+<p class="sub">Todos los precios son de contado, instalación incluida en zona de cobertura. Fabricación propia. Garantía 10 años.</p>
+<div class="nota"><strong>Tipos de precio:</strong> &nbsp;&nbsp;
+  <strong>Con instalación</strong>: precio estándar (zona de cobertura). &nbsp;|&nbsp;
+  <strong>Casco + equipo</strong>: sin instalación. &nbsp;|&nbsp;
+  <strong>Casco solo</strong>: sin instalación ni equipo. &nbsp;|&nbsp;
+  <em>Precio de lista</em>: precio base para financiación.</div>
+<table>
+  <thead><tr>
+    <th>Modelo</th><th>Medidas (L × A × P)</th>
+    <th class="p">Contado c/instalación</th>
+    <th class="p">Casco + equipo</th>
+    <th class="p">Casco solo</th>
+    <th class="p">Precio de lista</th>
+  </tr></thead>
+  <tbody>{filas}</tbody>
+</table>
+<div class="footer">
+  <span>EcoFiver · ecofiver.site · 11 4449 8854</span>
+  <span>Lista generada el {hoy} · Sujeto a cambios sin previo aviso</span>
+</div>
+</body></html>"""
+
+    pdf_path = Path("data/listas") / "lista_precios_piscinas.pdf"
+    await html_to_pdf(html, pdf_path)
+    from fastapi.responses import FileResponse
+    return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"EcoFiver_Lista_Piscinas_{hoy.replace('/','')}.pdf")
+
+
+@router.get("/api/socio/lista-precios/modulos")
+async def lista_precios_modulos_pdf(socio: Aliado = Depends(require_socio)):
+    """Genera y descarga la lista de precios de contado de módulos habitacionales en PDF."""
+    from utils.documentos import html_to_pdf
+    from datetime import date
+
+    def _m(v):
+        return f"$ {(v or 0):,.0f}".replace(",", ".")
+
+    cat = load_catalogo()
+    modulos = cat["modulos"]
+    precios_contado = modulos.get("precios", {})
+    precios_lista = modulos.get("precios_lista", {})
+    modelos_custom = modulos.get("modelos_custom", [])
+
+    todos = list(precios_contado.keys())
+
+    filas = ""
+    for m in todos:
+        pc = precios_contado.get(m)
+        pl = precios_lista.get(m)
+        tipo = "Habitacional" if any(s in m for s in ("ECO", "FULL")) else "Vivienda"
+        filas += f"""<tr>
+            <td class="nm">{m}</td>
+            <td class="tipo">{tipo}</td>
+            <td class="p pc">{_m(pc) if pc else '—'}</td>
+            <td class="p pl">{_m(pl) if pl else '—'}</td>
+        </tr>"""
+
+    for m in modelos_custom:
+        nombre = m if isinstance(m, str) else m.get("nombre", "")
+        if nombre and nombre not in todos:
+            filas += f"""<tr>
+                <td class="nm">{nombre}</td><td class="tipo">Custom</td>
+                <td class="p pc">Consultar</td><td class="p pl">Consultar</td>
+            </tr>"""
+
+    hoy = date.today().strftime("%d/%m/%Y")
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'Inter', sans-serif; font-size: 11px; color: #1a1a2e; background: #fff; padding: 28px 32px; }}
+  .header {{ display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; border-bottom: 3px solid #2d6a4f; padding-bottom: 14px; }}
+  .brand {{ font-size: 22px; font-weight: 700; color: #2d6a4f; letter-spacing: -0.5px; }}
+  .brand span {{ color: #52b788; }}
+  .meta {{ text-align: right; color: #555; font-size: 10.5px; line-height: 1.6; }}
+  h1 {{ font-size: 15px; font-weight: 700; color: #2d6a4f; margin-bottom: 4px; }}
+  .sub {{ font-size: 10.5px; color: #555; margin-bottom: 18px; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  th {{ background: #2d6a4f; color: #fff; padding: 7px 8px; text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }}
+  th.p {{ text-align: right; }}
+  td {{ padding: 6px 8px; border-bottom: 1px solid #e8edf2; vertical-align: middle; }}
+  tr:nth-child(even) td {{ background: #f4faf7; }}
+  td.nm {{ font-weight: 600; color: #2d6a4f; }}
+  td.tipo {{ color: #666; font-size: 10px; }}
+  td.p {{ text-align: right; font-variant-numeric: tabular-nums; }}
+  td.pc {{ font-weight: 700; color: #1b4332; }}
+  td.pl {{ color: #888; font-size: 10px; }}
+  .footer {{ margin-top: 20px; padding-top: 12px; border-top: 1px solid #dde4ea; display: flex; justify-content: space-between; color: #888; font-size: 9.5px; }}
+  .nota {{ background: #e9f5ee; border-left: 3px solid #2d6a4f; padding: 8px 12px; margin-bottom: 18px; font-size: 10px; color: #1b4332; line-height: 1.5; }}
+  .badge {{ display:inline-block; background:#d8f3dc; color:#1b4332; border-radius:3px; padding:1px 6px; font-size:9px; font-weight:600; margin-left:4px; }}
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="brand">ECO<span>FIVER</span></div>
+    <div style="font-size:10px;color:#555;margin-top:2px">Piscinas de fibra de vidrio · Módulos habitacionales</div>
+  </div>
+  <div class="meta">Lista de precios de contado<br>Vigente al {hoy}<br>Precios en pesos argentinos (ARS)</div>
+</div>
+<h1>Lista de precios — Módulos habitacionales</h1>
+<p class="sub">Precios de contado. Resina náutica y Gelcoat de alta calidad. Instalación propia. Entrega y pago en domicilio.</p>
+<div class="nota">
+  <strong>Línea ECO</strong>: sin acabado final ni terminación del piso. &nbsp;|&nbsp;
+  <strong>Línea FULL</strong>: doble aislante con manta centrifugada, acabado final en Resina Náutica y Gelcoat, piso incluido.<br>
+  <strong>Precio de lista</strong>: precio base para financiación en cuotas. La instalación se realiza sobre pilotes propios (incluye escalera de acceso).
+</div>
+<table>
+  <thead><tr>
+    <th>Modelo</th><th>Tipo</th>
+    <th class="p">Precio contado</th>
+    <th class="p">Precio de lista</th>
+  </tr></thead>
+  <tbody>{filas}</tbody>
+</table>
+<div class="footer">
+  <span>EcoFiver · ecofiver.site · 11 4449 8854</span>
+  <span>Lista generada el {hoy} · Sujeto a cambios sin previo aviso</span>
+</div>
+</body></html>"""
+
+    pdf_path = Path("data/listas") / "lista_precios_modulos.pdf"
+    await html_to_pdf(html, pdf_path)
+    from fastapi.responses import FileResponse
+    return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"EcoFiver_Lista_Modulos_{hoy.replace('/','')}.pdf")
+
+
 @router.get("/api/socio/flete")
 async def socio_calcular_flete(
     tipo: str, modelo: Optional[str] = None, m2: Optional[float] = None,

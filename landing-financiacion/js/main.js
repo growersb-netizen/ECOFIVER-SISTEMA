@@ -81,7 +81,7 @@
     "header": "Hola! Vi la landing de EcoFiver y quiero info sobre el Plan 18 Pasos.",
     "hero": "Hola! Quiero financiar una piscina o un módulo en pesos.",
     "hero-plan18": null, // se arma dinámicamente
-    "promo-mundial": null, // se arma dinámicamente
+    "popup-plan18": "Hola! Vi el Plan 18 Pasos de EcoFiver. Quiero consultarles cómo arrancar mi financiación sin banco.",
     "cooperativa": "Hola! Quiero hablar con la cooperativa sobre financiar mi vivienda, una piscina, o ambas cosas.",
     "combo-1": null, // se arma dinámicamente
     "combo-2": null,
@@ -102,7 +102,7 @@
   function actualizarLinksWhatsapp() {
     document.querySelectorAll("[data-wa-cta]").forEach(function (el) {
       const key = el.getAttribute("data-wa-cta");
-      if (key === "simulador-modulo" || key === "simulador-piscina" || key === "promo-mundial" || key === "combo-1" || key === "combo-2" || key === "combo-3" || key === "combo-4" || key === "hero-plan18") return; // se arman aparte
+      if (key === "simulador-modulo" || key === "simulador-piscina" || key === "combo-1" || key === "combo-2" || key === "combo-3" || key === "combo-4" || key === "hero-plan18") return; // se arman aparte
       el.setAttribute("href", waLink(MENSAJES_WA[key] || MENSAJES_WA.hero));
     });
     document.querySelectorAll("[data-wa-display]").forEach(function (el) {
@@ -152,7 +152,7 @@
     const heroCta = document.querySelector('[data-wa-cta="hero-plan18"]');
     if (heroCta) {
       const msg = "Hola! Vi el Plan 18 Pasos de EcoFiver (ejemplo: vivienda de " + PLAN18_M2 +
-        " m² a $" + formatearPesos(cuota) + "/mes en " + PLAN18_CUOTAS + " cuotas). Quiero saber cómo arranco mi grupo.";
+        " m² a $" + formatearPesos(cuota) + "/mes en " + PLAN18_CUOTAS + " cuotas). Quiero saber cómo empezar.";
       heroCta.setAttribute("href", waLink(msg));
     }
   }
@@ -354,12 +354,11 @@
   }
 
   // ────────────────────────────────────────────────────────────
-  // Popup "Antes del Verano": aparece una vez por sesión, poco
-  // después de entrar a la página.
+  // Popup Plan 18 Pasos: aparece una vez por sesión.
   // ────────────────────────────────────────────────────────────
   const popupOverlay = document.getElementById("popup-overlay");
   if (popupOverlay) {
-    const POPUP_SESSION_KEY = "ecofiver_popup_antes_del_verano";
+    const POPUP_SESSION_KEY = "ecofiver_popup_plan18";
 
     function cerrarPopup() {
       popupOverlay.classList.remove("open");

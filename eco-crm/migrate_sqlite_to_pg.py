@@ -56,9 +56,58 @@ def _get_ordered_tables(src_engine):
     return inspector.get_table_names()
 
 
+def _topological_sort(tables: list[str], dst_engine) -> list[str]:
+    """Ordena tablas según dependencias FK en PostgreSQL para evitar violaciones."""
+    q = text("""
+        SELECT tc.table_name, ccu.table_name AS depends_on
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.referential_constraints rc
+            ON tc.constraint_name = rc.constraint_name
+        JOIN information_schema.constraint_column_usage ccu
+            ON rc.unique_constraint_name = ccu.constraint_name
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
+    """)
+    with dst_engine.connect() as conn:
+        deps = conn.execute(q).fetchall()
+
+    table_set = set(tables)
+    graph: dict[str, set[str]] = {t: set() for t in tables}
+    for child, parent in deps:
+        if child in table_set and parent in table_set and child != parent:
+            graph[child].add(parent)
+
+    # Kahn's algorithm
+    in_degree = {t: len(graph[t]) for t in tables}
+    queue = [t for t in tables if in_degree[t] == 0]
+    result = []
+    while queue:
+        node = queue.pop(0)
+        result.append(node)
+        for t in tables:
+            if node in graph[t]:
+                in_degree[t] -= 1
+                if in_degree[t] == 0:
+                    queue.append(t)
+    # Any remaining (cycles or missing) append at end
+    result.extend(t for t in tables if t not in result)
+    return result
+
+
 def _count(engine, table: str) -> int:
     with engine.connect() as conn:
         return conn.execute(text(f'SELECT COUNT(*) FROM "{table}"')).scalar() or 0
+
+
+def _get_bool_cols(dst_engine, table: str) -> set[str]:
+    """Retorna columnas de tipo boolean en PostgreSQL para la tabla dada."""
+    q = text("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = :t AND data_type = 'boolean'
+    """)
+    with dst_engine.connect() as conn:
+        rows = conn.execute(q, {"t": table}).fetchall()
+    return {r[0] for r in rows}
 
 
 def _copy_table(src_engine, dst_engine, table: str, dry_run: bool) -> tuple[int, int]:
@@ -75,19 +124,23 @@ def _copy_table(src_engine, dst_engine, table: str, dry_run: bool) -> tuple[int,
         log.info(f"  [dry-run] {table}: {src_count} filas (no se copian)")
         return src_count, 0
 
+    bool_cols = _get_bool_cols(dst_engine, table)
+
+    def cast_row(row):
+        d = dict(zip(cols, row))
+        for c in bool_cols:
+            if c in d and d[c] is not None:
+                d[c] = bool(d[c])
+        return d
+
     with dst_engine.begin() as dst:
-        # Disable FK checks during bulk insert to avoid ordering issues
-        dst.execute(text("SET session_replication_role = 'replica'"))
-        try:
-            col_list = ", ".join(f'"{c}"' for c in cols)
-            placeholders = ", ".join(f":{c}" for c in cols)
-            stmt = text(
-                f'INSERT INTO "{table}" ({col_list}) VALUES ({placeholders}) '
-                f"ON CONFLICT DO NOTHING"
-            )
-            dst.execute(stmt, [dict(zip(cols, row)) for row in rows])
-        finally:
-            dst.execute(text("SET session_replication_role = 'origin'"))
+        col_list = ", ".join(f'"{c}"' for c in cols)
+        placeholders = ", ".join(f":{c}" for c in cols)
+        stmt = text(
+            f'INSERT INTO "{table}" ({col_list}) VALUES ({placeholders}) '
+            f"ON CONFLICT DO NOTHING"
+        )
+        dst.execute(stmt, [cast_row(row) for row in rows])
 
     dst_count = _count(dst_engine, table)
     return src_count, dst_count
@@ -109,6 +162,13 @@ def migrate(sqlite_path: str, dry_run: bool = False):
     # Validate PG schema has the same tables
     pg_inspector = inspect(dst_engine)
     pg_tables = set(pg_inspector.get_table_names())
+
+    # Sort tables by FK dependency order to avoid FK violations
+    tables_in_pg = [t for t in tables if t in pg_tables]
+    tables_sorted = _topological_sort(tables_in_pg, dst_engine)
+    # Put skipped tables at end
+    tables_skipped = [t for t in tables if t not in pg_tables]
+    tables = tables_sorted + tables_skipped
 
     results = []
     errors = []

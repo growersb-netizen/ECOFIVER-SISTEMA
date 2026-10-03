@@ -3,9 +3,7 @@ FROM python:3.11-slim-bookworm
 WORKDIR /app
 
 ENV PYTHONUTF8=1 \
-    PYTHONIOENCODING=utf-8 \
-    LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8
+    PYTHONIOENCODING=utf-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc curl \

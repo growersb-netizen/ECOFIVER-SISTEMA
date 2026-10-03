@@ -1302,6 +1302,7 @@ async def update_precios_unificado(
     if campo not in campos_validos:
         raise HTTPException(400, f"campo debe ser uno de: {', '.join(campos_validos)}")
     nuevos_precios = data.get("precios", {})
+    replace = data.get("replace", False)
     cat = load_catalogo()
     cat[tipo].setdefault(campo, {})
     precios_actuales = cat[tipo].get(campo, {})
@@ -1314,10 +1315,36 @@ async def update_precios_unificado(
                 valor_nuevo=float(nuevo_valor),
                 cambiado_por_id=current_user.id if current_user else None,
             ))
-    cat[tipo][campo].update(nuevos_precios)
+    if replace:
+        cat[tipo][campo] = nuevos_precios
+    else:
+        cat[tipo][campo].update(nuevos_precios)
     save_catalogo(cat)
     db.commit()
     return {"ok": True, "tipo": tipo, "campo": campo, "precios_actualizados": len(nuevos_precios)}
+
+
+@router.put("/api/catalogo/modulos/campos-texto")
+async def update_modulos_campos_texto(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Body: { "campo": "tecnologia"|"descripcion"|..., "valor": "..." }"""
+    _write_auth(x_api_key, current_user)
+    data = await request.json()
+    campo = data.get("campo")
+    valor = data.get("valor")
+    if not campo or valor is None:
+        raise HTTPException(400, "campo y valor son requeridos")
+    campos_texto = {"tecnologia", "descripcion", "nota"}
+    if campo not in campos_texto:
+        raise HTTPException(400, f"campo debe ser uno de: {', '.join(campos_texto)}")
+    cat = load_catalogo()
+    cat.setdefault("modulos", {})
+    cat["modulos"][campo] = valor
+    save_catalogo(cat)
+    return {"ok": True, "campo": campo}
 
 
 # ─── COMBOS ───────────────────────────────────────────────────────────────────

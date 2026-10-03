@@ -578,12 +578,49 @@ DEFAULT_CATALOGO = {
 }
 
 
+def _fix_mojibake_str(s: str) -> str:
+    """Convierte strings con doble encoding (mojibake) a UTF-8 correcto.
+    Ejemplo: 'MÃ³dulo 30mÂ²' → 'Módulo 30m²'.
+    Solo actúa cuando hay secuencias típicas de doble encoding (Ã seguido de char < 0xC0)."""
+    try:
+        return s.encode("iso-8859-1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return s
+
+
+def _fix_mojibake_dict(d: dict) -> dict:
+    """Recrea un dict corrigiendo claves con mojibake."""
+    return {_fix_mojibake_str(k): v for k, v in d.items()}
+
+
+def _needs_mojibake_fix(s: str) -> bool:
+    """True si la string parece tener doble encoding UTF-8 (contiene 'Ã' seguido de carácter < U+0100)."""
+    for i, c in enumerate(s):
+        if c == 'Ã' and i + 1 < len(s) and ord(s[i + 1]) < 0x100:
+            return True
+        if c == 'Â' and i + 1 < len(s) and ord(s[i + 1]) < 0x100:
+            return True
+    return False
+
+
 def load_catalogo() -> dict:
     if CATALOGO_FILE.exists():
         try:
             cat = json.loads(CATALOGO_FILE.read_text(encoding="utf-8"))
-            # Migración: completar claves nuevas si el archivo es de un esquema viejo
+            # Auto-corrección de claves con mojibake (doble encoding UTF-8)
             cambiado = False
+            for seccion in ("piscinas", "modulos"):
+                for campo_precios in ("precios", "precios_lista", "precios_sin_instalacion", "precios_sin_instalacion_sin_equipo"):
+                    precios_sec = cat.get(seccion, {}).get(campo_precios, {})
+                    if any(_needs_mojibake_fix(k) for k in precios_sec):
+                        cat[seccion][campo_precios] = _fix_mojibake_dict(precios_sec)
+                        cambiado = True
+            # Corregir campo tecnologia si tiene mojibake
+            tec = cat.get("modulos", {}).get("tecnologia", "")
+            if tec and _needs_mojibake_fix(tec):
+                cat["modulos"]["tecnologia"] = _fix_mojibake_str(tec)
+                cambiado = True
+            # Migración: completar claves nuevas si el archivo es de un esquema viejo
             for seccion in ("piscinas", "modulos"):
                 cat.setdefault(seccion, {})
                 for campo, default in DEFAULT_CATALOGO[seccion].items():

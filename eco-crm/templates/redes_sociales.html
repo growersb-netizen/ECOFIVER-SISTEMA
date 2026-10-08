@@ -190,7 +190,8 @@
     <input id="pg-buscar" type="search" placeholder="🔍  Buscar por nombre, vendedor o WhatsApp…" oninput="filtrarTabla(this.value)">
     <select id="pg-filtro-estado" onchange="filtrarTabla(document.getElementById('pg-buscar').value)" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:8px">
       <option value="">Todas</option>
-      <option value="activa">Activas</option>
+      <option value="activa" selected>Activas</option>
+      <option value="inactiva">Inactivas</option>
       <option value="sin-token">Sin token</option>
       <option value="sin-wa">Sin WhatsApp</option>
       <option value="con-ia">Con IA activa</option>
@@ -534,6 +535,7 @@ function filtrarTabla(q) {
     );
   }
   if (estado === 'activa')    resultado = resultado.filter(p => p.activa);
+  if (estado === 'inactiva')  resultado = resultado.filter(p => !p.activa);
   if (estado === 'sin-token') resultado = resultado.filter(p => !p.page_token_ok);
   if (estado === 'sin-wa')    resultado = resultado.filter(p => !p.numero_whatsapp);
   if (estado === 'con-ia')    resultado = resultado.filter(p => p.auto_reply_comentarios || p.auto_reply_mensajes);

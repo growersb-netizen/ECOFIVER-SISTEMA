@@ -80,6 +80,10 @@ async def api_redes_admin_paginas(
             "tiene_token": bool(p.page_token),
             "webhook_subscribed": bool(p.webhook_subscribed),
             "activa": bool(p.activa),
+            "auto_reply_mensajes": bool(p.auto_reply_mensajes),
+            "auto_reply_comentarios": bool(p.auto_reply_comentarios),
+            "auto_eliminar_negativos": bool(p.auto_eliminar_negativos),
+            "vendedor": getattr(p, "vendedor", None) or "",
         }
         for p in paginas
     ]
@@ -114,6 +118,35 @@ async def api_redes_admin_patch_pagina(
 
     db.commit()
     return {"ok": True, "page_id": page_id, "nombre": pg.nombre, "activa": pg.activa, "numero_whatsapp": pg.numero_whatsapp}
+
+
+@router.post("/api/redes/admin/paginas/batch-auto-reply")
+async def api_redes_admin_batch_auto_reply(
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Activa o desactiva auto_reply_mensajes / auto_reply_comentarios / auto_eliminar_negativos
+    en todas las páginas activas (o en las indicadas).
+    Body: {auto_reply_mensajes: bool, auto_reply_comentarios: bool, auto_eliminar_negativos: bool, page_ids: [...] opcional}
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+    body = await request.json()
+    page_ids = body.get("page_ids")
+    q = db.query(MetaPagina).filter(MetaPagina.activa == True)
+    if page_ids:
+        q = q.filter(MetaPagina.page_id.in_(page_ids))
+    paginas = q.all()
+    for campo in ("auto_reply_mensajes", "auto_reply_comentarios", "auto_eliminar_negativos"):
+        if campo in body:
+            for pg in paginas:
+                setattr(pg, campo, bool(body[campo]))
+    db.commit()
+    return {"ok": True, "actualizadas": len(paginas)}
 
 
 @router.post("/api/redes/admin/paginas/batch-deactivate")

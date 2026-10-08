@@ -200,6 +200,7 @@
       <button id="btn-vista-tabla" onclick="setVista('tabla')" class="btn-bulk btn-bulk-green" style="border-radius:0;padding:6px 10px">☰ Lista</button>
       <button id="btn-vista-grupo" onclick="setVista('grupo')" class="btn-bulk btn-bulk-ghost" style="border-radius:0;padding:6px 10px">📁 Grupos</button>
     </div>
+    <button onclick="sincronizarWA()" class="btn btn-ghost btn-sm" id="btn-sync-wa" title="Traer número de WhatsApp desde Meta para cada página">📲 Sync WA desde Meta</button>
     <button onclick="activarTodoGlobal()" class="btn btn-primary btn-sm" title="Activar auto-respuestas en TODAS las páginas">⚡ Activar todo</button>
   </div>
 
@@ -702,6 +703,42 @@ async function activarGrupo(portafolio) {
     toast(`✅ ${data.updated} páginas activadas en "${portafolio}"`, 'success');
     filtrarTabla(document.getElementById('pg-buscar')?.value || '');
   } catch(e) { toast(e.message, 'error'); }
+}
+
+async function sincronizarWA() {
+  const btn = document.getElementById('btn-sync-wa');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Consultando Meta…'; }
+  try {
+    const r = await fetch('/api/redes/paginas/sync-whatsapp', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ solo_vacias: true }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Error');
+
+    if (d.encontrados > 0) {
+      // actualizar estado local
+      d.detalle.forEach(({ page_id, whatsapp }) => {
+        const p = _paginas.find(x => x.page_id === page_id);
+        if (p) p.numero_whatsapp = whatsapp;
+      });
+      filtrarTabla(document.getElementById('pg-buscar')?.value || '');
+      toast(`✅ ${d.encontrados} números de WhatsApp importados desde Meta`, 'success');
+
+      // mostrar resumen en consola
+      const lista = d.detalle.map(x => `• ${x.nombre}: ${x.whatsapp}`).join('\n');
+      if (d.sin_numero?.length || d.con_error?.length) {
+        const msg = `✅ Encontrados: ${d.encontrados}\n${lista}\n\n` +
+          (d.no_encontrados > 0 ? `⚠️ Sin número en Meta: ${d.no_encontrados}\n` : '') +
+          (d.errores > 0 ? `❌ Con error: ${d.errores}` : '');
+        alert(msg);
+      }
+    } else {
+      toast(`ℹ️ Ninguna página tiene número de WhatsApp configurado en Meta (${d.no_encontrados} revisadas, ${d.errores} errores)`, 'info');
+    }
+  } catch(e) { toast(e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '📲 Sync WA desde Meta'; } }
 }
 
 async function activarTodoGlobal() {

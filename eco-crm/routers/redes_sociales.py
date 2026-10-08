@@ -657,6 +657,80 @@ async def api_redes_bulk_automation(
     return {"ok": True, "updated": len(pages), "campos": campos}
 
 
+# ─── SINCRONIZAR WHATSAPP DESDE META ─────────────────────────────────────────
+
+@router.post("/api/redes/paginas/sync-whatsapp")
+async def api_redes_sync_whatsapp(
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Para cada página con page_token, consulta la Graph API buscando
+    whatsapp_number y connected_instagram_account.whatsapp_number_id,
+    y guarda el número en numero_whatsapp si estaba vacío.
+    """
+    _check_access(user, db)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    solo_vacias = body.get("solo_vacias", True)  # por defecto solo actualiza las que no tienen
+
+    paginas = db.query(MetaPagina).filter(MetaPagina.activa == True).all()
+    user_token = get_config_value("meta_page_access_token", db) or ""
+
+    encontrados = []
+    no_encontrados = []
+    errores = []
+
+    async with httpx.AsyncClient(timeout=20) as hc:
+        for pg in paginas:
+            if solo_vacias and pg.numero_whatsapp:
+                continue  # ya tiene número, omitir
+
+            token = pg.page_token or user_token
+            if not token:
+                no_encontrados.append({"page_id": pg.page_id, "nombre": pg.nombre, "razon": "sin token"})
+                continue
+
+            try:
+                r = await hc.get(
+                    f"{META_GRAPH_URL}/{pg.page_id}",
+                    params={
+                        "fields": "whatsapp_number,name",
+                        "access_token": token,
+                    },
+                )
+                if r.status_code != 200:
+                    errores.append({"page_id": pg.page_id, "nombre": pg.nombre, "error": r.text[:120]})
+                    continue
+
+                data = r.json()
+                wa = (data.get("whatsapp_number") or "").strip()
+
+                if wa:
+                    pg.numero_whatsapp = wa
+                    encontrados.append({"page_id": pg.page_id, "nombre": pg.nombre, "whatsapp": wa})
+                else:
+                    no_encontrados.append({"page_id": pg.page_id, "nombre": pg.nombre, "razon": "no configurado en Meta"})
+
+            except Exception as e:
+                errores.append({"page_id": pg.page_id, "nombre": pg.nombre, "error": str(e)[:120]})
+
+    db.commit()
+    return {
+        "ok": True,
+        "encontrados": len(encontrados),
+        "no_encontrados": len(no_encontrados),
+        "errores": len(errores),
+        "detalle": encontrados,
+        "sin_numero": no_encontrados,
+        "con_error": errores,
+    }
+
+
 # ─── CONFIGURAR AUTOMATIZACIÓN POR PÁGINA ─────────────────────────────────────
 
 @router.patch("/api/redes/paginas/{page_id}/automation")

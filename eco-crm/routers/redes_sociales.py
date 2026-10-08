@@ -1224,76 +1224,49 @@ async def api_redes_admin_subscribe_via_token_get(
     user_token: str = "",
     db: Session = Depends(get_db),
 ):
-    """Alias GET de subscribe-via-system-token para llamar desde navegación de página."""
+    """
+    Suscribe todas las páginas al webhook usando el user_token como token de admin.
+    Obtiene page tokens individuales con GET /{page_id}?fields=access_token.
+    No requiere app-specific token — funciona con cualquier token de admin del BM.
+    """
     expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
     if t != expected:
         raise HTTPException(403, "Forbidden")
     if not user_token:
         raise HTTPException(400, "Falta user_token")
 
-    from fastapi import Request as _Req
-    import types as _types
+    # Guardar el user_token como token global para futuros usos
+    stored = encrypt_value(user_token)
+    entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
+    if entry:
+        entry.valor = stored
+    else:
+        db.add(ConfiguracionSistema(clave="meta_page_access_token", valor=stored, es_secreto=True, categoria="meta"))
+    db.commit()
 
-    class _FakeReq:
-        async def json(self):
-            return {"user_token": user_token}
-
-    fake = _FakeReq()
-    fake.method = "GET"
-
-    import hmac as _hmac, hashlib as _hashlib
-    app_id = get_config_value("meta_app_id", db) or os.getenv("META_APP_ID", "")
-    app_secret = get_config_value("meta_app_secret", db) or os.getenv("META_APP_SECRET", "")
-    if not app_id or not app_secret:
-        raise HTTPException(400, "Faltan meta_app_id o meta_app_secret")
-
-    appsecret_proof = _hmac.new(app_secret.encode(), user_token.encode(), _hashlib.sha256).hexdigest()
-
+    paginas = db.query(MetaPagina).all()
     resultados: dict = {}
     async with httpx.AsyncClient(timeout=60) as hc:
-        r_st = await hc.post(
-            f"{META_GRAPH_URL}/{META_BUSINESS_ID}/system_user_access_tokens",
-            params={
-                "access_token": user_token,
-                "appsecret_proof": appsecret_proof,
-                "system_user_id": META_SYSTEM_USER_ID,
-                "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list",
-            },
-        )
-        if r_st.status_code != 200 or "access_token" not in r_st.json():
-            return {"ok": False, "error": "No se pudo generar system token", "detalle": r_st.json()}
-
-        system_token = r_st.json()["access_token"]
-        stored = encrypt_value(system_token)
-        entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
-        if entry:
-            entry.valor = stored
-        else:
-            db.add(ConfiguracionSistema(clave="meta_page_access_token", valor=stored, es_secreto=True, categoria="meta"))
-        db.commit()
-
-        tokens_por_pagina: dict[str, str] = {}
-        after = None
-        for _ in range(10):
-            params_acc: dict = {"fields": "id,access_token,name", "access_token": system_token, "limit": 50}
-            if after:
-                params_acc["after"] = after
-            r_acc = await hc.get(f"{META_GRAPH_URL}/me/accounts", params=params_acc)
-            d_acc = r_acc.json()
-            for pg_data in d_acc.get("data", []):
-                tokens_por_pagina[pg_data["id"]] = pg_data["access_token"]
-            after = d_acc.get("paging", {}).get("cursors", {}).get("after")
-            if not d_acc.get("paging", {}).get("next"):
-                break
-
-        paginas = db.query(MetaPagina).all()
         for pg in paginas:
             pid = pg.page_id
-            page_token = tokens_por_pagina.get(pid)
-            if not page_token:
-                resultados[pid] = {"nombre": pg.nombre, "ok": False, "error": "Sin token"}
+            # Obtener page token individual
+            r_pt = await hc.get(
+                f"{META_GRAPH_URL}/{pid}",
+                params={"fields": "access_token,name", "access_token": user_token},
+            )
+            data_pt = r_pt.json()
+            if r_pt.status_code != 200 or "access_token" not in data_pt:
+                resultados[pid] = {
+                    "nombre": pg.nombre,
+                    "ok": False,
+                    "error": data_pt.get("error", {}).get("message", "sin token"),
+                }
                 continue
+
+            page_token = data_pt["access_token"]
             pg.page_token = page_token
+
+            # Suscribir webhook
             r_sub = await hc.post(
                 f"{META_GRAPH_URL}/{pid}/subscribed_apps",
                 params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
@@ -1307,9 +1280,8 @@ async def api_redes_admin_subscribe_via_token_get(
     db.commit()
     pages_ok = sum(1 for v in resultados.values() if v["ok"])
     return {
-        "ok": all(v["ok"] for v in resultados.values()),
-        "system_token_guardado": True,
-        "pages_found": len(tokens_por_pagina),
+        "ok": pages_ok > 0,
+        "token_guardado": True,
         "pages_subscribed": pages_ok,
         "pages_error": len(resultados) - pages_ok,
         "resultados": resultados,

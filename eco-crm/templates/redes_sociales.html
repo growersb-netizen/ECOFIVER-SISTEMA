@@ -2358,7 +2358,6 @@ async function verWABAs() {
               <th style="padding:7px 12px;text-align:left">Nombre verificado</th>
               <th style="padding:7px 12px;text-align:left">Estado</th>
               <th style="padding:7px 12px;text-align:left">Calidad</th>
-              <th style="padding:7px 12px;text-align:center">Asignar</th>
             </tr></thead>
             <tbody>`;
           for (const ph of waba.telefones) {
@@ -2370,11 +2369,6 @@ async function verWABAs() {
               <td style="padding:8px 12px">${esc(ph.verified_name || '—')}</td>
               <td style="padding:8px 12px"><span style="color:${statusColor};font-size:12px">${esc(ph.status || '—')}</span></td>
               <td style="padding:8px 12px"><span style="color:${qualityColor};font-size:12px">●</span> ${esc(ph.quality_rating || '—')}</td>
-              <td style="padding:8px 12px;text-align:center">
-                <button onclick="asignarWABA('${esc(numero)}')" class="btn btn-sm" style="font-size:11px;padding:3px 8px;background:#22c55e1a;color:#22c55e;border:1px solid #22c55e30">
-                  📌 Asignar a páginas
-                </button>
-              </td>
             </tr>`;
           }
           html += `</tbody></table>`;
@@ -2391,9 +2385,6 @@ async function verWABAs() {
     }
 
     html += `
-        <div style="margin-top:12px;padding:10px 12px;background:rgba(59,130,246,.07);border-radius:8px;font-size:12px;color:var(--text-muted)">
-          💡 <strong>Asignar número a páginas:</strong> hace clic en "📌 Asignar a páginas" para asignar ese número de WhatsApp Business al grupo de páginas de tu elección.
-        </div>
         </div>
       </div>`;
 
@@ -2407,62 +2398,6 @@ async function verWABAs() {
   }
 }
 
-async function asignarWABA(numero) {
-  // Mostrar selector: todas las páginas, por portafolio, o páginas sin número
-  const sinWA = _paginas.filter(p => !p.numero_whatsapp);
-  const opts = [
-    `Todas las páginas (${_paginas.length})`,
-    `Solo páginas sin WhatsApp (${sinWA.length})`,
-    'Cancelar',
-  ];
-  // Portafolios disponibles
-  const portafolios = [...new Set(_paginas.map(p => p.portafolio || 'Sin grupo').filter(Boolean))];
-  portafolios.forEach(pf => opts.splice(opts.length - 1, 0, `Portafolio: ${pf}`));
-
-  const choice = prompt(
-    `Asignar número ${numero} a:\n` +
-    opts.map((o, i) => `${i + 1}. ${o}`).join('\n') +
-    '\n\nEscribí el número de opción:',
-  );
-  if (!choice || choice.trim() === String(opts.length)) return;  // cancelar
-
-  const idx = parseInt(choice) - 1;
-  if (isNaN(idx) || idx < 0 || idx >= opts.length - 1) {
-    toast('Opción inválida', 'error'); return;
-  }
-
-  let body = { numero_whatsapp: numero };
-  if (idx === 0) {
-    body.all = true;
-  } else if (idx === 1) {
-    body.page_ids = sinWA.map(p => p.page_id);
-    if (body.page_ids.length === 0) { toast('No hay páginas sin WhatsApp', 'info'); return; }
-  } else {
-    const pf = portafolios[idx - 2];
-    body.page_ids = _paginas.filter(p => (p.portafolio || 'Sin grupo') === pf).map(p => p.page_id);
-  }
-
-  try {
-    const r = await fetch('/api/redes/paginas/asignar-waba', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.detail || 'Error');
-
-    // Actualizar estado local
-    const ids = new Set(body.all ? _paginas.map(p => p.page_id) : (body.page_ids || []));
-    _paginas.forEach(p => { if (ids.has(p.page_id)) p.numero_whatsapp = numero; });
-    _pgFiltradas = _pgFiltradas.map(p => ids.has(p.page_id) ? { ...p, numero_whatsapp: numero } : p);
-    filtrarTabla(document.getElementById('pg-buscar')?.value || '');
-
-    toast(`✅ ${d.updated} páginas asignadas al número ${numero}`, 'success');
-    document.getElementById('modal-wabas').style.display = 'none';
-  } catch(e) {
-    toast(e.message, 'error');
-  }
-}
 
 
 /* ─── init ───────────────────────────────────────────────────────────────── */

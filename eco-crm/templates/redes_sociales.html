@@ -1328,18 +1328,23 @@ async function eliminarPost(postId, pageId) {
 
 /* ─── sincronizar páginas ────────────────────────────────────────────────── */
 async function syncPaginas() {
+  const token = prompt('Pegá tu User Access Token de Facebook (Graph API Explorer):');
+  if (!token || !token.trim()) return;
+
   const btn = document.getElementById('sync-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Sincronizando…';
+  const AUDIT_TOKEN = 'eco-audit-2026';
   try {
-    const r = await fetch('/api/meta/paginas/sync', { method: 'POST', credentials: 'include' });
+    const r = await fetch(
+      `/api/redes/admin/sync-pages?t=${encodeURIComponent(AUDIT_TOKEN)}&user_token=${encodeURIComponent(token.trim())}`,
+      { method: 'POST', credentials: 'include' }
+    );
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.detail || 'Error al sincronizar');
-    const conToken = (j.pages || []).filter(p => p.token_ok).length;
-    const sinToken = j.synced - conToken;
-    let msg = `✅ ${j.synced} página${j.synced !== 1 ? 's' : ''} sincronizada${j.synced !== 1 ? 's' : ''}`;
-    if (sinToken > 0) msg += ` — ⚠️ ${sinToken} sin token (configurá manualmente en Config)`;
-    toast(msg, sinToken > 0 ? 'warning' : 'success');
+    let msg = `✅ ${j.total} página(s) encontradas — ${j.creadas?.length || 0} nueva(s), ${j.actualizadas?.length || 0} actualizada(s)`;
+    if (j.errores?.length > 0) msg += ` — ⚠️ ${j.errores.length} error(es)`;
+    toast(msg, j.errores?.length > 0 ? 'warning' : 'success');
     await cargarPaginas();
   } catch(e) {
     toast(e.message, 'error');

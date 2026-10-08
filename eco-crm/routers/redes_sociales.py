@@ -1392,6 +1392,15 @@ async def api_redes_admin_sync_pages(
     if not user_token:
         raise HTTPException(400, "Falta user_token")
 
+    # Guardar token en config para que el botón Sincronizar lo use
+    stored = encrypt_value(user_token)
+    entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
+    if entry:
+        entry.valor = stored
+    else:
+        db.add(ConfiguracionSistema(clave="meta_page_access_token", valor=stored, es_secreto=True, categoria="meta"))
+    db.commit()
+
     creadas = []
     actualizadas = []
     errores = []

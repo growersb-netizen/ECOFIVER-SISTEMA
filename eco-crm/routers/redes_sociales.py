@@ -1288,6 +1288,96 @@ async def api_redes_admin_subscribe_via_token_get(
     }
 
 
+@router.post("/api/redes/admin/eliminar-negativos")
+async def api_redes_admin_eliminar_negativos(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Elimina en Facebook todos los comentarios negativos pendientes. Requiere ?t=<ML_AUDIT_TOKEN>."""
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    negativos = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.tipo == "comentario",
+        FacebookInteraccion.sentimiento == "negativo",
+        FacebookInteraccion.accion == "pendiente",
+    ).all()
+
+    if not negativos:
+        return {"ok": True, "eliminados": 0, "errores": 0, "msg": "No hay comentarios negativos pendientes"}
+
+    tokens_pagina: dict[str, str] = {}
+    for pg in db.query(MetaPagina).filter(MetaPagina.page_token != None).all():
+        tokens_pagina[pg.page_id] = pg.page_token
+
+    eliminados = 0
+    errores = 0
+    for item in negativos:
+        token = tokens_pagina.get(item.page_id)
+        if not token:
+            item.accion = "error_sin_token"
+            errores += 1
+            continue
+        ok = await _eliminar_comentario(item.objeto_id, token)
+        item.accion = "eliminado" if ok else "error"
+        if ok:
+            eliminados += 1
+        else:
+            errores += 1
+
+    db.commit()
+    return {"ok": True, "total": len(negativos), "eliminados": eliminados, "errores": errores}
+
+
+@router.post("/api/redes/admin/generar-borradores")
+async def api_redes_admin_generar_borradores(
+    t: str = "",
+    limit: int = 20,
+    db: Session = Depends(get_db),
+):
+    """
+    Genera borradores de respuesta IA para los primeros N mensajes privados pendientes
+    (filtrando automáticos de Facebook). No envía nada. Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    # Filtrar mensajes automáticos de Facebook
+    SISTEMA_PREFIXES = [
+        "Facebook creó este chat",
+        "facebook created this conversation",
+    ]
+
+    mensajes = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.tipo == "mensaje",
+        FacebookInteraccion.accion == "pendiente",
+    ).order_by(FacebookInteraccion.created_at.asc()).all()
+
+    genuinos = [
+        m for m in mensajes
+        if not any(m.contenido.lower().startswith(p.lower()) for p in SISTEMA_PREFIXES)
+    ][:limit]
+
+    paginas = {pg.page_id: pg for pg in db.query(MetaPagina).all()}
+    borradores = []
+    for m in genuinos:
+        pg = paginas.get(m.page_id)
+        pg_nombre = pg.nombre if pg else m.page_id
+        numero_wa = (pg.numero_whatsapp or "") if pg else ""
+        borrador = await _generar_respuesta_ia(m.contenido, pg_nombre, numero_wa, db)
+        borradores.append({
+            "id": m.id,
+            "pagina": pg_nombre,
+            "usuario": m.usuario_nombre,
+            "mensaje_original": m.contenido,
+            "borrador_respuesta": borrador,
+        })
+
+    return {"total": len(borradores), "borradores": borradores}
+
+
 @router.get("/api/redes/admin/pendientes")
 async def api_redes_admin_pendientes(
     t: str = "",

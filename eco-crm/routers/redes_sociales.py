@@ -731,6 +731,130 @@ async def api_redes_sync_whatsapp(
     }
 
 
+# ─── LISTAR WHATSAPP BUSINESS ACCOUNTS DEL BM ────────────────────────────────
+
+@router.get("/api/redes/whatsapp-business-accounts")
+async def api_redes_waba_list(
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Consulta el Business Manager para listar todos los WhatsApp Business Accounts
+    y sus números de teléfono (los usados en Click-to-WhatsApp ads).
+    """
+    _check_access(user, db)
+    token = get_config_value("meta_page_access_token", db) or ""
+    if not token:
+        raise HTTPException(400, "No hay token Meta configurado")
+
+    resultados = []
+    errores = []
+
+    async with httpx.AsyncClient(timeout=30) as hc:
+        # Listar WABAs del Business Manager
+        r_waba = await hc.get(
+            f"{META_GRAPH_URL}/{META_BUSINESS_ID}/whatsapp_business_accounts",
+            params={
+                "fields": "id,name,currency,timezone_id,message_template_namespace",
+                "access_token": token,
+                "limit": 50,
+            },
+        )
+        if r_waba.status_code != 200:
+            return {
+                "ok": False,
+                "error": "No se pudo consultar el BM",
+                "detalle": r_waba.json(),
+                "wabase": [],
+            }
+
+        wabas = r_waba.json().get("data", [])
+
+        for waba in wabas:
+            waba_id = waba.get("id")
+            waba_info = {
+                "waba_id": waba_id,
+                "nombre": waba.get("name", ""),
+                "currency": waba.get("currency", ""),
+                "telefones": [],
+            }
+
+            # Obtener números de teléfono de cada WABA
+            try:
+                r_phones = await hc.get(
+                    f"{META_GRAPH_URL}/{waba_id}/phone_numbers",
+                    params={
+                        "fields": "id,display_phone_number,verified_name,quality_rating,status,code_verification_status",
+                        "access_token": token,
+                        "limit": 50,
+                    },
+                )
+                if r_phones.status_code == 200:
+                    phones = r_phones.json().get("data", [])
+                    waba_info["telefones"] = [
+                        {
+                            "phone_number_id": p.get("id"),
+                            "display_phone_number": p.get("display_phone_number", ""),
+                            "verified_name": p.get("verified_name", ""),
+                            "quality_rating": p.get("quality_rating", ""),
+                            "status": p.get("status", ""),
+                        }
+                        for p in phones
+                    ]
+                else:
+                    errores.append({
+                        "waba_id": waba_id,
+                        "error": r_phones.text[:200],
+                    })
+            except Exception as e:
+                errores.append({"waba_id": waba_id, "error": str(e)[:120]})
+
+            resultados.append(waba_info)
+
+    return {
+        "ok": True,
+        "total_wabas": len(resultados),
+        "wabase": resultados,
+        "errores": errores,
+    }
+
+
+# ─── ASIGNAR NÚMERO WABA A UNA PÁGINA ─────────────────────────────────────────
+
+@router.post("/api/redes/paginas/asignar-waba")
+async def api_redes_asignar_waba(
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Asigna un número de teléfono WABA a una o varias páginas.
+    Body: { "page_ids": ["id1",...], "numero_whatsapp": "+54911..." }
+    O: { "all": true, "numero_whatsapp": "+54911..." } para todas las páginas.
+    """
+    _check_access(user, db)
+    body = await request.json()
+    numero = (body.get("numero_whatsapp") or "").strip()
+    if not numero:
+        raise HTTPException(400, "Falta numero_whatsapp")
+
+    page_ids = body.get("page_ids") or []
+    all_pages = body.get("all", False)
+
+    q = db.query(MetaPagina)
+    if not all_pages:
+        if not page_ids:
+            raise HTTPException(400, "Falta page_ids o all=true")
+        q = q.filter(MetaPagina.page_id.in_(page_ids))
+
+    paginas = q.all()
+    for pg in paginas:
+        pg.numero_whatsapp = numero
+    db.commit()
+
+    return {"ok": True, "updated": len(paginas), "numero_whatsapp": numero}
+
+
 # ─── CONFIGURAR AUTOMATIZACIÓN POR PÁGINA ─────────────────────────────────────
 
 @router.patch("/api/redes/paginas/{page_id}/automation")

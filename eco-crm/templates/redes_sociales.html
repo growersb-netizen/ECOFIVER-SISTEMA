@@ -200,6 +200,7 @@
       <button id="btn-vista-tabla" onclick="setVista('tabla')" class="btn-bulk btn-bulk-green" style="border-radius:0;padding:6px 10px">☰ Lista</button>
       <button id="btn-vista-grupo" onclick="setVista('grupo')" class="btn-bulk btn-bulk-ghost" style="border-radius:0;padding:6px 10px">📁 Grupos</button>
     </div>
+    <button onclick="verWABAs()" class="btn btn-ghost btn-sm" id="btn-ver-wabas" title="Ver todos los WhatsApp Business Accounts del Business Manager">📋 Ver WABAs</button>
     <button onclick="sincronizarWA()" class="btn btn-ghost btn-sm" id="btn-sync-wa" title="Traer número de WhatsApp desde Meta para cada página">📲 Sync WA desde Meta</button>
     <button onclick="activarTodoGlobal()" class="btn btn-primary btn-sm" title="Activar auto-respuestas en TODAS las páginas">⚡ Activar todo</button>
   </div>
@@ -2300,6 +2301,164 @@ async function agregarPagina() {
     toast(`✅ Página "${nombre}" agregada al portafolio "${portafolio}"`);
     cerrarAgregarPagina();
     await cargarPaginas();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHATSAPP BUSINESS ACCOUNTS — listar números del BM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function verWABAs() {
+  const btn = document.getElementById('btn-ver-wabas');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Consultando BM…'; }
+
+  try {
+    const r = await fetch('/api/redes/whatsapp-business-accounts', { credentials: 'include' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Error al consultar el BM');
+
+    // Construir/reutilizar modal
+    let modal = document.getElementById('modal-wabas');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'modal-wabas';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+      modal.onclick = (e) => { if (e.target === modal) modal.style.display='none'; };
+      document.body.appendChild(modal);
+    }
+
+    let html = `
+      <div style="background:var(--bg-card);border-radius:12px;padding:24px;width:min(760px,100%);max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-weight:700;font-size:16px">📋 WhatsApp Business Accounts (${d.total_wabas})</div>
+          <button onclick="document.getElementById('modal-wabas').style.display='none'" class="btn btn-ghost btn-sm">✕ Cerrar</button>
+        </div>
+        <div style="overflow-y:auto;flex:1">`;
+
+    if (!d.wabase || d.wabase.length === 0) {
+      html += `<div style="color:var(--text-muted);padding:32px;text-align:center">No se encontraron WhatsApp Business Accounts en el Business Manager</div>`;
+    } else {
+      for (const waba of d.wabase) {
+        html += `
+          <div style="margin-bottom:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <div style="background:var(--bg-hover,#1a1a2e);padding:10px 14px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px">
+              <span>📦</span>
+              <span>${esc(waba.nombre || waba.waba_id)}</span>
+              <span style="color:var(--text-muted);font-size:12px;font-weight:400">ID: ${esc(waba.waba_id)}</span>
+              ${waba.currency ? `<span style="color:var(--text-muted);font-size:11px">(${esc(waba.currency)})</span>` : ''}
+            </div>`;
+
+        if (waba.telefones && waba.telefones.length > 0) {
+          html += `<table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:var(--bg-hover,#111);color:var(--text-muted);font-size:11px">
+              <th style="padding:7px 12px;text-align:left">Número</th>
+              <th style="padding:7px 12px;text-align:left">Nombre verificado</th>
+              <th style="padding:7px 12px;text-align:left">Estado</th>
+              <th style="padding:7px 12px;text-align:left">Calidad</th>
+              <th style="padding:7px 12px;text-align:center">Asignar</th>
+            </tr></thead>
+            <tbody>`;
+          for (const ph of waba.telefones) {
+            const numero = ph.display_phone_number || '—';
+            const statusColor = ph.status === 'CONNECTED' ? '#22c55e' : ph.status === 'FLAGGED' ? '#f59e0b' : '#94a3b8';
+            const qualityColor = ph.quality_rating === 'GREEN' ? '#22c55e' : ph.quality_rating === 'YELLOW' ? '#f59e0b' : '#ef4444';
+            html += `<tr style="border-top:1px solid var(--border)">
+              <td style="padding:8px 12px;font-weight:600;color:#60a5fa">${esc(numero)}</td>
+              <td style="padding:8px 12px">${esc(ph.verified_name || '—')}</td>
+              <td style="padding:8px 12px"><span style="color:${statusColor};font-size:12px">${esc(ph.status || '—')}</span></td>
+              <td style="padding:8px 12px"><span style="color:${qualityColor};font-size:12px">●</span> ${esc(ph.quality_rating || '—')}</td>
+              <td style="padding:8px 12px;text-align:center">
+                <button onclick="asignarWABA('${esc(numero)}')" class="btn btn-sm" style="font-size:11px;padding:3px 8px;background:#22c55e1a;color:#22c55e;border:1px solid #22c55e30">
+                  📌 Asignar a páginas
+                </button>
+              </td>
+            </tr>`;
+          }
+          html += `</tbody></table>`;
+        } else {
+          const err = d.errores?.find(e => e.waba_id === waba.waba_id);
+          if (err) {
+            html += `<div style="padding:10px 14px;color:#f59e0b;font-size:12px">⚠️ Error al obtener números: ${esc(err.error)}</div>`;
+          } else {
+            html += `<div style="padding:10px 14px;color:var(--text-muted);font-size:12px">Sin números de teléfono en esta cuenta</div>`;
+          }
+        }
+        html += `</div>`;
+      }
+    }
+
+    html += `
+        <div style="margin-top:12px;padding:10px 12px;background:rgba(59,130,246,.07);border-radius:8px;font-size:12px;color:var(--text-muted)">
+          💡 <strong>Asignar número a páginas:</strong> hace clic en "📌 Asignar a páginas" para asignar ese número de WhatsApp Business al grupo de páginas de tu elección.
+        </div>
+        </div>
+      </div>`;
+
+    modal.innerHTML = html;
+    modal.style.display = 'flex';
+
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📋 Ver WABAs'; }
+  }
+}
+
+async function asignarWABA(numero) {
+  // Mostrar selector: todas las páginas, por portafolio, o páginas sin número
+  const sinWA = _paginas.filter(p => !p.numero_whatsapp);
+  const opts = [
+    `Todas las páginas (${_paginas.length})`,
+    `Solo páginas sin WhatsApp (${sinWA.length})`,
+    'Cancelar',
+  ];
+  // Portafolios disponibles
+  const portafolios = [...new Set(_paginas.map(p => p.portafolio || 'Sin grupo').filter(Boolean))];
+  portafolios.forEach(pf => opts.splice(opts.length - 1, 0, `Portafolio: ${pf}`));
+
+  const choice = prompt(
+    `Asignar número ${numero} a:\n` +
+    opts.map((o, i) => `${i + 1}. ${o}`).join('\n') +
+    '\n\nEscribí el número de opción:',
+  );
+  if (!choice || choice.trim() === String(opts.length)) return;  // cancelar
+
+  const idx = parseInt(choice) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= opts.length - 1) {
+    toast('Opción inválida', 'error'); return;
+  }
+
+  let body = { numero_whatsapp: numero };
+  if (idx === 0) {
+    body.all = true;
+  } else if (idx === 1) {
+    body.page_ids = sinWA.map(p => p.page_id);
+    if (body.page_ids.length === 0) { toast('No hay páginas sin WhatsApp', 'info'); return; }
+  } else {
+    const pf = portafolios[idx - 2];
+    body.page_ids = _paginas.filter(p => (p.portafolio || 'Sin grupo') === pf).map(p => p.page_id);
+  }
+
+  try {
+    const r = await fetch('/api/redes/paginas/asignar-waba', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Error');
+
+    // Actualizar estado local
+    const ids = new Set(body.all ? _paginas.map(p => p.page_id) : (body.page_ids || []));
+    _paginas.forEach(p => { if (ids.has(p.page_id)) p.numero_whatsapp = numero; });
+    _pgFiltradas = _pgFiltradas.map(p => ids.has(p.page_id) ? { ...p, numero_whatsapp: numero } : p);
+    filtrarTabla(document.getElementById('pg-buscar')?.value || '');
+
+    toast(`✅ ${d.updated} páginas asignadas al número ${numero}`, 'success');
+    document.getElementById('modal-wabas').style.display = 'none';
   } catch(e) {
     toast(e.message, 'error');
   }

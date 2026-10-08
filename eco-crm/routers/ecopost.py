@@ -1301,7 +1301,7 @@ class FotoPlanItem(BaseModel):
     titulo: Optional[str] = ""
 
 class PlanificadorReq(BaseModel):
-    dias: int = 7                                  # 7 | 14 | 21 | 28
+    dias: int = 7                                  # 7 | 14 | 21 | 28 | 31
     redes: List[str] = ["instagram", "facebook"]   # instagram | facebook | tiktok | youtube
     productos: List[str] = ["PISCINA", "MODULO"]   # PISCINA | MODULO | COMBO | HIDROMASAJE | ...
     tono: Optional[str] = "profesional y cercano"
@@ -1403,8 +1403,8 @@ async def api_planificador_generar(
     db: Session = Depends(get_db),
 ):
     """Genera copy para un plan de contenido. Si llegan 'fotos', genera copy específico por imagen."""
-    if body.dias not in (7, 14, 21, 28):
-        raise HTTPException(400, "Días válidos: 7, 14, 21, 28")
+    if body.dias not in (7, 14, 21, 28, 31):
+        raise HTTPException(400, "Días válidos: 7, 14, 21, 28, 31")
 
     from utils.contexto_ecofiver import ctx_redes_comercial, ctx_redes_organico
 

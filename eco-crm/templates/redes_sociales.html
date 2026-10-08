@@ -120,9 +120,11 @@
         <div style="font-size:12px;font-weight:600;margin-bottom:8px">Nueva página</div>
         <input id="add-pg-nombre" type="text" placeholder="Nombre de la página *" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;margin-bottom:6px">
         <input id="add-pg-id" type="text" placeholder="Page ID * (ej: 123456789)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:6px">
-        <input id="add-pg-token" type="password" placeholder="Page Access Token * — requerido para publicar y borrar" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid #f59e0b;background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:4px">
+        <input id="add-pg-token" type="password" placeholder="Page Access Token * — requerido para publicar y borrar" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid #f59e0b;background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:6px">
+        <input id="add-pg-portafolio" type="text" placeholder="Portafolio (ej: EcoFiver, Cliente Nuevo…)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;margin-bottom:4px" list="portafolios-list">
+        <datalist id="portafolios-list"></datalist>
         <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">
-          Obtené el token en: <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:#1877f2">developers.facebook.com/tools/explorer</a> → seleccioná App y Página → Generate Access Token
+          Token en: <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:#1877f2">developers.facebook.com/tools/explorer</a> → App → Página → Generate Access Token
         </div>
         <div style="display:flex;gap:6px">
           <button onclick="agregarPagina()" class="btn btn-primary btn-sm" style="flex:1;font-size:12px">Agregar</button>
@@ -408,7 +410,18 @@ async function cargarPaginas() {
       return;
     }
 
-    lista.innerHTML = _paginas.map(p => {
+    // Agrupar páginas por portafolio
+    const grupos = {};
+    _paginas.forEach(p => {
+      const pf = (p.portafolio || 'EcoFiver').trim();
+      (grupos[pf] = grupos[pf] || []).push(p);
+    });
+
+    // Poblar datalist para autocompletar portafolio al agregar
+    const dl = document.getElementById('portafolios-list');
+    if (dl) dl.innerHTML = Object.keys(grupos).map(pf => `<option value="${esc(pf)}">`).join('');
+
+    const renderCard = p => {
       const pendientes = _pendientesPorPagina[p.page_id] || 0;
       const wa = p.numero_whatsapp || '';
       const autoActivo = p.auto_reply_comentarios || p.auto_reply_mensajes || p.auto_eliminar_negativos;
@@ -433,8 +446,18 @@ async function cargarPaginas() {
           </div>
         </div>
         ${pendientes > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 7px;flex-shrink:0;align-self:flex-start">${pendientes}</span>` : ''}
+      </div>`;
+    };
+
+    lista.innerHTML = Object.entries(grupos).map(([pf, pages]) => `
+      <div style="margin-bottom:4px">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:6px 10px 4px;display:flex;align-items:center;gap:6px">
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📁 ${esc(pf)}</span>
+          <span style="font-weight:400;font-size:10px;background:var(--bg-hover);border-radius:10px;padding:1px 6px">${pages.length}</span>
+        </div>
+        ${pages.map(renderCard).join('')}
       </div>
-    `}).join('');
+    `).join('');
 
     // Poblar selector de páginas del inbox
     const sel = document.getElementById('inbox-filtro-pagina');
@@ -705,6 +728,20 @@ function renderConfig() {
     </div>
 
     <div class="cfg-row">
+      <div class="cfg-label">Portafolio / Cliente</div>
+      <div style="display:flex;gap:8px">
+        <input id="cfg-portafolio" type="text" value="${esc(p.portafolio || 'EcoFiver')}"
+          placeholder="Ej: EcoFiver, Cliente XYZ…"
+          list="portafolios-list"
+          style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);font-size:13px;color:var(--text)">
+        <button onclick="guardarPortafolio('${esc(p.page_id)}')" class="btn btn-primary btn-sm">Guardar</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+        Agrupador de páginas — usá el mismo nombre para todas las páginas de un mismo cliente
+      </div>
+    </div>
+
+    <div class="cfg-row">
       <div class="cfg-label">Instagram Business Account ID</div>
       <div style="display:flex;gap:8px">
         <input id="cfg-ig-id" type="text" value="${esc(p.ig_user_id || '')}"
@@ -807,6 +844,27 @@ function renderConfig() {
       </div>
     </div>
   `;
+}
+
+async function guardarPortafolio(pageId) {
+  const portafolio = (document.getElementById('cfg-portafolio')?.value || '').trim() || 'EcoFiver';
+  try {
+    const r = await fetch(`/api/redes/paginas/${pageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ portafolio }),
+    });
+    if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Error'); }
+    const p = _paginas.find(x => x.page_id === pageId);
+    if (p) p.portafolio = portafolio;
+    toast(`✅ Portafolio actualizado: ${portafolio}`);
+    // Re-render sidebar para reflejar el nuevo grupo
+    await cargarPaginas();
+    selectPage(pageId);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function guardarPageToken(pageId) {
@@ -1833,6 +1891,7 @@ async function agregarPagina() {
   const nombre = document.getElementById('add-pg-nombre')?.value.trim();
   const page_id = document.getElementById('add-pg-id')?.value.trim();
   const page_token = document.getElementById('add-pg-token')?.value.trim();
+  const portafolio = (document.getElementById('add-pg-portafolio')?.value || '').trim() || 'EcoFiver';
 
   if (!nombre || !page_id) { toast('Nombre y Page ID son obligatorios', 'error'); return; }
 
@@ -1841,11 +1900,11 @@ async function agregarPagina() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ nombre, page_id, page_token: page_token || null }),
+      body: JSON.stringify({ nombre, page_id, page_token: page_token || null, portafolio }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || 'Error');
-    toast(`✅ Página "${nombre}" agregada`);
+    toast(`✅ Página "${nombre}" agregada al portafolio "${portafolio}"`);
     cerrarAgregarPagina();
     await cargarPaginas();
   } catch(e) {

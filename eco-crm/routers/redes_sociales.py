@@ -77,6 +77,7 @@ async def api_redes_paginas(
     def _pg_base(p):
         return {
             "page_id": p.page_id, "nombre": p.nombre,
+            "portafolio": getattr(p, "portafolio", None) or "EcoFiver",
             "ig_user_id": p.ig_user_id, "activa": p.activa,
             "auto_reply_comentarios": bool(p.auto_reply_comentarios),
             "auto_reply_mensajes": bool(p.auto_reply_mensajes),
@@ -145,11 +146,15 @@ async def api_redes_pagina_update(
         nombre = (body["nombre"] or "").strip()
         if nombre:
             p.nombre = nombre
+    if "portafolio" in body:
+        portafolio = (body["portafolio"] or "").strip()
+        p.portafolio = portafolio or "EcoFiver"
     db.commit()
     return {
         "ok": True, "page_id": page_id,
         "activa": p.activa, "ig_user_id": p.ig_user_id,
         "page_token_ok": bool(p.page_token),
+        "portafolio": getattr(p, "portafolio", None) or "EcoFiver",
     }
 
 
@@ -1298,6 +1303,7 @@ async def api_redes_pagina_crear(
     nombre = (body.get("nombre") or "").strip()
     page_token = (body.get("page_token") or "").strip() or None
     ig_user_id = (body.get("ig_user_id") or "").strip() or None
+    portafolio = (body.get("portafolio") or "").strip() or "EcoFiver"
 
     if not page_id or not nombre:
         raise HTTPException(400, "page_id y nombre son requeridos")
@@ -1311,12 +1317,13 @@ async def api_redes_pagina_crear(
         nombre=nombre,
         page_token=page_token,
         ig_user_id=ig_user_id,
+        portafolio=portafolio,
         activa=True,
     )
     db.add(pg)
     db.commit()
     db.refresh(pg)
-    return {"ok": True, "page_id": pg.page_id, "nombre": pg.nombre}
+    return {"ok": True, "page_id": pg.page_id, "nombre": pg.nombre, "portafolio": pg.portafolio}
 
 
 # ─── PUBLICAR EN MÚLTIPLES PÁGINAS ────────────────────────────────────────────

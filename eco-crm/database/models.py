@@ -1632,6 +1632,7 @@ class MetaPagina(Base):
     id = Column(Integer, primary_key=True, index=True)
     page_id = Column(String(50), unique=True, nullable=False, index=True)
     nombre = Column(String(200), nullable=False)
+    portafolio = Column(String(100), default="EcoFiver", nullable=True)  # agrupador por cliente/negocio
     ig_user_id = Column(String(50), nullable=True)   # Instagram Business Account ID vinculado
     page_token = Column(Text, nullable=True)          # Page Access Token (del sync vía /me/accounts)
     activa = Column(Boolean, default=True)

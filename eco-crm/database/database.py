@@ -292,6 +292,8 @@ def run_migrations():
             "ALTER TABLE ventas_financiadas ADD COLUMN solicitud_recibo_notas_admin TEXT",
             # ── Aliados: rol de admin del programa (acceso al CRM desde el panel) ──
             "ALTER TABLE aliados ADD COLUMN es_admin_crm BOOLEAN DEFAULT 0",
+            # ── Redes Sociales: portafolio/cliente para agrupar páginas ───────────
+            "ALTER TABLE meta_paginas ADD COLUMN portafolio TEXT DEFAULT 'EcoFiver'",
         ]
         for stmt in migrations:
             try:

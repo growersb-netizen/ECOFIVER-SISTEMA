@@ -487,9 +487,26 @@ _PALABRAS_NEGATIVAS = {
 }
 
 
+_PALABRAS_RECLAMO = {
+    "reclamo", "queja", "no funciona", "no funcionó", "no anda", "se rompió", "se rompio",
+    "defecto", "falla", "fallo", "garantía", "garantia", "arreglo", "arreglar",
+    "postventa", "post venta", "post-venta", "devolución", "devolucion", "reembolso",
+    "estafa", "engaño", "engano", "mal servicio", "pésimo", "pesimo", "tardanza",
+    "no llegó", "no llego", "no entregaron", "no recibí", "no recibi",
+    "problema con", "inconveniente", "daño", "dano", "roto", "rajada", "rajado",
+}
+
+WA_RECLAMOS = os.getenv("WA_RECLAMOS", "+5491168733406")
+
+
 def _es_negativo(texto: str) -> bool:
     t = texto.lower()
     return any(p in t for p in _PALABRAS_NEGATIVAS)
+
+
+def _es_reclamo(texto: str) -> bool:
+    t = texto.lower()
+    return any(p in t for p in _PALABRAS_RECLAMO)
 
 
 def _wa_url(numero: str) -> str:
@@ -500,7 +517,22 @@ def _wa_url(numero: str) -> str:
 
 
 async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero_wa: str, db=None) -> str:
-    """Genera respuesta comercial con IA derivando a WhatsApp."""
+    """Genera respuesta comercial con IA. Reclamos → WA_RECLAMOS, consultas → numero_wa."""
+    es_reclamo = _es_reclamo(mensaje_usuario)
+    wa_destino = WA_RECLAMOS if es_reclamo else (numero_wa or WA_RECLAMOS)
+
+    if es_reclamo:
+        instruccion_wa = (
+            "El usuario parece tener un reclamo o problema postventa. "
+            "Respondé con empatía, pedí disculpas por la molestia y derivalo al WhatsApp de atención postventa: "
+            f"{_wa_url(wa_destino)} — incluidlo siempre."
+        )
+    else:
+        instruccion_wa = (
+            "Debés derivar al WhatsApp para continuar la conversación. "
+            f"El link de WhatsApp es: {_wa_url(wa_destino)} — incluidlo siempre."
+        )
+
     try:
         from utils.ai_client import ai_complete
         from utils.contexto_ecofiver import ctx_empresa
@@ -509,17 +541,21 @@ async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero
             f"Sos el asistente comercial de la página de Facebook '{pagina_nombre}'.\n"
             f"Un usuario escribió: «{mensaje_usuario[:300]}»\n\n"
             "Escribí UNA respuesta corta (máximo 3 oraciones), amigable y comercial en español argentino. "
-            "Debés derivar al WhatsApp para continuar la conversación. "
-            f"El link de WhatsApp es: {_wa_url(numero_wa)} — incluidlo siempre. "
+            f"{instruccion_wa} "
             "No inventes precios ni fechas. Sé cálido, profesional y generá interés."
         )
         resp = await ai_complete(db, prompt, max_tokens=200)
         return resp.strip()
     except Exception as e:
         log.warning(f"IA falló, usando template: {e}")
+        if es_reclamo:
+            return (
+                f"¡Hola! Lamentamos la situación. Para resolver tu caso lo antes posible "
+                f"comunicate con nuestro equipo de atención postventa por WhatsApp: {_wa_url(wa_destino)}"
+            )
         return (
             f"¡Hola! 😊 Gracias por tu mensaje. Para brindarte atención personalizada "
-            f"comunicate con nosotros por WhatsApp: {_wa_url(numero_wa)} — ¡Te respondemos al instante!"
+            f"comunicate con nosotros por WhatsApp: {_wa_url(wa_destino)} — ¡Te respondemos al instante!"
         )
 
 
@@ -1454,6 +1490,8 @@ async def api_redes_admin_generar_borradores(
         pg = paginas.get(m.page_id)
         pg_nombre = pg.nombre if pg else m.page_id
         numero_wa = (pg.numero_whatsapp or "") if pg else ""
+        es_reclamo = _es_reclamo(m.contenido)
+        wa_destino = WA_RECLAMOS if es_reclamo else (numero_wa or WA_RECLAMOS)
         borrador = await _generar_respuesta_ia(m.contenido, pg_nombre, numero_wa, db)
         borradores.append({
             "id": m.id,
@@ -1461,6 +1499,8 @@ async def api_redes_admin_generar_borradores(
             "usuario": m.usuario_nombre,
             "mensaje_original": m.contenido,
             "borrador_respuesta": borrador,
+            "es_reclamo": es_reclamo,
+            "wa_usado": wa_destino,
         })
 
     return {"total": len(borradores), "borradores": borradores}

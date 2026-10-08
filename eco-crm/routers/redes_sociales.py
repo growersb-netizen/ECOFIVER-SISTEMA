@@ -1596,15 +1596,23 @@ async def api_redes_admin_marcar_expirados(
     if t != expected:
         raise HTTPException(403, "Forbidden")
 
+    # Mensajes con accion="error" (envío fallido)
     errores = db.query(FacebookInteraccion).filter(
         FacebookInteraccion.accion == "error",
         FacebookInteraccion.tipo == "mensaje",
     ).all()
 
-    for m in errores:
+    # Mensajes automáticos de Facebook que quedaron "pendiente"
+    sistema = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.accion == "pendiente",
+        FacebookInteraccion.tipo == "mensaje",
+    ).all()
+    sistema_fb = [m for m in sistema if "facebook cre" in (m.contenido or "").lower()]
+
+    for m in errores + sistema_fb:
         m.accion = "expirado"
     db.commit()
-    return {"ok": True, "marcados": len(errores)}
+    return {"ok": True, "marcados": len(errores) + len(sistema_fb), "por_error": len(errores), "sistema_fb": len(sistema_fb)}
 
 
 @router.get("/api/redes/admin/pendientes")

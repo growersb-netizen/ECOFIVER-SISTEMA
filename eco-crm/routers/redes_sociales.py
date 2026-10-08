@@ -85,25 +85,69 @@ async def api_redes_admin_paginas(
     ]
 
 
-@router.patch("/api/redes/admin/paginas/{page_id}/whatsapp")
-async def api_redes_admin_set_whatsapp(
+@router.patch("/api/redes/admin/paginas/{page_id}")
+async def api_redes_admin_patch_pagina(
     page_id: str,
     request: Request,
     t: str = "",
     db: Session = Depends(get_db),
 ):
-    """Asigna numero_whatsapp a una página. Body: {numero_whatsapp: '...'} Requiere ?t=<ML_AUDIT_TOKEN>."""
+    """
+    Actualiza campos de una página: numero_whatsapp, activa, vendedor.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
     expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
     if t != expected:
         raise HTTPException(403, "Forbidden")
     body = await request.json()
-    numero = (body.get("numero_whatsapp") or "").strip()
     pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
     if not pg:
         raise HTTPException(404, "Página no encontrada")
-    pg.numero_whatsapp = numero or None
+
+    if "numero_whatsapp" in body:
+        numero = (body["numero_whatsapp"] or "").strip()
+        pg.numero_whatsapp = numero or None
+    if "activa" in body:
+        pg.activa = bool(body["activa"])
+    if "vendedor" in body:
+        pg.vendedor = (body["vendedor"] or "").strip() or None
+
     db.commit()
-    return {"ok": True, "page_id": page_id, "numero_whatsapp": pg.numero_whatsapp}
+    return {"ok": True, "page_id": page_id, "nombre": pg.nombre, "activa": pg.activa, "numero_whatsapp": pg.numero_whatsapp}
+
+
+@router.post("/api/redes/admin/paginas/batch-deactivate")
+async def api_redes_admin_batch_deactivate(
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Desactiva un conjunto de páginas: limpia numero_whatsapp y pone activa=False.
+    Body: {page_ids: ["id1","id2",...]}
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+    body = await request.json()
+    page_ids = body.get("page_ids") or []
+    if not page_ids:
+        raise HTTPException(400, "page_ids requerido")
+
+    resultados = []
+    for pid in page_ids:
+        pg = db.query(MetaPagina).filter(MetaPagina.page_id == str(pid)).first()
+        if not pg:
+            resultados.append({"page_id": pid, "ok": False, "error": "no encontrada"})
+            continue
+        pg.numero_whatsapp = None
+        pg.activa = False
+        db.commit()
+        resultados.append({"page_id": pid, "nombre": pg.nombre, "ok": True})
+
+    desactivadas = sum(1 for r in resultados if r.get("ok"))
+    return {"ok": True, "total": len(page_ids), "desactivadas": desactivadas, "resultados": resultados}
 
 
 @router.get("/api/redes/paginas")

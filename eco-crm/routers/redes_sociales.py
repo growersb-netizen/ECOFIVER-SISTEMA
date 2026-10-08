@@ -1288,6 +1288,41 @@ async def api_redes_admin_subscribe_via_token_get(
     }
 
 
+@router.post("/api/redes/admin/importar-inbox-all")
+async def api_redes_admin_importar_inbox_all(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Importa mensajes y comentarios de todas las páginas con token. Requiere ?t=<ML_AUDIT_TOKEN>."""
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    paginas_con_token = db.query(MetaPagina).filter(
+        MetaPagina.activa == True,
+        MetaPagina.page_token != None,
+        MetaPagina.page_token != "",
+    ).all()
+
+    if not paginas_con_token:
+        raise HTTPException(400, "No hay páginas con token. Corré subscribe-via-token primero.")
+
+    total_importados = 0
+    resultados = {}
+    for pg in paginas_con_token:
+        imp, errs = await _importar_inbox_pagina(pg.page_id, pg.page_token, db)
+        total_importados += imp
+        resultados[pg.page_id] = {"nombre": pg.nombre, "importados": imp, "errores": errs}
+
+    db.commit()
+    return {
+        "ok": True,
+        "total_importados": total_importados,
+        "paginas": len(paginas_con_token),
+        "resultados": resultados,
+    }
+
+
 # ─── INTERACCIONES — HISTORIAL + GESTIÓN MANUAL ────────────────────────────────
 
 @router.get("/api/redes/interacciones")

@@ -621,6 +621,42 @@ async def facebook_webhook_receive(
     return {"ok": True}
 
 
+# ─── AUTOMATIZACIÓN MASIVA POR PORTAFOLIO / SELECCIÓN ────────────────────────
+
+@router.post("/api/redes/paginas/bulk-automation")
+async def api_redes_bulk_automation(
+    request: Request,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Activa/desactiva automatización en múltiples páginas a la vez."""
+    _check_access(user, db)
+    body = await request.json()
+
+    page_ids   = body.get("page_ids") or []      # lista explícita (vacío = todos)
+    portafolio = body.get("portafolio") or None   # filtrar por portafolio
+
+    campos = {
+        k: bool(v) for k, v in body.items()
+        if k in ("auto_reply_comentarios", "auto_reply_mensajes", "auto_eliminar_negativos")
+    }
+    if not campos:
+        raise HTTPException(400, "Indicá al menos un campo a actualizar")
+
+    q = db.query(MetaPagina)
+    if page_ids:
+        q = q.filter(MetaPagina.page_id.in_(page_ids))
+    elif portafolio:
+        q = q.filter(MetaPagina.portafolio == portafolio)
+
+    pages = q.all()
+    for pg in pages:
+        for campo, valor in campos.items():
+            setattr(pg, campo, valor)
+    db.commit()
+    return {"ok": True, "updated": len(pages), "campos": campos}
+
+
 # ─── CONFIGURAR AUTOMATIZACIÓN POR PÁGINA ─────────────────────────────────────
 
 @router.patch("/api/redes/paginas/{page_id}/automation")

@@ -101,13 +101,32 @@
   background:var(--bg-card);color:var(--text);outline:none;width:100%;box-sizing:border-box;
 }
 .pg-search {
-  display:flex;gap:8px;align-items:center;margin-bottom:10px;
+  display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;
 }
 .pg-search input {
-  flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;
+  flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;
   background:var(--bg-hover);color:var(--text);font-size:13px;outline:none;
 }
 .pg-search input:focus { border-color:var(--accent); }
+
+/* ─── vista agrupada ──────────────────────────────────────────────── */
+.pg-group-hdr {
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:var(--bg-hover);border-radius:10px;margin-bottom:4px;
+  cursor:pointer;border:1px solid var(--border);user-select:none;
+}
+.pg-group-hdr:hover { border-color:var(--accent); }
+.pg-group-hdr .g-toggle { font-size:12px;color:var(--text-muted);transition:.15s; }
+.pg-group-hdr .g-toggle.open { transform:rotate(90deg); }
+.pg-group-body { margin-bottom:12px; }
+.pg-group-body.collapsed { display:none; }
+.pill-auto-on  { background:rgba(22,163,74,.15);color:#16a34a;border:1px solid rgba(22,163,74,.25); }
+.pill-auto-off { background:rgba(100,100,100,.1);color:var(--text-muted);border:1px solid var(--border); }
+.btn-bulk { padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;transition:.15s; }
+.btn-bulk-green { background:#16a34a;color:#fff; }
+.btn-bulk-green:hover { background:#15803d; }
+.btn-bulk-ghost { background:transparent;color:var(--text-muted);border:1px solid var(--border); }
+.btn-bulk-ghost:hover { background:var(--bg-hover);color:var(--text); }
 
 @media(max-width:900px){
   .redes-layout { grid-template-columns:1fr!important; }
@@ -166,7 +185,7 @@
     </div>
   </div>
 
-  <!-- Barra de búsqueda + filtros -->
+  <!-- Barra de búsqueda + filtros + vista -->
   <div class="pg-search">
     <input id="pg-buscar" type="search" placeholder="🔍  Buscar por nombre, vendedor o WhatsApp…" oninput="filtrarTabla(this.value)">
     <select id="pg-filtro-estado" onchange="filtrarTabla(document.getElementById('pg-buscar').value)" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:8px">
@@ -175,7 +194,13 @@
       <option value="sin-token">Sin token</option>
       <option value="sin-wa">Sin WhatsApp</option>
       <option value="con-ia">Con IA activa</option>
+      <option value="sin-ia">Sin IA</option>
     </select>
+    <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <button id="btn-vista-tabla" onclick="setVista('tabla')" class="btn-bulk btn-bulk-green" style="border-radius:0;padding:6px 10px">☰ Lista</button>
+      <button id="btn-vista-grupo" onclick="setVista('grupo')" class="btn-bulk btn-bulk-ghost" style="border-radius:0;padding:6px 10px">📁 Grupos</button>
+    </div>
+    <button onclick="activarTodoGlobal()" class="btn btn-primary btn-sm" title="Activar auto-respuestas en TODAS las páginas">⚡ Activar todo</button>
   </div>
 
   <!-- Tabla -->
@@ -485,86 +510,14 @@ async function cargarPaginas() {
   }
 }
 
-function renderTabla(paginas) {
-  const lista = document.getElementById('paginas-lista');
-  if (!paginas.length) {
-    lista.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)">Sin resultados</div>';
-    return;
-  }
+/* ─── vista (tabla plana / agrupada) ────────────────────────────────────────── */
+let _vista = 'tabla'; // 'tabla' | 'grupo'
 
-  const filas = paginas.map(p => {
-    const pend = _pendientesPorPagina[p.page_id] || 0;
-    const auto = p.auto_reply_comentarios || p.auto_reply_mensajes || p.auto_eliminar_negativos;
-    const sel  = p.page_id === _pageId;
-    return `
-    <tr class="${sel ? 'pg-row-sel' : ''}" id="prow-${esc(p.page_id)}" style="cursor:pointer" onclick="selectPage('${esc(p.page_id)}')">
-      <td style="min-width:220px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="pg-avatar-sm">
-            ${p.picture ? `<img src="${esc(p.picture)}" alt="" onerror="this.parentElement.innerHTML='📄'">` : '📄'}
-          </div>
-          <div style="min-width:0">
-            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${esc(p.nombre)}</div>
-            <div style="font-size:10px;color:var(--text-muted)">${esc(p.portafolio || 'EcoFiver')}</div>
-          </div>
-          ${pend > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;flex-shrink:0">${pend}</span>` : ''}
-        </div>
-      </td>
-      <td onclick="event.stopPropagation()">
-        <span class="editable-cell" onclick="editarCelda(this,'vendedor','${esc(p.page_id)}')" title="Clic para editar vendedor">
-          ${p.vendedor ? esc(p.vendedor) : '<span style="color:var(--text-muted);font-size:11px">— agregar —</span>'}
-        </span>
-      </td>
-      <td onclick="event.stopPropagation()">
-        <span class="editable-cell" onclick="editarCelda(this,'numero_whatsapp','${esc(p.page_id)}')" title="Clic para editar WhatsApp">
-          ${p.numero_whatsapp
-            ? `<span style="color:#16a34a">📲 ${esc(p.numero_whatsapp)}</span>`
-            : '<span style="color:#f59e0b;font-size:11px">⚠️ sin número</span>'}
-        </span>
-      </td>
-      <td>
-        ${p.webhook_subscribed
-          ? '<span class="pill pill-ok">✅ webhook</span>'
-          : '<span class="pill pill-off">✕ webhook</span>'}
-      </td>
-      <td>
-        ${auto
-          ? '<span class="pill pill-ok">🤖 activa</span>'
-          : '<span class="pill pill-warn">⏸ inactiva</span>'}
-      </td>
-      <td style="white-space:nowrap">
-        <span style="color:#1877f2;font-size:12px">f ${fmt(p.fan_count)}</span>
-        ${p.ig_user_id ? `<br><span style="color:#e1306c;font-size:12px">📸 ${fmt(p.ig_followers)}</span>` : ''}
-      </td>
-      <td>
-        ${p.page_token_ok
-          ? '<span class="pill pill-ok">token ✓</span>'
-          : '<span class="pill pill-off">sin token</span>'}
-      </td>
-      <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        <button onclick="selectPage('${esc(p.page_id)}');setTab('feed')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" title="Ver feed">📰</button>
-        <button onclick="selectPage('${esc(p.page_id)}');setTab('auto')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" title="Automatización">🤖</button>
-        <button onclick="selectPage('${esc(p.page_id)}');setTab('config')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" title="Configurar">⚙️</button>
-      </td>
-    </tr>`;
-  }).join('');
-
-  lista.innerHTML = `
-    <table class="pg-table">
-      <thead>
-        <tr>
-          <th>Página</th>
-          <th>Vendedor</th>
-          <th>WhatsApp</th>
-          <th>Webhook</th>
-          <th>IA Auto</th>
-          <th>Alcance</th>
-          <th>Token</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>${filas}</tbody>
-    </table>`;
+function setVista(v) {
+  _vista = v;
+  document.getElementById('btn-vista-tabla').className = 'btn-bulk ' + (v === 'tabla' ? 'btn-bulk-green' : 'btn-bulk-ghost');
+  document.getElementById('btn-vista-grupo').className = 'btn-bulk ' + (v === 'grupo' ? 'btn-bulk-green' : 'btn-bulk-ghost');
+  filtrarTabla(document.getElementById('pg-buscar')?.value || '');
 }
 
 function filtrarTabla(q) {
@@ -578,12 +531,194 @@ function filtrarTabla(q) {
       (p.numero_whatsapp || '').includes(q)
     );
   }
-  if (estado === 'activa')     resultado = resultado.filter(p => p.activa);
-  if (estado === 'sin-token')  resultado = resultado.filter(p => !p.page_token_ok);
-  if (estado === 'sin-wa')     resultado = resultado.filter(p => !p.numero_whatsapp);
-  if (estado === 'con-ia')     resultado = resultado.filter(p => p.auto_reply_comentarios || p.auto_reply_mensajes);
+  if (estado === 'activa')    resultado = resultado.filter(p => p.activa);
+  if (estado === 'sin-token') resultado = resultado.filter(p => !p.page_token_ok);
+  if (estado === 'sin-wa')    resultado = resultado.filter(p => !p.numero_whatsapp);
+  if (estado === 'con-ia')    resultado = resultado.filter(p => p.auto_reply_comentarios || p.auto_reply_mensajes);
+  if (estado === 'sin-ia')    resultado = resultado.filter(p => !p.auto_reply_comentarios && !p.auto_reply_mensajes);
   _pgFiltradas = resultado;
-  renderTabla(resultado);
+  if (_vista === 'grupo') renderAgrupado(resultado);
+  else renderTabla(resultado);
+}
+
+function _filaTabla(p) {
+  const pend = _pendientesPorPagina[p.page_id] || 0;
+  const sel  = p.page_id === _pageId;
+  const com  = p.auto_reply_comentarios;
+  const msg  = p.auto_reply_mensajes;
+  const neg  = p.auto_eliminar_negativos;
+  return `
+  <tr class="${sel ? 'pg-row-sel' : ''}" id="prow-${esc(p.page_id)}" style="cursor:pointer" onclick="selectPage('${esc(p.page_id)}')">
+    <td style="min-width:200px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="pg-avatar-sm">
+          ${p.picture ? `<img src="${esc(p.picture)}" alt="" onerror="this.parentElement.innerHTML='📄'">` : '📄'}
+        </div>
+        <div style="min-width:0">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px">${esc(p.nombre)}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${esc(p.portafolio || 'EcoFiver')}</div>
+        </div>
+        ${pend > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;flex-shrink:0">${pend}</span>` : ''}
+      </div>
+    </td>
+    <td onclick="event.stopPropagation()">
+      <span class="editable-cell" onclick="editarCelda(this,'vendedor','${esc(p.page_id)}')" title="Clic para editar">
+        ${p.vendedor ? esc(p.vendedor) : '<span style="color:var(--text-muted);font-size:11px">— agregar —</span>'}
+      </span>
+    </td>
+    <td onclick="event.stopPropagation()">
+      <span class="editable-cell" onclick="editarCelda(this,'numero_whatsapp','${esc(p.page_id)}')" title="Clic para editar">
+        ${p.numero_whatsapp
+          ? `<span style="color:#16a34a;font-size:12px">📲 ${esc(p.numero_whatsapp)}</span>`
+          : '<span style="color:#f59e0b;font-size:11px">⚠️ sin WA</span>'}
+      </span>
+    </td>
+    <td>
+      ${p.webhook_subscribed ? '<span class="pill pill-ok">✅ hook</span>' : '<span class="pill pill-off">✕ hook</span>'}
+    </td>
+    <td onclick="event.stopPropagation()" style="white-space:nowrap">
+      <span class="pill ${com ? 'pill-auto-on' : 'pill-auto-off'}" title="Auto-responder comentarios" style="cursor:pointer;margin-right:2px" onclick="toggleAuto('${esc(p.page_id)}','auto_reply_comentarios',${!com})">💬</span>
+      <span class="pill ${msg ? 'pill-auto-on' : 'pill-auto-off'}" title="Auto-responder mensajes" style="cursor:pointer;margin-right:2px" onclick="toggleAuto('${esc(p.page_id)}','auto_reply_mensajes',${!msg})">✉️</span>
+      <span class="pill ${neg ? 'pill-auto-on' : 'pill-auto-off'}" title="Borrar comentarios negativos" style="cursor:pointer" onclick="toggleAuto('${esc(p.page_id)}','auto_eliminar_negativos',${!neg})">🗑</span>
+    </td>
+    <td style="white-space:nowrap">
+      <span style="color:#1877f2;font-size:12px">f ${fmt(p.fan_count)}</span>
+      ${p.ig_user_id ? `<br><span style="color:#e1306c;font-size:12px">📸 ${fmt(p.ig_followers)}</span>` : ''}
+    </td>
+    <td>
+      ${p.page_token_ok ? '<span class="pill pill-ok">token ✓</span>' : '<span class="pill pill-off">sin token</span>'}
+    </td>
+    <td onclick="event.stopPropagation()" style="white-space:nowrap">
+      <button onclick="selectPage('${esc(p.page_id)}');setTab('feed')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 7px" title="Feed">📰</button>
+      <button onclick="selectPage('${esc(p.page_id)}');setTab('auto')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 7px" title="Automatización">🤖</button>
+      <button onclick="selectPage('${esc(p.page_id)}');setTab('config')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 7px" title="Configurar">⚙️</button>
+    </td>
+  </tr>`;
+}
+
+const _TABLA_HEADER = `
+  <thead><tr>
+    <th>Página</th><th>Vendedor</th><th>WhatsApp</th><th>Webhook</th>
+    <th>💬 ✉️ 🗑 IA</th><th>Alcance</th><th>Token</th><th></th>
+  </tr></thead>`;
+
+function renderTabla(paginas) {
+  const lista = document.getElementById('paginas-lista');
+  if (!paginas.length) {
+    lista.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)">Sin resultados</div>';
+    return;
+  }
+  lista.innerHTML = `<table class="pg-table">${_TABLA_HEADER}<tbody>${paginas.map(_filaTabla).join('')}</tbody></table>`;
+}
+
+function renderAgrupado(paginas) {
+  const lista = document.getElementById('paginas-lista');
+  if (!paginas.length) {
+    lista.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)">Sin resultados</div>';
+    return;
+  }
+
+  // Agrupar por portafolio
+  const grupos = {};
+  paginas.forEach(p => {
+    const pf = (p.portafolio || 'Sin grupo').trim();
+    (grupos[pf] = grupos[pf] || []).push(p);
+  });
+
+  lista.innerHTML = Object.entries(grupos).map(([pf, pages]) => {
+    const total   = pages.length;
+    const conCom  = pages.filter(p => p.auto_reply_comentarios).length;
+    const conMsg  = pages.filter(p => p.auto_reply_mensajes).length;
+    const conNeg  = pages.filter(p => p.auto_eliminar_negativos).length;
+    const sinWA   = pages.filter(p => !p.numero_whatsapp).length;
+    const allOn   = conCom === total && conMsg === total && conNeg === total;
+    const pfId    = 'grp-' + pf.replace(/[^a-z0-9]/gi,'_');
+
+    const resumen = `
+      <span class="pill ${conCom===total?'pill-auto-on':'pill-warn'}" style="margin-right:3px" title="Comentarios">💬 ${conCom}/${total}</span>
+      <span class="pill ${conMsg===total?'pill-auto-on':'pill-warn'}" style="margin-right:3px" title="Mensajes">✉️ ${conMsg}/${total}</span>
+      <span class="pill ${conNeg===total?'pill-auto-on':'pill-warn'}" title="Borrar negativos">🗑 ${conNeg}/${total}</span>
+      ${sinWA > 0 ? `<span class="pill pill-off" style="margin-left:6px" title="Sin WhatsApp configurado">⚠️ ${sinWA} sin WA</span>` : ''}
+    `;
+
+    return `
+    <div class="pg-group-hdr" onclick="toggleGrupo('${pfId}')">
+      <span class="g-toggle open" id="${pfId}-arrow">▶</span>
+      <span style="font-size:13px;font-weight:700;flex:1">📁 ${esc(pf)}</span>
+      <span style="font-size:11px;color:var(--text-muted);margin-right:8px">${total} páginas</span>
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
+        ${resumen}
+        ${!allOn ? `<button class="btn-bulk btn-bulk-green" onclick="activarGrupo('${esc(pf)}')" style="margin-left:8px" title="Activar comentarios + mensajes + eliminar negativos en todo el grupo">⚡ Activar todo</button>` : `<span style="margin-left:8px;font-size:11px;color:#16a34a;font-weight:600">✅ Todo activo</span>`}
+      </div>
+    </div>
+    <div class="pg-group-body" id="${pfId}-body">
+      <table class="pg-table" style="margin-bottom:0">${_TABLA_HEADER}<tbody>${pages.map(_filaTabla).join('')}</tbody></table>
+    </div>`;
+  }).join('');
+}
+
+function toggleGrupo(pfId) {
+  const body  = document.getElementById(pfId + '-body');
+  const arrow = document.getElementById(pfId + '-arrow');
+  if (!body) return;
+  const col = body.classList.toggle('collapsed');
+  if (arrow) arrow.classList.toggle('open', !col);
+}
+
+async function toggleAuto(pageId, campo, valor) {
+  const p = _paginas.find(x => x.page_id === pageId);
+  if (!p) return;
+  try {
+    const r = await fetch(`/api/redes/paginas/${encodeURIComponent(pageId)}/automation`, {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ [campo]: valor }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || 'Error');
+    p[campo] = valor;
+    toast(`${valor ? '✅' : '⏸'} ${campo === 'auto_reply_comentarios' ? 'Comentarios' : campo === 'auto_reply_mensajes' ? 'Mensajes' : 'Borrar negativos'} ${valor ? 'activado' : 'desactivado'}`, valor ? 'success' : 'info');
+  } catch(e) { toast(e.message, 'error'); }
+  filtrarTabla(document.getElementById('pg-buscar')?.value || '');
+}
+
+async function activarGrupo(portafolio) {
+  const pages = _paginas.filter(p => (p.portafolio || 'Sin grupo') === portafolio);
+  const sinWA = pages.filter(p => !p.numero_whatsapp);
+  const msg = sinWA.length > 0
+    ? `${pages.length} páginas en "${portafolio}" recibirán auto-respuesta.\n⚠️ ${sinWA.length} páginas no tienen WhatsApp configurado — se activará igual pero sin derivación por WA.\n\n¿Continuar?`
+    : `Activar auto-respuestas (comentarios + mensajes + borrar negativos) en las ${pages.length} páginas de "${portafolio}"?`;
+  if (!confirm(msg)) return;
+  try {
+    const r = await fetch('/api/redes/paginas/bulk-automation', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ portafolio, auto_reply_comentarios: true, auto_reply_mensajes: true, auto_eliminar_negativos: true }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    // actualizar estado local
+    pages.forEach(p => { p.auto_reply_comentarios = true; p.auto_reply_mensajes = true; p.auto_eliminar_negativos = true; });
+    toast(`✅ ${data.updated} páginas activadas en "${portafolio}"`, 'success');
+    filtrarTabla(document.getElementById('pg-buscar')?.value || '');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function activarTodoGlobal() {
+  const total = _paginas.length;
+  const sinWA = _paginas.filter(p => !p.numero_whatsapp).length;
+  if (!confirm(`Activar auto-respuestas en TODAS las ${total} páginas?\n${sinWA > 0 ? `⚠️ ${sinWA} páginas sin WhatsApp — se activan igual.\n\n` : ''}Esta acción se puede deshacer página por página.`)) return;
+  try {
+    const r = await fetch('/api/redes/paginas/bulk-automation', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ auto_reply_comentarios: true, auto_reply_mensajes: true, auto_eliminar_negativos: true }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    _paginas.forEach(p => { p.auto_reply_comentarios = true; p.auto_reply_mensajes = true; p.auto_eliminar_negativos = true; });
+    toast(`✅ Auto-respuestas activadas en ${data.updated} páginas`, 'success');
+    filtrarTabla(document.getElementById('pg-buscar')?.value || '');
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 async function editarCelda(span, campo, pageId) {

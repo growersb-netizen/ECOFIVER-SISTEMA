@@ -1582,6 +1582,31 @@ async def api_redes_admin_enviar_consultas(
     }
 
 
+@router.post("/api/redes/admin/marcar-expirados")
+async def api_redes_admin_marcar_expirados(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Marca como 'expirado' todos los mensajes con accion='error' (envío fallido por ventana 24h).
+    Deja los reclamos (accion='pendiente') intactos.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    errores = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.accion == "error",
+        FacebookInteraccion.tipo == "mensaje",
+    ).all()
+
+    for m in errores:
+        m.accion = "expirado"
+    db.commit()
+    return {"ok": True, "marcados": len(errores)}
+
+
 @router.get("/api/redes/admin/pendientes")
 async def api_redes_admin_pendientes(
     t: str = "",

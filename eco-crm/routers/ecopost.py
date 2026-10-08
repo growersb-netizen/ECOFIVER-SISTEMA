@@ -1038,9 +1038,15 @@ async def api_meta_paginas_sync(
                 existing.page_token = page_tok
             if ig_id and not existing.ig_user_id:
                 existing.ig_user_id = ig_id
+            # Asignar portafolio si aún no tiene
+            if not getattr(existing, "portafolio", None):
+                existing.portafolio = "Eco Módulos y Piscinas"
         else:
-            db.add(MetaPagina(page_id=p["id"], nombre=p["name"], ig_user_id=ig_id,
-                              page_token=page_tok, activa=True))
+            db.add(MetaPagina(
+                page_id=p["id"], nombre=p["name"], ig_user_id=ig_id,
+                page_token=page_tok, activa=True,
+                portafolio="Eco Módulos y Piscinas",
+            ))
         synced.append({"page_id": p["id"], "nombre": p["name"], "ig_user_id": ig_id, "token_ok": bool(page_tok)})
 
     db.commit()

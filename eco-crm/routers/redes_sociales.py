@@ -1100,6 +1100,91 @@ async def api_redes_fb_config(
     }
 
 
+# ─── GUARDAR TOKEN DE USUARIO DIRECTAMENTE ───────────────────────────────────
+
+@router.post("/api/redes/facebook/save-user-token")
+async def api_redes_save_user_token(
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Guarda un user_access_token como meta_page_access_token en config y
+    llama a /me/accounts para importar todas las páginas del BM.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    body = await request.json()
+    user_token = (body.get("user_token") or "").strip()
+    if not user_token:
+        raise HTTPException(400, "Falta 'user_token'")
+
+    # Guardar token en config
+    entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
+    if entry:
+        entry.valor = encrypt_value(user_token)
+    else:
+        db.add(ConfiguracionSistema(
+            clave="meta_page_access_token", valor=encrypt_value(user_token),
+            es_secreto=True, categoria="meta"
+        ))
+    db.commit()
+
+    # Importar páginas desde /me/accounts
+    synced = []
+    errors = []
+    async with httpx.AsyncClient(timeout=30) as hc:
+        after = None
+        for _ in range(10):
+            params: dict = {
+                "fields": "id,name,access_token,instagram_business_account{id,name}",
+                "access_token": user_token, "limit": 50,
+            }
+            if after:
+                params["after"] = after
+            r = await hc.get(f"{META_GRAPH_URL}/me/accounts", params=params)
+            if r.status_code != 200:
+                errors.append(r.json().get("error", {}).get("message", r.text[:200]))
+                break
+            data = r.json()
+            for p in data.get("data", []):
+                ig_id = None
+                iba = p.get("instagram_business_account")
+                if isinstance(iba, dict):
+                    ig_id = iba.get("id")
+                page_tok = p.get("access_token") or None
+                existing = db.query(MetaPagina).filter(MetaPagina.page_id == p["id"]).first()
+                if existing:
+                    existing.nombre = p["name"]
+                    if page_tok:
+                        existing.page_token = page_tok
+                    if ig_id and not existing.ig_user_id:
+                        existing.ig_user_id = ig_id
+                    if not getattr(existing, "portafolio", None):
+                        existing.portafolio = "Eco Módulos y Piscinas"
+                else:
+                    db.add(MetaPagina(
+                        page_id=p["id"], nombre=p["name"], ig_user_id=ig_id,
+                        page_token=page_tok, activa=True,
+                        portafolio="Eco Módulos y Piscinas",
+                    ))
+                synced.append({"page_id": p["id"], "nombre": p["name"], "token_ok": bool(page_tok)})
+            db.commit()
+            after = data.get("paging", {}).get("cursors", {}).get("after")
+            if not after or not data.get("data"):
+                break
+
+    return {
+        "ok": len(synced) > 0,
+        "synced": len(synced),
+        "pages": synced,
+        "errors": errors,
+    }
+
+
 # ─── OAUTH FACEBOOK: FLUJO COMPLETO ──────────────────────────────────────────
 
 FB_OAUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth"
@@ -1181,7 +1266,7 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
   <div class="card">
     <div class="spinner" id="spinner"></div>
     <h2 id="title">Conectando páginas de Facebook...</h2>
-    <p id="msg">Procesando autorización, no cierres esta pestaña.</p>
+    <p id="msg">Importando páginas de tu cuenta de Meta, no cierres esta pestaña.</p>
   </div>
   <script>
     const AUDIT_TOKEN = "{audit_token}";
@@ -1202,50 +1287,65 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
       }}
 
       try {{
-        setMsg('Paso 1/2: Obteniendo tokens de páginas y suscribiendo webhooks...');
-        const r = await fetch(BASE_URL + '/api/redes/audit/refresh-and-subscribe?t=' + encodeURIComponent(AUDIT_TOKEN), {{
+        // PASO 1: Guardar token y sincronizar páginas desde /me/accounts
+        setMsg('Paso 1/3: Guardando token e importando páginas de Facebook...');
+        const r1 = await fetch(BASE_URL + '/api/redes/facebook/save-user-token?t=' + encodeURIComponent(AUDIT_TOKEN), {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/json' }},
           credentials: 'include',
           body: JSON.stringify({{ user_token: accessToken }})
         }});
-        const data = await r.json();
-
-        if (!r.ok) {{
-          setError(data.detail || JSON.stringify(data));
+        const data1 = await r1.json();
+        if (!r1.ok) {{
+          setError('Error guardando token: ' + (data1.detail || JSON.stringify(data1)));
           return;
         }}
+        const totalPaginas = data1.synced || 0;
 
-        // Contar éxitos y errores del paso 1
-        const resultados1 = Object.values(data.resultados || {{}});
-        const ok1 = resultados1.filter(r => r.subscribed_apps?.success || r.webhook_subscribed).length;
-        const total = resultados1.length;
-
-        // Paso 2: Intentar generar token de system user para cubrir páginas restantes
-        setMsg('Paso 2/2: Generando token de sistema para páginas faltantes...');
-        let ok2 = 0;
+        // PASO 2: Suscribir webhooks usando los page tokens recién importados
+        setMsg('Paso 2/3: Suscribiendo webhooks en ' + totalPaginas + ' páginas...');
+        let okWebhooks = 0;
         try {{
-          const r2 = await fetch(BASE_URL + '/api/redes/admin/subscribe-via-system-token?t=' + encodeURIComponent(AUDIT_TOKEN), {{
+          const r2 = await fetch(BASE_URL + '/api/redes/audit/refresh-and-subscribe?t=' + encodeURIComponent(AUDIT_TOKEN), {{
             method: 'POST',
             headers: {{ 'Content-Type': 'application/json' }},
             credentials: 'include',
             body: JSON.stringify({{ user_token: accessToken }})
           }});
           const data2 = await r2.json();
-          if (data2.ok) ok2 = total - ok1;
-          else if (data2.resultados) ok2 = Object.values(data2.resultados).filter(v => v.ok).length;
-        }} catch(e2) {{ /* ignorar si falla */ }}
+          if (r2.ok && data2.resultados) {{
+            okWebhooks = Object.values(data2.resultados).filter(v => v.subscribed_apps?.success).length;
+          }}
+        }} catch(e2) {{ /* no bloquear si falla */ }}
 
-        const okTotal = Math.max(ok1, ok1 + ok2);
+        // PASO 3: Intentar System User Token para cobertura total
+        setMsg('Paso 3/3: Intentando token de sistema (cobertura extendida)...');
+        try {{
+          await fetch(BASE_URL + '/api/redes/admin/subscribe-via-system-token?t=' + encodeURIComponent(AUDIT_TOKEN), {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            credentials: 'include',
+            body: JSON.stringify({{ user_token: accessToken }})
+          }});
+        }} catch(e3) {{ /* ignorar */ }}
+
         document.getElementById('spinner').style.display = 'none';
-        document.getElementById('title').innerHTML = '<span class="ok">✅ ¡Facebook conectado!</span>';
-        document.getElementById('msg').innerHTML =
-          okTotal + ' de ' + total + ' páginas suscritas al webhook.' +
-          (okTotal < total ? ' (algunas requieren permisos adicionales)' : '') +
-          '<br><br><a href="' + BASE_URL + '/redes">← Volver al panel de Redes Sociales</a>';
+        if (totalPaginas > 0) {{
+          document.getElementById('title').innerHTML = '<span class="ok">✅ ¡Facebook conectado!</span>';
+          document.getElementById('msg').innerHTML =
+            totalPaginas + ' página' + (totalPaginas !== 1 ? 's' : '') + ' importada' + (totalPaginas !== 1 ? 's' : '') +
+            (okWebhooks > 0 ? ' · ' + okWebhooks + ' con webhook activo' : ' · Activá webhooks desde el panel') +
+            '<br><br><a href="' + BASE_URL + '/redes">← Volver al panel de Redes Sociales</a>';
+        }} else {{
+          document.getElementById('title').innerHTML = '<span style="color:#f59e0b">⚠️ Token guardado sin páginas</span>';
+          document.getElementById('msg').innerHTML =
+            'El token fue guardado pero no se encontraron páginas en tu cuenta.<br>' +
+            'Verificá que seas Admin de las páginas en Meta Business Suite.<br><br>' +
+            '<a href="' + BASE_URL + '/redes">← Volver al panel</a>';
+        }}
 
-        // Redirigir automáticamente en 3s
-        setTimeout(() => window.location.href = BASE_URL + '/redes', 3000);
+        // Redirigir automáticamente en 4s
+        setTimeout(() => window.location.href = BASE_URL + '/redes', 4000);
 
       }} catch(e) {{
         setError(e.message);

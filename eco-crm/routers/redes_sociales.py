@@ -1375,6 +1375,99 @@ async def api_redes_admin_subscribe_via_system_token(
     }
 
 
+@router.post("/api/redes/admin/sync-pages")
+async def api_redes_admin_sync_pages(
+    t: str = "",
+    user_token: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Descubre páginas vía GET /me/accounts, crea las que no existen en DB,
+    obtiene page tokens, suscribe webhooks y activa auto_reply_mensajes.
+    Requiere ?t=<ML_AUDIT_TOKEN>&user_token=<token>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+    if not user_token:
+        raise HTTPException(400, "Falta user_token")
+
+    creadas = []
+    actualizadas = []
+    errores = []
+
+    async with httpx.AsyncClient(timeout=60) as hc:
+        # Descubrir todas las páginas accesibles
+        r = await hc.get(
+            f"{META_GRAPH_URL}/me/accounts",
+            params={"fields": "id,name", "limit": 200, "access_token": user_token},
+        )
+        data = r.json()
+        if r.status_code != 200 or "error" in data:
+            raise HTTPException(400, data.get("error", {}).get("message", "Error al obtener páginas"))
+
+        pages_api = data.get("data", [])
+
+        for p in pages_api:
+            pid = p["id"]
+            nombre = p["name"]
+
+            # Obtener page token
+            r_pt = await hc.get(
+                f"{META_GRAPH_URL}/{pid}",
+                params={"fields": "access_token,name", "access_token": user_token},
+            )
+            data_pt = r_pt.json()
+            if r_pt.status_code != 200 or "access_token" not in data_pt:
+                errores.append({"page_id": pid, "nombre": nombre, "error": data_pt.get("error", {}).get("message", "sin token")})
+                continue
+
+            page_token = data_pt["access_token"]
+
+            # Crear o actualizar en DB
+            pg = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first()
+            es_nueva = pg is None
+            if es_nueva:
+                pg = MetaPagina(
+                    page_id=pid,
+                    nombre=nombre,
+                    activa=True,
+                    auto_reply_mensajes=True,
+                    auto_reply_comentarios=False,
+                    auto_eliminar_negativos=True,
+                    numero_whatsapp=os.getenv("WA_DEFAULT", "+5491126036495"),
+                )
+                db.add(pg)
+
+            pg.page_token = page_token
+
+            # Suscribir webhook
+            r_sub = await hc.post(
+                f"{META_GRAPH_URL}/{pid}/subscribed_apps",
+                params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+            )
+            ok_sub = r_sub.json().get("success", False)
+            if ok_sub:
+                pg.webhook_subscribed = True
+
+            db.flush()
+            if es_nueva:
+                creadas.append({"page_id": pid, "nombre": nombre, "webhook": ok_sub})
+            else:
+                actualizadas.append({"page_id": pid, "nombre": nombre, "webhook": ok_sub})
+
+    db.commit()
+    return {
+        "ok": True,
+        "total": len(pages_api),
+        "creadas": len(creadas),
+        "actualizadas": len(actualizadas),
+        "errores": len(errores),
+        "nuevas": creadas,
+        "errores_detalle": errores,
+    }
+
+
 @router.get("/api/redes/admin/subscribe-via-token")
 async def api_redes_admin_subscribe_via_token_get(
     t: str = "",

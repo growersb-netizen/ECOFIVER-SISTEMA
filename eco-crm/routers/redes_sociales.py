@@ -62,6 +62,50 @@ async def redes_page(
 
 # ─── PÁGINAS ──────────────────────────────────────────────────────────────────
 
+@router.get("/api/redes/admin/paginas")
+async def api_redes_admin_paginas(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Lista todas las páginas con su estado. Requiere ?t=<ML_AUDIT_TOKEN>."""
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+    paginas = db.query(MetaPagina).order_by(MetaPagina.nombre).all()
+    return [
+        {
+            "page_id": p.page_id,
+            "nombre": p.nombre,
+            "numero_whatsapp": p.numero_whatsapp or "",
+            "tiene_token": bool(p.page_token),
+            "webhook_subscribed": bool(p.webhook_subscribed),
+            "activa": bool(p.activa),
+        }
+        for p in paginas
+    ]
+
+
+@router.patch("/api/redes/admin/paginas/{page_id}/whatsapp")
+async def api_redes_admin_set_whatsapp(
+    page_id: str,
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Asigna numero_whatsapp a una página. Body: {numero_whatsapp: '...'} Requiere ?t=<ML_AUDIT_TOKEN>."""
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+    body = await request.json()
+    numero = (body.get("numero_whatsapp") or "").strip()
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if not pg:
+        raise HTTPException(404, "Página no encontrada")
+    pg.numero_whatsapp = numero or None
+    db.commit()
+    return {"ok": True, "page_id": page_id, "numero_whatsapp": pg.numero_whatsapp}
+
+
 @router.get("/api/redes/paginas")
 async def api_redes_paginas(
     user: Usuario = Depends(require_auth),

@@ -1288,6 +1288,49 @@ async def api_redes_admin_subscribe_via_token_get(
     }
 
 
+@router.get("/api/redes/admin/pendientes")
+async def api_redes_admin_pendientes(
+    t: str = "",
+    tipo: Optional[str] = None,
+    sentimiento: Optional[str] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+):
+    """Lista interacciones pendientes (accion=pendiente). Requiere ?t=<ML_AUDIT_TOKEN>.
+    Filtra por tipo=comentario|mensaje y/o sentimiento=negativo|neutro.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    q = db.query(FacebookInteraccion).filter(FacebookInteraccion.accion == "pendiente")
+    if tipo:
+        q = q.filter(FacebookInteraccion.tipo == tipo)
+    if sentimiento:
+        q = q.filter(FacebookInteraccion.sentimiento == sentimiento)
+    items = q.order_by(FacebookInteraccion.created_at.desc()).limit(min(limit, 500)).all()
+
+    paginas = {pg.page_id: pg.nombre for pg in db.query(MetaPagina).all()}
+
+    return {
+        "total": len(items),
+        "items": [
+            {
+                "id": i.id,
+                "tipo": i.tipo,
+                "sentimiento": i.sentimiento,
+                "page_id": i.page_id,
+                "pagina": paginas.get(i.page_id, i.page_id),
+                "objeto_id": i.objeto_id,
+                "usuario": i.usuario_nombre,
+                "contenido": i.contenido,
+                "created_at": i.created_at.isoformat() if i.created_at else None,
+            }
+            for i in items
+        ],
+    }
+
+
 @router.post("/api/redes/admin/importar-inbox-all")
 async def api_redes_admin_importar_inbox_all(
     t: str = "",

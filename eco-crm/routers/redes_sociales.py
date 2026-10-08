@@ -84,6 +84,7 @@ async def api_redes_paginas(
             "auto_eliminar_negativos": bool(p.auto_eliminar_negativos),
             "webhook_subscribed": bool(p.webhook_subscribed),
             "numero_whatsapp": p.numero_whatsapp or "",
+            "vendedor": getattr(p, "vendedor", None) or "",
             "page_token_ok": bool(p.page_token),  # True si tiene token propio de página
             "fan_count": None, "ig_followers": None, "picture": None,
         }
@@ -149,12 +150,15 @@ async def api_redes_pagina_update(
     if "portafolio" in body:
         portafolio = (body["portafolio"] or "").strip()
         p.portafolio = portafolio or "EcoFiver"
+    if "vendedor" in body:
+        p.vendedor = (body["vendedor"] or "").strip() or None
     db.commit()
     return {
         "ok": True, "page_id": page_id,
         "activa": p.activa, "ig_user_id": p.ig_user_id,
         "page_token_ok": bool(p.page_token),
         "portafolio": getattr(p, "portafolio", None) or "EcoFiver",
+        "vendedor": getattr(p, "vendedor", None) or "",
     }
 
 
@@ -638,6 +642,8 @@ async def api_redes_automation_config(
             setattr(pg, campo, bool(body[campo]))
     if "numero_whatsapp" in body:
         pg.numero_whatsapp = (body["numero_whatsapp"] or "").strip() or None
+    if "vendedor" in body:
+        pg.vendedor = (body["vendedor"] or "").strip() or None
 
     db.commit()
     return {
@@ -647,6 +653,7 @@ async def api_redes_automation_config(
         "auto_reply_mensajes": pg.auto_reply_mensajes,
         "auto_eliminar_negativos": pg.auto_eliminar_negativos,
         "numero_whatsapp": pg.numero_whatsapp,
+        "vendedor": getattr(pg, "vendedor", None) or "",
     }
 
 

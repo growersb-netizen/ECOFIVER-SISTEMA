@@ -1642,6 +1642,7 @@ class MetaPagina(Base):
     auto_eliminar_negativos = Column(Boolean, default=False)  # eliminar comentarios negativos
     webhook_subscribed = Column(Boolean, default=False)       # página suscrita al webhook
     numero_whatsapp = Column(String(30), default=None)  # número al que redirige la IA
+    vendedor = Column(String(150), nullable=True)        # nombre del vendedor/responsable de la página
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 

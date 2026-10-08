@@ -294,6 +294,8 @@ def run_migrations():
             "ALTER TABLE aliados ADD COLUMN es_admin_crm BOOLEAN DEFAULT 0",
             # ── Redes Sociales: portafolio/cliente para agrupar páginas ───────────
             "ALTER TABLE meta_paginas ADD COLUMN portafolio TEXT DEFAULT 'EcoFiver'",
+            # ── Redes Sociales: vendedor responsable de la página ─────────────────
+            "ALTER TABLE meta_paginas ADD COLUMN vendedor TEXT",
         ]
         for stmt in migrations:
             try:

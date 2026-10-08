@@ -75,11 +75,46 @@
 .cfg-label { font-size:12px;color:var(--text-muted);font-weight:500; }
 .cfg-val { font-size:13px;background:var(--bg-hover);padding:8px 12px;border-radius:8px; }
 
+/* ─── tabla de páginas ─────────────────────────────────────────────── */
+.pg-table { width:100%;border-collapse:collapse;font-size:13px; }
+.pg-table th {
+  text-align:left;padding:8px 10px;font-size:11px;font-weight:700;
+  color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+.pg-table td { padding:9px 10px;border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);vertical-align:middle; }
+.pg-table tr:hover td { background:var(--bg-hover); }
+.pg-row-sel td { background:color-mix(in srgb,var(--accent) 8%,transparent)!important; }
+.pg-avatar-sm {
+  width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#1877f2,#e1306c);
+  display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;overflow:hidden;
+}
+.pg-avatar-sm img { width:100%;height:100%;object-fit:cover;border-radius:50%; }
+.pill { display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600; }
+.pill-ok  { background:rgba(22,163,74,.15);color:#16a34a; }
+.pill-off { background:rgba(239,68,68,.12);color:#ef4444; }
+.pill-warn{ background:rgba(245,158,11,.15);color:#d97706; }
+.editable-cell { cursor:pointer;min-width:80px; }
+.editable-cell:hover { text-decoration:underline dotted;color:var(--accent); }
+.inline-input {
+  padding:3px 6px;border:1px solid var(--accent);border-radius:5px;font-size:12px;
+  background:var(--bg-card);color:var(--text);outline:none;width:100%;box-sizing:border-box;
+}
+.pg-search {
+  display:flex;gap:8px;align-items:center;margin-bottom:10px;
+}
+.pg-search input {
+  flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;
+  background:var(--bg-hover);color:var(--text);font-size:13px;outline:none;
+}
+.pg-search input:focus { border-color:var(--accent); }
+
 @media(max-width:900px){
   .redes-layout { grid-template-columns:1fr!important; }
   .redes-sidebar { display:flex;gap:8px;overflow-x:auto;flex-wrap:nowrap; }
   .redes-sidebar .page-card { min-width:200px; }
   .ig-grid { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); }
+  .pg-table th:nth-child(n+5), .pg-table td:nth-child(n+5) { display:none; }
 }
 </style>
 {% endblock %}
@@ -105,57 +140,75 @@
   </div>
 </div>
 
-<!-- Layout principal -->
-<div class="redes-layout" style="display:grid;grid-template-columns:270px 1fr;gap:14px;align-items:start">
-
-  <!-- Sidebar: lista de páginas -->
-  <div class="redes-sidebar">
-    <div class="card" style="padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.05em">PÁGINAS</div>
-        <button onclick="abrirAgregarPagina()" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px">+ Agregar</button>
-      </div>
-      <!-- Formulario inline agregar página (oculto por defecto) -->
-      <div id="form-agregar-pagina" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Nueva página</div>
-        <input id="add-pg-nombre" type="text" placeholder="Nombre de la página *" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;margin-bottom:6px">
-        <input id="add-pg-id" type="text" placeholder="Page ID * (ej: 123456789)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:6px">
-        <input id="add-pg-token" type="password" placeholder="Page Access Token * — requerido para publicar y borrar" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid #f59e0b;background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:6px">
-        <input id="add-pg-portafolio" type="text" placeholder="Portafolio (ej: EcoFiver, Cliente Nuevo…)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;margin-bottom:4px" list="portafolios-list">
-        <datalist id="portafolios-list"></datalist>
-        <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">
-          Token en: <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:#1877f2">developers.facebook.com/tools/explorer</a> → App → Página → Generate Access Token
-        </div>
-        <div style="display:flex;gap:6px">
-          <button onclick="agregarPagina()" class="btn btn-primary btn-sm" style="flex:1;font-size:12px">Agregar</button>
-          <button onclick="cerrarAgregarPagina()" class="btn btn-ghost btn-sm" style="font-size:12px">Cancelar</button>
-        </div>
-      </div>
-      <div id="paginas-lista">
-        <div style="color:var(--text-muted);font-size:13px;padding:24px 0;text-align:center">Cargando…</div>
-      </div>
+<!-- Tabla de páginas -->
+<div class="card" style="padding:14px;margin-bottom:14px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+    <div style="font-size:13px;font-weight:700">Páginas conectadas</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button onclick="abrirAgregarPagina()" class="btn btn-ghost btn-sm">+ Agregar</button>
+      <button onclick="conectarConFacebook()" class="btn btn-ghost btn-sm" style="color:#1877f2">f Conectar OAuth</button>
     </div>
   </div>
 
-  <!-- Panel derecho -->
-  <div>
-    <!-- Tabs -->
-    <div style="display:flex;gap:3px;margin-bottom:14px;background:var(--bg-card);border-radius:10px;padding:4px;border:1px solid var(--border);width:fit-content;overflow-x:auto">
-      <button onclick="setTab('feed')" id="tab-feed" class="tab-btn tab-active">📰 Feed FB</button>
-      <button onclick="setTab('ig')" id="tab-ig" class="tab-btn">📸 Instagram</button>
-      <button onclick="setTab('stats')" id="tab-stats" class="tab-btn">📊 Estadísticas</button>
-      <button onclick="setTab('config')" id="tab-config" class="tab-btn">⚙️ Página</button>
-      <button onclick="setTab('auto')" id="tab-auto" class="tab-btn">🤖 Automatización</button>
-      <button onclick="setTab('inbox')" id="tab-inbox" class="tab-btn">💬 Inbox</button>
-      <button onclick="setTab('publish')" id="tab-publish" class="tab-btn">📤 Publicar</button>
+  <!-- Formulario inline agregar página (oculto por defecto) -->
+  <div id="form-agregar-pagina" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">Nueva página manual</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+      <input id="add-pg-nombre" type="text" placeholder="Nombre de la página *" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px">
+      <input id="add-pg-id" type="text" placeholder="Page ID *" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace">
     </div>
+    <input id="add-pg-token" type="password" placeholder="Page Access Token *" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid #f59e0b;background:var(--bg-card);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:6px">
+    <input id="add-pg-portafolio" type="text" placeholder="Portafolio (ej: EcoFiver)" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:12px;margin-bottom:8px" list="portafolios-list">
+    <datalist id="portafolios-list"></datalist>
+    <div style="display:flex;gap:6px">
+      <button onclick="agregarPagina()" class="btn btn-primary btn-sm" style="flex:1">Agregar página</button>
+      <button onclick="cerrarAgregarPagina()" class="btn btn-ghost btn-sm">Cancelar</button>
+    </div>
+  </div>
 
-    <!-- Aviso sin página seleccionada -->
-    <div id="no-page-msg" class="card" style="padding:48px;text-align:center;color:var(--text-muted)">
-      <div style="font-size:32px;margin-bottom:10px">📄</div>
-      <div>Seleccioná una página para ver su contenido</div>
-      <div style="font-size:12px;margin-top:6px">Si no hay páginas, hacé clic en <strong>Sincronizar</strong></div>
+  <!-- Barra de búsqueda + filtros -->
+  <div class="pg-search">
+    <input id="pg-buscar" type="search" placeholder="🔍  Buscar por nombre, vendedor o WhatsApp…" oninput="filtrarTabla(this.value)">
+    <select id="pg-filtro-estado" onchange="filtrarTabla(document.getElementById('pg-buscar').value)" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);border-radius:8px">
+      <option value="">Todas</option>
+      <option value="activa">Activas</option>
+      <option value="sin-token">Sin token</option>
+      <option value="sin-wa">Sin WhatsApp</option>
+      <option value="con-ia">Con IA activa</option>
+    </select>
+  </div>
+
+  <!-- Tabla -->
+  <div id="paginas-lista" style="overflow-x:auto">
+    <div style="color:var(--text-muted);font-size:13px;padding:24px 0;text-align:center">Cargando…</div>
+  </div>
+</div>
+
+<!-- Panel de detalle (se muestra al seleccionar una página) -->
+<div id="detalle-pagina" style="display:none">
+  <!-- Cabecera del detalle -->
+  <div class="card" style="padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px">
+    <div id="det-avatar" class="page-avatar" style="width:44px;height:44px;font-size:20px">📄</div>
+    <div style="flex:1;min-width:0">
+      <div id="det-nombre" style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      <div id="det-meta" style="font-size:12px;color:var(--text-muted);margin-top:2px">—</div>
     </div>
+    <button onclick="cerrarDetalle()" class="btn btn-ghost btn-sm" style="font-size:18px;padding:4px 8px;line-height:1" title="Cerrar detalle">✕</button>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:3px;margin-bottom:14px;background:var(--bg-card);border-radius:10px;padding:4px;border:1px solid var(--border);overflow-x:auto">
+    <button onclick="setTab('feed')" id="tab-feed" class="tab-btn tab-active">📰 Feed FB</button>
+    <button onclick="setTab('ig')" id="tab-ig" class="tab-btn">📸 Instagram</button>
+    <button onclick="setTab('stats')" id="tab-stats" class="tab-btn">📊 Estadísticas</button>
+    <button onclick="setTab('config')" id="tab-config" class="tab-btn">⚙️ Página</button>
+    <button onclick="setTab('auto')" id="tab-auto" class="tab-btn">🤖 Automatización</button>
+    <button onclick="setTab('inbox')" id="tab-inbox" class="tab-btn">💬 Inbox</button>
+    <button onclick="setTab('publish')" id="tab-publish" class="tab-btn">📤 Publicar</button>
+  </div>
+
+  <!-- Aviso sin página seleccionada (ya no aplica, pero se mantiene por compatibilidad) -->
+  <div id="no-page-msg" style="display:none"></div>
 
     <!-- ── FEED FACEBOOK ───────────────────────────────────── -->
     <div id="panel-feed" style="display:none">
@@ -291,8 +344,8 @@
       <div id="inbox-loading" style="color:var(--text-muted);padding:32px;text-align:center">Cargando interacciones…</div>
       <div id="inbox-list"></div>
     </div>
-  </div>
-</div>
+
+</div><!-- /detalle-pagina -->
 {% endblock %}
 
 {% block extra_js %}
@@ -369,6 +422,7 @@ function _loadTab(tab) {
 
 /* ─── páginas ────────────────────────────────────────────────────────────── */
 let _pendientesPorPagina = {};
+let _pgFiltradas = [];
 
 async function cargarPaginas() {
   try {
@@ -385,81 +439,33 @@ async function cargarPaginas() {
     document.getElementById('kpi-activas').textContent = _paginas.filter(p => p.activa).length;
 
     const lista = document.getElementById('paginas-lista');
+
     if (!_paginas.length) {
       lista.innerHTML = `
-        <div style="padding:16px">
-          <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)">🔗 Conectar Facebook</div>
-
-          <button onclick="conectarConFacebook()" class="btn btn-primary" style="width:100%;font-size:13px;margin-bottom:10px;background:#1877f2;border-color:#1877f2">
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:32px;margin-bottom:12px">🔗</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:16px">No hay páginas conectadas</div>
+          <button onclick="conectarConFacebook()" class="btn btn-primary" style="margin-bottom:12px;background:#1877f2;border-color:#1877f2">
             <span style="font-size:16px;vertical-align:middle;margin-right:6px">f</span> Conectar con Facebook (OAuth)
           </button>
-
-          <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:14px">— o pegá el token manualmente —</div>
-
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;line-height:1.5">
-            <strong>User Access Token</strong> del administrador de la página.<br>
-            Obtenelo en <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:#1877f2">Graph API Explorer →</a>
-            con permisos <code style="font-size:10px">pages_manage_metadata, pages_messaging, pages_read_engagement</code>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">— o pegá el token manualmente —</div>
+          <div style="max-width:480px;margin:0 auto;text-align:left">
+            <textarea id="inp-meta-token" placeholder="EAABsbCS..." rows="3"
+              style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:8px"></textarea>
+            <button id="btn-guardar-token" onclick="guardarTokenYSincronizar()" class="btn btn-primary" style="width:100%;font-size:13px">
+              🔄 Guardar token y suscribir páginas
+            </button>
           </div>
-          <textarea id="inp-meta-token" placeholder="EAABsbCS..." rows="3"
-            style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;margin-bottom:8px"></textarea>
-          <button id="btn-guardar-token" onclick="guardarTokenYSincronizar()" class="btn btn-primary" style="width:100%;font-size:13px">
-            🔄 Guardar token y suscribir páginas
-          </button>
         </div>`;
       return;
     }
 
-    // Agrupar páginas por portafolio
-    const grupos = {};
-    _paginas.forEach(p => {
-      const pf = (p.portafolio || 'EcoFiver').trim();
-      (grupos[pf] = grupos[pf] || []).push(p);
-    });
-
-    // Poblar datalist para autocompletar portafolio al agregar
+    // Poblar datalist portafolio
+    const portafolios = [...new Set(_paginas.map(p => (p.portafolio || 'EcoFiver').trim()))];
     const dl = document.getElementById('portafolios-list');
-    if (dl) dl.innerHTML = Object.keys(grupos).map(pf => `<option value="${esc(pf)}">`).join('');
+    if (dl) dl.innerHTML = portafolios.map(pf => `<option value="${esc(pf)}">`).join('');
 
-    const renderCard = p => {
-      const pendientes = _pendientesPorPagina[p.page_id] || 0;
-      const wa = p.numero_whatsapp || '';
-      const autoActivo = p.auto_reply_comentarios || p.auto_reply_mensajes || p.auto_eliminar_negativos;
-      return `
-      <div class="page-card" id="pcard-${esc(p.page_id)}" onclick="selectPage('${esc(p.page_id)}')">
-        <div class="page-avatar">
-          ${p.picture
-            ? `<img src="${esc(p.picture)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📄'">`
-            : '📄'}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.nombre)}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:1px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <span><span style="color:#1877f2">&#9671;</span> ${fmt(p.fan_count)}</span>
-            ${p.ig_user_id ? `<span><span style="color:#e1306c">&#9671;</span> ${fmt(p.ig_followers)}</span>` : ''}
-          </div>
-          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-            <span title="WhatsApp vinculado" style="${wa ? '' : 'color:#f59e0b'}">📲 ${wa ? esc(wa) : 'sin configurar'}</span>
-            ${autoActivo ? '<span style="color:#16a34a" title="IA activa">🤖</span>' : ''}
-            ${!p.activa ? '<span style="color:#f59e0b">⏸</span>' : ''}
-            ${!p.page_token_ok ? '<span style="color:#ef4444" title="Sin token">⚠️</span>' : ''}
-          </div>
-        </div>
-        ${pendientes > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 7px;flex-shrink:0;align-self:flex-start">${pendientes}</span>` : ''}
-      </div>`;
-    };
-
-    lista.innerHTML = Object.entries(grupos).map(([pf, pages]) => `
-      <div style="margin-bottom:4px">
-        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:6px 10px 4px;display:flex;align-items:center;gap:6px">
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📁 ${esc(pf)}</span>
-          <span style="font-weight:400;font-size:10px;background:var(--bg-hover);border-radius:10px;padding:1px 6px">${pages.length}</span>
-        </div>
-        ${pages.map(renderCard).join('')}
-      </div>
-    `).join('');
-
-    // Poblar selector de páginas del inbox
+    // Poblar selector inbox
     const sel = document.getElementById('inbox-filtro-pagina');
     if (sel) {
       const curVal = sel.value;
@@ -468,12 +474,10 @@ async function cargarPaginas() {
       sel.value = curVal;
     }
 
-    // Si el tab publish está activo, re-renderizarlo
-    if (_curTab === 'publish') renderPublish();
+    _pgFiltradas = [..._paginas];
+    renderTabla(_pgFiltradas);
 
-    // Auto-select primera activa
-    const primera = _paginas.find(p => p.activa) || _paginas[0];
-    if (primera) selectPage(primera.page_id);
+    if (_curTab === 'publish') renderPublish();
 
   } catch(e) {
     document.getElementById('paginas-lista').innerHTML =
@@ -481,16 +485,183 @@ async function cargarPaginas() {
   }
 }
 
+function renderTabla(paginas) {
+  const lista = document.getElementById('paginas-lista');
+  if (!paginas.length) {
+    lista.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)">Sin resultados</div>';
+    return;
+  }
+
+  const filas = paginas.map(p => {
+    const pend = _pendientesPorPagina[p.page_id] || 0;
+    const auto = p.auto_reply_comentarios || p.auto_reply_mensajes || p.auto_eliminar_negativos;
+    const sel  = p.page_id === _pageId;
+    return `
+    <tr class="${sel ? 'pg-row-sel' : ''}" id="prow-${esc(p.page_id)}" style="cursor:pointer" onclick="selectPage('${esc(p.page_id)}')">
+      <td style="min-width:220px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="pg-avatar-sm">
+            ${p.picture ? `<img src="${esc(p.picture)}" alt="" onerror="this.parentElement.innerHTML='📄'">` : '📄'}
+          </div>
+          <div style="min-width:0">
+            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${esc(p.nombre)}</div>
+            <div style="font-size:10px;color:var(--text-muted)">${esc(p.portafolio || 'EcoFiver')}</div>
+          </div>
+          ${pend > 0 ? `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;flex-shrink:0">${pend}</span>` : ''}
+        </div>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <span class="editable-cell" onclick="editarCelda(this,'vendedor','${esc(p.page_id)}')" title="Clic para editar vendedor">
+          ${p.vendedor ? esc(p.vendedor) : '<span style="color:var(--text-muted);font-size:11px">— agregar —</span>'}
+        </span>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <span class="editable-cell" onclick="editarCelda(this,'numero_whatsapp','${esc(p.page_id)}')" title="Clic para editar WhatsApp">
+          ${p.numero_whatsapp
+            ? `<span style="color:#16a34a">📲 ${esc(p.numero_whatsapp)}</span>`
+            : '<span style="color:#f59e0b;font-size:11px">⚠️ sin número</span>'}
+        </span>
+      </td>
+      <td>
+        ${p.webhook_subscribed
+          ? '<span class="pill pill-ok">✅ webhook</span>'
+          : '<span class="pill pill-off">✕ webhook</span>'}
+      </td>
+      <td>
+        ${auto
+          ? '<span class="pill pill-ok">🤖 activa</span>'
+          : '<span class="pill pill-warn">⏸ inactiva</span>'}
+      </td>
+      <td style="white-space:nowrap">
+        <span style="color:#1877f2;font-size:12px">f ${fmt(p.fan_count)}</span>
+        ${p.ig_user_id ? `<br><span style="color:#e1306c;font-size:12px">📸 ${fmt(p.ig_followers)}</span>` : ''}
+      </td>
+      <td>
+        ${p.page_token_ok
+          ? '<span class="pill pill-ok">token ✓</span>'
+          : '<span class="pill pill-off">sin token</span>'}
+      </td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        <button onclick="selectPage('${esc(p.page_id)}');setTab('feed')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" title="Ver feed">📰</button>
+        <button onclick="selectPage('${esc(p.page_id)}');setTab('auto')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" title="Automatización">🤖</button>
+        <button onclick="selectPage('${esc(p.page_id)}');setTab('config')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" title="Configurar">⚙️</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  lista.innerHTML = `
+    <table class="pg-table">
+      <thead>
+        <tr>
+          <th>Página</th>
+          <th>Vendedor</th>
+          <th>WhatsApp</th>
+          <th>Webhook</th>
+          <th>IA Auto</th>
+          <th>Alcance</th>
+          <th>Token</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${filas}</tbody>
+    </table>`;
+}
+
+function filtrarTabla(q) {
+  q = (q || '').toLowerCase().trim();
+  const estado = document.getElementById('pg-filtro-estado')?.value || '';
+  let resultado = _paginas;
+  if (q) {
+    resultado = resultado.filter(p =>
+      (p.nombre || '').toLowerCase().includes(q) ||
+      (p.vendedor || '').toLowerCase().includes(q) ||
+      (p.numero_whatsapp || '').includes(q)
+    );
+  }
+  if (estado === 'activa')     resultado = resultado.filter(p => p.activa);
+  if (estado === 'sin-token')  resultado = resultado.filter(p => !p.page_token_ok);
+  if (estado === 'sin-wa')     resultado = resultado.filter(p => !p.numero_whatsapp);
+  if (estado === 'con-ia')     resultado = resultado.filter(p => p.auto_reply_comentarios || p.auto_reply_mensajes);
+  _pgFiltradas = resultado;
+  renderTabla(resultado);
+}
+
+async function editarCelda(span, campo, pageId) {
+  const valorActual = (span.dataset.valor !== undefined ? span.dataset.valor : span.textContent).trim();
+  const input = document.createElement('input');
+  input.type = campo === 'numero_whatsapp' ? 'tel' : 'text';
+  input.className = 'inline-input';
+  input.value = (valorActual.includes('agregar') || valorActual.includes('sin número') || valorActual.includes('—')) ? '' : valorActual;
+  input.placeholder = campo === 'numero_whatsapp' ? '+54911...' : 'Nombre vendedor';
+  span.replaceWith(input);
+  input.focus();
+
+  const guardar = async () => {
+    const nuevo = input.value.trim();
+    try {
+      const r = await fetch(`/api/redes/paginas/${encodeURIComponent(pageId)}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ [campo]: nuevo }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || 'Error');
+      // actualizar objeto local
+      const pg = _paginas.find(p => p.page_id === pageId);
+      if (pg) pg[campo] = nuevo;
+      toast(`✅ ${campo === 'vendedor' ? 'Vendedor' : 'WhatsApp'} actualizado`, 'success');
+    } catch(e) { toast(e.message, 'error'); }
+    renderTabla(_pgFiltradas);
+  };
+
+  input.addEventListener('blur', guardar);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { renderTabla(_pgFiltradas); }
+  });
+}
+
 function selectPage(pageId) {
   _pageId = pageId;
   _feedCursor = null;
   _igCursor   = null;
 
-  document.querySelectorAll('.page-card').forEach(el => el.classList.remove('selected'));
-  document.getElementById('pcard-' + pageId)?.classList.add('selected');
+  // Marcar fila seleccionada en tabla
+  document.querySelectorAll('[id^="prow-"]').forEach(el => el.classList.remove('pg-row-sel'));
+  document.getElementById('prow-' + pageId)?.classList.add('pg-row-sel');
+
+  // Mostrar panel detalle
+  const det = document.getElementById('detalle-pagina');
+  if (det) det.style.display = 'block';
+
+  // Actualizar cabecera del detalle
+  const p = _paginas.find(x => x.page_id === pageId);
+  if (p) {
+    const av = document.getElementById('det-avatar');
+    if (av) av.innerHTML = p.picture ? `<img src="${esc(p.picture)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.innerHTML='📄'">` : '📄';
+    const nm = document.getElementById('det-nombre');
+    if (nm) nm.textContent = p.nombre;
+    const mt = document.getElementById('det-meta');
+    if (mt) mt.innerHTML = `
+      ${p.activa ? '✅ Activa' : '⏸️ Inactiva'} &nbsp;·&nbsp;
+      <span style="color:#1877f2">f ${fmt(p.fan_count)}</span>
+      ${p.ig_user_id ? `&nbsp;·&nbsp;<span style="color:#e1306c">📸 ${fmt(p.ig_followers)}</span>` : ''}
+      ${p.vendedor ? `&nbsp;·&nbsp;👤 ${esc(p.vendedor)}` : ''}
+      ${p.numero_whatsapp ? `&nbsp;·&nbsp;📲 ${esc(p.numero_whatsapp)}` : ''}
+    `;
+  }
 
   hide('no-page-msg');
   _loadTab(_curTab);
+
+  // Scroll al panel detalle
+  setTimeout(() => det?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
+
+function cerrarDetalle() {
+  _pageId = null;
+  const det = document.getElementById('detalle-pagina');
+  if (det) det.style.display = 'none';
+  document.querySelectorAll('[id^="prow-"]').forEach(el => el.classList.remove('pg-row-sel'));
 }
 
 /* ─── feed facebook ─────────────────────────────────────────────────────── */

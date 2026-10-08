@@ -834,9 +834,11 @@ async def api_redes_asignar_waba(
     """
     _check_access(user, db)
     body = await request.json()
-    numero = (body.get("numero_whatsapp") or "").strip()
-    if not numero:
-        raise HTTPException(400, "Falta numero_whatsapp")
+    # Permite vaciar el número pasando null o ""
+    numero_raw = body.get("numero_whatsapp")
+    numero = None if numero_raw is None else str(numero_raw).strip()
+    if numero is not None and numero == "" and not body.get("clear"):
+        raise HTTPException(400, "Falta numero_whatsapp (o pasá clear:true para vaciar)")
 
     page_ids = body.get("page_ids") or []
     all_pages = body.get("all", False)
@@ -849,7 +851,7 @@ async def api_redes_asignar_waba(
 
     paginas = q.all()
     for pg in paginas:
-        pg.numero_whatsapp = numero
+        pg.numero_whatsapp = numero or None
     db.commit()
 
     return {"ok": True, "updated": len(paginas), "numero_whatsapp": numero}

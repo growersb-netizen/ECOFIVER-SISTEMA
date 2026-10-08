@@ -1506,6 +1506,82 @@ async def api_redes_admin_generar_borradores(
     return {"total": len(borradores), "borradores": borradores}
 
 
+@router.post("/api/redes/admin/enviar-consultas")
+async def api_redes_admin_enviar_consultas(
+    t: str = "",
+    limit: int = 500,
+    db: Session = Depends(get_db),
+):
+    """
+    Genera y envía respuestas a todos los mensajes pendientes que NO son reclamos.
+    Los reclamos se saltan y quedan en accion='pendiente'.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    SISTEMA_PREFIXES = [
+        "Facebook creó este chat",
+        "facebook created this conversation",
+    ]
+
+    mensajes = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.tipo == "mensaje",
+        FacebookInteraccion.accion == "pendiente",
+    ).order_by(FacebookInteraccion.created_at.asc()).all()
+
+    genuinos = [
+        m for m in mensajes
+        if not any(m.contenido.lower().startswith(p.lower()) for p in SISTEMA_PREFIXES)
+    ]
+
+    paginas = {pg.page_id: pg for pg in db.query(MetaPagina).all()}
+
+    enviados = 0
+    saltados_reclamo = 0
+    errores = 0
+    resultados = []
+
+    for m in genuinos[:limit]:
+        if _es_reclamo(m.contenido):
+            saltados_reclamo += 1
+            resultados.append({"id": m.id, "status": "saltado_reclamo", "usuario": m.usuario_nombre})
+            continue
+
+        pg = paginas.get(m.page_id)
+        if not pg or not pg.page_token:
+            errores += 1
+            resultados.append({"id": m.id, "status": "error_sin_token", "usuario": m.usuario_nombre})
+            continue
+
+        pg_nombre = pg.nombre
+        numero_wa = pg.numero_whatsapp or ""
+        respuesta = await _generar_respuesta_ia(m.contenido, pg_nombre, numero_wa, db)
+        ok = await _responder_mensaje(m.usuario_id, respuesta, pg.page_token)
+
+        if ok:
+            m.accion = "respondido"
+            m.respuesta_enviada = respuesta
+            enviados += 1
+            resultados.append({"id": m.id, "status": "enviado", "usuario": m.usuario_nombre, "pagina": pg_nombre})
+        else:
+            m.accion = "error"
+            errores += 1
+            resultados.append({"id": m.id, "status": "error_envio", "usuario": m.usuario_nombre})
+
+        db.commit()
+
+    return {
+        "ok": True,
+        "total_procesados": len(genuinos[:limit]),
+        "enviados": enviados,
+        "saltados_reclamo": saltados_reclamo,
+        "errores": errores,
+        "resultados": resultados,
+    }
+
+
 @router.get("/api/redes/admin/pendientes")
 async def api_redes_admin_pendientes(
     t: str = "",

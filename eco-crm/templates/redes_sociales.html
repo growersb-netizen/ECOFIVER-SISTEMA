@@ -592,6 +592,7 @@ function _filaTabla(p) {
       <button onclick="selectPage('${esc(p.page_id)}');setTab('feed')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 7px" title="Feed">📰</button>
       <button onclick="selectPage('${esc(p.page_id)}');setTab('auto')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 7px" title="Automatización">🤖</button>
       <button onclick="selectPage('${esc(p.page_id)}');setTab('config')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 7px" title="Configurar">⚙️</button>
+      <button onclick="eliminarPagina('${esc(p.page_id)}','${esc(p.nombre.replace(/'/g,"\\'"))}')" class="btn btn-sm" style="font-size:11px;padding:3px 7px;background:#ef44441a;color:#ef4444;border:1px solid #ef444430" title="Eliminar página del CRM">🗑</button>
     </td>
   </tr>`;
 }
@@ -797,6 +798,32 @@ function cerrarDetalle() {
   const det = document.getElementById('detalle-pagina');
   if (det) det.style.display = 'none';
   document.querySelectorAll('[id^="prow-"]').forEach(el => el.classList.remove('pg-row-sel'));
+}
+
+async function eliminarPagina(pageId, nombre) {
+  if (!confirm(`¿Eliminar "${nombre}" del CRM?\n\nEsto borra la página de la base de datos local. No afecta tu página en Facebook/Instagram.`)) return;
+  try {
+    const r = await fetch(`/api/redes/paginas/${encodeURIComponent(pageId)}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.detail || 'Error al eliminar');
+    }
+    // si era la página seleccionada, cerrar detalle
+    if (_pageId === pageId) cerrarDetalle();
+    // quitar de la lista local y re-renderizar
+    _paginas = _paginas.filter(p => p.page_id !== pageId);
+    _pgFiltradas = _pgFiltradas.filter(p => p.page_id !== pageId);
+    // actualizar KPIs
+    document.getElementById('kpi-paginas').textContent = _paginas.length;
+    document.getElementById('kpi-fans').textContent    = fmt(_paginas.reduce((s,p) => s + (p.fan_count   || 0), 0));
+    document.getElementById('kpi-ig').textContent      = fmt(_paginas.reduce((s,p) => s + (p.ig_followers|| 0), 0));
+    document.getElementById('kpi-activas').textContent = _paginas.filter(p => p.activa).length;
+    if (_vista === 'grupo') renderAgrupado(_pgFiltradas);
+    else renderTabla(_pgFiltradas);
+    toast(`🗑 "${nombre}" eliminada del CRM`, 'success');
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 /* ─── feed facebook ─────────────────────────────────────────────────────── */

@@ -38,7 +38,7 @@ PROVIDERS = {
     "gemini": {
         "clave_config": "gemini_api_key",
         "base_url": "https://generativelanguage.googleapis.com",
-        "model_default": "gemini-2.0-flash",
+        "model_default": "gemini-2.5-flash",
         "model_env": "GEMINI_MODEL",
         "chat_path": "/v1beta/models/{model}:generateContent",
         "formato": "gemini",

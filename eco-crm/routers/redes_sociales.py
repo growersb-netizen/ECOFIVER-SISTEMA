@@ -1394,10 +1394,29 @@ async def api_redes_admin_sync_pages(
     actualizadas = []
     errores = []
 
-    # ── Modo A: con user_token → descubrir páginas nuevas en Facebook ────────
+    # ── Modo A: con user_token → descubrir/actualizar páginas en Facebook ────
     if user_token:
-        # Guardar token en config para usos futuros
-        stored = encrypt_value(user_token)
+        app_id = get_config_value("meta_app_id", db) or os.getenv("META_APP_ID", "")
+        app_secret = get_config_value("meta_app_secret", db) or os.getenv("META_APP_SECRET", "")
+
+        # Intentar canjear por token de larga duración (60 días → page tokens permanentes)
+        long_token = user_token
+        if app_id and app_secret:
+            async with httpx.AsyncClient(timeout=15) as hc:
+                r_lt = await hc.get(
+                    "https://graph.facebook.com/oauth/access_token",
+                    params={
+                        "grant_type": "fb_exchange_token",
+                        "client_id": app_id,
+                        "client_secret": app_secret,
+                        "fb_exchange_token": user_token,
+                    },
+                )
+                if r_lt.status_code == 200:
+                    long_token = r_lt.json().get("access_token", user_token)
+
+        # Guardar en config (el token de larga duración si pudo, si no el original)
+        stored = encrypt_value(long_token)
         entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
         if entry:
             entry.valor = stored
@@ -1408,7 +1427,7 @@ async def api_redes_admin_sync_pages(
         async with httpx.AsyncClient(timeout=60) as hc:
             r = await hc.get(
                 f"{META_GRAPH_URL}/me/accounts",
-                params={"fields": "id,name", "limit": 200, "access_token": user_token},
+                params={"fields": "id,name", "limit": 200, "access_token": long_token},
             )
             data = r.json()
             if r.status_code != 200 or "error" in data:
@@ -1418,7 +1437,7 @@ async def api_redes_admin_sync_pages(
                 pid, nombre = p["id"], p["name"]
                 r_pt = await hc.get(
                     f"{META_GRAPH_URL}/{pid}",
-                    params={"fields": "access_token", "access_token": user_token},
+                    params={"fields": "access_token", "access_token": long_token},
                 )
                 data_pt = r_pt.json()
                 if r_pt.status_code != 200 or "access_token" not in data_pt:

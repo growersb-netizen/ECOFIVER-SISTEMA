@@ -39,7 +39,7 @@ from routers import (
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
     integraciones, redes_sociales, imagenes, ml_biblioteca, socios,
 )
-from routers import ml_audit
+from routers import ml_audit, meta_ads
 
 log = logging.getLogger(__name__)
 
@@ -249,6 +249,7 @@ app.include_router(negocio.router)          # Configuración del negocio
 app.include_router(whatsapp_business.router) # Perfil de WhatsApp Business
 app.include_router(integraciones.router)     # Integración WhatsApp IA (Melanie + futuros)
 app.include_router(redes_sociales.router)   # Panel unificado de redes sociales
+app.include_router(meta_ads.router)         # Módulo campañas Meta Ads
 app.include_router(imagenes.router)         # Generador de imágenes con IA
 app.include_router(ml_biblioteca.router)    # ML — Biblioteca fotos, sets, renovación, auto-responder
 

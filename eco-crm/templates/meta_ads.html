@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+{% block title %}Campañas Meta Ads — EcoFiver CRM{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ─── layout general ─────────────────────────────────────────────────── */
+.ads-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px }
+.ads-kpi  { padding:14px;text-align:center }
+.ads-kpi .val { font-size:24px;font-weight:700 }
+.ads-kpi .lbl { font-size:11px;color:var(--text-muted);margin-top:2px }
+
+/* ─── tabs ───────────────────────────────────────────────────────────── */
+.sec-tabs { display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap }
+.sec-tab  { padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;
+            background:var(--bg-hover);color:var(--text-muted);cursor:pointer;border:none;transition:.15s }
+.sec-tab:hover { background:var(--border) }
+.sec-tab.active { background:var(--accent);color:#fff }
+
+/* ─── tabla campañas ─────────────────────────────────────────────────── */
+.camp-table { width:100%;border-collapse:collapse;font-size:12px }
+.camp-table th { padding:8px 10px;text-align:left;font-size:11px;color:var(--text-muted);
+                 border-bottom:1px solid var(--border);white-space:nowrap }
+.camp-table td { padding:8px 10px;border-bottom:1px solid color-mix(in srgb,var(--border) 40%,transparent);vertical-align:middle }
+.camp-table tr:hover td { background:var(--bg-hover) }
+.badge { display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;text-transform:uppercase }
+.badge-active  { background:#d1fae5;color:#065f46 }
+.badge-paused  { background:#fef3c7;color:#92400e }
+.badge-other   { background:var(--bg-hover);color:var(--text-muted) }
+
+/* ─── drill-down ─────────────────────────────────────────────────────── */
+.drill-header { display:flex;align-items:center;gap:10px;margin-bottom:12px }
+.drill-back   { font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline }
+
+/* ─── métricas inline ────────────────────────────────────────────────── */
+.metric-row { display:flex;gap:16px;flex-wrap:wrap;margin-top:4px }
+.metric-item { font-size:11px;color:var(--text-muted) }
+.metric-item strong { color:var(--text);font-size:12px }
+
+/* ─── comentarios ────────────────────────────────────────────────────── */
+.com-card { padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px }
+.com-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px }
+.com-msg { font-size:12px;line-height:1.5 }
+.com-meta { font-size:10px;color:var(--text-muted) }
+.btn-del-com { background:#fee2e2;color:#991b1b;border:none;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer }
+.btn-del-com:hover { background:#fca5a5 }
+
+/* ─── cuenta selector ────────────────────────────────────────────────── */
+.cuenta-card { padding:12px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:.15s }
+.cuenta-card:hover { border-color:var(--accent);background:var(--bg-hover) }
+.cuenta-card.selected { border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent) }
+
+/* ─── estado vacío / loading ─────────────────────────────────────────── */
+.estado-vacio { padding:40px;text-align:center;color:var(--text-muted);font-size:13px }
+.spinner { display:inline-block;width:18px;height:18px;border:2px solid var(--border);
+           border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle }
+@keyframes spin { to { transform:rotate(360deg) } }
+
+@media(max-width:640px){
+  .camp-table th:nth-child(n+5),.camp-table td:nth-child(n+5){display:none}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- KPIs globales -->
+<div class="ads-grid" id="ads-kpis">
+  <div class="card ads-kpi">
+    <div class="val" id="kpi-gasto" style="color:var(--accent)">—</div>
+    <div class="lbl">Gasto 30 días (USD)</div>
+  </div>
+  <div class="card ads-kpi">
+    <div class="val" id="kpi-cuentas" style="color:#1877f2">—</div>
+    <div class="lbl">Cuentas publicitarias</div>
+  </div>
+  <div class="card ads-kpi">
+    <div class="val" id="kpi-activas" style="color:#16a34a">—</div>
+    <div class="lbl">Campañas activas</div>
+  </div>
+  <div class="card ads-kpi">
+    <div class="val" id="kpi-pausadas" style="color:#f59e0b">—</div>
+    <div class="lbl">Campañas pausadas</div>
+  </div>
+</div>
+
+<!-- Tabs principales -->
+<div class="sec-tabs">
+  <button class="sec-tab active" onclick="showSec('cuentas')" id="stab-cuentas">🏦 Cuentas</button>
+  <button class="sec-tab" onclick="showSec('campanias')" id="stab-campanias">📢 Campañas</button>
+  <button class="sec-tab" onclick="showSec('conjuntos')" id="stab-conjuntos">🎯 Conjuntos</button>
+  <button class="sec-tab" onclick="showSec('anuncios')" id="stab-anuncios">🖼️ Anuncios</button>
+  <button class="sec-tab" onclick="showSec('comentarios')" id="stab-comentarios">💬 Comentarios</button>
+</div>
+
+<!-- ─── SECCIÓN CUENTAS ─── -->
+<div id="sec-cuentas">
+  <div class="card" style="padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700">Cuentas publicitarias</div>
+      <button onclick="cargarCuentas()" class="btn btn-ghost btn-sm">🔄 Actualizar</button>
+    </div>
+    <div id="cuentas-lista"><div class="estado-vacio"><span class="spinner"></span> Cargando…</div></div>
+  </div>
+</div>
+
+<!-- ─── SECCIÓN CAMPAÑAS ─── -->
+<div id="sec-campanias" style="display:none">
+  <div class="card" style="padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:13px;font-weight:700">Campañas</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="camp-cuenta-label">Seleccioná una cuenta</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="camp-cuenta-sel" class="btn btn-ghost btn-sm" onchange="cambiarCuentaCamp(this.value)"
+                style="border:1px solid var(--border);border-radius:8px;min-width:160px">
+          <option value="">Seleccioná cuenta…</option>
+        </select>
+        <select id="camp-filtro" class="btn btn-ghost btn-sm" onchange="filtrarCampanias()"
+                style="border:1px solid var(--border);border-radius:8px">
+          <option value="">Todas</option>
+          <option value="ACTIVE">Activas</option>
+          <option value="PAUSED">Pausadas</option>
+          <option value="ARCHIVED">Archivadas</option>
+        </select>
+        <button onclick="cargarCampanias()" class="btn btn-ghost btn-sm">🔄 Actualizar</button>
+      </div>
+    </div>
+    <div id="camp-tabla-wrap"><div class="estado-vacio">Seleccioná una cuenta para ver sus campañas</div></div>
+  </div>
+</div>
+
+<!-- ─── SECCIÓN CONJUNTOS ─── -->
+<div id="sec-conjuntos" style="display:none">
+  <div class="card" style="padding:16px">
+    <div class="drill-header">
+      <div>
+        <div style="font-size:13px;font-weight:700">Conjuntos de anuncios</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="conj-camp-label">Seleccioná una campaña desde la pestaña Campañas</div>
+      </div>
+    </div>
+    <div id="conj-tabla-wrap"><div class="estado-vacio">Seleccioná una campaña para ver sus conjuntos</div></div>
+  </div>
+</div>
+
+<!-- ─── SECCIÓN ANUNCIOS ─── -->
+<div id="sec-anuncios" style="display:none">
+  <div class="card" style="padding:16px">
+    <div class="drill-header">
+      <div>
+        <div style="font-size:13px;font-weight:700">Anuncios</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="ad-camp-label">Seleccioná una campaña desde la pestaña Campañas</div>
+      </div>
+    </div>
+    <div id="ad-tabla-wrap"><div class="estado-vacio">Seleccioná una campaña para ver sus anuncios</div></div>
+  </div>
+</div>
+
+<!-- ─── SECCIÓN COMENTARIOS ─── -->
+<div id="sec-comentarios" style="display:none">
+  <div class="card" style="padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:13px;font-weight:700">Comentarios en anuncios</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="com-camp-label">Seleccioná una campaña desde la pestaña Campañas</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="com-solo-negativos" onchange="cargarComentarios()"> Solo negativos
+        </label>
+        <button onclick="cargarComentarios()" class="btn btn-ghost btn-sm">🔄 Actualizar</button>
+        <button onclick="eliminarTodosNegativos()" class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:none">
+          🗑️ Eliminar negativos
+        </button>
+      </div>
+    </div>
+    <div id="com-lista"><div class="estado-vacio">Seleccioná una campaña para ver comentarios</div></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:none;
+     padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:340px"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Estado global
+═══════════════════════════════════════════════════════════════════════════ */
+let _cuentas = [];
+let _campanias = [];
+let _campaniasFull = [];
+let _curCuentaId = null;
+let _curCampId = null;
+let _curCampName = null;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Utilidades
+═══════════════════════════════════════════════════════════════════════════ */
+async function _get(url) {
+  const r = await fetch(url, { credentials: 'include' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || `Error ${r.status}`);
+  return j;
+}
+async function _patch(url, body) {
+  const r = await fetch(url, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || `Error ${r.status}`);
+  return j;
+}
+async function _delete(url) {
+  const r = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || `Error ${r.status}`);
+  return j;
+}
+
+let _toastTimer;
+function toast(msg, tipo = 'info') {
+  const el = document.getElementById('toast');
+  const colores = { success:'#16a34a', error:'#dc2626', warning:'#d97706', info:'#2563eb' };
+  el.style.background = colores[tipo] || colores.info;
+  el.style.color = '#fff';
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function fmt$(v) { return v != null ? `$${parseFloat(v).toFixed(2)}` : '—'; }
+function fmtN(v) { return v != null ? parseInt(v).toLocaleString('es-AR') : '—'; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Secciones / Tabs
+═══════════════════════════════════════════════════════════════════════════ */
+const _secciones = ['cuentas','campanias','conjuntos','anuncios','comentarios'];
+function showSec(sec) {
+  _secciones.forEach(s => {
+    document.getElementById(`sec-${s}`).style.display = s === sec ? '' : 'none';
+    document.getElementById(`stab-${s}`)?.classList.toggle('active', s === sec);
+  });
+  if (sec === 'campanias' && _curCuentaId) cargarCampanias();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KPIs globales
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarResumen() {
+  try {
+    const d = await _get('/api/ads/resumen');
+    document.getElementById('kpi-gasto').textContent = fmt$(d.gasto_total_mes);
+    document.getElementById('kpi-cuentas').textContent = d.cuentas ?? '—';
+    document.getElementById('kpi-activas').textContent = d.campanias_activas ?? '—';
+    document.getElementById('kpi-pausadas').textContent = d.campanias_pausadas ?? '—';
+  } catch (e) {
+    console.warn('resumen:', e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CUENTAS
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarCuentas() {
+  document.getElementById('cuentas-lista').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando cuentas…</div>';
+  try {
+    const d = await _get('/api/ads/cuentas');
+    _cuentas = d.cuentas || [];
+    renderCuentas();
+
+    // Popular selector en Campañas
+    const sel = document.getElementById('camp-cuenta-sel');
+    sel.innerHTML = '<option value="">Seleccioná cuenta…</option>';
+    _cuentas.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = `${c.name} (${c.gasto_display})`;
+      sel.appendChild(o);
+    });
+
+    if (_cuentas.length === 1) {
+      _curCuentaId = _cuentas[0].id;
+      sel.value = _curCuentaId;
+    }
+  } catch (e) {
+    document.getElementById('cuentas-lista').innerHTML = `<div class="estado-vacio" style="color:#dc2626">Error: ${e.message}</div>`;
+    toast(e.message, 'error');
+  }
+}
+
+function renderCuentas() {
+  if (!_cuentas.length) {
+    document.getElementById('cuentas-lista').innerHTML = '<div class="estado-vacio">No se encontraron cuentas publicitarias.<br><small>Asegurate de que el token tenga permiso <code>ads_read</code>.</small></div>';
+    return;
+  }
+  const html = _cuentas.map(c => `
+    <div class="cuenta-card ${c.id === _curCuentaId ? 'selected' : ''}" onclick="selCuenta('${c.id}')" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:600">${c.name || c.id}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">ID: ${c.id} · ${c.currency || ''}</div>
+        </div>
+        <div style="text-align:right">
+          <span class="badge ${c.account_status === 1 ? 'badge-active' : 'badge-other'}">${c.status_label}</span>
+          <div style="font-size:12px;font-weight:700;color:var(--accent);margin-top:4px">${c.gasto_display}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('cuentas-lista').innerHTML = html;
+}
+
+function selCuenta(id) {
+  _curCuentaId = id;
+  document.getElementById('camp-cuenta-sel').value = id;
+  renderCuentas();
+  showSec('campanias');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CAMPAÑAS
+═══════════════════════════════════════════════════════════════════════════ */
+function cambiarCuentaCamp(id) {
+  _curCuentaId = id || null;
+  if (_curCuentaId) cargarCampanias();
+}
+
+async function cargarCampanias() {
+  if (!_curCuentaId) {
+    document.getElementById('camp-tabla-wrap').innerHTML = '<div class="estado-vacio">Seleccioná una cuenta publicitaria</div>';
+    return;
+  }
+  const acc = _curCuentaId.startsWith('act_') ? _curCuentaId : `act_${_curCuentaId}`;
+  const c = _cuentas.find(x => x.id === _curCuentaId || x.id === acc);
+  document.getElementById('camp-cuenta-label').textContent = c ? c.name : acc;
+  document.getElementById('camp-tabla-wrap').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando campañas…</div>';
+  try {
+    const d = await _get(`/api/ads/cuentas/${encodeURIComponent(_curCuentaId)}/campanias`);
+    _campaniasFull = d.campanias || [];
+    filtrarCampanias();
+  } catch (e) {
+    document.getElementById('camp-tabla-wrap').innerHTML = `<div class="estado-vacio" style="color:#dc2626">Error: ${e.message}</div>`;
+    toast(e.message, 'error');
+  }
+}
+
+function filtrarCampanias() {
+  const filtro = document.getElementById('camp-filtro').value;
+  _campanias = filtro ? _campaniasFull.filter(c => c.status === filtro) : _campaniasFull;
+  renderCampanias();
+}
+
+function renderCampanias() {
+  if (!_campanias.length) {
+    document.getElementById('camp-tabla-wrap').innerHTML = '<div class="estado-vacio">No hay campañas con ese filtro</div>';
+    return;
+  }
+  const rows = _campanias.map(c => {
+    const m = c.metricas || {};
+    const badge = c.status === 'ACTIVE' ? 'badge-active' : c.status === 'PAUSED' ? 'badge-paused' : 'badge-other';
+    const togBtn = c.status === 'ACTIVE'
+      ? `<button onclick="toggleCamp('${c.id}','PAUSED')" class="btn btn-sm" style="font-size:10px;background:#fef3c7;color:#92400e;border:none">⏸ Pausar</button>`
+      : c.status === 'PAUSED'
+        ? `<button onclick="toggleCamp('${c.id}','ACTIVE')" class="btn btn-sm" style="font-size:10px;background:#d1fae5;color:#065f46;border:none">▶ Activar</button>`
+        : '';
+    return `<tr>
+      <td>
+        <div style="font-size:12px;font-weight:600">${c.name}</div>
+        <div style="font-size:10px;color:var(--text-muted)">${c.objective || ''} · ${c.presupuesto}</div>
+      </td>
+      <td><span class="badge ${badge}">${c.status}</span></td>
+      <td style="font-weight:600;color:var(--accent)">${m.gasto || '—'}</td>
+      <td>${fmtN(m.impresiones)}</td>
+      <td>${fmtN(m.alcance)}</td>
+      <td>${fmtN(m.clics)}</td>
+      <td>${m.ctr || '—'}</td>
+      <td style="white-space:nowrap">
+        <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','conjuntos')" class="btn btn-ghost btn-sm" style="font-size:10px">🎯 Conjuntos</button>
+        <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','anuncios')" class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Anuncios</button>
+        <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','comentarios')" class="btn btn-ghost btn-sm" style="font-size:10px">💬 Com.</button>
+        ${togBtn}
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('camp-tabla-wrap').innerHTML = `
+    <table class="camp-table">
+      <thead><tr>
+        <th>Campaña</th><th>Estado</th><th>Gasto</th><th>Impresiones</th><th>Alcance</th><th>Clics</th><th>CTR</th><th>Acciones</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function toggleCamp(id, newStatus) {
+  try {
+    await _patch(`/api/ads/campanias/${id}/estado`, { status: newStatus });
+    toast(`Campaña ${newStatus === 'PAUSED' ? 'pausada' : 'activada'} ✓`, 'success');
+    await cargarCampanias();
+    cargarResumen();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function drillCamp(id, name, sec) {
+  _curCampId = id;
+  _curCampName = name;
+  if (sec === 'conjuntos') {
+    document.getElementById('conj-camp-label').textContent = name;
+    showSec('conjuntos');
+    cargarConjuntos();
+  } else if (sec === 'anuncios') {
+    document.getElementById('ad-camp-label').textContent = name;
+    showSec('anuncios');
+    cargarAnuncios();
+  } else if (sec === 'comentarios') {
+    document.getElementById('com-camp-label').textContent = name;
+    showSec('comentarios');
+    cargarComentarios();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONJUNTOS
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarConjuntos() {
+  if (!_curCampId) return;
+  document.getElementById('conj-tabla-wrap').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando conjuntos…</div>';
+  try {
+    const d = await _get(`/api/ads/campanias/${_curCampId}/conjuntos`);
+    const conjuntos = d.conjuntos || [];
+    if (!conjuntos.length) {
+      document.getElementById('conj-tabla-wrap').innerHTML = '<div class="estado-vacio">No hay conjuntos en esta campaña</div>';
+      return;
+    }
+    const rows = conjuntos.map(cs => {
+      const m = cs.metricas || {};
+      const badge = cs.status === 'ACTIVE' ? 'badge-active' : cs.status === 'PAUSED' ? 'badge-paused' : 'badge-other';
+      const togBtn = cs.status === 'ACTIVE'
+        ? `<button onclick="toggleConj('${cs.id}','PAUSED')" class="btn btn-sm" style="font-size:10px;background:#fef3c7;color:#92400e;border:none">⏸ Pausar</button>`
+        : cs.status === 'PAUSED'
+          ? `<button onclick="toggleConj('${cs.id}','ACTIVE')" class="btn btn-sm" style="font-size:10px;background:#d1fae5;color:#065f46;border:none">▶ Activar</button>`
+          : '';
+      return `<tr>
+        <td>
+          <div style="font-size:12px;font-weight:600">${cs.name}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${cs.optimization_goal || ''}</div>
+        </td>
+        <td><span class="badge ${badge}">${cs.status}</span></td>
+        <td style="font-weight:600;color:var(--accent)">${m.gasto || '—'}</td>
+        <td>${fmtN(m.impresiones)}</td>
+        <td>${fmtN(m.alcance)}</td>
+        <td>${fmtN(m.clics)}</td>
+        <td>${togBtn}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('conj-tabla-wrap').innerHTML = `
+      <table class="camp-table">
+        <thead><tr><th>Conjunto</th><th>Estado</th><th>Gasto</th><th>Impresiones</th><th>Alcance</th><th>Clics</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (e) {
+    document.getElementById('conj-tabla-wrap').innerHTML = `<div class="estado-vacio" style="color:#dc2626">Error: ${e.message}</div>`;
+    toast(e.message, 'error');
+  }
+}
+
+async function toggleConj(id, newStatus) {
+  try {
+    await _patch(`/api/ads/conjuntos/${id}/estado`, { status: newStatus });
+    toast(`Conjunto ${newStatus === 'PAUSED' ? 'pausado' : 'activado'} ✓`, 'success');
+    cargarConjuntos();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANUNCIOS
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarAnuncios() {
+  if (!_curCampId) return;
+  document.getElementById('ad-tabla-wrap').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando anuncios…</div>';
+  try {
+    const d = await _get(`/api/ads/campanias/${_curCampId}/anuncios`);
+    const ads = d.anuncios || [];
+    if (!ads.length) {
+      document.getElementById('ad-tabla-wrap').innerHTML = '<div class="estado-vacio">No hay anuncios en esta campaña</div>';
+      return;
+    }
+    const rows = ads.map(ad => {
+      const m = ad.metricas || {};
+      const badge = ad.status === 'ACTIVE' ? 'badge-active' : ad.status === 'PAUSED' ? 'badge-paused' : 'badge-other';
+      const thumb = ad.creative?.thumbnail_url
+        ? `<img src="${ad.creative.thumbnail_url}" style="width:48px;height:36px;object-fit:cover;border-radius:4px;margin-right:8px" loading="lazy">`
+        : '';
+      return `<tr>
+        <td style="display:flex;align-items:center">${thumb}
+          <div>
+            <div style="font-size:12px;font-weight:600">${ad.name}</div>
+            <div style="font-size:10px;color:var(--text-muted)">${ad.id}</div>
+          </div>
+        </td>
+        <td><span class="badge ${badge}">${ad.status}</span></td>
+        <td style="font-weight:600;color:var(--accent)">${m.gasto || '—'}</td>
+        <td>${fmtN(m.impresiones)}</td>
+        <td>${fmtN(m.alcance)}</td>
+        <td>${fmtN(m.clics)}</td>
+        <td>${m.ctr || '—'}</td>
+        <td>${m.cpc || '—'}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('ad-tabla-wrap').innerHTML = `
+      <table class="camp-table">
+        <thead><tr><th>Anuncio</th><th>Estado</th><th>Gasto</th><th>Impresiones</th><th>Alcance</th><th>Clics</th><th>CTR</th><th>CPC</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (e) {
+    document.getElementById('ad-tabla-wrap').innerHTML = `<div class="estado-vacio" style="color:#dc2626">Error: ${e.message}</div>`;
+    toast(e.message, 'error');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMENTARIOS
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarComentarios() {
+  if (!_curCampId) return;
+  const soloNeg = document.getElementById('com-solo-negativos').checked;
+  document.getElementById('com-lista').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando comentarios…</div>';
+  try {
+    const d = await _get(`/api/ads/campanias/${_curCampId}/comentarios?solo_negativos=${soloNeg}`);
+    const coms = d.comentarios || [];
+    if (!coms.length) {
+      document.getElementById('com-lista').innerHTML = '<div class="estado-vacio">Sin comentarios</div>';
+      return;
+    }
+    const html = coms.map(c => `
+      <div class="com-card" id="com-${c.id}">
+        <div class="com-header">
+          <div>
+            <span style="font-size:12px;font-weight:600">${c.from?.name || 'Usuario'}</span>
+            <span class="com-meta" style="margin-left:8px">${c.created_time ? new Date(c.created_time).toLocaleString('es-AR') : ''}</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:10px;color:var(--text-muted)">${c.ad_name || ''}</span>
+            ${c.can_remove !== false ? `<button class="btn-del-com" onclick="eliminarComentario('${c.id}')">🗑 Eliminar</button>` : '<span style="font-size:10px;color:var(--text-muted)">Sin permiso</span>'}
+          </div>
+        </div>
+        <div class="com-msg">${(c.message || '').replace(/</g,'&lt;')}</div>
+      </div>
+    `).join('');
+    document.getElementById('com-lista').innerHTML = html;
+  } catch (e) {
+    document.getElementById('com-lista').innerHTML = `<div class="estado-vacio" style="color:#dc2626">Error: ${e.message}</div>`;
+    toast(e.message, 'error');
+  }
+}
+
+async function eliminarComentario(id) {
+  if (!confirm('¿Eliminar este comentario?')) return;
+  try {
+    await _delete(`/api/ads/comentarios/${id}`);
+    document.getElementById(`com-${id}`)?.remove();
+    toast('Comentario eliminado ✓', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function eliminarTodosNegativos() {
+  if (!_curCampId) return;
+  if (!confirm('¿Eliminar TODOS los comentarios negativos de esta campaña?')) return;
+  document.getElementById('com-solo-negativos').checked = true;
+  await cargarComentarios();
+  const coms = document.querySelectorAll('[id^="com-"]');
+  let n = 0;
+  for (const el of coms) {
+    const id = el.id.replace('com-','');
+    try {
+      await _delete(`/api/ads/comentarios/${id}`);
+      el.remove();
+      n++;
+    } catch (e) { /* skip */ }
+  }
+  toast(`${n} comentario(s) eliminado(s) ✓`, 'success');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Init
+═══════════════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  cargarResumen();
+  cargarCuentas();
+});
+</script>
+{% endblock %}

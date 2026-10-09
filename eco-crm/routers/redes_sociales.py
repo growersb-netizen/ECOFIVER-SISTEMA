@@ -183,6 +183,26 @@ async def api_redes_admin_batch_deactivate(
     return {"ok": True, "total": len(page_ids), "desactivadas": desactivadas, "resultados": resultados}
 
 
+@router.delete("/api/redes/admin/paginas/{page_id}")
+async def api_redes_admin_delete_pagina(
+    page_id: str,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """Elimina una página y TODAS sus interacciones de la DB. Requiere ?t=<ML_AUDIT_TOKEN>."""
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if not pg:
+        raise HTTPException(404, "Página no encontrada")
+    nombre = pg.nombre
+    n_int = db.query(FacebookInteraccion).filter(FacebookInteraccion.page_id == page_id).delete()
+    db.delete(pg)
+    db.commit()
+    return {"ok": True, "page_id": page_id, "nombre": nombre, "interacciones_eliminadas": n_int}
+
+
 @router.get("/api/redes/paginas")
 async def api_redes_paginas(
     user: Usuario = Depends(require_auth),

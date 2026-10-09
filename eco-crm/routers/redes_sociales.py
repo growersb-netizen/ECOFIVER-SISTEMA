@@ -1760,6 +1760,57 @@ async def api_redes_admin_enviar_consultas(
     }
 
 
+@router.post("/api/redes/admin/responder-comentarios")
+async def api_redes_admin_responder_comentarios(
+    t: str = "",
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    """
+    Envía respuestas a todos los comentarios pendientes.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    comentarios = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.tipo == "comentario",
+        FacebookInteraccion.accion == "pendiente",
+    ).order_by(FacebookInteraccion.created_at.asc()).limit(limit).all()
+
+    paginas = {pg.page_id: pg for pg in db.query(MetaPagina).all()}
+
+    enviados = 0
+    errores = 0
+    resultados = []
+
+    for c in comentarios:
+        pg = paginas.get(c.page_id)
+        if not pg or not pg.page_token:
+            errores += 1
+            resultados.append({"id": c.id, "status": "error_sin_token"})
+            continue
+
+        respuesta = await _generar_respuesta_ia(c.contenido or "", pg.nombre, pg.numero_whatsapp or "", db)
+        comment_id = c.objeto_id or str(c.id)
+        ok = await _responder_comentario(comment_id, respuesta, pg.page_token)
+
+        if ok:
+            c.accion = "respondido"
+            c.respuesta_enviada = respuesta
+            enviados += 1
+            resultados.append({"id": c.id, "status": "enviado", "pagina": pg.nombre})
+        else:
+            c.accion = "error"
+            errores += 1
+            resultados.append({"id": c.id, "status": "error_envio"})
+
+        db.commit()
+
+    return {"ok": True, "total": len(comentarios), "enviados": enviados, "errores": errores, "resultados": resultados}
+
+
 @router.post("/api/redes/admin/marcar-expirados")
 async def api_redes_admin_marcar_expirados(
     t: str = "",

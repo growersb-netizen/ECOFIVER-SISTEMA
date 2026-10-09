@@ -1390,89 +1390,89 @@ async def api_redes_admin_sync_pages(
     if t != expected:
         raise HTTPException(403, "Forbidden")
 
-    # Si no viene token, usar el guardado en config
-    if not user_token:
-        user_token = get_config_value("meta_page_access_token", db) or ""
-    if not user_token:
-        raise HTTPException(400, "No hay token configurado. Usá ?user_token=<token> al menos una vez.")
-
-    # Guardar token en config para usos futuros sin parámetro
-    stored = encrypt_value(user_token)
-    entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
-    if entry:
-        entry.valor = stored
-    else:
-        db.add(ConfiguracionSistema(clave="meta_page_access_token", valor=stored, es_secreto=True, categoria="meta"))
-    db.commit()
-
     creadas = []
     actualizadas = []
     errores = []
 
-    async with httpx.AsyncClient(timeout=60) as hc:
-        # Descubrir todas las páginas accesibles
-        r = await hc.get(
-            f"{META_GRAPH_URL}/me/accounts",
-            params={"fields": "id,name", "limit": 200, "access_token": user_token},
-        )
-        data = r.json()
-        if r.status_code != 200 or "error" in data:
-            raise HTTPException(400, data.get("error", {}).get("message", "Error al obtener páginas"))
+    # ── Modo A: con user_token → descubrir páginas nuevas en Facebook ────────
+    if user_token:
+        # Guardar token en config para usos futuros
+        stored = encrypt_value(user_token)
+        entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
+        if entry:
+            entry.valor = stored
+        else:
+            db.add(ConfiguracionSistema(clave="meta_page_access_token", valor=stored, es_secreto=True, categoria="meta"))
+        db.commit()
 
-        pages_api = data.get("data", [])
-
-        for p in pages_api:
-            pid = p["id"]
-            nombre = p["name"]
-
-            # Obtener page token
-            r_pt = await hc.get(
-                f"{META_GRAPH_URL}/{pid}",
-                params={"fields": "access_token,name", "access_token": user_token},
+        async with httpx.AsyncClient(timeout=60) as hc:
+            r = await hc.get(
+                f"{META_GRAPH_URL}/me/accounts",
+                params={"fields": "id,name", "limit": 200, "access_token": user_token},
             )
-            data_pt = r_pt.json()
-            if r_pt.status_code != 200 or "access_token" not in data_pt:
-                errores.append({"page_id": pid, "nombre": nombre, "error": data_pt.get("error", {}).get("message", "sin token")})
-                continue
+            data = r.json()
+            if r.status_code != 200 or "error" in data:
+                raise HTTPException(400, data.get("error", {}).get("message", "Error al obtener páginas"))
 
-            page_token = data_pt["access_token"]
-
-            # Crear o actualizar en DB
-            pg = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first()
-            es_nueva = pg is None
-            if es_nueva:
-                pg = MetaPagina(
-                    page_id=pid,
-                    nombre=nombre,
-                    activa=True,
-                    auto_reply_mensajes=True,
-                    auto_reply_comentarios=False,
-                    auto_eliminar_negativos=True,
-                    numero_whatsapp=os.getenv("WA_DEFAULT", "+5491126036495"),
+            for p in data.get("data", []):
+                pid, nombre = p["id"], p["name"]
+                r_pt = await hc.get(
+                    f"{META_GRAPH_URL}/{pid}",
+                    params={"fields": "access_token", "access_token": user_token},
                 )
-                db.add(pg)
+                data_pt = r_pt.json()
+                if r_pt.status_code != 200 or "access_token" not in data_pt:
+                    errores.append({"page_id": pid, "nombre": nombre, "error": data_pt.get("error", {}).get("message", "sin token")})
+                    continue
+                page_token = data_pt["access_token"]
+                pg = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first()
+                es_nueva = pg is None
+                if es_nueva:
+                    pg = MetaPagina(
+                        page_id=pid, nombre=nombre, activa=True,
+                        auto_reply_mensajes=True, auto_reply_comentarios=False,
+                        auto_eliminar_negativos=True,
+                        numero_whatsapp=os.getenv("WA_DEFAULT", "+5491126036495"),
+                    )
+                    db.add(pg)
+                pg.page_token = page_token
+                r_sub = await hc.post(
+                    f"{META_GRAPH_URL}/{pid}/subscribed_apps",
+                    params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                )
+                if r_sub.json().get("success"):
+                    pg.webhook_subscribed = True
+                db.flush()
+                (creadas if es_nueva else actualizadas).append({"page_id": pid, "nombre": nombre})
 
-            pg.page_token = page_token
+        db.commit()
+        total = len(creadas) + len(actualizadas)
 
-            # Suscribir webhook
-            r_sub = await hc.post(
-                f"{META_GRAPH_URL}/{pid}/subscribed_apps",
-                params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
-            )
-            ok_sub = r_sub.json().get("success", False)
-            if ok_sub:
-                pg.webhook_subscribed = True
+    # ── Modo B: sin user_token → refrescar webhooks con page tokens ya guardados
+    else:
+        paginas = db.query(MetaPagina).filter(MetaPagina.activa == True).all()
+        if not paginas:
+            raise HTTPException(400, "No hay páginas activas. Pasá ?user_token=<token> para importar páginas de Facebook.")
+        async with httpx.AsyncClient(timeout=60) as hc:
+            for pg in paginas:
+                if not pg.page_token:
+                    errores.append({"page_id": pg.page_id, "nombre": pg.nombre, "error": "sin page_token"})
+                    continue
+                r_sub = await hc.post(
+                    f"{META_GRAPH_URL}/{pg.page_id}/subscribed_apps",
+                    params={"access_token": pg.page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                )
+                if r_sub.json().get("success"):
+                    pg.webhook_subscribed = True
+                    actualizadas.append({"page_id": pg.page_id, "nombre": pg.nombre})
+                else:
+                    errores.append({"page_id": pg.page_id, "nombre": pg.nombre, "error": r_sub.text[:100]})
+        db.commit()
+        total = len(paginas)
 
-            db.flush()
-            if es_nueva:
-                creadas.append({"page_id": pid, "nombre": nombre, "webhook": ok_sub})
-            else:
-                actualizadas.append({"page_id": pid, "nombre": nombre, "webhook": ok_sub})
-
-    db.commit()
     return {
         "ok": True,
-        "total": len(pages_api),
+        "total": total,
         "creadas": len(creadas),
         "actualizadas": len(actualizadas),
         "errores": len(errores),

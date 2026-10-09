@@ -1389,10 +1389,14 @@ async def api_redes_admin_sync_pages(
     expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
     if t != expected:
         raise HTTPException(403, "Forbidden")
-    if not user_token:
-        raise HTTPException(400, "Falta user_token")
 
-    # Guardar token en config para que el botón Sincronizar lo use
+    # Si no viene token, usar el guardado en config
+    if not user_token:
+        user_token = get_config_value("meta_page_access_token", db) or ""
+    if not user_token:
+        raise HTTPException(400, "No hay token configurado. Usá ?user_token=<token> al menos una vez.")
+
+    # Guardar token en config para usos futuros sin parámetro
     stored = encrypt_value(user_token)
     entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
     if entry:

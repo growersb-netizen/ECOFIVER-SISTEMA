@@ -589,26 +589,42 @@ async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero
     try:
         from utils.ai_client import ai_complete
         from utils.contexto_ecofiver import ctx_empresa
-        prompt = (
-            f"{ctx_empresa()}\n\n"
-            f"Sos el asistente comercial de la página de Facebook '{pagina_nombre}'.\n"
-            f"Un usuario escribió: «{mensaje_usuario[:300]}»\n\n"
-            "Escribí UNA respuesta corta (máximo 3 oraciones), amigable y comercial en español argentino. "
-            f"{instruccion_wa} "
-            "No inventes precios ni fechas. Sé cálido, profesional y generá interés."
-        )
-        resp = await ai_complete(db, prompt, max_tokens=200)
+        if es_reclamo:
+            prompt = (
+                f"{ctx_empresa()}\n\n"
+                f"Sos el asistente de atención al cliente de '{pagina_nombre}'.\n"
+                f"El usuario escribió: «{mensaje_usuario[:400]}»\n\n"
+                "Redactá una respuesta de NO MÁS de 3 oraciones, en español argentino. "
+                "Mostrá empatía, pedí disculpas por la situación y derivá al WhatsApp de postventa con este mensaje: "
+                f"'{_wa_url(wa_destino)}'. "
+                "Sé cálido pero profesional. No inventes soluciones ni promesas."
+            )
+        else:
+            prompt = (
+                f"{ctx_empresa()}\n\n"
+                f"Sos el asesor comercial de EcoFiver en la página '{pagina_nombre}'.\n"
+                f"Un potencial cliente escribió: «{mensaje_usuario[:400]}»\n\n"
+                "Redactá una respuesta de NO MÁS de 4 oraciones, en español argentino, que:\n"
+                "1. Salude y muestre entusiasmo genuino por la consulta\n"
+                "2. Mencione brevemente que fabricamos e instalamos piscinas de fibra, módulos habitacionales y sistemas de hidromasaje (instalación en el día, garantía 10 años)\n"
+                "3. Invite a continuar la conversación por WhatsApp para recibir catálogo completo, precios y disponibilidad: "
+                f"'{_wa_url(wa_destino)}'\n"
+                "4. Sea cálido, profesional y genere confianza. No inventes precios ni fechas."
+            )
+        resp = await ai_complete(db, prompt, max_tokens=280)
         return resp.strip()
     except Exception as e:
         log.warning(f"IA falló, usando template: {e}")
         if es_reclamo:
             return (
-                f"¡Hola! Lamentamos la situación. Para resolver tu caso lo antes posible "
-                f"comunicate con nuestro equipo de atención postventa por WhatsApp: {_wa_url(wa_destino)}"
+                f"Hola, lamentamos la situación que estás atravesando. "
+                f"Para resolver tu caso con urgencia, comunicate con nuestro equipo de atención postventa por WhatsApp: {_wa_url(wa_destino)} "
+                f"— te acompañamos hasta encontrar la mejor solución. 🙏"
             )
         return (
-            f"¡Hola! 😊 Gracias por tu mensaje. Para brindarte atención personalizada "
-            f"comunicate con nosotros por WhatsApp: {_wa_url(wa_destino)} — ¡Te respondemos al instante!"
+            f"¡Hola! 😊 Gracias por tu consulta. En EcoFiver fabricamos e instalamos piscinas de fibra de vidrio, módulos habitacionales e hidromasajes "
+            f"— con instalación en el día y garantía de 10 años. "
+            f"Para enviarte el catálogo completo con modelos y precios, escribinos por WhatsApp: {_wa_url(wa_destino)} ¡Te respondemos al instante! 💬"
         )
 
 

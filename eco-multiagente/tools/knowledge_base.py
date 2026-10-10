@@ -245,7 +245,7 @@ a 2 cuotas de ingreso) — nunca el mismo mes de la firma.
 """,
     },
     {
-        "id": "precios_piscinas_v3",
+        "id": "precios_piscinas_v4",
         "titulo": "Precios piscinas — contado vs. 6 cuotas sin interés con tarjeta",
         "agentes": ["valentina", "camila", "nicolas", "tomas", "aurora", "maximo"],
         "contenido": """=== TABLA DE PRECIOS PISCINAS — VIGENTE 2026 ===
@@ -259,8 +259,8 @@ Modelo                          | Medida                      | CONTADO     | 6 
 Minideck                        | 3,55x2,10 Deck / 3x2x70    | $2.490.000  | $4.370.000
 Miniportante                    | 2,50x2,10x70                | $1.990.000  | $3.640.000
 Autoportante                    | 4,10x2,10x70                | $3.000.000  | $4.370.000
-Arco Romano Chico Recto         | 4,60x2,47x1,20              | $3.000.000  | $4.370.000
-Arco Romano Chico C/Desnivel    | 4,60x2,35x1,10 a 1,30      | $2.990.000  | $4.350.000
+Arco Romano Chico Recto         | 4,60x2,47x1,20              | $3.190.000  | $4.370.000
+Arco Romano Chico C/Desnivel    | 4,60x2,35x1,10 a 1,30      | $3.190.000  | $4.350.000
 Arco Romano Mediano Recto       | 6,40x2,94x1,40              | $4.900.000  | $7.130.000
 Arco Romano Mediano C/Desnivel  | 7x3,35x1,25 a 1,70         | $4.490.000  | $7.130.000
 Arco Romano Grande              | 8,10x3,35x1,25 a 1,80      | $4.800.000  | $6.990.000

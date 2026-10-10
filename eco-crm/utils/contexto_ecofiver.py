@@ -282,8 +282,8 @@ Modelo | Contado (contra instalacion)
 Minideck 3x2m Deck | $2.490.000
 Miniportante 2,50x2,10m | $1.990.000
 Autoportante 4,10x2,10m | $3.000.000
-Arco Romano Chico Recto 4,60x2,47m | $3.000.000
-Arco Romano Chico C/Desnivel 4,60x2,35m | $2.990.000
+Arco Romano Chico Recto 4,60x2,47m | $3.190.000
+Arco Romano Chico C/Desnivel 4,60x2,35m | $3.190.000
 Arco Romano Mediano Recto 6,40x2,94m | $4.900.000
 Arco Romano Mediano C/Desnivel 7x3,35m | $4.490.000
 Arco Romano Grande 8,10x3,35m | $4.800.000

@@ -3197,10 +3197,10 @@ _PISCINAS_SEED = [
     {"modelo": "Autoportante",                 "medida": "4,10x2,10x0,70m",        "contado": 3000000,  "lista": 4370000,
      "titulo": "Pileta Fibra Autoportante 4x2m - Cotiza Aqui",
      "extra": "Sin excavacion. Se instala sobre cualquier superficie nivelada. Profundidad 70cm. Montaje rapido en el dia."},
-    {"modelo": "Arco Romano Chico Recto",      "medida": "4,60x2,47x1,20m",        "contado": 3000000,  "lista": 4370000,
+    {"modelo": "Arco Romano Chico Recto",      "medida": "4,60x2,47x1,20m",        "contado": 3190000,  "lista": 4370000,
      "titulo": "Pileta Fibra Arco Romano Chico 4,6m - Cotiza Aqui",
      "extra": "Forma clasica con escalera. Largo 4,60m x 2,47m. Profundidad 1,20m. Capacidad aprox. 10.000 litros."},
-    {"modelo": "Arco Romano Chico C/Desnivel", "medida": "4,60x2,35x1,10 a 1,30m", "contado": 2990000,  "lista": 4350000,
+    {"modelo": "Arco Romano Chico C/Desnivel", "medida": "4,60x2,35x1,10 a 1,30m", "contado": 3190000,  "lista": 4350000,
      "titulo": "Pileta Fibra Arco Romano Desnivel 4,6m - Cotiza",
      "extra": "Con desnivel progresivo: entrada 1,10m hasta 1,30m en la zona honda. Ideal para chicos y adultos."},
     {"modelo": "Playa Humeda Chica C/Escalera","medida": "4,10x2,40x1,20m",        "contado": 2850000,  "lista": 4150000,
@@ -3246,8 +3246,8 @@ PRECIOS DE CONTADO (abonas el dia que la piscina queda instalada en tu domicilio
 Miniportante 2,50x2,10m - $1.990.000
 Minideck 3x2m Con Deck - $2.490.000
 Autoportante 4,10x2,10m - $3.000.000
-Arco Romano Chico Recto 4,60x2,47m - $3.000.000
-Arco Romano Chico Desnivel 4,60x2,35m - $2.990.000
+Arco Romano Chico Recto 4,60x2,47m - $3.190.000
+Arco Romano Chico Desnivel 4,60x2,35m - $3.190.000
 Playa Humeda Chica C/Escalera 4,10x2,40m - $2.850.000
 Recta C/Mini Escalera 4,63x2,48m - $3.375.000
 Minimalista Chica 3,97x2,46m - $2.990.000

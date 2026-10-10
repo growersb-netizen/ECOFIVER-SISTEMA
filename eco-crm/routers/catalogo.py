@@ -99,7 +99,7 @@ DEFAULT_CATALOGO = {
             "Playa Humeda Chica C/Escalera":    2850000,
             "Semi Playa Humeda C/Escalera":     3990000,
             "Recta C/Mini Escalera":            3375000,
-            "Minimalista Chica":                3000000,
+            "Minimalista Chica":                2990000,
             "Minimalista Mediana":              4425000,
             "Minimalista Grande":               3690000,
             "Playa y Abanico":                  5500000,

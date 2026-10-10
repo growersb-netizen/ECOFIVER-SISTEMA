@@ -3209,7 +3209,7 @@ _PISCINAS_SEED = [
     {"modelo": "Recta C/Mini Escalera",        "medida": "4,63x2,48x1,25m",        "contado": 3375000,  "lista": 4910000,
      "titulo": "Pileta Fibra Recta Con Escalera 4,6m - Cotiza Aqui",
      "extra": "Forma rectangular con mini escalera integrada. 4,63m de largo x 2,48m. Profundidad 1,25m."},
-    {"modelo": "Minimalista Chica",            "medida": "3,97x2,46x1,20m",        "contado": 2800000,  "lista": 4080000,
+    {"modelo": "Minimalista Chica",            "medida": "3,97x2,46x1,20m",        "contado": 2990000,  "lista": 4080000,
      "titulo": "Pileta Fibra Minimalista Chica 4m - Cotiza Aqui",
      "extra": "Diseño moderno rectangular. 3,97m x 2,46m. Profundidad 1,20m. Lineas rectas, estetica contemporanea."},
     {"modelo": "Playa Humeda",                 "medida": "5,20x2,45x1,10 a 1,30m", "contado": 3290000,  "lista": 4790000,
@@ -3250,7 +3250,7 @@ Arco Romano Chico Recto 4,60x2,47m - $3.000.000
 Arco Romano Chico Desnivel 4,60x2,35m - $2.990.000
 Playa Humeda Chica C/Escalera 4,10x2,40m - $2.850.000
 Recta C/Mini Escalera 4,63x2,48m - $3.375.000
-Minimalista Chica 3,97x2,46m - $2.800.000
+Minimalista Chica 3,97x2,46m - $2.990.000
 Playa Humeda 5,20x2,45m - $3.290.000
 Minimalista Grande 6,40x3m - $3.690.000
 Arco Romano Mediano Desnivel 7x3,35m - $4.490.000

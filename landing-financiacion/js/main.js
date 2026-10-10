@@ -226,7 +226,7 @@
   const piscinaCuotaEl = document.getElementById("sim-piscina-cuota");
   const piscinaEntradaEl = document.getElementById("sim-piscina-entrada");
   const piscinaTotalEl = document.getElementById("sim-piscina-total");
-  const piscinaContadoEl = document.getElementById("sim-piscina-contado");
+  const piscinaContadoEl = null; // elemento eliminado — landing solo financiación
   const simuladorPiscinaCta = document.querySelector('[data-wa-cta="simulador-piscina"]');
 
   function calcularPiscina() {
@@ -240,7 +240,7 @@
     piscinaCuotaEl.textContent = formatearPesos(cuota);
     piscinaEntradaEl.textContent = "$" + formatearPesos(entrada);
     piscinaTotalEl.textContent = "$" + formatearPesos(modelo.lista);
-    piscinaContadoEl.textContent = "$" + formatearPesos(modelo.contado) + " (31% OFF)";
+    if (piscinaContadoEl) piscinaContadoEl.textContent = "$" + formatearPesos(modelo.contado) + " (31% OFF)";
 
     if (simuladorPiscinaCta) {
       const msg = "Hola! Simulé la piscina " + modelo.nombre + " (" + modelo.medidas + ") en " + nCuotas +

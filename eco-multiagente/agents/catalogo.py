@@ -16,7 +16,7 @@ CATALOGO = {
         {"id": 7,  "modelo": "Arco Romano Mediano C/Desnivel",  "medida": "7x3,35x1,25 a 1,70",           "precio_contado": 4490000,  "precio_lista": 7130000},
         {"id": 8,  "modelo": "Arco Romano Grande",              "medida": "8,10x3,35x1,25 a 1,80",        "precio_contado": 4800000,  "precio_lista": 6990000},
         {"id": 9,  "modelo": "Playa Humeda",                    "medida": "5,20x2,45x1,10 a 1,30",        "precio_contado": 3290000,  "precio_lista": 4790000},
-        {"id": 10, "modelo": "Minimalista Chica",               "medida": "3,97x2,46x1,20",               "precio_contado": 3000000,  "precio_lista": 4080000},
+        {"id": 10, "modelo": "Minimalista Chica",               "medida": "3,97x2,46x1,20",               "precio_contado": 2800000,  "precio_lista": 4080000},
         {"id": 11, "modelo": "Minimalista Mediana",             "medida": "5,50x2,90x1,50",               "precio_contado": 4425000,  "precio_lista": 6440000},
         {"id": 12, "modelo": "Minimalista Grande",              "medida": "6,40x3x1,40",                  "precio_contado": 3690000,  "precio_lista": 5370000},
         {"id": 13, "modelo": "Recta C/Mini Escalera",           "medida": "4,63x2,48x1,25",               "precio_contado": 3375000,  "precio_lista": 4910000},

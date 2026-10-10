@@ -55,6 +55,20 @@ INSTALACIÓN EN DOMICILIO DEL CLIENTE:
    - Sin desperdicios de obra
    - Instalación rápida y limpia
 
+=== TIEMPOS DE ENTREGA ===
+- Módulos 6m², 12m² y 18m²: entrega + montaje en el mismo día
+- Módulos 24m² en adelante: 45-60 días de producción en planta, luego montaje en el día
+- Piscinas: stock disponible → entrega coordinada en 48-72 hs + instalación en el mismo día
+
+=== GARANTÍA ===
+- 10 años de fábrica en todos los productos (módulos y piscinas)
+- Cualquier problema estructural → visita técnica sin costo
+
+=== COBERTURA NACIONAL Y PUNTOS DE RETIRO ===
+- Instalamos en todo el país con flete calculado por km desde Zárate
+- Puntos de retiro sin cargo: San Telmo (CABA), Paso del Rey (Zona Oeste) y planta en Zárate
+- En financiación: flete BONIFICADO sin importar la distancia
+
 === ARGUMENTOS TÉCNICOS DE VENTA ===
 
 ▸ "No es cartón ni steel frame. Es madera encapsulada de por vida con resina náutica."

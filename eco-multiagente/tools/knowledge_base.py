@@ -64,15 +64,13 @@ def _default_data() -> dict:
 _SEED_DOCS = [
     {
         "id": "piscinas_tecnico",
-        "titulo": "Piscinas de fibra de vidrio (técnico) — GENÉRICO, falta validar con Rodrigo",
+        "titulo": "Piscinas de fibra de vidrio — argumentos técnicos confirmados",
         "agentes": ["camila", "nicolas", "sebastian", "maximo"],
-        "contenido": """=== PISCINAS DE FIBRA DE VIDRIO — ARGUMENTOS TÉCNICOS ===
-⚠️ Este contenido es conocimiento GENÉRICO del rubro (válido para fibra de vidrio en general),
-NO son las especificaciones exactas y propias del proceso de fabricación de EcoFiver — a
-diferencia del doc de módulos (NCE), todavía no está confirmado con Rodrigo el detalle real de
-planta. Usalo como argumento de venta razonable, pero si el cliente pregunta algo MUY específico
-del proceso propio (espesor exacto de gelcoat, garantía en años, marca de resina), no lo inventes:
-decí que lo confirmás.
+        "contenido": """=== PISCINAS DE FIBRA DE VIDRIO — ARGUMENTOS TÉCNICOS CONFIRMADOS ===
+
+GARANTÍA: 10 años de fábrica en todos los modelos. Cualquier falla estructural → visita técnica sin costo.
+INSTALACIÓN: incluida en el precio. Se instala y pone en funcionamiento en el mismo día.
+PRECIO: se abona contra la instalación terminada en el domicilio (nunca antes).
 
 VENTAJAS ESTRUCTURALES (genéricas del rubro, aplican a fibra de vidrio en general):
 - Pieza única moldeada de una sola vez: sin uniones ni costuras que puedan filtrar agua con el tiempo.
@@ -280,7 +278,8 @@ REGLA DE USO:
 - Cuando paga con tarjeta en 6 cuotas → usar columna 6 CUOTAS s/i.
 - Cuando paga con financiación propia (12-120 cuotas) → usar precio_contado como base del simulador.
 - El flete se suma aparte (contado: km × tarifa desde Zárate). En financiación: flete BONIFICADO.
-- Instalamos únicamente en Buenos Aires (CABA y GBA). Localidades fuera del GBA: consultar.
+- Instalamos en todo el país. El flete se calcula por km desde Zárate. En financiación: flete bonificado.
+- Puntos de retiro sin cargo: San Telmo (CABA), Paso del Rey (Zona Oeste), Zárate (planta).
 - Colores disponibles: blanco, cremita, azul, celeste.
 """,
     },
@@ -311,7 +310,7 @@ Cuando preguntan si el precio de la publicación es el real / "es mentira el pre
 "Hola! El precio de la publicación es para tomar contacto. Todos los modelos y precios reales con instalación completa están en la descripción. El saldo se abona cuando la piscina ya está instalada en tu casa."
 
 Cuando preguntan por el interior del país:
-"Hola! Por ahora instalamos únicamente en Buenos Aires (CABA y GBA). Si querés retiro en fábrica consultanos."
+"Hola! Instalamos en todo el país — el flete varía según la distancia desde Zárate. También tenés opción de retiro sin cargo en San Telmo (CABA), Paso del Rey (Zona Oeste) o en nuestra planta en Zárate."
 
 Cuando preguntan si tiene financiación:
 "Hola! Sí, tenemos 6 cuotas sin interés con tarjeta de crédito. Para financiación a más plazo (12 a 120 cuotas) sin banco ni scoring consultanos por WhatsApp."
@@ -319,6 +318,81 @@ Cuando preguntan si tiene financiación:
 Cuando ya tienen los datos y hay que dar el precio — EJEMPLO REAL:
 Pregunta: "hola cuanto sale la de 6x3 instalada en Quilmes"
 Respuesta: "Hola! La instalación completa de la Minimalista Grande 6,40x3,00 en Quilmes tiene un valor de $3.690.000 al contado (abonás cuando la piscina está instalada). En 6 cuotas sin interés con tarjeta queda en $5.370.000. Incluye - excavación del pozo - colocación - sistema de filtrado - traslado. Instalada y funcionando en el mismo día. Garantía escrita 10 años."
+""",
+    },
+    {
+        "id": "cobertura_entregas_retiros",
+        "titulo": "Cobertura nacional, tiempos de entrega y puntos de retiro — VIGENTE 2026",
+        "agentes": ["valentina", "camila", "nicolas", "mateo", "luciano", "tomas", "maximo", "aurora", "bruno"],
+        "contenido": """=== COBERTURA DE INSTALACIÓN Y ENTREGA ===
+
+COBERTURA: Instalamos en TODO EL PAÍS.
+El flete se calcula por km desde Zárate (Buenos Aires) al domicilio del cliente.
+En financiación propia: flete BONIFICADO sin importar la distancia.
+
+PUNTOS DE RETIRO SIN CARGO (sin pagar flete):
+- CABA — Zona San Telmo
+- Zona Oeste — Paso del Rey
+- Zárate (planta, coordinar previamente)
+Retiro local_pick_up activo también en MercadoLibre.
+
+TIEMPOS DE ENTREGA Y MONTAJE:
+- Piscinas: stock disponible → entrega coordinada 48-72 hs, instalación en el mismo día.
+- Módulos 6m², 12m² y 18m²: entrega + montaje en el mismo día.
+- Módulos 24m² en adelante: 45-60 días de producción, luego entrega + montaje.
+
+GARANTÍA: 10 años de fábrica en todos los productos (módulos y piscinas).
+Cualquier problema estructural → visita técnica sin costo dentro del período de garantía.
+
+REGLA DE RESPUESTA:
+- Nunca decir "solo instalamos en Buenos Aires" o "solo CABA y GBA" — eso está desactualizado.
+- Cuando el cliente pregunte por el interior: "Instalamos en todo el país. El flete depende de la distancia desde Zárate — calculalo con tu localidad."
+- Si pregunta por retiro: mencioná las 3 opciones sin cargo.
+""",
+    },
+    {
+        "id": "hidromasajes_jacuzzis",
+        "titulo": "Hidromasajes y Jacuzzis — línea de producto",
+        "agentes": ["valentina", "camila", "maximo", "tomas", "aurora"],
+        "contenido": """=== HIDROMASAJES Y JACUZZIS — ECOFIVER ===
+
+EcoFiver también fabrica y comercializa hidromasajes y jacuzzis.
+Son una línea complementaria a las piscinas de fibra de vidrio y los módulos NCE.
+
+LOGÍSTICA:
+- Envío por Mercado Envíos (ME2) con envío gratis a todo el país.
+- También disponibles para retiro en los puntos habituales (San Telmo, Paso del Rey, Zárate).
+- Flete por km si se coordina instalación: $2.000/km desde Zárate (tarifa diferenciada, menor al de piscinas).
+
+DERIVACIÓN:
+Si el cliente consulta por hidromasajes o jacuzzis, Valentina puede asistirlo directamente o derivarlo a Camila.
+""",
+    },
+    {
+        "id": "combos_vivienda_piscina_oct2026",
+        "titulo": "Combos Vivienda + Piscina — Precios octubre 2026",
+        "agentes": ["valentina", "mateo", "luciano", "tomas", "maximo", "aurora"],
+        "contenido": """=== COMBOS VIVIENDA MODULAR NCE + PISCINA — OCTUBRE 2026 ===
+
+IMPORTANTE: Combos disponibles SOLO en financiación (no de contado).
+Flete BONIFICADO en todos los combos (sin costo de envío a todo el país).
+
+COMBOS CERRADOS (precio total financiado):
+1. Vivienda 36 m² + Piscina Minimalista 4 m       → $27.840.000
+2. Vivienda 45 m² + Piscina Playa Húmeda 5,20 m   → $34.340.000
+3. Vivienda 60 m² + Piscina Minimalista 6,40 m     → $45.090.000
+4. Vivienda 72 m² + Piscina Playa y Abanico 9,20 m → $55.180.000
+
+BONIFICACIONES INCLUIDAS EN CADA COMBO:
+- Instalación eléctrica completa
+- Instalación de baños
+- Bordes atérmicos para la piscina
+- Flete a todo el país (bonificado)
+
+ARGUMENTOS DE VENTA:
+- "El combo te da TODO: casa + pileta + electricidad + baños + flete, en un solo plan."
+- "Solo elegís artefactos y griferías — el resto entra."
+- "Con financiación propia de fábrica, sin banco ni scoring."
 """,
     },
     {

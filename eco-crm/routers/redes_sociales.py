@@ -810,6 +810,24 @@ async def facebook_webhook_receive(
         finally:
             _db.close()
 
+        # Reenviar solo eventos leadgen al multiagente (Lead Ads → WhatsApp automático)
+        leadgen_entries = []
+        for entry in body.get("entry", []):
+            lg_changes = [c for c in entry.get("changes", []) if c.get("field") == "leadgen"]
+            if lg_changes:
+                leadgen_entries.append({**entry, "changes": lg_changes})
+        if leadgen_entries:
+            _ma_url = os.getenv(
+                "MULTIAGENTE_WEBHOOK_URL",
+                "https://eco-multiagente-production.up.railway.app/webhook/meta",
+            )
+            try:
+                async with httpx.AsyncClient(timeout=10) as hc:
+                    await hc.post(_ma_url, json={**body, "entry": leadgen_entries})
+                log.info(f"[FB-WEBHOOK] {len(leadgen_entries)} leadgen(s) enviados al multiagente")
+            except Exception as e:
+                log.warning(f"[FB-WEBHOOK] Forward leadgen a multiagente falló: {e}")
+
     background_tasks.add_task(_bg)
     return {"ok": True}
 

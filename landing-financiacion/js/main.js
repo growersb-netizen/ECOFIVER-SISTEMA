@@ -13,8 +13,7 @@
   const CRM_LEAD_ENDPOINT = "https://eco-crm-production.up.railway.app/api/public/landing-lead";
 
   // ────────────────────────────────────────────────────────────
-  // Reglas de precios (memoria comercial vigente al 2026-06-15,
-  // confirmar con el dueño del negocio antes de publicar)
+  // Reglas de precios (lista vigente — confirmar actualización con el equipo)
   // ────────────────────────────────────────────────────────────
   const MODULO_PRECIO_M2_FINANCIADO = 690000; // $/m², financiado
   const MODULO_FACTOR_INGRESO = 2; // inscripción = 2 cuotas del plan
@@ -81,7 +80,6 @@
     "header": "Hola! Vi la landing de EcoFiver y quiero info sobre el Plan 18 Pasos.",
     "hero": "Hola! Quiero financiar una piscina o un módulo en pesos.",
     "hero-plan18": null, // se arma dinámicamente
-    "popup-plan18": "Hola! Vi el Plan 18 Pasos de EcoFiver. Quiero consultarles cómo arrancar mi financiación sin banco.",
     "cooperativa": "Hola! Quiero hablar con la cooperativa sobre financiar mi vivienda, una piscina, o ambas cosas.",
     "combo-1": null, // se arma dinámicamente
     "combo-2": null,
@@ -108,26 +106,6 @@
     document.querySelectorAll("[data-wa-display]").forEach(function (el) {
       el.textContent = WHATSAPP_DISPLAY;
     });
-  }
-
-  // ────────────────────────────────────────────────────────────
-  // Banner secundario "Antes del Verano": arma el link de WhatsApp
-  // con datos reales (mismos precios que el simulador de piscinas,
-  // valores vigentes de la temporada pasada — verano 2025).
-  // ────────────────────────────────────────────────────────────
-  const PROMO_MODELO_INDEX = 11; // Minimalista Grande (6,40x3x1,40)
-  const PROMO_CUOTAS = 36; // cuota más baja = mayor plazo disponible para piscinas
-
-  function pintarPromoMundial() {
-    const modelo = PISCINAS[PROMO_MODELO_INDEX];
-    const cuota = modelo.lista / (PROMO_CUOTAS + 2);
-
-    const promoCta = document.querySelector('[data-wa-cta="promo-mundial"]');
-    if (promoCta) {
-      const msg = "Hola! Vi la promo Antes del Verano de la piscina " + modelo.nombre + " (" + modelo.medidas +
-        ") a $" + formatearPesos(cuota) + "/mes en " + PROMO_CUOTAS + " cuotas, con precio de la temporada pasada (verano 2025) y entrega programada para este verano. Quiero reservar mi lugar y la pérgola de regalo.";
-      promoCta.setAttribute("href", waLink(msg));
-    }
   }
 
   // ────────────────────────────────────────────────────────────
@@ -354,35 +332,6 @@
   }
 
   // ────────────────────────────────────────────────────────────
-  // Popup Plan 18 Pasos: aparece una vez por sesión.
-  // ────────────────────────────────────────────────────────────
-  const popupOverlay = document.getElementById("popup-overlay");
-  if (popupOverlay) {
-    const POPUP_SESSION_KEY = "ecofiver_popup_plan18";
-
-    function cerrarPopup() {
-      popupOverlay.classList.remove("open");
-    }
-
-    document.getElementById("popup-close").addEventListener("click", cerrarPopup);
-    document.getElementById("popup-dismiss").addEventListener("click", cerrarPopup);
-    document.getElementById("popup-wa-cta").addEventListener("click", cerrarPopup);
-    popupOverlay.addEventListener("click", function (e) {
-      if (e.target === popupOverlay) cerrarPopup();
-    });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") cerrarPopup();
-    });
-
-    if (!sessionStorage.getItem(POPUP_SESSION_KEY)) {
-      setTimeout(function () {
-        popupOverlay.classList.add("open");
-        sessionStorage.setItem(POPUP_SESSION_KEY, "1");
-      }, 1500);
-    }
-  }
-
-  // ────────────────────────────────────────────────────────────
   // Animación sutil al hacer scroll (respeta "reducir movimiento")
   // ────────────────────────────────────────────────────────────
   if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
@@ -408,7 +357,6 @@
   // ────────────────────────────────────────────────────────────
   actualizarLinksWhatsapp();
   pintarPlan18Pasos();
-  pintarPromoMundial();
   pintarCombos();
   calcularModulo();
   calcularPiscina();

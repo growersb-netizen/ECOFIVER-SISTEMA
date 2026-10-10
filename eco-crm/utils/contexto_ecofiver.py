@@ -287,7 +287,7 @@ Arco Romano Chico C/Desnivel 4,60x2,35m | $2.990.000
 Arco Romano Mediano Recto 6,40x2,94m | $4.900.000
 Arco Romano Mediano C/Desnivel 7x3,35m | $4.490.000
 Arco Romano Grande 8,10x3,35m | $4.800.000
-Playa Humeda 5,20x2,45m | $3.290.000
+Playa Humeda 5,20x2,45m | $3.490.000
 Minimalista Chica 3,97x2,46m | $2.990.000
 Minimalista Mediana 5,50x2,90m | $4.425.000
 Minimalista Grande 6,40x3m | $3.690.000

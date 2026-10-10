@@ -245,7 +245,7 @@ a 2 cuotas de ingreso) — nunca el mismo mes de la firma.
 """,
     },
     {
-        "id": "precios_piscinas_v2",
+        "id": "precios_piscinas_v3",
         "titulo": "Precios piscinas — contado vs. 6 cuotas sin interés con tarjeta",
         "agentes": ["valentina", "camila", "nicolas", "tomas", "aurora", "maximo"],
         "contenido": """=== TABLA DE PRECIOS PISCINAS — VIGENTE 2026 ===
@@ -264,7 +264,7 @@ Arco Romano Chico C/Desnivel    | 4,60x2,35x1,10 a 1,30      | $2.990.000  | $4.
 Arco Romano Mediano Recto       | 6,40x2,94x1,40              | $4.900.000  | $7.130.000
 Arco Romano Mediano C/Desnivel  | 7x3,35x1,25 a 1,70         | $4.490.000  | $7.130.000
 Arco Romano Grande              | 8,10x3,35x1,25 a 1,80      | $4.800.000  | $6.990.000
-Playa Humeda                    | 5,20x2,45x1,10 a 1,30      | $3.290.000  | $4.790.000
+Playa Humeda                    | 5,20x2,45x1,10 a 1,30      | $3.490.000  | $4.790.000
 Minimalista Chica               | 3,97x2,46x1,20              | $2.990.000  | $4.080.000
 Minimalista Mediana             | 5,50x2,90x1,50              | $4.425.000  | $6.440.000
 Minimalista Grande              | 6,40x3x1,40                 | $3.690.000  | $5.370.000

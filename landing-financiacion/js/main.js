@@ -86,7 +86,7 @@
     "combo-3": null,
     "combo-4": null,
     "producto-piscina": "Hola! Quiero información para financiar una piscina.",
-    "producto-modulo": "Hola! Quiero información sobre el Plan 18 Pasos para financiar un módulo habitable.",
+    "producto-modulo": "Hola! Quiero información sobre el Plan 18 Pasos para financiar mi vivienda Wood Frame.",
     "simulador-modulo": null, // se arma dinámicamente
     "simulador-piscina": null, // se arma dinámicamente
     "segmento-alquiler": "Hola! Hoy alquilo y quiero saber cómo el Plan 18 Pasos me ayuda a tener mi vivienda propia.",
@@ -183,8 +183,9 @@
   });
 
   // ────────────────────────────────────────────────────────────
-  // Simulador: módulo (fórmula real)
+  // Simulador: vivienda Wood Frame (fórmula real)
   // cuota = (m2 * 690000) / (n_cuotas + 2)
+  // Tamaños: 18, 36, 45, 60, 72 m² — Plazos: 36 a 120 cuotas
   // ────────────────────────────────────────────────────────────
   const moduloM2 = document.getElementById("sim-modulo-m2");
   const moduloCuotas = document.getElementById("sim-modulo-cuotas");
@@ -207,8 +208,8 @@
     moduloInscripcionEl.textContent = "$" + formatearPesos(inscripcion);
 
     if (simuladorModuloCta) {
-      const msg = "Hola! Simulé un módulo de " + m2 + " m² en " + nCuotas +
-        " cuotas (aprox. $" + formatearPesos(cuota) + "/mes). Quiero confirmar el plan con un asesor.";
+      const msg = "Hola! Simulé una vivienda Wood Frame de " + m2 + " m² en " + nCuotas +
+        " cuotas (aprox. $" + formatearPesos(cuota) + "/mes). Quiero confirmar mi plan con un asesor.";
       simuladorModuloCta.setAttribute("href", waLink(msg));
     }
   }

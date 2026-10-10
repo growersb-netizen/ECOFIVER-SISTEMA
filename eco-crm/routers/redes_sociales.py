@@ -1844,6 +1844,35 @@ async def api_redes_admin_marcar_expirados(
     return {"ok": True, "marcados": len(errores) + len(sistema_fb), "por_error": len(errores), "sistema_fb": len(sistema_fb)}
 
 
+@router.post("/api/redes/admin/limpiar-backlog")
+async def api_redes_admin_limpiar_backlog(
+    t: str = "",
+    dias: int = 1,
+    db: Session = Depends(get_db),
+):
+    """
+    Marca como 'ignorado' todas las interacciones pendientes/error anteriores a <dias> días.
+    Deja intactas solo las del día de hoy para que el operador las revise.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import func as sqlfunc
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=dias)
+
+    n = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.accion.in_(["pendiente", "error"]),
+        FacebookInteraccion.created_at < cutoff,
+    ).update({"accion": "ignorado"}, synchronize_session=False)
+
+    db.commit()
+    return {"ok": True, "ignorados": n, "cutoff": cutoff.isoformat()}
+
+
 @router.get("/api/redes/admin/pendientes")
 async def api_redes_admin_pendientes(
     t: str = "",

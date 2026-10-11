@@ -125,6 +125,9 @@ _agent_assignments: dict[str, str] = {}  # session_id → agent_name
 # Señales de derivación que Valentina incluye en su respuesta
 DERIVACION_PATTERN = re.compile(r"\[DERIVAR:\s*(\w+)\s*\]", re.IGNORECASE)
 
+# Señal de atribución a aliado comercial — emitida por Valentina
+_ALIADO_PATTERN = re.compile(r"\[ALIADO:\s*([^\]]+)\s*\]", re.IGNORECASE)
+
 # Señales de agenda — generadas por agentes de ventas
 _AGENDA_VV_PATTERN   = re.compile(r"\[AGENDA_VV:([^\]:]+):([^\]]+)\]", re.IGNORECASE)
 _LLAMADA_SUP_PATTERN = re.compile(r"\[LLAMADA_SUP:([^\]:]+):([^\]]+)\]", re.IGNORECASE)
@@ -167,7 +170,28 @@ def _limpiar_señales(reply: str) -> str:
     reply = DERIVACION_PATTERN.sub("", reply)
     reply = _AGENDA_VV_PATTERN.sub("", reply)
     reply = _LLAMADA_SUP_PATTERN.sub("", reply)
+    reply = _ALIADO_PATTERN.sub("", reply)
     return reply.strip()
+
+
+async def _procesar_señal_aliado(reply: str, session_id: str) -> str | None:
+    """
+    Detecta [ALIADO:codigo_o_nombre] en la respuesta de Valentina y escribe
+    el aliado_codigo en el lead del CRM.
+    Retorna el codigo registrado, o None si no había señal.
+    """
+    m = _ALIADO_PATTERN.search(reply)
+    if not m:
+        return None
+    codigo = m.group(1).strip()
+    if not codigo:
+        return None
+    try:
+        await crm_client.update_lead(session_id, {"aliado_codigo": codigo})
+        logger.info(f"[Router] Aliado '{codigo}' registrado en lead {session_id}")
+    except Exception as e:
+        logger.warning(f"[Router] No se pudo registrar aliado '{codigo}' en {session_id}: {e}")
+    return codigo
 
 
 async def _procesar_señales_agenda(reply: str, session_id: str, agent_name: str) -> None:
@@ -497,7 +521,7 @@ async def route_message(
         nuevo_agente_inst = _get_agent_instance(session_id, nuevo_agente)
         reply = await nuevo_agente_inst.respond(mensaje, contexto)
 
-    # 4b. Procesar señales de agenda (VV y llamada supervisora)
+    # 4b. Procesar señales de agenda (VV y llamada supervisora) y aliado
     señales_detectadas = []
     if _AGENDA_VV_PATTERN.search(reply):
         señales_detectadas.append("AGENDA_VV")
@@ -506,6 +530,11 @@ async def route_message(
     if nuevo_agente:
         señales_detectadas.append(f"DERIVAR:{nuevo_agente}")
     await _procesar_señales_agenda(reply, session_id, agent_name)
+
+    # Atribución de aliado comercial ([ALIADO:codigo] emitido por Valentina)
+    aliado_codigo = await _procesar_señal_aliado(reply, session_id)
+    if aliado_codigo:
+        señales_detectadas.append(f"ALIADO:{aliado_codigo}")
 
     # Simulador de cuotas exacto: [SIMULAR:tipo:precio] → cálculo real
     try:

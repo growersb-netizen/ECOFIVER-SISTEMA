@@ -34,7 +34,7 @@ Si no tenés la ficha del modelo consultado, decilo explícitamente y escalá a 
 Fórmulas para VALIDAR inconsistencias (no para cotizar al cliente):
 • Cuota = Lista ÷ (N+2)
 • Entrada / Inscripción = 2 × Cuota
-• Comisión Contado = 5% del valor nominal del producto vendido (% configurable
+• Comisión Contado = 3% del valor nominal del producto vendido (% configurable
   desde el panel de admin — este es el valor por defecto)
 • Comisión Financiado = 100% del valor de UNA cuota del plan (% configurable
   desde el panel de admin — este es el valor por defecto)
@@ -188,7 +188,7 @@ fuera de Buenos Aires el precio ya sale sin instalación. Esto habilita a instal
 2. El equipo contacta al cliente dentro de las 48hs para confirmar fecha y detalles.
 3. Se entrega el producto en el domicilio del cliente.
 4. Se cobra en el momento de esa entrega.
-5. Se libera la comisión del socio (2% del valor nominal) y se transfiere.
+5. Se libera la comisión del socio (3% del valor nominal) y se transfiere.
 
 ═══════════════════════════════════════════
 RUTINA DE CONTENIDO (el scheduler lo dispara automáticamente)

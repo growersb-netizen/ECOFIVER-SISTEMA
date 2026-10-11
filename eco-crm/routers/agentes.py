@@ -14,13 +14,44 @@ from sqlalchemy import or_
 from database.database import get_db
 from database.models import (
     Lead, MensajeConversacion, VentaFinanciada, VentaContado,
-    StockPiscina, StockPanel, Videollamada,
+    StockPiscina, StockPanel, Videollamada, Usuario, ConfiguracionSistema,
 )
 from routers.ventas_financiadas import dias_atraso
 
 router = APIRouter()
 
 API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+
+
+# ─── ROUND-ROBIN LOCAL (sin importar leads.py para evitar importación circular) ──
+
+def _asignar_round_robin(db: Session) -> Optional[int]:
+    """Asigna el asesor con menos leads activos del pool configurado."""
+    from sqlalchemy import func
+    config = db.query(ConfiguracionSistema).filter_by(clave="leads_pool_asesores").first()
+    if config and config.valor:
+        try:
+            ids = [int(x) for x in str(config.valor).split(",") if x.strip().isdigit()]
+            candidatos = db.query(Usuario).filter(
+                Usuario.id.in_(ids), Usuario.activo == True  # noqa: E712
+            ).all() if ids else []
+        except Exception:
+            candidatos = []
+    else:
+        candidatos = db.query(Usuario).filter(
+            Usuario.activo == True,  # noqa: E712
+            Usuario.roles_json.contains("ASESOR_APERTURA"),
+        ).all()
+    if not candidatos:
+        return None
+    conteos = {
+        u.id: db.query(Lead).filter(
+            Lead.asesor_apertura_id == u.id,
+            Lead.estado.notin_(["CERRADO", "PERDIDO"]),
+        ).count()
+        for u in candidatos
+    }
+    return min(candidatos, key=lambda u: (conteos[u.id], u.id)).id
 
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
@@ -99,6 +130,8 @@ async def create_lead_agent(
     # (antes se cortaba a 12 caracteres y perdía el último dígito).
     nombre_default = f"Lead {session_id}" if is_phone else f"Lead {session_id[:12]}"
 
+    asesor_id = _asignar_round_robin(db)
+
     lead = Lead(
         session_id=session_id,
         nombre=data.get("nombre") or nombre_default,
@@ -109,6 +142,7 @@ async def create_lead_agent(
         estado="NUEVO",
         origen=origen,
         agente_asignado=data.get("agente_asignado", "valentina"),
+        asesor_apertura_id=asesor_id,
         notas="",
     )
     db.add(lead)
@@ -132,6 +166,7 @@ async def update_lead_by_session(
     updatable = [
         "nombre", "telefono", "localidad", "producto_interes",
         "modelo_especifico", "forma_pago", "estado", "notas", "agente_asignado",
+        "aliado_codigo",
     ]
     for field in updatable:
         if field in data:
@@ -597,4 +632,51 @@ async def ventas_hoy(
         "cierres": len(vc) + len(vf),
         "monto_total": monto_total,
         "leads_nuevos": leads_nuevos,
+    }
+
+
+# ─── BULK ASSIGN: asigna round-robin a todos los leads sin asesor ─────────────
+
+@router.post("/api/leads/bulk-assign-round-robin")
+async def bulk_assign_round_robin(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(_require_api_key),
+):
+    """
+    Asigna asesor_apertura_id en round-robin a todos los leads que aún no tienen uno.
+    Acepta body JSON opcional: {"limit": 500} para procesar en lotes.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    limit = int(body.get("limit", 500))
+
+    leads_sin_asesor = (
+        db.query(Lead)
+        .filter(Lead.asesor_apertura_id.is_(None))
+        .filter(Lead.estado.notin_(["CERRADO_GANADO", "CERRADO_PERDIDO"]))
+        .order_by(Lead.id.asc())
+        .limit(limit)
+        .all()
+    )
+    if not leads_sin_asesor:
+        return {"ok": True, "asignados": 0, "mensaje": "Sin leads pendientes de asignación"}
+
+    ts = datetime.utcnow().strftime("%d/%m %H:%M")
+    asignados = 0
+    for lead in leads_sin_asesor:
+        asesor_id = _asignar_round_robin(db)
+        if asesor_id:
+            lead.asesor_apertura_id = asesor_id
+            lead.notas = (lead.notas or "") + f"\n[{ts}] 🤖 Asignado automáticamente por bulk-assign"
+            asignados += 1
+
+    db.commit()
+    return {
+        "ok": True,
+        "asignados": asignados,
+        "total_sin_asesor_procesados": len(leads_sin_asesor),
+        "mensaje": f"{asignados} leads asignados en round-robin",
     }

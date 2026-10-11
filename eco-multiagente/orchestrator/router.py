@@ -466,6 +466,15 @@ async def route_message(
     agente = _get_agent_instance(session_id, agent_name)
     reply = await agente.respond(mensaje, contexto)
 
+    # Mapa de agente especialista → datos de calificación del lead
+    _CALIFICACION_POR_AGENTE: dict[str, dict] = {
+        "camila":   {"producto_interes": "PISCINA",  "forma_pago": "CONTADO"},
+        "nicolas":  {"producto_interes": "PISCINA",  "forma_pago": "FINANCIADO"},
+        "luciano":  {"producto_interes": "MODULO",   "forma_pago": "CONTADO"},
+        "mateo":    {"producto_interes": "MODULO",   "forma_pago": "FINANCIADO"},
+        "sebastian":{"estado": "POSTVENTA"},
+    }
+
     # 4. Detectar señales de derivación (solo aplica cuando hay [DERIVAR:x])
     nuevo_agente = _detectar_derivacion(reply)
     if nuevo_agente and nuevo_agente in AGENTES_DISPONIBLES:
@@ -474,8 +483,12 @@ async def route_message(
         )
         # Actualizar cache local PRIMERO (fuente primaria)
         _agent_assignments[session_id] = nuevo_agente
+        # Construir payload de actualización: agente + calificación del producto/pago
+        update_payload = {"agente_asignado": nuevo_agente}
+        if nuevo_agente in _CALIFICACION_POR_AGENTE:
+            update_payload.update(_CALIFICACION_POR_AGENTE[nuevo_agente])
         # Persistir en CRM (best-effort)
-        ok = await crm_client.update_lead(session_id, {"agente_asignado": nuevo_agente})
+        ok = await crm_client.update_lead(session_id, update_payload)
         if not ok:
             logger.warning(f"[Router] CRM update falló para {session_id}, pero cache local OK")
 
@@ -506,6 +519,18 @@ async def route_message(
         await _evaluar_y_alertar_lead(session_id, mensaje, reply, agent_name, canal)
     except Exception as e:
         logger.warning(f"[Router] scoring lead falló: {e}")
+
+    # 4d. Ejecutar acciones CRM emitidas por el agente ([CRM_ACTION:{...}])
+    acciones_crm = detectar_acciones(reply)
+    reply = limpiar_acciones(reply)
+    if acciones_crm:
+        try:
+            nombres_acc = [a.get("tipo", "?") for a in acciones_crm]
+            señales_detectadas.extend(names for names in nombres_acc)
+            logger.info(f"[Router] Acciones CRM en canal cliente: {nombres_acc} — lead {session_id}")
+            await ejecutar_acciones(acciones_crm)
+        except Exception as e:
+            logger.error(f"[Router] Error ejecutando acciones CRM en canal cliente: {e}")
 
     # Limpiar marcas internas de la respuesta final
     from tools.lead_scoring import limpiar_signal as _limpiar_lead_signal

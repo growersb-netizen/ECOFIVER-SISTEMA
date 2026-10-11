@@ -375,6 +375,17 @@ class BaseAgent:
                 except Exception as fe:
                     logger.warning(f"[{self.name}] Grok falló: {fe}")
 
+            # Último recurso: Gemini (free tier, generoso en cuotas diarias)
+            if reply is None and os.getenv("GEMINI_API_KEY"):
+                try:
+                    from providers.gemini_provider import GeminiProvider
+                    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+                    reply = await GeminiProvider(model=model).generate(
+                        system_prompt=self.system_prompt, history=self.history, message=full_msg)
+                    logger.info(f"[{self.name}] Fallback Gemini/{model} OK")
+                except Exception as fe:
+                    logger.warning(f"[{self.name}] Gemini falló: {fe}")
+
             if reply is None:
                 reply = "Dame un momentito y te respondo enseguida 🙏"
 

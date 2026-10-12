@@ -183,8 +183,7 @@ def _procesar_mensaje_wa(
                 db.commit()
             except Exception:
                 pass
-    else:
-        # Lead existente — actualizar estado si sigue NUEVO/INTENTADO
+        # Actualizar estado si sigue NUEVO/INTENTADO
         if lead.estado in ("NUEVO", "INTENTADO"):
             lead.estado = "CONTACTADO"
 

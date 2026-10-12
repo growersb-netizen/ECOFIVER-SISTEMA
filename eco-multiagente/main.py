@@ -25,6 +25,13 @@ if _ENV_PATH.exists():
             os.environ[_k] = _v
         elif _k not in os.environ:
             os.environ[_k] = ""
+    # FORCE_AI_PROVIDER: permite que Railway sobreescriba el proveedor del volumen
+    _force_provider = os.environ.get("FORCE_AI_PROVIDER", "")
+    if _force_provider:
+        os.environ["AI_PROVIDER"] = _force_provider
+    _force_model = os.environ.get("FORCE_OPENROUTER_MODEL", "")
+    if _force_model:
+        os.environ["OPENROUTER_MODEL"] = _force_model
 else:
     load_dotenv(override=False)
 # ─────────────────────────────────────────────────────────────────────────────

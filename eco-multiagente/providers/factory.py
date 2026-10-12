@@ -21,18 +21,18 @@ def get_active_provider_name() -> str:
     configured = os.getenv("AI_PROVIDER", "").lower()
     if configured:
         return configured
-    # Auto-detect: prioridad Gemini (free tier generoso) → OpenRouter → Grok → resto
-    if os.getenv("GEMINI_API_KEY"):
-        return "gemini"
+    # Auto-detect: prioridad OpenRouter (único proveedor oficial) → resto como fallback
     if os.getenv("OPENROUTER_API_KEY"):
         return "openrouter"
+    if os.getenv("GEMINI_API_KEY"):
+        return "gemini"
     if os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY"):
         return "grok"
     if os.getenv("ANTHROPIC_API_KEY"):
         return "claude"
     if os.getenv("OPENAI_API_KEY"):
         return "openai"
-    return "gemini"  # default (fallará con error claro si no hay key)
+    return "openrouter"  # default (fallará con error claro si no hay key)
 
 
 def get_provider() -> BaseProvider:

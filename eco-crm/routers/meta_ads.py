@@ -210,7 +210,7 @@ async def portafolio_campanas(
             f"{'date_preset=lifetime' if periodo == 'maximo' else f'time_range={{since:{date_start!r},until:{date_end!r}}}'}"
             f"}}"
         ),
-        "effective_status": f'["{status_filter.replace(",", \'","\') }"]',
+        "effective_status": '["' + status_filter.replace(",", '","') + '"]',
         "limit": 100,
     }
 

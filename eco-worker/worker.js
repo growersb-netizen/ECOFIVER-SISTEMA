@@ -10,7 +10,7 @@
  */
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
-const OR_TEXT_MODEL   = "google/gemini-2.0-flash-exp:free";
+const OR_TEXT_MODEL   = "meta-llama/llama-3.1-8b-instruct:free";
 const OR_IMAGE_MODEL  = "openai/gpt-4o-mini";  // fallback; gpt-5-image-mini si hay crédito
 
 const CORS_HEADERS = {

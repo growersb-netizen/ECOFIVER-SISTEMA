@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Modelo por defecto. El anterior modelo gratuito (llama-3.3-70b-instruct:free)
 # fue dado de baja por OpenRouter (404). Se puede override con OPENROUTER_MODEL.
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 

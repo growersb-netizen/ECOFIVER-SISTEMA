@@ -329,6 +329,8 @@ class BaseAgent:
                 history=self.history,
                 message=full_msg,
             )
+            if not reply:
+                raise ValueError(f"{provider.name} devolvió respuesta vacía/None")
         except Exception as e:
             err_str = str(e)
             # Ante CUALQUIER error del proveedor primario, intentar la cadena de fallback

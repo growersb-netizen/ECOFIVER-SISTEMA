@@ -268,6 +268,8 @@ async def tarea_contacto_leads_nuevos():
                 f"Primer contacto para {nombre} que se interesó en {producto}. "
                 "Mensaje cálido, breve, 1-2 oraciones. Presentate como Valentina de EcoFiver."
             )
+            if not msg:
+                continue
             import re
             msg = re.sub(r"\[DERIVAR:\w+\]|\[AGENDA_VV:[^\]]+\]|\[LLAMADA_SUP:[^\]]+\]", "", msg).strip()
             if msg:

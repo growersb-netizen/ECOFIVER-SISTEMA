@@ -1,14 +1,14 @@
 """add meta_portafolios y meta_campana_snapshots
 
-Revision ID: 0006
-Revises: 0005
+Revision ID: 0007
+Revises: 0006
 Create Date: 2026-10-12
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0006"
-down_revision = "0005"
+revision = "0007"
+down_revision = "0006"
 branch_labels = None
 depends_on = None
 
@@ -66,12 +66,6 @@ def upgrade() -> None:
         op.create_index("ix_campana_snap_fecha_camp", "meta_campana_snapshots",
                         ["fecha", "campaign_id"])
 
-    # ── meta_paginas: agregar columna vendedor si no existe ───────────────────
-    cols = [c["name"] for c in _ins(bind).get_columns("meta_paginas")]
-    if "vendedor" not in cols:
-        op.add_column("meta_paginas",
-                      sa.Column("vendedor", sa.String(150), nullable=True))
-
     # ── leads: agregar columna meta_pagina_id si no existe ───────────────────
     lead_cols = [c["name"] for c in _ins(bind).get_columns("leads")]
     if "meta_pagina_id" not in lead_cols:
@@ -82,5 +76,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("meta_campana_snapshots")
     op.drop_table("meta_portafolios")
-    op.drop_column("meta_paginas", "vendedor")
     op.drop_column("leads", "meta_pagina_id")

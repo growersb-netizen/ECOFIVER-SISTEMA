@@ -1305,6 +1305,7 @@ class InboxMensaje(Base):
     remitente       = Column(String(100), default="")          # "cliente" | agente_name | "admin"
     leido           = Column(Boolean, default=False)
     wa_message_id   = Column(String(200), nullable=True)       # wamid de Meta
+    wa_linea        = Column(String(50), nullable=True)         # número del vendedor que recibió el mensaje
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
 
     lead = relationship("Lead", back_populates="inbox_mensajes")
@@ -1643,6 +1644,7 @@ class MetaPagina(Base):
     webhook_subscribed = Column(Boolean, default=False)       # página suscrita al webhook
     numero_whatsapp = Column(String(30), default=None)  # número al que redirige la IA
     vendedor = Column(String(150), nullable=True)        # nombre del vendedor/responsable de la página
+    wa_phone_id = Column(String(60), nullable=True)      # Meta API phone_number_id de esta línea
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 

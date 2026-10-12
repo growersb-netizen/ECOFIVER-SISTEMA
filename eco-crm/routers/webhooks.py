@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import Lead, Interaccion, ConfiguracionSistema, Notificacion, Usuario
+from database.models import Lead, Interaccion, ConfiguracionSistema, Notificacion, Usuario, MetaPagina
 from utils.whatsapp import send_whatsapp_text, notificar_asesor_nuevo_lead
 
 log = logging.getLogger(__name__)
@@ -72,6 +72,11 @@ async def wa_incoming(request: Request, db: Session = Depends(get_db)):
             messages = value.get("messages", [])
             contacts = value.get("contacts", [])
 
+            # Número del vendedor que recibió el mensaje (línea destino)
+            metadata = value.get("metadata", {})
+            wa_phone_id_meta = metadata.get("phone_number_id", "")
+            display_phone = metadata.get("display_phone_number", "")
+
             for msg in messages:
                 if msg.get("type") != "text":
                     continue  # solo texto por ahora
@@ -85,21 +90,48 @@ async def wa_incoming(request: Request, db: Session = Depends(get_db)):
                     continue
 
                 try:
-                    _procesar_mensaje_wa(db, telefono_raw, nombre_wa, texto)
+                    _procesar_mensaje_wa(
+                        db, telefono_raw, nombre_wa, texto,
+                        wa_phone_id=wa_phone_id_meta,
+                        display_phone=display_phone,
+                    )
                 except Exception as e:
                     log.error(f"[WA Webhook] Error procesando mensaje de {telefono_raw}: {e}")
 
     return {"ok": True}
 
 
-def _procesar_mensaje_wa(db: Session, telefono: str, nombre: str, texto: str):
+def _procesar_mensaje_wa(
+    db: Session,
+    telefono: str,
+    nombre: str,
+    texto: str,
+    wa_phone_id: str = "",
+    display_phone: str = "",
+):
     """
     Lógica principal por mensaje entrante:
     1. Buscar lead activo por teléfono.
     2. Si existe → agregar interacción WHATSAPP + actualizar estado a CONTACTADO.
-    3. Si no existe → crear lead nuevo y asignarlo vía Round Robin.
+    3. Si no existe → crear lead nuevo.
+       - Si el mensaje llegó a una línea de vendedor (MetaPagina) → asignar a esa página,
+         sin Round Robin.
+       - Caso general → Round Robin.
     4. Notificar al asesor asignado.
     """
+    # Identificar página/vendedor por la línea receptora
+    pagina: Optional[MetaPagina] = None
+    if wa_phone_id or display_phone:
+        q = db.query(MetaPagina)
+        if wa_phone_id:
+            pagina = q.filter(MetaPagina.wa_phone_id == wa_phone_id).first()
+        if not pagina and display_phone:
+            # Comparar limpiando espacios y signos
+            clean = display_phone.replace("+", "").replace(" ", "").replace("-", "")
+            pagina = q.filter(
+                MetaPagina.numero_whatsapp.ilike(f"%{clean[-9:]}%")
+            ).first()
+
     # 1. Buscar lead activo
     lead = db.query(Lead).filter(
         Lead.telefono.ilike(f"%{telefono.strip()}%"),
@@ -110,7 +142,16 @@ def _procesar_mensaje_wa(db: Session, telefono: str, nombre: str, texto: str):
 
     if not lead:
         # 2. Crear lead nuevo
-        asesor_id = _siguiente_asesor_rr(db)
+        if pagina:
+            # Línea de vendedor: NO usa Round Robin, se asigna a la página
+            asesor_id = None
+            meta_pagina_id = pagina.page_id
+            notas_extra = f"[AUTO] Lead por línea '{pagina.nombre}' ({pagina.vendedor or pagina.numero_whatsapp}): {texto[:200]}"
+        else:
+            asesor_id = _siguiente_asesor_rr(db)
+            meta_pagina_id = None
+            notas_extra = f"[AUTO] Lead generado por mensaje WA: {texto[:200]}"
+
         lead = Lead(
             nombre=nombre,
             telefono=telefono,
@@ -120,13 +161,28 @@ def _procesar_mensaje_wa(db: Session, telefono: str, nombre: str, texto: str):
             origen="WHATSAPP",
             estado="NUEVO",
             asesor_apertura_id=asesor_id,
-            notas=f"[AUTO] Lead generado por mensaje WA: {texto[:200]}",
+            notas=notas_extra,
         )
+        # Asignar página si corresponde
+        if meta_pagina_id:
+            try:
+                lead.meta_pagina_id = meta_pagina_id
+            except Exception:
+                pass
         db.add(lead)
         db.commit()
         db.refresh(lead)
         es_nuevo = True
-        log.info(f"[WA Webhook] Lead nuevo creado #{lead.id} para {telefono}")
+        log.info(f"[WA Webhook] Lead nuevo creado #{lead.id} para {telefono}" +
+                 (f" (línea {pagina.nombre})" if pagina else ""))
+    else:
+        # Lead existente: actualizar meta_pagina_id si aún no tiene
+        if pagina and not getattr(lead, "meta_pagina_id", None):
+            try:
+                lead.meta_pagina_id = pagina.page_id
+                db.commit()
+            except Exception:
+                pass
     else:
         # Lead existente — actualizar estado si sigue NUEVO/INTENTADO
         if lead.estado in ("NUEVO", "INTENTADO"):

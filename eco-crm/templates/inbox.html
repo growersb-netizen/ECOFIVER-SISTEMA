@@ -395,6 +395,13 @@
 
     <!-- ── Lista conversaciones ── -->
     <div id="conv-list">
+      <!-- selector de línea / vendedor -->
+      <div style="padding:8px 12px;background:var(--wa-sidebar);border-bottom:1px solid var(--wa-border)">
+        <select id="sel-linea" onchange="cambiarLinea()"
+          style="width:100%;background:var(--wa-search-bg);color:var(--wa-name);border:none;border-radius:8px;padding:7px 10px;font-size:13px;outline:none;cursor:pointer">
+          <option value="">📱 Todas las líneas</option>
+        </select>
+      </div>
       <div id="conv-search">
         <input type="text" id="search-input" placeholder="🔍 Buscar contacto..." oninput="filtrarConversaciones()">
       </div>
@@ -474,11 +481,38 @@
   let conversaciones = [];
   let convActiva = null;  // { phone, lead_id, nombre }
   let evtSource = null;
+  let lineaActiva = '';   // page_id de MetaPagina seleccionada, '' = todas
+
+  // ── Cargar líneas de vendedores ───────────────────────────────────────────
+  async function cargarLineas() {
+    try {
+      const r = await fetch('/api/inbox/lineas');
+      if (!r.ok) return;
+      const lineas = await r.json();
+      const sel = document.getElementById('sel-linea');
+      lineas.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.page_id;
+        const numero = l.numero_whatsapp ? ` · ${l.numero_whatsapp}` : '';
+        opt.textContent = `📲 ${l.vendedor || l.nombre}${numero}`;
+        opt.dataset.portafolio = l.portafolio || '';
+        sel.appendChild(opt);
+      });
+    } catch(e) { /* silencioso */ }
+  }
+
+  function cambiarLinea() {
+    lineaActiva = document.getElementById('sel-linea').value;
+    cargarConversaciones();
+  }
 
   // ── Cargar conversaciones ─────────────────────────────────────────────────
   async function cargarConversaciones() {
     try {
-      const r = await fetch('/api/inbox/conversaciones');
+      const url = lineaActiva
+        ? `/api/inbox/conversaciones?linea=${encodeURIComponent(lineaActiva)}`
+        : '/api/inbox/conversaciones';
+      const r = await fetch(url);
       conversaciones = await r.json();
       renderConversaciones(conversaciones);
       document.getElementById('conv-loading').style.display = 'none';
@@ -500,6 +534,7 @@
         <div class="conv-avatar ${c.modo}">${c.nombre.charAt(0).toUpperCase()}</div>
         <div class="conv-body">
           <div class="conv-name">${escHtml(c.nombre)}</div>
+          ${c.wa_linea ? `<div style="font-size:10px;color:#00a884;opacity:.8;margin-bottom:1px">📲 ${escHtml(c.wa_linea)}</div>` : ''}
           <div class="conv-preview">${c.direccion === 'OUT' ? '✓ ' : ''}${escHtml(c.ultimo_mensaje)}</div>
         </div>
         <div class="conv-meta">
@@ -751,6 +786,7 @@
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
+  cargarLineas();
   cargarConversaciones();
   conectarSSE();
 </script>

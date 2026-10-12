@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from database.database import get_db
-from database.models import Lead, InboxMensaje
+from database.models import Lead, InboxMensaje, MetaPagina
 from routers.auth import require_auth, get_user_roles
 from utils.whatsapp import send_whatsapp_text
 
@@ -74,24 +74,71 @@ async def inbox_page(request: Request, current_user=Depends(require_auth)):
 
 # ─── API — CONVERSACIONES ─────────────────────────────────────────────────────
 
+@router.get("/api/inbox/lineas")
+async def listar_lineas(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_auth),
+):
+    """Devuelve las líneas WA registradas (MetaPaginas con numero_whatsapp)."""
+    paginas = (
+        db.query(MetaPagina)
+        .filter(MetaPagina.numero_whatsapp.isnot(None), MetaPagina.activa == True)
+        .order_by(MetaPagina.nombre)
+        .all()
+    )
+    return [
+        {
+            "page_id": p.page_id,
+            "nombre": p.nombre,
+            "vendedor": p.vendedor or p.nombre,
+            "numero_whatsapp": p.numero_whatsapp,
+            "wa_phone_id": p.wa_phone_id,
+            "portafolio": p.portafolio,
+        }
+        for p in paginas
+    ]
+
+
 @router.get("/api/inbox/conversaciones")
 async def listar_conversaciones(
+    linea: str = "",   # page_id de MetaPagina para filtrar (vacío = todas)
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
     """Lista de conversaciones activas ordenadas por último mensaje."""
-    # Obtener phones únicos con su último mensaje
     from sqlalchemy import func as sqlfunc
 
     # Subquery: último mensaje por phone
-    sub = (
-        db.query(
-            InboxMensaje.phone,
-            sqlfunc.max(InboxMensaje.created_at).label("ultimo_at"),
-        )
-        .group_by(InboxMensaje.phone)
-        .subquery()
+    sub_q = db.query(
+        InboxMensaje.phone,
+        sqlfunc.max(InboxMensaje.created_at).label("ultimo_at"),
     )
+    # Filtro por línea: wa_linea directa o vía lead.meta_pagina_id
+    if linea:
+        pagina = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
+        if pagina:
+            wa_num = (pagina.numero_whatsapp or "").replace("+", "").replace(" ", "")
+            # Phones de leads que pertenecen a esta página
+            lead_phones = [
+                r[0] for r in db.query(Lead.telefono)
+                .filter(Lead.meta_pagina_id == pagina.page_id)
+                .all()
+                if r[0]
+            ]
+            # Mensajes con wa_linea matching esa página
+            cond = InboxMensaje.wa_linea.ilike(f"%{wa_num[-9:]}%") if wa_num else None
+            if lead_phones and cond is not None:
+                sub_q = sub_q.filter(
+                    (cond) | (InboxMensaje.phone.in_([p.replace("+","").replace(" ","")[-9:] for p in lead_phones[:200]]))
+                )
+            elif lead_phones:
+                sub_q = sub_q.filter(
+                    InboxMensaje.phone.in_([p.replace("+","").replace(" ","") for p in lead_phones[:200]])
+                )
+            elif cond is not None:
+                sub_q = sub_q.filter(cond)
+
+    sub = sub_q.group_by(InboxMensaje.phone).subquery()
 
     rows = (
         db.query(InboxMensaje, sub.c.ultimo_at)
@@ -138,6 +185,7 @@ async def listar_conversaciones(
             "modo": modo,
             "agente": agente,
             "direccion": msg.direccion,
+            "wa_linea": msg.wa_linea or "",
         })
 
     return result
@@ -308,6 +356,7 @@ class MensajeEntrante(BaseModel):
     remitente: str | None = None   # "cliente" | agente_name
     lead_id: int | None = None
     wa_message_id: str | None = None
+    wa_linea: str | None = None    # número del vendedor que recibió/envió (display number)
 
 @router.post("/api/inbox/entrante")
 async def recibir_entrante(
@@ -341,6 +390,7 @@ async def recibir_entrante(
         remitente=payload.remitente or ("cliente" if payload.direccion == "IN" else "agente"),
         leido=(payload.direccion == "OUT"),  # los salientes ya están "leídos"
         wa_message_id=payload.wa_message_id,
+        wa_linea=(payload.wa_linea or "").replace("+", "").replace(" ", "") or None,
     )
     db.add(msg)
     db.commit()

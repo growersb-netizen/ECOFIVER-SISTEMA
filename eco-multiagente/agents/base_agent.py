@@ -360,7 +360,7 @@ class BaseAgent:
             if reply is None and os.getenv("OPENROUTER_API_KEY"):
                 try:
                     from providers.openrouter_provider import OpenRouterProvider
-                    reply = await OpenRouterProvider(model="meta-llama/llama-3.1-8b-instruct:free").generate(
+                    reply = await OpenRouterProvider(model="openrouter/auto:free").generate(
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
                     logger.info(f"[{self.name}] Fallback OpenRouter:free OK")
                 except Exception as fe:

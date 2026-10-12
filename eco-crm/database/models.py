@@ -1692,6 +1692,50 @@ class SetFotosML(Base):
     updated_at     = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
+class MetaPortafolio(Base):
+    """Portafolio comercial: agrupa páginas Meta y su cuenta publicitaria."""
+    __tablename__ = "meta_portafolios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(150), unique=True, nullable=False)   # "EcoModulos y Piscinas"
+    slug = Column(String(80), unique=True, nullable=False)      # "ecomodulos" — clave interna
+    ad_account_id = Column(String(50), nullable=True)           # "act_2483423728803274"
+    # Token de sistema con permisos ads_read + pages_read_engagement (encriptado)
+    system_token_enc = Column(Text, nullable=True)
+    activo = Column(Boolean, default=True)
+    color = Column(String(20), default="#4f46e5")               # color para la UI
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class MetaCampanaSnapshot(Base):
+    """Snapshot diario de métricas por campaña de Meta Ads (cache de la Ads API)."""
+    __tablename__ = "meta_campana_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    portafolio_slug = Column(String(80), nullable=False, index=True)
+    campaign_id = Column(String(50), nullable=False, index=True)
+    campaign_name = Column(String(300), nullable=False)
+    adset_name = Column(String(300), nullable=True)
+    page_id = Column(String(50), nullable=True)                 # página asociada al adset
+    status = Column(String(30), default="ACTIVE")               # ACTIVE | PAUSED | ARCHIVED
+    fecha = Column(Date, nullable=False, index=True)            # fecha del snapshot
+    spend = Column(Float, default=0.0)                          # gasto en la fecha
+    impressions = Column(Integer, default=0)
+    clicks = Column(Integer, default=0)
+    leads = Column(Integer, default=0)                          # messaging_conversation_started
+    cpl = Column(Float, nullable=True)                          # costo por lead (spend/leads)
+    daily_budget = Column(Float, nullable=True)
+    lifetime_budget = Column(Float, nullable=True)
+    raw_json = Column(Text, nullable=True)                      # respuesta raw de la API
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        # un snapshot por campaña por día
+        {"sqlite_autoincrement": False},
+    )
+
+
 class AuditLog(Base):
     """Registro inmutable de cambios en tablas críticas."""
     __tablename__ = "audit_logs"

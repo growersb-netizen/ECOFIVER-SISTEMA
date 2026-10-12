@@ -159,6 +159,59 @@
   </div>
 </div>
 
+<!-- ── DASHBOARD CAMPAÑAS META ADS ──────────────────────────────────────── -->
+<div class="card" id="card-campanas" style="padding:14px;margin-bottom:14px">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="toggleCampanas()">
+      <span style="font-size:13px;font-weight:700">📊 Campañas Meta Ads</span>
+      <span id="campanas-badge" style="display:none;font-size:10px;font-weight:600;background:#4f46e5;color:#fff;border-radius:20px;padding:2px 8px"></span>
+      <span id="campanas-chevron" style="font-size:12px;color:var(--text-muted);display:inline-block;transition:transform .2s">▼</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select id="camp-periodo" onchange="if(_campanasVisible)cargarCampanas()" style="padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px">
+        <option value="hoy">Hoy</option>
+        <option value="semana">Semana</option>
+        <option value="mes">Mes</option>
+        <option value="maximo">Máximo</option>
+      </select>
+      <button onclick="if(_campanasVisible)cargarCampanas()" class="btn btn-ghost btn-sm" title="Actualizar">🔄</button>
+      <button onclick="abrirConfigPortafolios()" class="btn btn-ghost btn-sm" title="Configurar tokens de portafolios">⚙️</button>
+    </div>
+  </div>
+
+  <!-- cuerpo colapsable -->
+  <div id="campanas-body" style="display:none;margin-top:12px">
+    <!-- balances inline por portafolio -->
+    <div id="campanas-balances" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div id="campanas-loading" style="color:var(--text-muted);font-size:13px;padding:20px;text-align:center">Cargando campañas…</div>
+    <div id="campanas-error" style="display:none;color:#f59e0b;padding:10px;font-size:13px;border-radius:8px;background:rgba(245,158,11,.08)"></div>
+    <div id="campanas-tabla" style="display:none;overflow-x:auto"></div>
+    <div id="campanas-vacio" style="display:none;color:var(--text-muted);font-size:12px;padding:14px;text-align:center;background:var(--bg-hover);border-radius:8px">
+      Sin campañas activas para el período seleccionado. Configurá el token del portafolio publicitario con ⚙️.
+    </div>
+  </div>
+</div>
+
+<!-- Modal config portafolios -->
+<div id="modal-portafolios" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg-card);border-radius:12px;padding:20px;width:min(520px,95vw);max-height:80vh;overflow-y:auto;border:1px solid var(--border)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700">⚙️ Portafolios Meta Ads</div>
+      <button onclick="document.getElementById('modal-portafolios').style.display='none'" class="btn btn-ghost btn-sm">✕</button>
+    </div>
+    <div id="portafolios-lista-modal" style="color:var(--text-muted);font-size:13px">Cargando…</div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px">NUEVO PORTAFOLIO</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="new-port-nombre" type="text" placeholder="Nombre *" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px">
+        <input id="new-port-adaccount" type="text" placeholder="act_XXXXXXXXX" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace">
+      </div>
+      <input id="new-port-token" type="password" placeholder="System User Token (opcional, para ver métricas)" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:8px;border:1px solid #f59e0b;background:var(--bg-hover);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px">
+      <button onclick="crearPortafolio()" class="btn btn-primary btn-sm" style="width:100%">+ Crear portafolio</button>
+    </div>
+  </div>
+</div>
+
 <!-- Tabla de páginas -->
 <div class="card" style="padding:14px;margin-bottom:14px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
@@ -2399,6 +2452,227 @@ async function verWABAs() {
 }
 
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CAMPAÑAS META ADS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let _campanasVisible = false;
+
+function toggleCampanas() {
+  _campanasVisible = !_campanasVisible;
+  const body   = document.getElementById('campanas-body');
+  const chevron= document.getElementById('campanas-chevron');
+  if (!body) return;
+  if (_campanasVisible) {
+    body.style.display = 'block';
+    chevron.style.transform = 'rotate(180deg)';
+    cargarCampanas();
+  } else {
+    body.style.display = 'none';
+    chevron.style.transform = '';
+  }
+}
+
+async function cargarCampanas() {
+  const periodo  = document.getElementById('camp-periodo')?.value || 'hoy';
+  const loadEl   = document.getElementById('campanas-loading');
+  const errorEl  = document.getElementById('campanas-error');
+  const tablaEl  = document.getElementById('campanas-tabla');
+  const vacioEl  = document.getElementById('campanas-vacio');
+  const balEl    = document.getElementById('campanas-balances');
+  const badge    = document.getElementById('campanas-badge');
+
+  loadEl.style.display = 'block';
+  errorEl.style.display = 'none';
+  tablaEl.style.display = 'none';
+  vacioEl.style.display = 'none';
+
+  try {
+    const r = await fetch(`/api/meta/campanas/dashboard?periodo=${encodeURIComponent(periodo)}`, {
+      credentials: 'include',
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error al cargar campañas');
+    loadEl.style.display = 'none';
+
+    const portafolios = data.portafolios || [];
+
+    // ── balances ──────────────────────────────────────────────────────────
+    if (balEl) {
+      balEl.innerHTML = portafolios.map(p => {
+        const tot = p.totales || {};
+        const hasError = p.error && !p.campanas?.length;
+        return `
+        <div style="background:var(--bg-hover);border-radius:8px;padding:10px 14px;flex:1;min-width:170px;border-left:3px solid ${esc(p.color||'#4f46e5')}">
+          <div style="font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">${esc(p.portafolio)}</div>
+          ${hasError ? `<div style="font-size:11px;color:#f59e0b">⚠️ ${esc(p.error)}</div>` : `
+          <div style="display:flex;gap:16px;align-items:baseline">
+            <div><span style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums">$${fmtNum(tot.spend||0)}</span><span style="font-size:10px;color:var(--text-muted);margin-left:3px">gastado</span></div>
+            <div><span style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:${tot.leads>0?'#16a34a':'var(--text)'}">${tot.leads||0}</span><span style="font-size:10px;color:var(--text-muted);margin-left:3px">leads</span></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${tot.activas||0} campaña${(tot.activas||0)===1?'':'s'} activa${(tot.activas||0)===1?'':'s'}</div>`}
+        </div>`;
+      }).join('');
+    }
+
+    // ── tabla ─────────────────────────────────────────────────────────────
+    const totalCampanas = portafolios.reduce((s,p)=> s + (p.campanas||[]).length, 0);
+    badge.textContent = `${totalCampanas} campaña${totalCampanas===1?'':'s'}`;
+    badge.style.display = totalCampanas ? 'inline-block' : 'none';
+
+    if (!totalCampanas) {
+      vacioEl.style.display = 'block';
+      return;
+    }
+
+    let html = '';
+    for (const pf of portafolios) {
+      const campanas = pf.campanas || [];
+      if (!campanas.length) continue;
+      html += `
+      <div style="margin-bottom:18px">
+        <div style="font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${esc(pf.color||'#4f46e5')};flex-shrink:0"></span>
+          ${esc(pf.portafolio)}
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:580px">
+          <thead>
+            <tr style="color:var(--text-muted);border-bottom:2px solid var(--border)">
+              <th style="text-align:left;padding:5px 8px;font-weight:600">Campaña</th>
+              <th style="text-align:left;padding:5px 8px;font-weight:600">Página / Vendedor</th>
+              <th style="text-align:right;padding:5px 8px;font-weight:600">Leads</th>
+              <th style="text-align:right;padding:5px 8px;font-weight:600">Gasto $</th>
+              <th style="text-align:right;padding:5px 8px;font-weight:600">CPL $</th>
+              <th style="text-align:right;padding:5px 8px;font-weight:600">Presup.</th>
+              <th style="text-align:center;padding:5px 8px;font-weight:600">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${campanas.map(c => {
+              const cplColor = !c.cpl ? 'var(--text-muted)' : c.cpl < 1500 ? '#16a34a' : c.cpl < 4000 ? '#d97706' : '#dc2626';
+              const budgetStr = c.daily_budget ? `$${fmtNum(c.daily_budget)}/d` : '—';
+              const stBg    = c.status === 'ACTIVE' ? 'rgba(22,163,74,.12)' : 'var(--bg-hover)';
+              const stColor = c.status === 'ACTIVE' ? '#16a34a' : 'var(--text-muted)';
+              return `
+              <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+                <td style="padding:7px 8px;max-width:210px">
+                  <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.nombre)}">${esc(c.nombre)}</div>
+                </td>
+                <td style="padding:7px 8px;max-width:150px">
+                  <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.pagina_nombre||'—')}</div>
+                  ${c.vendedor && c.vendedor!==c.pagina_nombre ? `<div style="font-size:10px;color:var(--text-muted)">${esc(c.vendedor)}</div>`:''}
+                  ${c.whatsapp ? `<div style="font-size:10px;color:#16a34a">📲 ${esc(c.whatsapp)}</div>`:''}
+                </td>
+                <td style="padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px">${c.leads||0}</td>
+                <td style="padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums">$${fmtNum(c.spend||0)}</td>
+                <td style="padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:${cplColor}">${c.cpl?'$'+fmtNum(c.cpl):'—'}</td>
+                <td style="padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-muted)">${budgetStr}</td>
+                <td style="padding:7px 8px;text-align:center">
+                  <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;background:${stBg};color:${stColor}">${esc(c.status||'—')}</span>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }
+    tablaEl.innerHTML = html;
+    tablaEl.style.display = 'block';
+
+  } catch(e) {
+    loadEl.style.display = 'none';
+    errorEl.textContent = '⚠️ ' + e.message;
+    errorEl.style.display = 'block';
+  }
+}
+
+function fmtNum(n) {
+  const num = parseFloat(n);
+  if (isNaN(num)) return '0';
+  return num.toLocaleString('es-AR', { minimumFractionDigits:0, maximumFractionDigits:0 });
+}
+
+/* ── CONFIG PORTAFOLIOS ──────────────────────────────────────────────────── */
+
+async function abrirConfigPortafolios() {
+  const modal = document.getElementById('modal-portafolios');
+  const lista = document.getElementById('portafolios-lista-modal');
+  modal.style.display = 'flex';
+  lista.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Cargando…</div>';
+  try {
+    const r = await fetch('/api/meta/portafolios', { credentials: 'include' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Error');
+    const pfs = d.portafolios || [];
+    if (!pfs.length) {
+      lista.innerHTML = '<div style="color:var(--text-muted);font-size:12px">Sin portafolios configurados.</div>';
+      return;
+    }
+    lista.innerHTML = pfs.map(p => `
+    <div style="padding:10px;background:var(--bg-hover);border-radius:8px;margin-bottom:8px;border-left:3px solid ${esc(p.color||'#4f46e5')}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-weight:600;font-size:13px">${esc(p.nombre)}</div>
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${p.activo?'rgba(22,163,74,.15)':'var(--border)'};color:${p.activo?'#16a34a':'var(--text-muted)'}">${p.activo?'Activo':'Inactivo'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">
+        Cuenta: <code style="font-family:monospace">${esc(p.ad_account_id||'—')}</code> · Token: ${p.tiene_token?'✅ configurado':'❌ sin token'}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="token-input-${p.id}" type="password" placeholder="Nuevo System User Token" style="flex:1;min-width:160px;padding:5px 8px;border-radius:6px;border:1px solid #f59e0b;background:var(--bg-card);color:var(--text);font-size:11px;font-family:monospace">
+        <button onclick="guardarTokenPortafolio(${p.id})" class="btn btn-primary btn-sm">Guardar token</button>
+      </div>
+    </div>`).join('');
+  } catch(e) {
+    lista.innerHTML = `<div style="color:#f59e0b;font-size:12px">⚠️ ${esc(e.message)}</div>`;
+  }
+}
+
+async function guardarTokenPortafolio(id) {
+  const input = document.getElementById('token-input-' + id);
+  const token = input?.value.trim();
+  if (!token) { toast('Ingresá el token primero', 'error'); return; }
+  try {
+    const r = await fetch(`/api/meta/portafolios/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ system_token: token }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Error');
+    toast('✅ Token guardado');
+    input.value = '';
+    abrirConfigPortafolios();
+    if (_campanasVisible) cargarCampanas();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function crearPortafolio() {
+  const nombre = document.getElementById('new-port-nombre')?.value.trim();
+  const adAccount = document.getElementById('new-port-adaccount')?.value.trim();
+  const token = document.getElementById('new-port-token')?.value.trim();
+  if (!nombre) { toast('El nombre es requerido', 'error'); return; }
+  try {
+    const r = await fetch('/api/meta/portafolios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ nombre, ad_account_id: adAccount || null, system_token: token || null }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Error');
+    toast('✅ Portafolio creado');
+    document.getElementById('new-port-nombre').value = '';
+    document.getElementById('new-port-adaccount').value = '';
+    document.getElementById('new-port-token').value = '';
+    abrirConfigPortafolios();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
 
 /* ─── init ───────────────────────────────────────────────────────────────── */
 setTab('feed');

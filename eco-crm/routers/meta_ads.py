@@ -1,564 +1,477 @@
 """
-Módulo Meta Ads — gestión de campañas publicitarias de Facebook/Instagram.
-Endpoints: /api/ads/...
+Meta Ads API — portafolios, campañas y dashboard de rendimiento.
+Endpoints: /api/meta/portafolios  /api/meta/campanas/dashboard  etc.
 """
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import date, timedelta
+from typing import Optional, List
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
 
 from database.database import get_db
-from database.models import MetaPagina, Usuario
+from database.models import MetaPortafolio, MetaCampanaSnapshot, MetaPagina, Usuario, Lead
+from database.encryption import encrypt_value, decrypt_value
 from routers.auth import require_auth, get_user_roles
-from routers.configuracion import get_config_value
-from routers.ecopost import META_GRAPH_URL
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 log = logging.getLogger(__name__)
 
-BM_ID = "753481671171165"
+META_GRAPH = "https://graph.facebook.com/v19.0"
 
+
+# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _check_access(user: Usuario, db: Session):
     roles = get_user_roles(user)
     if "ADMIN" not in roles and "COORDINADOR_OPERATIVO" not in roles:
-        raise HTTPException(403, "Sin acceso al módulo de campañas")
+        raise HTTPException(403, "Sin acceso al módulo de Ads")
     return roles
 
 
-def _audit_auth(t: str):
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
-        raise HTTPException(403, "Forbidden")
+def _portafolio_dict(p: MetaPortafolio) -> dict:
+    return {
+        "id": p.id,
+        "nombre": p.nombre,
+        "slug": p.slug,
+        "ad_account_id": p.ad_account_id,
+        "tiene_token": bool(p.system_token_enc),
+        "activo": p.activo,
+        "color": p.color or "#4f46e5",
+    }
 
 
-def _get_token(db: Session) -> str:
-    token = get_config_value("meta_page_access_token", db) or ""
-    if not token:
-        raise HTTPException(400, "No hay token de usuario Meta guardado. Sincronizá páginas primero desde el panel de Redes.")
-    return token
-
-
-async def _graph_get(path: str, params: dict, timeout: int = 30) -> dict:
+async def _ads_get(token: str, path: str, params: dict, timeout: int = 20) -> dict:
+    url = f"{META_GRAPH}/{path.lstrip('/')}"
+    params["access_token"] = token
     async with httpx.AsyncClient(timeout=timeout) as hc:
-        r = await hc.get(f"{META_GRAPH_URL}/{path}", params=params)
+        r = await hc.get(url, params=params)
     body = r.json() if r.content else {}
     if r.status_code != 200 or "error" in body:
         err = body.get("error", {})
-        raise HTTPException(400, err.get("message", r.text[:300]))
+        raise HTTPException(400, err.get("message", f"Meta API error: {r.text[:200]}"))
     return body
 
 
-async def _graph_post(path: str, data: dict, timeout: int = 20) -> dict:
-    async with httpx.AsyncClient(timeout=timeout) as hc:
-        r = await hc.post(f"{META_GRAPH_URL}/{path}", data=data)
-    body = r.json() if r.content else {}
-    if r.status_code not in (200, 201) or "error" in body:
-        err = body.get("error", {})
-        raise HTTPException(400, err.get("message", r.text[:300]))
-    return body
+def _date_range(periodo: str):
+    """Devuelve (date_start, date_end) para la Ads API según el periodo."""
+    hoy = date.today()
+    if periodo == "hoy":
+        return hoy.isoformat(), hoy.isoformat()
+    elif periodo == "semana":
+        lun = hoy - timedelta(days=hoy.weekday())
+        return lun.isoformat(), hoy.isoformat()
+    elif periodo == "mes":
+        return hoy.replace(day=1).isoformat(), hoy.isoformat()
+    elif periodo == "maximo":
+        return None, None   # se usa lifetime en la API
+    return hoy.isoformat(), hoy.isoformat()
 
 
-# ─── HTML PAGE ────────────────────────────────────────────────────────────────
+# ── PORTAFOLIOS CRUD ─────────────────────────────────────────────────────────
 
-@router.get("/ads", response_class=HTMLResponse)
-async def ads_page(
+@router.get("/api/meta/portafolios")
+async def list_portafolios(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pfs = db.query(MetaPortafolio).order_by(MetaPortafolio.nombre).all()
+    return {"portafolios": [_portafolio_dict(p) for p in pfs]}
+
+
+@router.post("/api/meta/portafolios")
+async def crear_portafolio(
     request: Request,
-    user: Usuario = Depends(require_auth),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
 ):
-    _check_access(user, db)
-    return templates.TemplateResponse("meta_ads.html", {"request": request, "user": user})
+    _check_access(current_user, db)
+    data = await request.json()
+    nombre = (data.get("nombre") or "").strip()
+    slug = (data.get("slug") or nombre.lower().replace(" ", "_")).strip()
+    if not nombre or not slug:
+        raise HTTPException(400, "nombre y slug son requeridos")
+    if db.query(MetaPortafolio).filter_by(slug=slug).first():
+        raise HTTPException(409, f"Ya existe un portafolio con slug '{slug}'")
+    p = MetaPortafolio(
+        nombre=nombre,
+        slug=slug,
+        ad_account_id=data.get("ad_account_id") or None,
+        activo=True,
+        color=data.get("color") or "#4f46e5",
+    )
+    token_raw = (data.get("system_token") or "").strip()
+    if token_raw:
+        p.system_token_enc = encrypt_value(token_raw)
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return {"ok": True, "portafolio": _portafolio_dict(p)}
 
 
-# ─── CUENTAS PUBLICITARIAS ───────────────────────────────────────────────────
-
-@router.get("/api/ads/cuentas")
-async def api_ads_cuentas(
-    t: str = "",
-    user: Usuario = Depends(require_auth),
+@router.put("/api/meta/portafolios/{portafolio_id}")
+async def actualizar_portafolio(
+    portafolio_id: int,
+    request: Request,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
 ):
-    """Lista las cuentas publicitarias accesibles."""
-    _check_access(user, db)
-    token = _get_token(db)
+    _check_access(current_user, db)
+    p = db.query(MetaPortafolio).filter_by(id=portafolio_id).first()
+    if not p:
+        raise HTTPException(404, "Portafolio no encontrado")
+    data = await request.json()
+    if "nombre" in data:
+        p.nombre = data["nombre"].strip()
+    if "ad_account_id" in data:
+        p.ad_account_id = (data["ad_account_id"] or "").strip() or None
+    if "color" in data:
+        p.color = data["color"]
+    if "activo" in data:
+        p.activo = bool(data["activo"])
+    token_raw = (data.get("system_token") or "").strip()
+    if token_raw:
+        p.system_token_enc = encrypt_value(token_raw)
+    elif data.get("borrar_token"):
+        p.system_token_enc = None
+    db.commit()
+    return {"ok": True, "portafolio": _portafolio_dict(p)}
 
-    # Intentar cuentas del BM primero
+
+# ── BALANCE DE CUENTA PUBLICITARIA ───────────────────────────────────────────
+
+@router.get("/api/meta/portafolios/{portafolio_id}/balance")
+async def portafolio_balance(
+    portafolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    p = db.query(MetaPortafolio).filter_by(id=portafolio_id).first()
+    if not p:
+        raise HTTPException(404, "Portafolio no encontrado")
+    if not p.ad_account_id or not p.system_token_enc:
+        return {"ok": False, "error": "Portafolio sin cuenta publicitaria o token configurado"}
+    token = decrypt_value(p.system_token_enc)
+    acc_id = p.ad_account_id if p.ad_account_id.startswith("act_") else f"act_{p.ad_account_id}"
     try:
-        data = await _graph_get(
-            f"{BM_ID}/owned_ad_accounts",
-            {"fields": "id,name,account_status,currency,spend_cap,amount_spent", "limit": 50, "access_token": token},
-        )
-        cuentas = data.get("data", [])
-    except HTTPException:
-        cuentas = []
-
-    # Si BM no devuelve nada, intentar /me/adaccounts
-    if not cuentas:
-        try:
-            data2 = await _graph_get(
-                "me/adaccounts",
-                {"fields": "id,name,account_status,currency,amount_spent", "limit": 50, "access_token": token},
-            )
-            cuentas = data2.get("data", [])
-        except HTTPException:
-            cuentas = []
-
-    status_map = {1: "ACTIVA", 2: "DESHABILITADA", 3: "SIN PAGAR", 7: "ARCHIVADA", 9: "EN REVISIÓN"}
-    for c in cuentas:
-        c["status_label"] = status_map.get(c.get("account_status"), str(c.get("account_status", "?")))
-        spent = c.get("amount_spent")
-        c["gasto_display"] = f"${int(spent)/100:.2f} {c.get('currency','')}" if spent else "—"
-
-    return {"ok": True, "cuentas": cuentas, "total": len(cuentas)}
+        data = await _ads_get(token, acc_id, {
+            "fields": "name,balance,amount_spent,currency,spend_cap,account_status"
+        })
+        return {
+            "ok": True,
+            "nombre_cuenta": data.get("name"),
+            "balance": float(data.get("balance") or 0) / 100,
+            "gastado": float(data.get("amount_spent") or 0) / 100,
+            "moneda": data.get("currency", "ARS"),
+            "estado": data.get("account_status"),
+        }
+    except HTTPException as e:
+        return {"ok": False, "error": e.detail}
 
 
-# ─── CAMPAÑAS ────────────────────────────────────────────────────────────────
+# ── CAMPAÑAS CON INSIGHTS ─────────────────────────────────────────────────────
 
-@router.get("/api/ads/cuentas/{account_id}/campanias")
-async def api_ads_campanias(
-    account_id: str,
-    user: Usuario = Depends(require_auth),
+@router.get("/api/meta/portafolios/{portafolio_id}/campanas")
+async def portafolio_campanas(
+    portafolio_id: int,
+    periodo: str = "hoy",   # hoy | semana | mes | maximo
+    solo_activas: bool = True,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
 ):
-    """Lista campañas de una cuenta publicitaria con métricas básicas."""
-    _check_access(user, db)
-    token = _get_token(db)
-    acc = account_id if account_id.startswith("act_") else f"act_{account_id}"
+    _check_access(current_user, db)
+    p = db.query(MetaPortafolio).filter_by(id=portafolio_id).first()
+    if not p:
+        raise HTTPException(404, "Portafolio no encontrado")
+    if not p.ad_account_id or not p.system_token_enc:
+        return {"ok": False, "campanas": [], "error": "Token o cuenta no configurada"}
 
-    data = await _graph_get(
-        f"{acc}/campaigns",
-        {
-            "fields": "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time",
+    token = decrypt_value(p.system_token_enc)
+    acc_id = p.ad_account_id if p.ad_account_id.startswith("act_") else f"act_{p.ad_account_id}"
+
+    # Filtro de estado
+    status_filter = "ACTIVE" if solo_activas else "ACTIVE,PAUSED,ARCHIVED"
+    date_start, date_end = _date_range(periodo)
+
+    insight_fields = (
+        "spend,impressions,clicks,actions,cost_per_action_type,"
+        "reach,frequency"
+    )
+    params: dict = {
+        "fields": (
+            f"id,name,status,daily_budget,lifetime_budget,objective,"
+            f"insights{{"
+            f"fields={insight_fields},"
+            f"{'date_preset=lifetime' if periodo == 'maximo' else f'time_range={{since:{date_start!r},until:{date_end!r}}}'}"
+            f"}}"
+        ),
+        "effective_status": f'["{status_filter.replace(",", \'","\') }"]',
+        "limit": 100,
+    }
+
+    try:
+        raw = await _ads_get(token, f"{acc_id}/campaigns", params)
+    except HTTPException as e:
+        return {"ok": False, "campanas": [], "error": e.detail}
+
+    campanas = []
+    for c in raw.get("data", []):
+        insights = (c.get("insights") or {}).get("data", [{}])[0] if c.get("insights") else {}
+        spend = float(insights.get("spend") or 0)
+        impressions = int(insights.get("impressions") or 0)
+        clicks = int(insights.get("clicks") or 0)
+
+        # Extraer leads (messaging_conversation_started o lead action)
+        actions = insights.get("actions") or []
+        leads = 0
+        for act in actions:
+            if act.get("action_type") in (
+                "messaging_conversation_started_7d",
+                "onsite_conversion.messaging_conversation_started_7d",
+                "lead",
+            ):
+                leads += int(act.get("value") or 0)
+
+        cpl = round(spend / leads, 2) if leads > 0 else None
+        daily_budget = float(c.get("daily_budget") or 0) / 100
+        lifetime_budget = float(c.get("lifetime_budget") or 0) / 100
+
+        campanas.append({
+            "campaign_id": c["id"],
+            "nombre": c["name"],
+            "status": c.get("status"),
+            "objetivo": c.get("objective"),
+            "daily_budget": daily_budget or None,
+            "lifetime_budget": lifetime_budget or None,
+            "spend": spend,
+            "impressions": impressions,
+            "clicks": clicks,
+            "leads": leads,
+            "cpl": cpl,
+        })
+
+    return {
+        "ok": True,
+        "portafolio": p.nombre,
+        "periodo": periodo,
+        "campanas": campanas,
+        "totales": {
+            "spend": round(sum(c["spend"] for c in campanas), 2),
+            "leads": sum(c["leads"] for c in campanas),
+            "campanas_activas": sum(1 for c in campanas if c["status"] == "ACTIVE"),
+        },
+    }
+
+
+# ── DASHBOARD UNIFICADO (todos los portafolios) ────────────────────────────
+
+@router.get("/api/meta/campanas/dashboard")
+async def campanas_dashboard(
+    periodo: str = "hoy",
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    portafolios = db.query(MetaPortafolio).filter_by(activo=True).all()
+
+    # Índice de páginas para cruzar page_id → vendedor + whatsapp
+    paginas_idx = {
+        pg.page_id: pg
+        for pg in db.query(MetaPagina).all()
+    }
+
+    resultado = []
+    for pf in portafolios:
+        if not pf.ad_account_id or not pf.system_token_enc:
+            resultado.append({
+                "portafolio_id": pf.id,
+                "portafolio": pf.nombre,
+                "color": pf.color,
+                "error": "Sin token configurado",
+                "campanas": [],
+            })
+            continue
+        token = decrypt_value(pf.system_token_enc)
+        acc_id = pf.ad_account_id if pf.ad_account_id.startswith("act_") else f"act_{pf.ad_account_id}"
+        date_start, date_end = _date_range(periodo)
+
+        insight_fields = "spend,impressions,clicks,actions"
+        params: dict = {
+            "fields": (
+                f"id,name,status,daily_budget,lifetime_budget,"
+                f"adsets{{name,promoted_object}},"
+                f"insights{{"
+                f"fields={insight_fields},"
+                f"{'date_preset=lifetime' if periodo == 'maximo' else f'time_range={{since:{date_start!r},until:{date_end!r}}}'}"
+                f"}}"
+            ),
+            "effective_status": '["ACTIVE"]',
             "limit": 100,
-            "access_token": token,
-        },
-    )
-    campanias = data.get("data", [])
-
-    # Insights del último mes para cada campaña (en batch si hubiera muchas)
-    date_from = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
-    date_to = datetime.utcnow().strftime("%Y-%m-%d")
-
-    for c in campanias:
+        }
         try:
-            ins = await _graph_get(
-                f"{c['id']}/insights",
-                {
-                    "fields": "spend,impressions,reach,clicks,cpm,cpc,ctr,actions",
-                    "date_preset": "last_30d",
-                    "access_token": token,
-                },
+            raw = await _ads_get(token, f"{acc_id}/campaigns", params)
+        except HTTPException as e:
+            resultado.append({
+                "portafolio_id": pf.id,
+                "portafolio": pf.nombre,
+                "color": pf.color,
+                "error": e.detail,
+                "campanas": [],
+            })
+            continue
+
+        campanas_pf = []
+        for c in raw.get("data", []):
+            insights = (c.get("insights") or {}).get("data", [{}])[0] if c.get("insights") else {}
+            spend = float(insights.get("spend") or 0)
+            clicks = int(insights.get("clicks") or 0)
+            actions = insights.get("actions") or []
+            leads = sum(
+                int(a.get("value") or 0) for a in actions
+                if a.get("action_type") in (
+                    "messaging_conversation_started_7d",
+                    "onsite_conversion.messaging_conversation_started_7d",
+                    "lead",
+                )
             )
-            metrics = ins.get("data", [{}])[0] if ins.get("data") else {}
-            c["metricas"] = {
-                "gasto": f"${float(metrics.get('spend', 0)):.2f}",
-                "impresiones": int(metrics.get("impressions", 0)),
-                "alcance": int(metrics.get("reach", 0)),
-                "clics": int(metrics.get("clicks", 0)),
-                "cpm": f"${float(metrics.get('cpm', 0)):.2f}",
-                "cpc": f"${float(metrics.get('cpc', 0)):.2f}",
-                "ctr": f"{float(metrics.get('ctr', 0)):.2f}%",
-            }
-            # Extraer conversaciones/mensajes de actions
-            actions = metrics.get("actions", [])
-            for a in actions:
-                if a.get("action_type") in ("onsite_conversion.messaging_conversation_started_7d", "lead"):
-                    c["metricas"]["leads"] = int(a.get("value", 0))
-        except Exception:
-            c["metricas"] = {}
+            cpl = round(spend / leads, 2) if leads > 0 else None
 
-        # Presupuesto legible
-        if c.get("daily_budget"):
-            c["presupuesto"] = f"${int(c['daily_budget'])/100:.0f}/día"
-        elif c.get("lifetime_budget"):
-            c["presupuesto"] = f"${int(c['lifetime_budget'])/100:.0f} total"
-        else:
-            c["presupuesto"] = "—"
+            # Intentar asociar página a un vendedor
+            page_id = None
+            adsets_data = (c.get("adsets") or {}).get("data", [])
+            for ads in adsets_data:
+                po = ads.get("promoted_object") or {}
+                if po.get("page_id"):
+                    page_id = po["page_id"]
+                    break
 
-    status_order = {"ACTIVE": 0, "PAUSED": 1, "ARCHIVED": 2, "DELETED": 3}
-    campanias.sort(key=lambda x: status_order.get(x.get("status", ""), 9))
+            pagina = paginas_idx.get(page_id) if page_id else None
+            vendedor = (pagina.vendedor if pagina else None) or (pagina.nombre if pagina else None)
+            whatsapp = pagina.numero_whatsapp if pagina else None
 
-    return {"ok": True, "campanias": campanias, "total": len(campanias), "account_id": acc}
+            campanas_pf.append({
+                "campaign_id": c["id"],
+                "nombre": c["name"],
+                "status": c.get("status"),
+                "page_id": page_id,
+                "pagina_nombre": pagina.nombre if pagina else None,
+                "vendedor": vendedor,
+                "whatsapp": whatsapp,
+                "spend": spend,
+                "clicks": clicks,
+                "leads": leads,
+                "cpl": cpl,
+                "daily_budget": float(c.get("daily_budget") or 0) / 100 or None,
+            })
+
+        resultado.append({
+            "portafolio_id": pf.id,
+            "portafolio": pf.nombre,
+            "color": pf.color,
+            "slug": pf.slug,
+            "campanas": campanas_pf,
+            "totales": {
+                "spend": round(sum(x["spend"] for x in campanas_pf), 2),
+                "leads": sum(x["leads"] for x in campanas_pf),
+                "activas": len(campanas_pf),
+            },
+        })
+
+    return {"ok": True, "periodo": periodo, "portafolios": resultado}
 
 
-# ─── INSIGHTS DE CUENTA ───────────────────────────────────────────────────────
+# ── LEADS DEL DÍA POR PÁGINA/VENDEDOR ────────────────────────────────────────
 
-@router.get("/api/ads/cuentas/{account_id}/insights")
-async def api_ads_cuenta_insights(
-    account_id: str,
-    periodo: str = "last_30d",
-    user: Usuario = Depends(require_auth),
+@router.get("/api/meta/leads-stats")
+async def leads_stats_por_pagina(
+    periodo: str = "hoy",   # hoy | semana | mes
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
 ):
-    """Métricas agregadas de una cuenta publicitaria."""
-    _check_access(user, db)
-    token = _get_token(db)
-    acc = account_id if account_id.startswith("act_") else f"act_{account_id}"
+    _check_access(current_user, db)
+    from datetime import datetime
+    import pytz
 
-    data = await _graph_get(
-        f"{acc}/insights",
-        {
-            "fields": "spend,impressions,reach,clicks,cpm,cpc,ctr,actions,account_name,account_id",
-            "date_preset": periodo,
-            "level": "account",
-            "access_token": token,
-        },
+    tz = pytz.timezone("America/Argentina/Buenos_Aires")
+    ahora = datetime.now(tz)
+    hoy = ahora.date()
+
+    if periodo == "hoy":
+        desde = datetime(hoy.year, hoy.month, hoy.day, tzinfo=tz)
+    elif periodo == "semana":
+        lun = hoy - timedelta(days=hoy.weekday())
+        desde = datetime(lun.year, lun.month, lun.day, tzinfo=tz)
+    elif periodo == "mes":
+        desde = datetime(hoy.year, hoy.month, 1, tzinfo=tz)
+    else:
+        desde = datetime(hoy.year, hoy.month, hoy.day, tzinfo=tz)
+
+    # Agrupar leads por página Meta y por asesor
+    from sqlalchemy import and_
+    leads = (
+        db.query(Lead)
+        .filter(Lead.created_at >= desde)
+        .all()
     )
-    metrics = data.get("data", [{}])[0] if data.get("data") else {}
 
-    leads = 0
-    for a in metrics.get("actions", []):
-        if a.get("action_type") in (
-            "onsite_conversion.messaging_conversation_started_7d",
-            "lead",
-            "omni_initiated_checkout",
-        ):
-            leads += int(a.get("value", 0))
+    paginas_idx = {pg.page_id: pg for pg in db.query(MetaPagina).all()}
+    # Índice asesor_id → nombre
+    from database.models import Usuario as U
+    asesores = {u.id: u.nombre for u in db.query(U).all()}
+
+    por_pagina: dict = {}
+    sin_pagina = []
+    for lead in leads:
+        pid = getattr(lead, "meta_pagina_id", None)
+        if pid and pid in paginas_idx:
+            pg = paginas_idx[pid]
+            key = pid
+            if key not in por_pagina:
+                por_pagina[key] = {
+                    "page_id": pid,
+                    "pagina": pg.nombre,
+                    "vendedor": pg.vendedor or pg.nombre,
+                    "whatsapp": pg.numero_whatsapp,
+                    "portafolio": pg.portafolio,
+                    "leads": 0,
+                }
+            por_pagina[key]["leads"] += 1
+        else:
+            asesor_id = lead.asesor_apertura_id
+            asesor_nom = asesores.get(asesor_id, f"Asesor #{asesor_id}") if asesor_id else "Sin asignar"
+            sin_pagina.append(asesor_nom)
 
     return {
         "ok": True,
         "periodo": periodo,
-        "gasto": float(metrics.get("spend", 0)),
-        "impresiones": int(metrics.get("impressions", 0)),
-        "alcance": int(metrics.get("reach", 0)),
-        "clics": int(metrics.get("clicks", 0)),
-        "cpm": float(metrics.get("cpm", 0)),
-        "cpc": float(metrics.get("cpc", 0)),
-        "ctr": float(metrics.get("ctr", 0)),
-        "leads": leads,
+        "total_leads": len(leads),
+        "por_pagina": list(por_pagina.values()),
+        "sin_pagina": len(sin_pagina),
     }
 
 
-# ─── INSIGHTS DE CAMPAÑA ──────────────────────────────────────────────────────
+# ── ASOCIAR PÁGINA META A UN LEAD ────────────────────────────────────────────
 
-@router.get("/api/ads/campanias/{campaign_id}/insights")
-async def api_ads_campania_insights(
-    campaign_id: str,
-    periodo: str = "last_30d",
-    user: Usuario = Depends(require_auth),
-    db: Session = Depends(get_db),
-):
-    _check_access(user, db)
-    token = _get_token(db)
-
-    data = await _graph_get(
-        f"{campaign_id}/insights",
-        {
-            "fields": "campaign_name,spend,impressions,reach,clicks,cpm,cpc,ctr,actions,date_start,date_stop",
-            "date_preset": periodo,
-            "breakdowns": "age,gender",
-            "access_token": token,
-        },
-    )
-    return {"ok": True, "periodo": periodo, "data": data.get("data", [])}
-
-
-# ─── CONJUNTOS DE ANUNCIOS ────────────────────────────────────────────────────
-
-@router.get("/api/ads/campanias/{campaign_id}/conjuntos")
-async def api_ads_conjuntos(
-    campaign_id: str,
-    user: Usuario = Depends(require_auth),
-    db: Session = Depends(get_db),
-):
-    _check_access(user, db)
-    token = _get_token(db)
-
-    data = await _graph_get(
-        f"{campaign_id}/adsets",
-        {
-            "fields": "id,name,status,daily_budget,lifetime_budget,optimization_goal,billing_event,targeting,start_time,end_time",
-            "limit": 100,
-            "access_token": token,
-        },
-    )
-    conjuntos = data.get("data", [])
-
-    for cs in conjuntos:
-        try:
-            ins = await _graph_get(
-                f"{cs['id']}/insights",
-                {"fields": "spend,impressions,reach,clicks,cpm,cpc", "date_preset": "last_30d", "access_token": token},
-            )
-            m = ins.get("data", [{}])[0] if ins.get("data") else {}
-            cs["metricas"] = {
-                "gasto": f"${float(m.get('spend', 0)):.2f}",
-                "impresiones": int(m.get("impressions", 0)),
-                "alcance": int(m.get("reach", 0)),
-                "clics": int(m.get("clicks", 0)),
-            }
-        except Exception:
-            cs["metricas"] = {}
-
-    return {"ok": True, "conjuntos": conjuntos, "total": len(conjuntos)}
-
-
-# ─── ANUNCIOS ────────────────────────────────────────────────────────────────
-
-@router.get("/api/ads/campanias/{campaign_id}/anuncios")
-async def api_ads_anuncios(
-    campaign_id: str,
-    user: Usuario = Depends(require_auth),
-    db: Session = Depends(get_db),
-):
-    _check_access(user, db)
-    token = _get_token(db)
-
-    data = await _graph_get(
-        f"{campaign_id}/ads",
-        {
-            "fields": "id,name,status,creative{id,name,thumbnail_url,object_story_spec},adset_id",
-            "limit": 100,
-            "access_token": token,
-        },
-    )
-    anuncios = data.get("data", [])
-
-    for ad in anuncios:
-        try:
-            ins = await _graph_get(
-                f"{ad['id']}/insights",
-                {"fields": "spend,impressions,reach,clicks,cpm,cpc,ctr", "date_preset": "last_30d", "access_token": token},
-            )
-            m = ins.get("data", [{}])[0] if ins.get("data") else {}
-            ad["metricas"] = {
-                "gasto": f"${float(m.get('spend', 0)):.2f}",
-                "impresiones": int(m.get("impressions", 0)),
-                "alcance": int(m.get("reach", 0)),
-                "clics": int(m.get("clicks", 0)),
-                "ctr": f"{float(m.get('ctr', 0)):.2f}%",
-                "cpc": f"${float(m.get('cpc', 0)):.2f}",
-            }
-        except Exception:
-            ad["metricas"] = {}
-
-    return {"ok": True, "anuncios": anuncios, "total": len(anuncios)}
-
-
-# ─── PAUSA / ACTIVA CAMPAÑA ───────────────────────────────────────────────────
-
-@router.patch("/api/ads/campanias/{campaign_id}/estado")
-async def api_ads_campania_estado(
-    campaign_id: str,
+@router.patch("/api/leads/{lead_id}/meta-pagina")
+async def asignar_pagina_a_lead(
+    lead_id: int,
     request: Request,
-    user: Usuario = Depends(require_auth),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
 ):
-    _check_access(user, db)
-    token = _get_token(db)
-    body = await request.json()
-    nuevo_estado = body.get("status", "").upper()
-    if nuevo_estado not in ("ACTIVE", "PAUSED"):
-        raise HTTPException(400, "status debe ser ACTIVE o PAUSED")
-
-    data = await _graph_post(campaign_id, {"status": nuevo_estado, "access_token": token})
-    return {"ok": True, "campaign_id": campaign_id, "nuevo_estado": nuevo_estado, "success": data.get("success", False)}
-
-
-# ─── PAUSA / ACTIVA CONJUNTO ──────────────────────────────────────────────────
-
-@router.patch("/api/ads/conjuntos/{adset_id}/estado")
-async def api_ads_adset_estado(
-    adset_id: str,
-    request: Request,
-    user: Usuario = Depends(require_auth),
-    db: Session = Depends(get_db),
-):
-    _check_access(user, db)
-    token = _get_token(db)
-    body = await request.json()
-    nuevo_estado = body.get("status", "").upper()
-    if nuevo_estado not in ("ACTIVE", "PAUSED"):
-        raise HTTPException(400, "status debe ser ACTIVE o PAUSED")
-
-    data = await _graph_post(adset_id, {"status": nuevo_estado, "access_token": token})
-    return {"ok": True, "adset_id": adset_id, "nuevo_estado": nuevo_estado, "success": data.get("success", False)}
-
-
-# ─── COMENTARIOS EN ANUNCIOS ──────────────────────────────────────────────────
-
-@router.get("/api/ads/campanias/{campaign_id}/comentarios")
-async def api_ads_comentarios(
-    campaign_id: str,
-    solo_negativos: bool = False,
-    user: Usuario = Depends(require_auth),
-    db: Session = Depends(get_db),
-):
-    """Obtiene comentarios de todos los anuncios de una campaña."""
-    _check_access(user, db)
-    token = _get_token(db)
-
-    # Primero obtener los ads de la campaña
-    ads_data = await _graph_get(
-        f"{campaign_id}/ads",
-        {"fields": "id,name,creative{object_story_id}", "limit": 100, "access_token": token},
-    )
-    todos_comentarios = []
-
-    for ad in ads_data.get("data", []):
-        story_id = (ad.get("creative") or {}).get("object_story_id")
-        if not story_id:
-            continue
-        try:
-            com_data = await _graph_get(
-                f"{story_id}/comments",
-                {
-                    "fields": "id,message,from,created_time,can_remove,sentiment",
-                    "limit": 100,
-                    "access_token": token,
-                    "filter": "stream",
-                },
-            )
-            for c in com_data.get("data", []):
-                c["ad_id"] = ad["id"]
-                c["ad_name"] = ad.get("name", "")
-                todos_comentarios.append(c)
-        except Exception:
-            pass
-
-    if solo_negativos:
-        negativos_keywords = ["trucho", "estafa", "caro", "malo", "pésimo", "nunca", "robo", "mentira", "cagan"]
-        todos_comentarios = [
-            c for c in todos_comentarios
-            if any(kw in (c.get("message") or "").lower() for kw in negativos_keywords)
-        ]
-
-    todos_comentarios.sort(key=lambda x: x.get("created_time", ""), reverse=True)
-    return {"ok": True, "comentarios": todos_comentarios, "total": len(todos_comentarios)}
-
-
-# ─── ELIMINAR COMENTARIO DE ANUNCIO ──────────────────────────────────────────
-
-@router.delete("/api/ads/comentarios/{comment_id}")
-async def api_ads_eliminar_comentario(
-    comment_id: str,
-    user: Usuario = Depends(require_auth),
-    db: Session = Depends(get_db),
-):
-    _check_access(user, db)
-    token = _get_token(db)
-
-    async with httpx.AsyncClient(timeout=15) as hc:
-        r = await hc.delete(f"{META_GRAPH_URL}/{comment_id}", params={"access_token": token})
-    body = r.json() if r.content else {}
-    if r.status_code != 200 or "error" in body:
-        err = body.get("error", {})
-        raise HTTPException(400, err.get("message", r.text[:200]))
-    return {"ok": True, "comment_id": comment_id, "eliminado": body.get("success", True)}
-
-
-# ─── RESUMEN GLOBAL ───────────────────────────────────────────────────────────
-
-@router.get("/api/ads/resumen")
-async def api_ads_resumen(
-    user: Usuario = Depends(require_auth),
-    db: Session = Depends(get_db),
-):
-    """Dashboard: gasto total, campañas activas, mejores y peores."""
-    _check_access(user, db)
-    token = _get_token(db)
-
-    # Obtener todas las cuentas
-    cuentas = []
-    try:
-        bm_data = await _graph_get(
-            f"{BM_ID}/owned_ad_accounts",
-            {"fields": "id,name,account_status,currency,amount_spent", "limit": 50, "access_token": token},
-        )
-        cuentas = bm_data.get("data", [])
-    except Exception:
-        pass
-
-    if not cuentas:
-        try:
-            me_data = await _graph_get(
-                "me/adaccounts",
-                {"fields": "id,name,account_status,currency,amount_spent", "limit": 50, "access_token": token},
-            )
-            cuentas = me_data.get("data", [])
-        except Exception:
-            pass
-
-    total_gasto = 0.0
-    campanias_activas = 0
-    campanias_pausadas = 0
-    mejor_campania = None
-    peor_campania = None
-    mejor_spend = 0.0
-    mejor_clics = 0
-
-    for cuenta in cuentas:
-        acc_id = cuenta["id"]
-        if not acc_id.startswith("act_"):
-            acc_id = f"act_{acc_id}"
-        spent = cuenta.get("amount_spent")
-        if spent:
-            total_gasto += int(spent) / 100
-
-        # Campañas activas
-        try:
-            c_data = await _graph_get(
-                f"{acc_id}/campaigns",
-                {"fields": "id,name,status", "filtering": '[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]', "limit": 50, "access_token": token},
-            )
-            for c in c_data.get("data", []):
-                if c.get("status") == "ACTIVE":
-                    campanias_activas += 1
-                elif c.get("status") == "PAUSED":
-                    campanias_pausadas += 1
-        except Exception:
-            pass
-
-    return {
-        "ok": True,
-        "gasto_total_mes": total_gasto,
-        "cuentas": len(cuentas),
-        "campanias_activas": campanias_activas,
-        "campanias_pausadas": campanias_pausadas,
-    }
-
-
-# ─── ADMIN: VERIFICAR TOKEN PARA ADS ─────────────────────────────────────────
-
-@router.get("/api/ads/admin/verificar-token")
-async def api_ads_verificar_token(
-    t: str = "",
-    db: Session = Depends(get_db),
-):
-    """Verifica si el token guardado tiene permisos para Ads API."""
-    _audit_auth(t)
-    token = _get_token(db)
-
-    result = {"token_ok": False, "permisos": [], "cuentas": 0, "error": None}
-
-    try:
-        perm_data = await _graph_get(
-            "me/permissions",
-            {"access_token": token},
-        )
-        permisos = [p["permission"] for p in perm_data.get("data", []) if p.get("status") == "granted"]
-        result["permisos"] = permisos
-        result["token_ok"] = True
-
-        ads_permisos = [p for p in permisos if "ads" in p.lower()]
-        result["ads_permisos"] = ads_permisos
-        result["tiene_ads_read"] = "ads_read" in permisos
-        result["tiene_ads_management"] = "ads_management" in permisos
-    except HTTPException as e:
-        result["error"] = str(e.detail)
-
-    try:
-        me_data = await _graph_get("me", {"fields": "id,name", "access_token": token})
-        result["usuario"] = me_data.get("name", "")
-        result["user_id"] = me_data.get("id", "")
-    except Exception:
-        pass
-
-    return result
+    data = await request.json()
+    page_id = (data.get("page_id") or "").strip()
+    lead = db.query(Lead).filter_by(id=lead_id).first()
+    if not lead:
+        raise HTTPException(404, "Lead no encontrado")
+    lead.meta_pagina_id = page_id or None
+    # Rellenar utm_campaign si viene
+    if data.get("utm_campaign"):
+        lead.utm_campaign = data["utm_campaign"]
+    db.commit()
+    return {"ok": True}

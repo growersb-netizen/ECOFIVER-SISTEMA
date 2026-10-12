@@ -186,6 +186,7 @@ def _procesar_mensaje_wa(
         # Actualizar estado si sigue NUEVO/INTENTADO
         if lead.estado in ("NUEVO", "INTENTADO"):
             lead.estado = "CONTACTADO"
+            db.commit()
 
     # 3. Registrar interacción
     interaccion = Interaccion(

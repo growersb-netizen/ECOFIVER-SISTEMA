@@ -361,7 +361,7 @@ function seleccionarAgente(id, nombre) {
   // Si estamos en tab libre, preseleccionar el agente
   const sel = document.getElementById('libre-agente');
   if (sel) sel.value = id;
-  showToast(`Agente ${nombre} seleccionado`, 'info');
+  toast(`Agente ${nombre} seleccionado`, 'info');
 }
 
 // ── Enviar comando ────────────────────────────────────────────────────────────
@@ -374,9 +374,9 @@ async function enviarComando(modo) {
     agente      = document.getElementById('libre-agente').value || 'orquestador';
     tipo        = 'LIBRE';
     area        = 'GENERAL';
-    if (!instruccion) return showToast('Escribí una instrucción primero', 'error');
+    if (!instruccion) return toast('Escribí una instrucción primero', 'error');
   } else if (modo === 'rapido') {
-    if (!_accionActual) return showToast('Seleccioná una acción primero', 'error');
+    if (!_accionActual) return toast('Seleccioná una acción primero', 'error');
     instruccion = _accionActual.instruccion;
     titulo      = _accionActual.titulo;
     agente      = _accionActual.agente || 'orquestador';
@@ -384,14 +384,14 @@ async function enviarComando(modo) {
     area        = _accionActual.area || 'GENERAL';
     tipo        = 'RAPIDO';
   } else if (modo === 'ceo') {
-    if (!_ceoActual) return showToast('Seleccioná un objetivo CEO primero', 'error');
+    if (!_ceoActual) return toast('Seleccioná un objetivo CEO primero', 'error');
     instruccion = document.getElementById('ceo-instruccion').value.trim();
     titulo      = _ceoActual.titulo;
     agente      = 'orquestador';
     prioridad   = 'URGENTE';
     area        = _ceoActual.area || 'GENERAL';
     tipo        = 'CEO';
-    if (!instruccion) return showToast('La instrucción no puede estar vacía', 'error');
+    if (!instruccion) return toast('La instrucción no puede estar vacía', 'error');
   }
 
   const btn = event.target;
@@ -405,7 +405,7 @@ async function enviarComando(modo) {
     });
 
     const estadoEmoji = res.estado === 'ENVIADO' ? '✅' : res.estado === 'ERROR' ? '❌' : '💾';
-    showToast(`${estadoEmoji} Comando #${res.id} — ${res.estado}`, res.estado === 'ERROR' ? 'error' : 'success');
+    toast(`${estadoEmoji} Comando #${res.id} — ${res.estado}`, res.estado === 'ERROR' ? 'error' : 'success');
 
     // Mostrar respuesta del orquestador
     if (res.respuesta) {
@@ -423,7 +423,7 @@ async function enviarComando(modo) {
     cargarHistorial();
     verificarStatus();
   } catch(e) {
-    showToast(e.message, 'error');
+    toast(e.message, 'error');
   } finally {
     btn.textContent = origText;
     btn.disabled = false;
@@ -501,13 +501,13 @@ async function asignarLeadsAIAs() {
   if (!limite || isNaN(parseInt(limite))) return;
   try {
     const res = await API.post('/api/leads/asignar-a-agentes-ia', { limite: parseInt(limite) });
-    showToast(`✅ ${res.mensaje}`, 'success');
+    toast(`✅ ${res.mensaje}`, 'success');
     verificarStatus();
   } catch(e) {
     if (e.message.includes('No hay agentes IA')) {
-      showToast('⚠️ Primero creá usuarios con el flag "Es agente IA" en Usuarios', 'error');
+      toast('⚠️ Primero creá usuarios con el flag "Es agente IA" en Usuarios', 'error');
     } else {
-      showToast(e.message, 'error');
+      toast(e.message, 'error');
     }
   }
 }

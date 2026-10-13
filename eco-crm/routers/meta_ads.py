@@ -178,6 +178,55 @@ async def init_tokens_from_env(
     return {"ok": True, "actualizados": actualizados, "total": len(actualizados)}
 
 
+# ── EXCHANGE TOKEN (corto → larga duración 60 días) ──────────────────────────
+
+@router.post("/api/meta/portafolios/{portafolio_id}/exchange-token")
+async def exchange_token(
+    portafolio_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """Recibe un token corto de usuario, lo convierte a long-lived (60 días) y lo guarda."""
+    _check_access(current_user, db)
+    p = db.query(MetaPortafolio).filter_by(id=portafolio_id).first()
+    if not p:
+        raise HTTPException(404, "Portafolio no encontrado")
+    data = await request.json()
+    short_token = (data.get("token") or "").strip()
+    if not short_token:
+        raise HTTPException(400, "Se requiere 'token'")
+    app_id = os.getenv("META_APP_ID", "").strip()
+    app_secret = os.getenv("META_APP_SECRET", "").strip()
+    if not app_id or not app_secret:
+        raise HTTPException(500, "META_APP_ID / META_APP_SECRET no configurados")
+    # Intercambio por long-lived token
+    async with httpx.AsyncClient(timeout=20) as hc:
+        r = await hc.get(
+            "https://graph.facebook.com/oauth/access_token",
+            params={
+                "grant_type": "fb_exchange_token",
+                "client_id": app_id,
+                "client_secret": app_secret,
+                "fb_exchange_token": short_token,
+            },
+        )
+    body = r.json() if r.content else {}
+    if r.status_code != 200 or "error" in body:
+        err = body.get("error", {})
+        raise HTTPException(400, f"Exchange fallido: {err.get('message', r.text[:200])}")
+    long_token = body.get("access_token", "")
+    expires_in = body.get("expires_in", 0)
+    if not long_token:
+        raise HTTPException(500, "Meta no devolvió token")
+    # Guardar
+    p.system_token_enc = encrypt_value(long_token)
+    if data.get("ad_account_id"):
+        p.ad_account_id = (data["ad_account_id"] or "").strip() or None
+    db.commit()
+    return {"ok": True, "expires_in_days": round(expires_in / 86400), "portafolio": _portafolio_dict(p)}
+
+
 # ── BALANCE DE CUENTA PUBLICITARIA ───────────────────────────────────────────
 
 @router.get("/api/meta/portafolios/{portafolio_id}/balance")

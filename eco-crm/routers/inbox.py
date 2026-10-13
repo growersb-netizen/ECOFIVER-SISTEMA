@@ -111,6 +111,7 @@ async def listar_conversaciones(
     current_user=Depends(require_auth),
 ):
     """Lista de conversaciones activas ordenadas por último mensaje."""
+    import traceback as _tb
     from sqlalchemy import func as sqlfunc
 
     # Subquery: último mensaje por phone
@@ -159,43 +160,47 @@ async def listar_conversaciones(
         raise HTTPException(status_code=500, detail=str(_exc))
 
     result = []
-    for msg, ultimo_at in rows:
-        # No leídos (IN sin leer)
-        no_leidos = (
-            db.query(InboxMensaje)
-            .filter(
-                InboxMensaje.phone == msg.phone,
-                InboxMensaje.direccion == "IN",
-                InboxMensaje.leido == False,
+    try:
+        for msg, ultimo_at in rows:
+            # No leídos (IN sin leer)
+            no_leidos = (
+                db.query(InboxMensaje)
+                .filter(
+                    InboxMensaje.phone == msg.phone,
+                    InboxMensaje.direccion == "IN",
+                    InboxMensaje.leido == False,
+                )
+                .count()
             )
-            .count()
-        )
 
-        # Modo actual del lead
-        modo = "bot"
-        agente = "valentina"
-        lead_id = None
-        nombre = msg.nombre_contacto or msg.phone
-        if msg.lead_id:
-            lead = db.query(Lead).filter(Lead.id == msg.lead_id).first()
-            if lead:
-                modo = lead.modo_atencion or "bot"
-                agente = lead.agente_asignado or "valentina"
-                lead_id = lead.id
-                nombre = lead.nombre or msg.nombre_contacto or msg.phone
+            # Modo actual del lead
+            modo = "bot"
+            agente = "valentina"
+            lead_id = None
+            nombre = msg.nombre_contacto or msg.phone
+            if msg.lead_id:
+                lead = db.query(Lead).filter(Lead.id == msg.lead_id).first()
+                if lead:
+                    modo = lead.modo_atencion or "bot"
+                    agente = lead.agente_asignado or "valentina"
+                    lead_id = lead.id
+                    nombre = lead.nombre or msg.nombre_contacto or msg.phone
 
-        result.append({
-            "phone": msg.phone,
-            "nombre": nombre,
-            "lead_id": lead_id,
-            "ultimo_mensaje": msg.contenido[:80] if msg.contenido else "",
-            "ultimo_at": ultimo_at.isoformat() if ultimo_at else None,
-            "no_leidos": no_leidos,
-            "modo": modo,
-            "agente": agente,
-            "direccion": msg.direccion,
-            "wa_linea": msg.wa_linea or "",
-        })
+            result.append({
+                "phone": msg.phone,
+                "nombre": nombre,
+                "lead_id": lead_id,
+                "ultimo_mensaje": msg.contenido[:80] if msg.contenido else "",
+                "ultimo_at": ultimo_at.isoformat() if ultimo_at else None,
+                "no_leidos": no_leidos,
+                "modo": modo,
+                "agente": agente,
+                "direccion": msg.direccion,
+                "wa_linea": msg.wa_linea or "",
+            })
+    except Exception as _exc2:
+        log.error(f"[inbox/conversaciones] iter error linea={linea!r}: {_exc2}\n{_tb.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(_exc2))
 
     return result
 

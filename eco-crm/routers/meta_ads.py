@@ -225,13 +225,15 @@ async def portafolio_campanas(
         "spend,impressions,clicks,actions,cost_per_action_type,"
         "reach,frequency"
     )
+    _ins_mod = (
+        "date_preset(lifetime)"
+        if periodo == "maximo"
+        else f'time_range({{"since":"{date_start}","until":"{date_end}"}})'
+    )
     params: dict = {
         "fields": (
             f"id,name,status,daily_budget,lifetime_budget,objective,"
-            f"insights{{"
-            f"fields={insight_fields},"
-            f"{'date_preset=lifetime' if periodo == 'maximo' else f'time_range={{since:{date_start!r},until:{date_end!r}}}'}"
-            f"}}"
+            f"insights.{_ins_mod}{{{insight_fields}}}"
         ),
         "effective_status": '["' + status_filter.replace(",", '","') + '"]',
         "limit": 100,
@@ -324,14 +326,16 @@ async def campanas_dashboard(
         date_start, date_end = _date_range(periodo)
 
         insight_fields = "spend,impressions,clicks,actions"
+        _ins_mod = (
+            "date_preset(lifetime)"
+            if periodo == "maximo"
+            else f'time_range({{"since":"{date_start}","until":"{date_end}"}})'
+        )
         params: dict = {
             "fields": (
                 f"id,name,status,daily_budget,lifetime_budget,"
                 f"adsets{{name,promoted_object}},"
-                f"insights{{"
-                f"fields={insight_fields},"
-                f"{'date_preset=lifetime' if periodo == 'maximo' else f'time_range={{since:{date_start!r},until:{date_end!r}}}'}"
-                f"}}"
+                f"insights.{_ins_mod}{{{insight_fields}}}"
             ),
             "effective_status": '["ACTIVE"]',
             "limit": 100,
@@ -540,8 +544,8 @@ async def sync_snapshots(
             params = {
                 "fields": (
                     "id,name,status,daily_budget,lifetime_budget,"
-                    f"insights{{fields=spend,impressions,clicks,actions,"
-                    f"time_range={{since:{hoy_str!r},until:{hoy_str!r}}}}}"
+                    f'insights.time_range({{"since":"{hoy_str}","until":"{hoy_str}"}})'
+                    "{spend,impressions,clicks,actions}"
                 ),
                 "effective_status": '["ACTIVE","PAUSED"]',
                 "limit": 100,

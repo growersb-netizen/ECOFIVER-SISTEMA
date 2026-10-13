@@ -45,10 +45,10 @@ async def _crm_get_modo(phone: str) -> str:
     return "bot"
 
 
-async def _melanie_registrar_lead(phone: str, primer_mensaje: str = "") -> None:
+async def _melanie_registrar_lead(phone: str, primer_mensaje: str = "", nombre: str = "") -> None:
     """Registra contacto de Melanie en el módulo de integraciones del CRM (idempotente)."""
     payload = {
-        "nombre": "Contacto Melanie",
+        "nombre": nombre or f"Contacto {phone[-6:]}",
         "telefono": phone,
         "resumen": (primer_mensaje or "")[:300],
     }
@@ -74,17 +74,19 @@ async def _melanie_registrar_lead(phone: str, primer_mensaje: str = "") -> None:
 async def _crm_push_mensaje(phone: str, direccion: str, contenido: str,
                              remitente: str = "", nombre: str = "",
                              lead_id: int | None = None,
-                             wa_message_id: str | None = None):
+                             wa_message_id: str | None = None,
+                             wa_linea: str = ""):
     """Envía un mensaje al inbox del CRM (fire-and-forget)."""
     try:
         payload = {
             "phone": phone,
-            "nombre": nombre,
+            "nombre": nombre or None,
             "direccion": direccion,
             "contenido": contenido,
             "remitente": remitente,
             "lead_id": lead_id,
             "wa_message_id": wa_message_id,
+            "wa_linea": wa_linea or None,
         }
         async with httpx.AsyncClient(timeout=8) as c:
             await c.post(f"{CRM_BASE_URL}/api/inbox/entrante",
@@ -113,9 +115,9 @@ _pending_msgs: dict[str, list[dict]] = defaultdict(list)
 _pending_tasks: dict[str, asyncio.Task] = {}
 
 
-async def _enqueue_message(phone_number: str, msg_type: str, message: dict, phone_number_id: str = "") -> None:
+async def _enqueue_message(phone_number: str, msg_type: str, message: dict, phone_number_id: str = "", nombre_contacto: str = "") -> None:
     """Agrega el mensaje a la cola y reinicia el timer de debounce."""
-    _pending_msgs[phone_number].append({"msg_type": msg_type, "message": message, "phone_number_id": phone_number_id})
+    _pending_msgs[phone_number].append({"msg_type": msg_type, "message": message, "phone_number_id": phone_number_id, "nombre_contacto": nombre_contacto})
 
     old = _pending_tasks.get(phone_number)
     if old and not old.done():
@@ -177,6 +179,7 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
 
     # Determinar qué número de negocio recibió el mensaje (para responder desde el mismo)
     incoming_phone_id = batch[0].get("phone_number_id", "") if batch else ""
+    nombre_contacto   = batch[0].get("nombre_contacto", "") if batch else ""
     if WA_PHONE_ID_MELANIE and incoming_phone_id == WA_PHONE_ID_MELANIE:
         send_phone_id = WA_PHONE_ID_MELANIE
         canal_base    = "whatsapp_melanie"
@@ -194,7 +197,9 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
                 direccion="IN",
                 contenido=texto,
                 remitente="cliente",
+                nombre=nombre_contacto,
                 wa_message_id=wa_msg_id,
+                wa_linea=send_phone_id,
             )
             modo = await _crm_get_modo(phone_number)
             if modo == "humano":
@@ -209,7 +214,7 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
 
         # Melanie: la IA de Meta atiende ese número; registramos en inbox + integraciones
         if canal_base == "whatsapp_melanie":
-            await _melanie_registrar_lead(phone_number, texto)
+            await _melanie_registrar_lead(phone_number, texto, nombre_contacto)
             return
 
         result = await route_message(canal, phone_number, texto, tipo_final)
@@ -219,6 +224,7 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
             direccion="OUT",
             contenido=result["reply"],
             remitente=result.get("agent", "agente"),
+            wa_linea=send_phone_id,
         )
 
     except Exception as e:
@@ -286,10 +292,11 @@ async def receive_message(request: Request, background: BackgroundTasks):
     phone_number    = message["from"]
     msg_type        = message.get("type", "text")
     phone_number_id = change.get("metadata", {}).get("phone_number_id", "")
+    nombre_contacto = (change.get("contacts") or [{}])[0].get("profile", {}).get("name", "")
 
     # Encolar con debounce — si llegan más mensajes en los próximos 3.5 seg
     # se procesan todos juntos como una sola interacción
-    background.add_task(_enqueue_message, phone_number, msg_type, message, phone_number_id)
+    background.add_task(_enqueue_message, phone_number, msg_type, message, phone_number_id, nombre_contacto)
     return {"status": "accepted"}
 
 

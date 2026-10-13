@@ -790,12 +790,15 @@ async function _buscarCuentasSociosFn(){
     const btnDesbloquear = s.bloqueado
       ? `<button class="btn btn-sm" onclick="desbloquearSocio('${s.codigo}')">🔓 Desbloquear</button>`
       : '';
+    const btnTempPass = !s.tiene_password
+      ? `<button class="btn btn-sm" style="margin-top:4px;background:#f59e0b" onclick="tempPassSocio('${s.codigo}','${s.nombre}')">🔑 Temp pass</button>`
+      : '';
     return `<tr>
       <td><strong>${s.codigo}</strong></td>
       <td>${s.nombre}<br><span style="font-size:11px;color:var(--text-muted)">${s.email||s.telefono||''}</span></td>
       <td>${estadoCuenta}</td>
       <td style="font-size:12px;color:var(--text-muted)">${acceso}</td>
-      <td>${btnDesbloquear}</td>
+      <td>${btnDesbloquear}${btnTempPass}</td>
     </tr>`;
   }).join('') + '</tbody></table>';
 }
@@ -808,6 +811,18 @@ async function desbloquearSocio(codigo){
   } else {
     const err = await r.json().catch(()=>({}));
     alert('Error: ' + (err.detail||'No se pudo desbloquear'));
+  }
+}
+async function tempPassSocio(codigo, nombre){
+  if(!confirm(`¿Generar contraseña temporal para ${nombre} (${codigo})?\nSe mostrará en pantalla — comunícasela al socio.`)) return;
+  const r = await AL.send(`/api/admin/socios/${codigo}/set-password-temp`, 'POST', {});
+  if(r.ok){
+    const data = await r.json();
+    alert(`✅ Contraseña temporal para ${data.nombre}:\n\n🔑 ${data.password_temporal}\n\nDecile que ingrese con esta clave y que la cambie desde su perfil en el panel.`);
+    _buscarCuentasSociosFn();
+  } else {
+    const err = await r.json().catch(()=>({}));
+    alert('Error: ' + (err.detail||'No se pudo generar contraseña temporal'));
   }
 }
 

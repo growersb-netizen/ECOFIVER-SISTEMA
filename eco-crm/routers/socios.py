@@ -4153,6 +4153,41 @@ async def admin_desbloquear_socio(
     }
 
 
+@router.post("/api/admin/socios/{codigo}/set-password-temp")
+async def admin_set_password_temp(
+    codigo: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Genera una contraseña temporal para un socio que no puede ingresar al panel
+    (por ejemplo porque no tiene contraseña y no le llega el OTP por WhatsApp).
+    Solo para uso interno del equipo de soporte.
+    Retorna la contraseña temporal en claro — comunicársela al socio y pedirle
+    que la cambie en cuanto entre.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    socio = db.query(Aliado).filter(Aliado.codigo == codigo.strip().upper()).first()
+    if not socio:
+        raise HTTPException(404, f"Socio {codigo} no encontrado")
+
+    import secrets as _sec
+    temp_pass = _sec.token_urlsafe(8)  # ~11 chars alfanumérico
+    socio.password_hash = pwd_context.hash(temp_pass)
+    socio.bloqueado_hasta = None
+    socio.intentos_fallidos = 0
+    db.commit()
+
+    return {
+        "ok": True,
+        "codigo": socio.codigo,
+        "nombre": socio.nombre,
+        "password_temporal": temp_pass,
+        "mensaje": f"Contraseña temporal seteada para {socio.nombre}. Decile que ingrese con esta clave y que la cambie desde su perfil.",
+    }
+
+
 @router.post("/api/admin/biblioteca/re-seed")
 async def admin_reseed_biblioteca(
     x_api_key: Optional[str] = Header(None),

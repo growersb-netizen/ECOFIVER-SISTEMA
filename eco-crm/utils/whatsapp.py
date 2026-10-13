@@ -13,7 +13,8 @@ WA_API_URL = "https://graph.facebook.com/v19.0"
 
 
 def _get_wa_creds(db: Session):
-    """Devuelve (token, phone_id) desde la configuración. Retorna (None, None) si no están."""
+    """Devuelve (token, phone_id). DB es la fuente primaria; env vars son el fallback."""
+    import os
     from database.models import ConfiguracionSistema
     from database.encryption import decrypt_value
     token_cfg = db.query(ConfiguracionSistema).filter(
@@ -22,12 +23,15 @@ def _get_wa_creds(db: Session):
     phone_cfg = db.query(ConfiguracionSistema).filter(
         ConfiguracionSistema.clave == "wa_phone_id"
     ).first()
-    # wa_token se guarda encriptado (es_secreto=True) — hay que desencriptarlo antes
-    # de usarlo. Antes se mandaba el valor cifrado tal cual como Bearer token, lo
-    # que siempre daba 401 "Authentication Error" sin importar qué tan válido
-    # fuera el token real detrás.
+    # wa_token se guarda encriptado (es_secreto=True) — hay que desencriptarlo.
     token = decrypt_value(token_cfg.valor) if token_cfg and token_cfg.valor else None
     phone_id = phone_cfg.valor if phone_cfg and phone_cfg.valor else None
+    # Fallback: si la DB no tiene las credenciales (primer arranque antes del sync,
+    # o ENCRYPTION_KEY girado sin restartar), usar directamente las env vars.
+    if not token:
+        token = os.getenv("WA_TOKEN") or None
+    if not phone_id:
+        phone_id = os.getenv("WA_PHONE_ID") or None
     return token, phone_id
 
 

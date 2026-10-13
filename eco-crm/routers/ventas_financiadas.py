@@ -63,8 +63,12 @@ def dias_atraso(venta: VentaFinanciada) -> int:
     proximo = calcular_proximo_vencimiento(venta)
     if not proximo:
         return 0
-    if proximo < datetime.now():
-        return (datetime.now() - proximo).days
+    # Normalizar a naive para evitar TypeError al comparar con datetime.now()
+    if proximo.tzinfo is not None:
+        proximo = proximo.replace(tzinfo=None)
+    ahora = datetime.now()
+    if proximo < ahora:
+        return (ahora - proximo).days
     return 0
 
 

@@ -302,7 +302,7 @@ async def incrementar_intentos_seguimiento(lead_id: int) -> bool:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/leads/{lead_id}/incrementar-seguimiento",
-                headers=HEADERS,
+                headers=HEADERS_XKEY,
             )
             r.raise_for_status()
             return True

@@ -38,6 +38,10 @@ MULTIAGENTE_API_KEY = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
 # Agentes disponibles en el multiagente
 AGENTES = ["valentina", "pablo", "laura", "sabrina", "claudio"]
 
+# Líneas WhatsApp — phone_number_id de Meta
+WA_PHONE_ID_AGENTES  = "1037947576071396"   # 1168733406 — línea agentes IA
+WA_PHONE_ID_MELANIE  = "1562122100308561"   # 1126036495 — línea vendedora humana
+
 # SSE: set de colas activas por sesión
 _sse_queues: list[asyncio.Queue] = []
 
@@ -150,15 +154,18 @@ async def listar_conversaciones(
             .count()
         )
 
-        modo = "bot"
-        agente = "valentina"
+        # Default según la línea: vendedora → humano, agentes → bot
+        modo_default  = "humano" if msg.wa_linea == WA_PHONE_ID_MELANIE else "bot"
+        agente_default = "melanie" if msg.wa_linea == WA_PHONE_ID_MELANIE else "valentina"
+        modo = modo_default
+        agente = agente_default
         lead_id = None
         nombre = msg.nombre_contacto or msg.phone
         if msg.lead_id:
             lead = db.query(Lead).filter(Lead.id == msg.lead_id).first()
             if lead:
-                modo = lead.modo_atencion or "bot"
-                agente = lead.agente_asignado or "valentina"
+                modo = lead.modo_atencion or modo_default
+                agente = lead.agente_asignado or agente_default
                 lead_id = lead.id
                 nombre = lead.nombre or msg.nombre_contacto or msg.phone
 
@@ -358,8 +365,10 @@ async def recibir_entrante(
     _check_api_key(request)
 
     phone = payload.phone.replace("+", "").replace(" ", "").replace("-", "")
+    wa_linea_clean = (payload.wa_linea or "").replace("+", "").replace(" ", "") or None
+    es_linea_vendedor = wa_linea_clean == WA_PHONE_ID_MELANIE
 
-    # Intentar asociar al lead si no viene el ID
+    # Asociar o crear lead
     lead_id = payload.lead_id
     nombre = payload.nombre or phone
     if not lead_id:
@@ -367,6 +376,26 @@ async def recibir_entrante(
         if lead:
             lead_id = lead.id
             nombre = lead.nombre or nombre
+            # Si la línea es de la vendedora, asegurar modo humano
+            if es_linea_vendedor and lead.modo_atencion != "humano":
+                lead.modo_atencion = "humano"
+                db.commit()
+        elif es_linea_vendedor and payload.direccion == "IN":
+            # Auto-crear lead para mensajes entrantes de la línea vendedora
+            new_lead = Lead(
+                nombre=nombre,
+                telefono=phone,
+                origen="WHATSAPP",
+                utm_source="meta",
+                utm_medium="ads",
+                modo_atencion="humano",
+                agente_asignado="melanie",
+                estado="NUEVO",
+            )
+            db.add(new_lead)
+            db.commit()
+            db.refresh(new_lead)
+            lead_id = new_lead.id
 
     msg = InboxMensaje(
         lead_id=lead_id,

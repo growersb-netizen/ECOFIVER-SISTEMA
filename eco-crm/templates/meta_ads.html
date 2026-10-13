@@ -248,10 +248,10 @@ function showSec(sec) {
 async function cargarResumen() {
   try {
     const d = await _get('/api/ads/resumen');
-    document.getElementById('kpi-gasto').textContent = fmt$(d.gasto_total_mes);
+    document.getElementById('kpi-gasto').textContent = d.gasto_total_mes ?? '—';
     document.getElementById('kpi-cuentas').textContent = d.cuentas ?? '—';
-    document.getElementById('kpi-activas').textContent = d.campanias_activas ?? '—';
-    document.getElementById('kpi-pausadas').textContent = d.campanias_pausadas ?? '—';
+    document.getElementById('kpi-activas').textContent = d.campanas_activas ?? '—';
+    document.getElementById('kpi-pausadas').textContent = d.campanas_pausadas ?? '—';
   } catch (e) {
     console.warn('resumen:', e.message);
   }

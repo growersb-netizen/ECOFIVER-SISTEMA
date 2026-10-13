@@ -79,24 +79,32 @@ async def listar_lineas(
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
-    """Devuelve las líneas WA registradas (MetaPaginas con numero_whatsapp)."""
+    """Devuelve las líneas WA registradas — una entrada por wa_phone_id distinto."""
     paginas = (
         db.query(MetaPagina)
         .filter(MetaPagina.numero_whatsapp.isnot(None), MetaPagina.activa == True)
         .order_by(MetaPagina.nombre)
         .all()
     )
-    return [
-        {
+    # Deduplicar por wa_phone_id: una bandeja real por número de teléfono
+    seen: set = set()
+    result = []
+    for p in paginas:
+        key = p.wa_phone_id or p.page_id
+        if key in seen:
+            continue
+        seen.add(key)
+        numero = (p.numero_whatsapp or "").replace("+549", "").replace("+54 9", "").strip()
+        nombre_linea = f"Línea {numero}" if p.wa_phone_id and numero else p.nombre
+        result.append({
             "page_id": p.page_id,
-            "nombre": p.nombre,
+            "nombre": nombre_linea,
             "vendedor": p.vendedor or p.nombre,
             "numero_whatsapp": p.numero_whatsapp,
             "wa_phone_id": p.wa_phone_id,
             "portafolio": p.portafolio,
-        }
-        for p in paginas
-    ]
+        })
+    return result
 
 
 @router.get("/api/inbox/conversaciones")
@@ -125,16 +133,15 @@ async def listar_conversaciones(
                 .all()
                 if r[0]
             ]
-            # Mensajes con wa_linea matching esa página
-            cond = InboxMensaje.wa_linea.ilike(f"%{wa_num[-9:]}%") if wa_num else None
-            if lead_phones and cond is not None:
+            # Mensajes con wa_linea matching el wa_phone_id de la página
+            cond = InboxMensaje.wa_linea == pagina.wa_phone_id if pagina.wa_phone_id else None
+            lead_phones_clean = [p.replace("+","").replace(" ","") for p in lead_phones[:200] if p]
+            if lead_phones_clean and cond is not None:
                 sub_q = sub_q.filter(
-                    (cond) | (InboxMensaje.phone.in_([p.replace("+","").replace(" ","")[-9:] for p in lead_phones[:200]]))
+                    (cond) | (InboxMensaje.phone.in_(lead_phones_clean))
                 )
-            elif lead_phones:
-                sub_q = sub_q.filter(
-                    InboxMensaje.phone.in_([p.replace("+","").replace(" ","") for p in lead_phones[:200]])
-                )
+            elif lead_phones_clean:
+                sub_q = sub_q.filter(InboxMensaje.phone.in_(lead_phones_clean))
             elif cond is not None:
                 sub_q = sub_q.filter(cond)
 

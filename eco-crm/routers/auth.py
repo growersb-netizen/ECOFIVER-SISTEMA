@@ -18,7 +18,15 @@ from database.models import Usuario
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "eco-crm-secret-key-dev-2024")
+_SECRET_KEY_RAW = os.getenv("SECRET_KEY", "eco-crm-secret-key-dev-2024")
+_WEAK_KEYS = {"eco-crm-secret-key-dev-2024", "cambia-este-secreto-en-produccion-usa-openssl-rand-hex-32", ""}
+if _SECRET_KEY_RAW in _WEAK_KEYS:
+    import logging as _log
+    _log.getLogger(__name__).critical(
+        "SECRET_KEY no está configurado o usa un valor placeholder. "
+        "Generá uno con: openssl rand -hex 32 y setéalo en Railway."
+    )
+SECRET_KEY = _SECRET_KEY_RAW
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 

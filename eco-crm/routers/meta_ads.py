@@ -605,3 +605,340 @@ async def sync_snapshots(
     db.commit()
     log.info(f"[MetaSync] {guardados} snapshots guardados para {hoy_str}, {len(errores)} errores")
     return {"ok": True, "fecha": hoy_str, "guardados": guardados, "errores": errores}
+
+
+# ── ADS FRONTEND (/api/ads/...) ───────────────────────────────────────────────
+# Endpoints que consume el template meta_ads.html
+
+async def _ads_post(token: str, path: str, payload: dict, timeout: int = 20) -> dict:
+    url = f"{META_GRAPH}/{path.lstrip('/')}"
+    payload = {**payload, "access_token": token}
+    async with httpx.AsyncClient(timeout=timeout) as hc:
+        r = await hc.post(url, data=payload)
+    body = r.json() if r.content else {}
+    if r.status_code not in (200, 201) or "error" in body:
+        err = body.get("error", {})
+        raise HTTPException(400, err.get("message", f"Meta API error: {r.text[:200]}"))
+    return body
+
+
+def _fmt_ars(v: float) -> str:
+    return f"${v:,.0f}".replace(",", ".")
+
+
+def _resolver_portafolio(db: "Session", portafolio_id: Optional[int], campaign_id: Optional[str]) -> Optional["MetaPortafolio"]:
+    if portafolio_id:
+        return db.query(MetaPortafolio).filter_by(id=portafolio_id).first()
+    if campaign_id:
+        snap = (
+            db.query(MetaCampanaSnapshot)
+            .filter_by(campaign_id=campaign_id)
+            .order_by(MetaCampanaSnapshot.fecha.desc())
+            .first()
+        )
+        if snap:
+            return db.query(MetaPortafolio).filter_by(slug=snap.portafolio_slug).first()
+    return None
+
+
+@router.get("/api/ads/resumen")
+async def ads_resumen(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    from sqlalchemy import extract
+    hoy = date.today()
+    # Intentar snapshots de hoy; si no hay, usar el mes actual agrupado por campaña
+    snaps = db.query(MetaCampanaSnapshot).filter_by(fecha=hoy).all()
+    if not snaps:
+        todos = db.query(MetaCampanaSnapshot).filter(
+            extract("year", MetaCampanaSnapshot.fecha) == hoy.year,
+            extract("month", MetaCampanaSnapshot.fecha) == hoy.month,
+        ).all()
+        best: dict = {}
+        for s in todos:
+            if s.campaign_id not in best or s.fecha > best[s.campaign_id].fecha:
+                best[s.campaign_id] = s
+        snaps = list(best.values())
+    gasto = sum(s.spend or 0 for s in snaps)
+    return {
+        "gasto_total_mes": _fmt_ars(gasto),
+        "campanas_activas": sum(1 for s in snaps if s.status == "ACTIVE"),
+        "campanas_pausadas": sum(1 for s in snaps if s.status == "PAUSED"),
+    }
+
+
+@router.get("/api/ads/cuentas")
+async def ads_cuentas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    portafolios = db.query(MetaPortafolio).filter_by(activo=True).order_by(MetaPortafolio.nombre).all()
+    STATUS_LABEL = {1: "Activa", 2: "Desactivada", 3: "Sin saldo", 7: "Inactiva", 101: "Liquidación", 201: "Pendiente"}
+    cuentas = []
+    for pf in portafolios:
+        if not pf.ad_account_id or not pf.system_token_enc:
+            cuentas.append({
+                "id": pf.id,
+                "name": pf.nombre,
+                "currency": "ARS",
+                "account_status": 0,
+                "status_label": "Sin configurar",
+                "gasto_display": "—",
+            })
+            continue
+        token = decrypt_value(pf.system_token_enc)
+        acc_id = pf.ad_account_id if pf.ad_account_id.startswith("act_") else f"act_{pf.ad_account_id}"
+        try:
+            data = await _ads_get(token, acc_id, {"fields": "name,amount_spent,currency,account_status"})
+            status = int(data.get("account_status") or 0)
+            gastado = float(data.get("amount_spent") or 0) / 100
+            cuentas.append({
+                "id": pf.id,
+                "name": data.get("name") or pf.nombre,
+                "currency": data.get("currency", "ARS"),
+                "account_status": status,
+                "status_label": STATUS_LABEL.get(status, str(status)),
+                "gasto_display": _fmt_ars(gastado),
+                "meta_account_id": pf.ad_account_id,
+            })
+        except HTTPException as e:
+            cuentas.append({
+                "id": pf.id,
+                "name": pf.nombre,
+                "currency": "ARS",
+                "account_status": 0,
+                "status_label": "Error al conectar",
+                "gasto_display": "—",
+                "error": e.detail,
+            })
+    return {"cuentas": cuentas}
+
+
+@router.get("/api/ads/cuentas/{portafolio_id}/campanias")
+async def ads_campanas_por_portafolio(
+    portafolio_id: int,
+    periodo: str = "mes",
+    solo_activas: bool = False,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pf = db.query(MetaPortafolio).filter_by(id=portafolio_id, activo=True).first()
+    if not pf:
+        raise HTTPException(404, "Portafolio no encontrado")
+    if not pf.ad_account_id or not pf.system_token_enc:
+        return {"ok": False, "campanas": [], "error": "Portafolio sin cuenta o token configurado"}
+    token = decrypt_value(pf.system_token_enc)
+    acc_id = pf.ad_account_id if pf.ad_account_id.startswith("act_") else f"act_{pf.ad_account_id}"
+    date_start, date_end = _date_range(periodo)
+    insight_fields = "spend,impressions,clicks,reach,actions"
+    _ins_mod = (
+        "date_preset(maximum)"
+        if periodo == "maximo"
+        else f'time_range({{"since":"{date_start}","until":"{date_end}"}})'
+    )
+    status_filter = '["ACTIVE"]' if solo_activas else '["ACTIVE","PAUSED","ARCHIVED"]'
+    params: dict = {
+        "fields": f"id,name,status,daily_budget,lifetime_budget,objective,insights.{_ins_mod}{{{insight_fields}}}",
+        "effective_status": status_filter,
+        "limit": 100,
+    }
+    try:
+        raw = await _ads_get(token, f"{acc_id}/campaigns", params)
+    except HTTPException as e:
+        return {"ok": False, "campanas": [], "error": e.detail}
+    campanas = []
+    for c in raw.get("data", []):
+        ins = (c.get("insights") or {}).get("data", [{}])[0] if c.get("insights") else {}
+        spend = float(ins.get("spend") or 0)
+        imp = int(ins.get("impressions") or 0)
+        reach = int(ins.get("reach") or 0)
+        clicks = int(ins.get("clicks") or 0)
+        actions = ins.get("actions") or []
+        leads = sum(
+            int(a.get("value") or 0) for a in actions
+            if a.get("action_type") in (
+                "messaging_conversation_started_7d",
+                "onsite_conversion.messaging_conversation_started_7d",
+                "lead",
+            )
+        )
+        cpl = round(spend / leads, 2) if leads > 0 else None
+        ctr = round(clicks / imp * 100, 2) if imp > 0 else 0
+        campanas.append({
+            "id": c["id"],
+            "nombre": c["name"],
+            "status": c.get("status"),
+            "objetivo": c.get("objective"),
+            "daily_budget": float(c.get("daily_budget") or 0) / 100 or None,
+            "lifetime_budget": float(c.get("lifetime_budget") or 0) / 100 or None,
+            "metricas": {
+                "gasto": _fmt_ars(spend),
+                "impresiones": imp,
+                "alcance": reach,
+                "clics": clicks,
+                "leads": leads,
+                "cpl": _fmt_ars(cpl) if cpl else None,
+                "ctr": f"{ctr:.1f}%",
+                "spend_raw": spend,
+            },
+        })
+    return {"ok": True, "campanas": campanas}
+
+
+@router.patch("/api/ads/campanias/{campaign_id}/estado")
+async def ads_toggle_campana(
+    campaign_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    data = await request.json()
+    status = data.get("status")
+    if not status or status not in ("ACTIVE", "PAUSED"):
+        raise HTTPException(400, "status debe ser ACTIVE o PAUSED")
+    pf = _resolver_portafolio(db, data.get("portafolio_id"), campaign_id)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "No se pudo determinar el portafolio. Incluí portafolio_id en el body.")
+    token = decrypt_value(pf.system_token_enc)
+    await _ads_post(token, campaign_id, {"status": status})
+    return {"ok": True}
+
+
+@router.get("/api/ads/campanias/{campaign_id}/conjuntos")
+async def ads_conjuntos(
+    campaign_id: str,
+    portafolio_id: Optional[int] = None,
+    periodo: str = "mes",
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pf = _resolver_portafolio(db, portafolio_id, campaign_id)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "No se pudo determinar el portafolio para esta campaña")
+    token = decrypt_value(pf.system_token_enc)
+    date_start, date_end = _date_range(periodo)
+    _ins_mod = f'time_range({{"since":"{date_start}","until":"{date_end}"}})'
+    params: dict = {
+        "fields": f"id,name,status,optimization_goal,insights.{_ins_mod}{{spend,impressions,clicks,reach}}",
+        "limit": 100,
+    }
+    try:
+        raw = await _ads_get(token, f"{campaign_id}/adsets", params)
+    except HTTPException as e:
+        return {"ok": False, "conjuntos": [], "error": e.detail}
+    conjuntos = []
+    for cs in raw.get("data", []):
+        ins = (cs.get("insights") or {}).get("data", [{}])[0] if cs.get("insights") else {}
+        spend = float(ins.get("spend") or 0)
+        conjuntos.append({
+            "id": cs["id"],
+            "name": cs["name"],
+            "status": cs.get("status"),
+            "optimization_goal": cs.get("optimization_goal"),
+            "metricas": {
+                "gasto": _fmt_ars(spend),
+                "impresiones": int(ins.get("impressions") or 0),
+                "alcance": int(ins.get("reach") or 0),
+                "clics": int(ins.get("clicks") or 0),
+            },
+        })
+    return {"ok": True, "conjuntos": conjuntos}
+
+
+@router.patch("/api/ads/conjuntos/{adset_id}/estado")
+async def ads_toggle_conjunto(
+    adset_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    data = await request.json()
+    status = data.get("status")
+    if not status or status not in ("ACTIVE", "PAUSED"):
+        raise HTTPException(400, "status debe ser ACTIVE o PAUSED")
+    pf = _resolver_portafolio(db, data.get("portafolio_id"), None)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "Incluí portafolio_id en el body")
+    token = decrypt_value(pf.system_token_enc)
+    await _ads_post(token, adset_id, {"status": status})
+    return {"ok": True}
+
+
+@router.get("/api/ads/campanias/{campaign_id}/anuncios")
+async def ads_anuncios(
+    campaign_id: str,
+    portafolio_id: Optional[int] = None,
+    periodo: str = "mes",
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pf = _resolver_portafolio(db, portafolio_id, campaign_id)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "No se pudo determinar el portafolio para esta campaña")
+    token = decrypt_value(pf.system_token_enc)
+    date_start, date_end = _date_range(periodo)
+    _ins_mod = f'time_range({{"since":"{date_start}","until":"{date_end}"}})'
+    params: dict = {
+        "fields": f"id,name,status,creative{{thumbnail_url,title}},insights.{_ins_mod}{{spend,impressions,clicks,reach,ctr,cpc}}",
+        "limit": 100,
+    }
+    try:
+        raw = await _ads_get(token, f"{campaign_id}/ads", params)
+    except HTTPException as e:
+        return {"ok": False, "anuncios": [], "error": e.detail}
+    anuncios = []
+    for ad in raw.get("data", []):
+        ins = (ad.get("insights") or {}).get("data", [{}])[0] if ad.get("insights") else {}
+        spend = float(ins.get("spend") or 0)
+        anuncios.append({
+            "id": ad["id"],
+            "name": ad["name"],
+            "status": ad.get("status"),
+            "creative": ad.get("creative"),
+            "metricas": {
+                "gasto": _fmt_ars(spend),
+                "impresiones": int(ins.get("impressions") or 0),
+                "alcance": int(ins.get("reach") or 0),
+                "clics": int(ins.get("clicks") or 0),
+                "ctr": ins.get("ctr"),
+                "cpc": ins.get("cpc"),
+            },
+        })
+    return {"ok": True, "anuncios": anuncios}
+
+
+@router.get("/api/ads/campanias/{campaign_id}/comentarios")
+async def ads_comentarios(
+    campaign_id: str,
+    portafolio_id: Optional[int] = None,
+    solo_negativos: bool = False,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    # Los comentarios requieren token de página (page access token) — stub por ahora
+    return {"ok": True, "comentarios": []}
+
+
+@router.delete("/api/ads/comentarios/{comment_id}")
+async def ads_eliminar_comentario(
+    comment_id: str,
+    portafolio_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pf = _resolver_portafolio(db, portafolio_id, None)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "Pasá portafolio_id como query param")
+    token = decrypt_value(pf.system_token_enc)
+    await _ads_post(token, comment_id, {"method": "delete"})
+    return {"ok": True}

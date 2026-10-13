@@ -36,9 +36,9 @@ else:
     load_dotenv(override=False)
 # ─────────────────────────────────────────────────────────────────────────────
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, HTMLResponse
 from pydantic import BaseModel
 
 # ── Logging ────────────────────────────────────────────────────────────────
@@ -664,6 +664,53 @@ async def widget_snippet():
 <script src="{base_url}/web_widget/chat.js" defer></script>
 <!-- Fin Widget -->"""
     return snippet
+
+
+# ── Control Center: recibir comandos del CRM ─────────────────────────────
+
+class _ComandoCRM(BaseModel):
+    instruccion: str
+    titulo: str = ""
+    agente: str = "orquestador"
+    prioridad: str = "NORMAL"
+    tipo: str = "LIBRE"
+    contexto: dict = {}
+    origen: str = ""
+
+@app.post("/api/comando")
+async def recibir_comando_crm(payload: _ComandoCRM, request: Request):
+    """
+    Recibe comandos del CRM Control Center.
+    Autenticación opcional via X-Api-Key (misma contraseña de admin).
+    """
+    from auth import check_password
+
+    api_key = request.headers.get("X-Api-Key", "")
+    # Rechazar si viene una clave y es incorrecta; sin clave = aceptar
+    if api_key and not check_password(api_key):
+        return JSONResponse({"ok": False, "error": "no autorizado"}, status_code=401)
+
+    from tools.audit_log import registrar_interaccion
+    registrar_interaccion(
+        canal="control_center",
+        session_id=f"cmd-{payload.agente}",
+        agente=payload.agente,
+        mensaje_usuario=f"[{payload.tipo}] {payload.titulo}",
+        respuesta_agente=f"Comando registrado: {payload.instruccion[:200]}",
+    )
+
+    logger.info(
+        f"[ControlCenter] tipo={payload.tipo} agente={payload.agente} "
+        f"prioridad={payload.prioridad} instruccion={payload.instruccion[:80]!r}"
+    )
+
+    return JSONResponse({
+        "ok": True,
+        "recibido": True,
+        "agente": payload.agente,
+        "tipo": payload.tipo,
+        "mensaje": f"Comando registrado. Agente destino: {payload.agente}",
+    })
 
 
 # ── Entry point ───────────────────────────────────────────────────────────

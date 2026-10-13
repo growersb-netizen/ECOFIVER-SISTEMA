@@ -392,7 +392,7 @@ function renderCampanias() {
 
 async function toggleCamp(id, newStatus) {
   try {
-    await _patch(`/api/ads/campanias/${id}/estado`, { status: newStatus });
+    await _patch(`/api/ads/campanias/${id}/estado`, { status: newStatus, portafolio_id: _curCuentaId });
     toast(`Campaña ${newStatus === 'PAUSED' ? 'pausada' : 'activada'} ✓`, 'success');
     await cargarCampanias();
     cargarResumen();
@@ -426,7 +426,7 @@ async function cargarConjuntos() {
   if (!_curCampId) return;
   document.getElementById('conj-tabla-wrap').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando conjuntos…</div>';
   try {
-    const d = await _get(`/api/ads/campanias/${_curCampId}/conjuntos`);
+    const d = await _get(`/api/ads/campanias/${_curCampId}/conjuntos?portafolio_id=${_curCuentaId}`);
     const conjuntos = d.conjuntos || [];
     if (!conjuntos.length) {
       document.getElementById('conj-tabla-wrap').innerHTML = '<div class="estado-vacio">No hay conjuntos en esta campaña</div>';
@@ -466,7 +466,7 @@ async function cargarConjuntos() {
 
 async function toggleConj(id, newStatus) {
   try {
-    await _patch(`/api/ads/conjuntos/${id}/estado`, { status: newStatus });
+    await _patch(`/api/ads/conjuntos/${id}/estado`, { status: newStatus, portafolio_id: _curCuentaId });
     toast(`Conjunto ${newStatus === 'PAUSED' ? 'pausado' : 'activado'} ✓`, 'success');
     cargarConjuntos();
   } catch (e) {
@@ -481,7 +481,7 @@ async function cargarAnuncios() {
   if (!_curCampId) return;
   document.getElementById('ad-tabla-wrap').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando anuncios…</div>';
   try {
-    const d = await _get(`/api/ads/campanias/${_curCampId}/anuncios`);
+    const d = await _get(`/api/ads/campanias/${_curCampId}/anuncios?portafolio_id=${_curCuentaId}`);
     const ads = d.anuncios || [];
     if (!ads.length) {
       document.getElementById('ad-tabla-wrap').innerHTML = '<div class="estado-vacio">No hay anuncios en esta campaña</div>';
@@ -528,7 +528,7 @@ async function cargarComentarios() {
   const soloNeg = document.getElementById('com-solo-negativos').checked;
   document.getElementById('com-lista').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando comentarios…</div>';
   try {
-    const d = await _get(`/api/ads/campanias/${_curCampId}/comentarios?solo_negativos=${soloNeg}`);
+    const d = await _get(`/api/ads/campanias/${_curCampId}/comentarios?solo_negativos=${soloNeg}&portafolio_id=${_curCuentaId}`);
     const coms = d.comentarios || [];
     if (!coms.length) {
       document.getElementById('com-lista').innerHTML = '<div class="estado-vacio">Sin comentarios</div>';
@@ -559,7 +559,7 @@ async function cargarComentarios() {
 async function eliminarComentario(id) {
   if (!confirm('¿Eliminar este comentario?')) return;
   try {
-    await _delete(`/api/ads/comentarios/${id}`);
+    await _delete(`/api/ads/comentarios/${id}?portafolio_id=${_curCuentaId}`);
     document.getElementById(`com-${id}`)?.remove();
     toast('Comentario eliminado ✓', 'success');
   } catch (e) {
@@ -577,7 +577,7 @@ async function eliminarTodosNegativos() {
   for (const el of coms) {
     const id = el.id.replace('com-','');
     try {
-      await _delete(`/api/ads/comentarios/${id}`);
+      await _delete(`/api/ads/comentarios/${id}?portafolio_id=${_curCuentaId}`);
       el.remove();
       n++;
     } catch (e) { /* skip */ }

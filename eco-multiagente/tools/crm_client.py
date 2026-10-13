@@ -6,6 +6,7 @@ Si el CRM no está disponible, retorna datos vacíos para no romper el flujo.
 import httpx
 import os
 import logging
+from datetime import date, datetime, timedelta
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -682,6 +683,48 @@ async def get_ventas_financiadas_todas() -> list:
             return r.json()
     except Exception as e:
         logger.warning(f"[CRM] get_ventas_financiadas_todas falló: {e}")
+        return []
+
+
+async def get_ventas_semana() -> list:
+    """Retorna ventas contado + financiadas cerradas en la semana actual (lunes-hoy)."""
+    hoy = date.today()
+    lunes = hoy - timedelta(days=hoy.weekday())
+    lunes_iso = lunes.isoformat()
+
+    def _en_semana(v: dict) -> bool:
+        for campo in ("created_at", "fecha_cierre", "fecha_entrega"):
+            val = v.get(campo)
+            if val and str(val)[:10] >= lunes_iso:
+                return True
+        return False
+
+    try:
+        contado, financiadas = await get_ventas_contado_todas(), await get_ventas_financiadas_todas()
+        resultado = []
+        for v in contado:
+            if _en_semana(v):
+                resultado.append({
+                    "tipo": "contado",
+                    "producto": v.get("producto"),
+                    "modelo": v.get("modelo"),
+                    "localidad": v.get("localidad") or v.get("cliente_localidad"),
+                    "estado": v.get("estado"),
+                    "fecha": str(v.get("created_at", ""))[:10],
+                })
+        for v in financiadas:
+            if _en_semana(v):
+                resultado.append({
+                    "tipo": "financiada",
+                    "producto": v.get("producto"),
+                    "modelo": v.get("modelo"),
+                    "localidad": v.get("localidad") or v.get("cliente_localidad"),
+                    "estado": v.get("estado"),
+                    "fecha": str(v.get("created_at", ""))[:10],
+                })
+        return resultado
+    except Exception as e:
+        logger.warning(f"[CRM] get_ventas_semana falló: {e}")
         return []
 
 

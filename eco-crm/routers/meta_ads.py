@@ -2,6 +2,7 @@
 Meta Ads API — portafolios, campañas y dashboard de rendimiento.
 Endpoints: /api/meta/portafolios  /api/meta/campanas/dashboard  etc.
 """
+import json
 import logging
 import os
 from datetime import date, timedelta
@@ -475,3 +476,106 @@ async def asignar_pagina_a_lead(
         lead.utm_campaign = data["utm_campaign"]
     db.commit()
     return {"ok": True}
+
+
+# ── SYNC DIARIO DE SNAPSHOTS (llamado por cron vía API key) ──────────────────
+
+_API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+
+
+def _require_api_key_meta(request: Request) -> bool:
+    auth = request.headers.get("Authorization", "")
+    key = auth.removeprefix("Bearer ").strip()
+    if key != _API_KEY:
+        raise HTTPException(401, "API key inválida")
+    return True
+
+
+@router.post("/api/meta/sync-snapshots")
+async def sync_snapshots(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(_require_api_key_meta),
+):
+    """
+    Recorre todos los portafolios activos, obtiene métricas del día
+    de cada campaña activa y guarda/actualiza un snapshot diario.
+    Llamado por el cron de eco-multiagente a las 23:55 ARG.
+    """
+    hoy = date.today()
+    hoy_str = hoy.isoformat()
+    guardados = 0
+    errores = []
+
+    portafolios = db.query(MetaPortafolio).filter_by(activo=True).all()
+
+    for pf in portafolios:
+        if not pf.ad_account_id or not pf.system_token_enc:
+            continue
+        try:
+            token = decrypt_value(pf.system_token_enc)
+            acc_id = pf.ad_account_id if pf.ad_account_id.startswith("act_") else f"act_{pf.ad_account_id}"
+            params = {
+                "fields": (
+                    "id,name,status,daily_budget,lifetime_budget,"
+                    f"insights{{fields=spend,impressions,clicks,actions,"
+                    f"time_range={{since:{hoy_str!r},until:{hoy_str!r}}}}}"
+                ),
+                "effective_status": '["ACTIVE","PAUSED"]',
+                "limit": 100,
+            }
+            raw = await _ads_get(token, f"{acc_id}/campaigns", params)
+        except Exception as e:
+            errores.append(f"{pf.nombre}: {e}")
+            continue
+
+        for c in raw.get("data", []):
+            try:
+                insights = (c.get("insights") or {}).get("data", [{}])[0] if c.get("insights") else {}
+                spend = float(insights.get("spend") or 0)
+                impressions = int(insights.get("impressions") or 0)
+                clicks = int(insights.get("clicks") or 0)
+                actions = insights.get("actions") or []
+                leads = sum(
+                    int(a.get("value") or 0) for a in actions
+                    if a.get("action_type") in (
+                        "messaging_conversation_started_7d",
+                        "onsite_conversion.messaging_conversation_started_7d",
+                        "lead",
+                    )
+                )
+                cpl = round(spend / leads, 2) if leads > 0 else None
+                daily_budget = float(c.get("daily_budget") or 0) / 100 or None
+                lifetime_budget = float(c.get("lifetime_budget") or 0) / 100 or None
+
+                snap = (
+                    db.query(MetaCampanaSnapshot)
+                    .filter_by(campaign_id=c["id"], fecha=hoy)
+                    .first()
+                )
+                if snap is None:
+                    snap = MetaCampanaSnapshot(
+                        portafolio_slug=pf.slug or str(pf.id),
+                        campaign_id=c["id"],
+                        campaign_name=c["name"],
+                        fecha=hoy,
+                    )
+                    db.add(snap)
+
+                snap.campaign_name = c["name"]
+                snap.status = c.get("status", "ACTIVE")
+                snap.spend = spend
+                snap.impressions = impressions
+                snap.clicks = clicks
+                snap.leads = leads
+                snap.cpl = cpl
+                snap.daily_budget = daily_budget
+                snap.lifetime_budget = lifetime_budget
+                snap.raw_json = json.dumps(insights)
+                guardados += 1
+            except Exception as e:
+                errores.append(f"campaña {c.get('id')}: {e}")
+
+    db.commit()
+    log.info(f"[MetaSync] {guardados} snapshots guardados para {hoy_str}, {len(errores)} errores")
+    return {"ok": True, "fecha": hoy_str, "guardados": guardados, "errores": errores}

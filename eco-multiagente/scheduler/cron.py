@@ -766,6 +766,28 @@ async def tarea_franco_resumen_mensual():
         logger.error(f"[CRON] tarea_franco_resumen_mensual error: {e}")
 
 
+async def tarea_sync_meta_snapshots():
+    """23:55 ARG — Guarda snapshots diarios de campañas Meta Ads en el CRM."""
+    logger.info("[CRON] Sync snapshots Meta Ads")
+    try:
+        import httpx
+        import os
+        crm_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
+        api_key = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
+        async with httpx.AsyncClient(timeout=60) as c:
+            r = await c.post(
+                f"{crm_url}/api/meta/sync-snapshots",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if r.status_code == 200:
+                d = r.json()
+                logger.info(f"[CRON] Meta snapshots: {d.get('guardados', 0)} guardados")
+            else:
+                logger.warning(f"[CRON] Meta sync error {r.status_code}: {r.text[:200]}")
+    except Exception as e:
+        logger.error(f"[CRON] tarea_sync_meta_snapshots error: {e}")
+
+
 # ─────────────────────────────────────────────
 # INICIALIZACIÓN DEL SCHEDULER
 # ─────────────────────────────────────────────
@@ -993,6 +1015,15 @@ def start_scheduler():
         CronTrigger(day="1-7", hour=9, minute=0, timezone=TIMEZONE),
         id="franco_resumen_mensual",
         name="Franco — resumen mensual aliados",
+        replace_existing=True,
+    )
+
+    # 23:55 — Snapshots diarios de campañas Meta Ads
+    _scheduler.add_job(
+        tarea_sync_meta_snapshots,
+        CronTrigger(hour=23, minute=55, timezone=TIMEZONE),
+        id="sync_meta_snapshots",
+        name="Sync snapshots Meta Ads",
         replace_existing=True,
     )
 

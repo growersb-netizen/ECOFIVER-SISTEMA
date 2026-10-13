@@ -293,6 +293,10 @@ async def api_redes_pagina_update(
         p.portafolio = portafolio or "EcoFiver"
     if "vendedor" in body:
         p.vendedor = (body["vendedor"] or "").strip() or None
+    if "numero_whatsapp" in body:
+        p.numero_whatsapp = (body["numero_whatsapp"] or "").strip() or None
+    if "wa_phone_id" in body:
+        p.wa_phone_id = (body["wa_phone_id"] or "").strip() or None
     db.commit()
     return {
         "ok": True, "page_id": page_id,
@@ -300,6 +304,8 @@ async def api_redes_pagina_update(
         "page_token_ok": bool(p.page_token),
         "portafolio": getattr(p, "portafolio", None) or "EcoFiver",
         "vendedor": getattr(p, "vendedor", None) or "",
+        "numero_whatsapp": getattr(p, "numero_whatsapp", None) or "",
+        "wa_phone_id": getattr(p, "wa_phone_id", None) or "",
     }
 
 

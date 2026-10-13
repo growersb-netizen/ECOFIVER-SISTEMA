@@ -112,23 +112,28 @@ async def listar_conversaciones(
 ):
     """Lista de conversaciones activas ordenadas por último mensaje."""
     import traceback as _tb
+    from fastapi.responses import JSONResponse
     from sqlalchemy import func as sqlfunc
+
+    wa_phone_id_filter: str | None = None
+    if linea:
+        try:
+            _pag = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
+            if _pag:
+                wa_phone_id_filter = getattr(_pag, "wa_phone_id", None) or None
+        except Exception as _fe:
+            return JSONResponse(status_code=200, content={"_debug_filter_error": str(_fe), "tb": _tb.format_exc()})
 
     # Subquery: último mensaje por phone
     sub_q = db.query(
         InboxMensaje.phone,
         sqlfunc.max(InboxMensaje.created_at).label("ultimo_at"),
     )
-    # Filtro por línea: wa_linea == wa_phone_id de la MetaPagina
-    if linea:
+    if wa_phone_id_filter:
         try:
-            pagina = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
-            if pagina and pagina.wa_phone_id:
-                sub_q = sub_q.filter(InboxMensaje.wa_linea == pagina.wa_phone_id)
-        except Exception as _fe:
-            import traceback as _tb2
-            log.error(f"[inbox/conversaciones] filter setup error: {_fe}\n{_tb2.format_exc()}")
-            raise HTTPException(status_code=500, detail=f"filter error: {_fe}")
+            sub_q = sub_q.filter(InboxMensaje.wa_linea == wa_phone_id_filter)
+        except Exception as _fe2:
+            return JSONResponse(status_code=200, content={"_debug_subq_error": str(_fe2), "tb": _tb.format_exc()})
 
     try:
         sub = sub_q.group_by(InboxMensaje.phone).subquery()

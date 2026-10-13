@@ -111,18 +111,14 @@ async def listar_conversaciones(
     current_user=Depends(require_auth),
 ):
     """Lista de conversaciones activas ordenadas por último mensaje."""
-    import traceback as _tb
-    from fastapi.responses import JSONResponse
     from sqlalchemy import func as sqlfunc
 
+    # Resolver wa_phone_id de la línea pedida
     wa_phone_id_filter: str | None = None
     if linea:
-        try:
-            _pag = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
-            if _pag:
-                wa_phone_id_filter = getattr(_pag, "wa_phone_id", None) or None
-        except Exception as _fe:
-            return JSONResponse(status_code=200, content={"_debug_filter_error": str(_fe), "tb": _tb.format_exc()})
+        pag = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
+        if pag:
+            wa_phone_id_filter = pag.wa_phone_id or None
 
     # Subquery: último mensaje por phone
     sub_q = db.query(
@@ -130,69 +126,54 @@ async def listar_conversaciones(
         sqlfunc.max(InboxMensaje.created_at).label("ultimo_at"),
     )
     if wa_phone_id_filter:
-        try:
-            sub_q = sub_q.filter(InboxMensaje.wa_linea == wa_phone_id_filter)
-        except Exception as _fe2:
-            return JSONResponse(status_code=200, content={"_debug_subq_error": str(_fe2), "tb": _tb.format_exc()})
+        sub_q = sub_q.filter(InboxMensaje.wa_linea == wa_phone_id_filter)
 
-    try:
-        sub = sub_q.group_by(InboxMensaje.phone).subquery()
-
-        rows = (
-            db.query(InboxMensaje, sub.c.ultimo_at)
-            .join(sub, InboxMensaje.phone == sub.c.phone)
-            .filter(InboxMensaje.created_at == sub.c.ultimo_at)
-            .order_by(sub.c.ultimo_at.desc())
-            .limit(100)
-            .all()
-        )
-    except Exception as _exc:
-        import traceback
-        log.error(f"[inbox/conversaciones] query error linea={linea!r}: {_exc}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(_exc))
+    sub = sub_q.group_by(InboxMensaje.phone).subquery()
+    rows = (
+        db.query(InboxMensaje, sub.c.ultimo_at)
+        .join(sub, InboxMensaje.phone == sub.c.phone)
+        .filter(InboxMensaje.created_at == sub.c.ultimo_at)
+        .order_by(sub.c.ultimo_at.desc())
+        .limit(100)
+        .all()
+    )
 
     result = []
-    try:
-        for msg, ultimo_at in rows:
-            # No leídos (IN sin leer)
-            no_leidos = (
-                db.query(InboxMensaje)
-                .filter(
-                    InboxMensaje.phone == msg.phone,
-                    InboxMensaje.direccion == "IN",
-                    InboxMensaje.leido == False,
-                )
-                .count()
+    for msg, ultimo_at in rows:
+        no_leidos = (
+            db.query(InboxMensaje)
+            .filter(
+                InboxMensaje.phone == msg.phone,
+                InboxMensaje.direccion == "IN",
+                InboxMensaje.leido == False,
             )
+            .count()
+        )
 
-            # Modo actual del lead
-            modo = "bot"
-            agente = "valentina"
-            lead_id = None
-            nombre = msg.nombre_contacto or msg.phone
-            if msg.lead_id:
-                lead = db.query(Lead).filter(Lead.id == msg.lead_id).first()
-                if lead:
-                    modo = lead.modo_atencion or "bot"
-                    agente = lead.agente_asignado or "valentina"
-                    lead_id = lead.id
-                    nombre = lead.nombre or msg.nombre_contacto or msg.phone
+        modo = "bot"
+        agente = "valentina"
+        lead_id = None
+        nombre = msg.nombre_contacto or msg.phone
+        if msg.lead_id:
+            lead = db.query(Lead).filter(Lead.id == msg.lead_id).first()
+            if lead:
+                modo = lead.modo_atencion or "bot"
+                agente = lead.agente_asignado or "valentina"
+                lead_id = lead.id
+                nombre = lead.nombre or msg.nombre_contacto or msg.phone
 
-            result.append({
-                "phone": msg.phone,
-                "nombre": nombre,
-                "lead_id": lead_id,
-                "ultimo_mensaje": msg.contenido[:80] if msg.contenido else "",
-                "ultimo_at": ultimo_at.isoformat() if ultimo_at else None,
-                "no_leidos": no_leidos,
-                "modo": modo,
-                "agente": agente,
-                "direccion": msg.direccion,
-                "wa_linea": msg.wa_linea or "",
-            })
-    except Exception as _exc2:
-        log.error(f"[inbox/conversaciones] iter error linea={linea!r}: {_exc2}\n{_tb.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(_exc2))
+        result.append({
+            "phone": msg.phone,
+            "nombre": nombre,
+            "lead_id": lead_id,
+            "ultimo_mensaje": msg.contenido[:80] if msg.contenido else "",
+            "ultimo_at": ultimo_at.isoformat() if ultimo_at else None,
+            "no_leidos": no_leidos,
+            "modo": modo,
+            "agente": agente,
+            "direccion": msg.direccion,
+            "wa_linea": msg.wa_linea or "",
+        })
 
     return result
 

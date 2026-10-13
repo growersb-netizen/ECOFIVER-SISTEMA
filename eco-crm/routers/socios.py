@@ -4156,6 +4156,7 @@ async def admin_desbloquear_socio(
 @router.post("/api/admin/socios/{codigo}/set-password-temp")
 async def admin_set_password_temp(
     codigo: str,
+    request: Request,
     x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -4172,8 +4173,16 @@ async def admin_set_password_temp(
     if not socio:
         raise HTTPException(404, f"Socio {codigo} no encontrado")
 
+    data = {}
+    try:
+        data = await request.json()
+    except Exception:
+        pass
+
     import secrets as _sec
-    temp_pass = _sec.token_urlsafe(8)  # ~11 chars alfanumérico
+    temp_pass = (data.get("password") or "").strip() or _sec.token_urlsafe(8)
+    if len(temp_pass) < 6:
+        raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
     socio.password_hash = pwd_context.hash(temp_pass)
     socio.bloqueado_hasta = None
     socio.intentos_fallidos = 0

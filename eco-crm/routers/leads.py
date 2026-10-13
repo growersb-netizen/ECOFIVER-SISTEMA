@@ -185,6 +185,13 @@ def lead_to_dict(lead: Lead, db: Session) -> dict:
         "updated_at": lead.updated_at.isoformat() if lead.updated_at else "",
         "veces_recirculado": lead.veces_recirculado or 0,
         "en_rellamados": bool(lead.en_rellamados),
+        # ── Bandeja / asignación ─────────────────────────────────────────────
+        "modo_atencion": lead.modo_atencion or "bot",
+        "agente_asignado": lead.agente_asignado or "valentina",
+        # ── UTM / origen marketing ───────────────────────────────────────────
+        "utm_source": lead.utm_source or "",
+        "utm_medium": lead.utm_medium or "",
+        "utm_campaign": lead.utm_campaign or "",
         # ── Canal Aliados ────────────────────────────────────────────────────
         "aliado_codigo": lead.aliado_codigo or None,
         "dni_cliente": lead.dni_cliente or "",

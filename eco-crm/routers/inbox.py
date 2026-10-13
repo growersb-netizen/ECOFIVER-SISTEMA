@@ -119,29 +119,16 @@ async def listar_conversaciones(
         InboxMensaje.phone,
         sqlfunc.max(InboxMensaje.created_at).label("ultimo_at"),
     )
-    # Filtro por línea: wa_linea directa o vía lead.meta_pagina_id
+    # Filtro por línea: wa_linea == wa_phone_id de la MetaPagina
     if linea:
-        pagina = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
-        if pagina:
-            wa_num = (pagina.numero_whatsapp or "").replace("+", "").replace(" ", "")
-            # Phones de leads que pertenecen a esta página
-            lead_phones = [
-                r[0] for r in db.query(Lead.telefono)
-                .filter(Lead.meta_pagina_id == pagina.page_id)
-                .all()
-                if r[0]
-            ]
-            # Mensajes con wa_linea matching el wa_phone_id de la página
-            cond = InboxMensaje.wa_linea == pagina.wa_phone_id if pagina.wa_phone_id else None
-            lead_phones_clean = [p.replace("+","").replace(" ","") for p in lead_phones[:200] if p]
-            if lead_phones_clean and cond is not None:
-                sub_q = sub_q.filter(
-                    (cond) | (InboxMensaje.phone.in_(lead_phones_clean))
-                )
-            elif lead_phones_clean:
-                sub_q = sub_q.filter(InboxMensaje.phone.in_(lead_phones_clean))
-            elif cond is not None:
-                sub_q = sub_q.filter(cond)
+        try:
+            pagina = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
+            if pagina and pagina.wa_phone_id:
+                sub_q = sub_q.filter(InboxMensaje.wa_linea == pagina.wa_phone_id)
+        except Exception as _fe:
+            import traceback as _tb2
+            log.error(f"[inbox/conversaciones] filter setup error: {_fe}\n{_tb2.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"filter error: {_fe}")
 
     try:
         sub = sub_q.group_by(InboxMensaje.phone).subquery()

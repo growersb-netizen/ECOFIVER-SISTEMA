@@ -535,24 +535,20 @@ async def enviar_comando(
     area = data.get("area") or "GENERAL"
 
     # Crear registro en DB
-    try:
-        cmd = ComandoAgente(
-            tipo=tipo,
-            area=area,
-            prioridad=prioridad,
-            titulo=titulo,
-            instruccion=instruccion,
-            agente_destino=agente,
-            contexto=data.get("contexto") or {},
-            estado="PENDIENTE",
-            enviado_por_id=current_user.id,
-        )
-        db.add(cmd)
-        db.commit()
-        db.refresh(cmd)
-    except Exception as _e:
-        db.rollback()
-        raise HTTPException(500, f"DB error: {type(_e).__name__}: {_e}")
+    cmd = ComandoAgente(
+        tipo=tipo,
+        area=area,
+        prioridad=prioridad,
+        titulo=titulo,
+        instruccion=instruccion,
+        agente_destino=agente,
+        contexto=data.get("contexto") or {},
+        estado="PENDIENTE",
+        enviado_por_id=current_user.id,
+    )
+    db.add(cmd)
+    db.commit()
+    db.refresh(cmd)
 
     # Intentar enviar al orquestador si está configurado
     if orq_url:

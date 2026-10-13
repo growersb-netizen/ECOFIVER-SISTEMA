@@ -352,7 +352,7 @@ async function abrirDetalle(id) {
             const clsMap = { user: 'user', melanie: 'melanie', assistant: 'melanie', system: 'system', bot: 'melanie' };
             const cls = clsMap[rol] || 'melanie';
             const rolLabel = { user: '👤 Cliente', melanie: '🤖 Melanie', assistant: '🤖 Melanie', system: '⚙️ Sistema', bot: '🤖 Melanie' }[rol] || rol;
-            return \`<div class="int-chat-msg \${cls}"><div class="int-chat-rol">\${escHtml(rolLabel)}</div>\${escHtml(String(msg))}</div>\`;
+            return `<div class="int-chat-msg ${cls}"><div class="int-chat-rol">${escHtml(rolLabel)}</div>${escHtml(String(msg))}</div>`;
           }).join('')}
         </div>
       </div>` : ''}

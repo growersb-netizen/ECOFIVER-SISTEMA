@@ -142,16 +142,21 @@ async def listar_conversaciones(
             elif cond is not None:
                 sub_q = sub_q.filter(cond)
 
-    sub = sub_q.group_by(InboxMensaje.phone).subquery()
+    try:
+        sub = sub_q.group_by(InboxMensaje.phone).subquery()
 
-    rows = (
-        db.query(InboxMensaje, sub.c.ultimo_at)
-        .join(sub, InboxMensaje.phone == sub.c.phone)
-        .filter(InboxMensaje.created_at == sub.c.ultimo_at)
-        .order_by(sub.c.ultimo_at.desc())
-        .limit(100)
-        .all()
-    )
+        rows = (
+            db.query(InboxMensaje, sub.c.ultimo_at)
+            .join(sub, InboxMensaje.phone == sub.c.phone)
+            .filter(InboxMensaje.created_at == sub.c.ultimo_at)
+            .order_by(sub.c.ultimo_at.desc())
+            .limit(100)
+            .all()
+        )
+    except Exception as _exc:
+        import traceback
+        log.error(f"[inbox/conversaciones] query error linea={linea!r}: {_exc}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(_exc))
 
     result = []
     for msg, ultimo_at in rows:

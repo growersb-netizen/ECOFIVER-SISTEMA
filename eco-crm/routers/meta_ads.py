@@ -10,6 +10,8 @@ from typing import Optional, List
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
@@ -20,8 +22,19 @@ from routers.auth import require_auth, get_user_roles
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+templates = Jinja2Templates(directory="templates")
 
 META_GRAPH = "https://graph.facebook.com/v19.0"
+
+
+# ── PÁGINA META ADS ───────────────────────────────────────────────────────────
+
+@router.get("/meta-ads", response_class=HTMLResponse, include_in_schema=False)
+async def meta_ads_page(request: Request, current_user: Usuario = Depends(require_auth)):
+    roles = get_user_roles(current_user)
+    return templates.TemplateResponse("meta_ads.html", {
+        "request": request, "user": current_user, "roles": roles,
+    })
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

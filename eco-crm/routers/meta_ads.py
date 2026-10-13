@@ -143,6 +143,28 @@ async def actualizar_portafolio(
     return {"ok": True, "portafolio": _portafolio_dict(p)}
 
 
+# ── INIT TOKEN DESDE ENV (uso único) ─────────────────────────────────────────
+
+@router.post("/api/meta/admin/init-tokens-from-env")
+async def init_tokens_from_env(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """Copia WA_TOKEN del env a system_token_enc en portafolios sin token. Solo ADMIN."""
+    _check_access(current_user, db)
+    wa_token = os.getenv("WA_TOKEN", "").strip()
+    if not wa_token:
+        raise HTTPException(400, "WA_TOKEN no configurado en entorno")
+    pfs = db.query(MetaPortafolio).all()
+    actualizados = []
+    for p in pfs:
+        if not p.system_token_enc:
+            p.system_token_enc = encrypt_value(wa_token)
+            actualizados.append(p.nombre)
+    db.commit()
+    return {"ok": True, "actualizados": actualizados, "total": len(actualizados)}
+
+
 # ── BALANCE DE CUENTA PUBLICITARIA ───────────────────────────────────────────
 
 @router.get("/api/meta/portafolios/{portafolio_id}/balance")

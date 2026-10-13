@@ -79,26 +79,23 @@ async def listar_lineas(
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
-    """Devuelve las líneas WA registradas — una entrada por wa_phone_id distinto."""
+    """Devuelve las líneas WA configuradas como bandejas (solo las que tienen wa_phone_id)."""
     paginas = (
         db.query(MetaPagina)
-        .filter(MetaPagina.numero_whatsapp.isnot(None), MetaPagina.activa == True)
+        .filter(MetaPagina.wa_phone_id.isnot(None), MetaPagina.activa == True)
         .order_by(MetaPagina.nombre)
         .all()
     )
-    # Deduplicar por wa_phone_id: una bandeja real por número de teléfono
+    # Deduplicar por wa_phone_id (una bandeja por número real)
     seen: set = set()
     result = []
     for p in paginas:
-        key = p.wa_phone_id or p.page_id
-        if key in seen:
+        if p.wa_phone_id in seen:
             continue
-        seen.add(key)
-        numero = (p.numero_whatsapp or "").replace("+549", "").replace("+54 9", "").strip()
-        nombre_linea = f"Línea {numero}" if p.wa_phone_id and numero else p.nombre
+        seen.add(p.wa_phone_id)
         result.append({
             "page_id": p.page_id,
-            "nombre": nombre_linea,
+            "nombre": p.nombre,
             "vendedor": p.vendedor or p.nombre,
             "numero_whatsapp": p.numero_whatsapp,
             "wa_phone_id": p.wa_phone_id,

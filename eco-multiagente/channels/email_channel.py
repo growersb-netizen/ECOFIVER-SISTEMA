@@ -317,7 +317,10 @@ async def iniciar_polling_email() -> None:
     global _polling_activo
 
     if not EMAIL_USER or not EMAIL_PASSWORD:
-        logger.info("[Email] Sin credenciales configuradas — canal email inactivo")
+        logger.warning(
+            "[Email] EMAIL_USER / EMAIL_PASSWORD no configurados — canal email inactivo. "
+            "Setear en Railway para activar respuestas automáticas."
+        )
         return
 
     if _polling_activo:
@@ -350,6 +353,7 @@ async def procesar_ciclo_email_unico() -> int:
     Retorna cantidad de emails procesados.
     """
     if not EMAIL_USER or not EMAIL_PASSWORD:
+        logger.debug("[Email] Canal no configurado — ciclo omitido")
         return 0
     try:
         loop  = asyncio.get_event_loop()

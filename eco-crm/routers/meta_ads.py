@@ -226,7 +226,7 @@ async def portafolio_campanas(
         "reach,frequency"
     )
     _ins_mod = (
-        "date_preset(lifetime)"
+        "date_preset(maximum)"
         if periodo == "maximo"
         else f'time_range({{"since":"{date_start}","until":"{date_end}"}})'
     )
@@ -327,7 +327,7 @@ async def campanas_dashboard(
 
         insight_fields = "spend,impressions,clicks,actions"
         _ins_mod = (
-            "date_preset(lifetime)"
+            "date_preset(maximum)"
             if periodo == "maximo"
             else f'time_range({{"since":"{date_start}","until":"{date_end}"}})'
         )

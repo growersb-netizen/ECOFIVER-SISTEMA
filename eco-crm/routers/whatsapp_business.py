@@ -118,6 +118,50 @@ async def get_perfil(db: Session = Depends(get_db), x_api_key: Optional[str] = H
     }
 
 
+@router.get("/api/whatsapp/numeros-waba")
+async def listar_numeros_waba(db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+                              current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Lista todos los números de teléfono del WABA al que pertenece WA_PHONE_ID."""
+    _auth(x_api_key, current_user)
+    token, phone_id = _creds()
+    async with httpx.AsyncClient(timeout=15) as c:
+        # 1. Obtener el WABA ID a partir del phone_id conocido
+        r_phone = await c.get(
+            f"{META_API_BASE}/{phone_id}",
+            params={"fields": "id,display_phone_number,verified_name,account_id"},
+            headers=_headers(token),
+        )
+        if r_phone.status_code != 200:
+            raise HTTPException(r_phone.status_code, f"Error consultando phone_id: {r_phone.text[:300]}")
+        phone_data = r_phone.json()
+        waba_id = phone_data.get("account_id")
+        if not waba_id:
+            raise HTTPException(400, "No se pudo obtener account_id del número configurado")
+        # 2. Listar todos los números del WABA
+        r_nums = await c.get(
+            f"{META_API_BASE}/{waba_id}/phone_numbers",
+            params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
+            headers=_headers(token),
+        )
+    if r_nums.status_code != 200:
+        raise HTTPException(r_nums.status_code, f"Error listando números del WABA: {r_nums.text[:300]}")
+    nums = r_nums.json().get("data", [])
+    return {
+        "ok": True,
+        "waba_id": waba_id,
+        "numeros": [
+            {
+                "phone_number_id": n.get("id"),
+                "display_phone_number": n.get("display_phone_number"),
+                "verified_name": n.get("verified_name"),
+                "quality_rating": n.get("quality_rating"),
+                "status": n.get("status"),
+            }
+            for n in nums
+        ],
+    }
+
+
 @router.put("/api/whatsapp/perfil")
 async def actualizar_perfil(request: Request, x_api_key: Optional[str] = Header(None),
                             current_user: Optional[Usuario] = Depends(get_current_user)):

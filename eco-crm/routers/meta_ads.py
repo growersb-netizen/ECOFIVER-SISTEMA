@@ -1173,3 +1173,106 @@ async def ads_eliminar_anuncio(
     token = decrypt_value(pf.system_token_enc)
     await _ads_delete(token, ad_id)
     return {"ok": True}
+
+
+# ── PÁGINAS DEL PORTAFOLIO (para selector en crear anuncio) ───────────────────
+
+@router.get("/api/ads/portafolios/{portafolio_id}/paginas")
+async def ads_paginas_portafolio(
+    portafolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    paginas = db.query(MetaPagina).filter_by(activa=True).order_by(MetaPagina.nombre).all()
+    return {"ok": True, "paginas": [
+        {"page_id": p.page_id, "nombre": p.nombre, "portafolio": p.portafolio or ""}
+        for p in paginas
+    ]}
+
+
+# ── CREAR ANUNCIO (creative + ad en un paso) ──────────────────────────────────
+
+@router.post("/api/ads/conjuntos/{adset_id}/anuncios")
+async def ads_crear_anuncio(
+    adset_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    data = await request.json()
+    portafolio_id = data.get("portafolio_id")
+    pf = _resolver_portafolio(db, portafolio_id, None)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "No se pudo determinar el portafolio. Incluí portafolio_id.")
+    if not pf.ad_account_id:
+        raise HTTPException(400, "El portafolio no tiene ad_account_id configurado")
+    token = decrypt_value(pf.system_token_enc)
+
+    name      = (data.get("name") or "").strip()
+    page_id   = (data.get("page_id") or "").strip()
+    message   = (data.get("message") or "").strip()
+    headline  = (data.get("headline") or "").strip()
+    description = (data.get("description") or "").strip()
+    link      = (data.get("link") or "").strip()
+    cta_type  = data.get("cta_type") or "LEARN_MORE"
+    status    = data.get("status") or "PAUSED"
+    image_url = (data.get("image_url") or "").strip()
+    image_b64 = (data.get("image_b64") or "").strip()
+
+    if not name:     raise HTTPException(400, "Se requiere name")
+    if not page_id:  raise HTTPException(400, "Se requiere page_id")
+    if not link:     raise HTTPException(400, "Se requiere link (URL de destino)")
+    if not message:  raise HTTPException(400, "Se requiere message (texto principal)")
+    if not image_url and not image_b64:
+        raise HTTPException(400, "Se requiere imagen (image_url o image_b64)")
+
+    # 1. Subir imagen si viene en base64
+    image_hash = None
+    if image_b64:
+        if "," in image_b64:
+            image_b64 = image_b64.split(",", 1)[1]
+        async with httpx.AsyncClient(timeout=60) as hc:
+            r = await hc.post(
+                f"{META_GRAPH}/{pf.ad_account_id}/adimages",
+                data={"bytes": image_b64, "access_token": token},
+            )
+        body = r.json() if r.content else {}
+        if r.status_code not in (200, 201) or "error" in body:
+            err = body.get("error", {})
+            raise HTTPException(400, f"Error subiendo imagen a Meta: {err.get('message', r.text[:200])}")
+        for _fname, img_info in (body.get("images") or {}).items():
+            image_hash = img_info.get("hash")
+            break
+        if not image_hash:
+            raise HTTPException(500, "Meta no devolvió hash de imagen")
+
+    # 2. Armar link_data
+    link_data: dict = {
+        "link": link,
+        "message": message,
+        "call_to_action": {"type": cta_type, "value": {"link": link}},
+    }
+    if headline:    link_data["name"] = headline
+    if description: link_data["description"] = description
+    if image_hash:  link_data["image_hash"] = image_hash
+    elif image_url: link_data["picture"] = image_url
+
+    # 3. Crear adcreative
+    creative_result = await _ads_post(token, f"{pf.ad_account_id}/adcreatives", {
+        "name": f"Creative — {name}",
+        "object_story_spec": json.dumps({"page_id": page_id, "link_data": link_data}),
+    })
+    creative_id = creative_result.get("id")
+    if not creative_id:
+        raise HTTPException(500, "Meta no devolvió creative_id")
+
+    # 4. Crear anuncio
+    ad_result = await _ads_post(token, f"{pf.ad_account_id}/ads", {
+        "name": name,
+        "adset_id": adset_id,
+        "creative": json.dumps({"creative_id": creative_id}),
+        "status": status,
+    })
+    return {"ok": True, "id": ad_result.get("id"), "creative_id": creative_id}

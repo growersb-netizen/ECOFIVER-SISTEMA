@@ -148,11 +148,12 @@
 <!-- ─── SECCIÓN ANUNCIOS ─── -->
 <div id="sec-anuncios" style="display:none">
   <div class="card" style="padding:16px">
-    <div class="drill-header">
+    <div class="drill-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-size:13px;font-weight:700">Anuncios</div>
         <div style="font-size:11px;color:var(--text-muted)" id="ad-camp-label">Seleccioná una campaña desde la pestaña Campañas</div>
       </div>
+      <button onclick="abrirModalAnuncio()" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none">+ Nuevo anuncio</button>
     </div>
     <div id="ad-tabla-wrap"><div class="estado-vacio">Seleccioná una campaña para ver sus anuncios</div></div>
   </div>
@@ -177,6 +178,149 @@
       </div>
     </div>
     <div id="com-lista"><div class="estado-vacio">Seleccioná una campaña para ver comentarios</div></div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Anuncio (3 pasos) -->
+<div id="modal-anuncio" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9100;align-items:center;justify-content:center;overflow-y:auto">
+  <div style="background:var(--card-bg);border-radius:16px;padding:24px;width:min(540px,96vw);box-shadow:0 8px 40px rgba(0,0,0,.35);margin:24px auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="font-size:15px;font-weight:700">🖼️ Nuevo anuncio</div>
+      <button onclick="cerrarModalAnuncio()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
+    </div>
+    <div id="man-conjunto-label" style="font-size:11px;color:var(--text-muted);margin-bottom:16px"></div>
+
+    <!-- Indicador de pasos -->
+    <div style="display:flex;gap:0;margin-bottom:20px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+      <div class="man-paso-btn" id="man-paso-btn-1" onclick="manIrPaso(1)" style="flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:#1877f2;color:#fff">1. Imagen</div>
+      <div class="man-paso-btn" id="man-paso-btn-2" onclick="manIrPaso(2)" style="flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--fg);border-left:1px solid var(--border)">2. Texto</div>
+      <div class="man-paso-btn" id="man-paso-btn-3" onclick="manIrPaso(3)" style="flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--fg);border-left:1px solid var(--border)">3. Config</div>
+    </div>
+
+    <!-- PASO 1: Imagen -->
+    <div id="man-paso-1">
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <button onclick="manTabImagen('url')" id="man-tab-url" class="btn btn-sm" style="background:#e0e7ff;color:#3730a3;border:none">🔗 URL</button>
+        <button onclick="manTabImagen('subir')" id="man-tab-subir" class="btn btn-ghost btn-sm">⬆ Subir</button>
+        <button onclick="manTabImagen('ia')" id="man-tab-ia" class="btn btn-ghost btn-sm">🤖 Generar con IA</button>
+      </div>
+
+      <!-- Sub-tab URL -->
+      <div id="man-img-url-tab">
+        <label style="font-size:12px;font-weight:600">URL de la imagen *
+          <input id="man-image-url" type="url" placeholder="https://..." style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px" oninput="manPreviewUrl(this.value)">
+        </label>
+        <div id="man-img-preview-url" style="margin-top:8px"></div>
+      </div>
+
+      <!-- Sub-tab Subir -->
+      <div id="man-img-subir-tab" style="display:none">
+        <label style="font-size:12px;font-weight:600">Seleccioná una imagen (JPG/PNG)
+          <input id="man-img-file" type="file" accept="image/jpeg,image/png,image/webp" style="display:block;margin-top:6px;font-size:12px" onchange="manCargarArchivo(this)">
+        </label>
+        <div id="man-img-preview-file" style="margin-top:8px"></div>
+      </div>
+
+      <!-- Sub-tab IA -->
+      <div id="man-img-ia-tab" style="display:none">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Subí una foto de referencia y el sistema genera una imagen publicitaria optimizada para Meta Ads.</div>
+        <label style="font-size:12px;font-weight:600">Foto de referencia *
+          <input id="man-ref-file" type="file" accept="image/jpeg,image/png,image/webp" style="display:block;margin-top:4px;font-size:12px" onchange="manCargarRef(this)">
+        </label>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <label style="font-size:12px;font-weight:600;flex:1">Formato
+            <select id="man-ia-formato" style="display:block;width:100%;margin-top:4px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
+              <option value="feed_cuadrado">Feed cuadrado (1:1)</option>
+              <option value="feed_horizontal">Feed horizontal (1.91:1)</option>
+              <option value="stories">Stories (9:16)</option>
+              <option value="reels">Reels (9:16)</option>
+            </select>
+          </label>
+          <label style="font-size:12px;font-weight:600;flex:1">Tipo
+            <select id="man-ia-tipo" style="display:block;width:100%;margin-top:4px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
+              <option value="promo">Promocional</option>
+              <option value="producto">Producto</option>
+              <option value="lifestyle">Lifestyle</option>
+              <option value="oferta">Oferta</option>
+            </select>
+          </label>
+        </div>
+        <label style="font-size:12px;font-weight:600;display:block;margin-top:8px">Producto / contexto
+          <input id="man-ia-producto" type="text" placeholder="Ej: Módulo habitacional FULL — 2 ambientes" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+        </label>
+        <button onclick="manGenerarIA()" class="btn btn-sm" style="margin-top:10px;background:#7c3aed;color:#fff;border:none" id="man-btn-generar-ia">✨ Generar imagen</button>
+        <div id="man-img-preview-ia" style="margin-top:10px"></div>
+      </div>
+
+      <!-- Preview general de imagen seleccionada -->
+      <div id="man-img-seleccionada" style="margin-top:12px;display:none">
+        <div style="font-size:11px;color:#16a34a;font-weight:600;margin-bottom:4px">✓ Imagen lista</div>
+        <img id="man-img-thumb" style="max-width:100%;max-height:180px;border-radius:8px;object-fit:contain">
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button onclick="manIrPaso(2)" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none">Siguiente →</button>
+      </div>
+    </div>
+
+    <!-- PASO 2: Texto -->
+    <div id="man-paso-2" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="font-size:12px;font-weight:600">Texto principal *
+          <textarea id="man-message" rows="3" placeholder="Ej: ¿Soñás con tu propia vivienda? Módulos habitacionales desde $X/mes. Consultá sin compromiso." style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px;resize:vertical"></textarea>
+        </label>
+        <label style="font-size:12px;font-weight:600">Titular
+          <input id="man-headline" type="text" placeholder="Ej: Módulos habitacionales EcoFiver" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+        </label>
+        <label style="font-size:12px;font-weight:600">Descripción
+          <input id="man-description" type="text" placeholder="Ej: Entrega en el día. Financiación disponible." style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+        </label>
+        <label style="font-size:12px;font-weight:600">URL de destino *
+          <input id="man-link" type="url" placeholder="https://ecofiver.com/modulos" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+        </label>
+        <label style="font-size:12px;font-weight:600">Llamada a la acción
+          <select id="man-cta" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+            <option value="LEARN_MORE">Más información</option>
+            <option value="CONTACT_US">Contactarnos</option>
+            <option value="GET_QUOTE">Obtener cotización</option>
+            <option value="SIGN_UP">Registrarse</option>
+            <option value="WHATSAPP_MESSAGE">Mensaje WhatsApp</option>
+            <option value="SEND_MESSAGE">Enviar mensaje</option>
+            <option value="SHOP_NOW">Comprar ahora</option>
+          </select>
+        </label>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:16px">
+        <button onclick="manIrPaso(1)" class="btn btn-ghost btn-sm">← Atrás</button>
+        <button onclick="manIrPaso(3)" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none">Siguiente →</button>
+      </div>
+    </div>
+
+    <!-- PASO 3: Config -->
+    <div id="man-paso-3" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="font-size:12px;font-weight:600">Nombre del anuncio *
+          <input id="man-name" type="text" placeholder="Ej: Módulos — Feed — Oct 2026" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+        </label>
+        <label style="font-size:12px;font-weight:600">Página de Facebook *
+          <select id="man-page-id" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+            <option value="">Cargando páginas…</option>
+          </select>
+        </label>
+        <label style="font-size:12px;font-weight:600">Estado inicial
+          <select id="man-status" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+            <option value="PAUSED">Pausado</option>
+            <option value="ACTIVE">Activo</option>
+          </select>
+        </label>
+        <!-- Resumen -->
+        <div id="man-resumen" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:11px;color:var(--text-muted);line-height:1.6"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:16px">
+        <button onclick="manIrPaso(2)" class="btn btn-ghost btn-sm">← Atrás</button>
+        <button onclick="guardarAnuncio()" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none" id="man-btn-crear">Crear anuncio</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -274,6 +418,8 @@ let _campaniasFull = [];
 let _curCuentaId = null;
 let _curCampId = null;
 let _curCampName = null;
+let _curConjId = null;
+let _curConjName = null;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Utilidades
@@ -533,7 +679,12 @@ async function cargarConjuntos() {
         <td>${fmtN(m.impresiones)}</td>
         <td>${fmtN(m.alcance)}</td>
         <td>${fmtN(m.clics)}</td>
-        <td style="white-space:nowrap">${togBtn} <button onclick="eliminarConjunto('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button></td>
+        <td style="white-space:nowrap">
+          <button onclick="drillConj('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Ver ads</button>
+          <button onclick="abrirModalAnuncioConj('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#1877f2;color:#fff;border:none">+ Anuncio</button>
+          ${togBtn}
+          <button onclick="eliminarConjunto('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
+        </td>
       </tr>`;
     }).join('');
     document.getElementById('conj-tabla-wrap').innerHTML = `
@@ -545,6 +696,20 @@ async function cargarConjuntos() {
     document.getElementById('conj-tabla-wrap').innerHTML = `<div class="estado-vacio" style="color:#dc2626">Error: ${e.message}</div>`;
     toast(e.message, 'error');
   }
+}
+
+function drillConj(id, name) {
+  _curConjId = id;
+  _curConjName = name;
+  document.getElementById('ad-camp-label').textContent = `Conjunto: ${name}`;
+  showSec('anuncios');
+  cargarAnuncios();
+}
+
+function abrirModalAnuncioConj(id, name) {
+  _curConjId = id;
+  _curConjName = name;
+  abrirModalAnuncio();
 }
 
 async function toggleConj(id, newStatus) {
@@ -767,6 +932,197 @@ async function _post(url, body) {
   const d = await r.json();
   if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
   return d;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL NUEVO ANUNCIO
+═══════════════════════════════════════════════════════════════════════════ */
+let _manPaso = 1;
+let _manImgB64 = null;    // base64 de imagen seleccionada (subir o IA)
+let _manImgUrl = null;    // URL de imagen (si eligió URL)
+let _manRefB64 = null;    // base64 de foto de referencia para IA
+
+async function abrirModalAnuncio() {
+  if (!_curConjId) { toast('Usá el botón "+ Anuncio" en la fila del conjunto', 'error'); return; }
+  // reset
+  _manPaso = 1; _manImgB64 = null; _manImgUrl = null; _manRefB64 = null;
+  document.getElementById('man-conjunto-label').textContent = `Conjunto: ${_curConjName || _curConjId}`;
+  document.getElementById('man-image-url').value = '';
+  document.getElementById('man-img-preview-url').innerHTML = '';
+  document.getElementById('man-img-preview-file').innerHTML = '';
+  document.getElementById('man-img-preview-ia').innerHTML = '';
+  document.getElementById('man-img-seleccionada').style.display = 'none';
+  document.getElementById('man-message').value = '';
+  document.getElementById('man-headline').value = '';
+  document.getElementById('man-description').value = '';
+  document.getElementById('man-link').value = '';
+  document.getElementById('man-name').value = '';
+  manTabImagen('url');
+  manIrPaso(1);
+  document.getElementById('modal-anuncio').style.display = 'flex';
+  // cargar páginas
+  await manCargarPaginas();
+}
+
+function cerrarModalAnuncio() { document.getElementById('modal-anuncio').style.display = 'none'; }
+
+function manIrPaso(n) {
+  _manPaso = n;
+  [1,2,3].forEach(i => {
+    document.getElementById(`man-paso-${i}`).style.display = i === n ? '' : 'none';
+    const btn = document.getElementById(`man-paso-btn-${i}`);
+    if (i === n) { btn.style.background='#1877f2'; btn.style.color='#fff'; }
+    else { btn.style.background='var(--bg)'; btn.style.color='var(--fg)'; }
+  });
+  if (n === 3) manActualizarResumen();
+}
+
+function manTabImagen(tab) {
+  ['url','subir','ia'].forEach(t => {
+    document.getElementById(`man-img-${t}-tab`).style.display = t === tab ? '' : 'none';
+    const btn = document.getElementById(`man-tab-${t}`);
+    if (t === tab) { btn.style.background='#e0e7ff'; btn.style.color='#3730a3'; }
+    else { btn.style.background=''; btn.style.color=''; btn.classList.add('btn-ghost'); }
+  });
+}
+
+function manPreviewUrl(url) {
+  _manImgUrl = url || null;
+  _manImgB64 = null;
+  const el = document.getElementById('man-img-preview-url');
+  if (url) {
+    el.innerHTML = `<img src="${url}" style="max-width:100%;max-height:140px;border-radius:8px;object-fit:contain" onerror="this.style.display='none'">`;
+    document.getElementById('man-img-thumb').src = url;
+    document.getElementById('man-img-seleccionada').style.display = '';
+  } else {
+    el.innerHTML = '';
+    document.getElementById('man-img-seleccionada').style.display = 'none';
+  }
+}
+
+function manCargarArchivo(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _manImgB64 = e.target.result;  // data:image/...;base64,...
+    _manImgUrl = null;
+    document.getElementById('man-img-preview-file').innerHTML =
+      `<img src="${_manImgB64}" style="max-width:100%;max-height:140px;border-radius:8px;object-fit:contain">`;
+    document.getElementById('man-img-thumb').src = _manImgB64;
+    document.getElementById('man-img-seleccionada').style.display = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function manCargarRef(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { _manRefB64 = e.target.result; };
+  reader.readAsDataURL(file);
+}
+
+async function manGenerarIA() {
+  if (!_manRefB64) { toast('Subí una foto de referencia primero', 'error'); return; }
+  const btn = document.getElementById('man-btn-generar-ia');
+  btn.textContent = '⏳ Generando…'; btn.disabled = true;
+  const prev = document.getElementById('man-img-preview-ia');
+  prev.innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Generando imagen con IA…</div>';
+  try {
+    const b64Parts = _manRefB64.split(',');
+    const mime = b64Parts[0].replace('data:','').replace(';base64','');
+    const r = await fetch('/api/imagenes/generar-meta', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        foto_b64: b64Parts[1],
+        mime,
+        formato: document.getElementById('man-ia-formato').value,
+        tipo_flyer: document.getElementById('man-ia-tipo').value,
+        producto_texto: document.getElementById('man-ia-producto').value,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    const imgSrc = `data:image/png;base64,${d.imagen}`;
+    _manImgB64 = imgSrc;
+    _manImgUrl = null;
+    prev.innerHTML = `<img src="${imgSrc}" style="max-width:100%;max-height:180px;border-radius:8px;object-fit:contain">
+      <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${d.formato} · ${d.dimensiones}</div>`;
+    document.getElementById('man-img-thumb').src = imgSrc;
+    document.getElementById('man-img-seleccionada').style.display = '';
+    toast('Imagen generada ✓', 'success');
+  } catch(e) {
+    prev.innerHTML = `<div style="color:#dc2626;font-size:12px">Error: ${e.message}</div>`;
+    toast(e.message, 'error');
+  } finally {
+    btn.textContent = '✨ Generar imagen'; btn.disabled = false;
+  }
+}
+
+async function manCargarPaginas() {
+  const sel = document.getElementById('man-page-id');
+  sel.innerHTML = '<option value="">Cargando…</option>';
+  try {
+    const d = await _get(`/api/ads/portafolios/${_curCuentaId}/paginas`);
+    if (d.paginas && d.paginas.length) {
+      sel.innerHTML = d.paginas.map(p =>
+        `<option value="${p.page_id}">${p.nombre} (${p.page_id})${p.portafolio ? ' — '+p.portafolio : ''}</option>`
+      ).join('');
+    } else {
+      sel.innerHTML = '<option value="">Sin páginas — ingresá el ID manualmente</option>';
+    }
+  } catch(e) {
+    sel.innerHTML = '<option value="">Error al cargar páginas</option>';
+  }
+}
+
+function manActualizarResumen() {
+  const msg = document.getElementById('man-message').value.slice(0, 60);
+  const link = document.getElementById('man-link').value;
+  const tieneImg = _manImgB64 ? 'Imagen base64 lista' : (_manImgUrl ? _manImgUrl.slice(0,50)+'…' : '⚠ Sin imagen');
+  document.getElementById('man-resumen').innerHTML =
+    `<b>Imagen:</b> ${tieneImg}<br>
+     <b>Texto:</b> ${msg || '—'}…<br>
+     <b>URL:</b> ${link || '—'}<br>
+     <b>Conjunto:</b> ${_curConjName || _curConjId}`;
+}
+
+async function guardarAnuncio() {
+  const name = document.getElementById('man-name').value.trim();
+  const page_id = document.getElementById('man-page-id').value;
+  const message = document.getElementById('man-message').value.trim();
+  const headline = document.getElementById('man-headline').value.trim();
+  const description = document.getElementById('man-description').value.trim();
+  const link = document.getElementById('man-link').value.trim();
+  const cta_type = document.getElementById('man-cta').value;
+  const status = document.getElementById('man-status').value;
+
+  if (!name) { toast('Escribí un nombre para el anuncio', 'error'); manIrPaso(3); return; }
+  if (!page_id) { toast('Seleccioná una página de Facebook', 'error'); manIrPaso(3); return; }
+  if (!message) { toast('Escribí el texto principal', 'error'); manIrPaso(2); return; }
+  if (!link) { toast('Ingresá la URL de destino', 'error'); manIrPaso(2); return; }
+  if (!_manImgB64 && !_manImgUrl) { toast('Seleccioná o generá una imagen', 'error'); manIrPaso(1); return; }
+
+  const btn = document.getElementById('man-btn-crear');
+  btn.textContent = '⏳ Creando…'; btn.disabled = true;
+
+  const body = {
+    portafolio_id: _curCuentaId,
+    name, page_id, message, headline, description, link, cta_type, status,
+  };
+  if (_manImgB64) body.image_b64 = _manImgB64;
+  else if (_manImgUrl) body.image_url = _manImgUrl;
+
+  try {
+    const r = await _post(`/api/ads/conjuntos/${_curConjId}/anuncios`, body);
+    toast(`Anuncio creado (ID: ${r.id}) ✓`, 'success');
+    cerrarModalAnuncio();
+    cargarAnuncios();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.textContent = 'Crear anuncio'; btn.disabled = false;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

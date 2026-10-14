@@ -591,6 +591,10 @@ function renderCampanias() {
   }
   const rows = _campanias.map(c => {
     const m = c.metricas || {};
+    const nombre = c.nombre || c.name || '';
+    const objetivo = c.objetivo || c.objective || '';
+    const presupuesto = c.daily_budget ? `$${c.daily_budget}/día` : c.lifetime_budget ? `$${c.lifetime_budget} total` : '—';
+    const nombreSafe = nombre.replace(/'/g, '');
     const badge = c.status === 'ACTIVE' ? 'badge-active' : c.status === 'PAUSED' ? 'badge-paused' : 'badge-other';
     const togBtn = c.status === 'ACTIVE'
       ? `<button onclick="toggleCamp('${c.id}','PAUSED')" class="btn btn-sm" style="font-size:10px;background:#fef3c7;color:#92400e;border:none">⏸ Pausar</button>`
@@ -599,8 +603,8 @@ function renderCampanias() {
         : '';
     return `<tr>
       <td>
-        <div style="font-size:12px;font-weight:600">${c.name}</div>
-        <div style="font-size:10px;color:var(--text-muted)">${c.objective || ''} · ${c.presupuesto}</div>
+        <div style="font-size:12px;font-weight:600">${nombre}</div>
+        <div style="font-size:10px;color:var(--text-muted)">${objetivo} · ${presupuesto}</div>
       </td>
       <td><span class="badge ${badge}">${c.status}</span></td>
       <td style="font-weight:600;color:var(--accent)">${m.gasto || '—'}</td>
@@ -609,11 +613,11 @@ function renderCampanias() {
       <td>${fmtN(m.clics)}</td>
       <td>${m.ctr || '—'}</td>
       <td style="white-space:nowrap">
-        <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','conjuntos')" class="btn btn-ghost btn-sm" style="font-size:10px">🎯 Conjuntos</button>
-        <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','anuncios')" class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Anuncios</button>
-        <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','comentarios')" class="btn btn-ghost btn-sm" style="font-size:10px">💬 Com.</button>
+        <button onclick="drillCamp('${c.id}','${nombreSafe}','conjuntos')" class="btn btn-ghost btn-sm" style="font-size:10px">🎯 Conjuntos</button>
+        <button onclick="drillCamp('${c.id}','${nombreSafe}','anuncios')" class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Anuncios</button>
+        <button onclick="drillCamp('${c.id}','${nombreSafe}','comentarios')" class="btn btn-ghost btn-sm" style="font-size:10px">💬 Com.</button>
         ${togBtn}
-        <button onclick="eliminarCampana('${c.id}','${c.name.replace(/'/g,'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
+        <button onclick="eliminarCampana('${c.id}','${nombreSafe}')" class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
       </td>
     </tr>`;
   }).join('');

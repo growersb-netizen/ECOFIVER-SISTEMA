@@ -119,33 +119,37 @@ async def get_perfil(db: Session = Depends(get_db), x_api_key: Optional[str] = H
 
 
 @router.get("/api/whatsapp/numeros-waba")
-async def listar_numeros_waba(db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
-                              current_user: Optional[Usuario] = Depends(get_current_user)):
-    """Lista todos los números de teléfono del WABA al que pertenece WA_PHONE_ID."""
+async def listar_numeros_waba(
+    waba_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+):
+    """Lista todos los números de teléfono de un WABA.
+    Pasa ?waba_id=XXX para consultar un WABA específico.
+    Sin parámetro intenta derivar el WABA del WA_PHONE_ID configurado (puede fallar si el token no tiene permisos BM).
+    """
     _auth(x_api_key, current_user)
     token, phone_id = _creds()
     async with httpx.AsyncClient(timeout=15) as c:
-        # 1. Obtener el WABA ID a partir del phone_id conocido
-        r_phone = await c.get(
-            f"{META_API_BASE}/{phone_id}",
-            params={"fields": "id,display_phone_number,verified_name,whatsapp_business_account"},
-            headers=_headers(token),
-        )
-        if r_phone.status_code != 200:
-            raise HTTPException(r_phone.status_code, f"Error consultando phone_id: {r_phone.text[:300]}")
-        phone_data = r_phone.json()
-        waba_obj = phone_data.get("whatsapp_business_account") or {}
-        waba_id = waba_obj.get("id")
         if not waba_id:
-            raise HTTPException(400, "No se pudo obtener waba_id del número configurado")
-        # 2. Listar todos los números del WABA
+            # Intentar obtener el WABA desde el phone_id (requiere permisos amplios)
+            r_phone = await c.get(
+                f"{META_API_BASE}/{phone_id}",
+                params={"fields": "id,display_phone_number,verified_name"},
+                headers=_headers(token),
+            )
+            if r_phone.status_code != 200:
+                raise HTTPException(r_phone.status_code, f"Error consultando phone_id: {r_phone.text[:300]}")
+            raise HTTPException(400, "Proporciona ?waba_id=XXX — el token no tiene permisos para derivar el WABA automáticamente.")
+        # Listar todos los números del WABA dado
         r_nums = await c.get(
             f"{META_API_BASE}/{waba_id}/phone_numbers",
             params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
             headers=_headers(token),
         )
     if r_nums.status_code != 200:
-        raise HTTPException(r_nums.status_code, f"Error listando números del WABA: {r_nums.text[:300]}")
+        raise HTTPException(r_nums.status_code, f"Error listando números del WABA {waba_id}: {r_nums.text[:300]}")
     nums = r_nums.json().get("data", [])
     return {
         "ok": True,

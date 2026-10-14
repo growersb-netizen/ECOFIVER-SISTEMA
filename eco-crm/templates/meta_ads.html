@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Campañas Meta Ads — EcoFiver CRM{% endblock %}
 
 {% block extra_css %}
@@ -606,7 +606,7 @@ function renderCampanias() {
         <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','anuncios')" class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Anuncios</button>
         <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','comentarios')" class="btn btn-ghost btn-sm" style="font-size:10px">💬 Com.</button>
         ${togBtn}
-        <button onclick="eliminarCampana('${c.id}','${c.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
+        <button onclick="eliminarCampana('${c.id}','${c.name.replace(/'/g,'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -680,10 +680,10 @@ async function cargarConjuntos() {
         <td>${fmtN(m.alcance)}</td>
         <td>${fmtN(m.clics)}</td>
         <td style="white-space:nowrap">
-          <button onclick="drillConj('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Ver ads</button>
-          <button onclick="abrirModalAnuncioConj('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#1877f2;color:#fff;border:none">+ Anuncio</button>
+          <button onclick="drillConj('${cs.id}','${cs.name.replace(/'/g,'')}') " class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Ver ads</button>
+          <button onclick="abrirModalAnuncioConj('${cs.id}','${cs.name.replace(/'/g,'')}') " class="btn btn-sm" style="font-size:10px;background:#1877f2;color:#fff;border:none">+ Anuncio</button>
           ${togBtn}
-          <button onclick="eliminarConjunto('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
+          <button onclick="eliminarConjunto('${cs.id}','${cs.name.replace(/'/g,'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
         </td>
       </tr>`;
     }).join('');
@@ -755,7 +755,7 @@ async function cargarAnuncios() {
         <td>${fmtN(m.clics)}</td>
         <td>${m.ctr || '—'}</td>
         <td>${m.cpc || '—'}</td>
-        <td><button onclick="eliminarAnuncio('${ad.id}','${ad.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button></td>
+        <td><button onclick="eliminarAnuncio('${ad.id}','${ad.name.replace(/'/g,'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button></td>
       </tr>`;
     }).join('');
     document.getElementById('ad-tabla-wrap').innerHTML = `

@@ -831,7 +831,7 @@ async def ads_campanas_por_portafolio(
     if not pf:
         raise HTTPException(404, "Portafolio no encontrado")
     if not pf.ad_account_id or not pf.system_token_enc:
-        return {"ok": False, "campanas": [], "error": "Portafolio sin cuenta o token configurado"}
+        return {"ok": False, "campanias": [], "error": "Portafolio sin cuenta o token configurado"}
     token = decrypt_value(pf.system_token_enc)
     acc_id = pf.ad_account_id if pf.ad_account_id.startswith("act_") else f"act_{pf.ad_account_id}"
     date_start, date_end = _date_range(periodo)
@@ -850,7 +850,7 @@ async def ads_campanas_por_portafolio(
     try:
         raw = await _ads_get(token, f"{acc_id}/campaigns", params)
     except HTTPException as e:
-        return {"ok": False, "campanas": [], "error": e.detail}
+        return {"ok": False, "campanias": [], "error": e.detail}
     campanas = []
     for c in raw.get("data", []):
         ins = (c.get("insights") or {}).get("data", [{}])[0] if c.get("insights") else {}
@@ -887,7 +887,7 @@ async def ads_campanas_por_portafolio(
                 "spend_raw": spend,
             },
         })
-    return {"ok": True, "campanas": campanas}
+    return {"ok": True, "campanias": campanas}
 
 
 @router.patch("/api/ads/campanias/{campaign_id}/estado")

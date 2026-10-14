@@ -505,9 +505,12 @@ async function cargarCuentas() {
       sel.appendChild(o);
     });
 
-    if (_cuentas.length === 1) {
-      _curCuentaId = _cuentas[0].id;
-      sel.value = _curCuentaId;
+    // Auto-seleccionar: si hay 1 cuenta, o si hay varias pero solo 1 configurada
+    const configuradas = _cuentas.filter(c => c.meta_account_id);
+    const autoSel = _cuentas.length === 1 ? _cuentas[0] : (configuradas.length === 1 ? configuradas[0] : null);
+    if (autoSel) {
+      _curCuentaId = autoSel.id;
+      sel.value = String(_curCuentaId);
     }
   } catch (e) {
     document.getElementById('cuentas-lista').innerHTML = `<div class="estado-vacio" style="color:#dc2626">Error: ${e.message}</div>`;
@@ -563,6 +566,10 @@ async function cargarCampanias() {
   document.getElementById('camp-tabla-wrap').innerHTML = '<div class="estado-vacio"><span class="spinner"></span> Cargando campañas…</div>';
   try {
     const d = await _get(`/api/ads/cuentas/${encodeURIComponent(_curCuentaId)}/campanias`);
+    if (!d.ok && d.error) {
+      document.getElementById('camp-tabla-wrap').innerHTML = `<div class="estado-vacio" style="color:#dc2626">${d.error}</div>`;
+      return;
+    }
     _campaniasFull = d.campanias || [];
     filtrarCampanias();
   } catch (e) {

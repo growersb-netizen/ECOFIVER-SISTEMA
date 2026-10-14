@@ -494,7 +494,8 @@
         const opt = document.createElement('option');
         opt.value = l.page_id;
         const numero = l.numero_whatsapp ? ` · ${l.numero_whatsapp}` : '';
-        opt.textContent = `📲 ${l.vendedor || l.nombre}${numero}`;
+        const pendiente = l.pendiente ? ' ⏳' : '';
+        opt.textContent = `📲 ${l.vendedor || l.nombre}${numero}${pendiente}`;
         opt.dataset.portafolio = l.portafolio || '';
         sel.appendChild(opt);
       });

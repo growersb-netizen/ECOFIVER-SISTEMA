@@ -146,20 +146,32 @@ async def listar_lineas(
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
-    """Devuelve las líneas WA configuradas como bandejas (solo las que tienen wa_phone_id)."""
+    """Devuelve las líneas WA configuradas como bandejas.
+
+    Incluye líneas con wa_phone_id conocido Y líneas de vendedores pendientes
+    de auto-descubrimiento (wa_phone_id=NULL con vendedor_slug asignado).
+    """
+    from sqlalchemy import or_
     paginas = (
         db.query(MetaPagina)
-        .filter(MetaPagina.wa_phone_id.isnot(None), MetaPagina.activa == True)
+        .filter(
+            MetaPagina.activa == True,
+            or_(
+                MetaPagina.wa_phone_id.isnot(None),
+                MetaPagina.vendedor_slug.isnot(None),
+            ),
+        )
         .order_by(MetaPagina.nombre)
         .all()
     )
-    # Deduplicar por wa_phone_id (una bandeja por número real)
+    # Deduplicar por wa_phone_id cuando está disponible
     seen: set = set()
     result = []
     for p in paginas:
-        if p.wa_phone_id in seen:
+        key = p.wa_phone_id or f"pendiente:{p.page_id}"
+        if key in seen:
             continue
-        seen.add(p.wa_phone_id)
+        seen.add(key)
         result.append({
             "page_id": p.page_id,
             "nombre": p.nombre,
@@ -167,6 +179,7 @@ async def listar_lineas(
             "numero_whatsapp": p.numero_whatsapp,
             "wa_phone_id": p.wa_phone_id,
             "portafolio": p.portafolio,
+            "pendiente": p.wa_phone_id is None,
         })
     return result
 

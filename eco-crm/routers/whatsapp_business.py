@@ -128,15 +128,16 @@ async def listar_numeros_waba(db: Session = Depends(get_db), x_api_key: Optional
         # 1. Obtener el WABA ID a partir del phone_id conocido
         r_phone = await c.get(
             f"{META_API_BASE}/{phone_id}",
-            params={"fields": "id,display_phone_number,verified_name,account_id"},
+            params={"fields": "id,display_phone_number,verified_name,whatsapp_business_account"},
             headers=_headers(token),
         )
         if r_phone.status_code != 200:
             raise HTTPException(r_phone.status_code, f"Error consultando phone_id: {r_phone.text[:300]}")
         phone_data = r_phone.json()
-        waba_id = phone_data.get("account_id")
+        waba_obj = phone_data.get("whatsapp_business_account") or {}
+        waba_id = waba_obj.get("id")
         if not waba_id:
-            raise HTTPException(400, "No se pudo obtener account_id del número configurado")
+            raise HTTPException(400, "No se pudo obtener waba_id del número configurado")
         # 2. Listar todos los números del WABA
         r_nums = await c.get(
             f"{META_API_BASE}/{waba_id}/phone_numbers",

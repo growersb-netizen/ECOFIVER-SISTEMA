@@ -48,7 +48,7 @@ async def _crm_get_modo(phone: str) -> str:
 async def _melanie_registrar_lead(phone: str, primer_mensaje: str = "", nombre: str = "") -> None:
     """Registra contacto de Melanie en el módulo de integraciones del CRM (idempotente)."""
     payload = {
-        "nombre": nombre or f"Contacto {phone[-6:]}",
+        "nombre": nombre or phone,
         "telefono": phone,
         "resumen": (primer_mensaje or "")[:300],
     }

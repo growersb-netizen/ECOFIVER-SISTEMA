@@ -369,8 +369,11 @@ async def recibir_entrante(
     es_linea_vendedor = wa_linea_clean == WA_PHONE_ID_MELANIE
 
     # Asociar o crear lead
+    # Filtrar nombres de negocio/bot que a veces devuelve Meta como nombre de contacto
+    _nombre_raw = (payload.nombre or "").strip()
+    _nombre_negocio = {"melanie", "melanie eco", "ecomodulos", "eco modulos", "ecofiver"}
     lead_id = payload.lead_id
-    nombre = payload.nombre or phone
+    nombre = _nombre_raw if _nombre_raw and _nombre_raw.lower() not in _nombre_negocio else phone
     if not lead_id:
         lead = db.query(Lead).filter(Lead.telefono.contains(phone[-9:])).first()
         if lead:

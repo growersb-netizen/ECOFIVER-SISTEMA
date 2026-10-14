@@ -830,6 +830,8 @@ async def asignar_a_agentes_ia(
         leads_q = db.query(Lead).filter(
             Lead.estado.in_(["NUEVO", "INTENTADO"]),
             or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False),
+            # Excluir leads de Melanie (Stefania Devia / Claudia Ríos) — les corresponden a ella
+            or_(Lead.agente_asignado.is_(None), Lead.agente_asignado != "melanie"),
         ).limit(limite)
 
     leads = leads_q.all()
@@ -1161,6 +1163,8 @@ async def redistribuir_todos_los_leads(
     q = db.query(Lead).filter(
         Lead.estado.in_(ESTADOS_REDISTRIBUIBLES),
         or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False),
+        # Excluir leads de Melanie (Stefania Devia / Claudia Ríos) — les corresponden a ella
+        or_(Lead.agente_asignado.is_(None), Lead.agente_asignado != "melanie"),
     )
     if desde_asesor_id:
         q = q.filter(Lead.asesor_apertura_id == int(desde_asesor_id))

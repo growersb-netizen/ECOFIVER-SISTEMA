@@ -227,6 +227,33 @@ async def exchange_token(
     return {"ok": True, "expires_in_days": round(expires_in / 86400), "portafolio": _portafolio_dict(p)}
 
 
+# ── LISTAR AD ACCOUNTS DEL TOKEN (helper diagnóstico) ────────────────────────
+
+@router.get("/api/meta/portafolios/{portafolio_id}/adaccounts")
+async def list_adaccounts(
+    portafolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    p = db.query(MetaPortafolio).filter_by(id=portafolio_id).first()
+    if not p:
+        raise HTTPException(404, "Portafolio no encontrado")
+    if not p.system_token_enc:
+        raise HTTPException(400, "Portafolio sin token")
+    token = decrypt_value(p.system_token_enc)
+    async with httpx.AsyncClient(timeout=20) as hc:
+        r = await hc.get(
+            "https://graph.facebook.com/v19.0/me/adaccounts",
+            params={"fields": "name,account_id,account_status,currency,business", "access_token": token, "limit": 50},
+        )
+    body = r.json() if r.content else {}
+    if r.status_code != 200 or "error" in body:
+        err = body.get("error", {})
+        raise HTTPException(400, f"Error Meta: {err.get('message', r.text[:200])}")
+    return body
+
+
 # ── BALANCE DE CUENTA PUBLICITARIA ───────────────────────────────────────────
 
 @router.get("/api/meta/portafolios/{portafolio_id}/balance")

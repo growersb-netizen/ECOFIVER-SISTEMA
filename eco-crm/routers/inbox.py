@@ -24,13 +24,30 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from database.database import get_db
-from database.models import Lead, InboxMensaje, MetaPagina
+from database.models import Lead, InboxMensaje, MetaPagina, Aliado
 from routers.auth import require_auth, get_user_roles
 from utils.whatsapp import send_whatsapp_text
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+
+def _get_aliado_melanie(db: Session) -> str | None:
+    """Devuelve el código del aliado titular de la línea Melanie (Claudia Ríos).
+    Busca en orden: 1) ConfiguracionSistema 'melanie_aliado_codigo',
+    2) primer aliado activo con 'claudia' en el nombre."""
+    from database.models import ConfiguracionSistema
+    cfg = db.query(ConfiguracionSistema).filter(
+        ConfiguracionSistema.clave == "melanie_aliado_codigo"
+    ).first()
+    if cfg and cfg.valor:
+        return cfg.valor
+    aliado = db.query(Aliado).filter(
+        Aliado.estado == "activo",
+        Aliado.nombre.ilike("%claudia%"),
+    ).first()
+    return aliado.codigo if aliado else None
 
 # Clave API compartida con el multiagente
 MULTIAGENTE_API_KEY = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
@@ -384,6 +401,8 @@ async def recibir_entrante(
                 lead.modo_atencion = "humano"
                 db.commit()
         elif es_linea_vendedor and payload.direccion == "IN":
+            # Buscar aliado_codigo de Claudia Ríos (titular de la línea Melanie)
+            _aliado_melanie = _get_aliado_melanie(db)
             # Auto-crear lead para mensajes entrantes de la línea vendedora
             new_lead = Lead(
                 nombre=nombre,
@@ -394,6 +413,7 @@ async def recibir_entrante(
                 modo_atencion="humano",
                 agente_asignado="melanie",
                 estado="NUEVO",
+                aliado_codigo=_aliado_melanie,
             )
             db.add(new_lead)
             db.commit()

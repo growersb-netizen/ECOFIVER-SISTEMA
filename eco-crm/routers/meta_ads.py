@@ -29,6 +29,7 @@ META_GRAPH = "https://graph.facebook.com/v19.0"
 
 # ── PÁGINA META ADS ───────────────────────────────────────────────────────────
 
+@router.get("/ads", response_class=HTMLResponse, include_in_schema=False)
 @router.get("/meta-ads", response_class=HTMLResponse, include_in_schema=False)
 async def meta_ads_page(request: Request, current_user: Usuario = Depends(require_auth)):
     roles = get_user_roles(current_user)
@@ -711,6 +712,17 @@ async def _ads_post(token: str, path: str, payload: dict, timeout: int = 20) -> 
     return body
 
 
+async def _ads_delete(token: str, object_id: str, timeout: int = 20) -> dict:
+    url = f"{META_GRAPH}/{object_id}"
+    async with httpx.AsyncClient(timeout=timeout) as hc:
+        r = await hc.delete(url, params={"access_token": token})
+    body = r.json() if r.content else {}
+    if r.status_code not in (200, 204) or "error" in body:
+        err = body.get("error", {})
+        raise HTTPException(400, err.get("message", f"Meta API error: {r.text[:200]}"))
+    return body
+
+
 def _fmt_ars(v: float) -> str:
     return f"${v:,.0f}".replace(",", ".")
 
@@ -1030,4 +1042,134 @@ async def ads_eliminar_comentario(
         raise HTTPException(400, "Pasá portafolio_id como query param")
     token = decrypt_value(pf.system_token_enc)
     await _ads_post(token, comment_id, {"method": "delete"})
+    return {"ok": True}
+
+
+# ── CREAR CAMPAÑA ─────────────────────────────────────────────────────────────
+
+@router.post("/api/ads/campanias")
+async def ads_crear_campana(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    data = await request.json()
+    portafolio_id = data.get("portafolio_id")
+    if not portafolio_id:
+        raise HTTPException(400, "Se requiere portafolio_id")
+    pf = db.query(MetaPortafolio).filter_by(id=portafolio_id).first()
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "Portafolio no encontrado o sin token")
+    if not pf.ad_account_id:
+        raise HTTPException(400, "El portafolio no tiene ad_account_id configurado")
+    token = decrypt_value(pf.system_token_enc)
+    payload = {
+        "name": data.get("name", "").strip(),
+        "objective": data.get("objective", "OUTCOME_LEADS"),
+        "status": data.get("status", "PAUSED"),
+        "special_ad_categories": "[]",
+    }
+    if not payload["name"]:
+        raise HTTPException(400, "Se requiere name")
+    if data.get("daily_budget"):
+        payload["daily_budget"] = int(float(data["daily_budget"]) * 100)
+    elif data.get("lifetime_budget"):
+        payload["lifetime_budget"] = int(float(data["lifetime_budget"]) * 100)
+    result = await _ads_post(token, f"{pf.ad_account_id}/campaigns", payload)
+    return {"ok": True, "id": result.get("id")}
+
+
+# ── ELIMINAR CAMPAÑA ──────────────────────────────────────────────────────────
+
+@router.delete("/api/ads/campanias/{campaign_id}")
+async def ads_eliminar_campana(
+    campaign_id: str,
+    portafolio_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pf = _resolver_portafolio(db, portafolio_id, campaign_id)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "No se pudo determinar el portafolio. Incluí portafolio_id.")
+    token = decrypt_value(pf.system_token_enc)
+    await _ads_delete(token, campaign_id)
+    return {"ok": True}
+
+
+# ── CREAR CONJUNTO DE ANUNCIOS ────────────────────────────────────────────────
+
+@router.post("/api/ads/campanias/{campaign_id}/conjuntos")
+async def ads_crear_conjunto(
+    campaign_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    data = await request.json()
+    portafolio_id = data.get("portafolio_id")
+    pf = _resolver_portafolio(db, portafolio_id, campaign_id)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "No se pudo determinar el portafolio")
+    if not pf.ad_account_id:
+        raise HTTPException(400, "El portafolio no tiene ad_account_id configurado")
+    token = decrypt_value(pf.system_token_enc)
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Se requiere name")
+    targeting = data.get("targeting") or {"geo_locations": {"countries": ["AR"]}}
+    payload = {
+        "name": name,
+        "campaign_id": campaign_id,
+        "optimization_goal": data.get("optimization_goal", "LEAD_GENERATION"),
+        "billing_event": data.get("billing_event", "IMPRESSIONS"),
+        "bid_strategy": data.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+        "targeting": json.dumps(targeting),
+        "status": data.get("status", "PAUSED"),
+    }
+    if data.get("daily_budget"):
+        payload["daily_budget"] = int(float(data["daily_budget"]) * 100)
+    if data.get("start_time"):
+        payload["start_time"] = data["start_time"]
+    if data.get("end_time"):
+        payload["end_time"] = data["end_time"]
+    result = await _ads_post(token, f"{pf.ad_account_id}/adsets", payload)
+    return {"ok": True, "id": result.get("id")}
+
+
+# ── ELIMINAR CONJUNTO ─────────────────────────────────────────────────────────
+
+@router.delete("/api/ads/conjuntos/{adset_id}")
+async def ads_eliminar_conjunto(
+    adset_id: str,
+    portafolio_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pf = _resolver_portafolio(db, portafolio_id, None)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "Pasá portafolio_id como query param")
+    token = decrypt_value(pf.system_token_enc)
+    await _ads_delete(token, adset_id)
+    return {"ok": True}
+
+
+# ── ELIMINAR ANUNCIO ──────────────────────────────────────────────────────────
+
+@router.delete("/api/ads/anuncios/{ad_id}")
+async def ads_eliminar_anuncio(
+    ad_id: str,
+    portafolio_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    _check_access(current_user, db)
+    pf = _resolver_portafolio(db, portafolio_id, None)
+    if not pf or not pf.system_token_enc:
+        raise HTTPException(400, "Pasá portafolio_id como query param")
+    token = decrypt_value(pf.system_token_enc)
+    await _ads_delete(token, ad_id)
     return {"ok": True}

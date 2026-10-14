@@ -124,6 +124,7 @@
           <option value="ARCHIVED">Archivadas</option>
         </select>
         <button onclick="cargarCampanias()" class="btn btn-ghost btn-sm">🔄 Actualizar</button>
+        <button onclick="abrirModalCampana()" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none">+ Nueva campaña</button>
       </div>
     </div>
     <div id="camp-tabla-wrap"><div class="estado-vacio">Seleccioná una cuenta para ver sus campañas</div></div>
@@ -133,11 +134,12 @@
 <!-- ─── SECCIÓN CONJUNTOS ─── -->
 <div id="sec-conjuntos" style="display:none">
   <div class="card" style="padding:16px">
-    <div class="drill-header">
+    <div class="drill-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-size:13px;font-weight:700">Conjuntos de anuncios</div>
         <div style="font-size:11px;color:var(--text-muted)" id="conj-camp-label">Seleccioná una campaña desde la pestaña Campañas</div>
       </div>
+      <button onclick="abrirModalConjunto()" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none">+ Nuevo conjunto</button>
     </div>
     <div id="conj-tabla-wrap"><div class="estado-vacio">Seleccioná una campaña para ver sus conjuntos</div></div>
   </div>
@@ -175,6 +177,86 @@
       </div>
     </div>
     <div id="com-lista"><div class="estado-vacio">Seleccioná una campaña para ver comentarios</div></div>
+  </div>
+</div>
+
+<!-- Modal Nueva Campaña -->
+<div id="modal-campana" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;align-items:center;justify-content:center">
+  <div style="background:var(--card-bg);border-radius:14px;padding:24px;width:min(460px,95vw);box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <div style="font-size:15px;font-weight:700;margin-bottom:16px">➕ Nueva campaña</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:12px;font-weight:600">Nombre *
+        <input id="mc-name" type="text" placeholder="Ej: Módulos — Leads Octubre" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+      </label>
+      <label style="font-size:12px;font-weight:600">Objetivo
+        <select id="mc-objetivo" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+          <option value="OUTCOME_LEADS">Leads (recomendado)</option>
+          <option value="OUTCOME_TRAFFIC">Tráfico</option>
+          <option value="OUTCOME_ENGAGEMENT">Interacción</option>
+          <option value="OUTCOME_AWARENESS">Reconocimiento</option>
+          <option value="OUTCOME_SALES">Ventas</option>
+        </select>
+      </label>
+      <div style="display:flex;gap:8px">
+        <label style="font-size:12px;font-weight:600;flex:1">Presupuesto (ARS)
+          <input id="mc-budget" type="number" placeholder="0" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+        </label>
+        <label style="font-size:12px;font-weight:600;flex:1">Tipo
+          <select id="mc-tipo-budget" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+            <option value="daily_budget">Diario</option>
+            <option value="lifetime_budget">Total</option>
+          </select>
+        </label>
+      </div>
+      <label style="font-size:12px;font-weight:600">Estado inicial
+        <select id="mc-status" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+          <option value="PAUSED">Pausada</option>
+          <option value="ACTIVE">Activa</option>
+        </select>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+      <button onclick="cerrarModalCampana()" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button onclick="guardarCampana()" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none">Crear campaña</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Conjunto -->
+<div id="modal-conjunto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;align-items:center;justify-content:center">
+  <div style="background:var(--card-bg);border-radius:14px;padding:24px;width:min(460px,95vw);box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <div style="font-size:15px;font-weight:700;margin-bottom:16px">➕ Nuevo conjunto de anuncios</div>
+    <div id="mcs-camp-label" style="font-size:11px;color:var(--text-muted);margin-bottom:10px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:12px;font-weight:600">Nombre *
+        <input id="mcs-name" type="text" placeholder="Ej: Interesados módulos 25-55" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+      </label>
+      <label style="font-size:12px;font-weight:600">Objetivo de optimización
+        <select id="mcs-goal" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+          <option value="LEAD_GENERATION">Generación de leads</option>
+          <option value="LINK_CLICKS">Clics en enlace</option>
+          <option value="IMPRESSIONS">Impresiones</option>
+          <option value="REACH">Alcance</option>
+          <option value="CONVERSATIONS">Conversaciones</option>
+        </select>
+      </label>
+      <label style="font-size:12px;font-weight:600">Presupuesto diario (ARS)
+        <input id="mcs-budget" type="number" placeholder="0" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+      </label>
+      <label style="font-size:12px;font-weight:600">País objetivo
+        <input id="mcs-pais" type="text" value="AR" placeholder="AR" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+      </label>
+      <label style="font-size:12px;font-weight:600">Estado inicial
+        <select id="mcs-status" style="display:block;width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:13px">
+          <option value="PAUSED">Pausado</option>
+          <option value="ACTIVE">Activo</option>
+        </select>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+      <button onclick="cerrarModalConjunto()" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button onclick="guardarConjunto()" class="btn btn-sm" style="background:#1877f2;color:#fff;border:none">Crear conjunto</button>
+    </div>
   </div>
 </div>
 
@@ -378,6 +460,7 @@ function renderCampanias() {
         <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','anuncios')" class="btn btn-ghost btn-sm" style="font-size:10px">🖼 Anuncios</button>
         <button onclick="drillCamp('${c.id}','${c.name.replace(/'/g,'\\')}','comentarios')" class="btn btn-ghost btn-sm" style="font-size:10px">💬 Com.</button>
         ${togBtn}
+        <button onclick="eliminarCampana('${c.id}','${c.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -450,7 +533,7 @@ async function cargarConjuntos() {
         <td>${fmtN(m.impresiones)}</td>
         <td>${fmtN(m.alcance)}</td>
         <td>${fmtN(m.clics)}</td>
-        <td>${togBtn}</td>
+        <td style="white-space:nowrap">${togBtn} <button onclick="eliminarConjunto('${cs.id}','${cs.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button></td>
       </tr>`;
     }).join('');
     document.getElementById('conj-tabla-wrap').innerHTML = `
@@ -507,11 +590,12 @@ async function cargarAnuncios() {
         <td>${fmtN(m.clics)}</td>
         <td>${m.ctr || '—'}</td>
         <td>${m.cpc || '—'}</td>
+        <td><button onclick="eliminarAnuncio('${ad.id}','${ad.name.replace(/'/g,'\\'')}') " class="btn btn-sm" style="font-size:10px;background:#fee2e2;color:#991b1b;border:none">🗑</button></td>
       </tr>`;
     }).join('');
     document.getElementById('ad-tabla-wrap').innerHTML = `
       <table class="camp-table">
-        <thead><tr><th>Anuncio</th><th>Estado</th><th>Gasto</th><th>Impresiones</th><th>Alcance</th><th>Clics</th><th>CTR</th><th>CPC</th></tr></thead>
+        <thead><tr><th>Anuncio</th><th>Estado</th><th>Gasto</th><th>Impresiones</th><th>Alcance</th><th>Clics</th><th>CTR</th><th>CPC</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
   } catch (e) {
@@ -583,6 +667,106 @@ async function eliminarTodosNegativos() {
     } catch (e) { /* skip */ }
   }
   toast(`${n} comentario(s) eliminado(s) ✓`, 'success');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ELIMINAR CAMPAÑA / CONJUNTO / ANUNCIO
+═══════════════════════════════════════════════════════════════════════════ */
+async function eliminarCampana(id, nombre) {
+  if (!confirm(`¿Eliminar la campaña "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await _delete(`/api/ads/campanias/${id}?portafolio_id=${_curCuentaId}`);
+    toast('Campaña eliminada ✓', 'success');
+    await cargarCampanias();
+    cargarResumen();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function eliminarConjunto(id, nombre) {
+  if (!confirm(`¿Eliminar el conjunto "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await _delete(`/api/ads/conjuntos/${id}?portafolio_id=${_curCuentaId}`);
+    toast('Conjunto eliminado ✓', 'success');
+    cargarConjuntos();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function eliminarAnuncio(id, nombre) {
+  if (!confirm(`¿Eliminar el anuncio "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await _delete(`/api/ads/anuncios/${id}?portafolio_id=${_curCuentaId}`);
+    toast('Anuncio eliminado ✓', 'success');
+    cargarAnuncios();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CREAR CAMPAÑA
+═══════════════════════════════════════════════════════════════════════════ */
+function abrirModalCampana() {
+  if (!_curCuentaId) { toast('Seleccioná una cuenta primero', 'error'); return; }
+  document.getElementById('modal-campana').style.display = 'flex';
+  document.getElementById('mc-name').value = '';
+  document.getElementById('mc-budget').value = '';
+}
+function cerrarModalCampana() { document.getElementById('modal-campana').style.display = 'none'; }
+
+async function guardarCampana() {
+  const name = document.getElementById('mc-name').value.trim();
+  const objetivo = document.getElementById('mc-objetivo').value;
+  const status = document.getElementById('mc-status').value;
+  const budget = parseFloat(document.getElementById('mc-budget').value) || 0;
+  const tipoBudget = document.getElementById('mc-tipo-budget').value;
+  if (!name) { toast('Escribí un nombre para la campaña', 'error'); return; }
+  const body = { portafolio_id: _curCuentaId, name, objective: objetivo, status };
+  if (budget > 0) body[tipoBudget] = budget;
+  try {
+    const r = await _post('/api/ads/campanias', body);
+    toast(`Campaña creada (ID: ${r.id}) ✓`, 'success');
+    cerrarModalCampana();
+    await cargarCampanias();
+    cargarResumen();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CREAR CONJUNTO
+═══════════════════════════════════════════════════════════════════════════ */
+function abrirModalConjunto() {
+  if (!_curCampId) { toast('Seleccioná una campaña primero', 'error'); return; }
+  document.getElementById('modal-conjunto').style.display = 'flex';
+  document.getElementById('mcs-name').value = '';
+  document.getElementById('mcs-budget').value = '';
+}
+function cerrarModalConjunto() { document.getElementById('modal-conjunto').style.display = 'none'; }
+
+async function guardarConjunto() {
+  const name = document.getElementById('mcs-name').value.trim();
+  const goal = document.getElementById('mcs-goal').value;
+  const status = document.getElementById('mcs-status').value;
+  const budget = parseFloat(document.getElementById('mcs-budget').value) || 0;
+  const pais = document.getElementById('mcs-pais').value.trim() || 'AR';
+  if (!name) { toast('Escribí un nombre para el conjunto', 'error'); return; }
+  const body = {
+    portafolio_id: _curCuentaId,
+    name, optimization_goal: goal, status,
+    targeting: { geo_locations: { countries: [pais] } },
+  };
+  if (budget > 0) body.daily_budget = budget;
+  try {
+    const r = await _post(`/api/ads/campanias/${_curCampId}/conjuntos`, body);
+    toast(`Conjunto creado (ID: ${r.id}) ✓`, 'success');
+    cerrarModalConjunto();
+    cargarConjuntos();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* helper POST */
+async function _post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+  return d;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

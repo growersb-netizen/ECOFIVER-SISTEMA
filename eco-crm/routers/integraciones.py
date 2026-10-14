@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import Lead, SolicitudMelanie, TareaLlamadaConfirmacion, Usuario
+from database.models import Lead, SolicitudMelanie, TareaLlamadaConfirmacion, Usuario, Aliado, ConfiguracionSistema
 from routers.auth import require_auth, get_user_roles
 
 router = APIRouter()
@@ -287,6 +287,19 @@ async def webhook_melanie(
         lead = db.query(Lead).filter(Lead.telefono == body.telefono).first()
         lead_es_nuevo = lead is None
 
+        # Código de aliado de la titular de la línea Melanie (Claudia Ríos)
+        _cfg_aliado = db.query(ConfiguracionSistema).filter(
+            ConfiguracionSistema.clave == "melanie_aliado_codigo"
+        ).first()
+        _aliado_codigo = None
+        if _cfg_aliado and _cfg_aliado.valor:
+            _aliado_codigo = _cfg_aliado.valor
+        else:
+            _al = db.query(Aliado).filter(
+                Aliado.estado == "activo", Aliado.nombre.ilike("%claudia%")
+            ).first()
+            _aliado_codigo = _al.codigo if _al else None
+
         if lead_es_nuevo:
             prod_crm = _PROD_MAP.get((body.producto or "").lower(), "SIN_DEFINIR")
             nota_base = "\n".join(filter(None, [
@@ -306,6 +319,7 @@ async def webhook_melanie(
                 estado="NUEVO",
                 notas=nota_base,
                 modo_atencion="humano",
+                aliado_codigo=_aliado_codigo,
             )
             db.add(lead)
             db.flush()
@@ -315,6 +329,9 @@ async def webhook_melanie(
                 lead.localidad = body.localidad
             if body.modelo and not lead.modelo_especifico:
                 lead.modelo_especifico = body.modelo
+            # Asignar aliado si todavía no tiene
+            if _aliado_codigo and not lead.aliado_codigo:
+                lead.aliado_codigo = _aliado_codigo
 
         # 2. Idempotencia — ¿ya hay tarea PENDIENTE para este lead?
         tarea_existente = (

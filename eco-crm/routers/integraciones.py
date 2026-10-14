@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import Lead, SolicitudMelanie, TareaLlamadaConfirmacion, Usuario, Aliado, ConfiguracionSistema
+from database.models import Lead, SolicitudMelanie, TareaLlamadaConfirmacion, Usuario, ConfiguracionSistema
 from routers.auth import require_auth, get_user_roles
 
 router = APIRouter()
@@ -287,18 +287,12 @@ async def webhook_melanie(
         lead = db.query(Lead).filter(Lead.telefono == body.telefono).first()
         lead_es_nuevo = lead is None
 
-        # Código de aliado de la titular de la línea Melanie (Claudia Ríos)
+        # Código de aliado de la titular de la línea Melanie (Claudia Ríos = AL-010)
         _cfg_aliado = db.query(ConfiguracionSistema).filter(
             ConfiguracionSistema.clave == "melanie_aliado_codigo"
         ).first()
-        _aliado_codigo = None
-        if _cfg_aliado and _cfg_aliado.valor:
-            _aliado_codigo = _cfg_aliado.valor
-        else:
-            _al = db.query(Aliado).filter(
-                Aliado.estado == "activo", Aliado.nombre.ilike("%claudia%")
-            ).first()
-            _aliado_codigo = _al.codigo if _al else None
+        _aliado_codigo = (_cfg_aliado.valor if (_cfg_aliado and _cfg_aliado.valor)
+                          else "AL-010")
 
         if lead_es_nuevo:
             prod_crm = _PROD_MAP.get((body.producto or "").lower(), "SIN_DEFINIR")

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from database.database import get_db
-from database.models import Lead, InboxMensaje, MetaPagina, Aliado
+from database.models import Lead, InboxMensaje, MetaPagina
 from routers.auth import require_auth, get_user_roles
 from utils.whatsapp import send_whatsapp_text
 
@@ -33,21 +33,17 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-def _get_aliado_melanie(db: Session) -> str | None:
+_MELANIE_ALIADO_CODIGO = "AL-010"  # Claudia Ríos — titular de la línea Melanie
+
+
+def _get_aliado_melanie(db: Session) -> str:
     """Devuelve el código del aliado titular de la línea Melanie (Claudia Ríos).
-    Busca en orden: 1) ConfiguracionSistema 'melanie_aliado_codigo',
-    2) primer aliado activo con 'claudia' en el nombre."""
+    Puede sobreescribirse con ConfiguracionSistema clave 'melanie_aliado_codigo'."""
     from database.models import ConfiguracionSistema
     cfg = db.query(ConfiguracionSistema).filter(
         ConfiguracionSistema.clave == "melanie_aliado_codigo"
     ).first()
-    if cfg and cfg.valor:
-        return cfg.valor
-    aliado = db.query(Aliado).filter(
-        Aliado.estado == "activo",
-        Aliado.nombre.ilike("%claudia%"),
-    ).first()
-    return aliado.codigo if aliado else None
+    return cfg.valor if (cfg and cfg.valor) else _MELANIE_ALIADO_CODIGO
 
 # Clave API compartida con el multiagente
 MULTIAGENTE_API_KEY = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")

@@ -167,6 +167,35 @@ async def listar_numeros_waba(
     }
 
 
+@router.get("/api/whatsapp/lineas-detectadas")
+async def lineas_detectadas(db: Session = Depends(get_db), x_api_key: Optional[str] = Header(None),
+                            current_user: Optional[Usuario] = Depends(get_current_user)):
+    """Devuelve todos los phone_number_id que aparecen en inbox_mensajes (wa_linea),
+    indicando si son una línea conocida o desconocida. Útil para descubrir IDs de líneas nuevas."""
+    _auth(x_api_key, current_user)
+    from database.models import InboxMensaje
+    from sqlalchemy import distinct, func as sqlfunc
+    rows = (
+        db.query(InboxMensaje.wa_linea, sqlfunc.count(InboxMensaje.id).label("mensajes"))
+        .filter(InboxMensaje.wa_linea.isnot(None))
+        .group_by(InboxMensaje.wa_linea)
+        .order_by(sqlfunc.count(InboxMensaje.id).desc())
+        .all()
+    )
+    conocidas = {"1037947576071396": "Agentes IA", "1562122100308561": "Melanie (Stefanía)"}
+    return {
+        "ok": True,
+        "lineas": [
+            {
+                "wa_phone_id": r.wa_linea,
+                "nombre_conocido": conocidas.get(r.wa_linea, "DESCONOCIDA"),
+                "mensajes": r.mensajes,
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.put("/api/whatsapp/perfil")
 async def actualizar_perfil(request: Request, x_api_key: Optional[str] = Header(None),
                             current_user: Optional[Usuario] = Depends(get_current_user)):

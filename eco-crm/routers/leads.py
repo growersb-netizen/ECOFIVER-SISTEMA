@@ -12,7 +12,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 
 from database.database import get_db
-from database.models import Lead, Videollamada, Usuario, Notificacion, ConfiguracionSistema, Interaccion
+from database.models import Lead, Videollamada, Usuario, Notificacion, ConfiguracionSistema, Interaccion, MetaPagina
+
+# Agentes IA del multiagente — únicos que entran al pool de redistribución
+_AGENTES_IA = ["valentina", "pablo", "laura", "sabrina", "claudio"]
 from routers.auth import require_auth, require_roles, get_user_roles, get_current_user, require_auth_or_apikey
 
 log = logging.getLogger(__name__)
@@ -830,8 +833,8 @@ async def asignar_a_agentes_ia(
         leads_q = db.query(Lead).filter(
             Lead.estado.in_(["NUEVO", "INTENTADO"]),
             or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False),
-            # Excluir leads de Melanie (Stefania Devia / Claudia Ríos) — les corresponden a ella
-            or_(Lead.agente_asignado.is_(None), Lead.agente_asignado != "melanie"),
+            # Solo leads sin asignar o asignados a agentes IA (excluye líneas de vendedores)
+            or_(Lead.agente_asignado.is_(None), Lead.agente_asignado.in_(_AGENTES_IA)),
         ).limit(limite)
 
     leads = leads_q.all()
@@ -1163,8 +1166,8 @@ async def redistribuir_todos_los_leads(
     q = db.query(Lead).filter(
         Lead.estado.in_(ESTADOS_REDISTRIBUIBLES),
         or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False),
-        # Excluir leads de Melanie (Stefania Devia / Claudia Ríos) — les corresponden a ella
-        or_(Lead.agente_asignado.is_(None), Lead.agente_asignado != "melanie"),
+        # Solo leads sin asignar o asignados a agentes IA (excluye líneas de vendedores)
+        or_(Lead.agente_asignado.is_(None), Lead.agente_asignado.in_(_AGENTES_IA)),
     )
     if desde_asesor_id:
         q = q.filter(Lead.asesor_apertura_id == int(desde_asesor_id))

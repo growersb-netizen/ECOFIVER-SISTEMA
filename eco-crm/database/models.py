@@ -1645,6 +1645,8 @@ class MetaPagina(Base):
     numero_whatsapp = Column(String(30), default=None)  # número al que redirige la IA
     vendedor = Column(String(150), nullable=True)        # nombre del vendedor/responsable de la página
     wa_phone_id = Column(String(60), nullable=True)      # Meta API phone_number_id de esta línea
+    vendedor_slug = Column(String(50), nullable=True)    # slug interno del vendedor (e.g. "melanie", "javier")
+    aliado_codigo = Column(String(20), nullable=True)    # código de aliado CRM (e.g. "AL-010")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 

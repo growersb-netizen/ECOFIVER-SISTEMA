@@ -17,6 +17,7 @@ import logging
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
+import httpx
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -33,27 +34,76 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-_MELANIE_ALIADO_CODIGO = "AL-010"  # Claudia Ríos — titular de la línea Melanie
-
-
-def _get_aliado_melanie(db: Session) -> str:
-    """Devuelve el código del aliado titular de la línea Melanie (Claudia Ríos).
-    Puede sobreescribirse con ConfiguracionSistema clave 'melanie_aliado_codigo'."""
-    from database.models import ConfiguracionSistema
-    cfg = db.query(ConfiguracionSistema).filter(
-        ConfiguracionSistema.clave == "melanie_aliado_codigo"
-    ).first()
-    return cfg.valor if (cfg and cfg.valor) else _MELANIE_ALIADO_CODIGO
-
 # Clave API compartida con el multiagente
 MULTIAGENTE_API_KEY = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
 
-# Agentes disponibles en el multiagente
+# Agentes IA disponibles en el multiagente (excluyendo líneas de vendedores)
 AGENTES = ["valentina", "pablo", "laura", "sabrina", "claudio"]
+AGENTES_IA_REDISTRIBUCION = AGENTES  # alias para redistribución de leads
 
-# Líneas WhatsApp — phone_number_id de Meta
-WA_PHONE_ID_AGENTES  = "1037947576071396"   # 1168733406 — línea agentes IA
-WA_PHONE_ID_MELANIE  = "1562122100308561"   # 1126036495 — línea vendedora humana
+# Línea WhatsApp de agentes IA
+WA_PHONE_ID_AGENTES = "1037947576071396"   # 1168733406 — línea agentes IA
+
+_META_API_BASE = "https://graph.facebook.com/v22.0"
+
+
+async def _get_vendor_line(db: Session, wa_phone_id: str | None) -> MetaPagina | None:
+    """Devuelve la MetaPagina si el wa_phone_id corresponde a una línea de vendedor.
+    Si no encuentra por ID pero hay una entrada pendiente (wa_phone_id=NULL), intenta
+    auto-descubrir usando la API de Meta para obtener el número de display.
+    """
+    if not wa_phone_id:
+        return None
+
+    # Búsqueda directa por phone_number_id
+    linea = db.query(MetaPagina).filter(
+        MetaPagina.wa_phone_id == wa_phone_id,
+        MetaPagina.vendedor_slug.isnot(None),
+        MetaPagina.activa == True,
+    ).first()
+    if linea:
+        return linea
+
+    # Auto-descubrimiento: ¿hay entradas pendientes sin wa_phone_id?
+    pendientes = db.query(MetaPagina).filter(
+        MetaPagina.wa_phone_id.is_(None),
+        MetaPagina.vendedor_slug.isnot(None),
+        MetaPagina.activa == True,
+    ).all()
+    if not pendientes:
+        return None
+
+    # Consultar Meta API para obtener display_phone_number de esta línea desconocida
+    try:
+        token = os.getenv("WA_TOKEN", "")
+        if not token:
+            return None
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(
+                f"{_META_API_BASE}/{wa_phone_id}",
+                params={"fields": "display_phone_number"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if r.status_code != 200:
+            return None
+        display = r.json().get("display_phone_number", "")
+        if not display:
+            return None
+
+        digits = "".join(ch for ch in display if ch.isdigit())
+        for p in pendientes:
+            if not p.numero_whatsapp:
+                continue
+            p_digits = "".join(ch for ch in p.numero_whatsapp if ch.isdigit())
+            if digits[-9:] == p_digits[-9:]:
+                p.wa_phone_id = wa_phone_id
+                db.commit()
+                log.info(f"[inbox] Auto-descubierto phone_id {wa_phone_id} → {p.vendedor_slug} ({display})")
+                return p
+    except Exception as exc:
+        log.warning(f"[inbox] Auto-descubrimiento falló para {wa_phone_id}: {exc}")
+
+    return None
 
 # SSE: set de colas activas por sesión
 _sse_queues: list[asyncio.Queue] = []
@@ -167,9 +217,17 @@ async def listar_conversaciones(
             .count()
         )
 
-        # Default según la línea: vendedora → humano, agentes → bot
-        modo_default  = "humano" if msg.wa_linea == WA_PHONE_ID_MELANIE else "bot"
-        agente_default = "melanie" if msg.wa_linea == WA_PHONE_ID_MELANIE else "valentina"
+        # Default según la línea: vendedor → humano, agentes IA → bot
+        linea_db = (
+            db.query(MetaPagina).filter(
+                MetaPagina.wa_phone_id == msg.wa_linea,
+                MetaPagina.vendedor_slug.isnot(None),
+                MetaPagina.activa == True,
+            ).first()
+            if msg.wa_linea else None
+        )
+        modo_default   = "humano" if linea_db else "bot"
+        agente_default = linea_db.vendedor_slug if linea_db else "valentina"
         modo = modo_default
         agente = agente_default
         lead_id = None
@@ -379,10 +437,12 @@ async def recibir_entrante(
 
     phone = payload.phone.replace("+", "").replace(" ", "").replace("-", "")
     wa_linea_clean = (payload.wa_linea or "").replace("+", "").replace(" ", "") or None
-    es_linea_vendedor = wa_linea_clean == WA_PHONE_ID_MELANIE
+
+    # Determinar si es una línea de vendedor vía MetaPagina (DB-driven, con auto-descubrimiento)
+    linea_vendedor = await _get_vendor_line(db, wa_linea_clean)
+    es_linea_vendedor = linea_vendedor is not None
 
     # Asociar o crear lead
-    # Filtrar nombres de negocio/bot que a veces devuelve Meta como nombre de contacto
     _nombre_raw = (payload.nombre or "").strip()
     _nombre_negocio = {"melanie", "melanie eco", "ecomodulos", "eco modulos", "ecofiver"}
     lead_id = payload.lead_id
@@ -397,8 +457,6 @@ async def recibir_entrante(
                 lead.modo_atencion = "humano"
                 db.commit()
         elif es_linea_vendedor and payload.direccion == "IN":
-            # Buscar aliado_codigo de Claudia Ríos (titular de la línea Melanie)
-            _aliado_melanie = _get_aliado_melanie(db)
             # Auto-crear lead para mensajes entrantes de la línea vendedora
             new_lead = Lead(
                 nombre=nombre,
@@ -407,9 +465,9 @@ async def recibir_entrante(
                 utm_source="meta",
                 utm_medium="ads",
                 modo_atencion="humano",
-                agente_asignado="melanie",
+                agente_asignado=linea_vendedor.vendedor_slug,
                 estado="NUEVO",
-                aliado_codigo=_aliado_melanie,
+                aliado_codigo=linea_vendedor.aliado_codigo or "",
             )
             db.add(new_lead)
             db.commit()

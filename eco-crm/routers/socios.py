@@ -504,7 +504,10 @@ async def socio_logout(response: Response):
 
 
 @router.get("/api/socio/me")
-async def socio_me(socio: Aliado = Depends(require_socio)):
+async def socio_me(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    tiene_crm = bool(
+        db.query(Usuario).filter(Usuario.aliado_codigo == socio.codigo, Usuario.activo == True).first()
+    ) if socio.codigo else False
     return {
         "codigo": socio.codigo,
         "nombre": socio.nombre,
@@ -524,8 +527,42 @@ async def socio_me(socio: Aliado = Depends(require_socio)):
         "comisiones_aceptadas": bool(socio.comisiones_aceptadas_en),
         "interes_venta": socio.interes_venta,
         "es_admin_crm": bool(socio.es_admin_crm),
+        "tiene_acceso_crm": tiene_crm or bool(socio.es_admin_crm),
         "primer_login": bool(socio.primer_login),
     }
+
+
+@router.get("/socio/acceso-crm")
+async def socio_acceso_crm(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """SSO: verifica sesión socio, auto-provisiona usuario CRM si no existe, redirige a /leads."""
+    usuario = db.query(Usuario).filter(
+        Usuario.aliado_codigo == socio.codigo,
+        Usuario.activo == True,
+    ).first()
+
+    if not usuario:
+        import secrets as _sec
+        email_crm = socio.email or f"{(socio.codigo or 'socio').lower().replace('-', '')}@ecofiver.com"
+        usuario = Usuario(
+            nombre=socio.nombre,
+            email=email_crm,
+            password_hash=pwd_context.hash(_sec.token_urlsafe(32)),
+            roles_json=json.dumps(["ASESOR_APERTURA"]),
+            activo=True,
+            aliado_codigo=socio.codigo,
+        )
+        db.add(usuario)
+        db.commit()
+        db.refresh(usuario)
+
+    token = create_access_token({"sub": str(usuario.id)})
+    resp = RedirectResponse(url="/leads", status_code=302)
+    resp.set_cookie("access_token", token, httponly=True, max_age=86400, samesite="lax")
+    return resp
 
 
 @router.put("/api/socio/me")

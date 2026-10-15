@@ -830,9 +830,9 @@
        style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:var(--teal);font-weight:700">
       🎯 Gestión de Leads
     </a>
-    <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-admin" target="_blank"
+    <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-crm" target="_blank"
        style="color:var(--teal);font-weight:700">
-      🔧 Panel Admin CRM
+      🎯 CRM Leads
     </a>
     <div class="nav-logout" onclick="doLogout()">Cerrar sesión</div>
   </div>
@@ -1913,6 +1913,10 @@ async function cargarApp(){
     document.getElementById('nav-admin-crm').classList.remove('hidden');
     mostrarUploadPanel();
     iniciarLeadsAdmin();
+  }
+  // Acceso CRM para vendedores socios (sin permisos admin)
+  if(SOCIO.tiene_acceso_crm && !SOCIO.es_admin_crm){
+    document.getElementById('nav-admin-crm').classList.remove('hidden');
   }
   cargarComisiones();
   cargarCatalogo();

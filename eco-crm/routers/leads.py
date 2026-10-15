@@ -197,6 +197,7 @@ def lead_to_dict(lead: Lead, db: Session) -> dict:
         "utm_campaign": lead.utm_campaign or "",
         # ── Canal Aliados ────────────────────────────────────────────────────
         "aliado_codigo": lead.aliado_codigo or None,
+        "etiqueta_color": lead.etiqueta_color or None,
         "dni_cliente": lead.dni_cliente or "",
         "estado_verificacion": lead.estado_verificacion or "pendiente",
         "timestamp_comprobante": lead.timestamp_comprobante.isoformat() if lead.timestamp_comprobante else None,
@@ -1037,6 +1038,25 @@ async def asignar_aliado(
     lead.notas = (lead.notas or "") + f"\n{nota}"
     db.commit()
     return {"ok": True, "aliado_codigo": codigo}
+
+
+@router.patch("/api/leads/{lead_id}/etiqueta")
+async def actualizar_etiqueta(
+    lead_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    data = await request.json()
+    color = (data.get("color") or "").strip().upper() or None
+    if color and color not in {"ROJO", "NARANJA", "AMARILLO", "VERDE", "AZUL", "GRIS"}:
+        raise HTTPException(400, "Color inválido. Valores: ROJO, NARANJA, AMARILLO, VERDE, AZUL, GRIS")
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(404, "Lead no encontrado")
+    lead.etiqueta_color = color
+    db.commit()
+    return {"ok": True, "etiqueta_color": color}
 
 
 @router.get("/api/leads/{lead_id}/interacciones")

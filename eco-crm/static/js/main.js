@@ -883,6 +883,42 @@ async function loadLeads() {
   }
 }
 
+const ETIQUETA_COLORES = {
+  ROJO: '#ef4444', NARANJA: '#f97316', AMARILLO: '#f59e0b',
+  VERDE: '#22c55e', AZUL: '#3b82f6', GRIS: '#9ca3af'
+};
+const ETIQUETA_CICLO = [null, 'ROJO', 'NARANJA', 'AMARILLO', 'VERDE', 'AZUL', 'GRIS'];
+
+function etiquetaDot(color, leadId) {
+  const bg = color && ETIQUETA_COLORES[color] ? ETIQUETA_COLORES[color] : 'transparent';
+  const border = color ? 'none' : '1.5px solid var(--border)';
+  const title = color ? `Etiqueta: ${color}` : 'Sin etiqueta — clic para etiquetar';
+  return `<span onclick="event.stopPropagation();ciclarEtiqueta(${leadId},this,'${color||''}')"
+    title="${title}"
+    style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${bg};border:${border};cursor:pointer;vertical-align:middle;margin-right:3px;flex-shrink:0"></span>`;
+}
+
+async function ciclarEtiqueta(leadId, el, colorActual) {
+  const idx = ETIQUETA_CICLO.indexOf(colorActual || null);
+  const next = ETIQUETA_CICLO[(idx + 1) % ETIQUETA_CICLO.length];
+  const r = await API.patch(`/api/leads/${leadId}/etiqueta`, { color: next || '' });
+  if (!r) return;
+  const ld = leadsData.find(l => l.id === leadId);
+  if (ld) ld.etiqueta_color = next;
+  el.style.background = next && ETIQUETA_COLORES[next] ? ETIQUETA_COLORES[next] : 'transparent';
+  el.style.border = next ? 'none' : '1.5px solid var(--border)';
+  el.title = next ? `Etiqueta: ${next}` : 'Sin etiqueta — clic para etiquetar';
+  el.setAttribute('onclick', `event.stopPropagation();ciclarEtiqueta(${leadId},this,'${next||''}')`);
+}
+
+async function convertirAVL() {
+  const form = document.getElementById('lead-form');
+  if (!form || !form.dataset.id) return;
+  const estadoSelect = form.querySelector('[name="estado"]');
+  if (estadoSelect) estadoSelect.value = 'VIDEOLLAMADA_AGENDADA';
+  await saveLead();
+}
+
 function renderLeadsList() {
   const tbody = document.getElementById('leads-tbody');
   if (!tbody) return;
@@ -931,7 +967,7 @@ function renderLeadsList() {
     return `
     <tr onclick="editLead(${l.id})" style="cursor:pointer${rowBg}">
       ${checkboxCell}
-      <td><span style="color:var(--text-muted);font-size:12px">#${l.id}</span></td>
+      <td style="white-space:nowrap">${etiquetaDot(l.etiqueta_color, l.id)}<span style="color:var(--text-muted);font-size:12px">#${l.id}</span></td>
       <td>
         <div style="font-weight:600">${l.nombre}</div>
         <div style="font-size:12px;color:var(--text-muted)">${l.localidad || ''}</div>
@@ -1010,6 +1046,11 @@ async function editLead(id) {
   document.getElementById('modal-lead-title').textContent = 'Editar Lead';
   fillForm('lead-form', lead);
   updateModeloOptions('lead-producto', 'lead-modelo');
+  const btnVL = document.getElementById('btn-convertir-vl');
+  if (btnVL) {
+    const vlStates = ['CONTACTADO', 'EN_SEGUIMIENTO', 'CALIFICADO', 'COTIZADO', 'NEGOCIANDO'];
+    btnVL.style.display = vlStates.includes(lead.estado) ? '' : 'none';
+  }
   openModal('modal-lead');
 }
 

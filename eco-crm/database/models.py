@@ -168,6 +168,7 @@ class Usuario(Base):
     # ── Agentes IA ──────────────────────────────────────────────────────────────
     es_agente_ia = Column(Boolean, default=False)   # True = cuenta de agente IA
     agente_key   = Column(String(100), nullable=True, unique=True)  # API key propia del agente
+    aliado_codigo = Column(String(20), nullable=True, index=True)   # vinculado a un socio comercial
 
     leads_apertura = relationship("Lead", foreign_keys="Lead.asesor_apertura_id", back_populates="asesor_apertura")
     leads_cierre = relationship("Lead", foreign_keys="Lead.supervisor_cierre_id", back_populates="supervisor_cierre")
@@ -210,6 +211,8 @@ class Lead(Base):
     estado_verificacion = Column(String(20), default="pendiente")   # pendiente | verificado | rechazado
     # ── Token para tracking público de entrega ───────────────────────────────
     seguimiento_token = Column(String(40), nullable=True, unique=True)
+    # ── Etiqueta de calificación manual ──────────────────────────────────────
+    etiqueta_color = Column(String(20), nullable=True)   # ROJO|NARANJA|AMARILLO|VERDE|AZUL|GRIS
     # ── Bandeja de entrada — control bot/humano ──────────────────────────────
     modo_atencion = Column(String(20), default="bot")  # bot | humano | pausado
     created_at = Column(DateTime(timezone=True), server_default=func.now())

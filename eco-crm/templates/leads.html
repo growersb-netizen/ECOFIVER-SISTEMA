@@ -206,6 +206,19 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label">Etiqueta de calificación</label>
+          <select name="etiqueta_color" id="lead-etiqueta" class="form-control">
+            <option value="">Sin etiqueta</option>
+            <option value="ROJO">🔴 Rojo — Urgente / Hot lead</option>
+            <option value="NARANJA">🟠 Naranja — Seguimiento próximo</option>
+            <option value="AMARILLO">🟡 Amarillo — Tibio / Evaluar</option>
+            <option value="VERDE">🟢 Verde — Calificado / Listo</option>
+            <option value="AZUL">🔵 Azul — En proceso</option>
+            <option value="GRIS">⚫ Gris — Frío / Pausado</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Notas internas</label>
           <textarea name="notas" class="form-control" rows="3" placeholder="Observaciones del lead..."></textarea>
         </div>
@@ -213,6 +226,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeModal('modal-lead')" class="btn btn-secondary">Cancelar</button>
+      <button id="btn-convertir-vl" onclick="convertirAVL()" class="btn btn-secondary" style="display:none;background:#7c3aed;border-color:#7c3aed;color:#fff">📹 Agendar VL</button>
       <button onclick="saveLead()" class="btn btn-primary btn-lg">Guardar</button>
     </div>
   </div>

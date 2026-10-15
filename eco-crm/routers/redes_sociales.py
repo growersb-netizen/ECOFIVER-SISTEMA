@@ -575,58 +575,51 @@ def _wa_url(numero: str) -> str:
     return f"https://wa.me/{n}"
 
 
-async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero_wa: str, db=None) -> str:
-    """Genera respuesta comercial con IA. Reclamos → WA_RECLAMOS, consultas → numero_wa."""
+async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero_wa: str, db=None, vendedor_nombre: str = "") -> str:
+    """Genera respuesta comercial.
+    - Si la página tiene vendedor asignado → template directo (sin IA) que redirige al vendedor.
+    - Reclamos siempre → WA_RECLAMOS con template directo.
+    - Sin vendedor → IA con link de WA.
+    """
     es_reclamo = _es_reclamo(mensaje_usuario)
     wa_destino = WA_RECLAMOS if es_reclamo else (numero_wa or WA_RECLAMOS)
 
+    # Reclamo: siempre template directo al número de postventa
     if es_reclamo:
-        instruccion_wa = (
-            "El usuario parece tener un reclamo o problema postventa. "
-            "Respondé con empatía, pedí disculpas por la molestia y derivalo al WhatsApp de atención postventa: "
-            f"{_wa_url(wa_destino)} — incluidlo siempre."
-        )
-    else:
-        instruccion_wa = (
-            "Debés derivar al WhatsApp para continuar la conversación. "
-            f"El link de WhatsApp es: {_wa_url(wa_destino)} — incluidlo siempre."
+        return (
+            f"Hola, lamentamos la situación. "
+            f"Para resolver tu caso con urgencia, comunicate con nuestro equipo de atención postventa por WhatsApp: {_wa_url(WA_RECLAMOS)} "
+            f"— te acompañamos hasta encontrar la mejor solución. 🙏"
         )
 
+    # Consulta comercial con vendedor asignado → template directo al vendedor
+    if vendedor_nombre and numero_wa:
+        nombre_display = vendedor_nombre.strip().split()[0]  # solo primer nombre
+        return (
+            f"¡Hola! 😊 Gracias por tu mensaje. "
+            f"Para atenderte personalmente, comunicate con {nombre_display} directo por WhatsApp: {_wa_url(wa_destino)} "
+            f"— ¡te responde al toque! 💬"
+        )
+
+    # Sin vendedor asignado → IA
     try:
         from utils.ai_client import ai_complete
         from utils.contexto_ecofiver import ctx_empresa
-        if es_reclamo:
-            prompt = (
-                f"{ctx_empresa()}\n\n"
-                f"Sos el asistente de atención al cliente de '{pagina_nombre}'.\n"
-                f"El usuario escribió: «{mensaje_usuario[:400]}»\n\n"
-                "Redactá una respuesta de NO MÁS de 3 oraciones, en español argentino. "
-                "Mostrá empatía, pedí disculpas por la situación y derivá al WhatsApp de postventa con este mensaje: "
-                f"'{_wa_url(wa_destino)}'. "
-                "Sé cálido pero profesional. No inventes soluciones ni promesas."
-            )
-        else:
-            prompt = (
-                f"{ctx_empresa()}\n\n"
-                f"Sos el asesor comercial de EcoFiver en la página '{pagina_nombre}'.\n"
-                f"Un potencial cliente escribió: «{mensaje_usuario[:400]}»\n\n"
-                "Redactá una respuesta de NO MÁS de 4 oraciones, en español argentino, que:\n"
-                "1. Salude y muestre entusiasmo genuino por la consulta\n"
-                "2. Mencione brevemente que fabricamos e instalamos piscinas de fibra, módulos habitacionales y sistemas de hidromasaje (instalación en el día, garantía 10 años)\n"
-                "3. Invite a continuar la conversación por WhatsApp para recibir catálogo completo, precios y disponibilidad: "
-                f"'{_wa_url(wa_destino)}'\n"
-                "4. Sea cálido, profesional y genere confianza. No inventes precios ni fechas."
-            )
+        prompt = (
+            f"{ctx_empresa()}\n\n"
+            f"Sos el asesor comercial de EcoFiver en la página '{pagina_nombre}'.\n"
+            f"Un potencial cliente escribió: «{mensaje_usuario[:400]}»\n\n"
+            "Redactá una respuesta de NO MÁS de 4 oraciones, en español argentino, que:\n"
+            "1. Salude y muestre entusiasmo genuino por la consulta\n"
+            "2. Mencione brevemente que fabricamos e instalamos piscinas de fibra, módulos habitacionales y sistemas de hidromasaje (instalación en el día, garantía 10 años)\n"
+            "3. Invite a continuar la conversación por WhatsApp para recibir catálogo completo, precios y disponibilidad: "
+            f"'{_wa_url(wa_destino)}'\n"
+            "4. Sea cálido, profesional y genere confianza. No inventes precios ni fechas."
+        )
         resp = await ai_complete(db, prompt, max_tokens=280)
         return resp.strip()
     except Exception as e:
         log.warning(f"IA falló, usando template: {e}")
-        if es_reclamo:
-            return (
-                f"Hola, lamentamos la situación que estás atravesando. "
-                f"Para resolver tu caso con urgencia, comunicate con nuestro equipo de atención postventa por WhatsApp: {_wa_url(wa_destino)} "
-                f"— te acompañamos hasta encontrar la mejor solución. 🙏"
-            )
         return (
             f"¡Hola! 😊 Gracias por tu consulta. En EcoFiver fabricamos e instalamos piscinas de fibra de vidrio, módulos habitacionales e hidromasajes "
             f"— con instalación en el día y garantía de 10 años. "
@@ -710,7 +703,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
         db.flush()
 
         if pg.auto_reply_mensajes:
-            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db)
+            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db, vendedor_nombre=pg.vendedor or "")
             ok = await _responder_mensaje(sender_id, respuesta, pg.page_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta
@@ -752,7 +745,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
             ok = await _eliminar_comentario(comment_id, pg.page_token)
             interaccion.accion = "eliminado" if ok else "error"
         elif pg.auto_reply_comentarios:
-            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db)
+            respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db, vendedor_nombre=pg.vendedor or "")
             ok = await _responder_comentario(comment_id, respuesta, pg.page_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta

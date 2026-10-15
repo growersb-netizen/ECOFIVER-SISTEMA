@@ -242,6 +242,7 @@ class Videollamada(Base):
     comision_asesor_pct = Column(Float, default=0)
     comision_supervisor_pct = Column(Float, default=0)
     recordatorio_enviado = Column(Boolean, default=False)
+    aliado_codigo = Column(String(20), nullable=True, index=True)  # NULL = VL interna; código AL-xxx = agendada por socio
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     lead = relationship("Lead", back_populates="videollamadas")

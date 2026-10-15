@@ -32,7 +32,7 @@ from pathlib import Path
 from database.database import get_db
 from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
-    ScoringBCRA, Usuario, ComisionConfig, Presupuesto, Lead,
+    ScoringBCRA, Usuario, ComisionConfig, Presupuesto, Lead, Videollamada,
 )
 from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
@@ -4421,6 +4421,132 @@ async def admin_preview_socio(
     redirect = RedirectResponse(url="/panel-socio", status_code=303)
     redirect.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=3600, samesite="lax")
     return redirect
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VIDEOLLAMADAS DE SOCIOS — registro de VLs programadas para planes financiados
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/socio/videollamadas")
+async def mis_videollamadas(
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Lista las videollamadas registradas por este socio."""
+    vls = (
+        db.query(Videollamada)
+        .filter(Videollamada.aliado_codigo == socio.codigo)
+        .order_by(Videollamada.fecha_hora.asc())
+        .all()
+    )
+    return [
+        {
+            "id": vl.id,
+            "cliente_nombre": vl.cliente_nombre,
+            "cliente_telefono": vl.cliente_telefono or "",
+            "producto_interes": vl.producto_interes or "",
+            "forma_pago": vl.forma_pago or "FINANCIADO",
+            "fecha_hora": vl.fecha_hora.isoformat() if vl.fecha_hora else None,
+            "estado": vl.estado or "AGENDADA",
+            "notas": vl.notas or "",
+            "created_at": vl.created_at.isoformat() if vl.created_at else "",
+        }
+        for vl in vls
+    ]
+
+
+@router.post("/api/socio/videollamadas")
+async def registrar_videollamada(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """
+    Registra una videollamada programada con un cliente para un plan financiado.
+    El socio informa fecha/hora pactada, cliente y producto. Aparece en el módulo
+    de videollamadas del CRM con su código de aliado.
+    """
+    if not _esta_verificado(socio):
+        raise HTTPException(403, "Completá tu perfil y verificá tu WhatsApp antes de registrar videollamadas.")
+
+    data = await request.json()
+
+    cliente_nombre = (data.get("cliente_nombre") or "").strip()
+    if not cliente_nombre:
+        raise HTTPException(400, "El nombre del cliente es obligatorio.")
+
+    fecha_hora = None
+    if data.get("fecha_hora"):
+        try:
+            fecha_hora = datetime.fromisoformat(data["fecha_hora"])
+        except Exception:
+            raise HTTPException(400, "Formato de fecha/hora inválido. Usá ISO 8601 (ej: 2026-10-20T15:00).")
+
+    if not fecha_hora:
+        raise HTTPException(400, "La fecha y hora de la videollamada son obligatorias.")
+
+    telefono = (data.get("cliente_telefono") or "").strip()
+    producto = (data.get("producto_interes") or "").strip().upper()
+    if producto not in ("MODULO", "PISCINA", "VIVIENDA", ""):
+        producto = ""
+
+    # Auto-vincular lead existente por teléfono
+    lead_id = None
+    if telefono:
+        lead = (
+            db.query(Lead)
+            .filter(
+                Lead.telefono.ilike(f"%{telefono}%"),
+                Lead.estado.notin_(["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"]),
+            )
+            .order_by(Lead.created_at.desc())
+            .first()
+        )
+        if lead:
+            lead_id = lead.id
+            if lead.estado not in ("VIDEOLLAMADA_AGENDADA",):
+                lead.estado = "VIDEOLLAMADA_AGENDADA"
+
+    vl = Videollamada(
+        lead_id=lead_id,
+        cliente_nombre=cliente_nombre,
+        cliente_telefono=telefono,
+        producto_interes=producto or "MODULO",
+        forma_pago="FINANCIADO",
+        fecha_hora=fecha_hora,
+        estado="AGENDADA",
+        notas=(data.get("notas") or "").strip(),
+        aliado_codigo=socio.codigo,
+    )
+    db.add(vl)
+    db.commit()
+    db.refresh(vl)
+
+    return {
+        "ok": True,
+        "id": vl.id,
+        "mensaje": "Videollamada registrada. El equipo la va a ver en el CRM.",
+    }
+
+
+@router.delete("/api/socio/videollamadas/{vl_id}")
+async def cancelar_videollamada(
+    vl_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Cancela (elimina) una videollamada propia que aún está en estado AGENDADA."""
+    vl = db.query(Videollamada).filter(
+        Videollamada.id == vl_id,
+        Videollamada.aliado_codigo == socio.codigo,
+    ).first()
+    if not vl:
+        raise HTTPException(404, "Videollamada no encontrada.")
+    if vl.estado != "AGENDADA":
+        raise HTTPException(400, "Solo se pueden cancelar videollamadas en estado AGENDADA.")
+    db.delete(vl)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/panel-socio", response_class=HTMLResponse)

@@ -815,6 +815,7 @@
     <a class="nav-item" data-section="simulador" onclick="nav('simulador')">🧮 Simulador de cuotas</a>
     <a class="nav-item" data-section="ventas" onclick="nav('ventas')">💼 Cargar venta</a>
     <a class="nav-item" data-section="mis-ventas" onclick="nav('mis-ventas')">📦 Mis ventas</a>
+    <a class="nav-item" data-section="mis-videollamadas" onclick="nav('mis-videollamadas')">📹 Videollamadas</a>
     <a class="nav-item" data-section="mis-leads" onclick="nav('mis-leads')">🎯 Mis leads asignados</a>
     <a class="nav-item" data-section="cronograma" onclick="nav('cronograma')">📅 Cronograma de entregas</a>
     <a class="nav-item" data-section="comisiones" onclick="nav('comisiones')">💰 Mis comisiones</a>
@@ -1031,6 +1032,54 @@
       <div id="tabla-financiado">Cargando…</div>
       <h3 style="font-size:14px;margin-top:24px">Contado</h3>
       <div id="tabla-contado"></div>
+    </section>
+
+    <!-- MIS VIDEOLLAMADAS -->
+    <section class="section" id="sec-mis-videollamadas">
+      <div class="section-header">
+        <h2>Videollamadas programadas</h2>
+        <button class="btn-ghost" onclick="cargarMisVideollamadas()" style="font-size:13px">↺ Actualizar</button>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+        Registrá videollamadas pactadas con clientes para planes de financiación. El equipo las ve en el CRM.
+      </p>
+
+      <!-- Formulario nueva VL -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-size:15px;margin-bottom:14px">📹 Nueva videollamada</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Nombre del cliente *</label>
+            <input id="vl-cliente-nombre" type="text" placeholder="Juan Pérez" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Teléfono del cliente</label>
+            <input id="vl-cliente-tel" type="tel" placeholder="5491123456789" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Producto *</label>
+            <select id="vl-producto" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+              <option value="MODULO">Módulo / Vivienda</option>
+              <option value="PISCINA">Piscina</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Fecha y hora *</label>
+            <input id="vl-fecha-hora" type="datetime-local" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+          </div>
+          <div style="grid-column:1/-1">
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Notas (opcional)</label>
+            <textarea id="vl-notas" rows="2" placeholder="Link de Meet, observaciones del cliente, etc." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text);resize:vertical"></textarea>
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+          <button onclick="registrarVideollamada()" class="btn-primary" style="padding:9px 20px">Registrar videollamada</button>
+          <span id="vl-msg" style="font-size:13px"></span>
+        </div>
+      </div>
+
+      <!-- Listado -->
+      <div id="tabla-mis-vls">Cargando…</div>
     </section>
 
     <!-- MIS LEADS ASIGNADOS -->
@@ -1942,6 +1991,7 @@ function nav(section){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+section).classList.add('active');
   if(section==='mis-ventas') cargarMisVentas();
+  if(section==='mis-videollamadas') cargarMisVideollamadas();
   if(section==='mis-leads') cargarMisLeads();
   if(section==='cronograma') cargarCronograma();
   if(section==='comisiones') cargarComisionesTabla();
@@ -1986,6 +2036,108 @@ const LEAD_ESTADO_COLOR = {
   CERRADO_PERDIDO:'#ef4444', SIN_CONTACTO:'#6b7280',
 };
 const FORMA_PAGO_LABEL = { FINANCIADO:'Financiado', CONTADO:'Contado', SIN_DEFINIR:'A definir' };
+
+// ── VIDEOLLAMADAS DE SOCIOS ──────────────────────────────────────────────────
+
+async function cargarMisVideollamadas(){
+  const cont = document.getElementById('tabla-mis-vls');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  try {
+    const vls = await api('/api/socio/videollamadas');
+    if(!vls.length){
+      cont.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No tenés videollamadas registradas todavía.</p>';
+      return;
+    }
+    const ESTADO_BADGE = {
+      AGENDADA: 'background:#dbeafe;color:#1d4ed8',
+      REALIZADA: 'background:#d1fae5;color:#065f46',
+      NO_SE_PRESENTO: 'background:#fee2e2;color:#991b1b',
+      REPROGRAMAR: 'background:#fef9c3;color:#92400e',
+    };
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="text-align:left;border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px">Cliente</th>
+        <th style="padding:8px 10px">Producto</th>
+        <th style="padding:8px 10px">Fecha / Hora</th>
+        <th style="padding:8px 10px">Estado</th>
+        <th style="padding:8px 10px">Notas</th>
+        <th style="padding:8px 10px"></th>
+      </tr></thead><tbody>`;
+    for(const v of vls){
+      const fecha = v.fecha_hora ? new Date(v.fecha_hora) : null;
+      const fechaStr = fecha
+        ? fecha.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})
+          + ' ' + fecha.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})
+        : '—';
+      const badge = ESTADO_BADGE[v.estado] || 'background:var(--surface);color:var(--text)';
+      const puedeCancel = v.estado === 'AGENDADA';
+      html += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 10px;font-weight:600">${v.cliente_nombre}<br><span style="font-weight:400;color:var(--text-muted)">${v.cliente_telefono}</span></td>
+        <td style="padding:8px 10px">${v.producto_interes}</td>
+        <td style="padding:8px 10px">${fechaStr}</td>
+        <td style="padding:8px 10px"><span style="padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;${badge}">${v.estado}</span></td>
+        <td style="padding:8px 10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${v.notas}">${v.notas || '—'}</td>
+        <td style="padding:8px 10px">${puedeCancel ? `<button onclick="cancelarVideollamada(${v.id})" style="font-size:12px;padding:4px 10px;border:1px solid #f87171;color:#ef4444;background:none;border-radius:4px;cursor:pointer">Cancelar</button>` : ''}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    cont.innerHTML = html;
+  } catch(e) {
+    cont.innerHTML = `<p style="color:#ef4444">${e.message}</p>`;
+  }
+}
+
+async function registrarVideollamada(){
+  const nombre = document.getElementById('vl-cliente-nombre').value.trim();
+  const tel    = document.getElementById('vl-cliente-tel').value.trim();
+  const prod   = document.getElementById('vl-producto').value;
+  const fecha  = document.getElementById('vl-fecha-hora').value;
+  const notas  = document.getElementById('vl-notas').value.trim();
+  const msg    = document.getElementById('vl-msg');
+
+  msg.textContent = '';
+  msg.className = '';
+
+  if(!nombre){ msg.className='msg error'; msg.textContent='El nombre del cliente es obligatorio.'; return; }
+  if(!fecha){ msg.className='msg error'; msg.textContent='La fecha y hora son obligatorias.'; return; }
+
+  try {
+    msg.textContent = 'Guardando…';
+    const data = await api('/api/socio/videollamadas', {
+      method: 'POST',
+      body: JSON.stringify({
+        cliente_nombre: nombre,
+        cliente_telefono: tel,
+        producto_interes: prod,
+        fecha_hora: fecha,
+        notas: notas,
+      }),
+    });
+    msg.className = 'msg ok';
+    msg.textContent = data.mensaje;
+    // Limpiar formulario
+    document.getElementById('vl-cliente-nombre').value = '';
+    document.getElementById('vl-cliente-tel').value = '';
+    document.getElementById('vl-fecha-hora').value = '';
+    document.getElementById('vl-notas').value = '';
+    cargarMisVideollamadas();
+  } catch(e) {
+    msg.className = 'msg error';
+    msg.textContent = e.message;
+  }
+}
+
+async function cancelarVideollamada(vlId){
+  if(!confirm('¿Cancelar esta videollamada?')) return;
+  try {
+    await api(`/api/socio/videollamadas/${vlId}`, {method:'DELETE'});
+    cargarMisVideollamadas();
+  } catch(e) {
+    alert('No se pudo cancelar: ' + e.message);
+  }
+}
+
+// ── FIN VIDEOLLAMADAS ────────────────────────────────────────────────────────
 
 async function cargarMisLeads(){
   const cont = document.getElementById('mis-leads-contenido');

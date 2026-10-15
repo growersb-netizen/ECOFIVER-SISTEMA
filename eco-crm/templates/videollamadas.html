@@ -235,6 +235,7 @@
         <div style="margin-top:8px;display:flex;gap:12px;font-size:13px;color:var(--text-secondary)">
           <span>📦 ${v.producto_interes || '—'}</span>
           <span>👤 ${v.supervisor_cierre_nombre || '<em>Sin supervisor</em>'}</span>
+          ${v.aliado_codigo ? `<span style="padding:2px 8px;border-radius:10px;background:#ede9fe;color:#6d28d9;font-weight:600;font-size:11px">🤝 Socio ${v.aliado_codigo}</span>` : ''}
         </div>
       </div>
     `).join('');

@@ -34,6 +34,7 @@ def vl_to_dict(vl: Videollamada) -> dict:
         "notas": vl.notas or "",
         "comision_asesor_pct": vl.comision_asesor_pct or 0,
         "comision_supervisor_pct": vl.comision_supervisor_pct or 0,
+        "aliado_codigo": vl.aliado_codigo or "",
         "created_at": vl.created_at.isoformat() if vl.created_at else "",
     }
 
@@ -78,6 +79,7 @@ async def get_semana_vls(
             "estado": v.estado or "AGENDADA",
             "resultado": v.resultado or "PENDIENTE",
             "notas": v.notas or "",
+            "aliado_codigo": v.aliado_codigo or "",
         }
 
     DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]

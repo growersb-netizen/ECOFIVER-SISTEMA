@@ -583,6 +583,7 @@ async def auth_redirect_middleware(request: Request, call_next):
         "/mercadolibre/notifications",  # webhook de MercadoLibre (sin sesión) — si falla, ML revoca la app
         "/api/integraciones/melanie/confirmacion",  # Melanie envía Bearer propio, sin cookie de sesión
         "/webhook/melanie",  # Webhook de Meta para la WABA de Melanie (verificación + mensajes)
+        "/socio/acceso-crm",  # SSO desde panel socio → autentica con socio_token, provisiona usuario CRM
     ]
     path = request.url.path
 

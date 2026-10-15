@@ -1104,6 +1104,11 @@ function renderVLList() {
       <td>
         ${badge({ AVANZO: ['badge-green','Avanzó'], NO_CALIFICO: ['badge-red','No calificó'], CERRO: ['badge-teal','Cerró'], PENDIENTE: ['badge-gray','Pendiente'] }, v.resultado)}
         ${v.devolucion ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${v.devolucion}">💬 ${v.devolucion}</div>` : ''}
+        ${v.aliado_codigo && v.resultado === 'CERRO' ? `
+          <button onclick="event.stopPropagation();confirmarVentaDesdeVL(${v.id},'${v.cliente_nombre}')"
+            style="margin-top:4px;display:block;font-size:11px;padding:3px 8px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700">
+            ✅ Confirmar venta
+          </button>` : ''}
       </td>
     </tr>
   `).join('');
@@ -1115,6 +1120,17 @@ async function tomarVL(id) {
     toast('Videollamada tomada');
     loadVL();
   } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function confirmarVentaDesdeVL(vlId, clienteNombre) {
+  if (!confirm(`¿Confirmar venta financiada para "${clienteNombre}"?\n\nEsto creará la venta en el sistema y notificará al socio por WhatsApp.`)) return;
+  try {
+    const r = await API.post(`/api/videollamadas/${vlId}/confirmar-venta`, {});
+    toast(`✅ ${r.mensaje}`);
+    loadVL();
+  } catch(e) {
     toast(e.message, 'error');
   }
 }

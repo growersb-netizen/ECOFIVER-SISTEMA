@@ -10,9 +10,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import Videollamada, Usuario, Notificacion, Lead, Interaccion, ScoringBCRA
+from database.models import Videollamada, Usuario, Notificacion, Lead, Interaccion, ScoringBCRA, VentaFinanciada, Aliado
 from routers.auth import require_auth, require_roles, get_user_roles
 from routers.notificaciones import notificar_videollamada
+from utils.whatsapp import send_whatsapp_text, notificar_rodrigo
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -481,4 +482,102 @@ async def scoring_vl(
         "mensaje": mensaje,
         "color": color,
         "detalle": detalle or [],
+    }
+
+
+# ─── CONFIRMAR VENTA FINANCIADA DESDE CRM (Stefanía / Admin) ─────────────────
+
+@router.post("/api/videollamadas/{vl_id}/confirmar-venta")
+async def confirmar_venta_desde_vl(
+    vl_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """
+    Stefanía o el admin confirman que la VL resultó en una venta financiada.
+    Crea la VentaFinanciada vinculada al aliado y le envía un WhatsApp de notificación.
+    Solo disponible para VLs agendadas por un aliado (aliado_codigo presente) con resultado CERRO.
+    """
+    vl = db.query(Videollamada).filter(Videollamada.id == vl_id).first()
+    if not vl:
+        raise HTTPException(404, "Videollamada no encontrada")
+    if not vl.aliado_codigo:
+        raise HTTPException(400, "Esta videollamada no está vinculada a un socio comercial")
+    if vl.resultado != "CERRO":
+        raise HTTPException(400, "Solo se pueden confirmar videollamadas con resultado CERRO")
+
+    # Evitar duplicados: verificar que no exista ya una VentaFinanciada de este ID de VL
+    existente = db.query(VentaFinanciada).filter(
+        VentaFinanciada.notas.contains(f"VL#{vl_id}")
+    ).first()
+    if existente:
+        raise HTTPException(409, f"Ya existe una venta financiada registrada para esta videollamada (ID {existente.id})")
+
+    aliado = db.query(Aliado).filter(Aliado.codigo == vl.aliado_codigo).first()
+    if not aliado:
+        raise HTTPException(404, f"No se encontró el aliado {vl.aliado_codigo}")
+
+    # Crear VentaFinanciada con los datos disponibles de la VL
+    # precio_total y valor_cuota se calculan / completan después en el pipeline normal
+    venta = VentaFinanciada(
+        cliente_nombre=vl.cliente_nombre or "",
+        cliente_telefono=vl.cliente_telefono or "",
+        cliente_dni=vl.dni_cliente or "",
+        producto=vl.producto_interes or "SIN_DEFINIR",
+        modelo_especifico=vl.modelo_especifico or "",
+        color=vl.color or None,
+        cantidad_cuotas=vl.cantidad_cuotas or 0,
+        forma_pago="FINANCIADO",
+        precio_total=0,
+        monto_inscripcion=0,
+        valor_cuota=0,
+        estado_plan="INGRESADO",
+        aliado_codigo=vl.aliado_codigo,
+        notas=(
+            f"Operación confirmada desde videollamada VL#{vl_id}. "
+            f"Confirmado por: {current_user.nombre or current_user.email}.\n"
+            f"{vl.devolucion or ''}"
+        ).strip(),
+    )
+    db.add(venta)
+
+    # Marcar la VL como procesada en notas para que confirmar-venta no duplique
+    vl.devolucion = (vl.devolucion or "") + f"\n✅ Venta ingresada al sistema el {datetime.now().strftime('%d/%m/%Y')} por {current_user.nombre or current_user.email}."
+    db.commit()
+    db.refresh(venta)
+
+    # Notificar al aliado por WhatsApp
+    if aliado.telefono:
+        producto_label = {
+            "PISCINA": "Piscina", "MODULO": "Módulo", "VIVIENDA": "Vivienda modular"
+        }.get(vl.producto_interes or "", vl.producto_interes or "producto")
+        modelo_str = f" {vl.modelo_especifico}" if vl.modelo_especifico else ""
+        cuotas_str = f" — {vl.cantidad_cuotas} cuotas" if vl.cantidad_cuotas else ""
+        send_whatsapp_text(
+            db,
+            aliado.telefono,
+            f"✅ *¡Operación aprobada!*\n\n"
+            f"Hola {aliado.nombre}, te escribimos desde el equipo EcoFiver.\n\n"
+            f"La videollamada de admisión con *{vl.cliente_nombre}* resultó exitosa. "
+            f"La operación fue ingresada al sistema: "
+            f"*{producto_label}{modelo_str}{cuotas_str}*.\n\n"
+            f"Tu comisión se liquidará conforme a las condiciones de tu contrato de socio comercial. "
+            f"Cualquier consulta, estamos disponibles. ¡Gracias por la gestión! 🙌",
+        )
+
+    # Notificar al admin (Rodrigo)
+    notificar_rodrigo(
+        db,
+        f"🟢 *Venta confirmada desde VL*\n"
+        f"VL #{vl_id} · Cliente: {vl.cliente_nombre}\n"
+        f"Producto: {vl.producto_interes} {vl.modelo_especifico or ''}{f' · {vl.cantidad_cuotas} cuotas' if vl.cantidad_cuotas else ''}\n"
+        f"Aliado: {aliado.codigo} ({aliado.nombre})\n"
+        f"Confirmado por: {current_user.nombre or current_user.email}\n"
+        f"Venta ID: {venta.id}",
+    )
+
+    return {
+        "ok": True,
+        "venta_id": venta.id,
+        "mensaje": f"Venta #{venta.id} creada. Se notificó al aliado {aliado.nombre} por WhatsApp.",
     }

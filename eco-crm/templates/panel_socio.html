@@ -2121,10 +2121,7 @@ async function cargarMisVideollamadas(){
         <div style="margin-top:10px;padding:10px 14px;border-radius:8px;background:#f0fdf4;border:1px solid #86efac">
           <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:4px">💬 Respuesta del equipo EcoFiver</div>
           <div style="font-size:13px;color:#15803d">${v.devolucion}</div>
-          ${esCerro ? `<button onclick="irARegistrarVenta('${v.cliente_nombre}','${v.cliente_telefono}','${v.producto_interes}',${v.cantidad_cuotas||'null'})"
-            style="margin-top:8px;padding:7px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">
-            ✅ Registrar venta financiada →
-          </button>` : ''}
+          ${esCerro ? `<div style="font-size:12px;color:#15803d;font-weight:600;margin-top:4px">✅ El equipo registrará la operación. Tu comisión se liquidará según las condiciones de tu contrato.</div>` : ''}
         </div>` : ''}
 
         ${puedeCancel ? `
@@ -2198,29 +2195,6 @@ async function cancelarVideollamada(vlId){
   } catch(e) {
     alert('No se pudo cancelar: ' + e.message);
   }
-}
-
-function irARegistrarVenta(nombre, tel, producto, cuotas){
-  // Navega a la sección de nueva venta y pre-rellena el formulario financiado
-  nav('nueva-venta');
-  setTimeout(()=>{
-    const elNombre = document.getElementById('f-nombre');
-    const elTel    = document.getElementById('f-tel');
-    const elCuotas = document.getElementById('f-cuotas');
-    const elProd   = document.getElementById('f-prod');
-    if(elNombre) elNombre.value = nombre || '';
-    if(elTel)    elTel.value    = tel    || '';
-    if(cuotas && elCuotas) elCuotas.value = cuotas;
-    if(producto && elProd){
-      // producto viene como 'MODULO' o 'PISCINA' desde la VL
-      if(producto === 'PISCINA') elProd.value = 'PISCINA';
-      else elProd.value = 'VIVIENDA';
-      poblarProductoVenta('f');
-    }
-    // Scroll al formulario financiado
-    const card = document.getElementById('f-nombre');
-    if(card) card.scrollIntoView({behavior:'smooth', block:'center'});
-  }, 200);
 }
 
 // ── FIN VIDEOLLAMADAS ────────────────────────────────────────────────────────

@@ -4448,7 +4448,13 @@ async def mis_videollamadas(
             "forma_pago": vl.forma_pago or "FINANCIADO",
             "fecha_hora": vl.fecha_hora.isoformat() if vl.fecha_hora else None,
             "estado": vl.estado or "AGENDADA",
+            "resultado": vl.resultado or "PENDIENTE",
             "notas": vl.notas or "",
+            "modelo_especifico": vl.modelo_especifico or "",
+            "color": vl.color or "",
+            "cantidad_cuotas": vl.cantidad_cuotas,
+            "dni_cliente": vl.dni_cliente or "",
+            "devolucion": vl.devolucion or "",
             "created_at": vl.created_at.isoformat() if vl.created_at else "",
         }
         for vl in vls
@@ -4517,6 +4523,10 @@ async def registrar_videollamada(
         estado="AGENDADA",
         notas=(data.get("notas") or "").strip(),
         aliado_codigo=socio.codigo,
+        modelo_especifico=(data.get("modelo_especifico") or "").strip() or None,
+        color=(data.get("color") or "").strip() or None,
+        cantidad_cuotas=data.get("cantidad_cuotas") or None,
+        dni_cliente=(data.get("dni_cliente") or "").strip() or None,
     )
     db.add(vl)
     db.commit()

@@ -4,10 +4,26 @@
 
 {% block top_actions %}
 <a href="/trabajar" class="btn btn-success" style="font-weight:700;letter-spacing:.3px">▶ Arrancar a contactar</a>
+<button onclick="toggleBCRA()" class="btn btn-secondary" id="btn-bcra" title="Consulta BCRA rápida">🔍 BCRA</button>
 <button onclick="newVL()" class="btn btn-primary">+ Nueva VL</button>
 {% endblock %}
 
 {% block content %}
+
+<!-- Panel BCRA rápido (Stefanía / admisiones) -->
+<div id="panel-bcra" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:18px">
+  <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DNI o CUIT del cliente</label>
+      <input id="bcra-dni" type="text" placeholder="23456789 o 20234567891"
+             style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--text);width:220px"
+             onkeydown="if(event.key==='Enter') consultarBCRA()">
+    </div>
+    <button onclick="consultarBCRA()" class="btn btn-primary" style="padding:8px 18px">🔍 Consultar BCRA</button>
+    <span id="bcra-spinner" style="display:none;font-size:13px;color:var(--text-muted)">Consultando…</span>
+  </div>
+  <div id="bcra-resultado" style="margin-top:14px"></div>
+</div>
 
 <div class="filters-bar">
   <input type="date" id="vl-fecha" class="form-control" style="max-width:180px"
@@ -79,14 +95,56 @@
             <select name="producto_interes" class="form-control">
               <option value="">—</option>
               <option value="PISCINA">Piscina</option>
-              <option value="MODULO">Módulo</option>
+              <option value="MODULO">Módulo / Vivienda</option>
               <option value="COMBO">Combo</option>
             </select>
           </div>
           <div class="form-group">
+            <label class="form-label">Modelo / Medida</label>
+            <input name="modelo_especifico" class="form-control" placeholder="Ej: 36 m², 3 amb, Fiji 3x6">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Color preferido</label>
+            <input name="color" class="form-control" placeholder="Ej: Blanco, Gris, Arena">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Plan de financiación (cuotas)</label>
+            <select name="cantidad_cuotas" class="form-control">
+              <option value="">— A definir —</option>
+              <option value="24">24 cuotas</option>
+              <option value="36">36 cuotas</option>
+              <option value="48">48 cuotas</option>
+              <option value="60">60 cuotas</option>
+              <option value="72">72 cuotas</option>
+              <option value="84">84 cuotas</option>
+              <option value="96">96 cuotas</option>
+              <option value="108">108 cuotas</option>
+              <option value="120">120 cuotas</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">DNI del cliente</label>
+            <input name="dni_cliente" class="form-control" placeholder="23456789"
+                   oninput="document.getElementById('btn-bcra-prefill').style.display=this.value?'inline':'none'">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button type="button" id="btn-bcra-prefill" onclick="prefillBCRAFromForm()" style="display:none"
+                    class="btn btn-secondary btn-sm" title="Consultar BCRA con este DNI">🔍 Ver BCRA</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label class="form-label">Forma de pago</label>
             <select name="forma_pago" class="form-control">
               <option value="">—</option>
+              <option value="FINANCIADO">Financiado</option>
               <option value="PMI">PMI</option>
               <option value="DIRECTA_50">Directa 50%</option>
             </select>
@@ -164,7 +222,15 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">Notas</label>
+          <label class="form-label">Devolución al socio
+            <span style="font-weight:400;font-size:11px;color:var(--text-muted);margin-left:6px">Visible en el portal del aliado</span>
+          </label>
+          <textarea name="devolucion" class="form-control" rows="2"
+                    placeholder="Ej: Cliente aprobado, podés registrar la venta. / Cliente rechazado por situación 5 BCRA."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas internas</label>
           <textarea name="notas" class="form-control" rows="3"></textarea>
         </div>
       </form>
@@ -180,6 +246,65 @@
 
 {% block extra_js %}
 <script>
+  // ── Panel BCRA rápido ──────────────────────────────────────────────────────
+  function toggleBCRA() {
+    const p = document.getElementById('panel-bcra');
+    const isVisible = p.style.display !== 'none';
+    p.style.display = isVisible ? 'none' : 'block';
+    document.getElementById('btn-bcra').textContent = isVisible ? '🔍 BCRA' : '✕ BCRA';
+    if (!isVisible) document.getElementById('bcra-dni').focus();
+  }
+
+  async function consultarBCRA(dniPrefill) {
+    const input = document.getElementById('bcra-dni');
+    const dni = dniPrefill || input.value.trim();
+    if (!dni) { input.focus(); return; }
+
+    const panel = document.getElementById('panel-bcra');
+    if (panel.style.display === 'none') panel.style.display = 'block';
+
+    const spinner = document.getElementById('bcra-spinner');
+    const resultado = document.getElementById('bcra-resultado');
+    spinner.style.display = 'inline';
+    resultado.innerHTML = '';
+
+    try {
+      const data = await API.post('/api/videollamadas/scoring', { dni });
+      const COLOR = { green: '#16a34a', orange: '#d97706', red: '#dc2626' };
+      const BG    = { green: '#dcfce7', orange: '#fef3c7', red: '#fee2e2' };
+      const col   = data.color || 'green';
+      let html = `<div style="padding:12px 16px;border-radius:8px;background:${BG[col]};border:1px solid ${COLOR[col]}20">
+        <div style="font-size:15px;font-weight:700;color:${COLOR[col]};margin-bottom:6px">${data.mensaje}</div>`;
+      if (data.detalle && data.detalle.length) {
+        html += `<table style="font-size:12px;border-collapse:collapse;width:100%;margin-top:8px">
+          <tr style="color:var(--text-muted)"><th style="text-align:left;padding:2px 8px">Entidad</th><th style="padding:2px 8px">Situación</th><th style="padding:2px 8px">Monto (miles)</th><th style="padding:2px 8px">Días atraso</th></tr>`;
+        for (const e of data.detalle) {
+          html += `<tr style="border-top:1px solid ${COLOR[col]}30">
+            <td style="padding:3px 8px">${e.entidad || '—'}</td>
+            <td style="padding:3px 8px;font-weight:700;color:${e.situacion > 2 ? '#dc2626' : 'inherit'}">${e.situacion ?? '—'}</td>
+            <td style="padding:3px 8px">${e.monto_miles ?? '—'}</td>
+            <td style="padding:3px 8px">${e.dias_atraso_pago ?? '—'}</td>
+          </tr>`;
+        }
+        html += '</table>';
+      }
+      html += '</div>';
+      resultado.innerHTML = html;
+    } catch(e) {
+      resultado.innerHTML = `<div style="color:#dc2626;font-size:13px">${e.message}</div>`;
+    } finally {
+      spinner.style.display = 'none';
+    }
+  }
+
+  // Botón "Ver BCRA" desde dentro del formulario de VL
+  function prefillBCRAFromForm() {
+    const dni = document.querySelector('#vl-form [name=dni_cliente]')?.value?.trim();
+    if (!dni) return;
+    document.getElementById('bcra-dni').value = dni;
+    consultarBCRA(dni);
+  }
+
   // Leer filtro desde URL (cuando se viene del dashboard)
   (function() {
     const p = new URLSearchParams(window.location.search);

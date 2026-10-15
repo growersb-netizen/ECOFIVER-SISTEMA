@@ -1057,6 +1057,10 @@
             <input id="vl-cliente-tel" type="tel" placeholder="5491123456789" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
           </div>
           <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">DNI del cliente <span style="font-weight:400">(para consulta BCRA)</span></label>
+            <input id="vl-dni" type="text" placeholder="23456789" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+          </div>
+          <div>
             <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Producto *</label>
             <select id="vl-producto" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
               <option value="MODULO">Módulo / Vivienda</option>
@@ -1064,12 +1068,34 @@
             </select>
           </div>
           <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Modelo / Medida que necesita</label>
+            <input id="vl-modelo" type="text" placeholder="Ej: 36 m², 3 amb, Fiji 3×6" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Color preferido</label>
+            <input id="vl-color" type="text" placeholder="Ej: Blanco, Gris, Arena" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Plan solicitado</label>
+            <select id="vl-cuotas" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
+              <option value="">— A definir —</option>
+              <option value="24">24 cuotas</option>
+              <option value="36">36 cuotas</option>
+              <option value="48">48 cuotas</option>
+              <option value="60">60 cuotas</option>
+              <option value="72">72 cuotas</option>
+              <option value="84">84 cuotas</option>
+              <option value="96">96 cuotas</option>
+              <option value="120">120 cuotas</option>
+            </select>
+          </div>
+          <div>
             <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Fecha y hora *</label>
             <input id="vl-fecha-hora" type="datetime-local" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text)">
           </div>
           <div style="grid-column:1/-1">
-            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Notas (opcional)</label>
-            <textarea id="vl-notas" rows="2" placeholder="Link de Meet, observaciones del cliente, etc." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text);resize:vertical"></textarea>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Notas (link de Meet, observaciones del cliente, etc.)</label>
+            <textarea id="vl-notas" rows="2" placeholder="https://meet.google.com/... · El cliente quiere módulo para terreno de 10×20" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--surface);color:var(--text);resize:vertical"></textarea>
           </div>
         </div>
         <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
@@ -2049,38 +2075,66 @@ async function cargarMisVideollamadas(){
       return;
     }
     const ESTADO_BADGE = {
-      AGENDADA: 'background:#dbeafe;color:#1d4ed8',
-      REALIZADA: 'background:#d1fae5;color:#065f46',
+      AGENDADA:       'background:#dbeafe;color:#1d4ed8',
+      REALIZADA:      'background:#d1fae5;color:#065f46',
       NO_SE_PRESENTO: 'background:#fee2e2;color:#991b1b',
-      REPROGRAMAR: 'background:#fef9c3;color:#92400e',
+      REPROGRAMAR:    'background:#fef9c3;color:#92400e',
     };
-    let html = `<table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left;border-bottom:2px solid var(--border)">
-        <th style="padding:8px 10px">Cliente</th>
-        <th style="padding:8px 10px">Producto</th>
-        <th style="padding:8px 10px">Fecha / Hora</th>
-        <th style="padding:8px 10px">Estado</th>
-        <th style="padding:8px 10px">Notas</th>
-        <th style="padding:8px 10px"></th>
-      </tr></thead><tbody>`;
+    const RESULTADO_BADGE = {
+      CERRO:      'background:#d1fae5;color:#065f46',
+      AVANZO:     'background:#dbeafe;color:#1d4ed8',
+      NO_CALIFICO:'background:#fee2e2;color:#991b1b',
+      PENDIENTE:  'background:#f3f4f6;color:#6b7280',
+    };
+    let html = '';
     for(const v of vls){
       const fecha = v.fecha_hora ? new Date(v.fecha_hora) : null;
       const fechaStr = fecha
         ? fecha.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})
           + ' ' + fecha.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})
         : '—';
-      const badge = ESTADO_BADGE[v.estado] || 'background:var(--surface);color:var(--text)';
+      const eBadge = ESTADO_BADGE[v.estado] || 'background:var(--surface);color:var(--text)';
+      const rBadge = RESULTADO_BADGE[v.resultado] || RESULTADO_BADGE.PENDIENTE;
       const puedeCancel = v.estado === 'AGENDADA';
-      html += `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:8px 10px;font-weight:600">${v.cliente_nombre}<br><span style="font-weight:400;color:var(--text-muted)">${v.cliente_telefono}</span></td>
-        <td style="padding:8px 10px">${v.producto_interes}</td>
-        <td style="padding:8px 10px">${fechaStr}</td>
-        <td style="padding:8px 10px"><span style="padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;${badge}">${v.estado}</span></td>
-        <td style="padding:8px 10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${v.notas}">${v.notas || '—'}</td>
-        <td style="padding:8px 10px">${puedeCancel ? `<button onclick="cancelarVideollamada(${v.id})" style="font-size:12px;padding:4px 10px;border:1px solid #f87171;color:#ef4444;background:none;border-radius:4px;cursor:pointer">Cancelar</button>` : ''}</td>
-      </tr>`;
+      const esCerro = v.resultado === 'CERRO';
+
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:700">${v.cliente_nombre}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+              ${v.cliente_telefono ? `📱 ${v.cliente_telefono}` : ''}
+              ${v.producto_interes ? ` · ${v.producto_interes}` : ''}
+              ${v.modelo_especifico ? ` · ${v.modelo_especifico}` : ''}
+              ${v.color ? ` · ${v.color}` : ''}
+              ${v.cantidad_cuotas ? ` · ${v.cantidad_cuotas} cuotas` : ''}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">📅 ${fechaStr}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;${eBadge}">${v.estado}</span>
+            <span style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;${rBadge}">${v.resultado}</span>
+          </div>
+        </div>
+
+        ${v.devolucion ? `
+        <div style="margin-top:10px;padding:10px 14px;border-radius:8px;background:#f0fdf4;border:1px solid #86efac">
+          <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:4px">💬 Respuesta del equipo EcoFiver</div>
+          <div style="font-size:13px;color:#15803d">${v.devolucion}</div>
+          ${esCerro ? `<button onclick="irARegistrarVenta('${v.cliente_nombre}','${v.cliente_telefono}','${v.producto_interes}',${v.cantidad_cuotas||'null'})"
+            style="margin-top:8px;padding:7px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">
+            ✅ Registrar venta financiada →
+          </button>` : ''}
+        </div>` : ''}
+
+        ${puedeCancel ? `
+        <div style="margin-top:10px">
+          <button onclick="cancelarVideollamada(${v.id})" style="font-size:12px;padding:4px 10px;border:1px solid #f87171;color:#ef4444;background:none;border-radius:4px;cursor:pointer">
+            Cancelar videollamada
+          </button>
+        </div>` : ''}
+      </div>`;
     }
-    html += '</tbody></table>';
     cont.innerHTML = html;
   } catch(e) {
     cont.innerHTML = `<p style="color:#ef4444">${e.message}</p>`;
@@ -2088,12 +2142,16 @@ async function cargarMisVideollamadas(){
 }
 
 async function registrarVideollamada(){
-  const nombre = document.getElementById('vl-cliente-nombre').value.trim();
-  const tel    = document.getElementById('vl-cliente-tel').value.trim();
-  const prod   = document.getElementById('vl-producto').value;
-  const fecha  = document.getElementById('vl-fecha-hora').value;
-  const notas  = document.getElementById('vl-notas').value.trim();
-  const msg    = document.getElementById('vl-msg');
+  const nombre  = document.getElementById('vl-cliente-nombre').value.trim();
+  const tel     = document.getElementById('vl-cliente-tel').value.trim();
+  const dni     = document.getElementById('vl-dni').value.trim();
+  const prod    = document.getElementById('vl-producto').value;
+  const modelo  = document.getElementById('vl-modelo').value.trim();
+  const color   = document.getElementById('vl-color').value.trim();
+  const cuotas  = document.getElementById('vl-cuotas').value;
+  const fecha   = document.getElementById('vl-fecha-hora').value;
+  const notas   = document.getElementById('vl-notas').value.trim();
+  const msg     = document.getElementById('vl-msg');
 
   msg.textContent = '';
   msg.className = '';
@@ -2106,20 +2164,25 @@ async function registrarVideollamada(){
     const data = await api('/api/socio/videollamadas', {
       method: 'POST',
       body: JSON.stringify({
-        cliente_nombre: nombre,
+        cliente_nombre:   nombre,
         cliente_telefono: tel,
+        dni_cliente:      dni || null,
         producto_interes: prod,
-        fecha_hora: fecha,
-        notas: notas,
+        modelo_especifico: modelo || null,
+        color:            color || null,
+        cantidad_cuotas:  cuotas ? parseInt(cuotas) : null,
+        fecha_hora:       fecha,
+        notas:            notas,
       }),
     });
     msg.className = 'msg ok';
     msg.textContent = data.mensaje;
     // Limpiar formulario
-    document.getElementById('vl-cliente-nombre').value = '';
-    document.getElementById('vl-cliente-tel').value = '';
-    document.getElementById('vl-fecha-hora').value = '';
-    document.getElementById('vl-notas').value = '';
+    ['vl-cliente-nombre','vl-cliente-tel','vl-dni','vl-modelo','vl-color','vl-fecha-hora','vl-notas'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.value = '';
+    });
+    document.getElementById('vl-cuotas').value = '';
     cargarMisVideollamadas();
   } catch(e) {
     msg.className = 'msg error';
@@ -2135,6 +2198,29 @@ async function cancelarVideollamada(vlId){
   } catch(e) {
     alert('No se pudo cancelar: ' + e.message);
   }
+}
+
+function irARegistrarVenta(nombre, tel, producto, cuotas){
+  // Navega a la sección de nueva venta y pre-rellena el formulario financiado
+  nav('nueva-venta');
+  setTimeout(()=>{
+    const elNombre = document.getElementById('f-nombre');
+    const elTel    = document.getElementById('f-tel');
+    const elCuotas = document.getElementById('f-cuotas');
+    const elProd   = document.getElementById('f-prod');
+    if(elNombre) elNombre.value = nombre || '';
+    if(elTel)    elTel.value    = tel    || '';
+    if(cuotas && elCuotas) elCuotas.value = cuotas;
+    if(producto && elProd){
+      // producto viene como 'MODULO' o 'PISCINA' desde la VL
+      if(producto === 'PISCINA') elProd.value = 'PISCINA';
+      else elProd.value = 'VIVIENDA';
+      poblarProductoVenta('f');
+    }
+    // Scroll al formulario financiado
+    const card = document.getElementById('f-nombre');
+    if(card) card.scrollIntoView({behavior:'smooth', block:'center'});
+  }, 200);
 }
 
 // ── FIN VIDEOLLAMADAS ────────────────────────────────────────────────────────

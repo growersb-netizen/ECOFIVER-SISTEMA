@@ -1,13 +1,16 @@
+import os
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
-from database.models import Videollamada, Usuario, Notificacion, Lead, Interaccion
+from database.models import Videollamada, Usuario, Notificacion, Lead, Interaccion, ScoringBCRA
 from routers.auth import require_auth, require_roles, get_user_roles
 from routers.notificaciones import notificar_videollamada
 
@@ -35,6 +38,11 @@ def vl_to_dict(vl: Videollamada) -> dict:
         "comision_asesor_pct": vl.comision_asesor_pct or 0,
         "comision_supervisor_pct": vl.comision_supervisor_pct or 0,
         "aliado_codigo": vl.aliado_codigo or "",
+        "modelo_especifico": vl.modelo_especifico or "",
+        "color": vl.color or "",
+        "cantidad_cuotas": vl.cantidad_cuotas,
+        "dni_cliente": vl.dni_cliente or "",
+        "devolucion": vl.devolucion or "",
         "created_at": vl.created_at.isoformat() if vl.created_at else "",
     }
 
@@ -297,7 +305,8 @@ async def update_videollamada(
 
     for field in ["cliente_nombre", "cliente_telefono", "producto_interes", "forma_pago",
                   "asesor_apertura_id", "supervisor_cierre_id", "estado", "estado_admision",
-                  "resultado", "notas", "comision_asesor_pct", "comision_supervisor_pct"]:
+                  "resultado", "notas", "comision_asesor_pct", "comision_supervisor_pct",
+                  "modelo_especifico", "color", "cantidad_cuotas", "dni_cliente", "devolucion"]:
         if field in data:
             setattr(vl, field, data[field])
 
@@ -343,3 +352,133 @@ async def tomar_videollamada(
     vl.supervisor_cierre_id = current_user.id
     db.commit()
     return {"ok": True}
+
+
+@router.put("/api/videollamadas/{vl_id}/devolucion")
+async def set_devolucion(
+    vl_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """
+    El equipo interno (Stefanía u otro admin) registra la devolución de la VL
+    para que el socio sepa el resultado desde su portal.
+    """
+    vl = db.query(Videollamada).filter(Videollamada.id == vl_id).first()
+    if not vl:
+        raise HTTPException(404, "Videollamada no encontrada")
+    data = await request.json()
+    vl.devolucion = (data.get("devolucion") or "").strip()
+    db.commit()
+    return {"ok": True}
+
+
+# ─── SCORING BCRA RÁPIDO (desde la vista de VLs — para Stefanía) ─────────────
+
+BCRA_BASE = "https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudores"
+
+
+def _calcular_cuit_vl(tipo: str, dni: str) -> str:
+    """Calcula CUIT/CUIL a partir de un DNI."""
+    base = f"{tipo}{dni.zfill(8)}"
+    factores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
+    suma = sum(int(base[i]) * factores[i] for i in range(10))
+    resto = suma % 11
+    vd = 0 if resto == 0 else (9 if resto == 1 else 11 - resto)
+    return f"{base}{vd}"
+
+
+async def _bcra_query(identificacion: str):
+    url = f"{BCRA_BASE}/{identificacion}"
+    async with httpx.AsyncClient(verify=False, timeout=15) as client:
+        r = await client.get(url)
+    if r.status_code == 200:
+        body = r.json()
+        resultados = body.get("results", {})
+        periodos = resultados.get("periodos", [])
+        situaciones = []
+        detalle = []
+        for p in periodos:
+            entidades = p.get("entidades", [])
+            for e in entidades:
+                s = e.get("situacion")
+                if s:
+                    situaciones.append(s)
+                detalle.append({
+                    "entidad": e.get("entidad"),
+                    "situacion": s,
+                    "monto_miles": e.get("monto"),
+                    "dias_atraso_pago": e.get("diasAtrasoPago"),
+                })
+        if situaciones:
+            return max(situaciones), detalle, True
+        return None, None, True
+    if r.status_code in (400, 404):
+        return None, None, False
+    raise HTTPException(502, "El servicio BCRA no respondió — reintentá en un momento")
+
+
+@router.post("/api/videollamadas/scoring")
+async def scoring_vl(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_auth),
+):
+    """
+    Consulta BCRA por DNI o CUIT desde el módulo de videollamadas.
+    Diseñado para uso rápido de Stefanía mientras conduce la VL.
+    """
+    data = await request.json()
+    identificacion = re.sub(r"\D", "", data.get("dni") or data.get("cuit") or "")
+    if not identificacion:
+        raise HTTPException(400, "Falta DNI o CUIT")
+
+    candidatos = (
+        [identificacion] if len(identificacion) == 11
+        else [_calcular_cuit_vl("20", identificacion), _calcular_cuit_vl("27", identificacion)]
+    )
+
+    situacion, detalle = None, None
+    try:
+        for candidato in candidatos:
+            situacion, detalle, encontrado = await _bcra_query(candidato)
+            if encontrado:
+                break
+    except httpx.HTTPError:
+        raise HTTPException(502, "No se pudo conectar con el servicio BCRA")
+
+    requiere_dj = situacion in (5, 6)
+
+    # Registrar en scoring_bcra como consulta del CRM (aliado_codigo vacío)
+    log = ScoringBCRA(
+        aliado_codigo=f"CRM:{current_user.nombre or current_user.email}",
+        cliente_dni=identificacion,
+        situacion=situacion,
+        requiere_declaracion_jurada=requiere_dj,
+        respuesta_raw=str(detalle)[:4000],
+    )
+    db.add(log)
+    db.commit()
+
+    if situacion is None:
+        mensaje = "Sin antecedentes en la Central de Deudores."
+        color = "green"
+    elif situacion <= 2:
+        mensaje = f"Situación {situacion} — Normal / Con seguimiento."
+        color = "green"
+    elif situacion <= 4:
+        mensaje = f"Situación {situacion} — Con problemas. Requiere análisis."
+        color = "orange"
+    else:
+        mensaje = f"Situación {situacion} — Irrecuperable. Requiere declaración jurada."
+        color = "red"
+
+    return {
+        "ok": True,
+        "situacion": situacion,
+        "requiere_declaracion_jurada": requiere_dj,
+        "mensaje": mensaje,
+        "color": color,
+        "detalle": detalle or [],
+    }

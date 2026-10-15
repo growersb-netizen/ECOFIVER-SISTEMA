@@ -1082,21 +1082,29 @@ function renderVLList() {
     <tr onclick="editVL(${v.id})" style="cursor:pointer">
       <td>
         <div style="font-weight:600">${v.cliente_nombre}</div>
-        <div style="font-size:12px;color:var(--text-muted)">${v.producto_interes || ''}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${[v.producto_interes, v.modelo_especifico].filter(Boolean).join(' · ') || ''}</div>
+        ${v.aliado_codigo ? `<span style="padding:1px 6px;border-radius:8px;background:#ede9fe;color:#6d28d9;font-size:10px;font-weight:700">🤝 ${v.aliado_codigo}</span>` : ''}
       </td>
       <td>
         <a href="${whatsappLink(v.cliente_telefono)}" target="_blank" onclick="event.stopPropagation()" class="btn btn-whatsapp btn-sm">
           📱 ${v.cliente_telefono}
         </a>
+        ${v.dni_cliente ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">DNI ${v.dni_cliente} <button onclick="event.stopPropagation();consultarBCRAFromList('${v.dni_cliente}')" style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer;color:var(--text-muted)">BCRA</button></div>` : ''}
       </td>
-      <td style="font-size:13px">${v.fecha_hora ? formatDateTime(v.fecha_hora) : '—'}</td>
+      <td style="font-size:13px">
+        ${v.fecha_hora ? formatDateTime(v.fecha_hora) : '—'}
+        ${v.cantidad_cuotas ? `<div style="font-size:11px;color:var(--text-muted)">${v.cantidad_cuotas} cuotas</div>` : ''}
+      </td>
       <td>${badge(ESTADO_VL, v.estado)}</td>
       <td style="font-size:13px">${v.asesor_apertura_nombre || '—'}</td>
       <td>
         ${v.supervisor_cierre_nombre ||
           `<button onclick="event.stopPropagation();tomarVL(${v.id})" class="btn btn-sm btn-primary">Tomar</button>`}
       </td>
-      <td>${badge({ AVANZO: ['badge-green','Avanzó'], NO_CALIFICO: ['badge-red','No calificó'], CERRO: ['badge-teal','Cerró'], PENDIENTE: ['badge-gray','Pendiente'] }, v.resultado)}</td>
+      <td>
+        ${badge({ AVANZO: ['badge-green','Avanzó'], NO_CALIFICO: ['badge-red','No calificó'], CERRO: ['badge-teal','Cerró'], PENDIENTE: ['badge-gray','Pendiente'] }, v.resultado)}
+        ${v.devolucion ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${v.devolucion}">💬 ${v.devolucion}</div>` : ''}
+      </td>
     </tr>
   `).join('');
 }
@@ -1108,6 +1116,20 @@ async function tomarVL(id) {
     loadVL();
   } catch (e) {
     toast(e.message, 'error');
+  }
+}
+
+function consultarBCRAFromList(dni) {
+  const input = document.getElementById('bcra-dni');
+  if (input) {
+    input.value = dni;
+    const panel = document.getElementById('panel-bcra');
+    if (panel && panel.style.display === 'none') {
+      panel.style.display = 'block';
+      const btn = document.getElementById('btn-bcra');
+      if (btn) btn.textContent = '✕ BCRA';
+    }
+    if (typeof consultarBCRA === 'function') consultarBCRA(dni);
   }
 }
 

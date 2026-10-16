@@ -2446,7 +2446,6 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
     equipo, o un instalador de su zona. El equipo interno se contacta con el
     cliente dentro de las 48hs.
     """
-    _require_verificado(socio)
     data = await request.json()
     cliente_nombre = (data.get("cliente_nombre") or "").strip()
     if not cliente_nombre:
@@ -2587,7 +2586,6 @@ async def editar_venta_contado_socio(
     COORDINADO. Una vez que el equipo confirma (48hs o INSTALADA) ya no se puede
     modificar para preservar la integridad del circuito.
     """
-    _require_verificado(socio)
     venta = db.query(VentaContado).filter(
         VentaContado.id == venta_id,
         VentaContado.aliado_codigo == socio.codigo,
@@ -2642,7 +2640,6 @@ async def eliminar_venta_contado_socio(
     COORDINADO (antes de que el equipo empiece a gestionar). También elimina la
     Entrega y OrdenFabrica/OrdenProduccion asociadas si existen.
     """
-    _require_verificado(socio)
     venta = db.query(VentaContado).filter(
         VentaContado.id == venta_id,
         VentaContado.aliado_codigo == socio.codigo,
@@ -2748,7 +2745,6 @@ async def cargar_venta_financiada(request: Request, socio: Aliado = Depends(requ
     contra el catálogo (nunca un número tipeado a mano) para que no haya
     inconsistencias con las fichas oficiales.
     """
-    _require_verificado(socio)
     data = await request.json()
     cliente_nombre = (data.get("cliente_nombre") or "").strip()
     cliente_dni = (data.get("cliente_dni") or "").strip()

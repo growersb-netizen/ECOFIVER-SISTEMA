@@ -519,32 +519,36 @@ async def confirmar_venta_desde_vl(
 
     # Crear VentaFinanciada con los datos disponibles de la VL
     # precio_total y valor_cuota se calculan / completan después en el pipeline normal
-    venta = VentaFinanciada(
-        cliente_nombre=vl.cliente_nombre or "",
-        cliente_telefono=vl.cliente_telefono or "",
-        cliente_dni=vl.dni_cliente or "",
-        producto=vl.producto_interes or "SIN_DEFINIR",
-        modelo_especifico=vl.modelo_especifico or "",
-        color=vl.color or None,
-        cantidad_cuotas=vl.cantidad_cuotas or 0,
-        forma_pago="FINANCIADO",
-        precio_total=0,
-        monto_inscripcion=0,
-        valor_cuota=0,
-        estado_plan="INGRESADO",
-        aliado_codigo=vl.aliado_codigo,
-        notas=(
-            f"Operación confirmada desde videollamada VL#{vl_id}. "
-            f"Confirmado por: {current_user.nombre or current_user.email}.\n"
-            f"{vl.devolucion or ''}"
-        ).strip(),
-    )
-    db.add(venta)
+    try:
+        venta = VentaFinanciada(
+            cliente_nombre=vl.cliente_nombre or "",
+            cliente_telefono=vl.cliente_telefono or "",
+            cliente_dni=vl.dni_cliente or "",
+            producto=vl.producto_interes or "SIN_DEFINIR",
+            modelo_especifico=vl.modelo_especifico or "",
+            color=vl.color or None,
+            cantidad_cuotas=vl.cantidad_cuotas or 0,
+            forma_pago="FINANCIADO",
+            precio_total=0,
+            monto_inscripcion=0,
+            valor_cuota=0,
+            estado_plan="INGRESADO",
+            aliado_codigo=vl.aliado_codigo,
+            notas=(
+                f"Operación confirmada desde videollamada VL#{vl_id}. "
+                f"Confirmado por: {current_user.nombre or current_user.email}.\n"
+                f"{vl.devolucion or ''}"
+            ).strip(),
+        )
+        db.add(venta)
 
-    # Marcar la VL como procesada en notas para que confirmar-venta no duplique
-    vl.devolucion = (vl.devolucion or "") + f"\n✅ Venta ingresada al sistema el {datetime.now().strftime('%d/%m/%Y')} por {current_user.nombre or current_user.email}."
-    db.commit()
-    db.refresh(venta)
+        # Marcar la VL como procesada en notas para que confirmar-venta no duplique
+        vl.devolucion = (vl.devolucion or "") + f"\n✅ Venta ingresada al sistema el {datetime.now().strftime('%d/%m/%Y')} por {current_user.nombre or current_user.email}."
+        db.commit()
+        db.refresh(venta)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(500, f"Error al crear venta: {type(exc).__name__}: {exc}")
 
     # Notificar al aliado por WhatsApp
     if aliado.telefono:

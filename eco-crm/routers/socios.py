@@ -2550,6 +2550,7 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
             ))
         db.commit()
     except Exception as _e:
+        db.rollback()
         import logging
         logging.getLogger(__name__).warning(f"[AUTO-ENTREGA] {_e}")
 

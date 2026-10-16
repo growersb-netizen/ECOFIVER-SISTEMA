@@ -15,21 +15,35 @@
   <button class="tab" onclick="showTab('flete', this)">💰 Calc. Flete</button>
 </div>
 
-<!-- CALENDARIO MENSUAL -->
+<!-- CALENDARIO UNIFICADO (Día / 7 días / 15 días / Mes / Máximo) -->
 <div id="tab-calendario">
 
   <style>
+    /* Topbar */
+    .cal-topbar  { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; margin-bottom:.75rem; }
+    .cal-nav-grp { display:flex; align-items:center; gap:.35rem; }
+    .cal-title   { font-size:1.05rem; font-weight:700; min-width:160px; text-align:center; text-transform:capitalize; }
+    .cal-nav-btn { background:var(--surface2,#222); border:none; border-radius:8px; width:34px; height:34px;
+                   font-size:1rem; cursor:pointer; color:var(--text,#eee); transition:background .15s; }
+    .cal-nav-btn:hover { background:var(--accent,#3b82f6); color:#fff; }
+    /* View selector */
+    .vista-btns { display:flex; gap:3px; background:var(--bg-secondary,#1a1a2e); border-radius:10px; padding:3px; }
+    .vista-btn  { background:none; border:none; border-radius:7px; padding:.3rem .7rem; font-size:.78rem;
+                  color:var(--text-muted,#888); cursor:pointer; transition:background .15s,color .15s; white-space:nowrap; }
+    .vista-btn.active { background:var(--accent,#3b82f6); color:#fff; font-weight:600; }
+    /* Filter bar */
+    .fil-bar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; }
+    .fil-bar select, .fil-bar input { font-size:.8rem; padding:.25rem .5rem; border-radius:6px;
+      background:var(--bg-secondary,#1a1a2e); color:var(--text,#eee); border:1px solid var(--border,#333); height:30px; }
+    /* Summary chips */
+    .cal-chip { background:var(--bg-secondary,#1a1a2e); border-radius:6px; padding:.2rem .5rem;
+                font-size:.75rem; display:flex; align-items:center; gap:4px; }
+    .cal-chip .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    /* Monthly grid */
     .cal-wrapper { display:flex; gap:1.2rem; align-items:flex-start; }
     .cal-panel   { flex:1 1 0; min-width:0; }
     .cal-detail  { width:340px; flex-shrink:0; }
     @media(max-width:860px){ .cal-wrapper{flex-direction:column} .cal-detail{width:100%} }
-
-    .cal-header  { display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; }
-    .cal-title   { flex:1; font-size:1.15rem; font-weight:700; text-align:center; text-transform:capitalize; }
-    .cal-nav-btn { background:var(--surface2,#222); border:none; border-radius:8px; width:34px; height:34px;
-                   font-size:1rem; cursor:pointer; color:var(--text,#eee); transition:background .15s; }
-    .cal-nav-btn:hover { background:var(--accent,#3b82f6); color:#fff; }
-
     .cal-grid    { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
     .cal-dow     { text-align:center; font-size:.68rem; font-weight:600; color:var(--text-muted,#888);
                    padding:3px 0 6px; text-transform:uppercase; letter-spacing:.04em; }
@@ -42,27 +56,22 @@
     .cal-day.selected { background:var(--accent,#3b82f6) !important; }
     .cal-day.selected .cal-dn { color:#fff; }
     .cal-day.past .cal-dn { color:var(--text-muted,#666); }
-    .cal-dn      { font-size:.78rem; font-weight:600; line-height:1; }
-    .cal-cnt     { font-size:.65rem; font-weight:700; background:var(--accent,#3b82f6); color:#fff;
-                   border-radius:10px; padding:1px 6px; align-self:flex-start; line-height:1.6; }
+    .cal-dn   { font-size:.78rem; font-weight:600; line-height:1; }
+    .cal-cnt  { font-size:.65rem; font-weight:700; background:var(--accent,#3b82f6); color:#fff;
+                border-radius:10px; padding:1px 6px; align-self:flex-start; line-height:1.6; }
     .cal-day.selected .cal-cnt { background:rgba(255,255,255,.3); }
-    .cal-dots    { display:flex; flex-wrap:wrap; gap:2px; margin-top:auto; }
-    .cal-dot     { width:6px; height:6px; border-radius:50%; }
+    .cal-dots { display:flex; flex-wrap:wrap; gap:2px; margin-top:auto; }
+    .cal-dot  { width:6px; height:6px; border-radius:50%; }
     .dot-COORDINADA{background:#3b82f6} .dot-EN_CAMINO{background:#f59e0b}
     .dot-INSTALADA{background:#22c55e} .dot-DEVOLVER_A_VENTAS{background:#ef4444}
-
-    .cal-summary { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:.75rem; }
-    .cal-chip    { background:var(--bg-secondary,#1a1a2e); border-radius:8px; padding:.3rem .7rem;
-                   font-size:.78rem; display:flex; align-items:center; gap:5px; }
-    .cal-chip .dot { width:8px; height:8px; border-radius:50%; }
-
-    .det-card    { background:var(--bg-secondary,#1a1a2e); border-radius:10px; padding:1rem; }
-    .det-title   { font-size:.92rem; font-weight:700; color:var(--accent,#3b82f6);
-                   margin-bottom:.75rem; text-transform:capitalize; }
-    .det-empty   { color:var(--text-muted,#888); font-size:.85rem; text-align:center; padding:1.5rem 0; }
-    .det-item    { background:var(--bg-card,#111); border-radius:7px; padding:.65rem .75rem;
-                   margin-bottom:.5rem; border-left:3px solid var(--accent,#3b82f6);
-                   cursor:pointer; transition:background .15s; }
+    /* Detail card */
+    .det-card  { background:var(--bg-secondary,#1a1a2e); border-radius:10px; padding:1rem; }
+    .det-title { font-size:.92rem; font-weight:700; color:var(--accent,#3b82f6);
+                 margin-bottom:.75rem; text-transform:capitalize; }
+    .det-empty { color:var(--text-muted,#888); font-size:.85rem; text-align:center; padding:1.5rem 0; }
+    .det-item  { background:var(--bg-card,#111); border-radius:7px; padding:.65rem .75rem;
+                 margin-bottom:.5rem; border-left:3px solid var(--accent,#3b82f6);
+                 cursor:pointer; transition:background .15s; }
     .det-item:hover { background:var(--bg-hover,#1e1e30); }
     .det-item.ec-EN_CAMINO    { border-color:#f59e0b; }
     .det-item.ec-INSTALADA    { border-color:#22c55e; }
@@ -70,7 +79,33 @@
     .det-cliente { font-weight:600; font-size:.88rem; margin-bottom:2px; }
     .det-meta    { font-size:.74rem; color:var(--text-muted,#888); display:flex; flex-wrap:wrap; gap:5px; margin-top:3px; }
     .det-tag     { background:var(--bg-secondary,#1a1a2e); border-radius:3px; padding:1px 5px; font-size:.68rem; }
-
+    /* Multi-day grid */
+    .multi-grid     { display:grid; gap:8px; overflow-x:auto; padding-bottom:8px; }
+    .multi-col      { background:var(--bg-secondary,#1a1a2e); border-radius:10px; min-width:145px; overflow:hidden; }
+    .multi-col-head { padding:.45rem .6rem; border-bottom:1px solid var(--border,#333); }
+    .multi-col-head.hoy { background:var(--accent,#3b82f6); }
+    .mc-dow   { font-size:.68rem; font-weight:700; text-transform:uppercase; color:var(--text-muted,#888); }
+    .multi-col-head.hoy .mc-dow  { color:rgba(255,255,255,.8); }
+    .mc-fecha { font-size:.95rem; font-weight:700; }
+    .multi-col-head.hoy .mc-fecha{ color:#fff; }
+    .multi-col-body { padding:.35rem; display:flex; flex-direction:column; gap:.35rem; min-height:70px; }
+    .mc-empty { color:var(--text-muted,#888); font-size:.72rem; padding:.35rem 0; text-align:center; }
+    .mc-card  { background:var(--bg-card,#111); border-radius:5px; padding:.35rem .45rem;
+                border-left:3px solid var(--accent,#3b82f6); cursor:pointer; transition:background .15s; }
+    .mc-card:hover { background:var(--bg-hover,#1e1e30); }
+    .mc-card.ec-EN_CAMINO { border-color:#f59e0b; }
+    .mc-card.ec-INSTALADA { border-color:#22c55e; }
+    .mc-card.ec-DEVOLVER_A_VENTAS { border-color:#ef4444; }
+    .mc-nombre { font-size:.76rem; font-weight:600; line-height:1.3; }
+    .mc-sub    { font-size:.67rem; color:var(--text-muted,#888); margin-top:2px; }
+    /* Día view */
+    .dia-view { max-width:680px; }
+    /* Máximo view */
+    .max-group-title { font-size:.85rem; font-weight:700; color:var(--accent,#3b82f6);
+                       padding:.35rem .65rem; background:var(--bg-secondary,#1a1a2e);
+                       border-radius:7px; margin-bottom:.4rem; text-transform:capitalize; }
+    .max-group-title.hoy-bg { background:var(--accent,#3b82f6); color:#fff; }
+    .max-group { margin-bottom:1.1rem; }
     @media(max-width:560px){
       .cal-day{ min-height:46px; padding:4px 3px; }
       .cal-dn { font-size:.7rem; }
@@ -78,40 +113,80 @@
     }
   </style>
 
-  <!-- Summary chips -->
-  <div class="cal-summary">
-    <div class="cal-chip"><span class="dot" style="background:#3b82f6"></span><span id="sc-coord">–</span> Coordinadas</div>
-    <div class="cal-chip"><span class="dot" style="background:#f59e0b"></span><span id="sc-cam">–</span> En camino</div>
-    <div class="cal-chip"><span class="dot" style="background:#22c55e"></span><span id="sc-inst">–</span> Instaladas</div>
-    <div class="cal-chip"><span class="dot" style="background:#ef4444"></span><span id="sc-prob">–</span> Devolver a ventas</div>
+  <!-- Top bar: nav + view selector -->
+  <div class="cal-topbar">
+    <div class="cal-nav-grp">
+      <button class="cal-nav-btn" onclick="calNavegar(-1)">‹</button>
+      <button class="btn btn-ghost" style="font-size:.78rem;padding:.3rem .6rem" onclick="calGoHoy()">Hoy</button>
+      <button class="cal-nav-btn" onclick="calNavegar(1)">›</button>
+    </div>
+    <div class="cal-title" id="cal-mes-title">—</div>
+    <div class="vista-btns">
+      <button class="vista-btn" data-vista="dia"  onclick="calSetVista('dia',this)">Día</button>
+      <button class="vista-btn" data-vista="7"    onclick="calSetVista('7',this)">7 días</button>
+      <button class="vista-btn" data-vista="15"   onclick="calSetVista('15',this)">15 días</button>
+      <button class="vista-btn active" data-vista="mes" onclick="calSetVista('mes',this)">Mes</button>
+      <button class="vista-btn" data-vista="max"  onclick="calSetVista('max',this)">Máximo</button>
+    </div>
   </div>
 
-  <div class="cal-wrapper">
-    <!-- Grid -->
-    <div class="cal-panel">
-      <div class="cal-header">
-        <button class="cal-nav-btn" onclick="calChangeMonth(-1)">‹</button>
-        <div class="cal-title" id="cal-mes-title">—</div>
-        <button class="cal-nav-btn" onclick="calChangeMonth(1)">›</button>
-        <button class="btn btn-ghost" style="font-size:.78rem;padding:.3rem .6rem" onclick="calGoHoy()">Hoy</button>
+  <!-- Filter bar -->
+  <div class="fil-bar">
+    <select id="fil-tipo" onchange="calFiltrar()">
+      <option value="">Todos los productos</option>
+      <option value="piscina">Piscinas</option>
+      <option value="modulo">Módulos</option>
+    </select>
+    <select id="fil-estado" onchange="calFiltrar()">
+      <option value="">Todos los estados</option>
+      <option value="COORDINADA">Coordinada</option>
+      <option value="EN_CAMINO">En camino</option>
+      <option value="INSTALADA">Instalada</option>
+      <option value="DEVOLVER_A_VENTAS">Devolver a ventas</option>
+    </select>
+    <input type="text" id="fil-buscar" class="form-control" placeholder="🔍 Cliente..." oninput="calFiltrar()" style="max-width:175px;font-size:.8rem">
+    <span class="cal-chip"><span class="dot" style="background:#3b82f6"></span><span id="sc-coord">–</span></span>
+    <span class="cal-chip"><span class="dot" style="background:#f59e0b"></span><span id="sc-cam">–</span></span>
+    <span class="cal-chip"><span class="dot" style="background:#22c55e"></span><span id="sc-inst">–</span></span>
+    <span class="cal-chip"><span class="dot" style="background:#ef4444"></span><span id="sc-prob">–</span></span>
+  </div>
+
+  <!-- Vista: Mes -->
+  <div id="cal-view-mes">
+    <div class="cal-wrapper">
+      <div class="cal-panel">
+        <div class="cal-grid">
+          <div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div>
+          <div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div>
+          <div class="cal-dow">Dom</div>
+        </div>
+        <div class="cal-grid" id="cal-grid-cells">
+          <div class="cal-dow" style="grid-column:1/-1;text-align:center;padding:1rem;color:var(--text-muted)">Cargando…</div>
+        </div>
       </div>
-      <!-- DOW headers -->
-      <div class="cal-grid">
-        <div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div>
-        <div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div>
-        <div class="cal-dow">Dom</div>
-      </div>
-      <div class="cal-grid" id="cal-grid-cells">
-        <div class="cal-dow" style="grid-column:1/-1;text-align:center;padding:1rem;color:var(--text-muted)">Cargando…</div>
-      </div>
-    </div>
-    <!-- Detail -->
-    <div class="cal-detail">
-      <div class="det-card" id="det-card">
-        <div class="det-empty">Seleccioná un día para ver las entregas</div>
+      <div class="cal-detail">
+        <div class="det-card" id="det-card">
+          <div class="det-empty">Seleccioná un día para ver las entregas</div>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Vista: Multi-day (7 / 15 días) -->
+  <div id="cal-view-multi" style="display:none">
+    <div class="multi-grid" id="cal-multi-grid"></div>
+  </div>
+
+  <!-- Vista: Día -->
+  <div id="cal-view-dia" style="display:none">
+    <div class="dia-view"><div id="dia-content"></div></div>
+  </div>
+
+  <!-- Vista: Máximo -->
+  <div id="cal-view-max" style="display:none">
+    <div id="cal-max-content"></div>
+  </div>
+
 </div>
 
 <!-- ESTA SEMANA (grilla semanal) -->
@@ -791,72 +866,163 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // CALENDARIO MENSUAL DE ENTREGAS
+  // CALENDARIO UNIFICADO — Día / 7d / 15d / Mes / Máximo
   // ──────────────────────────────────────────────────────────────────────
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const DOW_MON_FIRST = [1,2,3,4,5,6,0];  // getDay() → col (0=Lun…6=Dom)
-  const ESTADO_LBL = {COORDINADA:'Coordinada',EN_CAMINO:'En camino',INSTALADA:'Instalada',DEVOLVER_A_VENTAS:'Devolver a ventas'};
+  const DOW_MON_FIRST = [1,2,3,4,5,6,0];
+  const DIAS_C = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
-  let calYear  = new Date().getFullYear();
-  let calMonth = new Date().getMonth() + 1;
-  let calData  = {};
-  let calSelDay = null;
+  let CAL_VISTA  = 'mes';
+  let CAL_ANCHOR = new Date();
+  let calRawData = {};
+  let calFiltData = {};
+  let calSelDay  = null;
+  let calYear    = new Date().getFullYear();
+  let calMonth   = new Date().getMonth() + 1;
 
-  async function loadCalendario() {
-    const grid = document.getElementById('cal-grid-cells');
-    if (!grid) return;
-    grid.innerHTML = `<div class="cal-dow" style="grid-column:1/-1;text-align:center;padding:1rem;color:var(--text-muted)">Cargando…</div>`;
-    document.getElementById('cal-mes-title').textContent = `${MESES[calMonth-1]} ${calYear}`;
+  function _calDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function _calTodayStr() { return _calDateStr(new Date()); }
 
-    try {
-      const data = await API.get(`/api/logistica/calendario-mes?year=${calYear}&month=${calMonth}`);
-      if (!data) return;
-      calData = data;
-    } catch(err) {
-      grid.innerHTML = `<div class="cal-dow" style="grid-column:1/-1;color:#ef4444;padding:1rem">Error: ${err.message}</div>`;
+  function calSetVista(v, btn) {
+    CAL_VISTA = v;
+    document.querySelectorAll('.vista-btn').forEach(b => b.classList.toggle('active', b.dataset.vista === v));
+    if (v === 'mes') CAL_ANCHOR = new Date(calYear, calMonth - 1, 1);
+    loadCalendario();
+  }
+
+  function calNavegar(delta) {
+    if (CAL_VISTA === 'mes') {
+      calMonth += delta;
+      if (calMonth < 1)  { calMonth = 12; calYear--; }
+      if (calMonth > 12) { calMonth = 1;  calYear++; }
+      CAL_ANCHOR = new Date(calYear, calMonth - 1, 1);
+    } else if (CAL_VISTA === 'max') {
       return;
-    }
-    _renderCalGrid();
-    _renderCalSummary();
-    if (calSelDay && calSelDay.startsWith(`${calYear}-${String(calMonth).padStart(2,'0')}`)) {
-      _renderDetalle(calSelDay);
+    } else if (CAL_VISTA === 'dia') {
+      CAL_ANCHOR = new Date(CAL_ANCHOR.getTime() + delta * 86400000);
     } else {
-      calSelDay = null;
-      document.getElementById('det-card').innerHTML = '<div class="det-empty">Seleccioná un día para ver las entregas</div>';
+      CAL_ANCHOR = new Date(CAL_ANCHOR.getTime() + delta * parseInt(CAL_VISTA) * 86400000);
+    }
+    loadCalendario();
+  }
+
+  function calGoHoy() {
+    const now = new Date();
+    calYear = now.getFullYear(); calMonth = now.getMonth() + 1;
+    CAL_ANCHOR = new Date();
+    loadCalendario();
+  }
+
+  function calFiltrar() { _applyFilters(); _renderCurrentVista(); }
+
+  function _getFilters() {
+    return {
+      tipo:   (document.getElementById('fil-tipo')?.value || '').toLowerCase(),
+      estado: document.getElementById('fil-estado')?.value || '',
+      buscar: (document.getElementById('fil-buscar')?.value || '').toLowerCase().trim(),
+    };
+  }
+
+  function _filterList(lista) {
+    const f = _getFilters();
+    return lista.filter(e => {
+      const prod = (e.producto || '').toLowerCase();
+      if (f.tipo === 'piscina' && !(prod.includes('piscin') || prod.includes('arco') || prod.includes('playa') || prod.includes('minideck') || prod.includes('miniportante') || prod.includes('autoportante') || prod.includes('minimalista') || prod.includes('recta') || prod.includes('semi') || prod.includes('spa') || prod.includes('hidromasaje'))) return false;
+      if (f.tipo === 'modulo' && !(prod.includes('módulo') || prod.includes('modulo'))) return false;
+      if (f.estado && e.estado !== f.estado) return false;
+      if (f.buscar && !(e.cliente_nombre||'').toLowerCase().includes(f.buscar) && !(e.cliente_localidad||'').toLowerCase().includes(f.buscar)) return false;
+      return true;
+    });
+  }
+
+  function _applyFilters() {
+    if (CAL_VISTA === 'mes') {
+      const entFilt = {};
+      Object.entries(calRawData.entregas || {}).forEach(([k, v]) => { entFilt[k] = _filterList(v); });
+      calFiltData = { ...calRawData, entregas: entFilt, counts: Object.fromEntries(Object.entries(entFilt).map(([k,v])=>[k,v.length])) };
+    } else {
+      calFiltData = (Array.isArray(calRawData) ? calRawData : []).map(d => ({ ...d, entregas: _filterList(d.entregas) }));
+    }
+    const c = { COORDINADA:0, EN_CAMINO:0, INSTALADA:0, DEVOLVER_A_VENTAS:0 };
+    const all = CAL_VISTA === 'mes'
+      ? Object.values(calFiltData.entregas || {}).flat()
+      : (calFiltData || []).flatMap(d => d.entregas || []);
+    all.forEach(e => { if (c[e.estado] !== undefined) c[e.estado]++; });
+    document.getElementById('sc-coord').textContent = c.COORDINADA;
+    document.getElementById('sc-cam').textContent   = c.EN_CAMINO;
+    document.getElementById('sc-inst').textContent  = c.INSTALADA;
+    document.getElementById('sc-prob').textContent  = c.DEVOLVER_A_VENTAS;
+  }
+
+  function _renderCurrentVista() {
+    ['mes','multi','dia','max'].forEach(v => { document.getElementById(`cal-view-${v}`).style.display = 'none'; });
+    if (CAL_VISTA === 'mes') {
+      document.getElementById('cal-view-mes').style.display = '';
+      _renderCalGrid(); if (calSelDay) _renderDetalle(calSelDay);
+    } else if (CAL_VISTA === 'dia') {
+      document.getElementById('cal-view-dia').style.display = ''; _renderDia();
+    } else if (CAL_VISTA === 'max') {
+      document.getElementById('cal-view-max').style.display = ''; _renderMax();
+    } else {
+      document.getElementById('cal-view-multi').style.display = ''; _renderMulti(parseInt(CAL_VISTA));
     }
   }
 
+  async function loadCalendario() {
+    const title = document.getElementById('cal-mes-title');
+    try {
+      if (CAL_VISTA === 'mes') {
+        title.textContent = `${MESES[calMonth-1]} ${calYear}`;
+        calRawData = await API.get(`/api/logistica/calendario-mes?year=${calYear}&month=${calMonth}`) || { counts:{}, entregas:{} };
+      } else if (CAL_VISTA === 'dia') {
+        title.textContent = CAL_ANCHOR.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+        calRawData = await API.get(`/api/logistica/calendario?desde=${_calDateStr(CAL_ANCHOR)}&dias=1`) || [];
+      } else if (CAL_VISTA === 'max') {
+        title.textContent = 'Todas las entregas próximas';
+        calRawData = await API.get('/api/logistica/calendario?dias=365') || [];
+      } else {
+        const dias = parseInt(CAL_VISTA);
+        const de = new Date(CAL_ANCHOR.getTime() + (dias-1)*86400000);
+        const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+        title.textContent = `${fmt(CAL_ANCHOR)} — ${fmt(de)}`;
+        calRawData = await API.get(`/api/logistica/calendario?desde=${_calDateStr(CAL_ANCHOR)}&dias=${dias}`) || [];
+      }
+    } catch(err) { title.textContent = 'Error al cargar'; console.error(err); return; }
+    _applyFilters();
+    _renderCurrentVista();
+  }
+
+  // ── Vista: Mes ──
   function _renderCalGrid() {
     const grid = document.getElementById('cal-grid-cells');
+    if (!grid) return;
     grid.innerHTML = '';
     const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    const todayKey = _calTodayStr();
     const firstDate = new Date(calYear, calMonth-1, 1);
     const startCol  = DOW_MON_FIRST.indexOf(firstDate.getDay());
     const daysInMonth = new Date(calYear, calMonth, 0).getDate();
-
     for (let i = 0; i < startCol; i++) {
       const e = document.createElement('div'); e.className = 'cal-day empty'; grid.appendChild(e);
     }
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const count = (calData.counts||{})[key] || 0;
+      const count = (calFiltData.counts||{})[key] || 0;
       const isPast = new Date(calYear,calMonth-1,d) < new Date(today.getFullYear(),today.getMonth(),today.getDate());
-
       const cell = document.createElement('div');
       cell.className = 'cal-day';
       if (key === todayKey) cell.classList.add('today');
       if (isPast) cell.classList.add('past');
       if (key === calSelDay) cell.classList.add('selected');
       cell.dataset.date = key;
-
       const dn = document.createElement('div'); dn.className='cal-dn'; dn.textContent=d; cell.appendChild(dn);
-
       if (count > 0) {
         const cnt = document.createElement('span'); cnt.className='cal-cnt';
         cnt.textContent = count + (count===1?' entrega':' entregas'); cell.appendChild(cnt);
         const dots = document.createElement('div'); dots.className='cal-dots';
-        ((calData.entregas||{})[key]||[]).forEach(e => {
+        ((calFiltData.entregas||{})[key]||[]).forEach(e => {
           const dot = document.createElement('div'); dot.className=`cal-dot dot-${e.estado}`; dots.appendChild(dot);
         });
         cell.appendChild(dots);
@@ -873,17 +1039,15 @@
   }
 
   function _renderDetalle(key) {
-    const entregas = (calData.entregas||{})[key] || [];
+    const entregas = (calFiltData.entregas||{})[key] || [];
     const [y,m,d] = key.split('-');
     const label = new Date(+y,+m-1,+d).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
     const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
     const card = document.getElementById('det-card');
-
     if (!entregas.length) {
       card.innerHTML = `<div class="det-title">${cap(label)}</div><div class="det-empty">Sin entregas este día</div>`;
       return;
     }
-
     let html = `<div class="det-title">${cap(label)} — ${entregas.length} entrega${entregas.length>1?'s':''}</div>`;
     entregas.forEach(e => {
       const tags = [];
@@ -891,45 +1055,82 @@
       else              tags.push(`<span class="det-tag">Sin confirmar</span>`);
       if (e.requiere_fabricacion && !e.fab_lista) tags.push(`<span class="det-tag" style="background:#f59e0b22;color:#f59e0b">⚠ Fab. pendiente</span>`);
       else if (e.requiere_fabricacion)            tags.push(`<span class="det-tag" style="background:#22c55e22;color:#22c55e">✓ Fab. lista</span>`);
-
       html += `
         <div class="det-item ec-${e.estado}" onclick='abrirConfirmar(${JSON.stringify(e)})'>
           <div class="det-cliente">${e.cliente_nombre}</div>
-          <div class="det-meta">
-            <span>📍 ${e.cliente_localidad||'—'}</span>
-            <span>🕐 ${e.rango_horario||'—'}</span>
-            ${e.equipo_asignado?`<span>👷 ${e.equipo_asignado}</span>`:''}
-          </div>
-          <div class="det-meta" style="margin-top:3px">
-            <span>📦 ${e.producto}</span>${tags.join('')}
-          </div>
+          <div class="det-meta"><span>📍 ${e.cliente_localidad||'—'}</span><span>🕐 ${e.rango_horario||'—'}</span>${e.equipo_asignado?`<span>👷 ${e.equipo_asignado}</span>`:''}</div>
+          <div class="det-meta" style="margin-top:3px"><span>📦 ${e.producto}</span>${tags.join('')}</div>
           ${e.notas?`<div class="det-meta" style="margin-top:3px;font-style:italic">💬 ${e.notas}</div>`:''}
         </div>`;
     });
     card.innerHTML = html;
   }
 
-  function _renderCalSummary() {
-    const c = {COORDINADA:0,EN_CAMINO:0,INSTALADA:0,DEVOLVER_A_VENTAS:0};
-    Object.values(calData.entregas||{}).flat().forEach(e=>{ if(c[e.estado]!==undefined) c[e.estado]++; });
-    document.getElementById('sc-coord').textContent = c.COORDINADA;
-    document.getElementById('sc-cam').textContent   = c.EN_CAMINO;
-    document.getElementById('sc-inst').textContent  = c.INSTALADA;
-    document.getElementById('sc-prob').textContent  = c.DEVOLVER_A_VENTAS;
+  // ── Vista: Multi-day (7 / 15 días) ──
+  function _renderMulti(dias) {
+    const grid = document.getElementById('cal-multi-grid');
+    const cols = Math.min(dias, 7);
+    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(145px, 1fr))`;
+    const todayStr = _calTodayStr();
+    const anchor = new Date(CAL_ANCHOR.getFullYear(), CAL_ANCHOR.getMonth(), CAL_ANCHOR.getDate());
+    const byDate = {};
+    (Array.isArray(calFiltData) ? calFiltData : []).forEach(d => { byDate[d.fecha] = d.entregas; });
+    let html = '';
+    for (let i = 0; i < dias; i++) {
+      const d = new Date(anchor.getTime() + i * 86400000);
+      const ds = _calDateStr(d);
+      const esHoy = ds === todayStr;
+      const dow = DIAS_C[DOW_MON_FIRST.indexOf(d.getDay())];
+      const entregas = byDate[ds] || [];
+      const cards = entregas.length
+        ? entregas.map(e => `<div class="mc-card ec-${e.estado}" onclick='abrirConfirmar(${JSON.stringify(e)})'><div class="mc-nombre">${e.cliente_nombre}</div><div class="mc-sub">${e.producto||''}</div><div class="mc-sub">${[e.rango_horario,e.cliente_localidad].filter(Boolean).join(' · ')}</div></div>`).join('')
+        : '<div class="mc-empty">—</div>';
+      html += `<div class="multi-col"><div class="multi-col-head${esHoy?' hoy':''}"><div class="mc-dow">${dow}</div><div class="mc-fecha">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</div></div><div class="multi-col-body">${cards}</div></div>`;
+    }
+    grid.innerHTML = html;
   }
 
-  function calChangeMonth(delta) {
-    calMonth += delta;
-    if (calMonth < 1)  { calMonth=12; calYear--; }
-    if (calMonth > 12) { calMonth=1;  calYear++; }
-    loadCalendario();
+  // ── Vista: Día ──
+  function _renderDia() {
+    const byDate = {};
+    (Array.isArray(calFiltData) ? calFiltData : []).forEach(d => { byDate[d.fecha] = d.entregas; });
+    const entregas = byDate[_calDateStr(CAL_ANCHOR)] || [];
+    const content = document.getElementById('dia-content');
+    if (!entregas.length) { content.innerHTML = '<div class="det-empty" style="padding:2rem 0">Sin entregas para este día</div>'; return; }
+    let html = '';
+    entregas.forEach(e => {
+      const tags = [];
+      if (e.confirmada) tags.push(`<span class="det-tag" style="background:#22c55e22;color:#22c55e">✓ Confirmada</span>`);
+      else tags.push(`<span class="det-tag">Sin confirmar</span>`);
+      if (e.requiere_fabricacion && !e.fab_lista) tags.push(`<span class="det-tag" style="background:#f59e0b22;color:#f59e0b">⚠ Fab. pendiente</span>`);
+      html += `<div class="det-item ec-${e.estado}" onclick='abrirConfirmar(${JSON.stringify(e)})' style="max-width:620px"><div class="det-cliente">${e.cliente_nombre}</div><div class="det-meta"><span>📦 ${e.producto||'—'}</span><span>📍 ${e.cliente_localidad||'—'}</span><span>🕐 ${e.rango_horario||'—'}</span>${e.equipo_asignado?`<span>👷 ${e.equipo_asignado}</span>`:''} ${tags.join('')}</div>${e.notas?`<div class="det-meta" style="margin-top:3px;font-style:italic">💬 ${e.notas}</div>`:''}</div>`;
+    });
+    content.innerHTML = html;
   }
 
-  function calGoHoy() {
-    const now = new Date();
-    calYear=now.getFullYear(); calMonth=now.getMonth()+1;
-    loadCalendario();
+  // ── Vista: Máximo ──
+  function _renderMax() {
+    const container = document.getElementById('cal-max-content');
+    const items = (Array.isArray(calFiltData) ? calFiltData : []).filter(d => d.entregas && d.entregas.length > 0);
+    if (!items.length) { container.innerHTML = '<div class="det-empty" style="padding:2rem 0">Sin entregas próximas</div>'; return; }
+    const todayStr = _calTodayStr();
+    const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
+    let html = '';
+    items.forEach(({ fecha, entregas }) => {
+      const [y,m,d] = fecha.split('-');
+      const label = new Date(+y,+m-1,+d).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+      const esHoy = fecha === todayStr;
+      html += `<div class="max-group"><div class="max-group-title${esHoy?' hoy-bg':''}">${cap(label)} · ${entregas.length} entrega${entregas.length>1?'s':''}</div>`;
+      entregas.forEach(e => {
+        const tag = e.confirmada ? `<span class="det-tag" style="background:#22c55e22;color:#22c55e">✓</span>` : '';
+        html += `<div class="det-item ec-${e.estado}" onclick='abrirConfirmar(${JSON.stringify(e)})'><div class="det-cliente">${e.cliente_nombre}</div><div class="det-meta"><span>📦 ${e.producto||'—'}</span><span>📍 ${e.cliente_localidad||'—'}</span><span>🕐 ${e.rango_horario||'—'}</span>${tag}</div></div>`;
+      });
+      html += '</div>';
+    });
+    container.innerHTML = html;
   }
+
+  function calChangeMonth(delta) { calNavegar(delta); }
 
   function abrirConfirmar(e) {
     document.getElementById('conf-id').value = e.id;

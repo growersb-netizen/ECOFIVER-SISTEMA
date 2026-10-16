@@ -33,6 +33,7 @@ from database.database import get_db
 from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
     ScoringBCRA, Usuario, ComisionConfig, Presupuesto, Lead, Videollamada,
+    Entrega, OrdenFabricaPiscina, OrdenFabricaModulo,
 )
 from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
@@ -2512,6 +2513,46 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         "con ventana/balcón" if venta.con_ventana_balcon else None,
         f"sobre {venta.sobre_piso.lower()}" if venta.sobre_piso else None,
     ])) or "—"
+
+    # Auto-generar Entrega y orden de fabricación para el flujo logístico
+    try:
+        producto_label = f"{venta.producto} {venta.modelo_especifico}".strip() if venta.modelo_especifico else venta.producto
+        entrega_auto = Entrega(
+            venta_contado_id=venta.id,
+            cliente_nombre=venta.cliente_nombre,
+            cliente_localidad=venta.cliente_localidad or "",
+            producto=producto_label,
+            fecha_instalacion=venta.fecha_instalacion,
+            fecha_original_venta=venta.fecha_instalacion,
+            estado="COORDINADA",
+            requiere_fabricacion=True,
+            auto_generada=True,
+            notas=f"Auto-generada desde venta socio {socio.codigo}.",
+        )
+        db.add(entrega_auto)
+        if venta.producto == "PISCINA":
+            db.add(OrdenFabricaPiscina(
+                venta_contado_id=venta.id,
+                cliente_nombre=venta.cliente_nombre,
+                modelo=venta.modelo_especifico or "",
+                color=venta.color or "",
+                estado="EN_ESPERA",
+                notas=f"Socio {socio.codigo}. Auto-generada al registrar la venta.",
+            ))
+        elif venta.producto == "MODULO":
+            config_mod = particularidades if particularidades != "—" else ""
+            db.add(OrdenFabricaModulo(
+                venta_contado_id=venta.id,
+                cliente_nombre=venta.cliente_nombre,
+                superficie_m2=venta.superficie_m2 or 0,
+                configuracion=config_mod,
+                estado="EN_ESPERA",
+                notas=f"Socio {socio.codigo}. Auto-generada al registrar la venta.",
+            ))
+        db.commit()
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning(f"[AUTO-ENTREGA] {_e}")
 
     notificar_rodrigo(
         db,

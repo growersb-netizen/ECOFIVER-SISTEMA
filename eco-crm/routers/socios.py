@@ -1903,7 +1903,6 @@ async def socio_quiz(socio: Aliado = Depends(require_socio)):
 
 @router.get("/api/socio/biblioteca")
 async def socio_biblioteca(tipo: Optional[str] = None, categoria: Optional[str] = None, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
-    _require_verificado(socio)
     q = db.query(MaterialSocio).filter(MaterialSocio.activo == True)
     if tipo:
         q = q.filter(MaterialSocio.tipo == tipo)
@@ -1915,7 +1914,6 @@ async def socio_biblioteca(tipo: Optional[str] = None, categoria: Optional[str] 
 
 @router.get("/api/socio/biblioteca/{material_id}/archivo")
 async def socio_biblioteca_archivo(material_id: int, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
-    _require_verificado(socio)
     from fastapi.responses import FileResponse
     m = db.query(MaterialSocio).filter(MaterialSocio.id == material_id).first()
     if not m or not m.archivo_path or not os.path.exists(m.archivo_path):

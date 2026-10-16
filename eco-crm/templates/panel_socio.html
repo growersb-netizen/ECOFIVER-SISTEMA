@@ -3162,11 +3162,6 @@ let BIBLIOTECA_ITEMS = [];
 let BIBLIOTECA_FILTRO = 'todos';
 
 async function cargarBiblioteca(){
-  const el = document.getElementById('biblio-grid');
-  if(!SOCIO.verificado){
-    el.innerHTML = '<p style="color:var(--text-muted)">La Biblioteca se habilita cuando completás tu perfil y verificás tu WhatsApp. <a onclick="abrirModalVerificacion()" style="cursor:pointer;text-decoration:underline">Completar ahora</a></p>';
-    return;
-  }
   const data = await api('/api/socio/biblioteca').catch(()=>({materiales:[]}));
   BIBLIOTECA_ITEMS = data.materiales.filter(m => m.tipo !== 'guia');  // las guías viven en Capacitación
   renderBiblioteca();

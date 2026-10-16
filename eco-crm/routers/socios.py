@@ -538,15 +538,45 @@ async def socio_acceso_crm(
     socio: Aliado = Depends(require_socio),
     db: Session = Depends(get_db),
 ):
-    """SSO: verifica sesión socio, auto-provisiona usuario CRM si no existe, redirige a /leads."""
+    """SSO: verifica sesión socio, auto-provisiona usuario CRM si no existe y redirige."""
+    import secrets as _sec
+    slug = (socio.codigo or "socio").lower().replace("-", "")
+
+    if socio.es_admin_crm:
+        # Busca el usuario admin por email interno (patrón histórico) o por aliado_codigo
+        email_admin = f"socio.admin.{slug}@ecofiver.crm"
+        usuario = (
+            db.query(Usuario).filter(Usuario.email == email_admin, Usuario.activo == True).first()
+            or db.query(Usuario).filter(Usuario.aliado_codigo == socio.codigo, Usuario.activo == True).first()
+        )
+        if not usuario:
+            usuario = Usuario(
+                nombre=f"{socio.nombre} (Admin Programa)",
+                email=email_admin,
+                password_hash=pwd_context.hash(_sec.token_urlsafe(32)),
+                roles_json=json.dumps(["ADMIN"]),
+                activo=True,
+                aliado_codigo=socio.codigo,
+            )
+            db.add(usuario)
+            db.commit()
+            db.refresh(usuario)
+        elif not usuario.aliado_codigo:
+            usuario.aliado_codigo = socio.codigo
+            db.commit()
+        token = create_access_token({"sub": str(usuario.id)})
+        resp = RedirectResponse(url="/aliados", status_code=302)
+        resp.set_cookie("access_token", token, httponly=True, max_age=86400, samesite="lax")
+        return resp
+
+    # Socio vendedor: busca por aliado_codigo; usa email interno para evitar conflictos
     usuario = db.query(Usuario).filter(
         Usuario.aliado_codigo == socio.codigo,
         Usuario.activo == True,
     ).first()
 
     if not usuario:
-        import secrets as _sec
-        email_crm = socio.email or f"{(socio.codigo or 'socio').lower().replace('-', '')}@ecofiver.com"
+        email_crm = f"socio.{slug}@ecofiver.crm"
         usuario = Usuario(
             nombre=socio.nombre,
             email=email_crm,

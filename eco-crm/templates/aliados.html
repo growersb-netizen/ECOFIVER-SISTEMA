@@ -285,31 +285,53 @@
     <h3 style="margin:0;font-size:15px">🏢 Estructuras comerciales</h3>
     <button class="btn btn-secondary" onclick="adminCargarOrganizaciones()">↺ Actualizar</button>
   </div>
-  <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px">Activá el rol de organizador para un socio y asignale miembros a su organización.</p>
 
-  <!-- Panel rápido de asignación -->
-  <div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px">
-    <h4 style="margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Gestión rápida de un socio</h4>
+  <!-- PASO 1: Activar organizador -->
+  <div style="background:var(--bg-card,#181822);border:1px solid #5e548e;border-radius:10px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="background:#5e548e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">PASO 1</span>
+      <h4 style="margin:0;font-size:13px;font-weight:700">Activar o desactivar rol de organizador</h4>
+    </div>
+    <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Hacer que un asesor pase a ser líder de organización. Primero hacé esto antes de asignar miembros.</p>
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
       <div>
         <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Código del socio</label>
-        <input id="org-codigo-input" class="form-control" placeholder="Ej: AL-044" style="max-width:130px">
+        <input id="org1-codigo" class="form-control" placeholder="Ej: AL-044" style="max-width:130px">
       </div>
       <div>
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Rol organizador</label>
-        <select id="org-es-org-select" class="form-control" style="max-width:140px">
-          <option value="">— sin cambio —</option>
-          <option value="true">✅ Activar</option>
-          <option value="false">❌ Desactivar</option>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Acción</label>
+        <select id="org1-accion" class="form-control" style="max-width:170px">
+          <option value="true">✅ Activar organizador</option>
+          <option value="false">❌ Desactivar organizador</option>
         </select>
       </div>
-      <div>
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Asignar a organización</label>
-        <input id="org-asignar-org-input" class="form-control" placeholder="Cód. organizador o vacío" style="max-width:160px">
-      </div>
-      <button class="btn btn-primary" onclick="adminGuardarSocioOrg()">Guardar</button>
+      <button class="btn btn-primary" onclick="adminActivarOrganizador()">Guardar</button>
     </div>
-    <div id="org-save-msg" style="margin-top:8px;font-size:13px"></div>
+    <div id="org1-msg" style="margin-top:8px;font-size:13px"></div>
+  </div>
+
+  <!-- PASO 2: Asignar miembro -->
+  <div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="background:var(--border);color:var(--text-primary,#e2e8f0);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">PASO 2</span>
+      <h4 style="margin:0;font-size:13px;font-weight:700">Asignar asesor a una organización</h4>
+    </div>
+    <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Una vez que hay organizadores, asignales asesores como miembros.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Código del asesor</label>
+        <input id="org2-asesor" class="form-control" placeholder="Ej: AL-012" style="max-width:130px">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Organización (organizador)</label>
+        <select id="org2-organizador-select" class="form-control" style="max-width:220px">
+          <option value="">— seleccionar organizador —</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="adminAsignarMiembro()">Asignar</button>
+      <button class="btn btn-secondary" onclick="adminQuitarDeOrg()">Quitar de org.</button>
+    </div>
+    <div id="org2-msg" style="margin-top:8px;font-size:13px"></div>
   </div>
 
   <!-- Listado de organizaciones activas -->
@@ -1245,23 +1267,38 @@ async function adminCargarOrganizaciones(){
   const el = document.getElementById('org-lista-contenido');
   el.innerHTML = '<div class="al-empty">Cargando...</div>';
   const data = await AL.get('/api/admin/organizaciones').catch(()=>null);
+
+  // Actualizar select del paso 2
+  const sel = document.getElementById('org2-organizador-select');
+  sel.innerHTML = '<option value="">— seleccionar organizador —</option>';
+
   if(!data || !data.organizaciones || !data.organizaciones.length){
-    el.innerHTML = '<div class="al-empty">No hay organizaciones activas. Activá el rol de organizador en algún socio.</div>';
+    el.innerHTML = '<div class="al-empty">Todavía no hay organizadores activos. Usá el Paso 1 para activar el primer organizador.</div>';
     return;
   }
-  el.innerHTML = data.organizaciones.map(org => {
+
+  // Poblar select del paso 2
+  data.organizaciones.forEach(org => {
+    const opt = document.createElement('option');
+    opt.value = org.codigo;
+    opt.textContent = `${org.nombre} (${org.codigo})`;
+    sel.appendChild(opt);
+  });
+
+  el.innerHTML = '<h4 style="margin:0 0 12px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Organizaciones activas</h4>' +
+    data.organizaciones.map(org => {
     const miembros = org.miembros || [];
     const mbs = miembros.length
       ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">`+
-        miembros.map(m=>`<span style="background:rgba(100,116,139,.15);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:12px">${esc(m.nombre)} <span style="color:var(--text-muted)">(${m.codigo})</span></span>`).join('')+
+        miembros.map(m=>`<span style="background:rgba(100,116,139,.15);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:12px;color:var(--text-primary,#e2e8f0)">${esc(m.nombre)} <span style="color:var(--text-muted)">(${m.codigo})</span></span>`).join('')+
         `</div>`
       : `<p style="margin:8px 0 0;font-size:12px;color:var(--text-muted)">Sin miembros asignados aún.</p>`;
     return `<div style="background:var(--bg-card,#181822);border:1px solid #5e548e;border-radius:10px;padding:16px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <span style="font-size:18px">🏢</span>
         <div>
-          <div style="font-weight:700;font-size:15px">${esc(org.organizador.nombre)}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${org.organizador.codigo} · ${org.organizador.zona||'sin zona'}</div>
+          <div style="font-weight:700;font-size:15px;color:var(--text-primary,#e2e8f0)">${esc(org.nombre)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${org.codigo} · ${org.zona||'sin zona'}</div>
         </div>
         <span style="margin-left:auto;background:rgba(94,84,142,.2);color:#b39ddb;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700">Organizador · ${miembros.length} miembros</span>
       </div>
@@ -1270,30 +1307,41 @@ async function adminCargarOrganizaciones(){
   }).join('');
 }
 
-async function adminGuardarSocioOrg(){
-  const codigo = document.getElementById('org-codigo-input').value.trim().toUpperCase();
-  const esOrgVal = document.getElementById('org-es-org-select').value;
-  const orgCodigo = document.getElementById('org-asignar-org-input').value.trim().toUpperCase();
-  const msg = document.getElementById('org-save-msg');
-  msg.textContent = '';
+async function adminActivarOrganizador(){
+  const codigo = document.getElementById('org1-codigo').value.trim().toUpperCase();
+  const accion = document.getElementById('org1-accion').value;
+  const msg = document.getElementById('org1-msg');
   if(!codigo){ msg.style.color='#f87171'; msg.textContent='Ingresá el código del socio.'; return; }
+  const r = await AL.send(`/api/admin/socios/${codigo}/organizador`,'PUT',{es_organizador: accion==='true'});
+  if(!r.ok){ const e=await r.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo actualizar'); return; }
+  msg.style.color='#4ade80';
+  msg.textContent = accion==='true' ? `✅ ${codigo} activado como organizador.` : `❌ Rol de organizador desactivado para ${codigo}.`;
+  document.getElementById('org1-codigo').value='';
+  adminCargarOrganizaciones();
+}
 
-  let ok = true;
-  if(esOrgVal !== ''){
-    const r = await AL.send(`/api/admin/socios/${codigo}/organizador`,'PUT',{es_organizador: esOrgVal==='true'});
-    if(!r.ok){ const e=await r.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo actualizar rol'); ok=false; }
-  }
-  if(ok && (orgCodigo !== '' || document.getElementById('org-asignar-org-input').value.trim()=='')){
-    const r2 = await AL.send(`/api/admin/socios/${codigo}/organizacion`,'PUT',{organizacion_codigo: orgCodigo||null});
-    if(!r2.ok){ const e=await r2.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo asignar organización'); ok=false; }
-  }
-  if(ok){
-    msg.style.color='#4ade80'; msg.textContent=`✅ Socio ${codigo} actualizado.`;
-    document.getElementById('org-codigo-input').value='';
-    document.getElementById('org-es-org-select').value='';
-    document.getElementById('org-asignar-org-input').value='';
-    adminCargarOrganizaciones();
-  }
+async function adminAsignarMiembro(){
+  const asesor = document.getElementById('org2-asesor').value.trim().toUpperCase();
+  const org = document.getElementById('org2-organizador-select').value;
+  const msg = document.getElementById('org2-msg');
+  if(!asesor){ msg.style.color='#f87171'; msg.textContent='Ingresá el código del asesor.'; return; }
+  if(!org){ msg.style.color='#f87171'; msg.textContent='Seleccioná un organizador. Si no hay ninguno usá el Paso 1 primero.'; return; }
+  const r = await AL.send(`/api/admin/socios/${asesor}/organizacion`,'PUT',{organizacion_codigo: org});
+  if(!r.ok){ const e=await r.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo asignar'); return; }
+  msg.style.color='#4ade80'; msg.textContent=`✅ ${asesor} asignado a la organización de ${org}.`;
+  document.getElementById('org2-asesor').value='';
+  adminCargarOrganizaciones();
+}
+
+async function adminQuitarDeOrg(){
+  const asesor = document.getElementById('org2-asesor').value.trim().toUpperCase();
+  const msg = document.getElementById('org2-msg');
+  if(!asesor){ msg.style.color='#f87171'; msg.textContent='Ingresá el código del asesor a quitar.'; return; }
+  const r = await AL.send(`/api/admin/socios/${asesor}/organizacion`,'PUT',{organizacion_codigo: null});
+  if(!r.ok){ const e=await r.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo quitar'); return; }
+  msg.style.color='#4ade80'; msg.textContent=`✅ ${asesor} quitado de su organización.`;
+  document.getElementById('org2-asesor').value='';
+  adminCargarOrganizaciones();
 }
 
 // ─── STOCK DE PISCINAS ────────────────────────────────────────────────────────

@@ -4320,14 +4320,14 @@ async def admin_reseed_biblioteca(
     }
 
 
-@router.get("/api/admin/socios")
+@router.get("/api/admin/socios/diagnostico")
 async def admin_listar_socios(
     x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
     db: Session = Depends(get_db),
     q: str = "",
 ):
-    """Lista todos los socios con su estado de acceso (para diagnóstico desde admin)."""
+    """Lista socios con su estado de acceso y seguridad (para diagnóstico desde admin)."""
     _require_gestion_interna(x_api_key, current_user)
     query = db.query(Aliado)
     if q:

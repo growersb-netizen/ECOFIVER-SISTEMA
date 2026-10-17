@@ -771,7 +771,7 @@ async function _buscarCuentasSociosFn(){
   const el = document.getElementById('sc-lista');
   if(!q){ el.innerHTML = '<div class="al-empty">Ingresá un nombre para buscar.</div>'; return; }
   el.innerHTML = '<div class="al-empty">Buscando...</div>';
-  const data = await AL.get(`/api/admin/socios?q=${encodeURIComponent(q)}`).catch(()=>null);
+  const data = await AL.get(`/api/admin/socios/diagnostico?q=${encodeURIComponent(q)}`).catch(()=>null);
   if(!data || !data.socios || !data.socios.length){
     el.innerHTML = '<div class="al-empty">Sin resultados para "' + q + '"</div>'; return;
   }

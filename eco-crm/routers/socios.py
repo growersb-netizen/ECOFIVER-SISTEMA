@@ -4575,9 +4575,6 @@ async def registrar_videollamada(
     El socio informa fecha/hora pactada, cliente y producto. Aparece en el módulo
     de videollamadas del CRM con su código de aliado.
     """
-    if not _esta_verificado(socio):
-        raise HTTPException(403, "Completá tu perfil y verificá tu WhatsApp antes de registrar videollamadas.")
-
     data = await request.json()
 
     cliente_nombre = (data.get("cliente_nombre") or "").strip()

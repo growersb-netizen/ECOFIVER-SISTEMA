@@ -451,29 +451,48 @@
   .pill.info { background:rgba(14,165,233,.12); border:1px solid rgba(14,165,233,.4); color:#38bdf8 }
   .pill.muted{ background:rgba(100,116,139,.1); border:1px solid rgba(100,116,139,.3); color:var(--text-muted) }
 
-  /* ── CRONOGRAMA ── */
-  .crono-filtro { padding:6px 14px; border-radius:8px; font-size:13px; cursor:pointer; transition:all .15s; border:1.5px solid rgba(11,35,80,.12); background:transparent }
-  .crono-filtro.active { background:var(--navy)!important; color:#fff!important; border-color:var(--navy)!important; box-shadow:0 4px 12px rgba(11,35,80,.3) }
-  .crono-dia-header { display:flex; align-items:center; gap:12px; margin:20px 0 10px }
-  .crono-dia-fecha  { font-size:13px; font-weight:700; color:var(--navy); white-space:nowrap }
-  .crono-dia-linea  { flex:1; height:1px; background:var(--border) }
-  .crono-dia-badge  { font-size:11px; padding:2px 9px; border-radius:8px; background:rgba(255,255,255,.8); border:1px solid var(--border); color:var(--text-muted) }
-  .crono-card {
-    background:rgba(255,255,255,.85); border:1px solid rgba(229,184,75,.12);
-    border-radius:14px; padding:14px 16px; margin-bottom:10px;
-    display:grid; grid-template-columns:1fr auto; gap:8px; align-items:start;
-    box-shadow:var(--sh-sm); transition:box-shadow .18s,border-color .18s;
-  }
-  .crono-card:hover { box-shadow:var(--sh-md); border-color:rgba(229,184,75,.28) }
-  .crono-card.hoy { border-left:4px solid var(--teal); box-shadow:0 4px 16px rgba(78,195,181,.12) }
-  .crono-card.cobrada { opacity:.6 }
-  .crono-cliente  { font-weight:700; font-size:14px; margin-bottom:2px }
-  .crono-producto { font-size:12.5px; color:var(--text-muted); margin-bottom:4px }
-  .crono-card-right { text-align:right; min-width:120px }
-  .crono-monto    { font-size:15px; font-weight:800; color:var(--navy) }
-  .crono-comision { font-size:11.5px; color:var(--teal); font-weight:600; margin-top:2px }
-  .crono-hoy-badge{ background:rgba(30,64,175,.1); color:#1e40af; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:6px; margin-left:6px; vertical-align:middle }
-  .crono-empty    { text-align:center; color:var(--text-muted); padding:40px 20px; font-size:14px }
+  /* ── CALENDARIO CRONOGRAMA ── */
+  .soc-cal-nav { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .soc-cal-nav-btn { background:transparent; border:1.5px solid var(--border); border-radius:8px; padding:4px 14px; cursor:pointer; font-size:17px; color:var(--navy); transition:all .15s; font-weight:700; }
+  .soc-cal-nav-btn:hover { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .soc-cal-nav-title { flex:1; text-align:center; font-size:15px; font-weight:700; color:var(--navy); text-transform:capitalize; }
+  .soc-cal-hoy-btn { padding:4px 12px; border-radius:8px; border:1.5px solid var(--border); background:transparent; cursor:pointer; font-size:12.5px; color:var(--text-muted); transition:all .15s; }
+  .soc-cal-hoy-btn:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .soc-cal-wrapper { display:flex; gap:1rem; align-items:flex-start; }
+  .soc-cal-panel { flex:1 1 0; min-width:0; }
+  .soc-cal-detail { width:310px; flex-shrink:0; }
+  @media(max-width:800px){ .soc-cal-wrapper{flex-direction:column} .soc-cal-detail{width:100%} }
+  .soc-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .soc-cal-dow { text-align:center; font-size:.67rem; font-weight:700; color:var(--text-muted); padding:3px 0 8px; text-transform:uppercase; letter-spacing:.04em; }
+  .soc-cal-day { background:rgba(255,255,255,.85); border:1px solid var(--border); border-radius:8px; padding:6px 5px; min-height:60px; cursor:pointer; display:flex; flex-direction:column; gap:3px; transition:all .15s; }
+  .soc-cal-day:hover { background:#fff; border-color:var(--teal); transform:translateY(-1px); box-shadow:0 4px 12px rgba(78,195,181,.12); }
+  .soc-cal-day.empty { background:transparent; cursor:default; pointer-events:none; border-color:transparent; }
+  .soc-cal-day.today { outline:2px solid var(--teal); outline-offset:-2px; }
+  .soc-cal-day.selected { background:var(--navy) !important; border-color:var(--navy) !important; }
+  .soc-cal-day.selected .soc-cal-dn { color:#fff; }
+  .soc-cal-day.past .soc-cal-dn { color:var(--text-muted); }
+  .soc-cal-dn { font-size:.78rem; font-weight:600; line-height:1; }
+  .soc-cal-cnt { font-size:.65rem; font-weight:700; background:var(--navy); color:#fff; border-radius:10px; padding:1px 6px; align-self:flex-start; line-height:1.6; }
+  .soc-cal-day.selected .soc-cal-cnt { background:rgba(255,255,255,.3); }
+  .soc-cal-dots { display:flex; flex-wrap:wrap; gap:2px; margin-top:auto; }
+  .soc-cal-dot { width:6px; height:6px; border-radius:50%; }
+  .soc-cd-cobrado { background:#4EC3B5; }
+  .soc-cd-produccion { background:#3b82f6; }
+  .soc-cd-pendiente { background:#E5B84B; }
+  @media(max-width:560px){ .soc-cal-day{ min-height:42px; padding:4px 3px; } .soc-cal-dn{font-size:.7rem} .soc-cal-dots{display:none} }
+  /* Detail */
+  .soc-det-card { background:rgba(255,255,255,.9); border:1px solid var(--border); border-radius:12px; padding:14px; box-shadow:var(--sh-sm); }
+  .soc-det-title { font-size:.88rem; font-weight:700; color:var(--navy); margin-bottom:.75rem; text-transform:capitalize; }
+  .soc-det-empty { color:var(--text-muted); font-size:.85rem; text-align:center; padding:1.5rem 0; }
+  .soc-det-item { background:rgba(255,255,255,.95); border:1px solid rgba(229,184,75,.12); border-left:3px solid var(--teal); border-radius:8px; padding:10px 12px; margin-bottom:8px; box-shadow:var(--sh-sm); }
+  .soc-det-item.cobrado { border-left-color:#4EC3B5; opacity:.75; }
+  .soc-det-item.produccion { border-left-color:#3b82f6; }
+  .soc-det-cliente { font-weight:700; font-size:13.5px; margin-bottom:2px; }
+  .soc-det-prod { font-size:12px; color:var(--text-muted); margin-bottom:4px; }
+  .soc-det-row { display:flex; justify-content:space-between; align-items:center; margin-top:6px; }
+  .soc-det-monto { font-size:14px; font-weight:800; color:var(--navy); }
+  .soc-det-comision { font-size:11px; color:var(--teal); font-weight:600; }
+  .crono-empty { text-align:center; color:var(--text-muted); padding:40px 20px; font-size:14px; }
 
   /* ── BIBLIOTECA ── */
   .biblio-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px }
@@ -1125,26 +1144,46 @@
     <!-- CRONOGRAMA DE ENTREGAS -->
     <section class="section" id="sec-cronograma">
       <h2>Cronograma de entregas</h2>
-      <p style="color:var(--text-muted);font-size:13.5px;margin-top:-6px;margin-bottom:20px">
-        Tus ventas de contado ordenadas por fecha de entrega acordada con el cliente.
+      <p style="color:var(--text-muted);font-size:13.5px;margin-top:-6px;margin-bottom:18px">
+        Tus ventas de contado con fecha de entrega acordada.
       </p>
 
-      <div id="cronograma-filtros" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-        <button class="btn-ghost crono-filtro active" data-f="todos" onclick="filtrarCronograma('todos',this)">Todas</button>
-        <button class="btn-ghost crono-filtro" data-f="proximas" onclick="filtrarCronograma('proximas',this)">Próximas</button>
-        <button class="btn-ghost crono-filtro" data-f="semana" onclick="filtrarCronograma('semana',this)">Esta semana</button>
-        <button class="btn-ghost crono-filtro" data-f="mes" onclick="filtrarCronograma('mes',this)">Este mes</button>
-        <button class="btn-ghost crono-filtro" data-f="pasadas" onclick="filtrarCronograma('pasadas',this)">Pasadas</button>
-      </div>
-
       <!-- KPIs rápidos -->
-      <div class="kpis" id="crono-kpis" style="margin-bottom:20px">
+      <div class="kpis" id="crono-kpis" style="margin-bottom:18px">
         <div class="kpi"><div class="v" id="ck-total">—</div><div class="l">Entregas con fecha</div></div>
         <div class="kpi"><div class="v" id="ck-proximas">—</div><div class="l">Próximas 30 días</div></div>
-        <div class="kpi"><div class="v" id="ck-comision" style="color:var(--teal,#2563EB)">$0</div><div class="l">Comisión estimada (próximas)</div></div>
+        <div class="kpi"><div class="v" id="ck-comision" style="color:var(--teal)">$0</div><div class="l">Comisión est. (próximas)</div></div>
       </div>
 
-      <div id="crono-lista">Cargando…</div>
+      <!-- Navegación del calendario -->
+      <div class="soc-cal-nav">
+        <button class="soc-cal-nav-btn" onclick="socCalNavegar(-1)">‹</button>
+        <button class="soc-cal-hoy-btn" onclick="socCalHoy()">Hoy</button>
+        <button class="soc-cal-nav-btn" onclick="socCalNavegar(1)">›</button>
+        <div class="soc-cal-nav-title" id="soc-cal-title">—</div>
+      </div>
+
+      <!-- Calendario + detalle -->
+      <div class="soc-cal-wrapper">
+        <div class="soc-cal-panel">
+          <!-- Encabezado días -->
+          <div class="soc-cal-grid">
+            <div class="soc-cal-dow">Lun</div><div class="soc-cal-dow">Mar</div><div class="soc-cal-dow">Mié</div>
+            <div class="soc-cal-dow">Jue</div><div class="soc-cal-dow">Vie</div><div class="soc-cal-dow">Sáb</div>
+            <div class="soc-cal-dow">Dom</div>
+          </div>
+          <!-- Celdas -->
+          <div class="soc-cal-grid" id="soc-cal-cells">
+            <div style="grid-column:1/-1;text-align:center;padding:1rem;color:var(--text-muted)">Cargando…</div>
+          </div>
+        </div>
+        <!-- Panel detalle -->
+        <div class="soc-cal-detail">
+          <div class="soc-det-card" id="soc-det-card">
+            <div class="soc-det-empty">Seleccioná un día para ver tus entregas</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- COMISIONES -->
@@ -2255,135 +2294,155 @@ async function cargarMisLeads(){
 }
 
 // ══════════════════════════════════════════════════════════════════
-// CRONOGRAMA DE ENTREGAS
+// CRONOGRAMA DE ENTREGAS — calendario mensual
 // ══════════════════════════════════════════════════════════════════
-let _cronoData = [];  // cache de todas las ventas contado con fecha
+let _cronoData = [];
+let _socCalYear, _socCalMes, _socCalSelDay = null;
 
 async function cargarCronograma(){
-  const lista = document.getElementById('crono-lista');
-  lista.textContent = 'Cargando…';
   try{
     const data = await api('/api/socio/ventas');
-    // Sólo ventas contado con fecha_entrega cargada
     _cronoData = (data.contado || [])
       .filter(v => v.fecha_entrega)
-      .sort((a, b) => a.fecha_entrega < b.fecha_entrega ? -1 : 1);
-    _renderCronograma();
+      .sort((a, b) => (a.fecha_entrega < b.fecha_entrega ? -1 : 1));
   }catch(e){
-    lista.innerHTML = `<div class="crono-empty">No pudimos cargar el cronograma.</div>`;
+    _cronoData = [];
   }
-}
-
-function _filtrarCronoVentas(filtro){
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const fin7 = new Date(hoy); fin7.setDate(fin7.getDate() + 7);
-  const finMes = new Date(hoy.getFullYear(), hoy.getMonth()+1, 0);
-
-  return _cronoData.filter(v => {
-    const fe = new Date(v.fecha_entrega + 'T00:00:00');
-    if(filtro === 'proximas') return fe >= hoy;
-    if(filtro === 'semana')   return fe >= hoy && fe <= fin7;
-    if(filtro === 'mes')      return fe >= hoy && fe <= finMes;
-    if(filtro === 'pasadas')  return fe < hoy;
-    return true; // todos
-  });
-}
-
-function filtrarCronograma(filtro, btn){
-  document.querySelectorAll('.crono-filtro').forEach(b => b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  _renderCronograma(filtro);
-}
-
-function _renderCronograma(filtro){
-  // Leer filtro activo si no se pasa
-  if(!filtro){
-    const activo = document.querySelector('.crono-filtro.active');
-    filtro = activo ? activo.dataset.f : 'todos';
-  }
-
-  const ventas = _filtrarCronoVentas(filtro);
-  const lista = document.getElementById('crono-lista');
-  const hoyStr = new Date().toISOString().split('T')[0];
-
   // KPIs
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const fin30 = new Date(hoy); fin30.setDate(fin30.getDate() + 30);
   const proximas = _cronoData.filter(v => { const f = new Date(v.fecha_entrega+'T00:00:00'); return f >= hoy && f <= fin30; });
   document.getElementById('ck-total').textContent    = _cronoData.length;
   document.getElementById('ck-proximas').textContent = proximas.length;
-  // Comisión estimada de próximas: precio * % (obtenido del socio)
-  // El API ya incluye comisiones en /api/socio/comisiones; calculamos aquí con precio directo
-  // (sin el % exacto disponible client-side, mostramos la suma de precio para orientar)
-  // Si hay comisiones del servidor, bien; si no, dejamos en blanco
   const comEst = proximas.reduce((s, v) => s + (v.precio_final || 0) * 0.05, 0);
   document.getElementById('ck-comision').textContent = fmt(comEst);
 
-  if(!ventas.length){
-    const msgs = {
-      proximas:'No hay entregas próximas con fecha cargada.',
-      semana:'No hay entregas esta semana.',
-      mes:'No hay entregas este mes.',
-      pasadas:'No hay entregas pasadas registradas.',
-      todos:'Todavía no cargaste ventas de contado con fecha de entrega acordada.',
-    };
-    lista.innerHTML = `<div class="crono-empty">📅 ${msgs[filtro]||msgs.todos}</div>`;
-    return;
+  if(!_socCalYear){
+    const n = new Date();
+    _socCalYear = n.getFullYear();
+    _socCalMes  = n.getMonth(); // 0-based
+  }
+  _socCalRenderGrid();
+}
+
+function socCalNavegar(delta){
+  _socCalMes += delta;
+  if(_socCalMes < 0){ _socCalMes = 11; _socCalYear--; }
+  if(_socCalMes > 11){ _socCalMes = 0; _socCalYear++; }
+  _socCalRenderGrid();
+}
+
+function socCalHoy(){
+  const n = new Date();
+  _socCalYear = n.getFullYear();
+  _socCalMes  = n.getMonth();
+  _socCalSelDay = null;
+  _socCalRenderGrid();
+}
+
+function _socCalRenderGrid(){
+  const title = document.getElementById('soc-cal-title');
+  const cells = document.getElementById('soc-cal-cells');
+  if(!title || !cells) return;
+
+  // Título
+  const nombreMes = new Date(_socCalYear, _socCalMes, 1)
+    .toLocaleDateString('es-AR',{month:'long', year:'numeric'});
+  title.textContent = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+
+  // Construir mapa de ventas por fecha
+  const porFecha = {};
+  for(const v of _cronoData){
+    const f = v.fecha_entrega; // 'YYYY-MM-DD'
+    if(!f) continue;
+    const [y,m] = f.split('-').map(Number);
+    if(y !== _socCalYear || m !== (_socCalMes+1)) continue;
+    (porFecha[f] = porFecha[f] || []).push(v);
   }
 
-  // Agrupar por fecha
-  const porFecha = {};
-  for(const v of ventas){
-    (porFecha[v.fecha_entrega] = porFecha[v.fecha_entrega] || []).push(v);
-  }
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const primerDia = new Date(_socCalYear, _socCalMes, 1);
+  const diasEnMes = new Date(_socCalYear, _socCalMes + 1, 0).getDate();
+  // Semana comienza lunes: Lun=0 … Dom=6
+  const inicioOffset = (primerDia.getDay() + 6) % 7;
 
   let html = '';
-  for(const fecha of Object.keys(porFecha).sort()){
-    const esHoy   = fecha === hoyStr;
-    const esFutura = fecha > hoyStr;
-    const fechaObj = new Date(fecha + 'T00:00:00');
-    const fechaFmt = fechaObj.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
-    const fechaCap = fechaFmt.charAt(0).toUpperCase() + fechaFmt.slice(1);
-    const items    = porFecha[fecha];
+  for(let i = 0; i < inicioOffset; i++) html += '<div class="soc-cal-day empty"></div>';
 
-    html += `<div class="crono-dia-header">
-      <div class="crono-dia-fecha">${fechaCap}${esHoy?'<span class="crono-hoy-badge">HOY</span>':''}</div>
-      <div class="crono-dia-linea"></div>
-      <div class="crono-dia-badge">${items.length} entrega${items.length>1?'s':''}</div>
-    </div>`;
+  for(let d = 1; d <= diasEnMes; d++){
+    const key  = `${_socCalYear}-${String(_socCalMes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const ventas = porFecha[key] || [];
+    const isHoy  = key === hoyStr;
+    const isPast = key < hoyStr;
+    const isSel  = key === _socCalSelDay;
 
-    for(const v of items){
-      const cobrada  = v.cobro_estado === 'COBRADO';
-      const confirmada = !!v.confirmacion_48hs;
-      const enProduccion = !!v.en_produccion;
-      const estadoBadge = cobrada
-        ? '<span class="pill ok">✅ Entregada y cobrada</span>'
-        : (enProduccion
-           ? '<span class="pill info">🏭 En producción</span>'
-           : (confirmada
-              ? '<span class="pill warn">📞 Coordinada</span>'
-              : '<span class="pill muted">⏳ Esperando contacto</span>'));
+    let clases = 'soc-cal-day';
+    if(isHoy) clases += ' today';
+    if(isPast) clases += ' past';
+    if(isSel) clases += ' selected';
+
+    let inner = `<div class="soc-cal-dn">${d}</div>`;
+    if(ventas.length) inner += `<div class="soc-cal-cnt">${ventas.length}</div>`;
+
+    if(ventas.length){
+      inner += '<div class="soc-cal-dots">';
+      for(const v of ventas.slice(0,6)){
+        const cls = v.cobro_estado === 'COBRADO' ? 'soc-cd-cobrado'
+          : v.en_produccion ? 'soc-cd-produccion'
+          : 'soc-cd-pendiente';
+        inner += `<div class="soc-cal-dot ${cls}"></div>`;
+      }
+      inner += '</div>';
+    }
+
+    html += `<div class="${clases}" onclick="_socCalSelectDay('${key}')">${inner}</div>`;
+  }
+
+  cells.innerHTML = html;
+
+  if(_socCalSelDay) _socCalRenderDetalle(_socCalSelDay);
+  else document.getElementById('soc-det-card').innerHTML = '<div class="soc-det-empty">Seleccioná un día para ver tus entregas</div>';
+}
+
+function _socCalSelectDay(key){
+  _socCalSelDay = key;
+  _socCalRenderGrid();
+}
+
+function _socCalRenderDetalle(key){
+  const det = document.getElementById('soc-det-card');
+  if(!det) return;
+  const ventas = _cronoData.filter(v => v.fecha_entrega === key);
+  const fechaObj = new Date(key + 'T00:00:00');
+  const fechaFmt = fechaObj.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+  const fechaCap = fechaFmt.charAt(0).toUpperCase() + fechaFmt.slice(1);
+
+  let html = `<div class="soc-det-title">📅 ${fechaCap}</div>`;
+  if(!ventas.length){
+    html += '<div class="soc-det-empty">Sin entregas este día</div>';
+  } else {
+    for(const v of ventas){
+      const cobrado = v.cobro_estado === 'COBRADO';
+      const enProd  = !!v.en_produccion;
+      const estadoBadge = cobrado
+        ? '<span class="pill ok" style="font-size:10.5px">✅ Cobrada</span>'
+        : enProd
+          ? '<span class="pill info" style="font-size:10.5px">🏭 En producción</span>'
+          : '<span class="pill muted" style="font-size:10.5px">⏳ Pendiente</span>';
       const detalle = [v.color, v.cliente_localidad].filter(Boolean).join(' · ');
-      const comisionEst = fmt((v.precio_final || 0) * 0.05);
-
-      html += `<div class="crono-card${esHoy?' hoy':''}${cobrada?' cobrada':''}">
-        <div class="crono-card-left">
-          <div class="crono-cliente">${v.cliente_nombre}${esHoy?'<span class="crono-hoy-badge">HOY</span>':''}</div>
-          <div class="crono-producto">${v.producto} ${v.modelo_especifico}${detalle?` · ${detalle}`:''}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${v.cliente_domicilio||v.cliente_localidad||'Sin domicilio'}</div>
-          ${v.cliente_telefono?`<div style="font-size:12px;margin-top:2px">📱 ${v.cliente_telefono}</div>`:''}
-          <div style="margin-top:8px">${estadoBadge}</div>
+      const comEst  = fmt((v.precio_final || 0) * 0.05);
+      html += `<div class="soc-det-item${cobrado?' cobrado':enProd?' produccion':''}">
+        <div class="soc-det-cliente">${v.cliente_nombre}</div>
+        <div class="soc-det-prod">${v.producto} ${v.modelo_especifico||''}${detalle?' · '+detalle:''}</div>
+        <div class="soc-det-row">
+          <div class="soc-det-monto">${fmt(v.precio_final)}</div>
+          <div class="soc-det-comision">Comisión est. ${comEst}</div>
         </div>
-        <div class="crono-card-right">
-          <div class="crono-monto">${fmt(v.precio_final)}</div>
-          <div class="crono-comision">Comisión est. ${comisionEst}</div>
-          ${v.flete_calculado?`<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Flete: ${fmt(v.flete_calculado)}</div>`:''}
-        </div>
+        <div style="margin-top:6px">${estadoBadge}</div>
       </div>`;
     }
   }
-
-  lista.innerHTML = html;
+  det.innerHTML = html;
 }
 
 async function cargarProgreso(){

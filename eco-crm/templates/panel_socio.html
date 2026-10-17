@@ -622,7 +622,7 @@
       <label>WhatsApp, email o código de socio</label>
       <input id="login-id" placeholder="11 0000 0000, tu@email.com o AL-004">
       <label>Contraseña</label>
-      <input id="login-pass" type="password">
+      <input id="login-pass" type="password" onkeydown="if(event.key==='Enter') doLogin()">
       <button class="btn-primary" style="margin-top:16px" onclick="doLogin()">Ingresar</button>
       <div class="msg" id="login-msg"></div>
       <div class="switch-link">¿Todavía no sos socio? <a onclick="showScreen('registro')">Registrate acá</a></div>
@@ -3454,7 +3454,7 @@ function renderBiblioteca(){
 async function copiarTexto(btn, texto){
   try{ await navigator.clipboard.writeText(texto); btn.textContent = '✅ Copiado'; }
   catch(e){ btn.textContent = 'No se pudo copiar'; }
-  setTimeout(() => { btn.textContent = '📋 Copiar texto'; }, 1800);
+  setTimeout(() => { if(btn.textContent === '✅ Copiado' || btn.textContent === 'No se pudo copiar') btn.textContent = btn.dataset.originalText || '📋 Copiar'; }, 1800);
 }
 
 // ══════════════════════════════════════════════════════════════════

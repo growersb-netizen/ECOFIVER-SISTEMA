@@ -4535,6 +4535,34 @@ async def admin_set_password_temp(
 # SOPORTE: VERIFICACIÓN MANUAL + DIAGNÓSTICO WA
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@router.post("/api/admin/socios/{codigo}/completar-onboarding")
+async def admin_completar_onboarding(
+    codigo: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Fuerza el onboarding completo para un socio que quedó bloqueado en los
+    modales de primera vez (bienvenida / comisiones / verificación).
+    Limpia primer_login y marca comisiones_aceptadas — el socio entra directo
+    al panel en el próximo login. No cambia la contraseña.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    socio = db.query(Aliado).filter(Aliado.codigo == codigo.strip().upper()).first()
+    if not socio:
+        raise HTTPException(404, f"Socio {codigo} no encontrado")
+    socio.primer_login = False
+    socio.comisiones_aceptadas = True
+    db.commit()
+    return {
+        "ok": True,
+        "codigo": socio.codigo,
+        "nombre": socio.nombre,
+        "mensaje": f"Onboarding completado para {socio.nombre}. En el próximo login entra directo al panel (sin los modales de bienvenida ni comisiones).",
+    }
+
+
 @router.post("/api/admin/socios/{codigo}/verificar-whatsapp-manual")
 async def admin_verificar_whatsapp_manual(
     codigo: str,
@@ -5112,6 +5140,8 @@ async def admin_listar_socios(
         "bloqueado": _esta_bloqueado(s.bloqueado_hasta),
         "bloqueado_hasta": s.bloqueado_hasta.isoformat() if _esta_bloqueado(s.bloqueado_hasta) else None,
         "intentos_fallidos": s.intentos_fallidos or 0,
+        "primer_login": bool(s.primer_login),
+        "comisiones_aceptadas": bool(s.comisiones_aceptadas),
     } for s in socios]}
 
 

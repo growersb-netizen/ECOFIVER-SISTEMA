@@ -2496,8 +2496,12 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         fecha_instalacion=_parse_fecha_entrega(data.get("fecha_entrega")),
     )
     db.add(venta)
-    db.commit()
-    db.refresh(venta)
+    try:
+        db.commit()
+        db.refresh(venta)
+    except Exception as _e:
+        db.rollback()
+        raise HTTPException(500, f"Error al guardar la venta: {_e}")
 
     nivel_label = {
         "con": "Con instalación incluida",
@@ -2554,23 +2558,27 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         import logging
         logging.getLogger(__name__).warning(f"[AUTO-ENTREGA] {_e}")
 
-    notificar_rodrigo(
-        db,
-        f"🟣 *Nueva venta de contado*\n"
-        f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
-        f"Cliente: {cliente_nombre}\n"
-        f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
-        f"Email cliente: {venta.cliente_email or '—'}\n"
-        f"Domicilio: {venta.cliente_domicilio or '—'} · Localidad: {venta.cliente_localidad or '—'}\n"
-        f"Producto: {venta.producto} {venta.modelo_especifico}{' · Color: '+venta.color if venta.color else ''}\n"
-        f"{'Particularidades módulo: ' + particularidades + chr(10) if venta.producto == 'MODULO' else ''}"
-        f"Instalación: {nivel_label}\n"
-        f"Monto: ${venta.precio_final:,.0f}"
-        f"{f' · Flete estimado: ${flete_calculado:,.0f} ({distancia_km:.0f} km)' if flete_calculado else ' · Flete: a coordinar (falta distancia)'}\n"
-        f"Cobro: contraentrega en el domicilio del cliente\n"
-        f"⏰ Contactar al cliente dentro de las 48hs para confirmar fecha y detalles.\n"
-        f"Venta ID: {venta.id}",
-    )
+    try:
+        notificar_rodrigo(
+            db,
+            f"🟣 *Nueva venta de contado*\n"
+            f"Socio: {socio.codigo} ({socio.nombre}) · WhatsApp {socio.telefono or '—'}\n"
+            f"Cliente: {cliente_nombre}\n"
+            f"WhatsApp cliente: {venta.cliente_telefono or 'no cargado'}\n"
+            f"Email cliente: {venta.cliente_email or '—'}\n"
+            f"Domicilio: {venta.cliente_domicilio or '—'} · Localidad: {venta.cliente_localidad or '—'}\n"
+            f"Producto: {venta.producto} {venta.modelo_especifico}{' · Color: '+venta.color if venta.color else ''}\n"
+            f"{'Particularidades módulo: ' + particularidades + chr(10) if venta.producto == 'MODULO' else ''}"
+            f"Instalación: {nivel_label}\n"
+            f"Monto: ${venta.precio_final:,.0f}"
+            f"{f' · Flete estimado: ${flete_calculado:,.0f} ({distancia_km:.0f} km)' if flete_calculado else ' · Flete: a coordinar (falta distancia)'}\n"
+            f"Cobro: contraentrega en el domicilio del cliente\n"
+            f"⏰ Contactar al cliente dentro de las 48hs para confirmar fecha y detalles.\n"
+            f"Venta ID: {venta.id}",
+        )
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning(f"[WA-NOTIF] {_e}")
 
     return {"ok": True, "venta_id": venta.id, "flete_calculado": flete_calculado, "mensaje": "Venta cargada. El equipo va a contactar al cliente dentro de las 48hs."}
 

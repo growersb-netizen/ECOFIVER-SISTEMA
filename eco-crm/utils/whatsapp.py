@@ -41,15 +41,15 @@ def send_whatsapp_text(db: Session, to: str, mensaje: str) -> bool:
     `to` debe ser el número sin + (ej: 5491135164644).
     Retorna True si fue exitoso, False si falló.
     """
-    token, phone_id = _get_wa_creds(db)
-    if not token or not phone_id:
-        log.warning("[WA] Credenciales no configuradas — omitiendo envío")
-        return False
-
-    # Normalizar número: sacar +, espacios y guiones
-    numero = to.replace("+", "").replace(" ", "").replace("-", "")
-
     try:
+        token, phone_id = _get_wa_creds(db)
+        if not token or not phone_id:
+            log.warning("[WA] Credenciales no configuradas — omitiendo envío")
+            return False
+
+        # Normalizar número: sacar +, espacios y guiones
+        numero = to.replace("+", "").replace(" ", "").replace("-", "")
+
         resp = httpx.post(
             f"{WA_API_URL}/{phone_id}/messages",
             headers={

@@ -143,13 +143,15 @@ def _procesar_mensaje_wa(
     if not lead:
         # 2. Crear lead nuevo
         if pagina:
-            # Línea de vendedor: NO usa Round Robin, se asigna a la página
+            # Línea de socio/vendedor: NO usa Round Robin
             asesor_id = None
             meta_pagina_id = pagina.page_id
+            aliado_codigo_linea = getattr(pagina, "aliado_codigo", None)
             notas_extra = f"[AUTO] Lead por línea '{pagina.nombre}' ({pagina.vendedor or pagina.numero_whatsapp}): {texto[:200]}"
         else:
             asesor_id = _siguiente_asesor_rr(db)
             meta_pagina_id = None
+            aliado_codigo_linea = None
             notas_extra = f"[AUTO] Lead generado por mensaje WA: {texto[:200]}"
 
         lead = Lead(
@@ -162,8 +164,8 @@ def _procesar_mensaje_wa(
             estado="NUEVO",
             asesor_apertura_id=asesor_id,
             notas=notas_extra,
+            aliado_codigo=aliado_codigo_linea,  # asigna directamente al socio de la línea
         )
-        # Asignar página si corresponde
         if meta_pagina_id:
             try:
                 lead.meta_pagina_id = meta_pagina_id
@@ -174,15 +176,23 @@ def _procesar_mensaje_wa(
         db.refresh(lead)
         es_nuevo = True
         log.info(f"[WA Webhook] Lead nuevo creado #{lead.id} para {telefono}" +
-                 (f" (línea {pagina.nombre})" if pagina else ""))
+                 (f" (línea {pagina.nombre}, aliado {aliado_codigo_linea})" if pagina else ""))
     else:
-        # Lead existente: actualizar meta_pagina_id si aún no tiene
-        if pagina and not getattr(lead, "meta_pagina_id", None):
-            try:
-                lead.meta_pagina_id = pagina.page_id
+        # Lead existente: sincronizar meta_pagina_id y aliado_codigo si aún no tienen
+        if pagina:
+            updated = False
+            if not getattr(lead, "meta_pagina_id", None):
+                try:
+                    lead.meta_pagina_id = pagina.page_id
+                    updated = True
+                except Exception:
+                    pass
+            aliado_linea = getattr(pagina, "aliado_codigo", None)
+            if aliado_linea and not lead.aliado_codigo:
+                lead.aliado_codigo = aliado_linea
+                updated = True
+            if updated:
                 db.commit()
-            except Exception:
-                pass
         # Actualizar estado si sigue NUEVO/INTENTADO
         if lead.estado in ("NUEVO", "INTENTADO"):
             lead.estado = "CONTACTADO"

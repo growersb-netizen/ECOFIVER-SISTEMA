@@ -33,7 +33,7 @@ from database.database import get_db
 from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
     ScoringBCRA, Usuario, ComisionConfig, Presupuesto, Lead, Videollamada,
-    Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, StockPiscina,
+    Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, StockPiscina, MetaPagina,
 )
 from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
@@ -4901,6 +4901,137 @@ async def admin_organizaciones_videollamadas(
             for v in vls
         ]
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LÍNEAS WA DE SOCIOS (MetaPagina con aliado_codigo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/admin/lineas-wa")
+async def admin_lineas_wa(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Lista todas las líneas WA vinculadas a socios (MetaPagina con aliado_codigo)."""
+    _require_gestion_interna(x_api_key, current_user)
+    lineas = db.query(MetaPagina).all()
+    return {
+        "lineas": [
+            {
+                "page_id": l.page_id,
+                "nombre": l.nombre,
+                "numero_whatsapp": l.numero_whatsapp or "",
+                "wa_phone_id": l.wa_phone_id or "",
+                "vendedor": l.vendedor or "",
+                "vendedor_slug": l.vendedor_slug or "",
+                "aliado_codigo": l.aliado_codigo or "",
+                "activa": bool(l.activa),
+            }
+            for l in lineas
+        ]
+    }
+
+
+@router.post("/api/admin/lineas-wa")
+async def admin_crear_linea_wa(
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Crea o actualiza una línea WA vinculada a un socio."""
+    _require_gestion_interna(x_api_key, current_user)
+    data = await request.json()
+
+    nombre = (data.get("nombre") or "").strip()
+    numero = (data.get("numero_whatsapp") or "").strip().replace("+", "").replace(" ", "")
+    wa_phone_id = (data.get("wa_phone_id") or "").strip()
+    aliado_codigo = (data.get("aliado_codigo") or "").strip().upper()
+    vendedor = (data.get("vendedor") or "").strip()
+    vendedor_slug = (data.get("vendedor_slug") or "").strip().lower().replace(" ", "_")
+
+    if not nombre:
+        raise HTTPException(400, "El nombre de la línea es obligatorio")
+
+    # Verificar que el aliado existe si se proporciona
+    if aliado_codigo:
+        aliado = db.query(Aliado).filter(Aliado.codigo == aliado_codigo).first()
+        if not aliado:
+            raise HTTPException(400, f"No existe aliado con código {aliado_codigo}")
+
+    # Usar numero como page_id si no hay wa_phone_id aún
+    page_id = wa_phone_id or f"SOCIO_{aliado_codigo or numero}"
+
+    existente = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if existente:
+        existente.nombre = nombre
+        existente.numero_whatsapp = numero
+        if wa_phone_id:
+            existente.wa_phone_id = wa_phone_id
+        existente.aliado_codigo = aliado_codigo or None
+        existente.vendedor = vendedor
+        existente.vendedor_slug = vendedor_slug
+        existente.activa = True
+        db.commit()
+        return {"ok": True, "accion": "actualizado", "page_id": page_id}
+    else:
+        nueva = MetaPagina(
+            page_id=page_id,
+            nombre=nombre,
+            numero_whatsapp=numero,
+            wa_phone_id=wa_phone_id or None,
+            aliado_codigo=aliado_codigo or None,
+            vendedor=vendedor,
+            vendedor_slug=vendedor_slug,
+            activa=True,
+        )
+        db.add(nueva)
+        db.commit()
+        return {"ok": True, "accion": "creado", "page_id": page_id}
+
+
+@router.put("/api/admin/lineas-wa/{page_id}/phone-id")
+async def admin_actualizar_phone_id(
+    page_id: str,
+    request: Request,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Actualiza el wa_phone_id de una línea (se obtiene de Meta Business Manager tras registro)."""
+    _require_gestion_interna(x_api_key, current_user)
+    data = await request.json()
+    wa_phone_id = (data.get("wa_phone_id") or "").strip()
+    if not wa_phone_id:
+        raise HTTPException(400, "wa_phone_id es obligatorio")
+
+    linea = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if not linea:
+        raise HTTPException(404, "Línea no encontrada")
+
+    linea.wa_phone_id = wa_phone_id
+    # Si page_id era provisional (SOCIO_*), no se puede cambiar el page_id fácilmente,
+    # pero al menos actualizamos el campo que usa el webhook para el matching.
+    db.commit()
+    return {"ok": True, "page_id": page_id, "wa_phone_id": wa_phone_id}
+
+
+@router.delete("/api/admin/lineas-wa/{page_id}")
+async def admin_eliminar_linea_wa(
+    page_id: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Desactiva una línea WA (no borra, solo marca inactiva)."""
+    _require_gestion_interna(x_api_key, current_user)
+    linea = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if not linea:
+        raise HTTPException(404, "Línea no encontrada")
+    linea.activa = False
+    db.commit()
+    return {"ok": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

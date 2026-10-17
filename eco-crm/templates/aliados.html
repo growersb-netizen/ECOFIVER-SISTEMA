@@ -298,6 +298,7 @@
     <button class="org-subtab" data-tab="rendimiento" onclick="orgAdminTab('rendimiento',this)">📊 Rendimiento</button>
     <button class="org-subtab" data-tab="ventas" onclick="orgAdminTab('ventas',this)">💰 Ventas</button>
     <button class="org-subtab" data-tab="videollamadas" onclick="orgAdminTab('videollamadas',this)">📹 Videollamadas</button>
+    <button class="org-subtab" data-tab="lineas-wa" onclick="orgAdminTab('lineas-wa',this)">📱 Líneas WA</button>
   </div>
 
   <!-- ── TAB: ESTRUCTURA ── -->
@@ -367,6 +368,50 @@
   <!-- ── TAB: VIDEOLLAMADAS ── -->
   <div id="orgtab-videollamadas" style="display:none">
     <div id="org-vl-contenido"><div class="al-empty">Cargando...</div></div>
+  </div>
+
+  <!-- ── TAB: LÍNEAS WA ── -->
+  <div id="orgtab-lineas-wa" style="display:none">
+    <!-- Explicación -->
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:14px;margin-bottom:18px;font-size:13px">
+      <strong>📱 Líneas WhatsApp de socios</strong><br>
+      Cada línea es un número de WhatsApp Cloud API vinculado a un socio. Cuando alguien escribe a ese número, el sistema crea un lead automáticamente asignado a ese socio.<br>
+      <span style="color:var(--text-muted)">Los socios pueden seguir usando WhatsApp Business App en su teléfono (Cloud API Coexistence). Para activar una línea nueva necesitás el <strong>Phone Number ID</strong> que da Meta Business Manager al registrar el número.</span>
+    </div>
+
+    <!-- Formulario nueva línea -->
+    <div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px">
+      <h4 style="margin:0 0 12px;font-size:13px;font-weight:700">➕ Agregar / actualizar línea</h4>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;align-items:end">
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Nombre de la línea</label>
+          <input id="lwa-nombre" class="form-control" placeholder="Ej: Aliados EcoFiver">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Número WA (sin +)</label>
+          <input id="lwa-numero" class="form-control" placeholder="5491176201171">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Código aliado</label>
+          <input id="lwa-aliado" class="form-control" placeholder="AL-044">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Nombre vendedor / slug</label>
+          <input id="lwa-vendedor" class="form-control" placeholder="Javier Ruiz">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Phone Number ID (Meta)</label>
+          <input id="lwa-phone-id" class="form-control" placeholder="De Meta BM (opcional hoy)">
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn btn-primary" style="width:100%" onclick="adminGuardarLineaWA()">Guardar línea</button>
+        </div>
+      </div>
+      <div id="lwa-msg" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <!-- Listado de líneas existentes -->
+    <div id="lwa-lista"><div class="al-empty">Cargando...</div></div>
   </div>
 </div>
 
@@ -1358,12 +1403,13 @@ let _orgAdminData = null; // cache compartido entre tabs
 function orgAdminTab(tab, btn){
   document.querySelectorAll('.org-subtab').forEach(b => b.classList.remove('org-subtab-active'));
   btn.classList.add('org-subtab-active');
-  ['estructura','rendimiento','ventas','videollamadas'].forEach(t => {
+  ['estructura','rendimiento','ventas','videollamadas','lineas-wa'].forEach(t => {
     document.getElementById('orgtab-'+t).style.display = t===tab ? '' : 'none';
   });
   if(tab==='rendimiento') adminCargarRendimiento();
   else if(tab==='ventas') adminCargarOrgVentas();
   else if(tab==='videollamadas') adminCargarOrgVideollamadas();
+  else if(tab==='lineas-wa') adminCargarLineasWA();
 }
 
 function orgAdminRefrescar(){
@@ -1626,6 +1672,84 @@ async function adminQuitarDeOrg(){
   msg.style.color='#4ade80'; msg.textContent=`✅ ${asesor} quitado de su organización.`;
   document.getElementById('org2-asesor').value='';
   adminCargarOrganizaciones();
+}
+
+async function adminCargarLineasWA(){
+  const el = document.getElementById('lwa-lista');
+  el.innerHTML = '<div class="al-empty">Cargando...</div>';
+  const data = await AL.get('/api/admin/lineas-wa').catch(()=>null);
+  if(!data || !data.lineas){
+    el.innerHTML = '<div class="al-empty">Error al cargar líneas.</div>';
+    return;
+  }
+  if(!data.lineas.length){
+    el.innerHTML = '<div class="al-empty">Sin líneas WA configuradas. Agregá la primera arriba.</div>';
+    return;
+  }
+  const rows = data.lineas.map(l => {
+    const estadoBadge = l.activa
+      ? `<span style="font-size:11px;color:#22c55e;font-weight:700">● Activa</span>`
+      : `<span style="font-size:11px;color:#6b7280;font-weight:700">○ Inactiva</span>`;
+    const phoneIdBadge = l.wa_phone_id
+      ? `<span style="font-size:11px;background:rgba(59,130,246,.15);color:#60a5fa;padding:2px 8px;border-radius:10px">ID: ${esc(l.wa_phone_id)}</span>`
+      : `<span style="font-size:11px;color:#f59e0b">⚠ Sin Phone ID — agregar desde Meta BM</span>`;
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <div style="font-weight:700;font-size:14px">${esc(l.nombre)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+            📱 +${esc(l.numero_whatsapp||'—')} · ${l.aliado_codigo ? `<strong style="color:#a78bfa">${esc(l.aliado_codigo)}</strong>` : 'sin aliado'} · ${esc(l.vendedor||'')}
+          </div>
+          <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${estadoBadge}
+            ${phoneIdBadge}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
+          <button class="btn btn-sm btn-secondary" style="font-size:11px;padding:4px 10px"
+            onclick="adminEditarLineaWA(${JSON.stringify(l)})">✏️ Editar</button>
+          ${l.activa ? `<button class="btn btn-sm" style="font-size:11px;padding:4px 10px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)"
+            onclick="adminDesactivarLineaWA('${l.page_id}')">🗑 Desactivar</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+  el.innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">${data.lineas.length} línea(s) configurada(s)</div>${rows}`;
+}
+
+function adminEditarLineaWA(l){
+  document.getElementById('lwa-nombre').value = l.nombre || '';
+  document.getElementById('lwa-numero').value = l.numero_whatsapp || '';
+  document.getElementById('lwa-aliado').value = l.aliado_codigo || '';
+  document.getElementById('lwa-vendedor').value = l.vendedor || '';
+  document.getElementById('lwa-phone-id').value = l.wa_phone_id || '';
+  document.getElementById('lwa-msg').textContent = 'Datos cargados para editar.';
+  document.getElementById('lwa-msg').style.color = '#60a5fa';
+}
+
+async function adminGuardarLineaWA(){
+  const msg = document.getElementById('lwa-msg');
+  const payload = {
+    nombre: document.getElementById('lwa-nombre').value.trim(),
+    numero_whatsapp: document.getElementById('lwa-numero').value.trim(),
+    aliado_codigo: document.getElementById('lwa-aliado').value.trim().toUpperCase(),
+    vendedor: document.getElementById('lwa-vendedor').value.trim(),
+    wa_phone_id: document.getElementById('lwa-phone-id').value.trim(),
+  };
+  if(!payload.nombre){ msg.style.color='#f87171'; msg.textContent='El nombre es obligatorio.'; return; }
+  const r = await AL.send('/api/admin/lineas-wa','POST',payload);
+  if(!r.ok){ const e=await r.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo guardar'); return; }
+  const d = await r.json();
+  msg.style.color='#4ade80';
+  msg.textContent = d.accion === 'creado' ? '✅ Línea creada.' : '✅ Línea actualizada.';
+  ['lwa-nombre','lwa-numero','lwa-aliado','lwa-vendedor','lwa-phone-id'].forEach(id => document.getElementById(id).value='');
+  adminCargarLineasWA();
+}
+
+async function adminDesactivarLineaWA(pageId){
+  if(!confirm('¿Desactivar esta línea WA? Deja de recibir leads pero no se borra.')) return;
+  const r = await AL.send(`/api/admin/lineas-wa/${encodeURIComponent(pageId)}`,'DELETE',{});
+  if(!r.ok){ alert('Error al desactivar'); return; }
+  adminCargarLineasWA();
 }
 
 // ─── STOCK DE PISCINAS ────────────────────────────────────────────────────────

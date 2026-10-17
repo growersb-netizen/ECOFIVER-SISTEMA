@@ -4553,7 +4553,7 @@ async def admin_completar_onboarding(
     if not socio:
         raise HTTPException(404, f"Socio {codigo} no encontrado")
     socio.primer_login = False
-    socio.comisiones_aceptadas = True
+    socio.comisiones_aceptadas_en = datetime.now()
     db.commit()
     return {
         "ok": True,
@@ -5141,7 +5141,7 @@ async def admin_listar_socios(
         "bloqueado_hasta": s.bloqueado_hasta.isoformat() if _esta_bloqueado(s.bloqueado_hasta) else None,
         "intentos_fallidos": s.intentos_fallidos or 0,
         "primer_login": bool(s.primer_login),
-        "comisiones_aceptadas": bool(s.comisiones_aceptadas),
+        "comisiones_aceptadas": bool(s.comisiones_aceptadas_en),
     } for s in socios]}
 
 

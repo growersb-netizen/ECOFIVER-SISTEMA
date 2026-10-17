@@ -44,6 +44,8 @@
   <button class="al-tab" onclick="alTab('verificacion',this)">🔎 Verificación</button>
   <button class="al-tab" onclick="alTab('paquetes',this)">📦 Paquetes</button>
   <button class="al-tab" onclick="alTab('operacion',this)">🔧 Operación de Socios</button>
+  <button class="al-tab" onclick="alTab('organizaciones',this)">🏢 Organizaciones</button>
+  <button class="al-tab" onclick="alTab('stock',this)">🏊 Stock</button>
   <button class="al-tab" onclick="alTab('calendario',this)">📅 Calendario</button>
 </div>
 
@@ -277,6 +279,94 @@
   <span id="op-ent-msg" style="font-size:13px;margin-left:10px"></span>
 </div>
 
+<!-- ═══ ORGANIZACIONES ═══ -->
+<div id="pane-organizaciones" class="al-pane">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0;font-size:15px">🏢 Estructuras comerciales</h3>
+    <button class="btn btn-secondary" onclick="adminCargarOrganizaciones()">↺ Actualizar</button>
+  </div>
+  <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px">Activá el rol de organizador para un socio y asignale miembros a su organización.</p>
+
+  <!-- Panel rápido de asignación -->
+  <div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px">
+    <h4 style="margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Gestión rápida de un socio</h4>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Código del socio</label>
+        <input id="org-codigo-input" class="form-control" placeholder="Ej: AL-044" style="max-width:130px">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Rol organizador</label>
+        <select id="org-es-org-select" class="form-control" style="max-width:140px">
+          <option value="">— sin cambio —</option>
+          <option value="true">✅ Activar</option>
+          <option value="false">❌ Desactivar</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Asignar a organización</label>
+        <input id="org-asignar-org-input" class="form-control" placeholder="Cód. organizador o vacío" style="max-width:160px">
+      </div>
+      <button class="btn btn-primary" onclick="adminGuardarSocioOrg()">Guardar</button>
+    </div>
+    <div id="org-save-msg" style="margin-top:8px;font-size:13px"></div>
+  </div>
+
+  <!-- Listado de organizaciones activas -->
+  <div id="org-lista-contenido"><div class="al-empty">Cargando organizaciones...</div></div>
+</div>
+
+<!-- ═══ STOCK DE PISCINAS ═══ -->
+<div id="pane-stock" class="al-pane">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0;font-size:15px">🏊 Stock de piscinas disponible</h3>
+    <button class="btn btn-primary" onclick="adminAbrirNuevoStock()">+ Agregar ítem</button>
+  </div>
+  <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Este es el stock visible para todos los socios en su panel. Actualizá las cantidades según el inventario real.</p>
+  <div id="admin-stock-tabla"><div class="al-empty">Cargando...</div></div>
+
+  <!-- Modal nuevo/editar item -->
+  <div id="modal-stock" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:none;align-items:center;justify-content:center">
+    <div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:14px;padding:24px;width:min(480px,95vw);max-height:90vh;overflow-y:auto">
+      <h3 style="margin:0 0 16px;font-size:15px" id="modal-stock-titulo">Nuevo ítem de stock</h3>
+      <input type="hidden" id="stock-edit-id">
+      <div style="display:grid;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted)">Categoría</label>
+          <select id="stock-cat" class="form-control">
+            <option value="POZO">Piletas de Pozo</option>
+            <option value="AUTOPORTANTE">Autoportante</option>
+            <option value="MINIPORTANTE">Miniportante</option>
+            <option value="MINI_DECK">Mini Deck</option>
+            <option value="PLAYA_ADICIONAL">Playa Húmeda Adicional</option>
+            <option value="HIDROMASAJE">Hidromasajes</option>
+            <option value="REPOSERA">Reposeras</option>
+          </select>
+        </div>
+        <div><label style="font-size:12px;color:var(--text-muted)">Modelo / descripción</label>
+          <input id="stock-modelo" class="form-control" placeholder="Ej: Arco Romano 7x3"></div>
+        <div><label style="font-size:12px;color:var(--text-muted)">Color</label>
+          <input id="stock-color" class="form-control" placeholder="Ej: Celeste"></div>
+        <div><label style="font-size:12px;color:var(--text-muted)">Cantidad</label>
+          <input id="stock-cantidad" class="form-control" type="number" min="0" value="1"></div>
+        <div><label style="font-size:12px;color:var(--text-muted)">Ubicación</label>
+          <input id="stock-ubicacion" class="form-control" placeholder="Showroom / Paso del Rey / Afuera"></div>
+        <div><label style="font-size:12px;color:var(--text-muted)">Notas (opcional)</label>
+          <input id="stock-notas" class="form-control" placeholder="Ej: Ingresada 29/9"></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="stock-disponible" checked>
+          <label for="stock-disponible" style="font-size:13px">Disponible (visible para socios)</label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-primary" onclick="adminGuardarStock()">Guardar</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-stock').style.display='none'">Cancelar</button>
+      </div>
+      <div id="stock-modal-msg" style="margin-top:8px;font-size:13px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ CALENDARIO DE ENTREGAS ═══ -->
 <div id="pane-calendario" class="al-pane">
   <!-- KPIs summary -->
@@ -383,6 +473,8 @@ function alTab(name,btn){
   if(name==='verificacion') cargarVerificacion();
   if(name==='paquetes') cargarPaquetes();
   if(name==='operacion') cargarOperacionSocios();
+  if(name==='organizaciones') adminCargarOrganizaciones();
+  if(name==='stock') adminCargarStock();
   if(name==='calendario') cargarCalendario();
 }
 
@@ -1146,5 +1238,193 @@ function calFiltroCustom(){
 document.addEventListener('DOMContentLoaded',()=>{cargarAliados();
   const b=document.querySelector('[onclick*="modal-nuevo-aliado"]'); if(b)b.addEventListener('click',nuevoAliado);
 });
+
+// ─── ORGANIZACIONES ──────────────────────────────────────────────────────────
+
+async function adminCargarOrganizaciones(){
+  const el = document.getElementById('org-lista-contenido');
+  el.innerHTML = '<div class="al-empty">Cargando...</div>';
+  const data = await AL.get('/api/admin/organizaciones').catch(()=>null);
+  if(!data || !data.organizaciones || !data.organizaciones.length){
+    el.innerHTML = '<div class="al-empty">No hay organizaciones activas. Activá el rol de organizador en algún socio.</div>';
+    return;
+  }
+  el.innerHTML = data.organizaciones.map(org => {
+    const miembros = org.miembros || [];
+    const mbs = miembros.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">`+
+        miembros.map(m=>`<span style="background:rgba(100,116,139,.15);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:12px">${esc(m.nombre)} <span style="color:var(--text-muted)">(${m.codigo})</span></span>`).join('')+
+        `</div>`
+      : `<p style="margin:8px 0 0;font-size:12px;color:var(--text-muted)">Sin miembros asignados aún.</p>`;
+    return `<div style="background:var(--bg-card,#181822);border:1px solid #5e548e;border-radius:10px;padding:16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:18px">🏢</span>
+        <div>
+          <div style="font-weight:700;font-size:15px">${esc(org.organizador.nombre)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${org.organizador.codigo} · ${org.organizador.zona||'sin zona'}</div>
+        </div>
+        <span style="margin-left:auto;background:rgba(94,84,142,.2);color:#b39ddb;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700">Organizador · ${miembros.length} miembros</span>
+      </div>
+      ${mbs}
+    </div>`;
+  }).join('');
+}
+
+async function adminGuardarSocioOrg(){
+  const codigo = document.getElementById('org-codigo-input').value.trim().toUpperCase();
+  const esOrgVal = document.getElementById('org-es-org-select').value;
+  const orgCodigo = document.getElementById('org-asignar-org-input').value.trim().toUpperCase();
+  const msg = document.getElementById('org-save-msg');
+  msg.textContent = '';
+  if(!codigo){ msg.style.color='#f87171'; msg.textContent='Ingresá el código del socio.'; return; }
+
+  let ok = true;
+  if(esOrgVal !== ''){
+    const r = await AL.send(`/api/admin/socios/${codigo}/organizador`,'PUT',{es_organizador: esOrgVal==='true'});
+    if(!r.ok){ const e=await r.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo actualizar rol'); ok=false; }
+  }
+  if(ok && (orgCodigo !== '' || document.getElementById('org-asignar-org-input').value.trim()=='')){
+    const r2 = await AL.send(`/api/admin/socios/${codigo}/organizacion`,'PUT',{organizacion_codigo: orgCodigo||null});
+    if(!r2.ok){ const e=await r2.json().catch(()=>{}); msg.style.color='#f87171'; msg.textContent='Error: '+(e?.detail||'no se pudo asignar organización'); ok=false; }
+  }
+  if(ok){
+    msg.style.color='#4ade80'; msg.textContent=`✅ Socio ${codigo} actualizado.`;
+    document.getElementById('org-codigo-input').value='';
+    document.getElementById('org-es-org-select').value='';
+    document.getElementById('org-asignar-org-input').value='';
+    adminCargarOrganizaciones();
+  }
+}
+
+// ─── STOCK DE PISCINAS ────────────────────────────────────────────────────────
+
+let _adminStockItems = [];
+
+async function adminCargarStock(){
+  const el = document.getElementById('admin-stock-tabla');
+  el.innerHTML = '<div class="al-empty">Cargando...</div>';
+  const data = await AL.get('/api/admin/stock/piscinas').catch(()=>null);
+  if(!data){ el.innerHTML='<div class="al-empty">Error al cargar.</div>'; return; }
+  _adminStockItems = data.items || [];
+  if(!_adminStockItems.length){ el.innerHTML='<div class="al-empty">Sin ítems de stock.</div>'; return; }
+
+  const CAT_LABELS = {POZO:'Piletas de Pozo',AUTOPORTANTE:'Autoportante',MINIPORTANTE:'Miniportante',
+    MINI_DECK:'Mini Deck',PLAYA_ADICIONAL:'Playa Húmeda Adicional',HIDROMASAJE:'Hidromasajes',REPOSERA:'Reposeras'};
+  const CAT_COLORS = {POZO:'#0077b6',AUTOPORTANTE:'#2d6a4f',MINIPORTANTE:'#5e548e',
+    MINI_DECK:'#e07a5f',PLAYA_ADICIONAL:'#3d405b',HIDROMASAJE:'#f4a261',REPOSERA:'#457b9d'};
+
+  const byCat = {};
+  for(const it of _adminStockItems){
+    if(!byCat[it.categoria]) byCat[it.categoria]=[];
+    byCat[it.categoria].push(it);
+  }
+  el.innerHTML = Object.entries(byCat).map(([cat, items]) => {
+    const color = CAT_COLORS[cat]||'#888';
+    const rows = items.map(it => `<tr>
+      <td style="padding:8px 10px">${esc(it.modelo)}</td>
+      <td style="padding:8px 10px">${esc(it.color)}</td>
+      <td style="padding:8px 10px;text-align:center">
+        <input type="number" min="0" value="${it.cantidad}" style="width:60px;text-align:center;background:var(--bg-input,#111);border:1px solid var(--border);color:inherit;border-radius:4px;padding:3px 6px"
+          onchange="adminUpdateCantStock(${it.id},this.value)">
+      </td>
+      <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${esc(it.ubicacion||'')}</td>
+      <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${esc(it.notas||'')}</td>
+      <td style="padding:8px 10px">
+        <span style="font-size:11px;padding:2px 7px;border-radius:10px;background:${it.disponible?'rgba(74,222,128,.15)':'rgba(248,113,113,.15)'};color:${it.disponible?'#4ade80':'#f87171'}">${it.disponible?'Visible':'Oculto'}</span>
+      </td>
+      <td style="padding:8px 10px;display:flex;gap:4px">
+        <button class="btn btn-sm btn-secondary" onclick="adminEditarStock(${it.id})" title="Editar">✏️</button>
+        <button class="btn btn-sm btn-danger" onclick="adminEliminarStock(${it.id},'${esc(it.modelo)} ${esc(it.color)}')">🗑️</button>
+      </td>
+    </tr>`).join('');
+    const total = items.reduce((s,i)=>s+i.cantidad,0);
+    return `<div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden">
+      <div style="background:${color};padding:8px 14px;display:flex;align-items:center;justify-content:space-between">
+        <span style="color:#fff;font-weight:700">${CAT_LABELS[cat]||cat}</span>
+        <span style="color:rgba(255,255,255,.85);font-size:13px">${total} unidades</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:5px 10px;font-size:11px;color:var(--text-muted);text-align:left">Modelo</th>
+          <th style="padding:5px 10px;font-size:11px;color:var(--text-muted);text-align:left">Color</th>
+          <th style="padding:5px 10px;font-size:11px;color:var(--text-muted);text-align:center">Cant.</th>
+          <th style="padding:5px 10px;font-size:11px;color:var(--text-muted);text-align:left">Ubicación</th>
+          <th style="padding:5px 10px;font-size:11px;color:var(--text-muted);text-align:left">Notas</th>
+          <th style="padding:5px 10px;font-size:11px;color:var(--text-muted);text-align:left">Estado</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+async function adminUpdateCantStock(id, cant){
+  await AL.send(`/api/admin/stock/piscinas/${id}`,'PUT',{cantidad:parseInt(cant)||0});
+}
+
+function adminAbrirNuevoStock(){
+  document.getElementById('stock-edit-id').value='';
+  document.getElementById('modal-stock-titulo').textContent='Nuevo ítem de stock';
+  document.getElementById('stock-cat').value='AUTOPORTANTE';
+  document.getElementById('stock-modelo').value='';
+  document.getElementById('stock-color').value='';
+  document.getElementById('stock-cantidad').value='1';
+  document.getElementById('stock-ubicacion').value='Showroom';
+  document.getElementById('stock-notas').value='';
+  document.getElementById('stock-disponible').checked=true;
+  document.getElementById('stock-modal-msg').textContent='';
+  document.getElementById('modal-stock').style.display='flex';
+}
+
+function adminEditarStock(id){
+  const it = _adminStockItems.find(i=>i.id===id);
+  if(!it) return;
+  document.getElementById('stock-edit-id').value=id;
+  document.getElementById('modal-stock-titulo').textContent='Editar ítem de stock';
+  document.getElementById('stock-cat').value=it.categoria||'AUTOPORTANTE';
+  document.getElementById('stock-modelo').value=it.modelo||'';
+  document.getElementById('stock-color').value=it.color||'';
+  document.getElementById('stock-cantidad').value=it.cantidad||0;
+  document.getElementById('stock-ubicacion').value=it.ubicacion||'';
+  document.getElementById('stock-notas').value=it.notas||'';
+  document.getElementById('stock-disponible').checked=!!it.disponible;
+  document.getElementById('stock-modal-msg').textContent='';
+  document.getElementById('modal-stock').style.display='flex';
+}
+
+async function adminGuardarStock(){
+  const msg = document.getElementById('stock-modal-msg');
+  msg.textContent='';
+  const id = document.getElementById('stock-edit-id').value;
+  const payload = {
+    categoria: document.getElementById('stock-cat').value,
+    modelo: document.getElementById('stock-modelo').value.trim(),
+    color: document.getElementById('stock-color').value.trim(),
+    cantidad: parseInt(document.getElementById('stock-cantidad').value)||0,
+    ubicacion: document.getElementById('stock-ubicacion').value.trim()||null,
+    notas: document.getElementById('stock-notas').value.trim()||null,
+    disponible: document.getElementById('stock-disponible').checked,
+  };
+  if(!payload.modelo){ msg.style.color='#f87171'; msg.textContent='El modelo es requerido.'; return; }
+  const url = id ? `/api/admin/stock/piscinas/${id}` : '/api/admin/stock/piscinas';
+  const method = id ? 'PUT' : 'POST';
+  const r = await AL.send(url, method, payload);
+  if(r.ok){
+    document.getElementById('modal-stock').style.display='none';
+    toast&&toast(id?'Stock actualizado':'Item creado');
+    adminCargarStock();
+  } else {
+    const e = await r.json().catch(()=>({}));
+    msg.style.color='#f87171'; msg.textContent='Error: '+(e.detail||'no se pudo guardar');
+  }
+}
+
+async function adminEliminarStock(id, desc){
+  if(!confirm(`¿Eliminar "${desc}" del stock?`)) return;
+  const r = await AL.send(`/api/admin/stock/piscinas/${id}`,'DELETE',{});
+  if(r.ok){ toast&&toast('Eliminado'); adminCargarStock(); }
+  else alert('Error al eliminar');
+}
 </script>
 {% endblock %}

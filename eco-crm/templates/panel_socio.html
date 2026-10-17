@@ -830,6 +830,7 @@
     <div class="brand"><div class="logo">ECO<span>FIVER</span></div></div>
     <div class="socio-info" id="sidebar-socio-info"></div>
     <a class="nav-item active" data-section="inicio" onclick="nav('inicio')">🏠 Inicio</a>
+    <a class="nav-item" data-section="stock" onclick="nav('stock')">🏊 Stock disponible</a>
     <a class="nav-item" data-section="catalogo" onclick="nav('catalogo')">📋 Catálogo y precios</a>
     <a class="nav-item" data-section="simulador" onclick="nav('simulador')">🧮 Simulador de cuotas</a>
     <a class="nav-item" data-section="ventas" onclick="nav('ventas')">💼 Cargar venta</a>
@@ -845,8 +846,12 @@
     <a class="nav-item" data-section="perfil" onclick="nav('perfil')">⚙️ Mi perfil y documentación</a>
     <a class="nav-item" data-section="ayuda" onclick="nav('ayuda')">❓ Centro de ayuda</a>
     <a class="nav-item" onclick="abrirGuia()" style="color:var(--teal)">📖 Guía de uso</a>
+    <a class="nav-item hidden" id="nav-organizador" data-section="organizador" onclick="nav('organizador')"
+       style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:#9c6fe4;font-weight:700">
+      🏢 Mi Organización
+    </a>
     <a class="nav-item hidden" id="nav-leads-admin" data-section="leads-admin" onclick="nav('leads-admin')"
-       style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:var(--teal);font-weight:700">
+       style="color:var(--teal);font-weight:700">
       🎯 Gestión de Leads
     </a>
     <a class="nav-item hidden" id="nav-admin-crm" href="/socio/acceso-crm" target="_blank"
@@ -872,6 +877,14 @@
         <div class="kpi"><div class="v" id="kpi-liquidado">$0</div><div class="l">Comisión liquidada</div></div>
         <div class="kpi"><div class="v" id="kpi-ventas">0</div><div class="l">Ventas cargadas</div></div>
       </div>
+      <!-- STOCK RÁPIDO -->
+      <div class="card" style="border-left:3px solid #0077b6">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <h3 style="margin:0;font-size:15px">🏊 Stock disponible</h3>
+          <button class="btn" onclick="nav('stock')" style="font-size:12px;padding:5px 12px;background:#0077b6">Ver todo el stock</button>
+        </div>
+        <div id="stock-inicio-resumen" style="font-size:13px;color:var(--text-muted)">Cargando...</div>
+      </div>
       <div class="card">
         <h3 style="margin-top:0;font-size:16px">Tu rol como Socio Comercial</h3>
         <p style="font-size:14px;line-height:1.6">Gestionás la venta de punta a punta: identificás al cliente, cotizás con el catálogo oficial y cargás la operación desde tu panel. En una venta financiada, una vez acreditada la seña, descargás el contrato directamente desde acá y tu cliente lo confirma con un enlace, sin papeles de por medio. Nuestro equipo se comunica con el cliente para una llamada de bienvenida que valida la operación, y a partir de ahí tu comisión queda liberada.</p>
@@ -884,6 +897,13 @@
         <h3 style="margin-top:0;font-size:16px">Tu progreso</h3>
         <div id="progreso-list">Cargando…</div>
       </div>
+    </section>
+
+    <!-- STOCK DISPONIBLE -->
+    <section class="section" id="sec-stock">
+      <h2>🏊 Stock de piscinas disponible</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px;margin-bottom:18px">Unidades disponibles en showroom y depósito. Actualizadas por el equipo EcoFiver.</p>
+      <div id="stock-full-contenido">Cargando...</div>
     </section>
 
     <!-- CATÁLOGO -->
@@ -1436,6 +1456,131 @@
         <!-- Contenido -->
         <div id="rk-contenido"><div style="color:var(--text-muted);font-size:14px">Cargando…</div></div>
       </div>
+
+      <!-- Ranking interno de la organización (solo visible si el socio pertenece a una) -->
+      <div id="rk-org-wrapper" style="display:none;margin-top:32px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div style="width:4px;height:28px;background:linear-gradient(180deg,#9c6fe4,#7c4fba);border-radius:2px"></div>
+          <div>
+            <div style="font-weight:700;font-size:16px" id="rk-org-titulo">Ranking interno — Mi Organización</div>
+            <div style="font-size:12px;color:var(--text-muted)">Visible solo para los miembros de tu organización</div>
+          </div>
+        </div>
+        <div id="rk-org-contenido"><div style="color:var(--text-muted);font-size:14px">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD ORGANIZADOR -->
+    <section class="section" id="sec-organizador">
+      <div class="section-header">
+        <div>
+          <h2>Mi Organización</h2>
+          <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0">Panel de control de tu estructura comercial. Gestioná leads, ventas y videollamadas de tus asesores.</p>
+        </div>
+        <button class="btn-ghost" onclick="orgCargarEstructura()" style="font-size:13px">↺ Actualizar</button>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div class="leads-tabs" id="org-tabs" style="margin:18px 0 0">
+        <button class="leads-tab active" onclick="orgTab('estructura',this)">👥 Asesores</button>
+        <button class="leads-tab" onclick="orgTab('leads',this)">🎯 Leads</button>
+        <button class="leads-tab" onclick="orgTab('ventas',this)">💼 Ventas</button>
+        <button class="leads-tab" onclick="orgTab('videollamadas',this)">📹 Videollamadas</button>
+      </div>
+
+      <!-- Panel: Estructura -->
+      <div class="leads-tab-panel active" id="org-panel-estructura" style="padding-top:18px">
+        <div id="org-estructura-contenido"><p style="color:var(--text-muted)">Cargando…</p></div>
+      </div>
+
+      <!-- Panel: Leads -->
+      <div class="leads-tab-panel" id="org-panel-leads" style="padding-top:18px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+          <select id="org-leads-filtro-socio" class="input-field" style="max-width:200px;font-size:13px" onchange="orgCargarLeads()">
+            <option value="">Todos los asesores</option>
+          </select>
+          <select id="org-leads-filtro-estado" class="input-field" style="max-width:160px;font-size:13px" onchange="orgCargarLeads()">
+            <option value="">Todos los estados</option>
+            <option value="NUEVO">Nuevo</option>
+            <option value="CONTACTADO">Contactado</option>
+            <option value="EN_SEGUIMIENTO">En seguimiento</option>
+            <option value="CALIFICADO">Calificado</option>
+            <option value="CERRADO_GANADO">Cerrado ganado</option>
+            <option value="CERRADO_PERDIDO">Cerrado perdido</option>
+          </select>
+          <button class="btn-outline" style="font-size:13px" onclick="orgNuevoLead()">+ Nuevo lead</button>
+        </div>
+        <div id="org-leads-contenido"><p style="color:var(--text-muted)">Cargando…</p></div>
+      </div>
+
+      <!-- Panel: Ventas -->
+      <div class="leads-tab-panel" id="org-panel-ventas" style="padding-top:18px">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+          <select id="org-ventas-periodo" class="input-field" style="max-width:160px;font-size:13px" onchange="orgCargarVentas()">
+            <option value="7">Últimos 7 días</option>
+            <option value="30" selected>Últimos 30 días</option>
+            <option value="90">Últimos 90 días</option>
+          </select>
+          <button class="btn-outline" style="font-size:13px" onclick="orgNuevaVenta()">+ Cargar venta</button>
+        </div>
+        <div id="org-ventas-contenido"><p style="color:var(--text-muted)">Cargando…</p></div>
+      </div>
+
+      <!-- Panel: Videollamadas -->
+      <div class="leads-tab-panel" id="org-panel-videollamadas" style="padding-top:18px">
+        <div id="org-vl-contenido"><p style="color:var(--text-muted)">Cargando…</p></div>
+      </div>
+
+      <!-- Modal nuevo lead -->
+      <div id="org-modal-lead" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+        <div class="modal-box" style="max-width:480px">
+          <h3 style="margin:0 0 18px;font-size:16px">Nuevo lead</h3>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Nombre</label>
+          <input type="text" id="org-lead-nombre" class="input-field" placeholder="Nombre completo" style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Teléfono WhatsApp</label>
+          <input type="text" id="org-lead-tel" class="input-field" placeholder="549XXXXXXXXXX" style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Localidad</label>
+          <input type="text" id="org-lead-localidad" class="input-field" placeholder="Ciudad / Provincia" style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Interés</label>
+          <select id="org-lead-interes" class="input-field" style="margin-bottom:12px">
+            <option value="PISCINA">Piscina</option>
+            <option value="MODULO">Módulo</option>
+            <option value="SIN_DEFINIR">Sin definir</option>
+          </select>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Asignar a</label>
+          <select id="org-lead-asignado" class="input-field" style="margin-bottom:16px"></select>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn-ghost" onclick="document.getElementById('org-modal-lead').style.display='none'">Cancelar</button>
+            <button class="btn-primary" onclick="orgGuardarLead()">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal nueva venta (org) -->
+      <div id="org-modal-venta" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+        <div class="modal-box" style="max-width:480px">
+          <h3 style="margin:0 0 18px;font-size:16px">Cargar venta de contado</h3>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Nombre del cliente</label>
+          <input type="text" id="org-venta-cliente" class="input-field" style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Teléfono</label>
+          <input type="text" id="org-venta-tel" class="input-field" style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Producto</label>
+          <select id="org-venta-producto" class="input-field" style="margin-bottom:12px">
+            <option value="PISCINA">Piscina</option>
+            <option value="MODULO">Módulo</option>
+          </select>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Modelo</label>
+          <input type="text" id="org-venta-modelo" class="input-field" style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Precio final ($)</label>
+          <input type="number" id="org-venta-precio" class="input-field" style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Asesor</label>
+          <select id="org-venta-asesor" class="input-field" style="margin-bottom:16px"></select>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn-ghost" onclick="document.getElementById('org-modal-venta').style.display='none'">Cancelar</button>
+            <button class="btn-primary" onclick="orgGuardarVenta()">Guardar</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- MI EMPRESA -->
@@ -1957,9 +2102,14 @@ async function cargarApp(){
   if(SOCIO.tiene_acceso_crm && !SOCIO.es_admin_crm){
     document.getElementById('nav-admin-crm').classList.remove('hidden');
   }
+  // Dashboard organizador
+  if(SOCIO.es_organizador){
+    document.getElementById('nav-organizador').classList.remove('hidden');
+  }
   cargarComisiones();
   cargarCatalogo();
   cargarProgreso();
+  cargarStockInicio();
   if(!SOCIO.tiene_password) abrirModalCrearPassword();
   else avanzarOnboarding();
 }
@@ -2068,6 +2218,8 @@ function nav(section){
   if(section==='ranking') cargarRanking();
   if(section==='biblioteca') cargarBiblioteca();
   if(section==='leads-admin') recargarTablaLeads();
+  if(section==='organizador') orgCargarEstructura();
+  if(section==='stock') cargarStock();
   if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
   if(section==='ayuda') cargarFaq();
   // Actualizar label móvil y cerrar drawer
@@ -2247,6 +2399,7 @@ async function cargarMisLeads(){
   cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
   try {
     const data = await api('/api/socio/leads');
+    const waTemplate = data.wa_template || '';
     if (!data.leads || data.leads.length === 0) {
       cont.innerHTML = `
         <div style="text-align:center;padding:48px 20px;color:var(--text-muted)">
@@ -2261,12 +2414,14 @@ async function cargarMisLeads(){
       const estadoColor = LEAD_ESTADO_COLOR[l.estado] || 'var(--text-muted)';
       const forma = FORMA_PAGO_LABEL[l.forma_pago] || l.forma_pago;
       const fecha = l.created_at ? new Date(l.created_at).toLocaleDateString('es-AR') : '';
-      const waLink = l.telefono
-        ? `<a href="https://wa.me/${l.telefono.replace(/\D/g,'')}" target="_blank" rel="noopener"
-             style="color:var(--teal);text-decoration:none;font-weight:700">
-             📱 WhatsApp
+      const numLimpio = l.telefono ? l.telefono.replace(/\D/g,'') : '';
+      const msgCodificado = numLimpio ? encodeURIComponent(waTemplate) : '';
+      const waBtn = numLimpio
+        ? `<a href="https://wa.me/${numLimpio}?text=${msgCodificado}" target="_blank" rel="noopener"
+             style="display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;text-decoration:none;font-weight:700;font-size:12px;padding:5px 12px;border-radius:20px">
+             💬 Contactar por WhatsApp
            </a>`
-        : l.telefono;
+        : '';
       return `
         <div class="venta-card" style="margin-bottom:14px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -2277,19 +2432,35 @@ async function cargarMisLeads(){
             <span style="font-size:12px;font-weight:700;color:${estadoColor};background:${estadoColor}22;padding:3px 10px;border-radius:12px;white-space:nowrap">${estadoLabel}</span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:12px;font-size:13px">
-            <div><span style="color:var(--text-muted)">Teléfono:</span><br><strong>${l.telefono || '—'}</strong> ${l.telefono ? waLink : ''}</div>
+            <div><span style="color:var(--text-muted)">Teléfono:</span><br><strong>${l.telefono || '—'}</strong></div>
             <div><span style="color:var(--text-muted)">Interés:</span><br><strong>${l.producto_interes || '—'}${l.modelo_especifico ? ' · ' + l.modelo_especifico : ''}</strong></div>
             <div><span style="color:var(--text-muted)">Forma de pago:</span><br><strong>${forma}</strong></div>
             <div><span style="color:var(--text-muted)">Asignado:</span><br><strong>${fecha}</strong></div>
           </div>
+          ${waBtn ? `<div style="margin-top:12px">${waBtn}</div>` : ''}
           ${l.notas ? `<div style="margin-top:10px;font-size:12.5px;color:var(--text-muted);background:rgba(0,0,0,.03);border-radius:6px;padding:8px 10px;border-left:3px solid var(--teal)">${l.notas.replace(/\n/g,'<br>')}</div>` : ''}
         </div>`;
     }).join('');
     cont.innerHTML = `
-      <div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">${data.total} lead${data.total !== 1 ? 's' : ''} asignado${data.total !== 1 ? 's' : ''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <span style="font-size:13px;color:var(--text-muted)">${data.total} lead${data.total !== 1 ? 's' : ''} asignado${data.total !== 1 ? 's' : ''}</span>
+        <button class="btn-ghost" style="font-size:12px" onclick="editarMensajeWA(${JSON.stringify(waTemplate)})">✏️ Editar mensaje de presentación</button>
+      </div>
       ${rows}`;
   } catch(e) {
     cont.innerHTML = '<p style="color:#ef4444">Error al cargar leads. Intentá de nuevo.</p>';
+  }
+}
+
+async function editarMensajeWA(templateActual) {
+  const nuevo = prompt('Mensaje de presentación para WhatsApp (máx. 1000 caracteres):', templateActual);
+  if (nuevo === null) return;
+  try {
+    await api('/api/socio/wa-template', { method: 'PUT', body: JSON.stringify({ texto: nuevo }) });
+    showToast('Mensaje actualizado');
+    cargarMisLeads();
+  } catch(e) {
+    showToast('Error al guardar', true);
   }
 }
 
@@ -3215,6 +3386,33 @@ async function cargarRanking(){
   }
 
   contenedor.innerHTML = podioHtml + listaHtml;
+
+  // Ranking de organización (si el socio pertenece a una)
+  if(SOCIO.es_organizador || SOCIO.organizacion_codigo){
+    const rkOrgWrapper = document.getElementById('rk-org-wrapper');
+    rkOrgWrapper.style.display = 'block';
+    const rkOrgCont = document.getElementById('rk-org-contenido');
+    try {
+      const orgData = await api('/api/socio/ranking/organizacion?periodo=' + _rkPeriodoActual);
+      if(!orgData.tiene_organizacion){ rkOrgWrapper.style.display='none'; return; }
+      document.getElementById('rk-org-titulo').textContent = `Ranking — ${orgData.organizador.nombre} (${orgData.organizador.codigo})`;
+      const html = orgData.ranking.map((r,i) => {
+        const esMio = r.codigo === SOCIO.codigo;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;margin-bottom:8px;
+                    background:${esMio ? 'rgba(156,111,228,.12)' : 'var(--surface)'};
+                    border:1px solid ${esMio ? 'rgba(156,111,228,.35)' : 'var(--border)'}">
+          <span style="font-size:18px;min-width:28px;text-align:center">${r.medalla || (i+1)}</span>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">${r.nombre}${esMio ? ' <span style="font-size:11px;color:#9c6fe4">(vos)</span>' : ''}</div>
+          </div>
+          <div style="font-weight:800;font-size:20px;color:${esMio ? '#9c6fe4' : 'var(--navy)'};font-family:Georgia,serif">${r.ventas}</div>
+        </div>`;
+      }).join('');
+      rkOrgCont.innerHTML = html || '<p style="color:var(--text-muted)">Sin ventas en este período.</p>';
+    } catch(e) {
+      document.getElementById('rk-org-wrapper').style.display = 'none';
+    }
+  }
 }
 
 let BIBLIOTECA_ITEMS = [];
@@ -3788,5 +3986,319 @@ async function enviarSolicitudRecibo(){
     </div>
   </div>
 </div>
+<!-- ══════════════════════════════════════════════════════════════════
+     ORGANIZADOR — JS
+══════════════════════════════════════════════════════════════════ -->
+<script>
+// Estado global de org
+let _orgSocios = [];
+
+function orgTab(panel, btn){
+  document.querySelectorAll('#org-tabs .leads-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('[id^="org-panel-"]').forEach(p => p.classList.remove('active'));
+  document.getElementById('org-panel-' + panel).classList.add('active');
+  if(panel==='leads') orgCargarLeads();
+  else if(panel==='ventas') orgCargarVentas();
+  else if(panel==='videollamadas') orgCargarVL();
+}
+
+async function orgCargarEstructura(){
+  const cont = document.getElementById('org-estructura-contenido');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  try {
+    const data = await api('/api/organizador/estructura');
+    _orgSocios = data.socios || [];
+    if(!_orgSocios.length){
+      cont.innerHTML = '<p style="color:var(--text-muted)">No tenés asesores asignados todavía. El administrador debe asignarlos desde el panel de aliados.</p>';
+      return;
+    }
+    const cards = _orgSocios.map(s => `
+      <div class="venta-card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#9c6fe4,#7c4fba);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px">
+            ${s.nombre.charAt(0).toUpperCase()}
+          </div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">${s.nombre} <span style="font-size:12px;color:var(--text-muted)">${s.codigo}</span>
+              ${s.verificado ? '<span style="color:var(--teal);font-size:12px">✓</span>' : ''}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">${s.zona || '—'} · 📞 ${s.telefono || '—'}</div>
+          </div>
+          <div style="display:flex;gap:12px;text-align:center">
+            <div><div style="font-weight:800;font-size:18px;color:var(--navy)">${s.ventas_mes}</div><div style="font-size:11px;color:var(--text-muted)">ventas 30d</div></div>
+            <div><div style="font-weight:800;font-size:18px;color:var(--teal)">${s.leads_activos}</div><div style="font-size:11px;color:var(--text-muted)">leads activos</div></div>
+          </div>
+        </div>
+      </div>`).join('');
+    cont.innerHTML = `<div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">${_orgSocios.length} asesor${_orgSocios.length!==1?'es':''}</div>${cards}`;
+    // Poblar selects de asignación
+    orgPoblarSelectores();
+  } catch(e){
+    cont.innerHTML = '<p style="color:#ef4444">Error al cargar estructura.</p>';
+  }
+}
+
+function orgPoblarSelectores(){
+  const opciones = [{ codigo: SOCIO.codigo, nombre: `${SOCIO.nombre} (vos)` }, ..._orgSocios];
+  ['org-lead-asignado','org-venta-asesor','org-leads-filtro-socio'].forEach(id => {
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    const empty = id === 'org-leads-filtro-socio' ? '<option value="">Todos los asesores</option>' : '';
+    sel.innerHTML = empty + opciones.map(s => `<option value="${s.codigo}">${s.nombre}</option>`).join('');
+  });
+}
+
+async function orgCargarLeads(){
+  const cont = document.getElementById('org-leads-contenido');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  const filSocio = document.getElementById('org-leads-filtro-socio')?.value || '';
+  const filEstado = document.getElementById('org-leads-filtro-estado')?.value || '';
+  let url = '/api/organizador/leads';
+  const params = [];
+  if(filSocio) params.push('asignado_a='+encodeURIComponent(filSocio));
+  if(filEstado) params.push('estado='+encodeURIComponent(filEstado));
+  if(params.length) url += '?' + params.join('&');
+  try {
+    const data = await api(url);
+    const leads = data.leads || [];
+    if(!leads.length){ cont.innerHTML = '<p style="color:var(--text-muted)">No hay leads con esos filtros.</p>'; return; }
+    cont.innerHTML = `<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">${data.total} lead${data.total!==1?'s':''}</div>` +
+      leads.map(l => {
+        const socioLabel = _orgSocios.find(s=>s.codigo===l.aliado_codigo)?.nombre || l.aliado_codigo || '—';
+        return `<div class="venta-card" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div><div style="font-weight:700;font-size:14px">${l.nombre}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${l.localidad || ''} · ${l.producto_interes || '—'}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:11px;font-weight:700;color:var(--teal);background:rgba(78,195,181,.12);padding:2px 8px;border-radius:10px">${l.estado}</span>
+              <span style="font-size:11px;color:var(--text-muted)">${socioLabel}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            ${l.telefono ? `<a href="https://wa.me/${l.telefono.replace(/\D/g,'')}" target="_blank" style="background:#25D366;color:#fff;text-decoration:none;font-weight:700;font-size:11px;padding:4px 10px;border-radius:16px">💬 WA</a>` : ''}
+            <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="orgReasignarLead(${l.id},'${l.aliado_codigo}','${l.nombre.replace(/'/g,"\\'")}')">↔ Reasignar</button>
+            <button class="btn-ghost" style="font-size:11px;padding:4px 10px;color:#ef4444" onclick="orgEliminarLead(${l.id})">🗑</button>
+          </div>
+        </div>`;
+      }).join('');
+  } catch(e){
+    cont.innerHTML = '<p style="color:#ef4444">Error al cargar leads.</p>';
+  }
+}
+
+async function orgReasignarLead(leadId, codActual, nombreLead){
+  if(!_orgSocios.length) await orgCargarEstructura();
+  const todos = [{ codigo: SOCIO.codigo, nombre: `${SOCIO.nombre} (vos)` }, ..._orgSocios];
+  const opcion = prompt(`Reasignar "${nombreLead}" (actual: ${codActual})\nIngresá el código del asesor destino:\n` +
+    todos.map(s=>`  ${s.codigo} — ${s.nombre}`).join('\n'));
+  if(!opcion) return;
+  try {
+    await api(`/api/organizador/leads/${leadId}/reasignar`, { method:'PUT', body: JSON.stringify({ aliado_codigo: opcion.trim().toUpperCase() }) });
+    showToast('Lead reasignado');
+    orgCargarLeads();
+  } catch(e){ showToast('Error: ' + (e.message||''), true); }
+}
+
+async function orgEliminarLead(leadId){
+  if(!confirm('¿Eliminar este lead? La acción no se puede deshacer.')) return;
+  try {
+    await api(`/api/organizador/leads/${leadId}`, { method:'DELETE' });
+    showToast('Lead eliminado');
+    orgCargarLeads();
+  } catch(e){ showToast('Error al eliminar', true); }
+}
+
+function orgNuevoLead(){
+  if(!_orgSocios.length && SOCIO.es_organizador) orgCargarEstructura().then(orgPoblarSelectores);
+  document.getElementById('org-lead-nombre').value = '';
+  document.getElementById('org-lead-tel').value = '';
+  document.getElementById('org-lead-localidad').value = '';
+  document.getElementById('org-modal-lead').style.display = 'flex';
+}
+
+async function orgGuardarLead(){
+  const nombre = document.getElementById('org-lead-nombre').value.trim();
+  const tel = document.getElementById('org-lead-tel').value.trim();
+  if(!nombre||!tel){ showToast('Nombre y teléfono son obligatorios', true); return; }
+  try {
+    await api('/api/organizador/leads', { method:'POST', body: JSON.stringify({
+      nombre, telefono:tel,
+      localidad: document.getElementById('org-lead-localidad').value.trim(),
+      producto_interes: document.getElementById('org-lead-interes').value,
+      aliado_codigo: document.getElementById('org-lead-asignado').value,
+    })});
+    document.getElementById('org-modal-lead').style.display = 'none';
+    showToast('Lead creado');
+    orgCargarLeads();
+  } catch(e){ showToast('Error al guardar', true); }
+}
+
+async function orgCargarVentas(){
+  const cont = document.getElementById('org-ventas-contenido');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  const dias = document.getElementById('org-ventas-periodo')?.value || 30;
+  try {
+    const data = await api(`/api/organizador/ventas?periodo_dias=${dias}`);
+    const ventas = data.ventas || [];
+    if(!ventas.length){ cont.innerHTML = '<p style="color:var(--text-muted)">Sin ventas en este período.</p>'; return; }
+    cont.innerHTML = `<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">${data.total} venta${data.total!==1?'s':''}</div>` +
+      ventas.map(v => {
+        const socioLabel = _orgSocios.find(s=>s.codigo===v.aliado_codigo)?.nombre || v.aliado_codigo || '—';
+        return `<div class="venta-card" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div><div style="font-weight:700;font-size:14px">${v.cliente_nombre}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${v.producto} ${v.modelo_especifico || ''}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:800;font-size:15px;color:var(--navy)">${fmt(v.precio_final)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${socioLabel}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+  } catch(e){ cont.innerHTML = '<p style="color:#ef4444">Error al cargar ventas.</p>'; }
+}
+
+function orgNuevaVenta(){
+  orgPoblarSelectores();
+  document.getElementById('org-venta-cliente').value='';
+  document.getElementById('org-venta-tel').value='';
+  document.getElementById('org-venta-modelo').value='';
+  document.getElementById('org-venta-precio').value='';
+  document.getElementById('org-modal-venta').style.display='flex';
+}
+
+async function orgGuardarVenta(){
+  const cliente = document.getElementById('org-venta-cliente').value.trim();
+  const precio = parseFloat(document.getElementById('org-venta-precio').value);
+  if(!cliente||!precio){ showToast('Cliente y precio son obligatorios',true); return; }
+  try {
+    await api('/api/organizador/ventas/contado',{ method:'POST', body: JSON.stringify({
+      cliente_nombre:cliente,
+      cliente_telefono: document.getElementById('org-venta-tel').value.trim(),
+      producto: document.getElementById('org-venta-producto').value,
+      modelo_especifico: document.getElementById('org-venta-modelo').value.trim(),
+      precio_final:precio,
+      aliado_codigo: document.getElementById('org-venta-asesor').value,
+    })});
+    document.getElementById('org-modal-venta').style.display='none';
+    showToast('Venta cargada');
+    orgCargarVentas();
+  } catch(e){ showToast('Error al guardar',true); }
+}
+
+async function orgCargarVL(){
+  const cont = document.getElementById('org-vl-contenido');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  try {
+    const data = await api('/api/organizador/videollamadas');
+    const vls = data.videollamadas || [];
+    if(!vls.length){ cont.innerHTML='<p style="color:var(--text-muted)">Sin videollamadas registradas.</p>'; return; }
+    cont.innerHTML = vls.map(v => {
+      const socioLabel = _orgSocios.find(s=>s.codigo===v.aliado_codigo)?.nombre || v.aliado_codigo || '—';
+      const fecha = v.fecha_hora ? new Date(v.fecha_hora).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'}) : '—';
+      return `<div class="venta-card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div><div style="font-weight:700;font-size:14px">${v.lead_nombre}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${fecha} · ${socioLabel}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:11px;font-weight:700;color:var(--teal);background:rgba(78,195,181,.12);padding:2px 8px;border-radius:10px">${v.estado}</span>
+            <button class="btn-ghost" style="font-size:11px;padding:3px 8px;color:#ef4444" onclick="orgEliminarVL(${v.id})">🗑</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e){ cont.innerHTML='<p style="color:#ef4444">Error al cargar videollamadas.</p>'; }
+}
+
+async function orgEliminarVL(vlId){
+  if(!confirm('¿Eliminar esta videollamada?')) return;
+  try {
+    await api(`/api/organizador/videollamadas/${vlId}`,{method:'DELETE'});
+    showToast('Videollamada eliminada');
+    orgCargarVL();
+  } catch(e){ showToast('Error al eliminar',true); }
+}
+
+// ─── STOCK DE PISCINAS ────────────────────────────────────────────────────────
+
+const STOCK_CAT_LABELS = {
+  POZO:'Piletas de Pozo', AUTOPORTANTE:'Autoportante', MINIPORTANTE:'Miniportante',
+  MINI_DECK:'Mini Deck', PLAYA_ADICIONAL:'Playa Húmeda Adicional',
+  HIDROMASAJE:'Hidromasajes', REPOSERA:'Reposeras',
+};
+const STOCK_CAT_COLORS = {
+  POZO:'#0077b6', AUTOPORTANTE:'#2d6a4f', MINIPORTANTE:'#5e548e',
+  MINI_DECK:'#e07a5f', PLAYA_ADICIONAL:'#3d405b', HIDROMASAJE:'#f4a261',
+  REPOSERA:'#457b9d',
+};
+
+let _stockData = null;
+
+async function cargarStockInicio(){
+  try {
+    const data = await api('/api/stock/piscinas');
+    _stockData = data;
+    const el = document.getElementById('stock-inicio-resumen');
+    if(!el) return;
+    const cats = Object.entries(data.categorias || {});
+    el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">` +
+      cats.map(([cat, info]) =>
+        `<span style="background:rgba(0,119,182,.12);border:1px solid rgba(0,119,182,.25);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600">
+          ${info.label}: <strong style="color:#0077b6">${info.total}</strong>
+        </span>`
+      ).join('') +
+    `</div><p style="margin:6px 0 0;font-size:12px;color:var(--text-muted)">Total disponible: <strong style="color:#4ade80">${data.total}</strong> unidades · Actualizado por el equipo EcoFiver</p>`;
+  } catch(e) {
+    const el = document.getElementById('stock-inicio-resumen');
+    if(el) el.textContent = 'No disponible.';
+  }
+}
+
+async function cargarStock(){
+  const cont = document.getElementById('stock-full-contenido');
+  if(!cont) return;
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando...</p>';
+  try {
+    const data = _stockData || await api('/api/stock/piscinas');
+    _stockData = data;
+    const cats = Object.entries(data.categorias || {});
+    if(!cats.length){ cont.innerHTML='<p style="color:var(--text-muted)">Sin datos de stock.</p>'; return; }
+    cont.innerHTML = cats.map(([cat, info]) => {
+      const color = STOCK_CAT_COLORS[cat] || '#888';
+      const rows = info.items.map(it =>
+        `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 10px;font-weight:600">${it.modelo}</td>
+          <td style="padding:8px 10px">${it.color}</td>
+          <td style="padding:8px 10px;text-align:center">
+            <span style="font-size:18px;font-weight:800;color:${it.cantidad>0?'#4ade80':'#f87171'}">${it.cantidad}</span>
+          </td>
+          <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${it.ubicacion||''}</td>
+          <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${it.notas||''}</td>
+        </tr>`
+      ).join('');
+      return `<div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
+        <div style="background:${color};padding:10px 16px;display:flex;align-items:center;justify-content:space-between">
+          <span style="color:#fff;font-weight:700;font-size:14px">${info.label}</span>
+          <span style="background:rgba(255,255,255,.2);color:#fff;border-radius:20px;padding:2px 10px;font-size:13px;font-weight:700">${info.total} unidades</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-muted);text-align:left">Modelo</th>
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-muted);text-align:left">Color</th>
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-muted);text-align:center">Cant.</th>
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-muted);text-align:left">Ubicación</th>
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-muted);text-align:left">Notas</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+  } catch(e){ cont.innerHTML='<p style="color:#ef4444">Error al cargar stock.</p>'; }
+}
+</script>
 </body>
 </html>

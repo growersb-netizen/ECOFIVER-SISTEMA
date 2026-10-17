@@ -415,9 +415,13 @@ class StockPiscina(Base):
     __tablename__ = "stock_piscinas"
 
     id = Column(Integer, primary_key=True, index=True)
+    categoria = Column(String(50), nullable=False, default="AUTOPORTANTE")
     modelo = Column(String(150), nullable=False)
-    color = Column(String(50), nullable=False)
+    color = Column(String(50), nullable=False, default="")
     cantidad = Column(Integer, default=0)
+    ubicacion = Column(String(100), nullable=True)
+    disponible = Column(Boolean, default=True)
+    notas = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
@@ -1385,6 +1389,15 @@ class Aliado(Base):
 
     # ── Primer login: muestra bienvenida + guía + fuerza cambio de contraseña ──
     primer_login = Column(Boolean, default=False)
+
+    # ── Estructura comercial: organizaciones ─────────────────────────────────
+    # Un "organizador" coordina un grupo de socios comerciales bajo su org.
+    # organizacion_codigo apunta al codigo del Aliado organizador de esa org.
+    es_organizador = Column(Boolean, default=False)
+    organizacion_codigo = Column(String(20), nullable=True, index=True)
+
+    # Mensaje de presentación personalizable que el socio envía al contactar leads por WA
+    wa_template_presentacion = Column(Text, nullable=True)
 
 
 class MaterialSocio(Base):

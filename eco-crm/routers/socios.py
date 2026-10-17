@@ -2115,7 +2115,6 @@ async def admin_asignar_leads(
 @router.get("/api/socio/leads")
 async def socio_leads(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """Leads asignados a este socio para que los contacte directamente."""
-    _require_verificado(socio)
     leads = (
         db.query(Lead)
         .filter(Lead.aliado_codigo == socio.codigo)
@@ -2140,6 +2139,7 @@ async def socio_leads(socio: Aliado = Depends(require_socio), db: Session = Depe
                 "modelo_especifico": l.modelo_especifico or "",
                 "forma_pago": l.forma_pago or "SIN_DEFINIR",
                 "estado": l.estado or "NUEVO",
+                "etiqueta_color": l.etiqueta_color or "",
                 "notas": l.notas or "",
                 "created_at": l.created_at.isoformat() if l.created_at else "",
                 "proximo_seguimiento": l.proximo_seguimiento.isoformat() if l.proximo_seguimiento else None,
@@ -2147,6 +2147,46 @@ async def socio_leads(socio: Aliado = Depends(require_socio), db: Session = Depe
             for l in leads
         ],
     }
+
+
+@router.put("/api/socio/leads/{lead_id}")
+async def socio_actualizar_lead(
+    lead_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Vendedor actualiza estado, etiqueta de color y notas de un lead que tiene asignado."""
+    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.aliado_codigo == socio.codigo).first()
+    if not lead:
+        raise HTTPException(404, "Lead no encontrado o no pertenece a este socio")
+    data = await request.json()
+    ESTADOS_VALIDOS = {"NUEVO", "INTENTADO", "CONTACTADO", "EN_SEGUIMIENTO", "CALIFICADO", "CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"}
+    COLORES_VALIDOS = {"", "rojo", "amarillo", "verde", "azul", "gris"}
+    if "estado" in data and data["estado"] in ESTADOS_VALIDOS:
+        lead.estado = data["estado"]
+    if "etiqueta_color" in data and data["etiqueta_color"] in COLORES_VALIDOS:
+        lead.etiqueta_color = data["etiqueta_color"]
+    if "notas" in data:
+        lead.notas = str(data["notas"])[:2000]
+    db.commit()
+    return {"ok": True, "id": lead.id, "estado": lead.estado, "etiqueta_color": lead.etiqueta_color}
+
+
+@router.delete("/api/socio/leads/{lead_id}/devolver")
+async def socio_devolver_lead(
+    lead_id: int,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Vendedor devuelve un lead asignado — queda sin asignar para que admin lo redistribuya."""
+    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.aliado_codigo == socio.codigo).first()
+    if not lead:
+        raise HTTPException(404, "Lead no encontrado o no pertenece a este socio")
+    lead.aliado_codigo = None
+    lead.estado = "NUEVO"
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/api/socio/quiz")
@@ -4725,20 +4765,142 @@ async def admin_organizaciones(
     current_user: Optional[Usuario] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Lista todas las organizaciones (socios con es_organizador=True) con sus miembros."""
+    """Lista todas las organizaciones con miembros y KPIs de rendimiento."""
     _require_gestion_interna(x_api_key, current_user)
+    from datetime import datetime as _dt
+    inicio_mes = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
     orgs = db.query(Aliado).filter(Aliado.es_organizador == True).all()
     resultado = []
     for org in orgs:
         miembros = db.query(Aliado).filter(Aliado.organizacion_codigo == org.codigo).all()
+        codigos = [org.codigo] + [m.codigo for m in miembros]
+
+        leads_all = db.query(Lead).filter(Lead.aliado_codigo.in_(codigos)).all() if codigos else []
+        leads_activos = sum(1 for l in leads_all if l.estado not in ("CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"))
+        leads_ganados = sum(1 for l in leads_all if l.estado == "CERRADO_GANADO")
+
+        ventas_mes = db.query(VentaContado).filter(
+            VentaContado.aliado_codigo.in_(codigos),
+            VentaContado.created_at >= inicio_mes,
+        ).all() if codigos else []
+
+        vl_mes = db.query(Videollamada).filter(
+            Videollamada.aliado_codigo.in_(codigos),
+            Videollamada.fecha_hora >= inicio_mes,
+        ).count() if codigos else 0
+
+        miembros_data = []
+        for m in miembros:
+            m_leads = [l for l in leads_all if l.aliado_codigo == m.codigo]
+            m_ventas = [v for v in ventas_mes if v.aliado_codigo == m.codigo]
+            miembros_data.append({
+                "codigo": m.codigo,
+                "nombre": m.nombre,
+                "zona": m.zona or "",
+                "estado": m.estado,
+                "leads_total": len(m_leads),
+                "leads_activos": sum(1 for l in m_leads if l.estado not in ("CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO")),
+                "ventas_mes": len(m_ventas),
+            })
+
         resultado.append({
             "codigo": org.codigo,
             "nombre": org.nombre,
             "zona": org.zona or "",
             "telefono": org.telefono or "",
-            "miembros": [{"codigo": m.codigo, "nombre": m.nombre, "zona": m.zona or "", "estado": m.estado} for m in miembros],
+            "leads_total": len(leads_all),
+            "leads_activos": leads_activos,
+            "leads_ganados": leads_ganados,
+            "ventas_mes": len(ventas_mes),
+            "videollamadas_mes": vl_mes,
+            "miembros": miembros_data,
         })
     return {"total": len(resultado), "organizaciones": resultado}
+
+
+@router.get("/api/admin/organizaciones/ventas")
+async def admin_organizaciones_ventas(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Todas las ventas de socios, agrupadas por organización."""
+    _require_gestion_interna(x_api_key, current_user)
+    orgs = db.query(Aliado).filter(Aliado.es_organizador == True).all()
+    aliado_org: dict = {}
+    for org in orgs:
+        aliado_org[org.codigo] = org.nombre
+        for m in db.query(Aliado).filter(Aliado.organizacion_codigo == org.codigo).all():
+            aliado_org[m.codigo] = org.nombre
+
+    ventas = (
+        db.query(VentaContado)
+        .filter(VentaContado.aliado_codigo.isnot(None))
+        .order_by(VentaContado.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return {
+        "ventas": [
+            {
+                "id": v.id,
+                "cliente_nombre": v.cliente_nombre,
+                "cliente_localidad": v.cliente_localidad or "",
+                "producto": v.producto or "",
+                "modelo_especifico": v.modelo_especifico or "",
+                "precio_final": v.precio_final or 0,
+                "estado": v.estado or "",
+                "aliado_codigo": v.aliado_codigo,
+                "organizacion": aliado_org.get(v.aliado_codigo, "Sin org."),
+                "created_at": v.created_at.isoformat() if v.created_at else "",
+            }
+            for v in ventas
+        ]
+    }
+
+
+@router.get("/api/admin/organizaciones/videollamadas")
+async def admin_organizaciones_videollamadas(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Todas las videollamadas agendadas por socios, agrupadas por organización."""
+    _require_gestion_interna(x_api_key, current_user)
+    orgs = db.query(Aliado).filter(Aliado.es_organizador == True).all()
+    aliado_org: dict = {}
+    aliado_nombre: dict = {}
+    for org in orgs:
+        aliado_org[org.codigo] = org.nombre
+        aliado_nombre[org.codigo] = org.nombre
+        for m in db.query(Aliado).filter(Aliado.organizacion_codigo == org.codigo).all():
+            aliado_org[m.codigo] = org.nombre
+            aliado_nombre[m.codigo] = m.nombre
+
+    vls = (
+        db.query(Videollamada)
+        .filter(Videollamada.aliado_codigo.isnot(None))
+        .order_by(Videollamada.fecha_hora.desc())
+        .limit(200)
+        .all()
+    )
+    return {
+        "videollamadas": [
+            {
+                "id": v.id,
+                "cliente_nombre": v.cliente_nombre,
+                "producto_interes": v.producto_interes or "",
+                "fecha_hora": v.fecha_hora.isoformat() if v.fecha_hora else "",
+                "estado": v.estado or "",
+                "resultado": v.resultado or "",
+                "aliado_codigo": v.aliado_codigo,
+                "aliado_nombre": aliado_nombre.get(v.aliado_codigo, v.aliado_codigo),
+                "organizacion": aliado_org.get(v.aliado_codigo, "Sin org."),
+            }
+            for v in vls
+        ]
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -4804,6 +4966,7 @@ async def organizador_leads(
             "producto_interes": l.producto_interes or "SIN_DEFINIR",
             "forma_pago": l.forma_pago or "SIN_DEFINIR",
             "estado": l.estado or "NUEVO",
+            "etiqueta_color": l.etiqueta_color or "",
             "aliado_codigo": l.aliado_codigo or "",
             "notas": l.notas or "",
             "created_at": l.created_at.isoformat() if l.created_at else "",

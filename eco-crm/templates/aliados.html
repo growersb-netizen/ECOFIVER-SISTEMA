@@ -14,6 +14,12 @@
   .al-tab.active { background:var(--green,#16a34a); color:#fff; border-color:var(--green,#16a34a); }
   .al-pane { display:none; }
   .al-pane.active { display:block; }
+  .org-subtab { padding:7px 14px; border:none; border-bottom:3px solid transparent; background:transparent; color:var(--text-muted,#888); cursor:pointer; font-weight:600; font-size:13px; white-space:nowrap; }
+  .org-subtab.org-subtab-active { color:var(--green,#16a34a); border-bottom-color:var(--green,#16a34a); }
+  .org-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px; }
+  .org-kpi { background:var(--bg-card,#181822); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center; }
+  .org-kpi-val { font-size:26px; font-weight:800; line-height:1; }
+  .org-kpi-lbl { font-size:11px; color:var(--text-muted); margin-top:4px; }
   .al-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
   .al-badge { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; }
   .b-postulante  { background:#3a3320; color:#fbbf24; }
@@ -282,60 +288,86 @@
 <!-- ═══ ORGANIZACIONES ═══ -->
 <div id="pane-organizaciones" class="al-pane">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <h3 style="margin:0;font-size:15px">🏢 Estructuras comerciales</h3>
-    <button class="btn btn-secondary" onclick="adminCargarOrganizaciones()">↺ Actualizar</button>
+    <h3 style="margin:0;font-size:15px">🏢 Organizaciones comerciales</h3>
+    <button class="btn btn-secondary" onclick="orgAdminRefrescar()">↺ Actualizar</button>
   </div>
 
-  <!-- PASO 1: Activar organizador -->
-  <div style="background:var(--bg-card,#181822);border:1px solid #5e548e;border-radius:10px;padding:16px;margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span style="background:#5e548e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">PASO 1</span>
-      <h4 style="margin:0;font-size:13px;font-weight:700">Activar o desactivar rol de organizador</h4>
-    </div>
-    <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Hacer que un asesor pase a ser líder de organización. Primero hacé esto antes de asignar miembros.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-      <div>
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Código del socio</label>
-        <input id="org1-codigo" class="form-control" placeholder="Ej: AL-044" style="max-width:130px">
-      </div>
-      <div>
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Acción</label>
-        <select id="org1-accion" class="form-control" style="max-width:170px">
-          <option value="true">✅ Activar organizador</option>
-          <option value="false">❌ Desactivar organizador</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" onclick="adminActivarOrganizador()">Guardar</button>
-    </div>
-    <div id="org1-msg" style="margin-top:8px;font-size:13px"></div>
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:18px;overflow-x:auto">
+    <button class="org-subtab org-subtab-active" data-tab="estructura" onclick="orgAdminTab('estructura',this)">🏗️ Estructura</button>
+    <button class="org-subtab" data-tab="rendimiento" onclick="orgAdminTab('rendimiento',this)">📊 Rendimiento</button>
+    <button class="org-subtab" data-tab="ventas" onclick="orgAdminTab('ventas',this)">💰 Ventas</button>
+    <button class="org-subtab" data-tab="videollamadas" onclick="orgAdminTab('videollamadas',this)">📹 Videollamadas</button>
   </div>
 
-  <!-- PASO 2: Asignar miembro -->
-  <div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span style="background:var(--border);color:var(--text-primary,#e2e8f0);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">PASO 2</span>
-      <h4 style="margin:0;font-size:13px;font-weight:700">Asignar asesor a una organización</h4>
-    </div>
-    <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Una vez que hay organizadores, asignales asesores como miembros.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-      <div>
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Código del asesor</label>
-        <input id="org2-asesor" class="form-control" placeholder="Ej: AL-012" style="max-width:130px">
+  <!-- ── TAB: ESTRUCTURA ── -->
+  <div id="orgtab-estructura">
+    <!-- PASO 1: Activar organizador -->
+    <div style="background:var(--bg-card,#181822);border:1px solid #5e548e;border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="background:#5e548e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">PASO 1</span>
+        <h4 style="margin:0;font-size:13px;font-weight:700">Activar o desactivar rol de organizador</h4>
       </div>
-      <div>
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Organización (organizador)</label>
-        <select id="org2-organizador-select" class="form-control" style="max-width:220px">
-          <option value="">— seleccionar organizador —</option>
-        </select>
+      <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Hacer que un asesor pase a ser líder de organización. Hacé esto antes de asignar miembros.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Código del socio</label>
+          <input id="org1-codigo" class="form-control" placeholder="Ej: AL-044" style="max-width:130px">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Acción</label>
+          <select id="org1-accion" class="form-control" style="max-width:170px">
+            <option value="true">✅ Activar organizador</option>
+            <option value="false">❌ Desactivar organizador</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="adminActivarOrganizador()">Guardar</button>
       </div>
-      <button class="btn btn-primary" onclick="adminAsignarMiembro()">Asignar</button>
-      <button class="btn btn-secondary" onclick="adminQuitarDeOrg()">Quitar de org.</button>
+      <div id="org1-msg" style="margin-top:8px;font-size:13px"></div>
     </div>
-    <div id="org2-msg" style="margin-top:8px;font-size:13px"></div>
+
+    <!-- PASO 2: Asignar miembro -->
+    <div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="background:var(--border);color:var(--text-primary,#e2e8f0);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">PASO 2</span>
+        <h4 style="margin:0;font-size:13px;font-weight:700">Asignar asesor a una organización</h4>
+      </div>
+      <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Una vez que hay organizadores, asignales asesores como miembros.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Código del asesor</label>
+          <input id="org2-asesor" class="form-control" placeholder="Ej: AL-012" style="max-width:130px">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px">Organización</label>
+          <select id="org2-organizador-select" class="form-control" style="max-width:220px">
+            <option value="">— seleccionar organizador —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="adminAsignarMiembro()">Asignar</button>
+        <button class="btn btn-secondary" onclick="adminQuitarDeOrg()">Quitar de org.</button>
+      </div>
+      <div id="org2-msg" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <!-- Listado de organizaciones activas -->
+    <div id="org-lista-contenido"><div class="al-empty">Cargando organizaciones...</div></div>
   </div>
 
-  <!-- Listado de organizaciones activas -->
-  <div id="org-lista-contenido"><div class="al-empty">Cargando organizaciones...</div></div>
+  <!-- ── TAB: RENDIMIENTO ── -->
+  <div id="orgtab-rendimiento" style="display:none">
+    <div id="org-rendimiento-contenido"><div class="al-empty">Cargando...</div></div>
+  </div>
+
+  <!-- ── TAB: VENTAS ── -->
+  <div id="orgtab-ventas" style="display:none">
+    <div id="org-ventas-contenido"><div class="al-empty">Cargando...</div></div>
+  </div>
+
+  <!-- ── TAB: VIDEOLLAMADAS ── -->
+  <div id="orgtab-videollamadas" style="display:none">
+    <div id="org-vl-contenido"><div class="al-empty">Cargando...</div></div>
+  </div>
 </div>
 
 <!-- ═══ STOCK DE PISCINAS ═══ -->
@@ -1321,12 +1353,40 @@ document.addEventListener('DOMContentLoaded',()=>{cargarAliados();
 
 // ─── ORGANIZACIONES ──────────────────────────────────────────────────────────
 
+let _orgAdminData = null; // cache compartido entre tabs
+
+function orgAdminTab(tab, btn){
+  document.querySelectorAll('.org-subtab').forEach(b => b.classList.remove('org-subtab-active'));
+  btn.classList.add('org-subtab-active');
+  ['estructura','rendimiento','ventas','videollamadas'].forEach(t => {
+    document.getElementById('orgtab-'+t).style.display = t===tab ? '' : 'none';
+  });
+  if(tab==='rendimiento') adminCargarRendimiento();
+  else if(tab==='ventas') adminCargarOrgVentas();
+  else if(tab==='videollamadas') adminCargarOrgVideollamadas();
+}
+
+function orgAdminRefrescar(){
+  _orgAdminData = null;
+  const active = document.querySelector('.org-subtab.org-subtab-active');
+  const tab = active ? active.dataset.tab : 'estructura';
+  if(tab==='estructura') adminCargarOrganizaciones();
+  else if(tab==='rendimiento') adminCargarRendimiento();
+  else if(tab==='ventas') adminCargarOrgVentas();
+  else if(tab==='videollamadas') adminCargarOrgVideollamadas();
+}
+
+async function _orgGetData(){
+  if(!_orgAdminData) _orgAdminData = await AL.get('/api/admin/organizaciones').catch(()=>null);
+  return _orgAdminData;
+}
+
 async function adminCargarOrganizaciones(){
   const el = document.getElementById('org-lista-contenido');
   el.innerHTML = '<div class="al-empty">Cargando...</div>';
-  const data = await AL.get('/api/admin/organizaciones').catch(()=>null);
+  _orgAdminData = null;
+  const data = await _orgGetData();
 
-  // Actualizar select del paso 2
   const sel = document.getElementById('org2-organizador-select');
   sel.innerHTML = '<option value="">— seleccionar organizador —</option>';
 
@@ -1335,7 +1395,6 @@ async function adminCargarOrganizaciones(){
     return;
   }
 
-  // Poblar select del paso 2
   data.organizaciones.forEach(org => {
     const opt = document.createElement('option');
     opt.value = org.codigo;
@@ -1356,13 +1415,180 @@ async function adminCargarOrganizaciones(){
         <span style="font-size:18px">🏢</span>
         <div>
           <div style="font-weight:700;font-size:15px;color:var(--text-primary,#e2e8f0)">${esc(org.nombre)}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${org.codigo} · ${org.zona||'sin zona'}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${org.codigo} · ${org.zona||'sin zona'} · ${org.telefono||''}</div>
         </div>
         <span style="margin-left:auto;background:rgba(94,84,142,.2);color:#b39ddb;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700">Organizador · ${miembros.length} miembros</span>
       </div>
       ${mbs}
     </div>`;
   }).join('');
+}
+
+async function adminCargarRendimiento(){
+  const el = document.getElementById('org-rendimiento-contenido');
+  el.innerHTML = '<div class="al-empty">Cargando...</div>';
+  const data = await _orgGetData();
+  if(!data || !data.organizaciones || !data.organizaciones.length){
+    el.innerHTML = '<div class="al-empty">Sin organizaciones activas.</div>';
+    return;
+  }
+
+  // Global KPIs
+  let gLeads=0, gActivos=0, gGanados=0, gVentas=0, gVL=0;
+  data.organizaciones.forEach(o => {
+    gLeads   += o.leads_total||0;
+    gActivos += o.leads_activos||0;
+    gGanados += o.leads_ganados||0;
+    gVentas  += o.ventas_mes||0;
+    gVL      += o.videollamadas_mes||0;
+  });
+
+  const globalBar = `
+    <div style="margin-bottom:20px">
+      <h4 style="margin:0 0 10px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">📊 Resumen general — todas las organizaciones</h4>
+      <div class="org-kpi-grid">
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#60a5fa">${gLeads}</div><div class="org-kpi-lbl">Leads totales</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#f59e0b">${gActivos}</div><div class="org-kpi-lbl">Leads activos</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#22c55e">${gGanados}</div><div class="org-kpi-lbl">Cerrados ganados</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#a78bfa">${gVentas}</div><div class="org-kpi-lbl">Ventas este mes</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#38bdf8">${gVL}</div><div class="org-kpi-lbl">Videollamadas mes</div></div>
+      </div>
+    </div>`;
+
+  const orgsHtml = data.organizaciones.map(org => {
+    const miembros = org.miembros || [];
+    const tasa = org.leads_total > 0 ? Math.round(org.leads_ganados/org.leads_total*100) : 0;
+    const membTable = miembros.length ? `
+      <table class="al-table" style="margin-top:10px;font-size:13px">
+        <thead>
+          <tr>
+            <th>Asesor</th><th>Leads totales</th><th>Activos</th><th>Ventas mes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${miembros.map(m=>`
+            <tr>
+              <td><strong>${esc(m.nombre)}</strong><br><span style="font-size:11px;color:var(--text-muted)">${m.codigo}</span></td>
+              <td style="text-align:center">${m.leads_total||0}</td>
+              <td style="text-align:center"><span style="color:#f59e0b;font-weight:700">${m.leads_activos||0}</span></td>
+              <td style="text-align:center"><span style="color:#22c55e;font-weight:700">${m.ventas_mes||0}</span></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>` : `<p style="font-size:12px;color:var(--text-muted);margin-top:8px">Sin miembros asignados.</p>`;
+
+    return `<div style="background:var(--bg-card,#181822);border:1px solid #5e548e;border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-size:18px">🏢</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:15px">${esc(org.nombre)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${org.codigo} · ${org.zona||'sin zona'} · ${miembros.length} asesores</div>
+        </div>
+        <span style="font-size:12px;color:var(--text-muted)">Conv. <strong style="color:#22c55e">${tasa}%</strong></span>
+      </div>
+      <div class="org-kpi-grid">
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#60a5fa">${org.leads_total||0}</div><div class="org-kpi-lbl">Leads totales</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#f59e0b">${org.leads_activos||0}</div><div class="org-kpi-lbl">Activos</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#22c55e">${org.leads_ganados||0}</div><div class="org-kpi-lbl">Ganados</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#a78bfa">${org.ventas_mes||0}</div><div class="org-kpi-lbl">Ventas mes</div></div>
+        <div class="org-kpi"><div class="org-kpi-val" style="color:#38bdf8">${org.videollamadas_mes||0}</div><div class="org-kpi-lbl">Videollamadas</div></div>
+      </div>
+      ${membTable}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = globalBar + orgsHtml;
+}
+
+async function adminCargarOrgVentas(){
+  const el = document.getElementById('org-ventas-contenido');
+  el.innerHTML = '<div class="al-empty">Cargando...</div>';
+  const data = await AL.get('/api/admin/organizaciones/ventas').catch(()=>null);
+  if(!data || !data.ventas || !data.ventas.length){
+    el.innerHTML = '<div class="al-empty">Sin ventas registradas por socios aún.</div>';
+    return;
+  }
+  // Agrupar por organización
+  const grupos = {};
+  data.ventas.forEach(v => {
+    const key = v.organizacion || 'Sin org.';
+    if(!grupos[key]) grupos[key] = [];
+    grupos[key].push(v);
+  });
+
+  const html = Object.entries(grupos).map(([orgNombre, ventas]) => {
+    const rows = ventas.map(v => `
+      <tr>
+        <td><strong>${esc(v.cliente_nombre)}</strong><br><span style="font-size:11px;color:var(--text-muted)">${v.cliente_localidad}</span></td>
+        <td>${v.producto||''} ${v.modelo_especifico ? '· '+v.modelo_especifico : ''}</td>
+        <td style="text-align:right;font-weight:700;color:#22c55e">$${(v.precio_final||0).toLocaleString('es-AR')}</td>
+        <td><span style="font-size:11px">${v.aliado_codigo||''}</span></td>
+        <td style="font-size:11px;color:var(--text-muted)">${v.created_at ? new Date(v.created_at).toLocaleDateString('es-AR') : ''}</td>
+      </tr>`).join('');
+    const total = ventas.reduce((s,v)=>s+(v.precio_final||0),0);
+    return `<div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+        <span style="font-weight:700;font-size:14px">🏢 ${esc(orgNombre)}</span>
+        <span style="font-size:12px;color:var(--text-muted)">${ventas.length} venta${ventas.length!==1?'s':''} · Total: <strong style="color:#22c55e">$${total.toLocaleString('es-AR')}</strong></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="al-table" style="font-size:12.5px">
+          <thead><tr><th>Cliente</th><th>Producto</th><th>Precio</th><th>Asesor</th><th>Fecha</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = html;
+}
+
+async function adminCargarOrgVideollamadas(){
+  const el = document.getElementById('org-vl-contenido');
+  el.innerHTML = '<div class="al-empty">Cargando...</div>';
+  const data = await AL.get('/api/admin/organizaciones/videollamadas').catch(()=>null);
+  if(!data || !data.videollamadas || !data.videollamadas.length){
+    el.innerHTML = '<div class="al-empty">Sin videollamadas agendadas por socios aún.</div>';
+    return;
+  }
+  const VL_ESTADO_COLOR = {AGENDADA:'#f59e0b',REALIZADA:'#22c55e',CANCELADA:'#6b7280',EN_CURSO:'#3b82f6'};
+  const RES_COLOR = {PENDIENTE:'#f59e0b',VENTA:'#22c55e',NO_VENTA:'#ef4444',REAGENDAR:'#60a5fa'};
+
+  const grupos = {};
+  data.videollamadas.forEach(v => {
+    const key = v.organizacion || 'Sin org.';
+    if(!grupos[key]) grupos[key] = [];
+    grupos[key].push(v);
+  });
+
+  const html = Object.entries(grupos).map(([orgNombre, vls]) => {
+    const rows = vls.map(v => {
+      const ec = VL_ESTADO_COLOR[v.estado] || '#888';
+      const rc = RES_COLOR[v.resultado] || '#888';
+      const fecha = v.fecha_hora ? new Date(v.fecha_hora).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'}) : '—';
+      return `<tr>
+        <td><strong>${esc(v.cliente_nombre)}</strong></td>
+        <td>${v.producto_interes||''}</td>
+        <td style="font-size:11px">${fecha}</td>
+        <td><span style="font-size:11px;font-weight:700;color:${ec}">${v.estado}</span></td>
+        <td><span style="font-size:11px;font-weight:700;color:${rc}">${v.resultado}</span></td>
+        <td style="font-size:11px;color:var(--text-muted)">${esc(v.aliado_nombre||v.aliado_codigo||'')}</td>
+      </tr>`;
+    }).join('');
+    return `<div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+        <span style="font-weight:700;font-size:14px">🏢 ${esc(orgNombre)}</span>
+        <span style="font-size:12px;color:var(--text-muted)">${vls.length} videollamada${vls.length!==1?'s':''}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="al-table" style="font-size:12.5px">
+          <thead><tr><th>Cliente</th><th>Interés</th><th>Fecha/hora</th><th>Estado</th><th>Resultado</th><th>Asesor</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = html;
 }
 
 async function adminActivarOrganizador(){

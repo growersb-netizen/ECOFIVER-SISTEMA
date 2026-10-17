@@ -2395,6 +2395,15 @@ async function cancelarVideollamada(vlId){
 
 // ── FIN VIDEOLLAMADAS ────────────────────────────────────────────────────────
 
+const _LEAD_COLORES = {
+  '': { hex: '#9ca3af', label: '⚪ Sin etiqueta' },
+  'gris': { hex: '#9ca3af', label: '⚪ Sin etiqueta' },
+  'rojo': { hex: '#ef4444', label: '🔴 Urgente / caliente' },
+  'amarillo': { hex: '#f59e0b', label: '🟡 Tibio / seguimiento' },
+  'verde': { hex: '#22c55e', label: '🟢 Cerrado / ganado' },
+  'azul': { hex: '#3b82f6', label: '🔵 Frío / a trabajar' },
+};
+
 async function cargarMisLeads(){
   const cont = document.getElementById('mis-leads-contenido');
   cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
@@ -2419,38 +2428,107 @@ async function cargarMisLeads(){
       const msgCodificado = numLimpio ? encodeURIComponent(waTemplate) : '';
       const waBtn = numLimpio
         ? `<a href="https://wa.me/${numLimpio}?text=${msgCodificado}" target="_blank" rel="noopener"
-             style="display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;text-decoration:none;font-weight:700;font-size:12px;padding:5px 12px;border-radius:20px">
-             💬 Contactar por WhatsApp
+             style="display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;text-decoration:none;font-weight:700;font-size:12px;padding:5px 11px;border-radius:16px">
+             💬 WhatsApp
            </a>`
         : '';
+      const etqColor = _LEAD_COLORES[l.etiqueta_color || ''] || _LEAD_COLORES[''];
+      const colorDot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${etqColor.hex};margin-right:6px;flex-shrink:0" title="${etqColor.label}"></span>`;
+      const colorBtns = Object.entries(_LEAD_COLORES).filter(([k])=>k!=='gris').map(([k,v])=>
+        `<button onclick="cambiarEtiquetaLead(${l.id},this,'${k}')" title="${v.label}"
+          style="width:18px;height:18px;border-radius:50%;background:${v.hex};border:2px solid ${l.etiqueta_color===k?'var(--navy)':'transparent'};cursor:pointer;padding:0;transition:border .15s"></button>`
+      ).join('');
+      const estadoSelect = `<select id="sel-estado-${l.id}" class="input-field" style="font-size:12px;padding:4px 8px;height:auto;max-width:160px">
+        ${Object.entries(LEAD_ESTADO_LABEL).map(([v,label])=>`<option value="${v}"${l.estado===v?' selected':''}>${label}</option>`).join('')}
+      </select>
+      <button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="guardarEstadoLead(${l.id})">💾 Guardar</button>`;
+      const notasId = `notas-${l.id}`;
       return `
-        <div class="venta-card" style="margin-bottom:14px">
+        <div class="venta-card" id="lead-card-${l.id}" style="margin-bottom:14px;border-left:3px solid ${etqColor.hex}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-            <div>
-              <div style="font-weight:700;font-size:15px">${l.nombre}</div>
-              <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${l.localidad || ''}</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              ${colorDot}
+              <div>
+                <div style="font-weight:700;font-size:15px">${l.nombre}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${l.localidad || ''}${l.localidad && l.producto_interes ? ' · ' : ''}${l.producto_interes !== 'SIN_DEFINIR' ? l.producto_interes : ''}</div>
+              </div>
             </div>
             <span style="font-size:12px;font-weight:700;color:${estadoColor};background:${estadoColor}22;padding:3px 10px;border-radius:12px;white-space:nowrap">${estadoLabel}</span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:12px;font-size:13px">
-            <div><span style="color:var(--text-muted)">Teléfono:</span><br><strong>${l.telefono || '—'}</strong></div>
-            <div><span style="color:var(--text-muted)">Interés:</span><br><strong>${l.producto_interes || '—'}${l.modelo_especifico ? ' · ' + l.modelo_especifico : ''}</strong></div>
-            <div><span style="color:var(--text-muted)">Forma de pago:</span><br><strong>${forma}</strong></div>
-            <div><span style="color:var(--text-muted)">Asignado:</span><br><strong>${fecha}</strong></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;margin-top:10px;font-size:12.5px">
+            <div><span style="color:var(--text-muted)">Tel:</span> <strong>${l.telefono || '—'}</strong></div>
+            <div><span style="color:var(--text-muted)">Pago:</span> <strong>${forma}</strong></div>
+            <div><span style="color:var(--text-muted)">Desde:</span> <strong>${fecha}</strong></div>
           </div>
-          ${waBtn ? `<div style="margin-top:12px">${waBtn}</div>` : ''}
-          ${l.notas ? `<div style="margin-top:10px;font-size:12.5px;color:var(--text-muted);background:rgba(0,0,0,.03);border-radius:6px;padding:8px 10px;border-left:3px solid var(--teal)">${l.notas.replace(/\n/g,'<br>')}</div>` : ''}
+          <!-- Barra de acciones -->
+          <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="display:flex;gap:4px;align-items:center">${colorBtns}</div>
+            <div style="flex:1;min-width:200px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              ${estadoSelect}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            ${waBtn}
+            <button class="btn-ghost" style="font-size:12px;padding:4px 10px" onclick="toggleNotasLead(${l.id})">📝 Notas</button>
+            <button class="btn-ghost" style="font-size:12px;padding:4px 10px;color:#ef4444" onclick="devolverLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}')">↩ Devolver</button>
+          </div>
+          ${l.notas ? `<div style="margin-top:8px;font-size:12.5px;color:var(--text-muted);background:rgba(0,0,0,.03);border-radius:6px;padding:8px 10px;border-left:3px solid var(--teal)">${l.notas.replace(/\n/g,'<br>')}</div>` : ''}
+          <div id="${notasId}" style="display:none;margin-top:8px">
+            <textarea id="${notasId}-txt" rows="3" class="input-field" style="width:100%;font-size:13px;resize:vertical">${l.notas||''}</textarea>
+            <button class="btn-primary" style="font-size:12px;margin-top:6px;padding:5px 14px" onclick="guardarNotasLead(${l.id})">Guardar notas</button>
+          </div>
         </div>`;
     }).join('');
     cont.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <span style="font-size:13px;color:var(--text-muted)">${data.total} lead${data.total !== 1 ? 's' : ''} asignado${data.total !== 1 ? 's' : ''}</span>
-        <button class="btn-ghost" style="font-size:12px" onclick="editarMensajeWA(${JSON.stringify(waTemplate)})">✏️ Editar mensaje de presentación</button>
+        <button class="btn-ghost" style="font-size:12px" onclick="editarMensajeWA(${JSON.stringify(waTemplate)})">✏️ Editar mensaje WA</button>
       </div>
       ${rows}`;
   } catch(e) {
     cont.innerHTML = '<p style="color:#ef4444">Error al cargar leads. Intentá de nuevo.</p>';
   }
+}
+
+async function cambiarEtiquetaLead(leadId, btn, color){
+  try {
+    await api(`/api/socio/leads/${leadId}`, { method:'PUT', body: JSON.stringify({ etiqueta_color: color }) });
+    cargarMisLeads();
+  } catch(e){ showToast('Error al guardar etiqueta', true); }
+}
+
+async function guardarEstadoLead(leadId){
+  const sel = document.getElementById('sel-estado-' + leadId);
+  if(!sel) return;
+  try {
+    await api(`/api/socio/leads/${leadId}`, { method:'PUT', body: JSON.stringify({ estado: sel.value }) });
+    showToast('Estado actualizado');
+    cargarMisLeads();
+  } catch(e){ showToast('Error al guardar estado', true); }
+}
+
+function toggleNotasLead(leadId){
+  const el = document.getElementById('notas-' + leadId);
+  if(el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarNotasLead(leadId){
+  const txt = document.getElementById('notas-' + leadId + '-txt');
+  if(!txt) return;
+  try {
+    await api(`/api/socio/leads/${leadId}`, { method:'PUT', body: JSON.stringify({ notas: txt.value }) });
+    showToast('Notas guardadas');
+    cargarMisLeads();
+  } catch(e){ showToast('Error al guardar notas', true); }
+}
+
+async function devolverLead(leadId, nombre){
+  if(!confirm(`¿Devolver el lead "${nombre}"?\n\nQueda sin asignar para que el equipo EcoFiver lo redistribuya. No se puede deshacer.`)) return;
+  try {
+    await api(`/api/socio/leads/${leadId}/devolver`, { method:'DELETE' });
+    showToast('Lead devuelto al pool');
+    cargarMisLeads();
+  } catch(e){ showToast('Error al devolver lead', true); }
 }
 
 async function editarMensajeWA(templateActual) {

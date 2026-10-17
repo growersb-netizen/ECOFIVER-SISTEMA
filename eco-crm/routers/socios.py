@@ -4368,65 +4368,75 @@ async def admin_verificar_whatsapp_manual(
 
 @router.get("/api/admin/wa/plantillas")
 async def admin_listar_plantillas_wa(
+    destino: Optional[str] = None,
     x_api_key: Optional[str] = Header(None),
     current_user: Optional[Usuario] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Consulta a Meta qué plantillas están disponibles y aprobadas para el
-    número configurado. Útil para diagnosticar por qué no llega el OTP.
+    Diagnóstico WA: info del número + test de envío de la plantilla OTP.
+    Pasar ?destino=5491XXXXXXXXX para enviar el test a ese número.
+    Sin ?destino solo devuelve info del número configurado.
     """
     _require_gestion_interna(x_api_key, current_user)
-    from utils.whatsapp import _get_wa_creds, WA_API_URL
+    from utils.whatsapp import _get_wa_creds, WA_API_URL, OTP_TEMPLATE_NAME, OTP_TEMPLATE_LANG
     token, phone_id = _get_wa_creds(db)
     if not token or not phone_id:
         raise HTTPException(503, "Credenciales WA no configuradas")
 
     import httpx as _httpx
     try:
-        # Paso 1: info del phone + obtener el waba_id
+        # Info del número configurado
         r_phone = _httpx.get(
             f"{WA_API_URL}/{phone_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "id,display_phone_number,verified_name,quality_rating,status,whatsapp_business_account"},
+            params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
             timeout=10,
         )
-        phone_data = r_phone.json() if r_phone.status_code == 200 else {}
-        waba_info = phone_data.pop("whatsapp_business_account", None) or {}
-        waba_id = waba_info.get("id")
+        phone_data = r_phone.json() if r_phone.status_code == 200 else {"error": r_phone.text[:200]}
 
-        if not waba_id:
-            return {
-                "ok": False,
-                "phone_info": phone_data,
-                "error": "No se pudo obtener el WhatsApp Business Account ID del número configurado.",
-                "phone_raw": r_phone.text[:300],
-            }
-
-        # Paso 2: plantillas en el WABA (no en el phone_id)
-        r_biz = _httpx.get(
-            f"{WA_API_URL}/{waba_id}/message_templates",
-            headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "name,status,language,category,components", "limit": 50},
-            timeout=10,
-        )
-        if r_biz.status_code == 200:
-            biz_data = r_biz.json()
-            plantillas = biz_data.get("data", [])
-            return {
-                "ok": True,
-                "phone_info": phone_data,
-                "waba_id": waba_id,
-                "total_plantillas": len(plantillas),
-                "plantillas": plantillas,
-            }
-        return {
-            "ok": False,
+        resultado = {
+            "ok": True,
             "phone_info": phone_data,
-            "waba_id": waba_id,
-            "error": r_biz.text[:500],
-            "status_code": r_biz.status_code,
+            "phone_id": phone_id,
+            "template_name": OTP_TEMPLATE_NAME,
+            "template_lang": OTP_TEMPLATE_LANG,
+            "nota": (
+                "Para verificar si la plantilla existe: ir a Meta Business Manager → "
+                "WhatsApp → Plantillas de mensajes y buscar '" + OTP_TEMPLATE_NAME + "'. "
+                "Para hacer un test de envío, agregar ?destino=549XXXXXXXXXX a esta URL."
+            ),
         }
+
+        if destino:
+            numero = destino.replace("+", "").replace(" ", "").replace("-", "")
+            codigo_test = "123456"
+            r_test = _httpx.post(
+                f"{WA_API_URL}/{phone_id}/messages",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={
+                    "messaging_product": "whatsapp",
+                    "to": numero,
+                    "type": "template",
+                    "template": {
+                        "name": OTP_TEMPLATE_NAME,
+                        "language": {"code": OTP_TEMPLATE_LANG},
+                        "components": [
+                            {"type": "body", "parameters": [{"type": "text", "text": codigo_test}]},
+                            {"type": "button", "sub_type": "url", "index": "0",
+                             "parameters": [{"type": "text", "text": codigo_test}]},
+                        ],
+                    },
+                },
+                timeout=10,
+            )
+            resultado["test_destino"] = numero
+            resultado["test_codigo"] = codigo_test
+            resultado["test_status"] = r_test.status_code
+            resultado["test_response"] = r_test.json() if r_test.headers.get("content-type", "").startswith("application/json") else r_test.text[:300]
+            resultado["test_ok"] = r_test.status_code == 200
+
+        return resultado
     except Exception as e:
         raise HTTPException(500, f"Error consultando Meta: {e}")
 

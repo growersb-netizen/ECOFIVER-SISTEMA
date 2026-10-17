@@ -324,7 +324,9 @@ async def socio_solicitar_codigo(request: Request, db: Session = Depends(get_db)
     socio.codigo_verificacion = otp
     socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
-    send_whatsapp_otp(db, socio.telefono, otp)
+    enviado = send_whatsapp_otp(db, socio.telefono, otp)
+    if not enviado:
+        raise HTTPException(503, "No se pudo enviar el código por WhatsApp. Revisá el número e intentá de nuevo.")
     return {"ok": True, "codigo": socio.codigo}
 
 
@@ -426,7 +428,9 @@ async def socio_reenviar_codigo(request: Request, db: Session = Depends(get_db))
     socio.codigo_verificacion = otp
     socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
-    send_whatsapp_otp(db, socio.telefono, otp)
+    enviado = send_whatsapp_otp(db, socio.telefono, otp)
+    if not enviado:
+        raise HTTPException(503, "No se pudo enviar el código por WhatsApp. Revisá el número e intentá de nuevo.")
     return {"ok": True}
 
 
@@ -663,7 +667,14 @@ async def enviar_codigo_whatsapp(request: Request, socio: Aliado = Depends(requi
     socio.codigo_verificacion = otp
     socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
     db.commit()
-    send_whatsapp_otp(db, socio.telefono, otp)
+    enviado = send_whatsapp_otp(db, socio.telefono, otp)
+    if not enviado:
+        raise HTTPException(
+            503,
+            "No se pudo enviar el código de verificación por WhatsApp. "
+            "Revisá que el número es correcto e intentá de nuevo en unos minutos. "
+            "Si el problema persiste, contactá al soporte."
+        )
     return {"ok": True}
 
 

@@ -76,26 +76,23 @@ def send_whatsapp_text(db: Session, to: str, mensaje: str) -> bool:
 
 
 OTP_TEMPLATE_NAME = "ecofiver_codigo_verificacion"
-OTP_TEMPLATE_LANG = "es_AR"
+OTP_TEMPLATE_LANG = "es"   # Meta usa "es", no "es_AR"
 
 
 def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
     """
-    Envía un código de verificación usando la plantilla de autenticación
-    aprobada por Meta ('ecofiver_codigo_verificacion'). Es OBLIGATORIO usar
-    una plantilla (no texto libre) para el primer mensaje a un número —
-    WhatsApp rechaza texto libre fuera de la ventana de 24hs de conversación
-    con el error 131047 "Re-engagement message", que es exactamente el caso
-    de un socio nuevo que nunca escribió antes. Retorna True si Meta aceptó
-    el envío (no garantiza entrega — eso llega después por webhook de status).
+    Envía OTP por WhatsApp.  Intenta primero con la plantilla aprobada por Meta;
+    si la plantilla falla (no existe, no aprobada, ventana de 24h cerrada, etc.)
+    cae a texto libre.  Retorna True si alguno de los dos métodos funcionó.
     """
     token, phone_id = _get_wa_creds(db)
     if not token or not phone_id:
-        log.warning("[WA] Credenciales no configuradas — omitiendo envío")
+        log.warning("[WA] Credenciales no configuradas — omitiendo OTP")
         return False
 
     numero = to.replace("+", "").replace(" ", "").replace("-", "")
 
+    # ── Intento 1: plantilla de autenticación ────────────────────────────────
     try:
         resp = httpx.post(
             f"{WA_API_URL}/{phone_id}/messages",
@@ -117,13 +114,27 @@ def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
             timeout=10,
         )
         if resp.status_code == 200:
-            log.info(f"[WA] OTP enviado a {numero}")
+            log.info(f"[WA] OTP (template) enviado a {numero}")
             return True
-        log.warning(f"[WA] Error OTP {resp.status_code}: {resp.text[:300]}")
-        return False
+        log.warning(
+            f"[WA] Template OTP falló {resp.status_code}: {resp.text[:400]} "
+            "— cayendo a texto libre"
+        )
     except Exception as e:
-        log.error(f"[WA] Excepción al enviar OTP: {e}")
-        return False
+        log.error(f"[WA] Excepción template OTP: {e} — cayendo a texto libre")
+
+    # ── Intento 2: texto libre (funciona dentro de la ventana de 24 h) ───────
+    mensaje = (
+        f"🔐 *Tu código de verificación EcoFiver es: {codigo}*\n\n"
+        f"Ingresalo en el panel para verificar tu WhatsApp.\n"
+        f"Vence en 10 minutos. No lo compartas con nadie."
+    )
+    ok = send_whatsapp_text(db, to, mensaje)
+    if ok:
+        log.info(f"[WA] OTP (texto libre) enviado a {numero}")
+    else:
+        log.error(f"[WA] No se pudo enviar OTP a {numero} por ningún método")
+    return ok
 
 
 def notificar_asesor_nuevo_lead(db: Session, asesor_telefono: str, lead_nombre: str,

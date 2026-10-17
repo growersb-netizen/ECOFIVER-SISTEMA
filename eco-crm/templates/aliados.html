@@ -456,7 +456,19 @@
         <div><label class="form-label">Contraseña <span id="ma-pwd-estado" style="font-size:11px;font-weight:400"></span></label><input class="form-control" id="ma-password" type="password" placeholder="mínimo 6 caracteres (dejar vacío = sin cambio)"></div>
       </div>
       <label class="form-label">Notas</label><textarea class="form-control" id="ma-notas" rows="2"></textarea>
-      <div style="margin-top:16px;padding:14px;background:rgba(78,195,181,.08);border:1px solid rgba(78,195,181,.3);border-radius:10px">
+      <!-- Verificación WhatsApp manual -->
+      <div id="ma-wa-panel" style="margin-top:12px;padding:12px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.25);border-radius:10px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:13px">📱 WhatsApp <span id="ma-wa-estado" style="font-size:12px;font-weight:400"></span></div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Si el socio no puede recibir el OTP, verificá su número manualmente.</div>
+          </div>
+          <button id="ma-wa-btn" class="btn btn-sm" onclick="verificarWaManual()" style="background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);color:#4ade80;white-space:nowrap">✅ Verificar WA manualmente</button>
+        </div>
+        <div id="ma-wa-msg" style="margin-top:6px;font-size:12px"></div>
+      </div>
+
+      <div style="margin-top:12px;padding:14px;background:rgba(78,195,181,.08);border:1px solid rgba(78,195,181,.3);border-radius:10px">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div>
             <div style="font-weight:700;font-size:13.5px">🔧 Acceso de Admin al programa</div>
@@ -522,7 +534,24 @@ async function cargarAliados(){
         <button class="btn btn-sm" onclick="verComisiones('${a.codigo}')">💸</button>
       </td></tr>`).join('')+`</tbody></table>`;
 }
-function nuevoAliado(){document.getElementById('ma-codigo-edit').value='';document.getElementById('ma-titulo').textContent='🤝 Nuevo aliado';['nombre','telefono','dni','cuit','zona','cbu','notas','email','password'].forEach(f=>ma(f,''));document.getElementById('ma-estado').value='postulante';document.getElementById('ma-contrato').value='false';}
+function nuevoAliado(){document.getElementById('ma-codigo-edit').value='';document.getElementById('ma-titulo').textContent='🤝 Nuevo aliado';['nombre','telefono','dni','cuit','zona','cbu','notas','email','password'].forEach(f=>ma(f,''));document.getElementById('ma-estado').value='postulante';document.getElementById('ma-contrato').value='false';const wp=document.getElementById('ma-wa-panel');if(wp)wp.style.display='none';}
+
+async function verificarWaManual(){
+  const cod = document.getElementById('ma-codigo-edit').value;
+  const msg = document.getElementById('ma-wa-msg');
+  if(!cod){ msg.style.color='#f87171'; msg.textContent='Guardá el socio primero.'; return; }
+  if(!confirm(`¿Marcar el WhatsApp de ${cod} como verificado sin enviar código?`)) return;
+  const r = await AL.send(`/api/admin/socios/${cod}/verificar-whatsapp-manual`, 'POST', {});
+  const j = await r.json().catch(()=>({}));
+  if(r.ok){
+    msg.style.color='#4ade80'; msg.textContent=`✅ ${j.mensaje||'WhatsApp verificado.'}`;
+    document.getElementById('ma-wa-btn').style.display='none';
+    document.getElementById('ma-wa-estado').innerHTML='<span style="color:#4ade80">✅ verificado</span>';
+    toast&&toast('WhatsApp verificado ✓');
+  } else {
+    msg.style.color='#f87171'; msg.textContent='Error: '+(j.detail||'no se pudo verificar');
+  }
+}
 function editar(a){
   document.getElementById('ma-titulo').textContent='✏️ Editar '+a.codigo;
   document.getElementById('ma-codigo-edit').value=a.codigo;
@@ -530,6 +559,18 @@ function editar(a){
   ma('zona',a.zona);ma('cbu',a.cbu_alias);ma('notas',a.notas);ma('email',a.email||'');ma('password','');
   const pwdEl = document.getElementById('ma-pwd-estado');
   if(pwdEl) pwdEl.innerHTML = a.tiene_password ? '<span style="color:#4ade80">● tiene contraseña</span>' : '<span style="color:#f87171">● sin contraseña</span>';
+  // Panel WA solo en edición
+  const waPanel = document.getElementById('ma-wa-panel');
+  if(waPanel && a.codigo){
+    waPanel.style.display = 'block';
+    const waEstado = document.getElementById('ma-wa-estado');
+    if(waEstado) waEstado.innerHTML = a.whatsapp_verificado
+      ? '<span style="color:#4ade80">✅ verificado</span>'
+      : '<span style="color:#f87171">❌ sin verificar</span>';
+    const waBtn = document.getElementById('ma-wa-btn');
+    if(waBtn) waBtn.style.display = a.whatsapp_verificado ? 'none' : 'inline-block';
+    document.getElementById('ma-wa-msg').textContent = '';
+  }
   document.getElementById('ma-estado').value=a.estado;
   document.getElementById('ma-contrato').value=a.contrato_firmado?'true':'false';
   // Admin CRM toggle

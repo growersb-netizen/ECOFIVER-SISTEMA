@@ -139,6 +139,7 @@ def _aliado_dict(a: Aliado) -> dict:
         "notas": a.notas or "",
         "es_admin_crm": bool(a.es_admin_crm),
         "tiene_password": bool(getattr(a, "password_hash", None)),
+        "whatsapp_verificado": bool(getattr(a, "whatsapp_verificado", False)),
     }
 
 

@@ -4329,6 +4329,94 @@ async def admin_set_password_temp(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SOPORTE: VERIFICACIÓN MANUAL + DIAGNÓSTICO WA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/admin/socios/{codigo}/verificar-whatsapp-manual")
+async def admin_verificar_whatsapp_manual(
+    codigo: str,
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Marca el WhatsApp del socio como verificado sin necesidad de OTP.
+    Usar cuando el socio no puede recibir el código (número nuevo, sin historial WA).
+    Solo para uso interno del equipo de soporte.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    socio = db.query(Aliado).filter(Aliado.codigo == codigo.strip().upper()).first()
+    if not socio:
+        raise HTTPException(404, f"Socio {codigo} no encontrado")
+    socio.whatsapp_verificado = True
+    socio.codigo_verificacion = None
+    socio.codigo_verificacion_expira = None
+    db.commit()
+    return {
+        "ok": True,
+        "codigo": socio.codigo,
+        "nombre": socio.nombre,
+        "whatsapp_verificado": True,
+        "mensaje": f"WhatsApp de {socio.nombre} ({socio.telefono}) verificado manualmente.",
+    }
+
+
+@router.get("/api/admin/wa/plantillas")
+async def admin_listar_plantillas_wa(
+    x_api_key: Optional[str] = Header(None),
+    current_user: Optional[Usuario] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Consulta a Meta qué plantillas están disponibles y aprobadas para el
+    número configurado. Útil para diagnosticar por qué no llega el OTP.
+    """
+    _require_gestion_interna(x_api_key, current_user)
+    from utils.whatsapp import _get_wa_creds, WA_API_URL
+    token, phone_id = _get_wa_creds(db)
+    if not token or not phone_id:
+        raise HTTPException(503, "Credenciales WA no configuradas")
+
+    # Obtener el waba_id a partir del phone_id
+    import httpx as _httpx
+    try:
+        # Primero obtenemos el business account del phone_id
+        r_phone = _httpx.get(
+            f"{WA_API_URL}/{phone_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
+            timeout=10,
+        )
+        phone_data = r_phone.json() if r_phone.status_code == 200 else {}
+
+        # Buscar las plantillas del business
+        r_biz = _httpx.get(
+            f"{WA_API_URL}/{phone_id}/message_templates",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "name,status,language,category", "limit": 50},
+            timeout=10,
+        )
+        if r_biz.status_code == 200:
+            biz_data = r_biz.json()
+            plantillas = biz_data.get("data", [])
+            return {
+                "ok": True,
+                "phone_info": phone_data,
+                "total_plantillas": len(plantillas),
+                "plantillas": plantillas,
+                "raw_status": r_biz.status_code,
+            }
+        return {
+            "ok": False,
+            "phone_info": phone_data,
+            "error": r_biz.text[:500],
+            "status_code": r_biz.status_code,
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Error consultando Meta: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # ORGANIZACIONES: ADMIN
 # ═══════════════════════════════════════════════════════════════════════════════
 

@@ -1407,7 +1407,7 @@ class MaterialSocio(Base):
     __tablename__ = "materiales_socio"
 
     id = Column(Integer, primary_key=True, index=True)
-    tipo = Column(String(30), default="imagen")          # imagen | video | flyer | documento | foto_entrega | guia
+    tipo = Column(String(30), default="imagen")          # imagen | video | flyer | documento | foto_entrega | guia | copy | instructivo
     categoria = Column(String(30), default="general")     # modulos | piscinas | combo | redes | ventas | general
     titulo = Column(String(200), default="")
     descripcion = Column(Text, default="")

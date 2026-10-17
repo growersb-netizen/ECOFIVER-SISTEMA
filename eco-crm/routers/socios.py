@@ -1536,6 +1536,204 @@ _COPYS_SEED = [
          "área de instalación directa, te entrego el producto en formato casco (o casco con equipo de filtrado "
          "completo) y coordinamos juntos la instalación con tu equipo o un instalador de confianza."
      )},
+    {"tipo": "copy", "categoria": "ventas", "orden": 32,
+     "titulo": "Respuesta lista — \"Está muy caro\"",
+     "descripcion": (
+         "Entiendo — ¿comparado con qué lo estás evaluando? Si es con una pileta de lona o un galpón prefabricado, "
+         "la diferencia está en la durabilidad y la garantía: esto es de fábrica propia, con 10 años de respaldo. "
+         "Si el precio de contado no entra, hay plan en cuotas desde [X cuotas de $Y/mes] — sin banco ni recibo. "
+         "¿Preferís que te arme la simulación?"
+     )},
+    {"tipo": "copy", "categoria": "ventas", "orden": 33,
+     "titulo": "Respuesta lista — \"Lo tengo que pensar\"",
+     "descripcion": (
+         "Obvio, tomá el tiempo que necesitás. Te dejo el presupuesto por escrito para que lo tengas a mano. "
+         "¿Hay alguna duda puntual que te frenó? A veces hay un detalle que no quedó claro y lo resolvemos en "
+         "dos minutos — sobre la instalación, el tamaño, el plan de pagos, lo que sea."
+     )},
+    {"tipo": "copy", "categoria": "redes", "orden": 70,
+     "titulo": "Publicación para grupo de WhatsApp",
+     "descripcion": (
+         "Hola a todos 👋 Soy [TU NOMBRE], de [TU ZONA]. Represento a EcoFiver — fábrica propia de piscinas de "
+         "fibra y módulos habitacionales desde Zárate, Buenos Aires.\n\n"
+         "📌 Instalación en el día · Garantía 10 años de fábrica · Financiación propia sin banco\n\n"
+         "Podés verlo en: www.ecomodulosypiscinas.com.ar\n\n"
+         "Si alguien quiere un presupuesto o tiene consultas, escribime directamente 👇 "
+         "📲 [TU NÚMERO DE WHATSAPP]"
+     )},
+    {"tipo": "copy", "categoria": "redes", "orden": 71,
+     "titulo": "Publicación para grupo de Facebook / Marketplace",
+     "descripcion": (
+         "🏊 Piscinas de fibra y módulos habitacionales — directo de fábrica, entrega e instalación en el día\n\n"
+         "Represento a EcoFiver en [TU ZONA]. Financiación propia en cuotas (sin banco, sin recibo de sueldo). "
+         "Modelos desde 4 hasta 9,20 metros para piscinas. Módulos habitacionales de 6, 12 y 18 m².\n\n"
+         "✅ Garantía 10 años ✅ Fábrica propia ✅ Cuotas desde 24 a 120 meses\n\n"
+         "Consultas al [TU NÚMERO] o respondé este mensaje. ¡Tengo catálogo y lista de precios actualizada!"
+     )},
+    {"tipo": "copy", "categoria": "redes", "orden": 72,
+     "titulo": "Historia de Instagram — precio + cuota del mes",
+     "descripcion": (
+         "Piscina de fibra — [MODELO]\n"
+         "💰 Contado: $[PRECIO]\n"
+         "📅 Cuotas desde $[CUOTA]/mes (hasta 120 meses)\n\n"
+         "Financiación propia · Sin banco · Garantía 10 años\n\n"
+         "Swipe up o escribime 👉 [TU CONTACTO]"
+     )},
+    {"tipo": "copy", "categoria": "ventas", "orden": 34,
+     "titulo": "Pedido de referido a un contacto satisfecho",
+     "descripcion": (
+         "Hola [NOMBRE], ¿cómo quedó todo con [el módulo / la piscina]? ✨\n\n"
+         "Te consulto: ¿conocés a alguien en tu círculo (familia, vecinos, compañeros de trabajo) que pueda "
+         "estar buscando algo similar? Si me pasás el contacto y avanza, hay una comisión para vos también. "
+         "Sin compromiso — si sabés de alguien, te agradezco el dato 🙌"
+     )},
+    {"tipo": "copy", "categoria": "ventas", "orden": 35,
+     "titulo": "Seguimiento 48hs — cliente que pidió info pero no respondió",
+     "descripcion": (
+         "Hola [NOMBRE], te escribo para ver si tuviste tiempo de revisar lo que te mandé sobre [el módulo / "
+         "la piscina / el combo]. ¿Surgió alguna duda? Puedo pasarte más fotos, la lista de precios actualizada "
+         "o armar una simulación de cuotas para que lo veas más claro. ¡Avisame cuando puedas!"
+     )},
+]
+
+
+_INSTRUCTIVOS_SEED = [
+    {
+        "tipo": "instructivo", "categoria": "redes", "orden": 1,
+        "titulo": "Cómo publicar en grupos de WhatsApp para generar leads",
+        "descripcion": (
+            "PASO 1 — Identificá grupos relevantes de tu zona\n"
+            "Buscá en WhatsApp grupos de vecinos, barrios, madres/padres del colegio, emprendedores locales, "
+            "grupos de Facebook o Telegram de tu ciudad. Pedí que te agreguen si no estás, o buscá referencias "
+            "de grupos a través de contactos en común.\n\n"
+            "PASO 2 — Esperá el momento correcto\n"
+            "No publiques en grupos el primer día de ser miembro — espera a que haya actividad y te hagas visible "
+            "de a poco (respondé algún mensaje, saludá). Publicar de entrada puede generar rechazo.\n\n"
+            "PASO 3 — Usá el copy del grupo de WhatsApp (está en la sección Copys → redes)\n"
+            "Personalizá el nombre, la zona y tu número. No mandes el mismo mensaje a 10 grupos al mismo tiempo "
+            "— WhatsApp puede marcar tu número como spam. Uno por vez, con un día de diferencia.\n\n"
+            "PASO 4 — Sumá una foto real\n"
+            "Acompañá el copy con una foto de entrega o de catálogo de la Biblioteca. Una imagen capta más "
+            "atención que solo texto.\n\n"
+            "PASO 5 — Respondé rápido a quien te escriba\n"
+            "Si alguien responde en el grupo o te escribe por privado, contestá lo antes posible. El interés "
+            "cae muy rápido si tardás más de 2-3 horas. Tené listo el catálogo y el simulador del panel."
+        ),
+    },
+    {
+        "tipo": "instructivo", "categoria": "redes", "orden": 2,
+        "titulo": "Cómo publicar en grupos de Facebook y Marketplace",
+        "descripcion": (
+            "PASO 1 — Buscá grupos de compra/venta de tu zona\n"
+            "En Facebook, buscá 'compra venta [tu ciudad]', 'emprendedores [tu zona]', 'casas y departamentos "
+            "[tu localidad]' o 'piletas y jardín [región]'. Unite a los que tengan más actividad.\n\n"
+            "PASO 2 — Publicá en Marketplace\n"
+            "Además de los grupos, publicá en Marketplace de Facebook: categoría 'Casa y jardín' o "
+            "'Materiales de construcción'. Poné el título con el modelo y el precio de contado, y en la "
+            "descripción usá el copy de Facebook de la Biblioteca (sección Copys → redes).\n\n"
+            "PASO 3 — Subí fotos de calidad\n"
+            "Usá entre 3 y 5 fotos de la Biblioteca. La primera foto es la más importante: usá una foto de "
+            "producto con buena luz, no un flyer con texto.\n\n"
+            "PASO 4 — Respondé todas las consultas dentro de las 24hs\n"
+            "Marketplace tiene métricas: responder rápido sube tu ranking como vendedor. Respondé siempre, "
+            "aunque sea con 'Hola, te paso info ahora'. Si la consulta es por mensaje, llevá la conversación "
+            "a WhatsApp lo antes posible.\n\n"
+            "PASO 5 — Renová la publicación cada 7 días\n"
+            "Las publicaciones se van al fondo con el tiempo. Eliminá y volvé a publicar la misma cada semana "
+            "para mantenerte arriba en los resultados."
+        ),
+    },
+    {
+        "tipo": "instructivo", "categoria": "ventas", "orden": 3,
+        "titulo": "Cómo pedirle un referido a un contacto — sin incomodar",
+        "descripcion": (
+            "PASO 1 — Elegí el momento correcto\n"
+            "No pidas el referido justo después de cotizar. Pedilo cuando el cliente ya mostró interés real, "
+            "o mejor aún, DESPUÉS de que cerró su compra y está contento. Un cliente satisfecho vale 10 "
+            "publicidades.\n\n"
+            "PASO 2 — Sé directo y simple\n"
+            "No inventes un guión complicado. Usá el copy 'Pedido de referido' de la Biblioteca y personalizalo "
+            "con el nombre del cliente y el producto que compró. Es un mensaje corto y sin presión.\n\n"
+            "PASO 3 — Ofrecé un beneficio\n"
+            "Si tu estructura lo permite, podés ofrecer una comisión o bonificación al referidor cuando el "
+            "referido cierra su compra. Consultá con tu organización antes de ofrecerlo.\n\n"
+            "PASO 4 — Pedí solo el contacto, no el cierre\n"
+            "No le pidas que 'convenza' a alguien. Solo pedile el número de la persona y pedís permiso para "
+            "llamarla o escribirle de su parte. Eso reduce la resistencia a casi cero.\n\n"
+            "PASO 5 — Hacé seguimiento y agradecé\n"
+            "Si el referido avanza, avisale al referidor aunque no haya resultado todavía. El seguimiento "
+            "transparente genera confianza y más referidos en el futuro."
+        ),
+    },
+    {
+        "tipo": "instructivo", "categoria": "ventas", "orden": 4,
+        "titulo": "Cómo hacer el seguimiento de un cliente sin ser insistente",
+        "descripcion": (
+            "PASO 1 — Esperá 48hs antes del primer seguimiento\n"
+            "Si mandaste info y no tuviste respuesta, esperá 2 días completos. Escribir antes hace que el "
+            "cliente sienta presión y se aleje.\n\n"
+            "PASO 2 — Usá el copy de seguimiento de la Biblioteca\n"
+            "El copy 'Seguimiento 48hs' está pensado para no sonar insistente. Preguntá si surgió alguna duda, "
+            "no si 'ya decidió'. La clave es abrir la conversación, no forzar el cierre.\n\n"
+            "PASO 3 — Sumá algo nuevo en cada contacto\n"
+            "No escribas solo 'Hola, ¿cómo andás?'. Sumá algo de valor: una foto de una entrega reciente, "
+            "el precio del mes, o información sobre un combo disponible. Hacés que valga la pena responder.\n\n"
+            "PASO 4 — Máximo 3 contactos sin respuesta\n"
+            "Si no respondió después de 3 mensajes en distintos días, dejá de escribir. Mandá un último "
+            "mensaje tipo 'Quedo a disposición si en algún momento lo retomás — no te voy a molestar más'. "
+            "Eso proyecta profesionalismo y muchas veces genera respuesta al mes siguiente.\n\n"
+            "PASO 5 — Registrá al cliente en el panel\n"
+            "Si generaste un presupuesto o mostraste interés, cargá al cliente como lead en tu panel. Así "
+            "tenés historial y el equipo puede apoyarte con el seguimiento."
+        ),
+    },
+    {
+        "tipo": "instructivo", "categoria": "ventas", "orden": 5,
+        "titulo": "Cómo cerrar una venta en videollamada",
+        "descripcion": (
+            "PASO 1 — Preparate antes de conectarte\n"
+            "Abrí tu panel del socio antes de la llamada. Tené el catálogo en pantalla, el simulador de "
+            "cuotas listo y una foto del modelo que el cliente mencionó. No improvises los precios — "
+            "siempre mostrá los números desde el panel, no de memoria.\n\n"
+            "PASO 2 — Los primeros 2 minutos son de conexión, no de venta\n"
+            "Empezá preguntando para qué lo quiere usar y qué espacio tiene disponible. Escuchá más de lo "
+            "que hablás. Eso te da la información para ofrecer exactamente lo que necesita, no lo que más sale.\n\n"
+            "PASO 3 — Mostrá el catálogo compartiendo pantalla\n"
+            "Si podés, compartí pantalla y mostrá el catálogo del panel. Ver los modelos con fotos reales y "
+            "precios en vivo genera mucha más confianza que mandar una imagen por WhatsApp.\n\n"
+            "PASO 4 — Simulá las cuotas en tiempo real\n"
+            "Si el cliente está interesado en financiar, abrí el simulador con él mirando. Cambiá los "
+            "plazos en vivo para que elija la cuota que le cierra. Ese momento interactivo es muy potente.\n\n"
+            "PASO 5 — Pedí el cierre de forma simple\n"
+            "Al final de la llamada, si el cliente mostró interés claro, preguntá directamente: "
+            "'¿Lo arrancamos con el contado o preferís armar el plan de cuotas?' No esperes que ellos "
+            "tomen la iniciativa — la mayoría necesita que alguien les diga el siguiente paso."
+        ),
+    },
+    {
+        "tipo": "instructivo", "categoria": "ventas", "orden": 6,
+        "titulo": "Ideas para generar tus primeros leads desde cero",
+        "descripcion": (
+            "OPCIÓN 1 — Lista caliente (el inicio más rápido)\n"
+            "Hacé una lista de 20 personas de tu contacto que puedan necesitar o conocer a alguien que "
+            "necesite una piscina o un módulo: familia, vecinos, compañeros de trabajo, grupo del colegio "
+            "de los chicos, conocidos de redes. Escribile a cada uno con el copy de presentación (Copys → "
+            "general) y ofrecé mandarles el catálogo.\n\n"
+            "OPCIÓN 2 — Grupos de WhatsApp y Facebook\n"
+            "Publicá en grupos de compra/venta de tu zona usando los instructivos de la Biblioteca. "
+            "Apuntá a grupos de vecinos, padres, emprendedores y construcción. Subí una foto real con el copy.\n\n"
+            "OPCIÓN 3 — Historia de Instagram o Facebook\n"
+            "Publicá el precio del mes de un modelo popular usando el copy de historia de la Biblioteca. "
+            "Una historia a la semana, con un modelo diferente cada vez. Etiquetá la ubicación de tu ciudad.\n\n"
+            "OPCIÓN 4 — Marketplace\n"
+            "Creá una publicación en Marketplace de Facebook con las fotos de catálogo. Renovála cada semana. "
+            "Es gratuito y tiene mucho alcance local.\n\n"
+            "OPCIÓN 5 — Boca a boca activo\n"
+            "No esperes que te recomienden solos — pedíselo explícitamente a tus contactos. "
+            "Decíles que estás arrancando y que si conocen a alguien que esté buscando, te pasen el contacto. "
+            "Un mensaje bien mandado a 10 personas ya puede generar 2 o 3 consultas reales."
+        ),
+    },
 ]
 
 
@@ -1553,7 +1751,7 @@ def seed_biblioteca_socios(db: Session):
     for titulo in _TITULOS_OBSOLETOS:
         db.query(MaterialSocio).filter(MaterialSocio.titulo == titulo).delete()
     # Upsert por título
-    for g in _GUIAS_SEED + _COPYS_SEED:
+    for g in _GUIAS_SEED + _COPYS_SEED + _INSTRUCTIVOS_SEED:
         existe = db.query(MaterialSocio).filter(MaterialSocio.titulo == g["titulo"]).first()
         if existe:
             for k, v in g.items():

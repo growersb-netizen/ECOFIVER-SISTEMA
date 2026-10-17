@@ -1321,8 +1321,8 @@ async function adminCargarStock(){
   el.innerHTML = Object.entries(byCat).map(([cat, items]) => {
     const color = CAT_COLORS[cat]||'#888';
     const rows = items.map(it => `<tr>
-      <td style="padding:8px 10px">${esc(it.modelo)}</td>
-      <td style="padding:8px 10px">${esc(it.color)}</td>
+      <td style="padding:8px 10px;color:var(--text-primary,#e2e8f0);font-weight:600">${esc(it.modelo)}</td>
+      <td style="padding:8px 10px;color:var(--text-secondary,#b0b8c4)">${esc(it.color)}</td>
       <td style="padding:8px 10px;text-align:center">
         <input type="number" min="0" value="${it.cantidad}" style="width:60px;text-align:center;background:var(--bg-input,#111);border:1px solid var(--border);color:inherit;border-radius:4px;padding:3px 6px"
           onchange="adminUpdateCantStock(${it.id},this.value)">

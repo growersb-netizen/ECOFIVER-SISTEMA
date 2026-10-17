@@ -4271,13 +4271,13 @@ async function cargarStock(){
       const color = STOCK_CAT_COLORS[cat] || '#888';
       const rows = info.items.map(it =>
         `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:8px 10px;font-weight:600">${it.modelo}</td>
-          <td style="padding:8px 10px">${it.color}</td>
+          <td style="padding:8px 10px;font-weight:600;color:var(--text-primary,#e2e8f0)">${it.modelo}</td>
+          <td style="padding:8px 10px;color:var(--text-secondary,#b0b8c4)">${it.color}</td>
           <td style="padding:8px 10px;text-align:center">
             <span style="font-size:18px;font-weight:800;color:${it.cantidad>0?'#4ade80':'#f87171'}">${it.cantidad}</span>
           </td>
-          <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${it.ubicacion||''}</td>
-          <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${it.notas||''}</td>
+          <td style="padding:8px 10px;font-size:12px;color:var(--text-muted,#888)">${it.ubicacion||''}</td>
+          <td style="padding:8px 10px;font-size:12px;color:var(--text-muted,#888)">${it.notas||''}</td>
         </tr>`
       ).join('');
       return `<div style="background:var(--bg-card,#181822);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">

@@ -453,7 +453,7 @@
       </div>
       <div class="form-row" style="margin-top:4px">
         <div><label class="form-label">Email</label><input class="form-control" id="ma-email" type="email" placeholder="para login en el panel"></div>
-        <div><label class="form-label">Contraseña</label><input class="form-control" id="ma-password" type="password" placeholder="mínimo 6 caracteres (dejar vacío = sin cambio)"></div>
+        <div><label class="form-label">Contraseña <span id="ma-pwd-estado" style="font-size:11px;font-weight:400"></span></label><input class="form-control" id="ma-password" type="password" placeholder="mínimo 6 caracteres (dejar vacío = sin cambio)"></div>
       </div>
       <label class="form-label">Notas</label><textarea class="form-control" id="ma-notas" rows="2"></textarea>
       <div style="margin-top:16px;padding:14px;background:rgba(78,195,181,.08);border:1px solid rgba(78,195,181,.3);border-radius:10px">
@@ -512,7 +512,7 @@ async function cargarAliados(){
     <th>Código</th><th>Nombre</th><th>Zona</th><th>Estado</th><th>Contrato</th><th>Acciones</th></tr></thead><tbody>`+
     d.aliados.map(a=>`<tr>
       <td><strong>${a.codigo}</strong></td>
-      <td>${a.nombre}<div style="font-size:11px;color:var(--text-muted)">${a.telefono||''}${a.dni?' · DNI '+a.dni:''}</div></td>
+      <td>${a.nombre}<div style="font-size:11px;color:var(--text-muted)">${a.telefono||''}${a.email?' · '+a.email:''}</div></td>
       <td>${a.zona||'—'}</td>
       <td><span class="al-badge b-${a.estado}">${a.estado}</span></td>
       <td>${a.contrato_firmado?'✅':'❌'}${a.operativo?' <span style="color:var(--green)">·operativo</span>':''}</td>
@@ -527,7 +527,9 @@ function editar(a){
   document.getElementById('ma-titulo').textContent='✏️ Editar '+a.codigo;
   document.getElementById('ma-codigo-edit').value=a.codigo;
   ma('nombre',a.nombre);ma('telefono',a.telefono);ma('dni',a.dni);ma('cuit',a.cuit_monotributo);
-  ma('zona',a.zona);ma('cbu',a.cbu_alias);ma('notas',a.notas);ma('email',a.email);ma('password','');
+  ma('zona',a.zona);ma('cbu',a.cbu_alias);ma('notas',a.notas);ma('email',a.email||'');ma('password','');
+  const pwdEl = document.getElementById('ma-pwd-estado');
+  if(pwdEl) pwdEl.innerHTML = a.tiene_password ? '<span style="color:#4ade80">● tiene contraseña</span>' : '<span style="color:#f87171">● sin contraseña</span>';
   document.getElementById('ma-estado').value=a.estado;
   document.getElementById('ma-contrato').value=a.contrato_firmado?'true':'false';
   // Admin CRM toggle

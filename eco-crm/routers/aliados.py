@@ -126,6 +126,7 @@ def _aliado_dict(a: Aliado) -> dict:
         "id": a.id,
         "codigo": a.codigo,
         "nombre": a.nombre,
+        "email": a.email or "",
         "dni": a.dni or "",
         "cuit_monotributo": a.cuit_monotributo or "",
         "telefono": a.telefono or "",
@@ -137,6 +138,7 @@ def _aliado_dict(a: Aliado) -> dict:
         "operativo": (a.estado == "activo" and bool(a.contrato_firmado)),
         "notas": a.notas or "",
         "es_admin_crm": bool(a.es_admin_crm),
+        "tiene_password": bool(getattr(a, "password_hash", None)),
     }
 
 

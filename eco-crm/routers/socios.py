@@ -395,14 +395,19 @@ async def socio_login(request: Request, response: Response, db: Session = Depend
     if not socio:
         raise HTTPException(401, "Credenciales incorrectas")
 
-    if socio.bloqueado_hasta and socio.bloqueado_hasta > datetime.now():
-        minutos = max(1, int((socio.bloqueado_hasta - datetime.now()).total_seconds() // 60) + 1)
-        raise HTTPException(429, f"Demasiados intentos fallidos. Probá de nuevo en {minutos} minutos.")
+    now_utc = datetime.now(timezone.utc)
+    _bloq = socio.bloqueado_hasta
+    if _bloq:
+        if _bloq.tzinfo is None:
+            _bloq = _bloq.replace(tzinfo=timezone.utc)
+        if _bloq > now_utc:
+            minutos = max(1, int((_bloq - now_utc).total_seconds() // 60) + 1)
+            raise HTTPException(429, f"Demasiados intentos fallidos. Probá de nuevo en {minutos} minutos.")
 
     if not socio.password_hash or not pwd_context.verify(password, socio.password_hash):
         socio.intentos_fallidos = (socio.intentos_fallidos or 0) + 1
         if socio.intentos_fallidos >= MAX_INTENTOS_LOGIN:
-            socio.bloqueado_hasta = datetime.now() + timedelta(minutes=BLOQUEO_MINUTOS)
+            socio.bloqueado_hasta = datetime.now(timezone.utc) + timedelta(minutes=BLOQUEO_MINUTOS)
             socio.intentos_fallidos = 0
         db.commit()
         raise HTTPException(401, "Credenciales incorrectas")
@@ -4377,23 +4382,32 @@ async def admin_listar_plantillas_wa(
     if not token or not phone_id:
         raise HTTPException(503, "Credenciales WA no configuradas")
 
-    # Obtener el waba_id a partir del phone_id
     import httpx as _httpx
     try:
-        # Primero obtenemos el business account del phone_id
+        # Paso 1: info del phone + obtener el waba_id
         r_phone = _httpx.get(
             f"{WA_API_URL}/{phone_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
+            params={"fields": "id,display_phone_number,verified_name,quality_rating,status,whatsapp_business_account"},
             timeout=10,
         )
         phone_data = r_phone.json() if r_phone.status_code == 200 else {}
+        waba_info = phone_data.pop("whatsapp_business_account", None) or {}
+        waba_id = waba_info.get("id")
 
-        # Buscar las plantillas del business
+        if not waba_id:
+            return {
+                "ok": False,
+                "phone_info": phone_data,
+                "error": "No se pudo obtener el WhatsApp Business Account ID del número configurado.",
+                "phone_raw": r_phone.text[:300],
+            }
+
+        # Paso 2: plantillas en el WABA (no en el phone_id)
         r_biz = _httpx.get(
-            f"{WA_API_URL}/{phone_id}/message_templates",
+            f"{WA_API_URL}/{waba_id}/message_templates",
             headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "name,status,language,category", "limit": 50},
+            params={"fields": "name,status,language,category,components", "limit": 50},
             timeout=10,
         )
         if r_biz.status_code == 200:
@@ -4402,13 +4416,14 @@ async def admin_listar_plantillas_wa(
             return {
                 "ok": True,
                 "phone_info": phone_data,
+                "waba_id": waba_id,
                 "total_plantillas": len(plantillas),
                 "plantillas": plantillas,
-                "raw_status": r_biz.status_code,
             }
         return {
             "ok": False,
             "phone_info": phone_data,
+            "waba_id": waba_id,
             "error": r_biz.text[:500],
             "status_code": r_biz.status_code,
         }
@@ -4869,7 +4884,14 @@ async def admin_listar_socios(
             (Aliado.email.ilike(f"%{q}%"))
         )
     socios = query.order_by(Aliado.id.desc()).all()
-    ahora = datetime.now()
+    ahora = datetime.now(timezone.utc)
+
+    def _esta_bloqueado(bloq):
+        if not bloq:
+            return False
+        b = bloq if bloq.tzinfo else bloq.replace(tzinfo=timezone.utc)
+        return b > ahora
+
     return {"socios": [{
         "codigo": s.codigo,
         "nombre": s.nombre,
@@ -4879,8 +4901,8 @@ async def admin_listar_socios(
         "tiene_password": bool(s.password_hash),
         "whatsapp_verificado": bool(s.whatsapp_verificado),
         "perfil_completo": bool(s.perfil_completo),
-        "bloqueado": bool(s.bloqueado_hasta and s.bloqueado_hasta > ahora),
-        "bloqueado_hasta": s.bloqueado_hasta.isoformat() if s.bloqueado_hasta and s.bloqueado_hasta > ahora else None,
+        "bloqueado": _esta_bloqueado(s.bloqueado_hasta),
+        "bloqueado_hasta": s.bloqueado_hasta.isoformat() if _esta_bloqueado(s.bloqueado_hasta) else None,
         "intentos_fallidos": s.intentos_fallidos or 0,
     } for s in socios]}
 

@@ -48,7 +48,7 @@ async def _get_dashboard_impl(
     current_user: "Usuario",
 ):
     roles = get_user_roles(current_user)
-    hoy = datetime.now()
+    hoy = datetime.now(timezone.utc)
     inicio_hoy = hoy.replace(hour=0, minute=0, second=0, microsecond=0)
     fin_hoy = hoy.replace(hour=23, minute=59, second=59, microsecond=999999)
     ayer = hoy - timedelta(days=1)
@@ -430,7 +430,7 @@ async def get_ranking(
     IMPORTANTE: incluye ventas con created_at NULL (filas sin fecha) y
     ventas sin vendedor asignado (aparecen como "Sin asesor").
     """
-    hoy = datetime.now()
+    hoy = datetime.now(timezone.utc)
     if periodo == "dia":
         inicio = hoy.replace(hour=0, minute=0, second=0, microsecond=0)
     elif periodo == "semana":

@@ -275,7 +275,6 @@ async def _get_dashboard_impl(
         inicio_manana = manana.replace(hour=0, minute=0, second=0, microsecond=0)
         fin_manana = manana.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-        from database.models import Entrega
         entregas_hoy = db.query(Entrega).filter(
             Entrega.fecha_instalacion >= inicio_hoy,
             Entrega.fecha_instalacion <= fin_hoy
@@ -760,16 +759,6 @@ async def get_stock_oferta(
 # /api/dashboard/ranking, /api/dashboard/alertas, /api/dashboard/stock-oferta
 # deben estar registradas ANTES de esta ruta dinámica.
 
-@router.get("/api/debug/last-error")
-async def get_last_error(current_user: Usuario = Depends(require_auth)):
-    import os as _os
-    _path = "/tmp/dashboard_error.txt"
-    if _os.path.exists(_path):
-        with open(_path) as _f:
-            return {"error": _f.read()}
-    return {"error": None}
-
-
 @router.get("/api/dashboard/{rol}")
 async def get_dashboard(
     rol: str,
@@ -779,11 +768,5 @@ async def get_dashboard(
     try:
         return await _get_dashboard_impl(rol, db, current_user)
     except Exception as _exc:
-        import traceback as _tb
         _log.exception("ERROR en /api/dashboard/%s: %s", rol, _exc)
-        try:
-            with open("/tmp/dashboard_error.txt", "w") as _f:
-                _f.write(_tb.format_exc())
-        except Exception:
-            pass
         raise

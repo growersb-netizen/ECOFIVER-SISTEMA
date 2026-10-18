@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -16,6 +17,7 @@ from database.models import (
 from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
 
+_log = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
@@ -310,20 +312,28 @@ async def create_venta_contado(
             db.commit()
 
     # ── Circuito automático: Entrega + OrdenFabrica ──────────────────────────
-    _crear_circuito_post_venta(db, venta, desde_stock)
+    try:
+        _crear_circuito_post_venta(db, venta, desde_stock)
+    except Exception as _e:
+        _log.exception("ERROR en _crear_circuito_post_venta venta_id=%s: %s", venta.id, _e)
+        db.rollback()
 
     # ── Notificaciones ───────────────────────────────────────────────────────
-    notificar_nueva_venta(
-        db,
-        tipo_venta="CONTADO",
-        cliente_nombre=venta.cliente_nombre,
-        producto=venta.producto or "",
-        modelo=venta.modelo_especifico or "",
-        monto=venta.precio_final or 0,
-        vendedor_id=venta.vendedor_id,
-        referencia_id=venta.id,
-    )
-    db.commit()
+    try:
+        notificar_nueva_venta(
+            db,
+            tipo_venta="CONTADO",
+            cliente_nombre=venta.cliente_nombre,
+            producto=venta.producto or "",
+            modelo=venta.modelo_especifico or "",
+            monto=venta.precio_final or 0,
+            vendedor_id=venta.vendedor_id,
+            referencia_id=venta.id,
+        )
+        db.commit()
+    except Exception as _e:
+        _log.exception("ERROR en notificaciones venta_id=%s: %s", venta.id, _e)
+        db.rollback()
 
     return {
         "id": venta.id,

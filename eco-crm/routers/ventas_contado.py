@@ -297,27 +297,33 @@ async def create_venta_contado(
     db.commit()
     db.refresh(venta)
 
+    venta_id = venta.id  # cache antes de cualquier rollback
+
     # ── A5: Auto-vincular lead por teléfono ─────────────────────────────────
-    if venta.cliente_telefono:
-        lead = db.query(Lead).filter(
-            Lead.telefono.ilike(f"%{venta.cliente_telefono.strip()}%")
-        ).order_by(Lead.created_at.desc()).first()
-        if lead and lead.estado not in ["CERRADO_GANADO", "CERRADO_PERDIDO"]:
-            lead.estado = "CERRADO_GANADO"
-            db.add(Interaccion(
-                lead_id=lead.id,
-                tipo="VENTA",
-                resultado="VENTA_CONCRETADA",
-                notas=f"Venta contado #{venta.id} — {venta.modelo_especifico or venta.producto}",
-                asesor_id=venta.vendedor_id,
-            ))
-            db.commit()
+    try:
+        if venta.cliente_telefono:
+            lead = db.query(Lead).filter(
+                Lead.telefono.ilike(f"%{venta.cliente_telefono.strip()}%")
+            ).order_by(Lead.created_at.desc()).first()
+            if lead and lead.estado not in ["CERRADO_GANADO", "CERRADO_PERDIDO"]:
+                lead.estado = "CERRADO_GANADO"
+                db.add(Interaccion(
+                    lead_id=lead.id,
+                    tipo="VENTA",
+                    resultado="VENTA_CONCRETADA",
+                    notas=f"Venta contado #{venta_id} — {venta.modelo_especifico or venta.producto}",
+                    asesor_id=venta.vendedor_id,
+                ))
+                db.commit()
+    except Exception as _e:
+        _log.exception("ERROR en auto-vincular lead venta_id=%s: %s", venta_id, _e)
+        db.rollback()
 
     # ── Circuito automático: Entrega + OrdenFabrica ──────────────────────────
     try:
         _crear_circuito_post_venta(db, venta, desde_stock)
     except Exception as _e:
-        _log.exception("ERROR en _crear_circuito_post_venta venta_id=%s: %s", venta.id, _e)
+        _log.exception("ERROR en _crear_circuito_post_venta venta_id=%s: %s", venta_id, _e)
         db.rollback()
 
     # ── Notificaciones ───────────────────────────────────────────────────────
@@ -330,15 +336,15 @@ async def create_venta_contado(
             modelo=venta.modelo_especifico or "",
             monto=venta.precio_final or 0,
             vendedor_id=venta.vendedor_id,
-            referencia_id=venta.id,
+            referencia_id=venta_id,
         )
         db.commit()
     except Exception as _e:
-        _log.exception("ERROR en notificaciones venta_id=%s: %s", venta.id, _e)
+        _log.exception("ERROR en notificaciones venta_id=%s: %s", venta_id, _e)
         db.rollback()
 
     return {
-        "id": venta.id,
+        "id": venta_id,
         "ok": True,
         "flete_calculado": flete_calculado,
         "circuito": "stock" if desde_stock else "fabricacion",

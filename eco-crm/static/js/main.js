@@ -1815,6 +1815,18 @@ async function initPush() {
   }
 }
 
+// ─── Inbox badge (conversaciones sin leer) ────────────────────────────────────
+async function loadInboxBadge() {
+  const el = document.getElementById('inbox-badge');
+  if (!el) return;
+  try {
+    const d = await API.get('/api/inbox/badge');
+    if (!d) return;
+    el.textContent = d.sin_leer;
+    el.style.display = d.sin_leer > 0 ? 'flex' : 'none';
+  } catch (_) {}
+}
+
 // Active nav item
 document.addEventListener('DOMContentLoaded', () => {
   const path = window.location.pathname;
@@ -1825,8 +1837,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   loadNotifications();
+  loadInboxBadge();
   // Poll every 60 seconds
   setInterval(loadNotifications, 60000);
+  setInterval(loadInboxBadge, 60000);
   // Inicializar Web Push (pide permiso la primera vez)
   initPush().then(() => updatePushBtn());
 });

@@ -139,6 +139,23 @@ async def inbox_page(request: Request, current_user=Depends(require_auth)):
     })
 
 
+# ─── API — BADGE (no-leídos para sidebar) ────────────────────────────────────
+
+@router.get("/api/inbox/badge")
+async def inbox_badge(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_auth),
+):
+    """Devuelve el número de conversaciones con al menos un mensaje IN no leído."""
+    from sqlalchemy import func as sqlfunc
+    count = (
+        db.query(sqlfunc.count(sqlfunc.distinct(InboxMensaje.phone)))
+        .filter(InboxMensaje.direccion == "IN", InboxMensaje.leido == False)
+        .scalar()
+    ) or 0
+    return {"sin_leer": count}
+
+
 # ─── API — CONVERSACIONES ─────────────────────────────────────────────────────
 
 @router.get("/api/inbox/lineas")

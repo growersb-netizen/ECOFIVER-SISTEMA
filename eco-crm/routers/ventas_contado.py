@@ -488,6 +488,13 @@ async def delete_venta_contado(
     venta = db.query(VentaContado).filter(VentaContado.id == venta_id).first()
     if not venta:
         raise HTTPException(404, "Venta no encontrada")
+    # Eliminar registros dependientes antes de borrar la venta
+    db.query(Entrega).filter(Entrega.venta_contado_id == venta_id).delete()
+    db.query(OrdenFabricaPiscina).filter(OrdenFabricaPiscina.venta_contado_id == venta_id).delete()
+    db.query(OrdenFabricaModulo).filter(OrdenFabricaModulo.venta_contado_id == venta_id).delete()
+    for op in db.query(OrdenProduccion).filter(OrdenProduccion.venta_contado_id == venta_id).all():
+        db.delete(op)
+    db.flush()
     db.delete(venta)
     db.commit()
     return {"ok": True}

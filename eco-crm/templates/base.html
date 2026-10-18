@@ -41,9 +41,11 @@
     </div>
 
     <div class="sidebar-nav">
-      <div class="nav-section">Principal</div>
+
+      {# ── DASHBOARD ─────────────────────────────────────────────────────── #}
       <a href="/" class="nav-item"><span class="nav-icon">🏠</span> Dashboard</a>
 
+      {# ── COMERCIAL ─────────────────────────────────────────────────────── #}
       {% if 'ADMIN' in roles or 'ASESOR_APERTURA' in roles or 'SUPERVISOR_CIERRE' in roles %}
       <div class="nav-section">Comercial</div>
       <a href="/trabajar" class="nav-item" style="background:linear-gradient(135deg,#16a34a18,#16a34a08);border-left:3px solid #16a34a"><span class="nav-icon">▶️</span> Arrancar a contactar</a>
@@ -52,86 +54,103 @@
       {% if 'ADMIN' in roles or 'SUPERVISOR_CIERRE' in roles %}
       <a href="/semana-vls" class="nav-item"><span class="nav-icon">📅</span> Semana de VLs</a>
       {% endif %}
-      <a href="/ventas-contado" class="nav-item"><span class="nav-icon">💰</span> Ventas</a>
       {% if 'ADMIN' in roles or 'SUPERVISOR_CIERRE' in roles %}
       <a href="/aliados" class="nav-item"><span class="nav-icon">🤝</span> Aliados</a>
       {% endif %}
-      <a href="/envios-cargo" class="nav-item"><span class="nav-icon">🚚</span> Envíos Vía Cargo</a>
       {% endif %}
 
-      {% if 'COBRANZAS' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      {# ── VENTAS ────────────────────────────────────────────────────────── #}
+      {% if 'ADMIN' in roles or 'ASESOR_APERTURA' in roles or 'SUPERVISOR_CIERRE' in roles or 'COBRANZAS' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      <div class="nav-section">Ventas</div>
+      <a href="/ventas-contado" class="nav-item"><span class="nav-icon">💰</span> Ventas contado</a>
+      {% if 'ADMIN' in roles or 'SUPERVISOR_CIERRE' in roles or 'COBRANZAS' in roles %}
+      <a href="/ventas-financiadas" class="nav-item"><span class="nav-icon">📋</span> Ventas financiadas</a>
       <a href="/cobranzas" class="nav-item">
         <span class="nav-icon">💳</span> Cobranzas
         <span class="nav-badge" id="notif-badge" style="display:none">0</span>
       </a>
+      {% endif %}
+      {% if 'ADMIN' in roles or 'COBRANZAS' in roles or 'COORDINADOR_OPERATIVO' in roles %}
       <a href="/contratos" class="nav-item"><span class="nav-icon">📄</span> Contratos y Recibos</a>
       {% endif %}
-
-      {% if 'ADMIN' in roles or 'FABRICA' in roles or 'ADMINISTRACION' in roles or 'COORDINADOR_OPERATIVO' in roles %}
-      <div class="nav-section">Fábrica</div>
-      <a href="/fabrica" class="nav-item"><span class="nav-icon">🏭</span> Órdenes</a>
-      <a href="/produccion" class="nav-item"><span class="nav-icon">⚙️</span> Producción</a>
       {% endif %}
 
+      {# ── WHATSAPP ──────────────────────────────────────────────────────── #}
+      {% if 'ADMIN' in roles %}
+      <div class="nav-section">WhatsApp</div>
+      <a href="/inbox" class="nav-item" style="background:linear-gradient(135deg,#25d36618,#16a34a08);border-left:3px solid #25d366">
+        <span class="nav-icon">💬</span> Bandeja
+        <span class="nav-badge" id="inbox-badge" style="display:none">0</span>
+      </a>
+      <a href="/control-agentes" class="nav-item" style="background:linear-gradient(135deg,#6366f118,#8b5cf608);border-left:3px solid #6366f1"><span class="nav-icon">🧠</span> Control IA</a>
+      <a href="/integraciones" class="nav-item"><span class="nav-icon">🤖</span> Leads IA · Melanie</a>
+      {% endif %}
+
+      {# ── LOGÍSTICA ─────────────────────────────────────────────────────── #}
+      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles or 'ASESOR_APERTURA' in roles or 'SUPERVISOR_CIERRE' in roles %}
+      <div class="nav-section">Logística</div>
       {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles %}
-      <div class="nav-section">Operaciones</div>
-      <a href="/logistica" class="nav-item"><span class="nav-icon">🚚</span> Logística y Entregas</a>
+      <a href="/logistica" class="nav-item"><span class="nav-icon">🚚</span> Entregas</a>
       <a href="/flota" class="nav-item"><span class="nav-icon">🚗</span> Flota</a>
       <a href="/instalacion" class="nav-item"><span class="nav-icon">🔨</span> Instalación & Equipos</a>
       {% endif %}
-
-      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles or 'ADMINISTRACION' in roles or 'FABRICA' in roles %}
-      <div class="nav-section">Interno</div>
-      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles or 'ADMINISTRACION' in roles or 'FABRICA' in roles %}
-      <a href="/panolero" class="nav-item" style="background:linear-gradient(135deg,#92400e18,#78350f08);border-left:3px solid #b45309"><span class="nav-icon">🗜️</span> Depósito</a>
+      <a href="/envios-cargo" class="nav-item"><span class="nav-icon">📦</span> Envíos Vía Cargo</a>
       {% endif %}
+
+      {# ── FÁBRICA ───────────────────────────────────────────────────────── #}
+      {% if 'ADMIN' in roles or 'FABRICA' in roles or 'ADMINISTRACION' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      <div class="nav-section">Fábrica</div>
+      {% if 'ADMIN' in roles or 'FABRICA' in roles or 'COORDINADOR_OPERATIVO' in roles %}
+      <a href="/fabrica" class="nav-item"><span class="nav-icon">🏭</span> Órdenes</a>
+      {% endif %}
+      {% if 'ADMIN' in roles or 'FABRICA' in roles %}
+      <a href="/produccion" class="nav-item"><span class="nav-icon">⚙️</span> Producción</a>
+      {% endif %}
+      <a href="/panolero" class="nav-item" style="background:linear-gradient(135deg,#92400e18,#78350f08);border-left:3px solid #b45309"><span class="nav-icon">🗜️</span> Depósito</a>
       <a href="/asistencia-rapida" class="nav-item" style="background:linear-gradient(135deg,#15803d18,#16a34a08);border-left:3px solid #16a34a"><span class="nav-icon">✅</span> Asistencia Rápida</a>
       {% if 'ADMIN' in roles or 'FABRICA' in roles or 'ADMINISTRACION' in roles %}
       <a href="/personal" class="nav-item"><span class="nav-icon">👷</span> Personal</a>
       {% endif %}
-      <a href="/gastos" class="nav-item"><span class="nav-icon">💸</span> Gastos</a>
       {% endif %}
 
-      {% if 'ADMIN' in roles %}
-      <div class="nav-section">IA & Automatización</div>
-      <a href="/control-agentes" class="nav-item" style="background:linear-gradient(135deg,#6366f118,#8b5cf608);border-left:3px solid #6366f1"><span class="nav-icon">🧠</span> Control Center · IA</a>
-      <a href="/integraciones" class="nav-item" style="background:linear-gradient(135deg,#a855f718,#9333ea08);border-left:3px solid #a855f7"><span class="nav-icon">🤖</span> Leads IA · Melanie</a>
-      <a href="/inbox" class="nav-item" style="background:linear-gradient(135deg,#25d36618,#16a34a08);border-left:3px solid #25d366">
-        <span class="nav-icon">💬</span> Bandeja WhatsApp
-        <span class="nav-badge" id="inbox-badge" style="display:none">0</span>
-      </a>
-      <a href="/whatsapp-business" class="nav-item"><span class="nav-icon">📱</span> Perfil WhatsApp</a>
-      {% endif %}
-
+      {# ── MARKETING ─────────────────────────────────────────────────────── #}
       {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles %}
       <div class="nav-section">Marketing</div>
-      <a href="/marketing" class="nav-item" style="background:linear-gradient(135deg,#db277718,#be185d08);border-left:3px solid #db2777"><span class="nav-icon">📊</span> Marketing</a>
-      <a href="/redes" class="nav-item" style="background:linear-gradient(135deg,#1877f218,#e1306c08);border-left:3px solid #1877f2"><span class="nav-icon">📱</span> Redes Sociales</a>
-      <a href="/ads" class="nav-item" style="background:linear-gradient(135deg,#1877f218,#f5a62308);border-left:3px solid #f59e0b"><span class="nav-icon">📢</span> Campañas Meta Ads</a>
+      <a href="/redes" class="nav-item" style="background:linear-gradient(135deg,#1877f218,#e1306c08);border-left:3px solid #1877f2"><span class="nav-icon">📱</span> Redes & Líneas WA</a>
+      <a href="/marketing" class="nav-item"><span class="nav-icon">📊</span> Dashboard Marketing</a>
+      <a href="/ads" class="nav-item"><span class="nav-icon">📢</span> Meta Ads</a>
       <a href="/ecopost" class="nav-item"><span class="nav-icon">📸</span> Ecopost</a>
+      <a href="/mercadolibre" class="nav-item"><span class="nav-icon">🛒</span> MercadoLibre</a>
       <a href="/imagenes" class="nav-item"><span class="nav-icon">🖼</span> Imágenes IA</a>
       <a href="/web" class="nav-item"><span class="nav-icon">🌐</span> Web CMS</a>
+      {% endif %}
 
-      <div class="nav-section">Ventas Online</div>
-      <a href="/mercadolibre" class="nav-item"><span class="nav-icon">🛒</span> MercadoLibre</a>
-
-      <div class="nav-section">Configuración</div>
-      <a href="/importar" class="nav-item"><span class="nav-icon">📥</span> Importar</a>
+      {# ── ADMINISTRACIÓN ────────────────────────────────────────────────── #}
+      {% if 'ADMIN' in roles %}
+      <div class="nav-section">Administración</div>
+      <a href="/gastos" class="nav-item"><span class="nav-icon">💸</span> Gastos</a>
+      <a href="/importar" class="nav-item"><span class="nav-icon">📥</span> Importar leads</a>
+      <a href="/catalogo-admin" class="nav-item"><span class="nav-icon">📦</span> Catálogo</a>
+      <a href="/usuarios-admin" class="nav-item"><span class="nav-icon">👥</span> Usuarios</a>
       <a href="/negocio" class="nav-item"><span class="nav-icon">🏢</span> Negocio</a>
       <a href="/configuracion" class="nav-item"><span class="nav-icon">🔑</span> Configuración</a>
-      {% endif %}
-
-      {% if 'ADMIN' in roles or 'COORDINADOR_OPERATIVO' in roles %}
-      <div class="nav-section">Admin</div>
-      {% if 'ADMIN' in roles %}
-      <a href="/catalogo-admin" class="nav-item"><span class="nav-icon">📦</span> Catálogo</a>
-      {% endif %}
+      <a href="/whatsapp-business" class="nav-item"><span class="nav-icon">📱</span> Perfil WA</a>
+      {% elif 'COORDINADOR_OPERATIVO' in roles %}
+      <div class="nav-section">Administración</div>
+      <a href="/importar" class="nav-item"><span class="nav-icon">📥</span> Importar leads</a>
       <a href="/usuarios-admin" class="nav-item"><span class="nav-icon">👥</span> Usuarios</a>
       {% endif %}
 
+      {% if 'ADMINISTRACION' in roles and 'ADMIN' not in roles %}
+      <div class="nav-section">Administración</div>
+      <a href="/gastos" class="nav-item"><span class="nav-icon">💸</span> Gastos</a>
+      {% endif %}
+
+      {# ── MI CUENTA ─────────────────────────────────────────────────────── #}
       <div class="nav-section">Mi cuenta</div>
-      <a href="/perfil" class="nav-item"><span class="nav-icon">🔑</span> Mi perfil</a>
+      <a href="/perfil" class="nav-item"><span class="nav-icon">👤</span> Mi perfil</a>
       <a href="/manual" class="nav-item"><span class="nav-icon">📖</span> Manual de uso</a>
+
     </div>
 
     <div class="sidebar-footer">
@@ -189,9 +208,9 @@
   <div class="bottom-nav-items">
     <a href="/" class="bottom-nav-item"><span class="nav-icon">🏠</span>Inicio</a>
     {% if 'ADMIN' in roles %}
+    <a href="/inbox" class="bottom-nav-item"><span class="nav-icon">💬</span>WA</a>
     <a href="/ventas-contado" class="bottom-nav-item"><span class="nav-icon">💰</span>Ventas</a>
     <a href="/logistica" class="bottom-nav-item"><span class="nav-icon">🚚</span>Entregas</a>
-    <a href="/fabrica" class="bottom-nav-item"><span class="nav-icon">🏭</span>Fábrica</a>
     <a onclick="toggleSidebar()" class="bottom-nav-item" style="cursor:pointer"><span class="nav-icon">☰</span>Más</a>
     {% elif 'COORDINADOR_OPERATIVO' in roles %}
     <a href="/logistica" class="bottom-nav-item"><span class="nav-icon">🚚</span>Entregas</a>

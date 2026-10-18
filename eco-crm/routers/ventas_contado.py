@@ -362,11 +362,14 @@ async def update_venta_contado(
         except Exception:
             pass
 
-    for field in ["cliente_nombre", "cliente_telefono", "cliente_localidad", "producto",
-                  "modelo_especifico", "color", "superficie_m2", "precio_final", "forma_pago",
-                  "vendedor_id", "rango_horario", "estado", "notas", "sobre_piso"]:
+    for field in ["cliente_nombre", "cliente_telefono", "cliente_localidad", "cliente_domicilio",
+                  "producto", "modelo_especifico", "color", "superficie_m2", "precio_final",
+                  "forma_pago", "vendedor_id", "rango_horario", "estado", "notas", "sobre_piso"]:
         if field in data:
             setattr(venta, field, data[field])
+
+    if "aliado_codigo" in data:
+        venta.aliado_codigo = (data["aliado_codigo"] or "").strip().upper() or None
 
     # Particularidades módulo (booleanos)
     for bfield in ["con_banio", "con_cocina", "con_puerta_ingreso", "con_ventana_balcon"]:

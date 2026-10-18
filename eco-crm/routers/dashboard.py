@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import json
+import logging as _logging
+_log = _logging.getLogger(__name__)
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
@@ -764,4 +766,8 @@ async def get_dashboard(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_auth),
 ):
-    return await _get_dashboard_impl(rol, db, current_user)
+    try:
+        return await _get_dashboard_impl(rol, db, current_user)
+    except Exception as _exc:
+        _log.exception("ERROR en /api/dashboard/%s: %s", rol, _exc)
+        raise

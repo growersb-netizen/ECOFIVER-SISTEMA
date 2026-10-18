@@ -12,10 +12,11 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func, cast, Integer, case as sa_case
 from sqlalchemy.orm import Session
 
 from database.database import get_db, SessionLocal
-from database.models import MetaPagina, Usuario, FacebookInteraccion, ConfiguracionSistema
+from database.models import MetaPagina, Usuario, FacebookInteraccion, ConfiguracionSistema, InboxMensaje
 from database.encryption import encrypt_value
 from routers.auth import require_auth, get_user_roles
 from routers.configuracion import get_config_value
@@ -482,6 +483,131 @@ async def api_redes_stats(
         return {"error": "Sin datos de insights. Sincronizá las páginas y verificá que el token tenga permiso read_insights."}
 
     return result
+
+
+# ─── PANEL WA: CONSULTAS POR LÍNEA POR DÍA ───────────────────────────────────
+
+@router.get("/api/redes/wa-consultas")
+async def api_wa_consultas(
+    dias: int = 30,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve cantidad de mensajes ENTRANTES por línea WA por día.
+    Para el panel de control de campañas.
+    """
+    _check_access(user, db)
+    from datetime import datetime, timedelta, timezone
+
+    desde = datetime.now(timezone.utc) - timedelta(days=dias)
+
+    # Agrupar mensajes IN por wa_linea + día
+    rows = (
+        db.query(
+            InboxMensaje.wa_linea,
+            func.date(InboxMensaje.created_at).label("dia"),
+            func.count(InboxMensaje.id).label("total"),
+        )
+        .filter(
+            InboxMensaje.direccion == "IN",
+            InboxMensaje.wa_linea.isnot(None),
+            InboxMensaje.created_at >= desde,
+        )
+        .group_by(InboxMensaje.wa_linea, func.date(InboxMensaje.created_at))
+        .order_by(func.date(InboxMensaje.created_at).desc(), InboxMensaje.wa_linea)
+        .all()
+    )
+
+    # Mapear phone_id → nombre de línea desde MetaPaginas
+    lineas = {
+        p.wa_phone_id: p.nombre
+        for p in db.query(MetaPagina).filter(MetaPagina.wa_phone_id.isnot(None)).all()
+    }
+
+    data = [
+        {
+            "wa_linea": r.wa_linea,
+            "nombre": lineas.get(r.wa_linea, r.wa_linea),
+            "dia": str(r.dia),
+            "total": r.total,
+        }
+        for r in rows
+    ]
+
+    # Totales por línea
+    totales: dict = {}
+    for r in data:
+        k = r["wa_linea"]
+        if k not in totales:
+            totales[k] = {"wa_linea": k, "nombre": r["nombre"], "total": 0}
+        totales[k]["total"] += r["total"]
+
+    return {
+        "dias": dias,
+        "detalle_diario": data,
+        "totales_por_linea": sorted(totales.values(), key=lambda x: -x["total"]),
+    }
+
+
+@router.get("/api/redes/wa-actividad-vendedores")
+async def api_wa_actividad_vendedores(
+    dias: int = 30,
+    user: Usuario = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve mensajes SALIENTES (enviados por vendedores) por línea WA por día.
+    Para analizar rendimiento y trabajo de los datos.
+    """
+    _check_access(user, db)
+    from datetime import datetime, timedelta, timezone
+
+    desde = datetime.now(timezone.utc) - timedelta(days=dias)
+
+    rows = (
+        db.query(
+            InboxMensaje.wa_linea,
+            func.date(InboxMensaje.created_at).label("dia"),
+            func.count(InboxMensaje.id).label("total"),
+        )
+        .filter(
+            InboxMensaje.direccion == "OUT",
+            InboxMensaje.wa_linea.isnot(None),
+            InboxMensaje.created_at >= desde,
+        )
+        .group_by(InboxMensaje.wa_linea, func.date(InboxMensaje.created_at))
+        .order_by(func.date(InboxMensaje.created_at).desc(), InboxMensaje.wa_linea)
+        .all()
+    )
+
+    lineas = {
+        p.wa_phone_id: p.nombre
+        for p in db.query(MetaPagina).filter(MetaPagina.wa_phone_id.isnot(None)).all()
+    }
+
+    data = [
+        {
+            "wa_linea": r.wa_linea,
+            "nombre": lineas.get(r.wa_linea, r.wa_linea),
+            "dia": str(r.dia),
+            "total": r.total,
+        }
+        for r in rows
+    ]
+
+    totales: dict = {}
+    for r in data:
+        k = r["wa_linea"]
+        if k not in totales:
+            totales[k] = {"wa_linea": k, "nombre": r["nombre"], "total": 0}
+        totales[k]["total"] += r["total"]
+
+    return {
+        "dias": dias,
+        "detalle_diario": data,
+        "totales_por_linea": sorted(totales.values(), key=lambda x: -x["total"]),
+    }
 
 
 # ─── ELIMINAR POST FACEBOOK ───────────────────────────────────────────────────

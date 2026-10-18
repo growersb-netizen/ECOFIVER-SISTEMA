@@ -404,17 +404,6 @@ async function loadDashboard(rol) {
       html += _dashboardFabrica(data);
     }
 
-    // ── ACCESOS RÁPIDOS ──────────────────────────────────────────────────────
-    html += `<div style="margin-top:4px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">🚀 ACCESO RÁPIDO</div>`;
-    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">`;
-    for (const a of getQuickAccess(rol)) {
-      html += `<a href="${a.url}" class="card" style="display:flex;flex-direction:column;align-items:center;padding:16px 8px;gap:6px;text-decoration:none;transition:all 0.15s" onmouseenter="this.style.borderColor='var(--green)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.borderColor='var(--border)';this.style.transform='none'">
-        <span style="font-size:28px">${a.icon}</span>
-        <span style="font-size:12px;font-weight:600;color:var(--text-primary);text-align:center;line-height:1.2">${a.label}</span>
-      </a>`;
-    }
-    html += '</div></div>';
-
     container.innerHTML = html;
 
     // Post-render: cargar ranking y stock si es ADMIN o tiene acceso
@@ -472,7 +461,30 @@ function _dashboardAdmin(data, alertas) {
   html += statCard(data.presentes_hoy,      'Personal hoy',      'green',   '', '', '/personal?tab=asistencia');
   html += statCard(data.reclamos_abiertos || 0, 'Reclamos',      data.reclamos_abiertos > 0 ? 'error' : 'green', '', '', '/logistica?tab=reclamos');
   html += statCard(data.leads_sin_contactar || 0, 'Sin contactar', data.leads_sin_contactar > 5 ? 'error' : data.leads_sin_contactar > 0 ? 'warning' : 'green', '', '', '/leads');
+  html += statCard(data.total_wa_hoy || 0, 'Consultas WA 24h', 'teal', data.wa_consultas_hoy?.length ? `${data.wa_consultas_hoy.length} líneas activas` : '', '', '/redes');
+  html += statCard(data.entregas_semana || 0, 'Entregas semana', data.entregas_semana > 0 ? 'teal' : 'green', '', '', '/logistica?tab=semana');
   html += '</div></div>';
+
+  // ── CONSULTAS WA HOY POR LÍNEA ────────────────────────────────────────────
+  if (data.wa_consultas_hoy && data.wa_consultas_hoy.length > 0) {
+    const maxWa = Math.max(...data.wa_consultas_hoy.map(r => r.total), 1);
+    html += `<div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📲 CONSULTAS WA 24H · POR LÍNEA</div>
+      <div style="background:var(--bg-secondary);border-radius:12px;padding:14px 16px">`;
+    for (const r of data.wa_consultas_hoy.slice(0, 8)) {
+      const pct = Math.round(r.total / maxWa * 100);
+      const nombre = r.nombre || r.wa_linea;
+      html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:130px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0" title="${escHtml(nombre)}">${escHtml(nombre)}</div>
+        <div style="flex:1;background:var(--border);border-radius:4px;height:7px;overflow:hidden">
+          <div style="width:${pct}%;background:#06b6d4;height:100%;border-radius:4px"></div>
+        </div>
+        <div style="width:28px;text-align:right;font-size:13px;font-weight:700;color:#06b6d4;flex-shrink:0">${r.total}</div>
+      </div>`;
+    }
+    html += `<div style="text-align:right;margin-top:4px"><a href="/redes" style="font-size:12px;color:var(--text-muted);text-decoration:none">Ver histórico →</a></div>`;
+    html += '</div></div>';
+  }
 
   // ── RANKING + STOCK (side by side en desktop) ─────────────────────────────
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px" class="dash-2col">

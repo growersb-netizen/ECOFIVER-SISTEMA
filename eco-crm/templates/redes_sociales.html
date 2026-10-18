@@ -143,7 +143,7 @@
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px">
   <div class="card" style="padding:14px;text-align:center">
     <div style="font-size:24px;font-weight:700;color:var(--accent)" id="kpi-paginas">—</div>
-    <div style="font-size:11px;color:var(--text-muted)">Páginas conectadas</div>
+    <div style="font-size:11px;color:var(--text-muted)">Páginas / líneas WA</div>
   </div>
   <div class="card" style="padding:14px;text-align:center">
     <div style="font-size:24px;font-weight:700;color:#1877f2" id="kpi-fans">—</div>
@@ -215,7 +215,7 @@
 <!-- Tabla de páginas -->
 <div class="card" style="padding:14px;margin-bottom:14px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <div style="font-size:13px;font-weight:700">Páginas conectadas</div>
+    <div style="font-size:13px;font-weight:700">Páginas y Líneas WA</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button onclick="abrirAgregarPagina()" class="btn btn-ghost btn-sm">+ Agregar</button>
       <button onclick="conectarConFacebook()" class="btn btn-ghost btn-sm" style="color:#1877f2">f Conectar OAuth</button>
@@ -456,23 +456,9 @@
         </table>
       </div>
       <div id="wa-entrantes-empty" style="display:none;color:var(--text-muted);padding:24px;text-align:center">Sin mensajes entrantes en el período.</div>
-
-      <!-- Actividad saliente por línea/vendedor -->
-      <h4 style="font-size:14px;font-weight:600;margin:24px 0 10px">📤 Actividad saliente por vendedor</h4>
-      <div id="wa-salientes-loading" style="color:var(--text-muted);padding:16px;text-align:center">Cargando…</div>
-      <div id="wa-salientes-table" style="overflow-x:auto;display:none">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr style="border-bottom:2px solid var(--border)">
-              <th style="text-align:left;padding:6px 10px">Vendedor / Línea</th>
-              <th id="wa-dias-headers-out"></th>
-              <th style="text-align:right;padding:6px 10px;font-weight:700">Total</th>
-            </tr>
-          </thead>
-          <tbody id="wa-salientes-tbody"></tbody>
-        </table>
+      <div style="margin-top:16px;padding:10px 14px;background:rgba(6,182,212,.07);border-radius:8px;font-size:12px;color:var(--text-muted)">
+        💬 Para ver mensajes <strong>salientes</strong> por línea, usá la <a href="/inbox" style="color:#06b6d4">Bandeja WhatsApp</a>.
       </div>
-      <div id="wa-salientes-empty" style="display:none;color:var(--text-muted);padding:24px;text-align:center">Sin mensajes salientes en el período.</div>
     </div>
 
 </div><!-- /detalle-pagina -->
@@ -558,19 +544,12 @@ async function cargarWaConsultas() {
   document.getElementById('wa-last-update').textContent = `Actualizado ${now}`;
 
   // Entrantes
-  ['entrantes','salientes'].forEach(t => {
-    document.getElementById(`wa-${t}-loading`).style.display = 'block';
-    document.getElementById(`wa-${t}-table`).style.display  = 'none';
-    document.getElementById(`wa-${t}-empty`).style.display  = 'none';
-  });
+  document.getElementById('wa-entrantes-loading').style.display = 'block';
+  document.getElementById('wa-entrantes-table').style.display  = 'none';
+  document.getElementById('wa-entrantes-empty').style.display  = 'none';
 
-  const [dataIn, dataOut] = await Promise.all([
-    _get(`/api/redes/wa-consultas?dias=${dias}`).catch(e => null),
-    _get(`/api/redes/wa-actividad-vendedores?dias=${dias}`).catch(e => null),
-  ]);
-
-  _renderWaTable(dataIn,  'entrantes', dias);
-  _renderWaTable(dataOut, 'salientes', dias);
+  const dataIn = await _get(`/api/redes/wa-consultas?dias=${dias}`).catch(e => null);
+  _renderWaTable(dataIn, 'entrantes', dias);
 }
 
 function _renderWaTable(data, tipo, dias) {

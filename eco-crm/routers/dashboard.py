@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from typing import Optional
 
@@ -13,7 +13,7 @@ from database.models import (
     Lead, Videollamada, VentaContado, VentaFinanciada,
     OrdenFabricaPiscina, OrdenFabricaModulo, Empleado, Asistencia,
     LiquidacionSemanal, Notificacion, Reclamo, Usuario, Contrato,
-    Pago, ConfiguracionSistema,
+    Pago, ConfiguracionSistema, Entrega, InboxMensaje, MetaPagina,
 )
 from routers.auth import require_auth, get_user_roles, require_auth_or_apikey
 from routers.ventas_financiadas import dias_atraso
@@ -126,6 +126,36 @@ async def _get_dashboard_impl(
 
         reclamos_abiertos = db.query(Reclamo).filter(Reclamo.estado.in_(["NUEVO", "EN_GESTION"])).count()
 
+        # Entregas programadas esta semana
+        fin_semana = inicio_semana + timedelta(days=7)
+        entregas_semana = db.query(Entrega).filter(
+            Entrega.fecha_instalacion >= inicio_semana,
+            Entrega.fecha_instalacion < fin_semana,
+        ).count()
+
+        # Consultas WA entrantes últimas 24hs por línea
+        hace_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+        wa_rows = (
+            db.query(InboxMensaje.wa_linea, func.count(InboxMensaje.id).label("total"))
+            .filter(
+                InboxMensaje.direccion == "IN",
+                InboxMensaje.created_at >= hace_24h,
+                InboxMensaje.wa_linea.isnot(None),
+            )
+            .group_by(InboxMensaje.wa_linea)
+            .order_by(func.count(InboxMensaje.id).desc())
+            .all()
+        )
+        lineas_map = {
+            p.wa_phone_id: p.nombre
+            for p in db.query(MetaPagina).filter(MetaPagina.wa_phone_id.isnot(None)).all()
+        }
+        wa_consultas_hoy = [
+            {"wa_linea": r.wa_linea, "nombre": lineas_map.get(r.wa_linea, r.wa_linea), "total": r.total}
+            for r in wa_rows
+        ]
+        total_wa_hoy = sum(r.total for r in wa_rows)
+
         # ── Métricas de salud financiera ──────────────────────────────────────
         monto_cobrado_mes = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
             Pago.fecha_pago >= inicio_mes
@@ -163,6 +193,9 @@ async def _get_dashboard_impl(
             "efectividad_cobro": efectividad_cobro,
             "mora_critica": mora_critica,
             "alerta_cac": alerta_cac,
+            "entregas_semana": entregas_semana,
+            "wa_consultas_hoy": wa_consultas_hoy,
+            "total_wa_hoy": total_wa_hoy,
         }
 
     elif "ASESOR_APERTURA" in roles:

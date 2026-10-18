@@ -77,6 +77,8 @@ def venta_to_dict(v: VentaContado, db=None) -> dict:
         "con_puerta_ingreso": v.con_puerta_ingreso or False,
         "con_ventana_balcon": v.con_ventana_balcon or False,
         "sobre_piso": v.sobre_piso or "",
+        "aliado_codigo": v.aliado_codigo or None,
+        "cliente_domicilio": v.cliente_domicilio or "",
         "created_at": v.created_at.isoformat() if v.created_at else "",
     }
 

@@ -266,6 +266,7 @@ async def create_venta_contado(
         cliente_nombre=data.get("cliente_nombre", ""),
         cliente_telefono=data.get("cliente_telefono", ""),
         cliente_localidad=data.get("cliente_localidad", ""),
+        cliente_domicilio=data.get("cliente_domicilio") or None,
         producto=data.get("producto", ""),
         modelo_especifico=data.get("modelo_especifico", ""),
         color=data.get("color"),
@@ -280,6 +281,7 @@ async def create_venta_contado(
         estado=data.get("estado", "COORDINADO"),
         notas=data.get("notas", ""),
         desde_stock=desde_stock,
+        aliado_codigo=(data.get("aliado_codigo") or "").strip().upper() or None,
         # ── Particularidades módulo ────────────────────────────────────────
         con_banio=bool(data.get("con_banio", False)),
         con_cocina=bool(data.get("con_cocina", False)),

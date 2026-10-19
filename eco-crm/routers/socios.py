@@ -4656,31 +4656,36 @@ async def admin_listar_plantillas_wa(
 
     import httpx as _httpx
     try:
-        # Info del número configurado
+        # Info del número configurado + namespace (para luego obtener WABA ID)
         r_phone = _httpx.get(
             f"{WA_API_URL}/{phone_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
+            params={"fields": "id,display_phone_number,verified_name,quality_rating,status,message_template_namespace"},
             timeout=10,
         )
         phone_data = r_phone.json() if r_phone.status_code == 200 else {"error": r_phone.text[:200]}
 
-        # Consultar estado de la plantilla OTP.  El WABA ID no está expuesto
-        # directamente en el endpoint del phone_id con este tipo de token, así que
-        # lo buscamos a través del Business ID ya conocido.
+        # Intentar múltiples caminos para obtener el WABA ID y el estado de la plantilla
         META_BIZ_ID = "753481671171165"
         template_info = None
         waba_id = None
-        r_waba = _httpx.get(
-            f"{WA_API_URL}/{META_BIZ_ID}/owned_whatsapp_business_accounts",
-            headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "id,name"},
-            timeout=10,
-        )
-        if r_waba.status_code == 200:
-            wabas = r_waba.json().get("data", [])
-            if wabas:
-                waba_id = wabas[0]["id"]
+        # Camino 1: business -> owned_whatsapp_business_accounts
+        for biz_endpoint in [
+            f"{META_BIZ_ID}/owned_whatsapp_business_accounts",
+            f"{META_BIZ_ID}/whatsapp_business_accounts",
+            f"{META_BIZ_ID}/client_whatsapp_business_accounts",
+        ]:
+            r_waba = _httpx.get(
+                f"{WA_API_URL}/{biz_endpoint}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"fields": "id,name"},
+                timeout=10,
+            )
+            if r_waba.status_code == 200:
+                wabas = r_waba.json().get("data", [])
+                if wabas:
+                    waba_id = wabas[0]["id"]
+                    break
         if waba_id:
             r_tmpl = _httpx.get(
                 f"{WA_API_URL}/{waba_id}/message_templates",

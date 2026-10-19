@@ -801,8 +801,29 @@ async def _procesar_evento_fb(entry: dict, db: Session):
     """Procesa un evento del webhook de Facebook (comentario o mensaje)."""
     page_id = entry.get("id", "")
     pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
-    if not pg or not pg.page_token:
+    if not pg:
+        log.debug(f"[FB-WEBHOOK] Página {page_id!r} no está en DB — ignorando evento")
         return
+
+    # page_token propio; fallback al token global de config
+    token_efectivo = pg.page_token or get_config_value("meta_page_access_token", db) or ""
+    if not token_efectivo:
+        log.warning(
+            "[FB-WEBHOOK] Página %s ('%s') sin page_token y sin meta_page_access_token global. "
+            "Webhook recibido pero sin credenciales para responder. "
+            "Ir a /redes → Conectar cuenta FB para renovar tokens.",
+            page_id, pg.nombre or "?",
+        )
+        return
+
+    if not pg.page_token:
+        log.warning(
+            "[FB-WEBHOOK] Página %s usando token GLOBAL (page_token vacío). "
+            "Renovar tokens en /redes para que las respuestas salgan con la identidad de la página.",
+            page_id,
+        )
+    # Usar token_efectivo en todas las llamadas de esta función
+    pg_token = token_efectivo
 
     numero_wa = pg.numero_whatsapp or ""
 
@@ -830,7 +851,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
 
         if pg.auto_reply_mensajes:
             respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db, vendedor_nombre=pg.vendedor or "")
-            ok = await _responder_mensaje(sender_id, respuesta, pg.page_token)
+            ok = await _responder_mensaje(sender_id, respuesta, pg_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta
         db.commit()
@@ -868,11 +889,11 @@ async def _procesar_evento_fb(entry: dict, db: Session):
         db.flush()
 
         if es_neg and pg.auto_eliminar_negativos:
-            ok = await _eliminar_comentario(comment_id, pg.page_token)
+            ok = await _eliminar_comentario(comment_id, pg_token)
             interaccion.accion = "eliminado" if ok else "error"
         elif pg.auto_reply_comentarios:
             respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db, vendedor_nombre=pg.vendedor or "")
-            ok = await _responder_comentario(comment_id, respuesta, pg.page_token)
+            ok = await _responder_comentario(comment_id, respuesta, pg_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta
 

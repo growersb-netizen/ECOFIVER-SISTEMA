@@ -76,25 +76,24 @@ def send_whatsapp_text(db: Session, to: str, mensaje: str) -> bool:
 
 
 OTP_TEMPLATE_NAME = "ecofiver_codigo_verificacion"
-OTP_TEMPLATE_LANG = "es"   # Meta usa "es", no "es_AR"
+OTP_TEMPLATE_LANG = "es_AR"  # Confirmado: la plantilla está registrada en es_AR (no "es")
 
-# Estructuras de componentes a probar en orden.  Meta devuelve (#100) Invalid parameter
-# cuando la estructura enviada no coincide con los componentes registrados en la plantilla.
-# Las plantillas AUTHENTICATION pueden tener: sin botón, botón COPY_CODE, o botón URL.
+# Estructuras de componentes a probar en orden.  URL button va primero porque es
+# la estructura confirmada para ecofiver_codigo_verificacion (es_AR).
 _OTP_COMPONENT_CANDIDATES = [
-    # 1. Solo body — cubre plantillas sin botón dinámico o con botón estático
-    [{"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]}],
-    # 2. Body + COPY_CODE — estructura estándar de plantillas AUTHENTICATION con botón
-    [
-        {"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]},
-        {"type": "button", "sub_type": "copy_code", "index": "0",
-         "parameters": [{"type": "coupon_code", "coupon_code": "{codigo}"}]},
-    ],
-    # 3. Body + URL button — plantillas con botón de URL variable (estructura original)
+    # 1. Body + URL button — confirmado con test en producción
     [
         {"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]},
         {"type": "button", "sub_type": "url", "index": "0",
          "parameters": [{"type": "text", "text": "{codigo}"}]},
+    ],
+    # 2. Solo body — fallback para plantillas sin botón dinámico
+    [{"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]}],
+    # 3. Body + COPY_CODE — fallback para plantillas AUTHENTICATION con botón COPY_CODE
+    [
+        {"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]},
+        {"type": "button", "sub_type": "copy_code", "index": "0",
+         "parameters": [{"type": "coupon_code", "coupon_code": "{codigo}"}]},
     ],
 ]
 

@@ -4656,18 +4656,31 @@ async def admin_listar_plantillas_wa(
 
     import httpx as _httpx
     try:
-        # Info del número configurado + WABA ID para consultar plantillas
+        # Info del número configurado
         r_phone = _httpx.get(
             f"{WA_API_URL}/{phone_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "id,display_phone_number,verified_name,quality_rating,status,account"},
+            params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
             timeout=10,
         )
         phone_data = r_phone.json() if r_phone.status_code == 200 else {"error": r_phone.text[:200]}
 
-        # Consultar estado de la plantilla OTP en Meta
+        # Consultar estado de la plantilla OTP.  El WABA ID no está expuesto
+        # directamente en el endpoint del phone_id con este tipo de token, así que
+        # lo buscamos a través del Business ID ya conocido.
+        META_BIZ_ID = "753481671171165"
         template_info = None
-        waba_id = (phone_data.get("account") or {}).get("id")
+        waba_id = None
+        r_waba = _httpx.get(
+            f"{WA_API_URL}/{META_BIZ_ID}/owned_whatsapp_business_accounts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "id,name"},
+            timeout=10,
+        )
+        if r_waba.status_code == 200:
+            wabas = r_waba.json().get("data", [])
+            if wabas:
+                waba_id = wabas[0]["id"]
         if waba_id:
             r_tmpl = _httpx.get(
                 f"{WA_API_URL}/{waba_id}/message_templates",

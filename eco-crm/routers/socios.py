@@ -26,6 +26,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from pathlib import Path
 
@@ -3819,7 +3820,10 @@ async def pendientes_confirmacion_48hs(
     """Ventas de contado cargadas por un socio, esperando el contacto de las 48hs."""
     _require_gestion_interna(x_api_key, current_user)
     ventas = (db.query(VentaContado)
-              .filter(VentaContado.confirmacion_48hs_en.is_(None), VentaContado.cobro_estado != "COBRADO")
+              .filter(
+                  VentaContado.confirmacion_48hs_en.is_(None),
+                  or_(VentaContado.cobro_estado.is_(None), VentaContado.cobro_estado != "COBRADO"),
+              )
               .order_by(VentaContado.created_at.asc()).all())
     return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}
 
@@ -3836,7 +3840,7 @@ async def pendientes_produccion(
                   VentaContado.aliado_codigo.isnot(None),
                   VentaContado.confirmacion_48hs_en.isnot(None),
                   VentaContado.en_produccion_desde.is_(None),
-                  VentaContado.cobro_estado != "COBRADO",
+                  or_(VentaContado.cobro_estado.is_(None), VentaContado.cobro_estado != "COBRADO"),
               )
               .order_by(VentaContado.confirmacion_48hs_en.asc()).all())
     return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}
@@ -3853,7 +3857,7 @@ async def pendientes_entrega_cobro(
               .filter(
                   VentaContado.aliado_codigo.isnot(None),
                   VentaContado.en_produccion_desde.isnot(None),
-                  VentaContado.cobro_estado != "COBRADO",
+                  or_(VentaContado.cobro_estado.is_(None), VentaContado.cobro_estado != "COBRADO"),
               )
               .order_by(VentaContado.en_produccion_desde.asc()).all())
     return {"total": len(ventas), "ventas": [_venta_cont_dict(v) for v in ventas]}

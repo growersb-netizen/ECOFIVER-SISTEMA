@@ -143,7 +143,15 @@ def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
         except Exception as e:
             log.error(f"[WA] Excepción template OTP [{label}]: {e}")
 
-    # ── Fallback: texto libre (funciona dentro de la ventana de 24 h) ────────
+    # ── Fallback: texto libre ────────────────────────────────────────────────
+    # NOTA: Solo funciona si el destinatario inició conversación con el número
+    # en las últimas 24h.  Los socios que nunca mandaron un mensaje NO lo recibirán.
+    # Si llegamos acá, la plantilla está mal configurada en Meta — revisar estructura.
+    log.error(
+        "[WA] Todos los intentos de plantilla fallaron para OTP a %s. "
+        "Intentando texto libre (solo funcionará si hay ventana de 24h abierta).",
+        numero,
+    )
     mensaje = (
         f"🔐 *Tu código de verificación EcoFiver es: {codigo}*\n\n"
         f"Ingresalo en el panel para verificar tu WhatsApp.\n"
@@ -153,7 +161,12 @@ def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
     if ok:
         log.info(f"[WA] OTP (texto libre) enviado a {numero}")
     else:
-        log.error(f"[WA] No se pudo enviar OTP a {numero} por ningún método")
+        log.error(
+            "[WA] OTP no entregado a %s. La plantilla '%s' falló con todas las "
+            "estructuras conocidas — verificar en Meta BM que esté APROBADA y revisar "
+            "sus componentes con GET /api/admin/wa/plantillas?destino=%s",
+            numero, OTP_TEMPLATE_NAME, numero,
+        )
     return ok
 
 

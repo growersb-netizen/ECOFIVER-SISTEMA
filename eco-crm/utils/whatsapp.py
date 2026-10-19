@@ -78,12 +78,37 @@ def send_whatsapp_text(db: Session, to: str, mensaje: str) -> bool:
 OTP_TEMPLATE_NAME = "ecofiver_codigo_verificacion"
 OTP_TEMPLATE_LANG = "es"   # Meta usa "es", no "es_AR"
 
+# Estructuras de componentes a probar en orden.  Meta devuelve (#100) Invalid parameter
+# cuando la estructura enviada no coincide con los componentes registrados en la plantilla.
+# Las plantillas AUTHENTICATION pueden tener: sin botón, botón COPY_CODE, o botón URL.
+_OTP_COMPONENT_CANDIDATES = [
+    # 1. Solo body — cubre plantillas sin botón dinámico o con botón estático
+    [{"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]}],
+    # 2. Body + COPY_CODE — estructura estándar de plantillas AUTHENTICATION con botón
+    [
+        {"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]},
+        {"type": "button", "sub_type": "copy_code", "index": "0",
+         "parameters": [{"type": "coupon_code", "coupon_code": "{codigo}"}]},
+    ],
+    # 3. Body + URL button — plantillas con botón de URL variable (estructura original)
+    [
+        {"type": "body", "parameters": [{"type": "text", "text": "{codigo}"}]},
+        {"type": "button", "sub_type": "url", "index": "0",
+         "parameters": [{"type": "text", "text": "{codigo}"}]},
+    ],
+]
+
+
+def _build_otp_components(template: list, codigo: str) -> list:
+    """Reemplaza el placeholder {codigo} por el código real en la estructura de componentes."""
+    import json
+    return json.loads(json.dumps(template).replace('"{codigo}"', json.dumps(codigo)))
+
 
 def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
     """
-    Envía OTP por WhatsApp.  Intenta primero con la plantilla aprobada por Meta;
-    si la plantilla falla (no existe, no aprobada, ventana de 24h cerrada, etc.)
-    cae a texto libre.  Retorna True si alguno de los dos métodos funcionó.
+    Envía OTP por WhatsApp.  Prueba todas las estructuras de componentes conocidas
+    de la plantilla de autenticación antes de caer a texto libre.
     """
     token, phone_id = _get_wa_creds(db)
     if not token or not phone_id:
@@ -92,38 +117,33 @@ def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
 
     numero = to.replace("+", "").replace(" ", "").replace("-", "")
 
-    # ── Intento 1: plantilla de autenticación ────────────────────────────────
-    try:
-        resp = httpx.post(
-            f"{WA_API_URL}/{phone_id}/messages",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={
-                "messaging_product": "whatsapp",
-                "to": numero,
-                "type": "template",
-                "template": {
-                    "name": OTP_TEMPLATE_NAME,
-                    "language": {"code": OTP_TEMPLATE_LANG},
-                    "components": [
-                        {"type": "body", "parameters": [{"type": "text", "text": codigo}]},
-                        {"type": "button", "sub_type": "url", "index": "0",
-                         "parameters": [{"type": "text", "text": codigo}]},
-                    ],
+    labels = ["body-only", "copy_code", "url-button"]
+    for idx, candidate in enumerate(_OTP_COMPONENT_CANDIDATES):
+        label = labels[idx]
+        try:
+            resp = httpx.post(
+                f"{WA_API_URL}/{phone_id}/messages",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={
+                    "messaging_product": "whatsapp",
+                    "to": numero,
+                    "type": "template",
+                    "template": {
+                        "name": OTP_TEMPLATE_NAME,
+                        "language": {"code": OTP_TEMPLATE_LANG},
+                        "components": _build_otp_components(candidate, codigo),
+                    },
                 },
-            },
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            log.info(f"[WA] OTP (template) enviado a {numero}")
-            return True
-        log.warning(
-            f"[WA] Template OTP falló {resp.status_code}: {resp.text[:400]} "
-            "— cayendo a texto libre"
-        )
-    except Exception as e:
-        log.error(f"[WA] Excepción template OTP: {e} — cayendo a texto libre")
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                log.info(f"[WA] OTP (template/{label}) enviado a {numero}")
+                return True
+            log.warning(f"[WA] Template OTP [{label}] falló {resp.status_code}: {resp.text[:300]}")
+        except Exception as e:
+            log.error(f"[WA] Excepción template OTP [{label}]: {e}")
 
-    # ── Intento 2: texto libre (funciona dentro de la ventana de 24 h) ───────
+    # ── Fallback: texto libre (funciona dentro de la ventana de 24 h) ────────
     mensaje = (
         f"🔐 *Tu código de verificación EcoFiver es: {codigo}*\n\n"
         f"Ingresalo en el panel para verificar tu WhatsApp.\n"

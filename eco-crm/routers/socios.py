@@ -4675,32 +4675,48 @@ async def admin_listar_plantillas_wa(
         }
 
         if destino:
+            from utils.whatsapp import _OTP_COMPONENT_CANDIDATES, _build_otp_components
             numero = destino.replace("+", "").replace(" ", "").replace("-", "")
             codigo_test = "123456"
-            r_test = _httpx.post(
-                f"{WA_API_URL}/{phone_id}/messages",
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                json={
-                    "messaging_product": "whatsapp",
-                    "to": numero,
-                    "type": "template",
-                    "template": {
-                        "name": OTP_TEMPLATE_NAME,
-                        "language": {"code": OTP_TEMPLATE_LANG},
-                        "components": [
-                            {"type": "body", "parameters": [{"type": "text", "text": codigo_test}]},
-                            {"type": "button", "sub_type": "url", "index": "0",
-                             "parameters": [{"type": "text", "text": codigo_test}]},
-                        ],
-                    },
-                },
-                timeout=10,
-            )
+            labels = ["body-only", "copy_code", "url-button"]
+            intentos = []
+            primer_ok = None
+            for idx, candidate in enumerate(_OTP_COMPONENT_CANDIDATES):
+                label = labels[idx]
+                try:
+                    r_test = _httpx.post(
+                        f"{WA_API_URL}/{phone_id}/messages",
+                        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                        json={
+                            "messaging_product": "whatsapp",
+                            "to": numero,
+                            "type": "template",
+                            "template": {
+                                "name": OTP_TEMPLATE_NAME,
+                                "language": {"code": OTP_TEMPLATE_LANG},
+                                "components": _build_otp_components(candidate, codigo_test),
+                            },
+                        },
+                        timeout=10,
+                    )
+                    ok = r_test.status_code == 200
+                    intento = {
+                        "estructura": label,
+                        "status": r_test.status_code,
+                        "ok": ok,
+                        "response": r_test.json() if r_test.headers.get("content-type", "").startswith("application/json") else r_test.text[:300],
+                    }
+                    if ok and primer_ok is None:
+                        primer_ok = label
+                except Exception as e:
+                    intento = {"estructura": label, "status": None, "ok": False, "error": str(e)[:200]}
+                intentos.append(intento)
+
             resultado["test_destino"] = numero
             resultado["test_codigo"] = codigo_test
-            resultado["test_status"] = r_test.status_code
-            resultado["test_response"] = r_test.json() if r_test.headers.get("content-type", "").startswith("application/json") else r_test.text[:300]
-            resultado["test_ok"] = r_test.status_code == 200
+            resultado["test_intentos"] = intentos
+            resultado["test_estructura_ok"] = primer_ok
+            resultado["test_ok"] = primer_ok is not None
 
         return resultado
     except Exception as e:

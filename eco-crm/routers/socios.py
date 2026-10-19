@@ -4656,33 +4656,46 @@ async def admin_listar_plantillas_wa(
 
     import httpx as _httpx
     try:
-        # Info del número configurado
+        # Info del número configurado + WABA ID para consultar plantillas
         r_phone = _httpx.get(
             f"{WA_API_URL}/{phone_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "id,display_phone_number,verified_name,quality_rating,status"},
+            params={"fields": "id,display_phone_number,verified_name,quality_rating,status,account"},
             timeout=10,
         )
         phone_data = r_phone.json() if r_phone.status_code == 200 else {"error": r_phone.text[:200]}
+
+        # Consultar estado de la plantilla OTP en Meta
+        template_info = None
+        waba_id = (phone_data.get("account") or {}).get("id")
+        if waba_id:
+            r_tmpl = _httpx.get(
+                f"{WA_API_URL}/{waba_id}/message_templates",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"name": OTP_TEMPLATE_NAME, "fields": "name,status,category,language,components,quality_score"},
+                timeout=10,
+            )
+            if r_tmpl.status_code == 200:
+                tmpl_list = r_tmpl.json().get("data", [])
+                template_info = tmpl_list[0] if tmpl_list else {"warning": "plantilla no encontrada en Meta"}
+            else:
+                template_info = {"error": r_tmpl.text[:200]}
 
         resultado = {
             "ok": True,
             "phone_info": phone_data,
             "phone_id": phone_id,
+            "waba_id": waba_id,
             "template_name": OTP_TEMPLATE_NAME,
             "template_lang": OTP_TEMPLATE_LANG,
-            "nota": (
-                "Para verificar si la plantilla existe: ir a Meta Business Manager → "
-                "WhatsApp → Plantillas de mensajes y buscar '" + OTP_TEMPLATE_NAME + "'. "
-                "Para hacer un test de envío, agregar ?destino=549XXXXXXXXXX a esta URL."
-            ),
+            "template_meta": template_info,
         }
 
         if destino:
             from utils.whatsapp import _OTP_COMPONENT_CANDIDATES, _build_otp_components
             numero = destino.replace("+", "").replace(" ", "").replace("-", "")
             codigo_test = "123456"
-            labels = ["body-only", "copy_code", "url-button"]
+            labels = ["url-button", "body-only", "copy_code"]
             intentos = []
             primer_ok = None
             for idx, candidate in enumerate(_OTP_COMPONENT_CANDIDATES):

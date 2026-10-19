@@ -2278,6 +2278,36 @@ async def api_redes_save_user_token(
     if not user_token:
         raise HTTPException(400, "Falta 'user_token'")
 
+    # Intentar exchange a long-lived token (60 días) si tenemos APP_SECRET.
+    # Los page tokens derivados de un long-lived user token nunca expiran.
+    app_id = os.getenv("META_APP_ID", "")
+    app_secret = os.getenv("META_APP_SECRET", "")
+    token_tipo = "short-lived"
+    async with httpx.AsyncClient(timeout=15) as hc_ex:
+        if app_id and app_secret:
+            ex = await hc_ex.get(
+                f"{META_GRAPH_URL}/oauth/access_token",
+                params={
+                    "grant_type": "fb_exchange_token",
+                    "client_id": app_id,
+                    "client_secret": app_secret,
+                    "fb_exchange_token": user_token,
+                },
+            )
+            if ex.status_code == 200:
+                long_token = ex.json().get("access_token")
+                if long_token:
+                    user_token = long_token
+                    token_tipo = "long-lived"
+                    log.info("[FB-OAUTH] Token exchangeado a long-lived correctamente.")
+            else:
+                log.warning(
+                    "[FB-OAUTH] Exchange a long-lived falló (%s): %s — usando token corto.",
+                    ex.status_code, ex.text[:200],
+                )
+        else:
+            log.warning("[FB-OAUTH] META_APP_SECRET no configurado — token corto (~1h).")
+
     # Guardar token en config
     entry = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "meta_page_access_token").first()
     if entry:
@@ -2336,6 +2366,7 @@ async def api_redes_save_user_token(
     return {
         "ok": len(synced) > 0,
         "synced": len(synced),
+        "token_tipo": token_tipo,
         "pages": synced,
         "errors": errors,
     }
@@ -2457,6 +2488,7 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
           return;
         }}
         const totalPaginas = data1.synced || 0;
+        const tokenTipo = data1.token_tipo || 'short-lived';
 
         // PASO 2: Suscribir webhooks usando los page tokens recién importados
         setMsg('Paso 2/3: Suscribiendo webhooks en ' + totalPaginas + ' páginas...');
@@ -2491,6 +2523,7 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
           document.getElementById('msg').innerHTML =
             totalPaginas + ' página' + (totalPaginas !== 1 ? 's' : '') + ' importada' + (totalPaginas !== 1 ? 's' : '') +
             (okWebhooks > 0 ? ' · ' + okWebhooks + ' con webhook activo' : ' · Activá webhooks desde el panel') +
+            ' · token ' + (tokenTipo === 'long-lived' ? '🔒 permanente' : '⏱️ corto (~1h)') +
             '<br><br><a href="' + BASE_URL + '/redes">← Volver al panel de Redes Sociales</a>';
         }} else {{
           document.getElementById('title').innerHTML = '<span style="color:#f59e0b">⚠️ Token guardado sin páginas</span>';

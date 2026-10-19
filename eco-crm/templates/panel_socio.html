@@ -634,7 +634,7 @@
   <div class="card hidden" id="card-olvide">
     <div id="olvide-paso-pedir">
       <h2 style="margin:0 0 4px;font-size:19px">Recuperar contraseña</h2>
-      <p style="font-size:13px;color:var(--text-muted)">Te mandamos un código por WhatsApp para que puedas elegir una nueva.</p>
+      <p style="font-size:13px;color:var(--text-muted)">Te mandamos un código por WhatsApp para que puedas elegir una nueva.<br><strong>¿No lo ves?</strong> Abrí WhatsApp → revisá <strong>Actualizaciones</strong>.</p>
       <label>WhatsApp, email o código de socio</label>
       <input id="olvide-id">
       <button class="btn-primary" style="margin-top:16px" onclick="doOlvide()">Mandarme el código</button>
@@ -669,7 +669,7 @@
     </div>
     <div class="hidden" id="registro-paso-otp">
       <h2 style="margin:0 0 4px;font-size:19px">¡Ya está registrado!</h2>
-      <p style="font-size:13px;color:var(--text-muted);margin:0">Verificá tu WhatsApp para activar tu cuenta — te mandamos un código de 6 dígitos.</p>
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Verificá tu WhatsApp para activar tu cuenta — te mandamos un código de 6 dígitos.<br><strong>¿No lo ves?</strong> Abrí WhatsApp → tocá <strong>Actualizaciones</strong> (o buscá el número de EcoFiver en tus chats).</p>
       <label>Código de 6 dígitos</label>
       <input id="registro-otp" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:4px;text-align:center">
       <button class="btn-primary" style="margin-top:16px" onclick="doConfirmarRegistro()">Activar mi cuenta</button>
@@ -1934,7 +1934,7 @@ async function doReenviarCodigoRegistro(){
   const msg = document.getElementById('registro-otp-msg'); msg.className='msg'; msg.textContent='';
   try{
     await api('/api/public/socio-reenviar-codigo', {method:'POST', body: JSON.stringify({codigo: ultimoCodigoRegistrado})});
-    msg.className='msg ok'; msg.textContent = 'Te mandamos un código nuevo por WhatsApp.';
+    msg.className='msg ok'; msg.textContent = 'Te mandamos un código nuevo por WhatsApp. Si no lo ves en tus chats, buscalo en "Actualizaciones" de WhatsApp.';
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
@@ -2049,7 +2049,7 @@ async function doOlvide(){
   try{
     const campo = id.includes('@') ? 'email' : (/^[A-Za-z]{2}-\d+$/.test(id) ? 'codigo' : 'whatsapp');
     const data = await api('/api/public/socio-olvide-password', {method:'POST', body: JSON.stringify({[campo]: id})});
-    msg.className='msg ok'; msg.textContent = data.mensaje;
+    msg.className='msg ok'; msg.textContent = (data.mensaje || '') + ' Si no lo ves en tus chats, buscalo en "Actualizaciones" de WhatsApp.';
     document.getElementById('olvide-paso-pedir').classList.add('hidden');
     document.getElementById('olvide-paso-resetear').classList.remove('hidden');
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
@@ -2184,7 +2184,7 @@ async function mvEnviarWhatsapp(){
     const data = await api('/api/socio/verificar-whatsapp/enviar', {method:'POST', body: JSON.stringify({whatsapp})});
     if(data && data.numero) SOCIO.telefono = data.numero;
     const numMostrar = (data && data.numero) ? data.numero : (whatsapp || SOCIO.telefono || '');
-    msg.className='msg ok'; msg.textContent=`✅ Código enviado a +${numMostrar}. Buscá el mensaje en WhatsApp e ingresá los 6 dígitos abajo.`;
+    msg.className='msg ok'; msg.textContent=`✅ Código enviado a +${numMostrar}. Si no lo ves en tus chats, abrí WhatsApp → "Actualizaciones". Ingresá los 6 dígitos abajo.`;
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 

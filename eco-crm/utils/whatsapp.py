@@ -116,7 +116,7 @@ def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
 
     numero = to.replace("+", "").replace(" ", "").replace("-", "")
 
-    labels = ["body-only", "copy_code", "url-button"]
+    labels = ["url-button", "body-only", "copy_code"]
     for idx, candidate in enumerate(_OTP_COMPONENT_CANDIDATES):
         label = labels[idx]
         try:

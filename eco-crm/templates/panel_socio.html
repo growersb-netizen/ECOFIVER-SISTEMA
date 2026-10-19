@@ -2181,9 +2181,10 @@ async function mvEnviarWhatsapp(){
   const msg = document.getElementById('mv-wa-msg'); msg.className='msg'; msg.textContent='';
   try{
     const whatsapp = document.getElementById('mv-wa-numero').value.trim();
-    await api('/api/socio/verificar-whatsapp/enviar', {method:'POST', body: JSON.stringify({whatsapp})});
-    if(whatsapp) SOCIO.telefono = whatsapp;
-    msg.className='msg ok'; msg.textContent='Te mandamos el código a ese WhatsApp.';
+    const data = await api('/api/socio/verificar-whatsapp/enviar', {method:'POST', body: JSON.stringify({whatsapp})});
+    if(data && data.numero) SOCIO.telefono = data.numero;
+    const numMostrar = (data && data.numero) ? data.numero : (whatsapp || SOCIO.telefono || '');
+    msg.className='msg ok'; msg.textContent=`✅ Código enviado a +${numMostrar}. Buscá el mensaje en WhatsApp e ingresá los 6 dígitos abajo.`;
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 

@@ -681,7 +681,7 @@ async def enviar_codigo_whatsapp(request: Request, socio: Aliado = Depends(requi
             "Revisá que el número es correcto e intentá de nuevo en unos minutos. "
             "Si el problema persiste, contactá al soporte."
         )
-    return {"ok": True}
+    return {"ok": True, "numero": socio.telefono}
 
 
 @router.post("/api/socio/verificar-whatsapp/confirmar")

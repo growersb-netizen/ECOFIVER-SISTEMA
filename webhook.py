@@ -5,17 +5,18 @@ from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 import asyncio
 
-from config import WHATSAPP_VERIFY_TOKEN
+from config import WHATSAPP_VERIFY_TOKEN, ADMIN_WHATSAPP_NUMBER, ECO_CRM_BASE_URL, ECO_CRM_API_KEY
 from rate_limit import limiter
 from logger import get_logger
 
 log = get_logger(__name__)
+import httpx
 from database import (
     get_or_create_conversation, update_conversation,
     save_message, get_conversation_messages, save_lead, mark_lead_notified
 )
 from router import get_agent_for_conversation, get_router_response
-from audio import process_whatsapp_audio
+from audio import process_whatsapp_audio, download_whatsapp_media
 from notifications import notify_qualified_lead, send_whatsapp_message
 from agents import PabloAgent, LauraAgent, SabrinaAgent, ClaudioAgent
 
@@ -145,6 +146,60 @@ async def process_incoming_message(phone_number: str, message_text: str, message
     return response
 
 
+async def _ingest_admin_media(message: dict, message_type: str, phone_number: str):
+    """Descarga media del admin desde WA y la envía al CRM (biblioteca + ecopost)."""
+    try:
+        media_info = message.get(message_type, {})
+        media_id = media_info.get("id")
+        mime_type = media_info.get("mime_type", "image/jpeg")
+        caption = media_info.get("caption", "") or ""
+
+        if not media_id:
+            await send_whatsapp_message(phone_number, "⚠️ No encontré el ID del archivo.")
+            return
+
+        file_bytes = await download_whatsapp_media(media_id)
+        if not file_bytes:
+            await send_whatsapp_message(phone_number, "❌ No pude descargar el archivo.")
+            return
+
+        ext_map = {
+            "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+            "video/mp4": ".mp4", "video/3gpp": ".3gp",
+        }
+        ext = ext_map.get(mime_type, ".bin")
+        filename = f"wa_media{ext}"
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{ECO_CRM_BASE_URL}/api/admin/ingest-media",
+                headers={"Authorization": f"Bearer {ECO_CRM_API_KEY}"},
+                data={"caption": caption, "destino": "ambos"},
+                files={"file": (filename, file_bytes, mime_type)},
+            )
+
+        if resp.status_code == 200:
+            result = resp.json()
+            categoria = result.get("categoria", "general")
+            tipo = result.get("tipo", "archivo")
+            partes = []
+            if result.get("material_id"):
+                partes.append(f"Biblioteca #{result['material_id']}")
+            if result.get("ecopost_id"):
+                partes.append(f"Ecopost #{result['ecopost_id']}")
+            destino_str = " · ".join(partes) if partes else "guardado"
+            await send_whatsapp_message(
+                phone_number,
+                f"✅ {tipo.capitalize()} guardado en CRM\nCategoría: {categoria}\n{destino_str}",
+            )
+        else:
+            await send_whatsapp_message(phone_number, f"⚠️ Error al guardar en CRM ({resp.status_code})")
+
+    except Exception as e:
+        log.error("Error en ingesta admin media: %s", e)
+        await send_whatsapp_message(phone_number, "❌ Error al procesar el archivo.")
+
+
 @router.get("/webhook")
 async def verify_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),
@@ -194,6 +249,9 @@ async def receive_message(request: Request):
             message_text = await process_whatsapp_audio(media_id, mime_type)
 
         elif message_type in ["image", "video", "document"]:
+            if ADMIN_WHATSAPP_NUMBER and phone_number == ADMIN_WHATSAPP_NUMBER:
+                await _ingest_admin_media(message, message_type, phone_number)
+                return {"status": "ok"}
             message_text = f"[El cliente envió un archivo de tipo {message_type}]"
 
         elif message_type == "location":

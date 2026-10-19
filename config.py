@@ -29,6 +29,11 @@ DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 # Flete
 FLETE_BASE_KM = 3000  # $ por km desde Zárate
 
+# Ingesta WhatsApp → CRM
+ADMIN_WHATSAPP_NUMBER = os.getenv("ADMIN_WHATSAPP_NUMBER", "")
+ECO_CRM_BASE_URL = os.getenv("ECO_CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
+ECO_CRM_API_KEY = os.getenv("ECO_CRM_API_KEY", "eco-crm-api-key-2024")
+
 # Horarios videollamada
 VIDEOLLAMADA_HORARIO = "lunes a viernes 11:30 a 18:00hs"
 VIDEOLLAMADA_MAX_POR_HORA = 2

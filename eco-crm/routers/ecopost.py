@@ -22,8 +22,8 @@ VIDEO_DIR = Path("data/ecopost_videos")
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 from database.database import get_db
-from database.models import ContenidoEcopost, EcopostReferencia, Usuario, MetaPagina
-from routers.auth import require_auth, get_user_roles
+from database.models import ContenidoEcopost, EcopostReferencia, Usuario, MetaPagina, MaterialSocio
+from routers.auth import require_auth, get_user_roles, require_auth_or_apikey
 from routers.configuracion import get_config_value
 from utils.ai_client import ai_complete, get_active_provider
 from utils.contexto_ecofiver import ctx_redes_sociales, ctx_empresa
@@ -2495,3 +2495,130 @@ async def api_duplicar(
     db.commit()
     db.refresh(nuevo)
     return {"ok": True, "id": nuevo.id, "item": _content_dict(nuevo)}
+
+
+# ─── ADMIN: INGESTA DESDE WHATSAPP ───────────────────────────────────────────
+
+_BIBLIOTECA_INGESTA_DIR = Path("data/biblioteca_socios")
+_BIBLIOTECA_INGESTA_DIR.mkdir(parents=True, exist_ok=True)
+
+_CAP_CATEGORIAS = {
+    "piscina": "piscinas", "piscinas": "piscinas", "pileta": "piscinas",
+    "modulo": "modulos", "módulo": "modulos", "modulos": "modulos",
+    "habitacional": "modulos",
+    "entrega": "entregas", "entregas": "entregas",
+    "obra": "obras",
+    "promo": "redes", "oferta": "redes", "post": "redes",
+}
+_CAP_ECOPOST_TIPO = {
+    "story": "story", "stories": "story",
+    "reel": "reel", "reels": "reel",
+    "carrusel": "carrusel", "carousel": "carrusel",
+}
+
+
+def _cap_categoria(caption: str) -> str:
+    low = caption.lower()
+    for kw, cat in _CAP_CATEGORIAS.items():
+        if kw in low:
+            return cat
+    return "general"
+
+
+def _cap_producto(caption: str) -> Optional[str]:
+    low = caption.lower()
+    if "piscina" in low or "pileta" in low:
+        return "piscinas"
+    if "modulo" in low or "módulo" in low or "habitacional" in low:
+        return "modulos"
+    return None
+
+
+def _cap_ecopost_tipo(caption: str) -> str:
+    low = caption.lower()
+    for kw, et in _CAP_ECOPOST_TIPO.items():
+        if kw in low:
+            return et
+    return "flyer"
+
+
+@router.post("/api/admin/ingest-media")
+async def admin_ingest_media(
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    destino: str = Form("ambos"),  # "biblioteca" | "ecopost" | "ambos"
+    user: Usuario = Depends(require_auth_or_apikey),
+    db: Session = Depends(get_db),
+):
+    """Ingesta de archivos desde WhatsApp del admin → Biblioteca de socios y/o Ecopost."""
+    data = await file.read()
+    mime = file.content_type or ""
+
+    if mime.startswith("image/"):
+        tipo_material = "imagen"
+    elif mime.startswith("video/"):
+        tipo_material = "video"
+    else:
+        tipo_material = "documento"
+
+    categoria = _cap_categoria(caption)
+    if categoria == "entregas":
+        destino = "biblioteca"
+
+    ext = Path(file.filename or "archivo").suffix
+    if not ext:
+        ext = ".jpg" if tipo_material == "imagen" else ".mp4" if tipo_material == "video" else ".bin"
+    fname = f"wa_{secrets.token_hex(8)}{ext}"
+    fpath = _BIBLIOTECA_INGESTA_DIR / fname
+    fpath.write_bytes(data)
+
+    titulo = (caption.strip() or f"WhatsApp {tipo_material} {datetime.now().strftime('%d/%m/%Y %H:%M')}")[:200]
+
+    material_id = None
+    ecopost_id = None
+
+    if destino in ("biblioteca", "ambos"):
+        mat = MaterialSocio(
+            tipo=tipo_material,
+            categoria=categoria,
+            titulo=titulo,
+            descripcion=caption or None,
+            archivo_path=str(fpath),
+            activo=True,
+            origen="whatsapp",
+        )
+        db.add(mat)
+        db.flush()
+        material_id = mat.id
+
+    if destino in ("ecopost", "ambos") and tipo_material == "imagen":
+        img_b64 = base64.b64encode(data).decode()
+        token = secrets.token_urlsafe(32)
+        crm_host = get_config_value("crm_public_url", db) or "https://eco-crm-production.up.railway.app"
+        img_url = f"{crm_host.rstrip('/')}/pub/img/{token}"
+        ep = ContenidoEcopost(
+            titulo=titulo,
+            tipo=_cap_ecopost_tipo(caption),
+            media_type="photo",
+            producto=_cap_producto(caption),
+            imagen_base64=img_b64,
+            imagen_url=img_url,
+            public_token=token,
+            estado="borrador",
+            creado_por_id=user.id,
+            notas=f"Ingesta WhatsApp. Caption: {caption}" if caption else "Ingesta WhatsApp",
+        )
+        db.add(ep)
+        db.flush()
+        ecopost_id = ep.id
+
+    db.commit()
+    return JSONResponse({
+        "ok": True,
+        "material_id": material_id,
+        "ecopost_id": ecopost_id,
+        "titulo": titulo,
+        "categoria": categoria,
+        "tipo": tipo_material,
+        "destino": destino,
+    })

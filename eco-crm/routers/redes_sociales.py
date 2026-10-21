@@ -3,6 +3,7 @@ Panel unificado de gestión de redes sociales.
 Endpoints: /redes (HTML) + /api/redes/...
 """
 import logging
+import re
 import time
 import os
 import asyncio
@@ -3140,4 +3141,260 @@ async def api_redes_fb_oauth_token(
         "paginas_ok": ok_count,
         "paginas_total": len(resultados),
         "resultados": resultados,
+    }
+
+
+# ─── ADMIN: SNAPSHOT DE METADATA DESDE META ──────────────────────────────────
+
+@router.get("/api/redes/admin/meta-snapshots")
+async def api_redes_admin_meta_snapshots(
+    t: str = "",
+    page_ids: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Obtiene los datos actuales de múltiples páginas desde Meta Graph API.
+    ?page_ids=id1,id2,... (vacío = todas las páginas activas con token).
+    Campos: name, about, bio, description, category, website, fan_count, followers_count.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    q = db.query(MetaPagina).filter(MetaPagina.activa == True)
+    if page_ids:
+        ids = [x.strip() for x in page_ids.split(",") if x.strip()]
+        q = q.filter(MetaPagina.page_id.in_(ids))
+
+    paginas = q.all()
+    global_token = get_config_value("meta_page_access_token", db) or ""
+    fields = "id,name,about,bio,description,category,website,fan_count,followers_count"
+
+    resultados = []
+    async with httpx.AsyncClient(timeout=20) as hc:
+        for pg in paginas:
+            token = pg.page_token or global_token
+            if not token:
+                resultados.append({"page_id": pg.page_id, "nombre": pg.nombre, "error": "sin token"})
+                continue
+            try:
+                r = await hc.get(
+                    f"{META_GRAPH_URL}/{pg.page_id}",
+                    params={"fields": fields, "access_token": token},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    resultados.append({
+                        "page_id": pg.page_id,
+                        "nombre_crm": pg.nombre,
+                        "name": data.get("name", ""),
+                        "about": data.get("about", ""),
+                        "bio": data.get("bio", ""),
+                        "description": data.get("description", ""),
+                        "category": data.get("category", ""),
+                        "website": data.get("website", ""),
+                        "fan_count": data.get("fan_count"),
+                        "followers_count": data.get("followers_count"),
+                    })
+                else:
+                    resultados.append({"page_id": pg.page_id, "nombre": pg.nombre, "error": r.text[:200]})
+            except Exception as e:
+                resultados.append({"page_id": pg.page_id, "nombre": pg.nombre, "error": str(e)[:120]})
+
+    return {"ok": True, "total": len(paginas), "snapshots": resultados}
+
+
+@router.post("/api/redes/admin/paginas/{page_id}/meta-update")
+async def api_redes_admin_meta_update(
+    page_id: str,
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Actualiza los metadatos de la página directamente en Meta Graph API.
+    Body: { "about": "...", "description": "...", "website": "..." }
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    body = await request.json()
+    pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+    if not pg:
+        raise HTTPException(404, "Página no encontrada en DB")
+
+    token = pg.page_token or get_config_value("meta_page_access_token", db) or ""
+    if not token:
+        raise HTTPException(400, "Sin token para esta página")
+
+    campos_permitidos = {"about", "description", "website"}
+    payload = {k: v for k, v in body.items() if k in campos_permitidos and v is not None}
+    if not payload:
+        raise HTTPException(400, "Nada que actualizar — campos permitidos: about, description, website")
+
+    async with httpx.AsyncClient(timeout=20) as hc:
+        r = await hc.post(
+            f"{META_GRAPH_URL}/{page_id}",
+            params={"access_token": token},
+            json=payload,
+        )
+
+    data = r.json() if r.content else {}
+    if r.status_code not in (200, 201):
+        err = data.get("error", {})
+        return {
+            "ok": False,
+            "page_id": page_id,
+            "nombre": pg.nombre,
+            "error": err.get("message", r.text[:300]),
+            "error_code": err.get("code"),
+        }
+
+    return {
+        "ok": data.get("success", True),
+        "page_id": page_id,
+        "nombre": pg.nombre,
+        "campos_actualizados": list(payload.keys()),
+    }
+
+
+# ─── ADMIN: ANÁLISIS DE HASHTAGS ─────────────────────────────────────────────
+
+# Hashtags que atraen tráfico LATAM (Colombia/Perú/Ecuador/México/Chile) en lugar de Argentina
+_HT_LATAM = {
+    "#piscina", "#piscinasfibra", "#piscinaprefabricada", "#piscinasdefibra",
+    "#colombia", "#peru", "#ecuador", "#chile", "#mexico",
+    "#bogota", "#lima", "#quito", "#medellin", "#cali", "#santiagodechile",
+    "#piscinasfibradecampo", "#piscinafibradecampo",
+}
+
+# Hashtags que atraen tráfico argentino
+_HT_ARG = {
+    "#pileta", "#piletas", "#piletadefibra", "#piletasfibra", "#piletasdefibra",
+    "#piletafibra", "#piletadejardin", "#piletapiletas",
+    "#argentina", "#buenosaires", "#gba", "#caba", "#cordoba", "#rosario",
+    "#mendoza", "#tucuman", "#neuquen", "#santafe", "#laplata",
+    "#ecomodulos", "#ecofiver", "#moduloshabitacionales",
+    "#viviendasmodulares", "#casasmodulares",
+    "#piletaautoportante", "#piletaprefabricada",
+}
+
+
+@router.get("/api/redes/admin/hashtag-analysis")
+async def api_redes_admin_hashtag_analysis(
+    t: str = "",
+    page_ids: Optional[str] = None,
+    limite_posts: int = 25,
+    db: Session = Depends(get_db),
+):
+    """
+    Analiza hashtags en posts recientes de las páginas para detectar si se están usando
+    hashtags LATAM (Colombia/Perú/Ecuador) en lugar de hashtags argentinos (#pileta, #buenosaires…).
+    Esta es la causa probable de 50 consultas diarias de Colombia/Perú en lugar de Argentina.
+    ?page_ids=id1,id2,... (vacío = todas las páginas activas).
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    q = db.query(MetaPagina).filter(MetaPagina.activa == True)
+    if page_ids:
+        ids = [x.strip() for x in page_ids.split(",") if x.strip()]
+        q = q.filter(MetaPagina.page_id.in_(ids))
+
+    paginas = q.all()
+    global_token = get_config_value("meta_page_access_token", db) or ""
+
+    todos_los_hashtags: dict = {}
+    analisis_paginas = []
+
+    async with httpx.AsyncClient(timeout=25) as hc:
+        for pg in paginas:
+            token = pg.page_token or global_token
+            if not token:
+                continue
+            try:
+                r = await hc.get(
+                    f"{META_GRAPH_URL}/{pg.page_id}/feed",
+                    params={
+                        "fields": "id,message,created_time",
+                        "limit": min(limite_posts, 50),
+                        "access_token": token,
+                    },
+                )
+                if r.status_code != 200:
+                    analisis_paginas.append({
+                        "page_id": pg.page_id,
+                        "nombre": pg.nombre,
+                        "error": r.text[:120],
+                    })
+                    continue
+
+                posts = r.json().get("data", [])
+                hashtags_pagina: dict = {}
+
+                for post in posts:
+                    msg = post.get("message", "") or ""
+                    for ht in re.findall(r'#\w+', msg.lower()):
+                        hashtags_pagina[ht] = hashtags_pagina.get(ht, 0) + 1
+                        todos_los_hashtags[ht] = todos_los_hashtags.get(ht, 0) + 1
+
+                latam_enc = {k: v for k, v in hashtags_pagina.items() if k in _HT_LATAM}
+                arg_enc = {k: v for k, v in hashtags_pagina.items() if k in _HT_ARG}
+                tiene_piscina = "piscina" in " ".join(hashtags_pagina.keys())
+                tiene_pileta = "pileta" in " ".join(hashtags_pagina.keys())
+
+                analisis_paginas.append({
+                    "page_id": pg.page_id,
+                    "nombre": pg.nombre,
+                    "posts_analizados": len(posts),
+                    "total_hashtags_unicos": len(hashtags_pagina),
+                    "usa_piscina": tiene_piscina,
+                    "usa_pileta": tiene_pileta,
+                    "hashtags_latam": latam_enc,
+                    "hashtags_argentina": arg_enc,
+                    "top_hashtags": sorted(hashtags_pagina.items(), key=lambda x: -x[1])[:15],
+                    "alerta_latam": len(latam_enc) > 0 and not tiene_pileta,
+                })
+            except Exception as e:
+                analisis_paginas.append({
+                    "page_id": pg.page_id,
+                    "nombre": pg.nombre,
+                    "error": str(e)[:120],
+                })
+
+    top_global = sorted(todos_los_hashtags.items(), key=lambda x: -x[1])[:40]
+    latam_global = {k: v for k, v in todos_los_hashtags.items() if k in _HT_LATAM}
+    arg_global = {k: v for k, v in todos_los_hashtags.items() if k in _HT_ARG}
+    alertas = [a["nombre"] for a in analisis_paginas if a.get("alerta_latam")]
+
+    diagnostico = []
+    if latam_global and not arg_global:
+        diagnostico.append("CRÍTICO: Solo se usan hashtags LATAM (#piscina, #piscinasfibra). "
+                           "Esto explica el tráfico de Colombia/Perú/Ecuador.")
+    elif latam_global:
+        piscina_count = sum(v for k, v in todos_los_hashtags.items() if "piscina" in k)
+        pileta_count = sum(v for k, v in todos_los_hashtags.items() if "pileta" in k)
+        if piscina_count > pileta_count * 2:
+            diagnostico.append(f"ALERTA: Se usa '#piscina' ({piscina_count} veces) mucho más que "
+                               f"'#pileta' ({pileta_count} veces). "
+                               f"'#piscina' es dominante en Colombia/Perú; '#pileta' es el término argentino.")
+    if not arg_global:
+        diagnostico.append("No se encontraron hashtags geolocalizados de Argentina (#buenosaires, #gba, #argentina…).")
+
+    return {
+        "ok": True,
+        "paginas_analizadas": len(analisis_paginas),
+        "diagnostico": diagnostico,
+        "resumen": {
+            "hashtags_latam_detectados": latam_global,
+            "hashtags_argentina_detectados": arg_global,
+            "paginas_con_alerta": alertas,
+            "top_40_global": top_global,
+        },
+        "detalle_por_pagina": analisis_paginas,
     }

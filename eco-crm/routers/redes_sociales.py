@@ -3398,3 +3398,193 @@ async def api_redes_admin_hashtag_analysis(
         },
         "detalle_por_pagina": analisis_paginas,
     }
+
+
+# ─── ADMIN: REEMPLAZAR HASHTAGS LATAM POR HASHTAGS ARGENTINOS EN POSTS ────────
+
+# Mapa de reemplazo: hashtag LATAM → equivalente argentino
+_HT_REEMPLAZO = {
+    "#piscina": "#pileta",
+    "#piscinasfibra": "#piletasfibra",
+    "#piscinaprefabricada": "#piletaautoportante",
+    "#piscinasdefibra": "#piletasdefibra",
+    "#piscinadefibra": "#piletadefibra",
+    "#piscinasfibradecampo": "#piletasfibra",
+    "#piscinafibradecampo": "#piletasfibra",
+    "#instalaciónpiscina": "#instalacionpileta",
+    "#instalacionpiscina": "#instalacionpileta",
+}
+
+# Hashtags argentinos a agregar si el post no tiene ninguno de geo-AR
+_HT_GEO_ARG = ["#Argentina", "#BuenosAires", "#EcoFiver"]
+_HT_GEO_ARG_CHECK = {"#argentina", "#buenosaires", "#gba", "#caba", "#ecofiver",
+                     "#ecomodulos", "#cordoba", "#rosario", "#mendoza", "#tucuman"}
+
+
+def _reemplazar_hashtags_latam(mensaje: str) -> tuple[str, list[str], list[str]]:
+    """
+    Reemplaza hashtags LATAM por equivalentes argentinos en un mensaje.
+    Retorna (nuevo_mensaje, reemplazos_aplicados, hashtags_agregados).
+    """
+    if not mensaje:
+        return mensaje, [], []
+
+    reemplazos = []
+    nuevo = mensaje
+
+    # Reemplazar case-insensitive manteniendo el resto del texto
+    for latam, arg in _HT_REEMPLAZO.items():
+        pattern = re.compile(re.escape(latam), re.IGNORECASE)
+        if pattern.search(nuevo):
+            nuevo = pattern.sub(arg, nuevo)
+            reemplazos.append(f"{latam} → {arg}")
+
+    # Agregar geo-AR si no hay ninguno
+    msg_lower = nuevo.lower()
+    tiene_geo_ar = any(ht in msg_lower for ht in _HT_GEO_ARG_CHECK)
+    agregados = []
+    if not tiene_geo_ar and reemplazos:
+        nuevo = nuevo.rstrip() + "\n" + " ".join(_HT_GEO_ARG)
+        agregados = _HT_GEO_ARG[:]
+
+    return nuevo, reemplazos, agregados
+
+
+@router.post("/api/redes/admin/paginas/batch-hashtag-update")
+async def api_redes_admin_batch_hashtag_update(
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Reemplaza hashtags LATAM (#piscina, #piscinasfibra, …) por equivalentes argentinos
+    (#pileta, #piletasfibra, …) en posts recientes de las páginas seleccionadas.
+    Agrega hashtags de geo-AR (#Argentina, #BuenosAires, #EcoFiver) si el post no tiene ninguno.
+
+    Body: {
+      "page_ids": ["id1", "id2"],  // opcional — vacío = todas las páginas activas con token
+      "limite_posts": 20,          // máx posts a revisar por página (default 20)
+      "dry_run": true              // true = solo previsualiza, no edita (default true)
+    }
+
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    if t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    body = await request.json()
+    page_ids_body = body.get("page_ids") or []
+    limite_posts = min(int(body.get("limite_posts", 20)), 50)
+    dry_run = body.get("dry_run", True)
+
+    q = db.query(MetaPagina).filter(MetaPagina.activa == True)
+    if page_ids_body:
+        q = q.filter(MetaPagina.page_id.in_(page_ids_body))
+    paginas = q.all()
+
+    global_token = get_config_value("meta_page_access_token", db) or ""
+
+    resultados_paginas = []
+    total_posts_editados = 0
+    total_posts_revisados = 0
+
+    async with httpx.AsyncClient(timeout=30) as hc:
+        for pg in paginas:
+            token = pg.page_token or global_token
+            if not token:
+                resultados_paginas.append({
+                    "page_id": pg.page_id,
+                    "nombre": pg.nombre,
+                    "error": "sin token",
+                })
+                continue
+
+            # Obtener posts recientes
+            try:
+                r = await hc.get(
+                    f"{META_GRAPH_URL}/{pg.page_id}/feed",
+                    params={
+                        "fields": "id,message,created_time",
+                        "limit": limite_posts,
+                        "access_token": token,
+                    },
+                )
+                if r.status_code != 200:
+                    resultados_paginas.append({
+                        "page_id": pg.page_id,
+                        "nombre": pg.nombre,
+                        "error": r.text[:200],
+                    })
+                    continue
+            except Exception as e:
+                resultados_paginas.append({
+                    "page_id": pg.page_id,
+                    "nombre": pg.nombre,
+                    "error": str(e)[:120],
+                })
+                continue
+
+            posts = r.json().get("data", [])
+            total_posts_revisados += len(posts)
+            posts_modificados = []
+
+            for post in posts:
+                post_id = post.get("id", "")
+                mensaje_original = post.get("message", "") or ""
+                if not mensaje_original:
+                    continue
+
+                nuevo_msg, reemplazos, agregados = _reemplazar_hashtags_latam(mensaje_original)
+                if not reemplazos:
+                    continue  # post ya está bien
+
+                resultado_post = {
+                    "post_id": post_id,
+                    "created_time": post.get("created_time", ""),
+                    "reemplazos": reemplazos,
+                    "agregados": agregados,
+                    "preview_antes": mensaje_original[:200],
+                    "preview_despues": nuevo_msg[:200],
+                    "editado": False,
+                    "error": None,
+                }
+
+                if not dry_run:
+                    try:
+                        r_edit = await hc.post(
+                            f"{META_GRAPH_URL}/{post_id}",
+                            params={"access_token": token},
+                            json={"message": nuevo_msg},
+                        )
+                        edit_data = r_edit.json() if r_edit.content else {}
+                        if r_edit.status_code in (200, 201) and edit_data.get("success"):
+                            resultado_post["editado"] = True
+                            total_posts_editados += 1
+                        else:
+                            err = edit_data.get("error", {})
+                            resultado_post["error"] = err.get("message", r_edit.text[:200])
+                    except Exception as e_edit:
+                        resultado_post["error"] = str(e_edit)[:120]
+
+                posts_modificados.append(resultado_post)
+
+            resultados_paginas.append({
+                "page_id": pg.page_id,
+                "nombre": pg.nombre,
+                "posts_revisados": len(posts),
+                "posts_con_latam": len(posts_modificados),
+                "posts_editados": sum(1 for p in posts_modificados if p.get("editado")),
+                "detalle": posts_modificados,
+            })
+
+    modo = "dry_run (solo previsualización)" if dry_run else "edición real"
+    return {
+        "ok": True,
+        "modo": modo,
+        "dry_run": dry_run,
+        "paginas_procesadas": len(resultados_paginas),
+        "total_posts_revisados": total_posts_revisados,
+        "total_posts_editados": total_posts_editados,
+        "resultados": resultados_paginas,
+    }

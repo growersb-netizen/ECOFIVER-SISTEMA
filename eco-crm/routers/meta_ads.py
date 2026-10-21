@@ -596,7 +596,7 @@ async def asignar_pagina_a_lead(
 
 # ── SYNC DIARIO DE SNAPSHOTS (llamado por cron vía API key) ──────────────────
 
-_API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+_API_KEY = os.getenv("API_KEY", "")
 
 
 def _require_api_key_meta(request: Request) -> bool:

@@ -21,7 +21,7 @@ from routers.configuracion import _require_config_access
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 # clave -> valor por defecto
 CAMPOS = {

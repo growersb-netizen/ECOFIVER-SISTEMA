@@ -18,7 +18,7 @@ from database.models import Usuario
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-_SECRET_KEY_RAW = os.getenv("SECRET_KEY", "eco-crm-secret-key-dev-2024")
+_SECRET_KEY_RAW = os.getenv("SECRET_KEY", "")
 _WEAK_KEYS = {"eco-crm-secret-key-dev-2024", "cambia-este-secreto-en-produccion-usa-openssl-rand-hex-32", ""}
 if _SECRET_KEY_RAW in _WEAK_KEYS:
     import logging as _log
@@ -130,7 +130,7 @@ def require_auth_or_apikey(
     routers/agentes.py). Devuelve un Usuario real ("Agentes IA (sistema)")
     para que created_by/vendedor_id/etc. queden con un id válido.
     """
-    api_key_env = os.getenv("API_KEY", "eco-crm-api-key-2024")
+    api_key_env = os.getenv("API_KEY", "")
     if token and token == api_key_env:
         return _get_or_create_agente_sistema(db)
     return require_auth(request, db, token)

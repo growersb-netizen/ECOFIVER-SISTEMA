@@ -15,7 +15,7 @@ from routers.notificaciones import notificar_nueva_venta
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 
 def _import_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):

@@ -35,7 +35,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 # Clave API compartida con el multiagente
-MULTIAGENTE_API_KEY = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
+MULTIAGENTE_API_KEY = os.getenv("CRM_API_KEY", "")
 
 # Agentes IA disponibles en el multiagente (excluyendo líneas de vendedores)
 AGENTES = ["valentina", "pablo", "laura", "sabrina", "claudio"]

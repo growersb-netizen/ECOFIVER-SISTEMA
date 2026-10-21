@@ -19,7 +19,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 WEB_BASE_URL = os.getenv("WEB_BASE_URL", "https://www.ecomodulosypiscinas.com.ar")
-WEB_API_KEY  = os.getenv("WEB_API_KEY", "eco-crm-api-key-2024")
+WEB_API_KEY  = os.getenv("WEB_API_KEY", "")
 
 HEADERS = {"x-api-key": WEB_API_KEY, "Content-Type": "application/json"}
 TIMEOUT = 15.0

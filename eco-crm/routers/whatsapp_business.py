@@ -27,7 +27,7 @@ from routers.configuracion import _require_config_access
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 META_API_BASE = "https://graph.facebook.com/v22.0"
 
 VERTICALS = [
@@ -375,8 +375,8 @@ async def cambiar_nombre_wa(
     Meta revisa la solicitud (puede tardar minutos u horas).
     """
     import os as _os
-    expected = _os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = _os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     body = await request.json()

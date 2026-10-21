@@ -70,8 +70,8 @@ async def api_redes_admin_paginas(
     db: Session = Depends(get_db),
 ):
     """Lista todas las páginas con su estado. Requiere ?t=<ML_AUDIT_TOKEN>."""
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
     paginas = db.query(MetaPagina).order_by(MetaPagina.nombre).all()
     return [
@@ -102,8 +102,8 @@ async def api_redes_admin_patch_pagina(
     Actualiza campos de una página: numero_whatsapp, activa, vendedor.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
     body = await request.json()
     pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
@@ -134,8 +134,8 @@ async def api_redes_admin_batch_auto_reply(
     Body: {auto_reply_mensajes: bool, auto_reply_comentarios: bool, auto_eliminar_negativos: bool, page_ids: [...] opcional}
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
     body = await request.json()
     page_ids = body.get("page_ids")
@@ -162,8 +162,8 @@ async def api_redes_admin_batch_deactivate(
     Body: {page_ids: ["id1","id2",...]}
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
     body = await request.json()
     page_ids = body.get("page_ids") or []
@@ -192,8 +192,8 @@ async def api_redes_admin_delete_pagina(
     db: Session = Depends(get_db),
 ):
     """Elimina una página y TODAS sus interacciones de la DB. Requiere ?t=<ML_AUDIT_TOKEN>."""
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
     pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
     if not pg:
@@ -917,7 +917,7 @@ async def facebook_webhook_verify(
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge", "")
 
-    verify_token = get_config_value("facebook_webhook_verify_token", db) or os.getenv("FB_WEBHOOK_VERIFY_TOKEN", "ecofiver-webhook-2026")
+    verify_token = get_config_value("facebook_webhook_verify_token", db) or os.getenv("FB_WEBHOOK_VERIFY_TOKEN", "")
 
     if mode == "subscribe" and token == verify_token:
         log.info("[FB-WEBHOOK] Verificación exitosa")
@@ -1316,8 +1316,8 @@ async def api_redes_audit_refresh_subscribe(
     Body JSON: { "user_token": "...", "page_ids": ["id1", "id2"] }
     Si page_ids está vacío, usa todos los registros de meta_paginas.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     body = await request.json()
@@ -1418,8 +1418,8 @@ async def api_redes_admin_subscribe_all(
     db: Session = Depends(get_db),
 ):
     """Suscribe todas las páginas con token al webhook. Requiere query param ?t=<ML_AUDIT_TOKEN>."""
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     paginas = db.query(MetaPagina).filter(
@@ -1477,8 +1477,8 @@ async def api_redes_admin_subscribe_via_system_token(
     Si no se provee user_token, intenta usar el token global almacenado en config.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     import hmac as _hmac
@@ -1587,8 +1587,8 @@ async def api_redes_admin_sync_pages(
     obtiene page tokens, suscribe webhooks y activa auto_reply_mensajes.
     Requiere ?t=<ML_AUDIT_TOKEN>&user_token=<token>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     creadas = []
@@ -1712,8 +1712,8 @@ async def api_redes_admin_subscribe_via_token_get(
     Obtiene page tokens individuales con GET /{page_id}?fields=access_token.
     No requiere app-specific token — funciona con cualquier token de admin del BM.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
     if not user_token:
         raise HTTPException(400, "Falta user_token")
@@ -1777,8 +1777,8 @@ async def api_redes_admin_eliminar_negativos(
     db: Session = Depends(get_db),
 ):
     """Elimina en Facebook todos los comentarios negativos pendientes. Requiere ?t=<ML_AUDIT_TOKEN>."""
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     negativos = db.query(FacebookInteraccion).filter(
@@ -1823,8 +1823,8 @@ async def api_redes_admin_generar_borradores(
     Genera borradores de respuesta IA para los primeros N mensajes privados pendientes
     (filtrando automáticos de Facebook). No envía nada. Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     # Filtrar mensajes automáticos de Facebook
@@ -1876,8 +1876,8 @@ async def api_redes_admin_enviar_consultas(
     Los reclamos se saltan y quedan en accion='pendiente'.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     SISTEMA_PREFIXES = [
@@ -1951,8 +1951,8 @@ async def api_redes_admin_responder_comentarios(
     Envía respuestas a todos los comentarios pendientes.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     comentarios = db.query(FacebookInteraccion).filter(
@@ -2002,8 +2002,8 @@ async def api_redes_admin_marcar_expirados(
     Deja los reclamos (accion='pendiente') intactos.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     # Mensajes con accion="error" (envío fallido)
@@ -2036,8 +2036,8 @@ async def api_redes_admin_limpiar_backlog(
     Deja intactas solo las del día de hoy para que el operador las revise.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     from datetime import datetime, timezone, timedelta
@@ -2065,8 +2065,8 @@ async def api_redes_admin_pendientes(
     """Lista interacciones pendientes (accion=pendiente). Requiere ?t=<ML_AUDIT_TOKEN>.
     Filtra por tipo=comentario|mensaje y/o sentimiento=negativo|neutro.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     q = db.query(FacebookInteraccion).filter(FacebookInteraccion.accion == "pendiente")
@@ -2103,8 +2103,8 @@ async def api_redes_admin_importar_inbox_all(
     db: Session = Depends(get_db),
 ):
     """Importa mensajes y comentarios de todas las páginas con token. Requiere ?t=<ML_AUDIT_TOKEN>."""
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     paginas_con_token = db.query(MetaPagina).filter(
@@ -2242,7 +2242,7 @@ async def api_redes_fb_config(
 ):
     """Devuelve configuración del webhook y token de verificación."""
     _check_access(user, db)
-    verify_token = get_config_value("facebook_webhook_verify_token", db) or os.getenv("FB_WEBHOOK_VERIFY_TOKEN", "ecofiver-webhook-2026")
+    verify_token = get_config_value("facebook_webhook_verify_token", db) or os.getenv("FB_WEBHOOK_VERIFY_TOKEN", "")
     base_url = os.getenv("RAILWAY_STATIC_URL") or os.getenv("PUBLIC_URL") or "https://eco-crm-production.up.railway.app"
     return {
         "webhook_url": f"{base_url}/api/redes/facebook/webhook",
@@ -2270,8 +2270,8 @@ async def api_redes_save_user_token(
     llama a /me/accounts para importar todas las páginas del BM.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     body = await request.json()
@@ -2429,7 +2429,7 @@ async def redes_fb_callback_page(request: Request, db: Session = Depends(get_db)
     del cliente (implicit flow). Esta página lo lee con JS y llama al endpoint
     de refresh-and-subscribe para guardar los page_tokens y suscribir webhooks.
     """
-    audit_token = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    audit_token = os.getenv("ML_AUDIT_TOKEN", "")
     base_url = _get_base_url(db)
     html = f"""<!DOCTYPE html>
 <html lang="es">
@@ -3095,7 +3095,7 @@ async def api_redes_fb_oauth_token(
     if not user_token:
         raise HTTPException(400, "Falta 'user_token'")
 
-    audit_token = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
+    audit_token = os.getenv("ML_AUDIT_TOKEN", "")
 
     # Llamar internamente al endpoint de refresh-and-subscribe
     from starlette.testclient import TestClient  # no disponible en prod
@@ -3158,8 +3158,8 @@ async def api_redes_admin_meta_snapshots(
     Campos: name, about, bio, description, category, website, fan_count, followers_count.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     q = db.query(MetaPagina).filter(MetaPagina.activa == True)
@@ -3217,8 +3217,8 @@ async def api_redes_admin_meta_update(
     Body: { "about": "...", "description": "...", "website": "..." }
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     body = await request.json()
@@ -3297,8 +3297,8 @@ async def api_redes_admin_hashtag_analysis(
     ?page_ids=id1,id2,... (vacío = todas las páginas activas).
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     q = db.query(MetaPagina).filter(MetaPagina.activa == True)
@@ -3469,8 +3469,8 @@ async def api_redes_admin_batch_hashtag_update(
 
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
-    expected = os.getenv("ML_AUDIT_TOKEN", "eco-audit-2026")
-    if t != expected:
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
     body = await request.json()

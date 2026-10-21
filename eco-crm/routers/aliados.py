@@ -44,7 +44,7 @@ async def aliados_page(request: Request, current_user: Usuario = Depends(require
         "request": request, "user": current_user, "roles": roles,
     })
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 ESTADOS_ALIADO = ("postulante", "en_evaluacion", "activo", "inactivo", "suspendido", "rechazado")
 

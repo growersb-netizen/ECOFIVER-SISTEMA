@@ -28,8 +28,8 @@ from utils.contexto_ecofiver import ctx_empresa, ctx_preguntas_ml, ctx_seo_ml
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
-if API_KEY == "eco-crm-api-key-2024":
+API_KEY = os.getenv("API_KEY", "")
+if not API_KEY:
     import logging as _logging
     _logging.getLogger(__name__).warning("API_KEY usa valor por defecto inseguro. Setear la variable de entorno API_KEY en producción.")
 ML_BASE = "https://api.mercadolibre.com"

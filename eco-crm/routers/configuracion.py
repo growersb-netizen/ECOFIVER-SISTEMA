@@ -177,8 +177,8 @@ CONFIG_DEFS: dict = {
         "categoria": "meta",
         "es_secreto": True,
         "test_id": None,
-        "placeholder": "melanie-webhook-key-2024",
-        "default": "melanie-webhook-key-2024",
+        "placeholder": "",
+        "default": "",
     },
     "ml_client_id": {
         "label": "MercadoLibre — Client ID",

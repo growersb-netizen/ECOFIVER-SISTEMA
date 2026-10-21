@@ -38,7 +38,7 @@ from database.models import (
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ext", tags=["API Externa Zapia"])
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ from routers.auth import require_auth, require_roles, get_user_roles, get_curren
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 FOTOS_DIR = Path("data/catalogo_fotos")  # dentro del volumen persistente (/app/data) — no ephemeral
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)

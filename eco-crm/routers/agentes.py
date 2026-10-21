@@ -20,7 +20,7 @@ from routers.ventas_financiadas import dias_atraso
 
 router = APIRouter()
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 
 # ─── ROUND-ROBIN LOCAL (sin importar leads.py para evitar importación circular) ──

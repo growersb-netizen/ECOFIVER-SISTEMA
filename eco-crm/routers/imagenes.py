@@ -24,7 +24,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 log = logging.getLogger(__name__)
 
-API_KEY   = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY   = os.getenv("API_KEY", "")
 _OR_BASE  = "https://openrouter.ai/api/v1"
 _OR_HDR   = {"HTTP-Referer": "https://eco-crm-production.up.railway.app", "X-Title": "EcoFiver CRM Imagenes"}
 _VIS_MDL  = "openai/gpt-4o-mini"

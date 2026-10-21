@@ -66,7 +66,7 @@ async def debug_dashboard(
     """Diagnóstico temporal (sin sesión): mismo query que el dashboard real, para ver el error crudo si lo hay."""
     import os
     from fastapi import HTTPException
-    API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+    API_KEY = os.getenv("API_KEY", "")
     if x_api_key != API_KEY:
         raise HTTPException(403, "Sin permisos")
     import traceback

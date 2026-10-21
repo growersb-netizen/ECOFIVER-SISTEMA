@@ -48,7 +48,7 @@ def _get_melanie_key(db: Session) -> str:
             return key
     except Exception:
         pass
-    return os.getenv("MELANIE_API_KEY", "melanie-webhook-key-2024")
+    return os.getenv("MELANIE_API_KEY", "")
 
 
 def _require_melanie_auth(authorization: Optional[str], db: Session) -> None:
@@ -450,7 +450,7 @@ def _get_melanie_verify_token(db: Session) -> str:
             return t
     except Exception:
         pass
-    return os.getenv("MELANIE_WA_VERIFY_TOKEN", "melanie_verify_2026")
+    return os.getenv("MELANIE_WA_VERIFY_TOKEN", "")
 
 
 @router.get("/webhook/melanie")

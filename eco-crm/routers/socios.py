@@ -44,12 +44,12 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "eco-crm-secret-key-dev-2024")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
 ALGORITHM = "HS256"
 SOCIO_TOKEN_COOKIE = "socio_token"
 SOCIO_TOKEN_EXPIRE_HOURS = 24 * 14  # 14 días — es un panel de trabajo diario, no una sesión admin
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 MAX_INTENTOS_LOGIN = 5
 BLOQUEO_MINUTOS = 15

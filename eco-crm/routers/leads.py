@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 
 
 # ─── ROUND-ROBIN ASSIGNMENT ───────────────────────────────────────────────────

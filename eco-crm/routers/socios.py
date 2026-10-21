@@ -237,12 +237,11 @@ def _mensaje_bienvenida_socio(nombre: str, email: str) -> str:
 
 
 @router.post("/api/public/socio-registro")
-async def socio_registro(request: Request, db: Session = Depends(get_db)):
+async def socio_registro(request: Request, response: Response, db: Session = Depends(get_db)):
     """
     Registro directo y automático — sin aprobación humana. Al registrarse,
     el socio recibe por WhatsApp sus credenciales de acceso (email + contraseña
-    inicial ECO1234) y la información completa de la empresa. Al ingresar por
-    primera vez se le solicita cambiar la contraseña y completar el perfil.
+    inicial ECO1234) y queda con sesión iniciada (no requiere verificación OTP).
     """
     data = await request.json()
 
@@ -295,7 +294,9 @@ async def socio_registro(request: Request, db: Session = Depends(get_db)):
         f"WhatsApp: {telefono}\n"
         f"Código: {socio.codigo}",
     )
-    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre}
+    token = _crear_token_socio(socio.id)
+    response.set_cookie(SOCIO_TOKEN_COOKIE, token, httponly=True, max_age=SOCIO_TOKEN_EXPIRE_HOURS * 3600, samesite="lax")
+    return {"ok": True, "codigo": socio.codigo, "nombre": socio.nombre, "primer_login": True}
 
 
 @router.post("/api/public/socio-solicitar-codigo")
@@ -456,56 +457,17 @@ def _buscar_socio_por_identificador(db: Session, identificador: str) -> Optional
 
 @router.post("/api/public/socio-olvide-password")
 async def socio_olvide_password(request: Request, db: Session = Depends(get_db)):
-    """
-    Pide un código por WhatsApp para resetear la contraseña. Responde igual
-    exista o no el socio (no revela si un dato está registrado).
-    """
-    data = await request.json()
-    identificador = (data.get("email") or data.get("whatsapp") or data.get("codigo") or "").strip()
-    if not identificador:
-        raise HTTPException(400, "Ingresá tu WhatsApp, email o código de socio")
-
-    socio = _buscar_socio_por_identificador(db, identificador)
-
-    if socio and socio.telefono:
-        otp = f"{random.randint(0, 999999):06d}"
-        socio.codigo_verificacion = otp
-        socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
-        db.commit()
-        send_whatsapp_otp(db, socio.telefono, otp)
-
-    return {"ok": True, "mensaje": "Si el dato coincide con una cuenta, te mandamos un código por WhatsApp."}
+    """Recuperación de contraseña: contactar directamente a EcoFiver."""
+    return {
+        "ok": True,
+        "sin_otp": True,
+        "mensaje": "Para recuperar tu acceso escribinos por WhatsApp o email y te lo resolvemos al instante.",
+    }
 
 
 @router.post("/api/public/socio-resetear-password")
 async def socio_resetear_password(request: Request, db: Session = Depends(get_db)):
-    data = await request.json()
-    identificador = (data.get("email") or data.get("whatsapp") or data.get("codigo") or "").strip()
-    otp = (data.get("otp") or "").strip()
-    password_nueva = data.get("password_nueva") or ""
-
-    if not identificador or not otp:
-        raise HTTPException(400, "Faltan datos")
-    if len(password_nueva) < 6:
-        raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
-
-    socio = _buscar_socio_por_identificador(db, identificador)
-
-    if not socio or not socio.codigo_verificacion or socio.codigo_verificacion != otp:
-        raise HTTPException(400, "Código incorrecto")
-    _exp3 = socio.codigo_verificacion_expira
-    if _exp3:
-        _exp3_aw = _exp3 if _exp3.tzinfo else _exp3.replace(tzinfo=timezone.utc)
-        if _exp3_aw < datetime.now(timezone.utc):
-            raise HTTPException(400, "El código venció — pedí uno nuevo")
-
-    socio.password_hash = pwd_context.hash(password_nueva)
-    socio.codigo_verificacion = None
-    socio.codigo_verificacion_expira = None
-    socio.intentos_fallidos = 0
-    socio.bloqueado_hasta = None
-    db.commit()
-    return {"ok": True, "mensaje": "Contraseña actualizada. Ya podés ingresar."}
+    raise HTTPException(400, "Para recuperar tu contraseña contactate con EcoFiver directamente.")
 
 
 @router.post("/api/public/socio-logout")
@@ -645,10 +607,8 @@ async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(requ
 @router.post("/api/socio/verificar-whatsapp/enviar")
 async def enviar_codigo_whatsapp(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     """
-    Manda el código al WhatsApp del socio. Acepta opcionalmente `whatsapp` en el
-    body para elegir/corregir el número a verificar (por si se equivocó al
-    registrarse, o prefiere verificar otro) — se guarda como su número de
-    contacto si difiere del que ya tenía.
+    Acepta opcionalmente un número en el body para corregirlo, luego marca
+    WhatsApp como verificado directamente (sin OTP).
     """
     if socio.whatsapp_verificado:
         return {"ok": True, "ya_verificado": True}
@@ -669,37 +629,15 @@ async def enviar_codigo_whatsapp(request: Request, socio: Aliado = Depends(requi
 
     if not socio.telefono:
         raise HTTPException(400, "No tenés un WhatsApp cargado")
-    otp = f"{random.randint(0, 999999):06d}"
-    socio.codigo_verificacion = otp
-    socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+
+    socio.whatsapp_verificado = True
     db.commit()
-    enviado = send_whatsapp_otp(db, socio.telefono, otp)
-    if not enviado:
-        raise HTTPException(
-            503,
-            "No se pudo enviar el código de verificación por WhatsApp. "
-            "Revisá que el número es correcto e intentá de nuevo en unos minutos. "
-            "Si el problema persiste, contactá al soporte."
-        )
-    return {"ok": True, "numero": socio.telefono}
+    return {"ok": True, "verificado": _esta_verificado(socio), "numero": socio.telefono}
 
 
 @router.post("/api/socio/verificar-whatsapp/confirmar")
 async def confirmar_codigo_whatsapp(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
-    data = await request.json()
-    otp = (data.get("otp") or data.get("codigo") or "").strip()
-    if socio.whatsapp_verificado:
-        return {"ok": True, "ya_verificado": True}
-    if not socio.codigo_verificacion or socio.codigo_verificacion != otp:
-        raise HTTPException(400, "Código incorrecto")
-    _exp4 = socio.codigo_verificacion_expira
-    if _exp4:
-        _exp4_aw = _exp4 if _exp4.tzinfo else _exp4.replace(tzinfo=timezone.utc)
-        if _exp4_aw < datetime.now(timezone.utc):
-            raise HTTPException(400, "El código venció — pedí uno nuevo")
     socio.whatsapp_verificado = True
-    socio.codigo_verificacion = None
-    socio.codigo_verificacion_expira = None
     db.commit()
     return {"ok": True, "verificado": _esta_verificado(socio)}
 

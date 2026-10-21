@@ -236,6 +236,24 @@ def _mensaje_bienvenida_socio(nombre: str, email: str) -> str:
     )
 
 
+@router.get("/api/public/socio-organizaciones")
+async def socio_organizaciones_publicas(db: Session = Depends(get_db)):
+    """Lista de organizaciones disponibles para que un nuevo socio elija al registrarse.
+    Muestra zona como nombre visible sin exponer el nombre personal del organizador."""
+    orgs = (
+        db.query(Aliado)
+        .filter(Aliado.es_organizador == True, Aliado.estado == "activo")
+        .order_by(Aliado.zona)
+        .all()
+    )
+    return {
+        "organizaciones": [
+            {"codigo": o.codigo, "nombre": o.zona or o.nombre.split()[0]}
+            for o in orgs
+        ]
+    }
+
+
 @router.post("/api/public/socio-registro")
 async def socio_registro(request: Request, response: Response, db: Session = Depends(get_db)):
     """
@@ -245,12 +263,16 @@ async def socio_registro(request: Request, response: Response, db: Session = Dep
     """
     data = await request.json()
 
-    nombre = (data.get("nombre") or "").strip()
-    telefono = _normalizar_telefono(data.get("whatsapp") or data.get("telefono") or "")
-    email = (data.get("email") or "").strip().lower()
+    nombre    = (data.get("nombre") or "").strip()
+    apellido  = (data.get("apellido") or "").strip()
+    telefono  = _normalizar_telefono(data.get("whatsapp") or data.get("telefono") or "")
+    email     = (data.get("email") or "").strip().lower()
+    provincia = (data.get("provincia") or "").strip()
+    localidad = (data.get("localidad") or "").strip()
+    org_codigo = (data.get("organizacion_codigo") or "").strip().upper() or None
 
     if not nombre or not telefono or not email:
-        raise HTTPException(400, "Nombre y apellido, WhatsApp y email son obligatorios")
+        raise HTTPException(400, "Nombre, WhatsApp y email son obligatorios")
     if not re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(400, "Email inválido")
     if len(telefono) < 8:
@@ -261,21 +283,30 @@ async def socio_registro(request: Request, response: Response, db: Session = Dep
     if db.query(Aliado).filter(Aliado.email == email).first():
         raise HTTPException(409, "Ya existe un socio registrado con ese email")
 
+    if org_codigo and not db.query(Aliado).filter(Aliado.codigo == org_codigo, Aliado.es_organizador == True).first():
+        org_codigo = None  # código inválido — ignorar sin bloquear el registro
+
     origen_partes = [
         f"{k}={v}" for k in ("utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term")
         if (v := (data.get(k) or "").strip())
     ]
     origen_registro = "&".join(origen_partes)
 
+    nombre_completo = f"{nombre} {apellido}".strip() if apellido else nombre
+
     socio = Aliado(
         codigo=_generar_codigo_aliado(db),
-        nombre=nombre,
+        nombre=nombre_completo,
+        apellido=apellido,
         telefono=telefono,
         email=email,
+        provincia=provincia,
+        localidad=localidad,
+        organizacion_codigo=org_codigo,
         estado="activo",
         password_hash=pwd_context.hash(DEFAULT_PASSWORD),
         primer_login=True,
-        whatsapp_verificado=True,   # confirmado al recibir el mensaje
+        whatsapp_verificado=True,
         email_verificado=False,
         perfil_completo=False,
         origen_registro=origen_registro,
@@ -285,13 +316,15 @@ async def socio_registro(request: Request, response: Response, db: Session = Dep
     db.commit()
     db.refresh(socio)
 
-    send_whatsapp_text(db, telefono, _mensaje_bienvenida_socio(nombre, email))
+    send_whatsapp_text(db, telefono, _mensaje_bienvenida_socio(nombre_completo, email))
     notificar_rodrigo(
         db,
         f"🤝 *Nuevo socio registrado*\n"
-        f"Nombre: {nombre}\n"
+        f"Nombre: {nombre_completo}\n"
         f"Email: {email}\n"
         f"WhatsApp: {telefono}\n"
+        f"Provincia: {provincia or '—'}  Localidad: {localidad or '—'}\n"
+        f"Organización: {org_codigo or '—'}\n"
         f"Código: {socio.codigo}",
     )
     token = _crear_token_socio(socio.id)
@@ -457,17 +490,57 @@ def _buscar_socio_por_identificador(db: Session, identificador: str) -> Optional
 
 @router.post("/api/public/socio-olvide-password")
 async def socio_olvide_password(request: Request, db: Session = Depends(get_db)):
-    """Recuperación de contraseña: contactar directamente a EcoFiver."""
-    return {
-        "ok": True,
-        "sin_otp": True,
-        "mensaje": "Para recuperar tu acceso escribinos por WhatsApp o email y te lo resolvemos al instante.",
-    }
+    """Envía un código de 6 dígitos al email del socio para resetear contraseña."""
+    from utils.email import send_email_text
+    data = await request.json()
+    identificador = (data.get("email") or data.get("whatsapp") or data.get("codigo") or "").strip()
+    if not identificador:
+        raise HTTPException(400, "Ingresá tu email, WhatsApp o código de socio")
+
+    socio = _buscar_socio_por_identificador(db, identificador)
+
+    if socio and socio.email:
+        otp = f"{random.randint(0, 999999):06d}"
+        socio.codigo_verificacion = otp
+        socio.codigo_verificacion_expira = datetime.now(timezone.utc) + timedelta(minutes=CODIGO_OTP_EXPIRA_MINUTOS)
+        db.commit()
+        send_email_text(
+            db, socio.email,
+            "Código para restablecer tu contraseña — EcoFiver",
+            f"Tu código de verificación es: {otp}\n\nVence en {CODIGO_OTP_EXPIRA_MINUTOS} minutos.\n\nSi no solicitaste esto, ignorá este mensaje.",
+        )
+
+    return {"ok": True, "mensaje": "Si el dato coincide con una cuenta, te enviamos un código a tu email."}
 
 
 @router.post("/api/public/socio-resetear-password")
 async def socio_resetear_password(request: Request, db: Session = Depends(get_db)):
-    raise HTTPException(400, "Para recuperar tu contraseña contactate con EcoFiver directamente.")
+    data = await request.json()
+    identificador = (data.get("email") or data.get("whatsapp") or data.get("codigo") or "").strip()
+    otp = (data.get("otp") or "").strip()
+    password_nueva = data.get("password_nueva") or ""
+
+    if not identificador or not otp:
+        raise HTTPException(400, "Faltan datos")
+    if len(password_nueva) < 6:
+        raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
+
+    socio = _buscar_socio_por_identificador(db, identificador)
+    if not socio or not socio.codigo_verificacion or socio.codigo_verificacion != otp:
+        raise HTTPException(400, "Código incorrecto")
+    _exp = socio.codigo_verificacion_expira
+    if _exp:
+        _exp_aw = _exp if _exp.tzinfo else _exp.replace(tzinfo=timezone.utc)
+        if _exp_aw < datetime.now(timezone.utc):
+            raise HTTPException(400, "El código venció — pedí uno nuevo")
+
+    socio.password_hash = pwd_context.hash(password_nueva)
+    socio.codigo_verificacion = None
+    socio.codigo_verificacion_expira = None
+    socio.intentos_fallidos = 0
+    socio.bloqueado_hasta = None
+    db.commit()
+    return {"ok": True, "mensaje": "Contraseña actualizada. Ya podés ingresar."}
 
 
 @router.post("/api/public/socio-logout")
@@ -484,10 +557,13 @@ async def socio_me(socio: Aliado = Depends(require_socio), db: Session = Depends
     return {
         "codigo": socio.codigo,
         "nombre": socio.nombre,
+        "apellido": socio.apellido or "",
         "email": socio.email,
         "telefono": socio.telefono or "",
         "dni": socio.dni or "",
         "zona": socio.zona,
+        "provincia": socio.provincia or "",
+        "localidad": socio.localidad or "",
         "cuit_monotributo": socio.cuit_monotributo or "",
         "cbu_alias": socio.cbu_alias or "",
         "doc_monotributo_cargado": bool(socio.doc_monotributo_path),
@@ -574,7 +650,7 @@ async def socio_acceso_crm(
 @router.put("/api/socio/me")
 async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     data = await request.json()
-    for campo in ("zona", "cbu_alias", "cuit_monotributo"):
+    for campo in ("zona", "cbu_alias", "cuit_monotributo", "provincia", "localidad"):
         if campo in data:
             setattr(socio, campo, (data[campo] or "").strip())
 
@@ -584,6 +660,12 @@ async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(requ
             raise HTTPException(400, "interes_venta debe ser PISCINAS, MODULOS o AMBOS")
         socio.interes_venta = valor or None
 
+    if "organizacion_codigo" in data:
+        org = (data["organizacion_codigo"] or "").strip().upper() or None
+        if org and not db.query(Aliado).filter(Aliado.codigo == org, Aliado.es_organizador == True).first():
+            raise HTTPException(400, "Organización inválida")
+        socio.organizacion_codigo = org
+
     if "dni" in data:
         dni = (data["dni"] or "").strip()
         if dni:
@@ -592,8 +674,8 @@ async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(requ
                 raise HTTPException(409, "Ese DNI ya está registrado en otra cuenta")
         socio.dni = dni
 
-    # Perfil completo = DNI + zona cargados (el CUIT/Monotributo es opcional).
-    if socio.dni and socio.zona:
+    # Perfil completo = DNI + (localidad o zona) cargados.
+    if socio.dni and (socio.localidad or socio.zona):
         socio.perfil_completo = True
 
     db.commit()

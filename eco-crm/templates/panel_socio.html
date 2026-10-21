@@ -633,22 +633,55 @@
   <!-- OLVIDÉ MI CONTRASEÑA -->
   <div class="card hidden" id="card-olvide">
     <h2 style="margin:0 0 4px;font-size:19px">Recuperar contraseña</h2>
-    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px">Para recuperar tu acceso escribinos directamente y te lo solucionamos al instante.</p>
-    <a href="https://wa.me/5491168733406?text=Hola%2C+olvidé+mi+contraseña+del+panel+de+socios" target="_blank" class="btn-primary" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px">Escribir por WhatsApp</a>
-    <div class="switch-link"><a onclick="showScreen('login')">Volver a ingresar</a></div>
+
+    <!-- Paso 1: ingresar identificador -->
+    <div id="olvide-paso1">
+      <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px">Ingresá tu email, WhatsApp o código de socio y te enviamos un código de recuperación.</p>
+      <label>Email / WhatsApp / Código</label>
+      <input id="olvide-identificador" placeholder="ej. nombre@mail.com">
+      <button class="btn-primary" style="margin-top:12px" onclick="doOlvidePaso1()">Enviar código</button>
+      <div class="msg" id="olvide-msg1"></div>
+    </div>
+
+    <!-- Paso 2: ingresar código + nueva contraseña -->
+    <div id="olvide-paso2" class="hidden">
+      <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px">Te enviamos un código de 6 dígitos a tu email. Ingresalo junto con tu nueva contraseña.</p>
+      <label>Código recibido</label>
+      <input id="olvide-otp" placeholder="000000" inputmode="numeric" maxlength="6">
+      <label>Nueva contraseña</label>
+      <input id="olvide-password" type="password" placeholder="Mínimo 6 caracteres">
+      <button class="btn-primary" style="margin-top:12px" onclick="doOlvidePaso2()">Restablecer contraseña</button>
+      <div class="msg" id="olvide-msg2"></div>
+      <div class="switch-link" style="margin-top:8px"><a onclick="document.getElementById('olvide-paso1').classList.remove('hidden');document.getElementById('olvide-paso2').classList.add('hidden')">Volver</a></div>
+    </div>
+
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;text-align:center">
+      <a href="https://wa.me/5491168733406?text=Hola%2C+olvidé+mi+contraseña+del+panel+de+socios" target="_blank" style="font-size:12px;color:var(--text-muted)">¿Problemas? Escribinos por WhatsApp</a>
+    </div>
+    <div class="switch-link" style="margin-top:8px"><a onclick="showScreen('login')">Volver a ingresar</a></div>
   </div>
 
   <!-- REGISTRO -->
   <div class="card hidden" id="card-registro">
     <div id="registro-paso-datos">
       <h2 style="margin:0 0 4px;font-size:19px">Quiero ser Socio Comercial</h2>
-      <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Con estos 3 datos activás tu cuenta al instante.</p>
-      <label>Nombre y apellido</label>
-      <input id="reg-nombre">
+      <p style="font-size:13px;color:var(--text-muted);margin:0">Sin aprobaciones ni esperas. Completá tus datos y activás tu cuenta al instante.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">
+        <div><label>Nombre</label><input id="reg-nombre" placeholder="Tu nombre"></div>
+        <div><label>Apellido</label><input id="reg-apellido" placeholder="Tu apellido"></div>
+      </div>
       <label>WhatsApp</label>
       <input id="reg-whatsapp" placeholder="11 0000 0000" inputmode="tel">
       <label>Email</label>
       <input id="reg-email" type="email">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">
+        <div><label>Provincia</label><input id="reg-provincia" placeholder="Ej: Buenos Aires"></div>
+        <div><label>Localidad</label><input id="reg-localidad" placeholder="Ej: Ramos Mejía"></div>
+      </div>
+      <label>Organización <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
+      <select id="reg-organizacion">
+        <option value="">— Sin organización —</option>
+      </select>
       <button class="btn-primary" style="margin-top:16px" onclick="doRegistro()">Quiero ser Socio Comercial</button>
       <div class="msg" id="registro-msg"></div>
       <div class="switch-link">¿Ya tenés cuenta? <a onclick="showScreen('login')">Ingresá acá</a></div>
@@ -759,13 +792,21 @@
     <div class="verif-step" id="vstep-datos">
       <div class="verif-step-title"><span class="verif-check" id="vcheck-datos">1</span> Tus datos</div>
       <label>DNI</label><input id="mv-dni" inputmode="numeric">
-      <label>Zona / localidad</label><input id="mv-zona">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">
+        <div><label>Provincia</label><input id="mv-provincia" placeholder="Ej: Tucumán"></div>
+        <div><label>Localidad</label><input id="mv-localidad" placeholder="Ej: San Miguel de Tucumán"></div>
+      </div>
+      <label>Zona comercial <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="mv-zona" placeholder="Ej: Zona Norte GBA">
       <label>CUIT / Monotributo <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label><input id="mv-cuit">
       <label>¿Qué querés vender?</label>
       <select id="mv-interes">
         <option value="AMBOS">Piscinas y módulos</option>
         <option value="PISCINAS">Solo piscinas</option>
         <option value="MODULOS">Solo módulos</option>
+      </select>
+      <label>Organización <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
+      <select id="mv-organizacion">
+        <option value="">— Sin organización —</option>
       </select>
       <button class="btn-teal" style="margin-top:10px" onclick="mvGuardarDatos()">Guardar datos</button>
       <div class="msg" id="mv-datos-msg"></div>
@@ -1853,7 +1894,64 @@ let _simResult = null;
 function showScreen(name){
   ['login','registro','olvide'].forEach(s => document.getElementById('card-'+s).classList.add('hidden'));
   document.getElementById('card-'+name).classList.remove('hidden');
-  if(name==='registro') document.getElementById('registro-paso-datos').classList.remove('hidden');
+  if(name==='registro'){
+    document.getElementById('registro-paso-datos').classList.remove('hidden');
+    cargarOrganizacionesEnSelect('reg-organizacion');
+  }
+  if(name==='olvide'){
+    document.getElementById('olvide-paso1').classList.remove('hidden');
+    document.getElementById('olvide-paso2').classList.add('hidden');
+    document.getElementById('olvide-msg1').textContent='';
+    document.getElementById('olvide-msg2').textContent='';
+  }
+}
+
+let _orgsCache = null;
+async function cargarOrganizacionesEnSelect(selectId){
+  const sel = document.getElementById(selectId);
+  if(!sel) return;
+  try{
+    if(!_orgsCache){
+      const data = await api('/api/public/socio-organizaciones');
+      _orgsCache = data.organizaciones || [];
+    }
+    const current = sel.value;
+    while(sel.options.length > 1) sel.remove(1);
+    _orgsCache.forEach(o => {
+      const opt = new Option(o.nombre, o.codigo);
+      sel.add(opt);
+    });
+    if(current) sel.value = current;
+  }catch(e){ /* silently fail */ }
+}
+
+let _olvideIdentificador = '';
+async function doOlvidePaso1(){
+  const msg = document.getElementById('olvide-msg1'); msg.className='msg'; msg.textContent='';
+  _olvideIdentificador = document.getElementById('olvide-identificador').value.trim();
+  if(!_olvideIdentificador){ msg.className='msg error'; msg.textContent='Ingresá tu email, WhatsApp o código.'; return; }
+  try{
+    msg.textContent='Enviando...';
+    await api('/api/public/socio-olvide-password', {method:'POST', body: JSON.stringify({email: _olvideIdentificador})});
+    document.getElementById('olvide-paso1').classList.add('hidden');
+    document.getElementById('olvide-paso2').classList.remove('hidden');
+    document.getElementById('olvide-otp').value='';
+    document.getElementById('olvide-password').value='';
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
+}
+
+async function doOlvidePaso2(){
+  const msg = document.getElementById('olvide-msg2'); msg.className='msg'; msg.textContent='';
+  const otp = document.getElementById('olvide-otp').value.trim();
+  const pw  = document.getElementById('olvide-password').value;
+  if(!otp || !pw){ msg.className='msg error'; msg.textContent='Completá el código y la nueva contraseña.'; return; }
+  try{
+    const data = await api('/api/public/socio-resetear-password', {method:'POST', body: JSON.stringify({
+      email: _olvideIdentificador, otp, password_nueva: pw,
+    })});
+    msg.className='msg ok'; msg.textContent = data.mensaje || 'Contraseña actualizada.';
+    setTimeout(()=>showScreen('login'), 2000);
+  }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
 async function api(path, opts={}){
@@ -1878,8 +1976,12 @@ async function doRegistro(){
   try{
     const body = {
       nombre: document.getElementById('reg-nombre').value.trim(),
+      apellido: document.getElementById('reg-apellido').value.trim(),
       whatsapp: document.getElementById('reg-whatsapp').value.trim(),
       email: document.getElementById('reg-email').value.trim(),
+      provincia: document.getElementById('reg-provincia').value.trim(),
+      localidad: document.getElementById('reg-localidad').value.trim(),
+      organizacion_codigo: document.getElementById('reg-organizacion').value || null,
       ...capturarUTM(),
     };
     await api('/api/public/socio-registro', {method:'POST', body: JSON.stringify(body)});
@@ -2041,11 +2143,16 @@ async function cargarApp(){
 function abrirModalVerificacion(){
   mvSincronizarPasos();
   document.getElementById('mv-dni').value = SOCIO.dni || '';
+  document.getElementById('mv-provincia').value = SOCIO.provincia || '';
+  document.getElementById('mv-localidad').value = SOCIO.localidad || '';
   document.getElementById('mv-zona').value = SOCIO.zona || '';
   document.getElementById('mv-cuit').value = SOCIO.cuit_monotributo || '';
   document.getElementById('mv-interes').value = SOCIO.interes_venta || 'AMBOS';
   document.getElementById('mv-wa-numero').value = SOCIO.telefono || '';
   document.getElementById('modal-verificacion').classList.remove('hidden');
+  cargarOrganizacionesEnSelect('mv-organizacion').then(()=>{
+    if(SOCIO.organizacion_codigo) document.getElementById('mv-organizacion').value = SOCIO.organizacion_codigo;
+  });
 }
 
 function cerrarModalVerificacion(){
@@ -2085,16 +2192,22 @@ async function mvGuardarDatos(){
   try{
     const data = await api('/api/socio/me', {method:'PUT', body: JSON.stringify({
       dni: document.getElementById('mv-dni').value.trim(),
+      provincia: document.getElementById('mv-provincia').value.trim(),
+      localidad: document.getElementById('mv-localidad').value.trim(),
       zona: document.getElementById('mv-zona').value.trim(),
       cuit_monotributo: document.getElementById('mv-cuit').value.trim(),
       interes_venta: document.getElementById('mv-interes').value,
+      organizacion_codigo: document.getElementById('mv-organizacion').value || null,
     })});
     SOCIO.perfil_completo = data.perfil_completo; SOCIO.verificado = data.verificado;
     SOCIO.dni = document.getElementById('mv-dni').value.trim();
+    SOCIO.provincia = document.getElementById('mv-provincia').value.trim();
+    SOCIO.localidad = document.getElementById('mv-localidad').value.trim();
     SOCIO.zona = document.getElementById('mv-zona').value.trim();
     SOCIO.interes_venta = document.getElementById('mv-interes').value;
     SOCIO.cuit_monotributo = document.getElementById('mv-cuit').value.trim();
-    msg.className='msg ok'; msg.textContent = data.perfil_completo ? 'Datos guardados.' : 'Faltan DNI y/o zona.';
+    SOCIO.organizacion_codigo = document.getElementById('mv-organizacion').value || null;
+    msg.className='msg ok'; msg.textContent = data.perfil_completo ? 'Datos guardados.' : 'Faltan DNI y/o localidad.';
     mvSincronizarPasos();
     actualizarEstadoVerificacionPerfil();
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }

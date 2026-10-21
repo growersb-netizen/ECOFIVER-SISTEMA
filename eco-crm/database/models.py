@@ -1399,6 +1399,11 @@ class Aliado(Base):
     # Mensaje de presentación personalizable que el socio envía al contactar leads por WA
     wa_template_presentacion = Column(Text, nullable=True)
 
+    # ── Datos personales de ubicación (distintos de zona comercial) ──────────
+    apellido  = Column(String(100), default="")
+    provincia = Column(String(100), default="")
+    localidad = Column(String(150), default="")
+
 
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,

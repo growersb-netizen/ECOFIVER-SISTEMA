@@ -24,20 +24,16 @@ def upgrade():
         WHERE codigo = 'AL-010'
     """))
 
-    # Javier Ruiz — búsqueda por nombre (Tucumán)
+    # Javier Ruiz — AL-044
     bind.execute(text("""
         UPDATE aliados
         SET es_organizador = TRUE,
             zona = CASE WHEN (zona IS NULL OR zona = '') THEN 'Tucumán' ELSE zona END
-        WHERE (nombre ILIKE '%Javier%Ruiz%' OR nombre ILIKE '%Ruiz%Javier%')
-          AND estado = 'activo'
+        WHERE codigo = 'AL-044'
     """))
 
 
 def downgrade():
     bind = op.get_bind()
     bind.execute(text("UPDATE aliados SET es_organizador = FALSE WHERE codigo = 'AL-010'"))
-    bind.execute(text("""
-        UPDATE aliados SET es_organizador = FALSE
-        WHERE nombre ILIKE '%Javier%Ruiz%' OR nombre ILIKE '%Ruiz%Javier%'
-    """))
+    bind.execute(text("UPDATE aliados SET es_organizador = FALSE WHERE codigo = 'AL-044'"))

@@ -471,18 +471,40 @@ async def ventas_del_aliado(
     if not db.query(Aliado).filter(Aliado.codigo == cod).first():
         raise HTTPException(404, "Aliado no encontrado")
 
+    # Todas las ventas directamente atribuidas al aliado (por aliado_codigo)
+    ventas_contado = db.query(VentaContado).filter(VentaContado.aliado_codigo == cod).all()
+    ventas_financiadas = db.query(VentaFinanciada).filter(VentaFinanciada.aliado_codigo == cod).all()
+
+    # Índice por teléfono para resolver leads → ventas
+    vc_by_tel = {}
+    for v in ventas_contado:
+        if v.cliente_telefono:
+            vc_by_tel.setdefault(v.cliente_telefono, v)
+    vf_by_tel = {}
+    for v in ventas_financiadas:
+        if v.cliente_telefono:
+            vf_by_tel.setdefault(v.cliente_telefono, v)
+
     leads = db.query(Lead).filter(Lead.aliado_codigo == cod).order_by(Lead.created_at.desc()).all()
     items = []
+    seen_vc_ids: set = set()
+    seen_vf_ids: set = set()
+
     for l in leads:
         venta = None
-        if l.telefono:
-            v = db.query(VentaContado).filter(VentaContado.cliente_telefono == l.telefono).first()
-            if v:
-                venta = {"id": v.id, "precio_final": v.precio_final or 0, "estado": v.estado}
+        tel = (l.telefono or "").strip()
+        vc = vc_by_tel.get(tel)
+        vf = vf_by_tel.get(tel)
+        if vc:
+            seen_vc_ids.add(vc.id)
+            venta = {"id": vc.id, "tipo": "contado", "precio_final": vc.precio_final or 0, "estado": vc.estado}
+        elif vf:
+            seen_vf_ids.add(vf.id)
+            venta = {"id": vf.id, "tipo": "financiado", "precio_final": vf.precio_total or 0, "estado": vf.estado_plan}
         items.append({
             "lead_id": l.id,
             "nombre": l.nombre,
-            "telefono": l.telefono,
+            "telefono": tel,
             "localidad": l.localidad or "",
             "estado": l.estado,
             "estado_verificacion": l.estado_verificacion or "pendiente",
@@ -490,6 +512,36 @@ async def ventas_del_aliado(
             "created_at": l.created_at.isoformat() if l.created_at else None,
             "venta": venta,
         })
+
+    # Ventas directas sin lead matching (cargadas sin pasar por un lead del aliado)
+    for vc in ventas_contado:
+        if vc.id not in seen_vc_ids:
+            items.append({
+                "lead_id": None,
+                "nombre": vc.cliente_nombre,
+                "telefono": vc.cliente_telefono or "",
+                "localidad": vc.cliente_localidad or "",
+                "estado": "venta_directa",
+                "estado_verificacion": "confirmado",
+                "timestamp_comprobante": None,
+                "created_at": vc.created_at.isoformat() if vc.created_at else None,
+                "venta": {"id": vc.id, "tipo": "contado", "precio_final": vc.precio_final or 0, "estado": vc.estado},
+            })
+    for vf in ventas_financiadas:
+        if vf.id not in seen_vf_ids:
+            items.append({
+                "lead_id": None,
+                "nombre": vf.cliente_nombre,
+                "telefono": vf.cliente_telefono or "",
+                "localidad": vf.cliente_localidad or "",
+                "estado": "venta_directa",
+                "estado_verificacion": "confirmado",
+                "timestamp_comprobante": None,
+                "created_at": vf.created_at.isoformat() if vf.created_at else None,
+                "venta": {"id": vf.id, "tipo": "financiado", "precio_final": vf.precio_total or 0, "estado": vf.estado_plan},
+            })
+
+    items.sort(key=lambda x: x["created_at"] or "", reverse=True)
     return {"aliado_codigo": cod, "total": len(items), "ventas": items}
 
 

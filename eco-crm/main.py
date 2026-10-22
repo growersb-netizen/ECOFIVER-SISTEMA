@@ -601,7 +601,7 @@ async def auth_redirect_middleware(request: Request, call_next):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "sistema": "EcoFiver CRM", "version": "1.0.0"}
+    return {"status": "ok", "sistema": "EcoFiver CRM", "version": "1.0.1"}
 
 
 @app.get("/api/diag", include_in_schema=False)

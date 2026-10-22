@@ -2470,22 +2470,55 @@ const _LEAD_COLORES = {
   'azul': { hex: '#3b82f6', label: '🔵 Frío / a trabajar' },
 };
 
-async function cargarMisLeads(){
+let _misLeadsData = [];
+let _misLeadsWA = '';
+
+function _renderMisLeads(){
   const cont = document.getElementById('mis-leads-contenido');
-  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
-  try {
-    const data = await api('/api/socio/leads');
-    const waTemplate = data.wa_template || '';
-    if (!data.leads || data.leads.length === 0) {
-      cont.innerHTML = `
-        <div style="text-align:center;padding:48px 20px;color:var(--text-muted)">
-          <div style="font-size:40px;margin-bottom:12px">🎯</div>
-          <p>No tenés leads asignados todavía.</p>
-          <p style="font-size:13px">Cuando el equipo EcoFiver te asigne un interesado, aparecerá acá con sus datos de contacto.</p>
-        </div>`;
-      return;
+  const busq = (document.getElementById('ml-buscar')?.value || '').toLowerCase();
+  const filtEst = document.getElementById('ml-filtro-estado')?.value || '';
+  const filtProd = document.getElementById('ml-filtro-producto')?.value || '';
+  const filtPago = document.getElementById('ml-filtro-pago')?.value || '';
+  const filtEtq  = document.getElementById('ml-filtro-etiqueta')?.value || '';
+  const filtSegu = document.getElementById('ml-filtro-seguimiento')?.value || '';
+  const ahora2   = Date.now();
+  const finSemana = ahora2 + 7 * 86400000;
+
+  let leads = _misLeadsData.filter(l => {
+    if(busq && !l.nombre.toLowerCase().includes(busq) && !(l.telefono||'').includes(busq) && !(l.localidad||'').toLowerCase().includes(busq)) return false;
+    if(filtEst && l.estado !== filtEst) return false;
+    if(filtProd && l.producto_interes !== filtProd) return false;
+    if(filtPago && l.forma_pago !== filtPago) return false;
+    if(filtEtq && (l.etiqueta_color||'') !== filtEtq) return false;
+    if(filtSegu){
+      const s = l.proximo_seguimiento ? new Date(l.proximo_seguimiento).getTime() : null;
+      if(filtSegu === 'vencido' && (!s || s >= ahora2)) return false;
+      if(filtSegu === 'hoy'){
+        if(!s) return false;
+        const hoy0 = new Date(); hoy0.setHours(0,0,0,0);
+        const hoy1 = new Date(); hoy1.setHours(23,59,59,999);
+        if(s < hoy0.getTime() || s > hoy1.getTime()) return false;
+      }
+      if(filtSegu === 'semana' && (!s || s < ahora2 || s > finSemana)) return false;
+      if(filtSegu === 'sin_fecha' && s) return false;
     }
-    const rows = data.leads.map(l => {
+    return true;
+  });
+
+  // Ordenar: primero vencidos, luego por próximo seguimiento, luego sin fecha
+  leads.sort((a, b) => {
+    const sa = a.proximo_seguimiento ? new Date(a.proximo_seguimiento).getTime() : Infinity;
+    const sb = b.proximo_seguimiento ? new Date(b.proximo_seguimiento).getTime() : Infinity;
+    return sa - sb;
+  });
+
+  const waTemplate = _misLeadsWA;
+  if(!leads.length){
+    const inner = cont.querySelector('#ml-leads-list');
+    if(inner) inner.innerHTML = `<p style="color:var(--text-muted);padding:24px 0;text-align:center">No hay leads que coincidan con los filtros.</p>`;
+    return;
+  }
+  const rows = leads.map(l => {
       const estadoLabel = LEAD_ESTADO_LABEL[l.estado] || l.estado;
       const estadoColor = LEAD_ESTADO_COLOR[l.estado] || 'var(--text-muted)';
       const forma = FORMA_PAGO_LABEL[l.forma_pago] || l.forma_pago;
@@ -2504,10 +2537,30 @@ async function cargarMisLeads(){
         `<button onclick="cambiarEtiquetaLead(${l.id},this,'${k}')" title="${v.label}"
           style="width:18px;height:18px;border-radius:50%;background:${v.hex};border:2px solid ${l.etiqueta_color===k?'var(--navy)':'transparent'};cursor:pointer;padding:0;transition:border .15s"></button>`
       ).join('');
+      // Próximo seguimiento: urgencia visual
+      const ahora = Date.now();
+      let seguBadge = '';
+      let seguVence = false;
+      if(l.proximo_seguimiento){
+        const d = new Date(l.proximo_seguimiento);
+        const diff = d - ahora;
+        const diasDiff = Math.floor(diff / 86400000);
+        if(diff < 0) {
+          seguBadge = `<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px">⚠ VENCIDO</span>`;
+          seguVence = true;
+        } else if(diasDiff === 0) {
+          seguBadge = `<span style="background:#f97316;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px">HOY</span>`;
+          seguVence = true;
+        } else if(diasDiff <= 2) {
+          seguBadge = `<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px">en ${diasDiff}d</span>`;
+        }
+      }
+      const seguStr = l.proximo_seguimiento ? new Date(l.proximo_seguimiento).toLocaleDateString('es-AR') : '—';
+
       const estadoSelect = `<select id="sel-estado-${l.id}" class="input-field" style="font-size:12px;padding:4px 8px;height:auto;max-width:160px">
         ${Object.entries(LEAD_ESTADO_LABEL).map(([v,label])=>`<option value="${v}"${l.estado===v?' selected':''}>${label}</option>`).join('')}
       </select>
-      <button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="guardarEstadoLead(${l.id})">💾 Guardar</button>`;
+      <button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="guardarEstadoLead(${l.id})">💾</button>`;
       const notasId = `notas-${l.id}`;
       return `
         <div class="venta-card" id="lead-card-${l.id}" style="margin-bottom:14px;border-left:3px solid ${etqColor.hex}">
@@ -2525,6 +2578,11 @@ async function cargarMisLeads(){
             <div><span style="color:var(--text-muted)">Tel:</span> <strong>${l.telefono || '—'}</strong></div>
             <div><span style="color:var(--text-muted)">Pago:</span> <strong>${forma}</strong></div>
             <div><span style="color:var(--text-muted)">Desde:</span> <strong>${fecha}</strong></div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <span style="color:var(--text-muted)">📅 Seguimiento:</span>
+              <strong style="color:${seguVence?'#ef4444':'inherit'}">${seguStr}</strong>
+              ${seguBadge}
+            </div>
           </div>
           <!-- Barra de acciones -->
           <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center;padding-top:10px;border-top:1px solid var(--border)">
@@ -2536,21 +2594,96 @@ async function cargarMisLeads(){
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
             ${waBtn}
             <button class="btn-ghost" style="font-size:12px;padding:4px 10px" onclick="toggleNotasLead(${l.id})">📝 Notas</button>
+            <button class="btn-ghost" style="font-size:12px;padding:4px 10px;background:rgba(11,35,80,.07);color:var(--navy);font-weight:600" onclick="precargarVentaDesdeLeadContado(${JSON.stringify(l).replace(/"/g,'&quot;')})">💰 Contado</button>
+            <button class="btn-ghost" style="font-size:12px;padding:4px 10px;background:rgba(0,128,100,.07);color:var(--teal);font-weight:600" onclick="precargarVentaDesdeLeadFinanciado(${JSON.stringify(l).replace(/"/g,'&quot;')})">📋 Financiado</button>
+            <button class="btn-ghost" style="font-size:12px;padding:4px 10px;background:rgba(139,92,246,.08);color:#7c3aed;font-weight:600" onclick="precargarVLDesdeLead(${JSON.stringify(l).replace(/"/g,'&quot;')})">📹 VL</button>
             <button class="btn-ghost" style="font-size:12px;padding:4px 10px;color:#ef4444" onclick="devolverLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}')">↩ Devolver</button>
           </div>
           ${l.notas ? `<div style="margin-top:8px;font-size:12.5px;color:var(--text-muted);background:rgba(0,0,0,.03);border-radius:6px;padding:8px 10px;border-left:3px solid var(--teal)">${l.notas.replace(/\n/g,'<br>')}</div>` : ''}
           <div id="${notasId}" style="display:none;margin-top:8px">
-            <textarea id="${notasId}-txt" rows="3" class="input-field" style="width:100%;font-size:13px;resize:vertical">${l.notas||''}</textarea>
-            <button class="btn-primary" style="font-size:12px;margin-top:6px;padding:5px 14px" onclick="guardarNotasLead(${l.id})">Guardar notas</button>
+            <textarea id="${notasId}-txt" rows="3" class="input-field" style="width:100%;font-size:13px;resize:vertical;margin-bottom:8px">${l.notas||''}</textarea>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">📅 Próximo seguimiento:</label>
+              <input id="${notasId}-segu" type="datetime-local" class="input-field" style="font-size:12px;flex:1;min-width:170px"
+                value="${l.proximo_seguimiento ? l.proximo_seguimiento.slice(0,16) : ''}">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">💳 Forma de pago:</label>
+              <select id="${notasId}-pago" class="input-field" style="font-size:12px;flex:1">
+                <option value="SIN_DEFINIR"${(l.forma_pago||'SIN_DEFINIR')==='SIN_DEFINIR'?' selected':''}>Sin definir</option>
+                <option value="CONTADO"${l.forma_pago==='CONTADO'?' selected':''}>Contado</option>
+                <option value="PMI"${l.forma_pago==='PMI'?' selected':''}>PMI</option>
+                <option value="DIRECTA_50"${l.forma_pago==='DIRECTA_50'?' selected':''}>Directa 50%</option>
+              </select>
+              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">📍 Localidad:</label>
+              <input id="${notasId}-loc" type="text" class="input-field" style="font-size:12px;flex:1" value="${l.localidad||''}">
+            </div>
+            <button class="btn-primary" style="font-size:12px;padding:5px 14px" onclick="guardarDatosLead(${l.id})">Guardar todo</button>
           </div>
         </div>`;
-    }).join('');
+  }).join('');
+
+  const listEl = cont.querySelector('#ml-leads-list');
+  const counter = cont.querySelector('#ml-counter');
+  if(listEl) listEl.innerHTML = rows;
+  if(counter) counter.textContent = `${leads.length} de ${_misLeadsData.length} lead${_misLeadsData.length !== 1 ? 's' : ''}`;
+}
+
+async function cargarMisLeads(){
+  const cont = document.getElementById('mis-leads-contenido');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  try {
+    const data = await api('/api/socio/leads');
+    _misLeadsData = data.leads || [];
+    _misLeadsWA = data.wa_template || '';
+    if (!_misLeadsData.length) {
+      cont.innerHTML = `
+        <div style="text-align:center;padding:48px 20px;color:var(--text-muted)">
+          <div style="font-size:40px;margin-bottom:12px">🎯</div>
+          <p>No tenés leads asignados todavía.</p>
+          <p style="font-size:13px">Cuando el equipo EcoFiver te asigne un interesado, aparecerá acá con sus datos de contacto.</p>
+        </div>`;
+      return;
+    }
     cont.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <span style="font-size:13px;color:var(--text-muted)">${data.total} lead${data.total !== 1 ? 's' : ''} asignado${data.total !== 1 ? 's' : ''}</span>
-        <button class="btn-ghost" style="font-size:12px" onclick="editarMensajeWA(${JSON.stringify(waTemplate)})">✏️ Editar mensaje WA</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <span id="ml-counter" style="font-size:13px;color:var(--text-muted)"></span>
+        <button class="btn-ghost" style="font-size:12px" onclick="editarMensajeWA(${JSON.stringify(_misLeadsWA)})">✏️ Editar mensaje WA</button>
       </div>
-      ${rows}`;
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+        <input id="ml-buscar" type="text" class="input-field" placeholder="🔍 Nombre, teléfono o localidad…" style="flex:1;min-width:180px;font-size:13px" oninput="_renderMisLeads()">
+        <select id="ml-filtro-estado" class="input-field" style="font-size:13px;min-width:140px" onchange="_renderMisLeads()">
+          <option value="">Todos los estados</option>
+          ${Object.entries(LEAD_ESTADO_LABEL).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+        </select>
+        <select id="ml-filtro-producto" class="input-field" style="font-size:13px;min-width:130px" onchange="_renderMisLeads()">
+          <option value="">Todos los productos</option>
+          <option value="PISCINA">Piscina</option>
+          <option value="MODULO">Módulo</option>
+          <option value="COMBO">Combo</option>
+          <option value="SIN_DEFINIR">Sin definir</option>
+        </select>
+        <select id="ml-filtro-pago" class="input-field" style="font-size:13px;min-width:130px" onchange="_renderMisLeads()">
+          <option value="">Todas las formas de pago</option>
+          <option value="CONTADO">Contado</option>
+          <option value="PMI">PMI</option>
+          <option value="DIRECTA_50">Directa 50%</option>
+          <option value="SIN_DEFINIR">Sin definir</option>
+        </select>
+        <select id="ml-filtro-etiqueta" class="input-field" style="font-size:13px;min-width:120px" onchange="_renderMisLeads()">
+          <option value="">Todas las etiquetas</option>
+          ${Object.entries(_LEAD_COLORES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+        </select>
+        <select id="ml-filtro-seguimiento" class="input-field" style="font-size:13px;min-width:150px" onchange="_renderMisLeads()">
+          <option value="">Todos los seguimientos</option>
+          <option value="vencido">⚠ Vencidos</option>
+          <option value="hoy">📅 Hoy</option>
+          <option value="semana">Esta semana</option>
+          <option value="sin_fecha">Sin fecha asignada</option>
+        </select>
+      </div>
+      <div id="ml-leads-list"></div>`;
+    _renderMisLeads();
   } catch(e) {
     cont.innerHTML = '<p style="color:#ef4444">Error al cargar leads. Intentá de nuevo.</p>';
   }
@@ -2559,7 +2692,8 @@ async function cargarMisLeads(){
 async function cambiarEtiquetaLead(leadId, btn, color){
   try {
     await api(`/api/socio/leads/${leadId}`, { method:'PUT', body: JSON.stringify({ etiqueta_color: color }) });
-    cargarMisLeads();
+    const l = _misLeadsData.find(x => x.id === leadId);
+    if(l){ l.etiqueta_color = color; _renderMisLeads(); } else { cargarMisLeads(); }
   } catch(e){ showToast('Error al guardar etiqueta', true); }
 }
 
@@ -2569,7 +2703,8 @@ async function guardarEstadoLead(leadId){
   try {
     await api(`/api/socio/leads/${leadId}`, { method:'PUT', body: JSON.stringify({ estado: sel.value }) });
     showToast('Estado actualizado');
-    cargarMisLeads();
+    const l = _misLeadsData.find(x => x.id === leadId);
+    if(l){ l.estado = sel.value; _renderMisLeads(); } else { cargarMisLeads(); }
   } catch(e){ showToast('Error al guardar estado', true); }
 }
 
@@ -2584,8 +2719,34 @@ async function guardarNotasLead(leadId){
   try {
     await api(`/api/socio/leads/${leadId}`, { method:'PUT', body: JSON.stringify({ notas: txt.value }) });
     showToast('Notas guardadas');
-    cargarMisLeads();
+    const l = _misLeadsData.find(x => x.id === leadId);
+    if(l){ l.notas = txt.value; _renderMisLeads(); } else { cargarMisLeads(); }
   } catch(e){ showToast('Error al guardar notas', true); }
+}
+
+async function guardarDatosLead(leadId){
+  const pfx = 'notas-' + leadId;
+  const txt   = document.getElementById(pfx + '-txt');
+  const segu  = document.getElementById(pfx + '-segu');
+  const pago  = document.getElementById(pfx + '-pago');
+  const loc   = document.getElementById(pfx + '-loc');
+  const body = {};
+  if(txt)  body.notas = txt.value;
+  if(segu) body.proximo_seguimiento = segu.value || null;
+  if(pago) body.forma_pago = pago.value;
+  if(loc)  body.localidad = loc.value;
+  try {
+    const res = await api(`/api/socio/leads/${leadId}`, { method:'PUT', body: JSON.stringify(body) });
+    showToast('Guardado ✓');
+    const l = _misLeadsData.find(x => x.id === leadId);
+    if(l){
+      if(txt) l.notas = txt.value;
+      if(segu) l.proximo_seguimiento = segu.value || null;
+      if(pago) l.forma_pago = pago.value;
+      if(loc)  l.localidad = loc.value;
+      _renderMisLeads();
+    } else { cargarMisLeads(); }
+  } catch(e){ showToast('Error al guardar', true); }
 }
 
 async function devolverLead(leadId, nombre){
@@ -2607,6 +2768,45 @@ async function editarMensajeWA(templateActual) {
   } catch(e) {
     showToast('Error al guardar', true);
   }
+}
+
+// ── Pre-carga de ventas/VL desde un lead asignado ─────────────────
+function precargarVentaDesdeLeadContado(l){
+  nav('nueva-venta');
+  setTimeout(() => {
+    const set = (id, v) => { const el = document.getElementById(id); if(el && v) el.value = v; };
+    set('c-nombre', l.nombre);
+    set('c-tel', l.telefono);
+    set('c-loc', l.localidad);
+    // Pre-seleccionar categoría según producto del lead
+    const cat = l.producto_interes === 'MODULO' ? 'modulos' : l.producto_interes === 'COMBO' ? 'modulos' : 'piscinas';
+    const catEl = document.getElementById('c-categoria');
+    if(catEl){ catEl.value = cat; catEl.dispatchEvent(new Event('change')); }
+    showToast('Datos del lead pre-cargados en contado');
+  }, 300);
+}
+
+function precargarVentaDesdeLeadFinanciado(l){
+  nav('nueva-venta');
+  setTimeout(() => {
+    const set = (id, v) => { const el = document.getElementById(id); if(el && v) el.value = v; };
+    set('f-nombre', l.nombre);
+    set('f-tel', l.telefono);
+    set('f-loc', l.localidad);
+    // Scroll al form de financiado
+    document.getElementById('f-nombre')?.scrollIntoView({behavior:'smooth', block:'center'});
+    showToast('Datos del lead pre-cargados en financiado');
+  }, 300);
+}
+
+function precargarVLDesdeLead(l){
+  nav('mis-videollamadas');
+  setTimeout(() => {
+    const set = (id, v) => { const el = document.getElementById(id); if(el && v) el.value = v; };
+    set('vl-cliente-nombre', l.nombre);
+    set('vl-cliente-tel', l.telefono);
+    showToast('Datos del lead pre-cargados en videollamada');
+  }, 300);
 }
 
 // ══════════════════════════════════════════════════════════════════

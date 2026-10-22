@@ -2092,21 +2092,38 @@ async def socio_actualizar_lead(
     socio: Aliado = Depends(require_socio),
     db: Session = Depends(get_db),
 ):
-    """Vendedor actualiza estado, etiqueta de color y notas de un lead que tiene asignado."""
+    """Vendedor actualiza estado, etiqueta, notas y próximo seguimiento de un lead asignado."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.aliado_codigo == socio.codigo).first()
     if not lead:
         raise HTTPException(404, "Lead no encontrado o no pertenece a este socio")
     data = await request.json()
     ESTADOS_VALIDOS = {"NUEVO", "INTENTADO", "CONTACTADO", "EN_SEGUIMIENTO", "CALIFICADO", "CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"}
-    COLORES_VALIDOS = {"", "rojo", "amarillo", "verde", "azul", "gris"}
+    COLORES_VALIDOS = {"", "rojo", "amarillo", "verde", "azul", "gris", "naranja"}
     if "estado" in data and data["estado"] in ESTADOS_VALIDOS:
         lead.estado = data["estado"]
-    if "etiqueta_color" in data and data["etiqueta_color"] in COLORES_VALIDOS:
+    if "etiqueta_color" in data and (data["etiqueta_color"] or "") in COLORES_VALIDOS:
         lead.etiqueta_color = data["etiqueta_color"]
     if "notas" in data:
         lead.notas = str(data["notas"])[:2000]
+    if "proximo_seguimiento" in data:
+        val = data["proximo_seguimiento"]
+        if val:
+            try:
+                from dateutil import parser as _dp
+                lead.proximo_seguimiento = _dp.parse(val)
+            except Exception:
+                pass
+        else:
+            lead.proximo_seguimiento = None
+    if "forma_pago" in data and data["forma_pago"] in {"CONTADO", "PMI", "DIRECTA_50", "SIN_DEFINIR"}:
+        lead.forma_pago = data["forma_pago"]
+    if "producto_interes" in data and data["producto_interes"] in {"PISCINA", "MODULO", "COMBO", "SIN_DEFINIR"}:
+        lead.producto_interes = data["producto_interes"]
+    if "localidad" in data:
+        lead.localidad = str(data["localidad"])[:200]
     db.commit()
-    return {"ok": True, "id": lead.id, "estado": lead.estado, "etiqueta_color": lead.etiqueta_color}
+    return {"ok": True, "id": lead.id, "estado": lead.estado, "etiqueta_color": lead.etiqueta_color,
+            "proximo_seguimiento": lead.proximo_seguimiento.isoformat() if lead.proximo_seguimiento else None}
 
 
 @router.delete("/api/socio/leads/{lead_id}/devolver")

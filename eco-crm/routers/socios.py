@@ -99,10 +99,8 @@ def require_socio(request: Request, db: Session = Depends(get_db)) -> Aliado:
 
 
 def _esta_verificado(socio: Aliado) -> bool:
-    # La verificación de email quedó afuera a pedido: WhatsApp ya es suficiente
-    # como único canal verificado, para no duplicar un paso — la función/los
-    # endpoints de email siguen existiendo (sin uso) por si se retoma después.
-    return bool(socio.perfil_completo and socio.whatsapp_verificado)
+    # Verificado = perfil completo (DNI + localidad/zona). Sin verificación de canal.
+    return bool(socio.perfil_completo)
 
 
 def _require_verificado(socio: Aliado):
@@ -236,7 +234,7 @@ def _mensaje_bienvenida_socio(nombre: str, email: str) -> str:
     )
 
 
-@router.get("/api/public/socio-organizaciones")
+@router.get("/api/public/socio-organizaciones", response_model=None)
 async def socio_organizaciones_publicas(db: Session = Depends(get_db)):
     """Lista de organizaciones disponibles para que un nuevo socio elija al registrarse.
     Muestra zona como nombre visible sin exponer el nombre personal del organizador."""
@@ -566,7 +564,7 @@ async def socio_acceso_crm(
 @router.put("/api/socio/me")
 async def socio_actualizar_perfil(request: Request, socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
     data = await request.json()
-    for campo in ("zona", "cbu_alias", "cuit_monotributo", "provincia", "localidad"):
+    for campo in ("zona", "cbu_alias", "cuit_monotributo", "provincia", "localidad", "telefono"):
         if campo in data:
             setattr(socio, campo, (data[campo] or "").strip())
 

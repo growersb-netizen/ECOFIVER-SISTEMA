@@ -441,14 +441,19 @@ async def list_leads(
     origen: Optional[str] = None,
     rellamados: Optional[int] = None,  # 1 = solo base RELLAMADOS, 0 = excluir
     con_socio: Optional[str] = None,   # "si" = con aliado_codigo, "no" = sin aliado_codigo
+    excluir_ia: Optional[int] = None,  # 1 = excluir leads de agentes IA
     search: Optional[str] = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 200,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_auth_or_apikey)
 ):
     roles = get_user_roles(current_user)
     q = db.query(Lead)
+
+    # Admin puede pedir hasta 2000; otros roles tienen cap de 500
+    max_limit = 2000 if "ADMIN" in roles else 500
+    limit = min(limit, max_limit)
 
     # Asesores solo ven sus leads
     if "ASESOR_APERTURA" in roles and "ADMIN" not in roles and "SUPERVISOR_CIERRE" not in roles:
@@ -473,6 +478,11 @@ async def list_leads(
         q = q.filter(Lead.aliado_codigo.isnot(None), Lead.aliado_codigo != "")
     elif con_socio == "no":
         q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
+    if excluir_ia == 1:
+        q = q.filter(or_(
+            Lead.agente_asignado.is_(None),
+            Lead.agente_asignado.notin_(_AGENTES_IA),
+        ))
     if search:
         q = q.filter(or_(
             Lead.nombre.ilike(f"%{search}%"),

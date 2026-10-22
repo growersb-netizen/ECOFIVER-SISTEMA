@@ -883,10 +883,22 @@ let leadsFilter = {};
 async function loadLeads() {
   const params = new URLSearchParams();
   Object.entries(leadsFilter).forEach(([k, v]) => { if (v) params.set(k, v); });
+  if (typeof isAdmin !== 'undefined' && isAdmin) params.set('limit', '1000');
 
   const data = await API.get(`/api/leads?${params}`);
   if (!data) return;
   leadsData = data.leads;
+
+  // Mostrar contador total
+  const ctr = document.getElementById('leads-total-badge');
+  if (ctr) {
+    const mostrando = data.leads.length;
+    const total = data.total || mostrando;
+    ctr.textContent = mostrando < total
+      ? `${mostrando.toLocaleString()} de ${total.toLocaleString()} leads`
+      : `${total.toLocaleString()} leads`;
+    ctr.style.display = 'inline';
+  }
 
   if (leadsView === 'kanban') {
     renderLeadsKanban();

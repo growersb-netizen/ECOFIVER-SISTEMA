@@ -69,6 +69,15 @@
     <option value="si">Con socio asignado</option>
     <option value="no">Sin socio asignado</option>
   </select>
+  {% if 'ADMIN' in roles %}
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;user-select:none">
+    <input type="checkbox" id="toggle-excluir-ia" onchange="leadsFilter.excluir_ia=this.checked?'1':'';loadLeads()" style="cursor:pointer">
+    Excluir agentes IA
+  </label>
+  {% endif %}
+
+  <!-- Contador total -->
+  <span id="leads-total-badge" style="display:none;font-size:12px;color:var(--text-muted);white-space:nowrap"></span>
 
   <!-- View toggle -->
   <div style="margin-left:auto;display:flex;gap:4px">

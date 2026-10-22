@@ -5991,7 +5991,8 @@ async def admin_actividad_socios(
             r["ultima_sesion"] = s.login_at
         # Online = heartbeat en los últimos 5 min sin logout
         if not s.logout_at and s.heartbeat_at:
-            diff = (ahora - s.heartbeat_at.replace(tzinfo=timezone.utc if s.heartbeat_at.tzinfo is None else None.__class__)).total_seconds()
+            hb = s.heartbeat_at if s.heartbeat_at.tzinfo else s.heartbeat_at.replace(tzinfo=timezone.utc)
+            diff = (ahora - hb).total_seconds()
             if diff < 300:
                 r["online"] = True
 

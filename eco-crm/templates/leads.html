@@ -17,6 +17,9 @@
 <button onclick="openReasignarMasivo()" class="btn btn-secondary" id="btn-reasignar-masivo" style="display:none">
   🔀 Reasignar (<span id="seleccionados-count">0</span>)
 </button>
+<button onclick="ejecutarDerivarMasivo([...leadsSeleccionados])" class="btn btn-secondary" id="btn-derivar-masivo" style="display:none;border-color:#b8860b;color:#b8860b" title="Derivar leads seleccionados a un socio comercial">
+  🤝 Derivar a socio
+</button>
 <button onclick="openTransferirVendedor()" class="btn btn-secondary" title="Reasignar o intercambiar todos los leads de un vendedor">
   ⚡ Transferir
 </button>
@@ -592,8 +595,10 @@
   function actualizarToolbarSeleccion() {
     const n = leadsSeleccionados.size;
     const btn = document.getElementById('btn-reasignar-masivo');
+    const btnD = document.getElementById('btn-derivar-masivo');
     const cnt = document.getElementById('seleccionados-count');
     if (btn) btn.style.display = n > 0 ? 'inline-flex' : 'none';
+    if (btnD) btnD.style.display = n > 0 ? 'inline-flex' : 'none';
     if (cnt) cnt.textContent = n;
   }
 

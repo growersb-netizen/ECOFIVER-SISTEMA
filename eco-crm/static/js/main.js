@@ -999,7 +999,16 @@ function renderLeadsList() {
       <td>${badge(FORMA_PAGO, l.forma_pago)}</td>
       <td style="font-size:13px">${l.asesor_apertura_nombre || '—'}</td>
       <td style="font-size:12px">${l.agente_asignado ? `<span style="background:rgba(99,102,241,.12);color:#6366f1;font-weight:600;padding:2px 8px;border-radius:10px;font-size:11px">${l.agente_asignado}</span>` : '—'}</td>
-      <td style="font-size:12px">${l.aliado_codigo ? `<span style="background:rgba(229,184,75,.15);color:#b8860b;font-weight:700;padding:2px 7px;border-radius:10px;font-size:11px">${l.aliado_codigo}</span>` : '—'}</td>
+      <td style="font-size:12px;white-space:nowrap">
+        ${l.aliado_codigo
+          ? `<span style="background:rgba(229,184,75,.15);color:#b8860b;font-weight:700;padding:2px 7px;border-radius:10px;font-size:11px">${l.aliado_codigo}</span>`
+          : '—'}
+        ${(typeof isAdmin !== 'undefined' && isAdmin)
+          ? `<button onclick="event.stopPropagation();abrirDerivarLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}','${l.aliado_codigo||''}')"
+              title="Derivar a socio"
+              style="margin-left:4px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:1px 5px;font-size:11px;color:var(--text-muted)">🤝</button>`
+          : ''}
+      </td>
       <td style="font-size:12px;color:var(--text-muted)">${formatDate(l.created_at)}</td>
     </tr>`;
   }).join('');
@@ -1844,3 +1853,131 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inicializar Web Push (pide permiso la primera vez)
   initPush().then(() => updatePushBtn());
 });
+
+// ─── DERIVAR LEADS A SOCIOS ────────────────────────────────────────────────
+
+let _aliadosCache = null;
+
+async function _cargarAliados() {
+  if (_aliadosCache) return _aliadosCache;
+  try {
+    const data = await API.get('/api/aliados?estado=activo');
+    _aliadosCache = (data.aliados || []).filter(a => a.operativo);
+  } catch(e) { _aliadosCache = []; }
+  return _aliadosCache;
+}
+
+async function abrirDerivarLead(leadId, nombre, codigoActual) {
+  const aliados = await _cargarAliados();
+  const orgs = aliados.filter(a => a.es_organizador);
+  const asesores = aliados.filter(a => !a.es_organizador);
+
+  const opciones = [
+    `<option value="">— Sin socio asignado —</option>`,
+    orgs.length ? `<optgroup label="Organizadores">` + orgs.map(a =>
+      `<option value="${a.codigo}" ${a.codigo === codigoActual ? 'selected' : ''}>${a.codigo} · ${a.nombre}</option>`).join('') + `</optgroup>` : '',
+    asesores.length ? `<optgroup label="Asesores">` + asesores.map(a =>
+      `<option value="${a.codigo}" ${a.codigo === codigoActual ? 'selected' : ''}>${a.codigo} · ${a.nombre}</option>`).join('') + `</optgroup>` : '',
+  ].join('');
+
+  const existing = document.getElementById('modal-derivar-lead');
+  if (existing) existing.remove();
+  const m = document.createElement('div');
+  m.id = 'modal-derivar-lead';
+  m.className = 'modal-overlay';
+  m.style.display = 'flex';
+  m.innerHTML = `
+    <div class="modal" style="max-width:400px">
+      <div class="modal-header">
+        <span class="modal-title">🤝 Derivar lead</span>
+        <button class="btn btn-icon" onclick="document.getElementById('modal-derivar-lead').remove()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+          <strong>${nombre}</strong> · #${leadId}
+        </div>
+        <label class="form-label">Asignar a socio</label>
+        <select id="derivar-aliado-sel" class="form-control">${opciones}</select>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">
+          Al asignar a un organizador, el lead aparecerá en su panel y podrá repartirlo a sus asesores.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="document.getElementById('modal-derivar-lead').remove()" class="btn btn-secondary">Cancelar</button>
+        <button onclick="ejecutarDerivarLead(${leadId})" class="btn btn-primary">Derivar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+async function ejecutarDerivarLead(leadId) {
+  const sel = document.getElementById('derivar-aliado-sel');
+  const codigo = sel ? sel.value : '';
+  try {
+    await API.patch(`/api/leads/${leadId}/asignar-aliado`, { aliado_codigo: codigo || null });
+    document.getElementById('modal-derivar-lead')?.remove();
+    _aliadosCache = null;
+    toast(`✅ Lead ${codigo ? 'derivado a ' + codigo : 'desasignado'}`);
+    if (typeof loadLeads === 'function') loadLeads();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function ejecutarDerivarMasivo(ids) {
+  const aliados = await _cargarAliados();
+  const orgs = aliados.filter(a => a.es_organizador);
+  const asesores = aliados.filter(a => !a.es_organizador);
+
+  const opciones = [
+    `<option value="">— Sin socio asignado —</option>`,
+    orgs.length ? `<optgroup label="Organizadores">` + orgs.map(a =>
+      `<option value="${a.codigo}">${a.codigo} · ${a.nombre}</option>`).join('') + `</optgroup>` : '',
+    asesores.length ? `<optgroup label="Asesores">` + asesores.map(a =>
+      `<option value="${a.codigo}">${a.codigo} · ${a.nombre}</option>`).join('') + `</optgroup>` : '',
+  ].join('');
+
+  const existing = document.getElementById('modal-derivar-masivo');
+  if (existing) existing.remove();
+  const m = document.createElement('div');
+  m.id = 'modal-derivar-masivo';
+  m.className = 'modal-overlay';
+  m.style.display = 'flex';
+  m.innerHTML = `
+    <div class="modal" style="max-width:400px">
+      <div class="modal-header">
+        <span class="modal-title">🤝 Derivar ${ids.length} lead${ids.length !== 1 ? 's' : ''}</span>
+        <button class="btn btn-icon" onclick="document.getElementById('modal-derivar-masivo').remove()">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Asignar a socio</label>
+        <select id="derivar-masivo-sel" class="form-control">${opciones}</select>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">
+          Se actualizarán los <strong>${ids.length}</strong> leads seleccionados.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="document.getElementById('modal-derivar-masivo').remove()" class="btn btn-secondary">Cancelar</button>
+        <button id="btn-derivar-masivo-ok" onclick="confirmarDerivarMasivo(${JSON.stringify(ids)})" class="btn btn-primary">Derivar todos</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+async function confirmarDerivarMasivo(ids) {
+  const sel = document.getElementById('derivar-masivo-sel');
+  const codigo = sel ? sel.value : '';
+  if (!codigo) { toast('Seleccioná un socio destino', 'error'); return; }
+  const btn = document.getElementById('btn-derivar-masivo-ok');
+  if (btn) btn.disabled = true;
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    try {
+      await API.patch(`/api/leads/${id}/asignar-aliado`, { aliado_codigo: codigo });
+      ok++;
+    } catch(e) { fail++; }
+  }
+  document.getElementById('modal-derivar-masivo')?.remove();
+  _aliadosCache = null;
+  toast(`✅ ${ok} lead${ok !== 1 ? 's' : ''} derivados a ${codigo}${fail ? ` · ${fail} errores` : ''}`);
+  if (typeof loadLeads === 'function') loadLeads();
+  if (typeof leadsSeleccionados !== 'undefined') { leadsSeleccionados.clear(); actualizarToolbarSeleccion(); }
+}

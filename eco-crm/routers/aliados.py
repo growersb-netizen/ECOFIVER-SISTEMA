@@ -138,6 +138,7 @@ def _aliado_dict(a: Aliado) -> dict:
         "operativo": (a.estado == "activo" and bool(a.contrato_firmado)),
         "notas": a.notas or "",
         "es_admin_crm": bool(a.es_admin_crm),
+        "es_organizador": bool(getattr(a, "es_organizador", False)),
         "tiene_password": bool(getattr(a, "password_hash", None)),
         "whatsapp_verificado": bool(getattr(a, "whatsapp_verificado", False)),
     }
@@ -274,6 +275,7 @@ async def listar_aliados(
     estado: Optional[str] = None,
     zona: Optional[str] = None,
     search: Optional[str] = None,
+    es_organizador: Optional[bool] = Query(None, description="Filtrar solo organizadores"),
     telefono: Optional[str] = Query(None, description="Busca por sufijo de teléfono (WhatsApp del aliado)"),
     inactivos_dias: Optional[int] = Query(None, description="Aliados sin actividad en los últimos N días"),
     db: Session = Depends(get_db),
@@ -297,6 +299,8 @@ async def listar_aliados(
             | (Aliado.codigo.ilike(f"%{search}%"))
             | (Aliado.dni.ilike(f"%{search}%"))
         )
+    if es_organizador is not None:
+        q = q.filter(Aliado.es_organizador == es_organizador)
     if inactivos_dias is not None:
         # Aliados activos sin leads cargados en los últimos N días
         desde = datetime.now() - timedelta(days=inactivos_dias)

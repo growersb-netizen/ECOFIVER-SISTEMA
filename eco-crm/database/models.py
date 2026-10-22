@@ -1678,9 +1678,9 @@ class MetaPagina(Base):
     page_token = Column(Text, nullable=True)          # Page Access Token (del sync vía /me/accounts)
     activa = Column(Boolean, default=True)
     # ── Automatización de respuestas ──────────────────────────────────────────
-    auto_reply_comentarios = Column(Boolean, default=False)   # auto-responder comentarios en posts
-    auto_reply_mensajes = Column(Boolean, default=False)      # auto-responder mensajes privados (Messenger)
-    auto_eliminar_negativos = Column(Boolean, default=False)  # eliminar comentarios negativos
+    auto_reply_comentarios = Column(Boolean, default=True)    # auto-responder comentarios en posts
+    auto_reply_mensajes = Column(Boolean, default=True)       # auto-responder mensajes privados (Messenger)
+    auto_eliminar_negativos = Column(Boolean, default=True)   # eliminar comentarios negativos
     webhook_subscribed = Column(Boolean, default=False)       # página suscrita al webhook
     numero_whatsapp = Column(String(30), default=None)  # número al que redirige la IA
     vendedor = Column(String(150), nullable=True)        # nombre del vendedor/responsable de la página

@@ -1650,7 +1650,7 @@ async def api_redes_admin_sync_pages(
                 if es_nueva:
                     pg = MetaPagina(
                         page_id=pid, nombre=nombre, activa=True,
-                        auto_reply_mensajes=True, auto_reply_comentarios=False,
+                        auto_reply_mensajes=True, auto_reply_comentarios=True,
                         auto_eliminar_negativos=True,
                         numero_whatsapp=os.getenv("WA_DEFAULT", "+5491126036495"),
                     )

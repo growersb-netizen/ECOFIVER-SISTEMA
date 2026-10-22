@@ -1018,7 +1018,10 @@ function renderLeadsList() {
         ${(typeof isAdmin !== 'undefined' && isAdmin)
           ? `<button onclick="event.stopPropagation();abrirDerivarLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}','${l.aliado_codigo||''}')"
               title="Derivar a socio"
-              style="margin-left:4px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:1px 5px;font-size:11px;color:var(--text-muted)">🤝</button>`
+              style="margin-left:4px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:1px 5px;font-size:11px;color:var(--text-muted)">🤝</button>
+            <button onclick="event.stopPropagation();eliminarLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}')"
+              title="Eliminar lead"
+              style="margin-left:2px;background:none;border:1px solid rgba(239,68,68,.4);border-radius:6px;cursor:pointer;padding:1px 5px;font-size:11px;color:#ef4444">🗑</button>`
           : ''}
       </td>
       <td style="font-size:12px;color:var(--text-muted)">${formatDate(l.created_at)}</td>
@@ -1865,6 +1868,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inicializar Web Push (pide permiso la primera vez)
   initPush().then(() => updatePushBtn());
 });
+
+// ─── ELIMINAR LEADS ───────────────────────────────────────────────────────
+
+async function eliminarLead(leadId, nombre) {
+  const ok = await showConfirm(`¿Eliminar el lead de "${nombre}"?\n\nEsta acción no se puede deshacer.`, 'Eliminar lead', '#ef4444');
+  if (!ok) return;
+  try {
+    await API.delete(`/api/leads/${leadId}`);
+    toast('Lead eliminado');
+    loadLeads();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function eliminarLeadsMasivo(ids) {
+  const ok = await showConfirm(
+    `¿Eliminar los ${ids.length} leads seleccionados?\n\nEsta acción no se puede deshacer.`,
+    'Eliminar leads', '#ef4444'
+  );
+  if (!ok) return;
+  let ok2 = 0, fail = 0;
+  for (const id of ids) {
+    try { await API.delete(`/api/leads/${id}`); ok2++; }
+    catch(e) { fail++; }
+  }
+  toast(`✅ ${ok2} lead${ok2 !== 1 ? 's' : ''} eliminado${ok2 !== 1 ? 's' : ''}${fail ? ` · ${fail} errores` : ''}`);
+  if (typeof leadsSeleccionados !== 'undefined') { leadsSeleccionados.clear(); actualizarToolbarSeleccion(); }
+  loadLeads();
+}
 
 // ─── DERIVAR LEADS A SOCIOS ────────────────────────────────────────────────
 

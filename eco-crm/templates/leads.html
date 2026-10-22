@@ -20,6 +20,9 @@
 <button onclick="ejecutarDerivarMasivo([...leadsSeleccionados])" class="btn btn-secondary" id="btn-derivar-masivo" style="display:none;border-color:#b8860b;color:#b8860b" title="Derivar leads seleccionados a un socio comercial">
   🤝 Derivar a socio
 </button>
+<button onclick="eliminarLeadsMasivo([...leadsSeleccionados])" class="btn btn-secondary" id="btn-eliminar-masivo" style="display:none;border-color:#ef4444;color:#ef4444" title="Eliminar leads seleccionados permanentemente">
+  🗑 Eliminar
+</button>
 <button onclick="openTransferirVendedor()" class="btn btn-secondary" title="Reasignar o intercambiar todos los leads de un vendedor">
   ⚡ Transferir
 </button>
@@ -605,9 +608,11 @@
     const n = leadsSeleccionados.size;
     const btn = document.getElementById('btn-reasignar-masivo');
     const btnD = document.getElementById('btn-derivar-masivo');
+    const btnE = document.getElementById('btn-eliminar-masivo');
     const cnt = document.getElementById('seleccionados-count');
     if (btn) btn.style.display = n > 0 ? 'inline-flex' : 'none';
     if (btnD) btnD.style.display = n > 0 ? 'inline-flex' : 'none';
+    if (btnE) btnE.style.display = n > 0 ? 'inline-flex' : 'none';
     if (cnt) cnt.textContent = n;
   }
 

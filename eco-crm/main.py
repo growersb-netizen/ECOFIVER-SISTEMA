@@ -38,7 +38,7 @@ from routers import (
     control_agentes, instalacion, panolero, asistencia_rapida, entrega_rapida,
     marketing, simulador, seguimiento, testimonial, inbox, public_landing,
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
-    integraciones, redes_sociales, imagenes, ml_biblioteca, socios,
+    integraciones, redes_sociales, imagenes, ml_biblioteca, socios, organizador,
 )
 from routers import ml_audit, meta_ads
 
@@ -211,6 +211,7 @@ app.include_router(dashboard.router)
 app.include_router(leads.router)
 app.include_router(videollamadas.router)
 app.include_router(socios.router)           # antes de ventas_contado/financiadas para que sus rutas literales (pendientes-*) no colisionen con los path params {venta_id: int}
+app.include_router(organizador.router)      # panel de organizadores comerciales
 app.include_router(ventas_contado.router)
 app.include_router(ventas_financiadas.router)
 app.include_router(cobranzas.router)

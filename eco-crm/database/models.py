@@ -1405,6 +1405,19 @@ class Aliado(Base):
     localidad = Column(String(150), default="")
 
 
+class SesionPanel(Base):
+    """Registro de sesiones de socios en el panel — para control de actividad."""
+    __tablename__ = "sesiones_panel"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    aliado_codigo = Column(String(20), nullable=False, index=True)
+    login_at      = Column(DateTime(timezone=True), server_default=func.now())
+    heartbeat_at  = Column(DateTime(timezone=True), nullable=True)
+    logout_at     = Column(DateTime(timezone=True), nullable=True)
+    minutos_activos = Column(Integer, default=0)   # calculado al cerrar / en heartbeat
+    user_agent    = Column(String(300), nullable=True)
+
+
 class MaterialSocio(Base):
     """Biblioteca de contenidos del panel de socios: imágenes, videos, flyers,
     documentación, fotos de entregas y guías. tipo/categoria son de vocabulario

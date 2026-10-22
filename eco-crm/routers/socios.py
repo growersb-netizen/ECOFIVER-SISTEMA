@@ -35,6 +35,7 @@ from database.models import (
     Aliado, Comision, VentaContado, VentaFinanciada, MaterialSocio,
     ScoringBCRA, Usuario, ComisionConfig, Presupuesto, Lead, Videollamada,
     Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, StockPiscina, MetaPagina,
+    SesionPanel,
 )
 from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
@@ -5855,3 +5856,258 @@ async def panel_socio_page(request: Request):
 @router.get("/terminos-socios-comerciales", response_class=HTMLResponse)
 async def terminos_socios_page(request: Request):
     return templates.TemplateResponse("terminos_socios.html", {"request": request})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ORGANIZADORES — gestión del equipo y redistribución de leads
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _require_organizador(socio: Aliado):
+    if not socio.es_organizador:
+        raise HTTPException(403, "Solo organizadores pueden acceder a esta función")
+
+
+@router.get("/api/socio/mi-equipo")
+async def organizador_mi_equipo(socio: Aliado = Depends(require_socio), db: Session = Depends(get_db)):
+    """Devuelve los asesores de la organización del organizador."""
+    _require_organizador(socio)
+    asesores = (
+        db.query(Aliado)
+        .filter(Aliado.organizacion_codigo == socio.codigo, Aliado.estado == "activo")
+        .order_by(Aliado.nombre)
+        .all()
+    )
+    return {"organizador": {"codigo": socio.codigo, "nombre": socio.nombre}, "asesores": [
+        {
+            "codigo": a.codigo, "nombre": a.nombre, "zona": a.zona or "",
+            "perfil_completo": bool(a.perfil_completo), "verificado": bool(a.perfil_completo),
+            "telefono": a.telefono or "",
+        }
+        for a in asesores
+    ]}
+
+
+@router.get("/api/socio/leads-equipo")
+async def organizador_leads_equipo(
+    asesor: Optional[str] = None,
+    sin_asignar: bool = False,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Leads del organizador + todos sus asesores. Filtrable por asesor o solo sin asignar."""
+    _require_organizador(socio)
+    codigos_equipo = [socio.codigo] + [
+        a.codigo for a in db.query(Aliado).filter(
+            Aliado.organizacion_codigo == socio.codigo
+        ).all()
+    ]
+    q = db.query(Lead).filter(Lead.aliado_codigo.in_(codigos_equipo))
+    if asesor:
+        q = q.filter(Lead.aliado_codigo == asesor.upper())
+    elif sin_asignar:
+        q = q.filter(Lead.aliado_codigo == socio.codigo)
+    leads = q.order_by(Lead.created_at.desc()).limit(500).all()
+    return {
+        "total": len(leads),
+        "codigos_equipo": codigos_equipo,
+        "leads": [
+            {
+                "id": l.id, "nombre": l.nombre, "telefono": l.telefono,
+                "localidad": l.localidad or "", "producto_interes": l.producto_interes or "SIN_DEFINIR",
+                "forma_pago": l.forma_pago or "SIN_DEFINIR", "estado": l.estado or "NUEVO",
+                "etiqueta_color": l.etiqueta_color or "", "aliado_codigo": l.aliado_codigo or "",
+                "created_at": l.created_at.isoformat() if l.created_at else "",
+            }
+            for l in leads
+        ],
+    }
+
+
+@router.patch("/api/socio/leads/{lead_id}/asignar-asesor")
+async def organizador_asignar_asesor(
+    lead_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Organizador reasigna un lead de su pool a un asesor de su org."""
+    _require_organizador(socio)
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(404, "Lead no encontrado")
+
+    # Solo puede mover leads de su propia organización
+    codigos_equipo = [socio.codigo] + [
+        a.codigo for a in db.query(Aliado).filter(
+            Aliado.organizacion_codigo == socio.codigo
+        ).all()
+    ]
+    if lead.aliado_codigo not in codigos_equipo:
+        raise HTTPException(403, "Este lead no pertenece a tu organización")
+
+    data = await request.json()
+    nuevo_codigo = (data.get("aliado_codigo") or "").strip().upper() or None
+
+    if nuevo_codigo:
+        asesor = db.query(Aliado).filter(
+            Aliado.codigo == nuevo_codigo,
+            Aliado.organizacion_codigo == socio.codigo,
+        ).first()
+        if not asesor and nuevo_codigo != socio.codigo:
+            raise HTTPException(400, "El asesor no pertenece a tu organización")
+
+    lead.aliado_codigo = nuevo_codigo or socio.codigo
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    destino = nuevo_codigo or socio.codigo
+    lead.notas = (lead.notas or "") + f"\n[{ts}] 🔀 Asignado a {destino} por org. {socio.codigo}"
+    db.commit()
+    return {"ok": True, "aliado_codigo": lead.aliado_codigo}
+
+
+@router.get("/api/socio/admin/actividad-socios")
+async def admin_actividad_socios(
+    dias: int = 7,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Admin: resumen de actividad (sesiones) de todos los socios."""
+    _require_admin_socio(socio)
+    desde = datetime.now(timezone.utc) - timedelta(days=dias)
+    sesiones = (
+        db.query(SesionPanel)
+        .filter(SesionPanel.login_at >= desde)
+        .order_by(SesionPanel.login_at.desc())
+        .all()
+    )
+    # Agrupar por aliado_codigo
+    from collections import defaultdict
+    resumen: dict = defaultdict(lambda: {"sesiones": 0, "minutos_totales": 0, "ultima_sesion": None, "online": False})
+    ahora = datetime.now(timezone.utc)
+    for s in sesiones:
+        r = resumen[s.aliado_codigo]
+        r["sesiones"] += 1
+        r["minutos_totales"] += s.minutos_activos or 0
+        if not r["ultima_sesion"] or (s.login_at and s.login_at > r["ultima_sesion"]):
+            r["ultima_sesion"] = s.login_at
+        # Online = heartbeat en los últimos 5 min sin logout
+        if not s.logout_at and s.heartbeat_at:
+            diff = (ahora - s.heartbeat_at.replace(tzinfo=timezone.utc if s.heartbeat_at.tzinfo is None else None.__class__)).total_seconds()
+            if diff < 300:
+                r["online"] = True
+
+    aliados = {a.codigo: a.nombre for a in db.query(Aliado).filter(Aliado.codigo.in_(list(resumen.keys()))).all()}
+    return {"dias": dias, "total_sesiones": len(sesiones), "socios": [
+        {
+            "codigo": codigo,
+            "nombre": aliados.get(codigo, codigo),
+            "sesiones": datos["sesiones"],
+            "minutos_totales": datos["minutos_totales"],
+            "horas_totales": round(datos["minutos_totales"] / 60, 1),
+            "ultima_sesion": datos["ultima_sesion"].isoformat() if datos["ultima_sesion"] else None,
+            "online": datos["online"],
+        }
+        for codigo, datos in sorted(resumen.items(), key=lambda x: x[1]["minutos_totales"], reverse=True)
+    ]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SESIONES — tracking de tiempo activo en el panel
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/api/socio/sesion/iniciar")
+async def sesion_iniciar(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Registra el inicio de sesión del socio en el panel."""
+    ua = request.headers.get("User-Agent", "")[:300]
+    sesion = SesionPanel(aliado_codigo=socio.codigo, user_agent=ua)
+    db.add(sesion)
+    db.commit()
+    db.refresh(sesion)
+    return {"ok": True, "sesion_id": sesion.id}
+
+
+@router.post("/api/socio/sesion/heartbeat")
+async def sesion_heartbeat(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Actualiza el heartbeat de la sesión activa (cada 3 min desde el panel)."""
+    data = await request.json()
+    sesion_id = data.get("sesion_id")
+    if not sesion_id:
+        return {"ok": False}
+    sesion = db.query(SesionPanel).filter(
+        SesionPanel.id == sesion_id,
+        SesionPanel.aliado_codigo == socio.codigo,
+        SesionPanel.logout_at == None,
+    ).first()
+    if not sesion:
+        return {"ok": False}
+    ahora = datetime.now(timezone.utc)
+    sesion.heartbeat_at = ahora
+    if sesion.login_at:
+        login = sesion.login_at
+        if login.tzinfo is None:
+            login = login.replace(tzinfo=timezone.utc)
+        sesion.minutos_activos = int((ahora - login).total_seconds() / 60)
+    db.commit()
+    return {"ok": True, "minutos_activos": sesion.minutos_activos}
+
+
+@router.post("/api/socio/sesion/cerrar")
+async def sesion_cerrar(
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Cierra la sesión activa del socio."""
+    data = await request.json()
+    sesion_id = data.get("sesion_id")
+    if not sesion_id:
+        return {"ok": False}
+    sesion = db.query(SesionPanel).filter(
+        SesionPanel.id == sesion_id,
+        SesionPanel.aliado_codigo == socio.codigo,
+        SesionPanel.logout_at == None,
+    ).first()
+    if not sesion:
+        return {"ok": False}
+    ahora = datetime.now(timezone.utc)
+    sesion.logout_at = ahora
+    sesion.heartbeat_at = ahora
+    if sesion.login_at:
+        login = sesion.login_at
+        if login.tzinfo is None:
+            login = login.replace(tzinfo=timezone.utc)
+        sesion.minutos_activos = int((ahora - login).total_seconds() / 60)
+    db.commit()
+    return {"ok": True, "minutos_activos": sesion.minutos_activos}
+
+
+@router.get("/api/socio/mi-actividad")
+async def socio_mi_actividad(
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """Resumen de actividad del socio: tiempo hoy, esta semana, total."""
+    ahora = datetime.now(timezone.utc)
+    hoy_inicio = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    semana_inicio = ahora - timedelta(days=7)
+    sesiones_hoy = db.query(SesionPanel).filter(
+        SesionPanel.aliado_codigo == socio.codigo,
+        SesionPanel.login_at >= hoy_inicio,
+    ).all()
+    sesiones_semana = db.query(SesionPanel).filter(
+        SesionPanel.aliado_codigo == socio.codigo,
+        SesionPanel.login_at >= semana_inicio,
+    ).all()
+    return {
+        "minutos_hoy": sum(s.minutos_activos or 0 for s in sesiones_hoy),
+        "minutos_semana": sum(s.minutos_activos or 0 for s in sesiones_semana),
+        "sesiones_hoy": len(sesiones_hoy),
+        "sesiones_semana": len(sesiones_semana),
+    }

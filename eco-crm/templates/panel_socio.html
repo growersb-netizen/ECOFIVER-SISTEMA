@@ -838,6 +838,7 @@
   <div class="sidebar" id="main-sidebar">
     <div class="brand"><div class="logo">ECO<span>FIVER</span></div></div>
     <div class="socio-info" id="sidebar-socio-info"></div>
+    <div id="sesion-timer" style="font-size:11px;color:rgba(184,203,224,.55);padding:0 0 10px 0;letter-spacing:.02em"></div>
     <a class="nav-item active" data-section="inicio" onclick="nav('inicio')">🏠 Inicio</a>
     <a class="nav-item" data-section="stock" onclick="nav('stock')">🏊 Stock disponible</a>
     <a class="nav-item" data-section="catalogo" onclick="nav('catalogo')">📋 Catálogo y precios</a>
@@ -1692,6 +1693,7 @@
       <div class="leads-tabs">
         <button class="leads-tab active" onclick="leadsTab('cargar')">➕ Cargar leads</button>
         <button class="leads-tab" onclick="leadsTab('asignar')">🔀 Asignar leads</button>
+        <button class="leads-tab" onclick="leadsTab('actividad')">👁 Actividad socios</button>
       </div>
 
       <!-- TAB: CARGAR -->
@@ -1798,6 +1800,19 @@
             <tbody id="leads-tbody"><tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">Cargando…</td></tr></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- TAB: ACTIVIDAD SOCIOS -->
+      <div class="leads-tab-panel" id="ltab-actividad">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+          <select id="actividad-dias" class="input-field" style="max-width:160px;font-size:13px" onchange="cargarActividadSocios()">
+            <option value="7" selected>Últimos 7 días</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="1">Hoy</option>
+          </select>
+          <button class="btn-ghost" style="font-size:13px" onclick="cargarActividadSocios()">↺ Actualizar</button>
+        </div>
+        <div id="actividad-contenido"><p style="color:var(--text-muted)">Cargando…</p></div>
       </div>
     </section>
 
@@ -2129,6 +2144,7 @@ async function cargarApp(){
   cargarCatalogo();
   cargarProgreso();
   cargarStockInicio();
+  iniciarSesionTracking();
   if(!SOCIO.tiene_password) abrirModalCrearPassword();
   else avanzarOnboarding();
 }
@@ -2205,6 +2221,48 @@ async function mvGuardarDatos(){
   }catch(e){ msg.className='msg error'; msg.textContent = e.message; }
 }
 
+
+// ── Tracking de sesión ────────────────────────────────────────────────────────
+let _sesionId = null;
+let _sesionLoginAt = null;
+let _sesionHeartbeatInterval = null;
+
+async function iniciarSesionTracking(){
+  try {
+    const data = await api('/api/socio/sesion/iniciar', {method:'POST'});
+    _sesionId = data.sesion_id;
+    _sesionLoginAt = Date.now();
+    _sesionHeartbeatInterval = setInterval(enviarHeartbeat, 3 * 60 * 1000);
+    setInterval(actualizarTimerLocal, 1000);
+    actualizarTimerLocal();
+  } catch(e) { /* silencioso — no afecta la UX */ }
+}
+
+async function enviarHeartbeat(){
+  if(!_sesionId) return;
+  try { await api('/api/socio/sesion/heartbeat', {method:'POST', body: JSON.stringify({sesion_id: _sesionId})}); }
+  catch(e) {}
+}
+
+function actualizarTimerLocal(){
+  if(!_sesionLoginAt) return;
+  const mins = Math.floor((Date.now() - _sesionLoginAt) / 60000);
+  const h = Math.floor(mins / 60), m = mins % 60;
+  const texto = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const el = document.getElementById('sesion-timer');
+  if(el) el.textContent = `⏱ ${texto}`;
+}
+
+window.addEventListener('beforeunload', () => {
+  if(!_sesionId) return;
+  try {
+    fetch('/api/socio/sesion/cerrar', {
+      method:'POST', keepalive:true,
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sesion_id: _sesionId}),
+    });
+  } catch(e) {}
+});
 
 function actualizarEstadoVerificacionPerfil(){
   const el = document.getElementById('perfil-verificacion-banner');
@@ -3717,10 +3775,39 @@ let _sociosLista = [];   // cache para selectores
 let _leadsData   = [];   // cache tabla de asignación
 
 function leadsTab(tab){
-  document.querySelectorAll('.leads-tab').forEach((b,i) => b.classList.toggle('active', ['cargar','asignar'][i] === tab));
-  document.querySelectorAll('.leads-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#sec-leads-admin .leads-tab').forEach((b,i) => b.classList.toggle('active', ['cargar','asignar','actividad'][i] === tab));
+  document.querySelectorAll('#sec-leads-admin .leads-tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('ltab-'+tab).classList.add('active');
   if(tab === 'asignar') recargarTablaLeads();
+  if(tab === 'actividad') cargarActividadSocios();
+}
+
+async function cargarActividadSocios(){
+  const cont = document.getElementById('actividad-contenido');
+  cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
+  const dias = document.getElementById('actividad-dias')?.value || 7;
+  try {
+    const data = await api(`/api/socio/admin/actividad-socios?dias=${dias}`);
+    const socios = data.socios || [];
+    if(!socios.length){ cont.innerHTML = '<p style="color:var(--text-muted)">Sin actividad registrada en el período.</p>'; return; }
+    const ahora = Date.now();
+    cont.innerHTML = `<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">${socios.length} socios activos en los últimos ${dias} días · ${data.total_sesiones} sesiones</div>` +
+      `<div style="overflow-x:auto"><table class="leads-table"><thead><tr>
+        <th>Socio</th><th>Sesiones</th><th>Horas totales</th><th>Última sesión</th><th>Estado</th>
+      </tr></thead><tbody>` +
+      socios.map(s => {
+        const online = s.online ? '<span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">● Online</span>' :
+          '<span style="background:rgba(11,35,80,.08);color:var(--text-muted);padding:2px 8px;border-radius:10px;font-size:11px">Offline</span>';
+        const ultima = s.ultima_sesion ? new Date(s.ultima_sesion).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'}) : '—';
+        return `<tr>
+          <td><strong>${s.nombre}</strong><br><span style="font-size:11px;color:var(--text-muted)">${s.codigo}</span></td>
+          <td>${s.sesiones}</td>
+          <td><strong>${s.horas_totales}h</strong></td>
+          <td>${ultima}</td>
+          <td>${online}</td>
+        </tr>`;
+      }).join('') + '</tbody></table></div>';
+  } catch(e){ cont.innerHTML = '<p style="color:#ef4444">Error al cargar actividad.</p>'; }
 }
 
 async function iniciarLeadsAdmin(){

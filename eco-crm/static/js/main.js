@@ -879,6 +879,25 @@ function getQuickAccess(rol) {
 let leadsData = [];
 let leadsView = 'list'; // 'list' or 'kanban'
 let leadsFilter = { excluir_ia: '1' };
+let _filtroDistribuirActivo = false;
+
+function toggleFiltroDistribuir() {
+  _filtroDistribuirActivo = !_filtroDistribuirActivo;
+  const btn = document.getElementById('btn-para-distribuir');
+  if (_filtroDistribuirActivo) {
+    leadsFilter.con_socio = 'no';
+    if (btn) { btn.style.background = '#6366f1'; btn.style.color = '#fff'; }
+    // sync select
+    const sel = document.querySelector('select[onchange*="con_socio"]');
+    if (sel) sel.value = 'no';
+  } else {
+    delete leadsFilter.con_socio;
+    if (btn) { btn.style.background = ''; btn.style.color = '#6366f1'; }
+    const sel = document.querySelector('select[onchange*="con_socio"]');
+    if (sel) sel.value = '';
+  }
+  loadLeads();
+}
 
 async function loadLeads() {
   const params = new URLSearchParams();
@@ -1936,7 +1955,7 @@ async function _asignarInline(leadId, codigo) {
 
 async function limpiarLeadsIA() {
   const ok = await showConfirm(
-    'Esto eliminará TODOS los leads generados por los agentes de IA (pablo, laura, sabrina, claudio, valentina).\n\n¿Continuar?',
+    'Esto eliminará TODOS los leads de prueba (pablo, laura, sabrina, claudio).\n\nLos leads de Valentina (reales) NO se tocan.\n\n¿Continuar?',
     'Limpiar leads de prueba', '#ef4444'
   );
   if (!ok) return;

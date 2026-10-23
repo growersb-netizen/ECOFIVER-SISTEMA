@@ -14,8 +14,10 @@ from sqlalchemy import or_, and_
 from database.database import get_db
 from database.models import Lead, Videollamada, Usuario, Notificacion, ConfiguracionSistema, Interaccion, MetaPagina
 
-# Agentes IA del multiagente — únicos que entran al pool de redistribución
+# Valentina = agente real de producción (leads de campañas reales)
+# Pablo/Laura/Sabrina/Claudio = agentes de prueba — se excluyen del pipeline
 _AGENTES_IA = ["valentina", "pablo", "laura", "sabrina", "claudio"]
+_AGENTES_PRUEBA = ["pablo", "laura", "sabrina", "claudio"]
 from routers.auth import require_auth, require_roles, get_user_roles, get_current_user, require_auth_or_apikey
 
 log = logging.getLogger(__name__)
@@ -481,7 +483,7 @@ async def list_leads(
     if excluir_ia == 1:
         q = q.filter(or_(
             Lead.agente_asignado.is_(None),
-            Lead.agente_asignado.notin_(_AGENTES_IA),
+            Lead.agente_asignado.notin_(_AGENTES_PRUEBA),
         ))
     if search:
         q = q.filter(or_(
@@ -1011,7 +1013,7 @@ async def limpiar_leads_ia(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_roles("ADMIN"))
 ):
-    q = db.query(Lead).filter(Lead.agente_asignado.in_(_AGENTES_IA))
+    q = db.query(Lead).filter(Lead.agente_asignado.in_(_AGENTES_PRUEBA))
     count = q.count()
     q.delete(synchronize_session=False)
     db.commit()

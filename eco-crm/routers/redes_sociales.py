@@ -2107,15 +2107,29 @@ async def api_redes_admin_enviar_consultas(
     if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
+    from datetime import datetime, timezone, timedelta
+
     SISTEMA_PREFIXES = [
         "Facebook creó este chat",
         "facebook created this conversation",
     ]
+    # Ventana Messenger: 24h para responder
+    cutoff_msg = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    # Auto-expirar mensajes > 24h pendientes (ventana cerrada)
+    exp_msg = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.tipo == "mensaje",
+        FacebookInteraccion.accion == "pendiente",
+        FacebookInteraccion.created_at < cutoff_msg,
+    ).update({"accion": "expirado"}, synchronize_session=False)
+    if exp_msg:
+        db.commit()
 
     mensajes = db.query(FacebookInteraccion).filter(
         FacebookInteraccion.tipo == "mensaje",
         FacebookInteraccion.accion == "pendiente",
-    ).order_by(FacebookInteraccion.created_at.asc()).all()
+        FacebookInteraccion.created_at >= cutoff_msg,
+    ).order_by(FacebookInteraccion.created_at.desc()).all()
 
     genuinos = [
         m for m in mensajes
@@ -2161,6 +2175,7 @@ async def api_redes_admin_enviar_consultas(
     return {
         "ok": True,
         "total_procesados": len(genuinos[:limit]),
+        "expirados_auto": exp_msg or 0,
         "enviados": enviados,
         "saltados_reclamo": saltados_reclamo,
         "errores": errores,
@@ -2176,21 +2191,37 @@ async def api_redes_admin_responder_comentarios(
 ):
     """
     Envía respuestas a todos los comentarios pendientes.
+    Auto-expira comentarios con más de 7 días (ya no existen en Facebook).
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
     expected = os.getenv("ML_AUDIT_TOKEN", "")
     if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
+    from datetime import datetime, timezone, timedelta
+    cutoff_expire = datetime.now(timezone.utc) - timedelta(days=7)
+
+    # Auto-expirar comentarios > 7 días que siguen pendientes
+    expirados = db.query(FacebookInteraccion).filter(
+        FacebookInteraccion.tipo == "comentario",
+        FacebookInteraccion.accion == "pendiente",
+        FacebookInteraccion.created_at < cutoff_expire,
+    ).update({"accion": "expirado"}, synchronize_session=False)
+    if expirados:
+        db.commit()
+
+    # Procesar solo comentarios recientes (< 7 días), newest first
     comentarios = db.query(FacebookInteraccion).filter(
         FacebookInteraccion.tipo == "comentario",
         FacebookInteraccion.accion == "pendiente",
-    ).order_by(FacebookInteraccion.created_at.asc()).limit(limit).all()
+        FacebookInteraccion.created_at >= cutoff_expire,
+    ).order_by(FacebookInteraccion.created_at.desc()).limit(limit).all()
 
     paginas = {pg.page_id: pg for pg in db.query(MetaPagina).all()}
 
     enviados = 0
     errores = 0
+    expirados_n = expirados or 0
     resultados = []
 
     for c in comentarios:
@@ -2216,7 +2247,7 @@ async def api_redes_admin_responder_comentarios(
 
         db.commit()
 
-    return {"ok": True, "total": len(comentarios), "enviados": enviados, "errores": errores, "resultados": resultados}
+    return {"ok": True, "total": len(comentarios), "expirados_auto": expirados_n, "enviados": enviados, "errores": errores, "resultados": resultados}
 
 
 @router.post("/api/redes/admin/marcar-expirados")

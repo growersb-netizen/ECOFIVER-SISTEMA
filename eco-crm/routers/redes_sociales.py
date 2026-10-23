@@ -2107,28 +2107,15 @@ async def api_redes_admin_enviar_consultas(
     if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
-    from datetime import datetime, timezone, timedelta
-
     SISTEMA_PREFIXES = [
         "Facebook creó este chat",
         "facebook created this conversation",
     ]
-    # Ventana Messenger: 24h para responder
-    cutoff_msg = datetime.now(timezone.utc) - timedelta(hours=24)
 
-    # Auto-expirar mensajes > 24h pendientes (ventana cerrada)
-    exp_msg = db.query(FacebookInteraccion).filter(
-        FacebookInteraccion.tipo == "mensaje",
-        FacebookInteraccion.accion == "pendiente",
-        FacebookInteraccion.created_at < cutoff_msg,
-    ).update({"accion": "expirado"}, synchronize_session=False)
-    if exp_msg:
-        db.commit()
-
+    # Procesar todos los mensajes pendientes, newest first
     mensajes = db.query(FacebookInteraccion).filter(
         FacebookInteraccion.tipo == "mensaje",
         FacebookInteraccion.accion == "pendiente",
-        FacebookInteraccion.created_at >= cutoff_msg,
     ).order_by(FacebookInteraccion.created_at.desc()).all()
 
     genuinos = [
@@ -2141,6 +2128,7 @@ async def api_redes_admin_enviar_consultas(
     enviados = 0
     saltados_reclamo = 0
     errores = 0
+    expirados_msg = 0
     resultados = []
 
     for m in genuinos[:limit]:
@@ -2165,6 +2153,11 @@ async def api_redes_admin_enviar_consultas(
             m.respuesta_enviada = respuesta
             enviados += 1
             resultados.append({"id": m.id, "status": "enviado", "usuario": m.usuario_nombre, "pagina": pg_nombre})
+        elif meta_err and ("window" in meta_err.lower() or "24" in meta_err or "does not exist" in meta_err or "not subscribed" in meta_err.lower()):
+            # Ventana Messenger expirada o usuario no disponible
+            m.accion = "expirado"
+            expirados_msg += 1
+            resultados.append({"id": m.id, "status": "expirado_ventana", "usuario": m.usuario_nombre})
         else:
             m.accion = "error"
             errores += 1
@@ -2175,7 +2168,7 @@ async def api_redes_admin_enviar_consultas(
     return {
         "ok": True,
         "total_procesados": len(genuinos[:limit]),
-        "expirados_auto": exp_msg or 0,
+        "expirados_auto": expirados_msg,
         "enviados": enviados,
         "saltados_reclamo": saltados_reclamo,
         "errores": errores,
@@ -2198,30 +2191,17 @@ async def api_redes_admin_responder_comentarios(
     if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
-    from datetime import datetime, timezone, timedelta
-    cutoff_expire = datetime.now(timezone.utc) - timedelta(days=7)
-
-    # Auto-expirar comentarios > 7 días que siguen pendientes
-    expirados = db.query(FacebookInteraccion).filter(
-        FacebookInteraccion.tipo == "comentario",
-        FacebookInteraccion.accion == "pendiente",
-        FacebookInteraccion.created_at < cutoff_expire,
-    ).update({"accion": "expirado"}, synchronize_session=False)
-    if expirados:
-        db.commit()
-
-    # Procesar solo comentarios recientes (< 7 días), newest first
+    # Todos los comentarios pendientes, newest first (así los recientes se procesan antes)
     comentarios = db.query(FacebookInteraccion).filter(
         FacebookInteraccion.tipo == "comentario",
         FacebookInteraccion.accion == "pendiente",
-        FacebookInteraccion.created_at >= cutoff_expire,
     ).order_by(FacebookInteraccion.created_at.desc()).limit(limit).all()
 
     paginas = {pg.page_id: pg for pg in db.query(MetaPagina).all()}
 
     enviados = 0
     errores = 0
-    expirados_n = expirados or 0
+    expirados_n = 0
     resultados = []
 
     for c in comentarios:
@@ -2240,6 +2220,11 @@ async def api_redes_admin_responder_comentarios(
             c.respuesta_enviada = respuesta
             enviados += 1
             resultados.append({"id": c.id, "status": "enviado", "pagina": pg.nombre})
+        elif meta_err and "does not exist" in meta_err:
+            # Comentario eliminado en Facebook — marcar como expirado
+            c.accion = "expirado"
+            expirados_n += 1
+            resultados.append({"id": c.id, "status": "expirado_fb"})
         else:
             c.accion = "error"
             errores += 1

@@ -7,7 +7,7 @@ import re
 import time
 import os
 import asyncio
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
@@ -779,8 +779,8 @@ async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero
         )
 
 
-async def _responder_comentario(comment_id: str, mensaje: str, token: str) -> bool:
-    """Publica una respuesta a un comentario de Facebook."""
+async def _responder_comentario(comment_id: str, mensaje: str, token: str) -> Tuple[bool, str]:
+    """Publica una respuesta a un comentario de Facebook. Retorna (ok, error_text)."""
     try:
         async with httpx.AsyncClient(timeout=15) as hc:
             r = await hc.post(
@@ -788,10 +788,15 @@ async def _responder_comentario(comment_id: str, mensaje: str, token: str) -> bo
                 params={"access_token": token},
                 json={"message": mensaje},
             )
-        return r.status_code in (200, 201)
+        ok = r.status_code in (200, 201)
+        if not ok:
+            err_text = r.text[:500]
+            log.error(f"[FB-REPLY] comentario={comment_id} status={r.status_code} resp={err_text}")
+            return False, err_text
+        return True, ""
     except Exception as e:
-        log.error(f"Error respondiendo comentario {comment_id}: {e}")
-        return False
+        log.error(f"[FB-REPLY] comentario={comment_id} exc={e}")
+        return False, str(e)[:200]
 
 
 async def _eliminar_comentario(comment_id: str, token: str) -> bool:
@@ -808,8 +813,8 @@ async def _eliminar_comentario(comment_id: str, token: str) -> bool:
         return False
 
 
-async def _responder_mensaje(sender_id: str, mensaje: str, token: str) -> bool:
-    """Envía un mensaje privado vía Messenger."""
+async def _responder_mensaje(sender_id: str, mensaje: str, token: str) -> Tuple[bool, str]:
+    """Envía un mensaje privado vía Messenger. Retorna (ok, error_text)."""
     try:
         async with httpx.AsyncClient(timeout=15) as hc:
             r = await hc.post(
@@ -817,10 +822,15 @@ async def _responder_mensaje(sender_id: str, mensaje: str, token: str) -> bool:
                 params={"access_token": token},
                 json={"recipient": {"id": sender_id}, "message": {"text": mensaje}},
             )
-        return r.status_code in (200, 201)
+        ok = r.status_code in (200, 201)
+        if not ok:
+            err_text = r.text[:500]
+            log.error(f"[FB-MSG] sender={sender_id} status={r.status_code} resp={err_text}")
+            return False, err_text
+        return True, ""
     except Exception as e:
-        log.error(f"Error enviando mensaje a {sender_id}: {e}")
-        return False
+        log.error(f"[FB-MSG] sender={sender_id} exc={e}")
+        return False, str(e)[:200]
 
 
 async def _procesar_evento_fb(entry: dict, db: Session):
@@ -877,7 +887,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
 
         if pg.auto_reply_mensajes:
             respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db, vendedor_nombre=pg.vendedor or "")
-            ok = await _responder_mensaje(sender_id, respuesta, pg_token)
+            ok, err = await _responder_mensaje(sender_id, respuesta, pg_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta
         db.commit()
@@ -919,7 +929,7 @@ async def _procesar_evento_fb(entry: dict, db: Session):
             interaccion.accion = "eliminado" if ok else "error"
         elif pg.auto_reply_comentarios:
             respuesta = await _generar_respuesta_ia(msg_text, pg.nombre, numero_wa, db, vendedor_nombre=pg.vendedor or "")
-            ok = await _responder_comentario(comment_id, respuesta, pg_token)
+            ok, err = await _responder_comentario(comment_id, respuesta, pg_token)
             interaccion.accion = "respondido" if ok else "error"
             interaccion.respuesta_enviada = respuesta
 
@@ -2134,7 +2144,7 @@ async def api_redes_admin_enviar_consultas(
         pg_nombre = pg.nombre
         numero_wa = pg.numero_whatsapp or ""
         respuesta = await _generar_respuesta_ia(m.contenido, pg_nombre, numero_wa, db)
-        ok = await _responder_mensaje(m.usuario_id, respuesta, pg.page_token)
+        ok, meta_err = await _responder_mensaje(m.usuario_id, respuesta, pg.page_token)
 
         if ok:
             m.accion = "respondido"
@@ -2144,7 +2154,7 @@ async def api_redes_admin_enviar_consultas(
         else:
             m.accion = "error"
             errores += 1
-            resultados.append({"id": m.id, "status": "error_envio", "usuario": m.usuario_nombre})
+            resultados.append({"id": m.id, "status": "error_envio", "usuario": m.usuario_nombre, "meta_error": meta_err[:200] if meta_err else ""})
 
         db.commit()
 
@@ -2192,7 +2202,7 @@ async def api_redes_admin_responder_comentarios(
 
         respuesta = await _generar_respuesta_ia(c.contenido or "", pg.nombre, pg.numero_whatsapp or "", db)
         comment_id = c.objeto_id or str(c.id)
-        ok = await _responder_comentario(comment_id, respuesta, pg.page_token)
+        ok, meta_err = await _responder_comentario(comment_id, respuesta, pg.page_token)
 
         if ok:
             c.accion = "respondido"
@@ -2202,7 +2212,7 @@ async def api_redes_admin_responder_comentarios(
         else:
             c.accion = "error"
             errores += 1
-            resultados.append({"id": c.id, "status": "error_envio"})
+            resultados.append({"id": c.id, "status": "error_envio", "meta_error": meta_err[:200] if meta_err else ""})
 
         db.commit()
 
@@ -2413,17 +2423,18 @@ async def api_redes_responder_interaccion(
         raise HTTPException(400, "Página sin token — no se puede responder")
 
     ok = False
+    meta_err = ""
     if interaccion.tipo == "mensaje":
-        ok = await _responder_mensaje(interaccion.usuario_id, respuesta, pg.page_token)
+        ok, meta_err = await _responder_mensaje(interaccion.usuario_id, respuesta, pg.page_token)
     elif interaccion.tipo == "comentario":
-        ok = await _responder_comentario(interaccion.objeto_id, respuesta, pg.page_token)
+        ok, meta_err = await _responder_comentario(interaccion.objeto_id, respuesta, pg.page_token)
 
     if ok:
         interaccion.accion = "respondido"
         interaccion.respuesta_enviada = respuesta
         db.commit()
 
-    return {"ok": ok, "interaccion_id": interaccion_id}
+    return {"ok": ok, "interaccion_id": interaccion_id, "meta_error": meta_err}
 
 
 @router.delete("/api/redes/interacciones/{interaccion_id}/comentario")
@@ -3056,8 +3067,8 @@ async def api_redes_responder_directo(
     if not token:
         raise HTTPException(400, "Sin token de Meta configurado")
 
-    ok = await _responder_comentario(comment_id, respuesta, token)
-    return {"ok": ok}
+    ok, meta_err = await _responder_comentario(comment_id, respuesta, token)
+    return {"ok": ok, "meta_error": meta_err}
 
 
 # ─── RESPONDER CON IA (TRIGGER MANUAL) ───────────────────────────────────────
@@ -3089,17 +3100,18 @@ async def api_redes_responder_con_ia(
     )
 
     ok = False
+    meta_err = ""
     if interaccion.tipo == "mensaje":
-        ok = await _responder_mensaje(interaccion.usuario_id, respuesta, pg.page_token)
+        ok, meta_err = await _responder_mensaje(interaccion.usuario_id, respuesta, pg.page_token)
     elif interaccion.tipo == "comentario":
-        ok = await _responder_comentario(interaccion.objeto_id, respuesta, pg.page_token)
+        ok, meta_err = await _responder_comentario(interaccion.objeto_id, respuesta, pg.page_token)
 
     if ok:
         interaccion.accion = "respondido"
         interaccion.respuesta_enviada = respuesta
         db.commit()
 
-    return {"ok": ok, "respuesta": respuesta, "interaccion_id": interaccion_id}
+    return {"ok": ok, "respuesta": respuesta, "interaccion_id": interaccion_id, "meta_error": meta_err}
 
 
 # ─── IGNORAR / ARCHIVAR INTERACCIÓN ──────────────────────────────────────────

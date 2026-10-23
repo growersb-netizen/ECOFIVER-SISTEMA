@@ -878,7 +878,7 @@ function getQuickAccess(rol) {
 
 let leadsData = [];
 let leadsView = 'list'; // 'list' or 'kanban'
-let leadsFilter = {};
+let leadsFilter = { excluir_ia: '1' };
 
 async function loadLeads() {
   const params = new URLSearchParams();
@@ -1016,9 +1016,10 @@ function renderLeadsList() {
           ? `<span style="background:rgba(229,184,75,.15);color:#b8860b;font-weight:700;padding:2px 7px;border-radius:10px;font-size:11px">${l.aliado_codigo}</span>`
           : '—'}
         ${(typeof isAdmin !== 'undefined' && isAdmin)
-          ? `<button onclick="event.stopPropagation();abrirDerivarLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}','${l.aliado_codigo||''}')"
-              title="Derivar a socio"
-              style="margin-left:4px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:1px 5px;font-size:11px;color:var(--text-muted)">🤝</button>
+          ? `<select id="sel-asignar-${l.id}" onclick="event.stopPropagation();_cargarOpcionesAsignar(${l.id},'${l.aliado_codigo||''}')" onchange="event.stopPropagation();_asignarInline(${l.id},this.value)"
+              title="Asignar a socio" style="font-size:11px;padding:1px 3px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);max-width:90px;cursor:pointer">
+              <option value="${l.aliado_codigo||''}">${l.aliado_codigo||'Asignar…'}</option>
+            </select>
             <button onclick="event.stopPropagation();eliminarLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}')"
               title="Eliminar lead"
               style="margin-left:2px;background:none;border:1px solid rgba(239,68,68,.4);border-radius:6px;cursor:pointer;padding:1px 5px;font-size:11px;color:#ef4444">🗑</button>`
@@ -1908,6 +1909,42 @@ async function _cargarAliados() {
     _aliadosCache = (data.aliados || []).filter(a => a.operativo);
   } catch(e) { _aliadosCache = []; }
   return _aliadosCache;
+}
+
+async function _cargarOpcionesAsignar(leadId, codigoActual) {
+  const sel = document.getElementById(`sel-asignar-${leadId}`);
+  if (!sel || sel.dataset.cargado) return;
+  sel.dataset.cargado = '1';
+  const aliados = await _cargarAliados();
+  const orgs = aliados.filter(a => a.es_organizador);
+  const asesores = aliados.filter(a => !a.es_organizador);
+  sel.innerHTML =
+    `<option value="">— Sin asignar —</option>` +
+    (orgs.length ? `<optgroup label="Organizadores">` + orgs.map(a =>
+      `<option value="${a.codigo}" ${a.codigo === codigoActual ? 'selected' : ''}>${a.codigo} · ${a.nombre}</option>`).join('') + `</optgroup>` : '') +
+    (asesores.length ? `<optgroup label="Asesores">` + asesores.map(a =>
+      `<option value="${a.codigo}" ${a.codigo === codigoActual ? 'selected' : ''}>${a.codigo} · ${a.nombre}</option>`).join('') + `</optgroup>` : '');
+}
+
+async function _asignarInline(leadId, codigo) {
+  try {
+    await API.patch(`/api/leads/${leadId}/asignar-aliado`, { aliado_codigo: codigo || null });
+    toast(codigo ? `Asignado a ${codigo}` : 'Asignación removida');
+    loadLeads();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function limpiarLeadsIA() {
+  const ok = await showConfirm(
+    'Esto eliminará TODOS los leads generados por los agentes de IA (pablo, laura, sabrina, claudio, valentina).\n\n¿Continuar?',
+    'Limpiar leads de prueba', '#ef4444'
+  );
+  if (!ok) return;
+  try {
+    const res = await API.delete('/api/leads/limpiar-ia');
+    toast(`✅ ${res.eliminados} leads de prueba eliminados`);
+    loadLeads();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 async function abrirDerivarLead(leadId, nombre, codigoActual) {

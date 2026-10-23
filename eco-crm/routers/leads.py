@@ -1006,6 +1006,18 @@ async def update_lead_estado(
     return {"ok": True}
 
 
+@router.delete("/api/leads/limpiar-ia")
+async def limpiar_leads_ia(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_roles("ADMIN"))
+):
+    q = db.query(Lead).filter(Lead.agente_asignado.in_(_AGENTES_IA))
+    count = q.count()
+    q.delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True, "eliminados": count}
+
+
 @router.delete("/api/leads/{lead_id}")
 async def delete_lead(
     lead_id: int,

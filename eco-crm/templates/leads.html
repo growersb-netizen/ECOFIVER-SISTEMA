@@ -74,9 +74,12 @@
   </select>
   {% if 'ADMIN' in roles %}
   <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;user-select:none">
-    <input type="checkbox" id="toggle-excluir-ia" onchange="leadsFilter.excluir_ia=this.checked?'1':'';loadLeads()" style="cursor:pointer">
-    Excluir agentes IA
+    <input type="checkbox" id="toggle-excluir-ia" checked onchange="leadsFilter.excluir_ia=this.checked?'1':'';loadLeads()" style="cursor:pointer">
+    Ocultar pruebas IA
   </label>
+  <button onclick="limpiarLeadsIA()" class="btn btn-secondary btn-sm" style="border-color:rgba(239,68,68,.5);color:#ef4444;white-space:nowrap" title="Eliminar todos los leads generados por los agentes de IA">
+    🧹 Limpiar pruebas
+  </button>
   {% endif %}
 
   <!-- Contador total -->

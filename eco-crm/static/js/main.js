@@ -919,7 +919,20 @@ async function loadLeads() {
     ctr.style.display = 'inline';
   }
 
-  if (leadsView === 'kanban') {
+  // Contador de leads (badge en template nuevo)
+  const cbadge = document.getElementById('leads-count-badge');
+  if (cbadge) {
+    const mostrando = data.leads.length;
+    const total = data.total || mostrando;
+    cbadge.textContent = mostrando < total
+      ? `${mostrando.toLocaleString()} de ${total.toLocaleString()} leads`
+      : `${total.toLocaleString()} leads`;
+    cbadge.style.display = 'inline';
+  }
+
+  if (document.getElementById('leads-cards')) {
+    renderLeadsCards();
+  } else if (leadsView === 'kanban') {
     renderLeadsKanban();
   } else {
     renderLeadsList();
@@ -1046,6 +1059,95 @@ function renderLeadsList() {
       </td>
       <td style="font-size:12px;color:var(--text-muted)">${formatDate(l.created_at)}</td>
     </tr>`;
+  }).join('');
+}
+
+function renderLeadsCards() {
+  const grid = document.getElementById('leads-cards');
+  if (!grid) return;
+
+  if (typeof leadsSeleccionados !== 'undefined') leadsSeleccionados.clear();
+  if (typeof actualizarBulkBar === 'function') actualizarBulkBar();
+
+  const ESTADO_COLOR = {
+    NUEVO: '#6366f1', CONTACTADO: '#d97706', CALIFICADO: '#059669',
+    VIDEOLLAMADA_AGENDADA: '#7c3aed', CERRADO: '#065f46', PERDIDO: '#6b7280',
+    INTENTADO: '#f97316', EN_SEGUIMIENTO: '#0ea5e9'
+  };
+  const ESTADO_BG = {
+    NUEVO: 'rgba(99,102,241,.12)', CONTACTADO: 'rgba(245,158,11,.12)',
+    CALIFICADO: 'rgba(16,185,129,.12)', VIDEOLLAMADA_AGENDADA: 'rgba(139,92,246,.12)',
+    CERRADO: 'rgba(5,150,105,.12)', PERDIDO: 'rgba(107,114,128,.12)',
+    INTENTADO: 'rgba(249,115,22,.12)', EN_SEGUIMIENTO: 'rgba(14,165,233,.12)'
+  };
+  const ESTADO_LABEL = {
+    NUEVO: 'Nuevo', CONTACTADO: 'Contactado', CALIFICADO: 'Calificado',
+    VIDEOLLAMADA_AGENDADA: 'VL Agendada', CERRADO: 'Cerrado', PERDIDO: 'Perdido',
+    INTENTADO: 'Intentado', EN_SEGUIMIENTO: 'En seguimiento'
+  };
+
+  if (!leadsData.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 16px;color:var(--text-muted)">
+      <div style="font-size:48px;margin-bottom:12px">📋</div>
+      <div>No hay leads para mostrar</div></div>`;
+    return;
+  }
+
+  const adminMode = typeof isAdmin !== 'undefined' && isAdmin;
+  const ESTADOS_ACTIVOS = ['NUEVO','INTENTADO','CONTACTADO','EN_SEGUIMIENTO','CALIFICADO'];
+
+  grid.innerHTML = leadsData.map(l => {
+    let diasSinActividad = 0;
+    if (ESTADOS_ACTIVOS.includes(l.estado)) {
+      const ref = l.updated_at || l.created_at;
+      if (ref) diasSinActividad = Math.floor((Date.now() - new Date(ref)) / 86400000);
+    }
+    let badgeDias = '';
+    if (diasSinActividad >= 7) badgeDias = `<span class="lb" style="background:#ef4444;color:#fff">${diasSinActividad}d</span>`;
+    else if (diasSinActividad >= 4) badgeDias = `<span class="lb" style="background:#f97316;color:#fff">${diasSinActividad}d</span>`;
+    else if (diasSinActividad >= 2) badgeDias = `<span class="lb" style="background:#f59e0b;color:#fff">${diasSinActividad}d</span>`;
+
+    const ec = ESTADO_COLOR[l.estado] || '#9ca3af';
+    const eb = ESTADO_BG[l.estado] || 'rgba(156,163,175,.12)';
+    const el = ESTADO_LABEL[l.estado] || l.estado;
+    const etBg = l.etiqueta_color && ETIQUETA_COLORES[l.etiqueta_color] ? ETIQUETA_COLORES[l.etiqueta_color] : '';
+
+    const assignedBadge = l.aliado_codigo
+      ? `<span class="lb" style="background:rgba(229,184,75,.18);color:#b8860b">${l.aliado_codigo}</span>` : '';
+
+    const selectAsignar = adminMode ? `
+      <select id="sel-asignar-${l.id}" class="lc-sel${l.aliado_codigo ? '' : ' unassigned'}"
+        onclick="event.stopPropagation();_cargarOpcionesAsignar(${l.id},'${l.aliado_codigo||''}')"
+        onchange="event.stopPropagation();_asignarInline(${l.id},this.value)"
+        title="Asignar a socio">
+        <option value="${l.aliado_codigo||''}">${l.aliado_codigo||'Asignar socio…'}</option>
+      </select>` : '';
+
+    const btnDel = adminMode
+      ? `<button onclick="event.stopPropagation();eliminarLead(${l.id},'${l.nombre.replace(/'/g,"\\'")}') " class="lc-del" title="Eliminar">🗑</button>` : '';
+
+    return `<div class="lc" id="lcard-${l.id}">
+      <div class="lc-top">
+        ${adminMode ? `<div class="lc-chk"><input type="checkbox" class="lead-check" data-id="${l.id}"
+          onchange="toggleLeadCard(${l.id},this.checked,this.closest('.lc'))"></div>` : ''}
+        <div class="lc-data" onclick="editLead(${l.id})" style="cursor:pointer">
+          <div class="lc-nombre">${etBg ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${etBg};margin-right:5px;vertical-align:middle"></span>` : ''}${l.nombre}</div>
+          <div class="lc-tel">📱 ${l.telefono}${l.localidad ? ` · ${l.localidad}` : ''}</div>
+        </div>
+      </div>
+      <div class="lc-badges">
+        <span class="lb" style="color:${ec};background:${eb}">${el}</span>
+        ${l.producto_interes && l.producto_interes !== 'SIN_DEFINIR' ? `<span class="lb" style="color:#0ea5e9;background:rgba(14,165,233,.1)">${l.producto_interes}</span>` : ''}
+        ${assignedBadge}
+        ${badgeDias}
+      </div>
+      <div class="lc-bottom">
+        ${selectAsignar}
+        <a href="${whatsappLink(l.telefono)}" target="_blank" onclick="event.stopPropagation()"
+           style="flex-shrink:0;background:#25d366;color:#fff;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:700;text-decoration:none">WA</a>
+        ${btnDel}
+      </div>
+    </div>`;
   }).join('');
 }
 

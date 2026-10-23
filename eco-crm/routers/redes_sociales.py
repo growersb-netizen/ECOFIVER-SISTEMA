@@ -2161,8 +2161,11 @@ async def api_redes_admin_enviar_consultas(
             or '"code":10,' in meta_err or '"code": 10,' in meta_err  # fuera del período
             or "período permitido" in meta_err                   # fuera del período (español)
             or "no está disponible" in meta_err                  # persona no disponible (español)
+            or '"code":190' in meta_err or '"code": 190' in meta_err  # token expirado
+            or "Session has expired" in meta_err                 # token expirado (texto)
+            or "Invalid OAuth access token" in meta_err          # token inválido
         ):
-            # Ventana Messenger expirada o usuario no disponible
+            # Ventana Messenger expirada, usuario no disponible, o token de página expirado
             m.accion = "expirado"
             expirados_msg += 1
             resultados.append({"id": m.id, "status": "expirado_ventana", "usuario": m.usuario_nombre})
@@ -2228,8 +2231,13 @@ async def api_redes_admin_responder_comentarios(
             c.respuesta_enviada = respuesta
             enviados += 1
             resultados.append({"id": c.id, "status": "enviado", "pagina": pg.nombre})
-        elif meta_err and "does not exist" in meta_err:
-            # Comentario eliminado en Facebook — marcar como expirado
+        elif meta_err and (
+            "does not exist" in meta_err
+            or '"code":190' in meta_err or '"code": 190' in meta_err
+            or "Session has expired" in meta_err
+            or "Invalid OAuth access token" in meta_err
+        ):
+            # Comentario eliminado o token de página expirado
             c.accion = "expirado"
             expirados_n += 1
             resultados.append({"id": c.id, "status": "expirado_fb"})

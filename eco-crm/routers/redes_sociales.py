@@ -1739,7 +1739,7 @@ async def api_redes_admin_subscribe_via_system_token(
                 "access_token": admin_token,
                 "appsecret_proof": appsecret_proof,
                 "system_user_id": META_SYSTEM_USER_ID,
-                "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list",
+                "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_engagement",
             },
         )
         if r_st.status_code != 200 or "access_token" not in r_st.json():
@@ -2153,7 +2153,15 @@ async def api_redes_admin_enviar_consultas(
             m.respuesta_enviada = respuesta
             enviados += 1
             resultados.append({"id": m.id, "status": "enviado", "usuario": m.usuario_nombre, "pagina": pg_nombre})
-        elif meta_err and ("window" in meta_err.lower() or "24" in meta_err or "does not exist" in meta_err or "not subscribed" in meta_err.lower()):
+        elif meta_err and (
+            "window" in meta_err.lower()
+            or "does not exist" in meta_err
+            or "not subscribed" in meta_err.lower()
+            or '"code":551' in meta_err or '"code": 551' in meta_err  # persona no disponible
+            or '"code":10,' in meta_err or '"code": 10,' in meta_err  # fuera del período
+            or "período permitido" in meta_err                   # fuera del período (español)
+            or "no está disponible" in meta_err                  # persona no disponible (español)
+        ):
             # Ventana Messenger expirada o usuario no disponible
             m.accion = "expirado"
             expirados_msg += 1
@@ -2295,6 +2303,29 @@ async def api_redes_admin_limpiar_backlog(
 
     db.commit()
     return {"ok": True, "ignorados": n, "cutoff": cutoff.isoformat()}
+
+
+@router.post("/api/redes/admin/reset-errores")
+async def api_redes_admin_reset_errores(
+    t: str = "",
+    tipo: str = "mensaje",
+    db: Session = Depends(get_db),
+):
+    """
+    Resetea interacciones con accion='error' a 'pendiente' para reintento.
+    ?tipo=mensaje | comentario | all
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    q = db.query(FacebookInteraccion).filter(FacebookInteraccion.accion == "error")
+    if tipo != "all":
+        q = q.filter(FacebookInteraccion.tipo == tipo)
+    n = q.update({"accion": "pendiente"}, synchronize_session=False)
+    db.commit()
+    return {"ok": True, "reseteados": n, "tipo": tipo}
 
 
 @router.get("/api/redes/admin/pendientes")
@@ -2621,7 +2652,7 @@ async def api_redes_save_user_token(
 
 FB_OAUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth"
 FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
-FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_posts,pages_read_user_content,business_management"
+FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_posts,pages_read_user_content,pages_manage_engagement,business_management"
 
 
 def _get_base_url(db: Session) -> str:

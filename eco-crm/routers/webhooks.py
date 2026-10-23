@@ -121,6 +121,7 @@ def _procesar_mensaje_wa(
     """
     # Identificar página/vendedor por la línea receptora
     pagina: Optional[MetaPagina] = None
+    _fallback_used = False
     if wa_phone_id or display_phone:
         q = db.query(MetaPagina)
         if wa_phone_id:
@@ -131,6 +132,17 @@ def _procesar_mensaje_wa(
             pagina = q.filter(
                 MetaPagina.numero_whatsapp.ilike(f"%{clean[-9:]}%")
             ).first()
+            if pagina:
+                _fallback_used = True
+
+    # Auto-aprender wa_phone_id cuando se usó fallback por número
+    if _fallback_used and pagina and wa_phone_id and not pagina.wa_phone_id:
+        try:
+            pagina.wa_phone_id = wa_phone_id
+            db.commit()
+            log.info(f"[WA Webhook] wa_phone_id auto-aprendido: {wa_phone_id} → {pagina.page_id}")
+        except Exception as _e:
+            log.warning(f"[WA Webhook] No se pudo guardar wa_phone_id: {_e}")
 
     # 1. Buscar lead activo
     lead = db.query(Lead).filter(

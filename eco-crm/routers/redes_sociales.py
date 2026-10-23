@@ -1206,86 +1206,131 @@ async def api_redes_waba_list(
 
 @router.post("/api/redes/admin/sync-wa-phone-ids")
 async def api_redes_admin_sync_wa_phone_ids(
+    request: Request,
     t: str = "",
     db: Session = Depends(get_db),
 ):
     """
-    Consulta todos los WABAs del Business Manager y, para cada número de teléfono,
-    busca la MetaPagina coincidente por numero_whatsapp y actualiza su wa_phone_id.
+    Sincroniza wa_phone_id de MetaPaginas.
+    Dos modos:
+      1. Body {"manual_map": [{"phone_number_id":"...", "numero_whatsapp":"..."}]}
+         → aplica el mapa directamente sin llamar a Meta.
+      2. Sin body (o body vacío) → intenta listar WABAs del BM con varios tokens.
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
     expected = os.getenv("ML_AUDIT_TOKEN", "")
     if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
-    token = get_config_value("meta_page_access_token", db) or ""
-    if not token:
-        raise HTTPException(400, "No hay meta_page_access_token configurado")
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
 
     actualizadas = []
     no_encontradas = []
     errores = []
 
+    # ── MODO MANUAL: el caller envía el mapa explícito ────────────────────────
+    manual_map = body.get("manual_map", [])
+    if manual_map:
+        for entry in manual_map:
+            phone_id = str(entry.get("phone_number_id", "")).strip()
+            numero   = str(entry.get("numero_whatsapp", "")).strip()
+            page_id  = entry.get("page_id", "")
+            if not phone_id:
+                continue
+            if page_id:
+                pg = db.query(MetaPagina).filter(MetaPagina.page_id == page_id).first()
+            elif numero:
+                clean = numero.replace("+","").replace(" ","").replace("-","")
+                pg = db.query(MetaPagina).filter(
+                    MetaPagina.numero_whatsapp.ilike(f"%{clean[-9:]}%")
+                ).first()
+            else:
+                continue
+            if pg:
+                pg.wa_phone_id = phone_id
+                actualizadas.append({"page_id": pg.page_id, "phone_number_id": phone_id, "numero": numero})
+            else:
+                no_encontradas.append({"phone_number_id": phone_id, "numero": numero})
+        db.commit()
+        return {
+            "ok": True,
+            "modo": "manual",
+            "actualizadas": len(actualizadas),
+            "no_encontradas": len(no_encontradas),
+            "detalle": actualizadas,
+            "sin_pagina": no_encontradas,
+        }
+
+    # ── MODO AUTOMÁTICO: query a Meta ────────────────────────────────────────
+    # Intentar primero con page_token, luego con WA_TOKEN si falla
+    page_token = get_config_value("meta_page_access_token", db) or ""
+    wa_token   = os.getenv("WA_TOKEN", "")
+    waba_id_body = body.get("waba_id", "")
+
     async with httpx.AsyncClient(timeout=30) as hc:
-        # 1. Listar WABAs del BM
-        r_waba = await hc.get(
-            f"{META_GRAPH_URL}/{META_BUSINESS_ID}/whatsapp_business_accounts",
-            params={"fields": "id,name", "access_token": token, "limit": 50},
-        )
-        if r_waba.status_code != 200:
-            raise HTTPException(400, f"Error consultando WABAs: {r_waba.text[:200]}")
+        all_phones: list[dict] = []
 
-        for waba in r_waba.json().get("data", []):
-            waba_id = waba.get("id")
-            try:
-                r_phones = await hc.get(
-                    f"{META_GRAPH_URL}/{waba_id}/phone_numbers",
-                    params={
-                        "fields": "id,display_phone_number,verified_name",
-                        "access_token": token, "limit": 50,
-                    },
-                )
-                if r_phones.status_code != 200:
-                    errores.append({"waba_id": waba_id, "error": r_phones.text[:100]})
+        # Opción A: listar números de un WABA conocido con wa_token
+        if waba_id_body and wa_token:
+            r_phones = await hc.get(
+                f"{META_GRAPH_URL}/{waba_id_body}/phone_numbers",
+                params={"fields": "id,display_phone_number,verified_name", "access_token": wa_token, "limit": 50},
+            )
+            if r_phones.status_code == 200:
+                all_phones = r_phones.json().get("data", [])
+            else:
+                errores.append({"error": f"WABA {waba_id_body}: {r_phones.text[:120]}"})
+
+        # Opción B: enumerar WABAs del BM con el page token
+        if not all_phones and page_token:
+            for tok in [page_token, wa_token]:
+                if not tok:
                     continue
+                r_waba = await hc.get(
+                    f"{META_GRAPH_URL}/{META_BUSINESS_ID}/whatsapp_business_accounts",
+                    params={"fields": "id,name", "access_token": tok, "limit": 50},
+                )
+                if r_waba.status_code != 200:
+                    errores.append({"error": f"BM WABA list con token: {r_waba.text[:120]}"})
+                    continue
+                for waba in r_waba.json().get("data", []):
+                    wid = waba.get("id")
+                    rp = await hc.get(
+                        f"{META_GRAPH_URL}/{wid}/phone_numbers",
+                        params={"fields": "id,display_phone_number,verified_name", "access_token": tok, "limit": 50},
+                    )
+                    if rp.status_code == 200:
+                        all_phones.extend(rp.json().get("data", []))
+                    else:
+                        errores.append({"waba_id": wid, "error": rp.text[:100]})
+                if all_phones:
+                    break
 
-                for phone in r_phones.json().get("data", []):
-                    phone_id = phone.get("id", "")
-                    display = phone.get("display_phone_number", "")
-                    if not phone_id or not display:
-                        continue
-
-                    # limpiar número para comparar con numero_whatsapp
-                    clean = display.replace("+", "").replace(" ", "").replace("-", "")
-                    suffix9 = clean[-9:]
-
-                    # buscar MetaPagina(s) que coincidan
-                    paginas = db.query(MetaPagina).filter(
-                        MetaPagina.numero_whatsapp.ilike(f"%{suffix9}%")
-                    ).all()
-
-                    if not paginas:
-                        no_encontradas.append({
-                            "phone_number_id": phone_id,
-                            "display": display,
-                        })
-                        continue
-
-                    for pg in paginas:
-                        pg.wa_phone_id = phone_id
-                        actualizadas.append({
-                            "page_id": pg.page_id,
-                            "nombre": pg.nombre,
-                            "phone_number_id": phone_id,
-                            "display": display,
-                        })
-
-            except Exception as e:
-                errores.append({"waba_id": waba_id, "error": str(e)[:120]})
+        for phone in all_phones:
+            phone_id = phone.get("id", "")
+            display  = phone.get("display_phone_number", "")
+            if not phone_id or not display:
+                continue
+            clean   = display.replace("+","").replace(" ","").replace("-","")
+            suffix9 = clean[-9:]
+            paginas = db.query(MetaPagina).filter(
+                MetaPagina.numero_whatsapp.ilike(f"%{suffix9}%")
+            ).all()
+            if not paginas:
+                no_encontradas.append({"phone_number_id": phone_id, "display": display})
+                continue
+            for pg in paginas:
+                pg.wa_phone_id = phone_id
+                actualizadas.append({"page_id": pg.page_id, "phone_number_id": phone_id, "display": display})
 
     db.commit()
     return {
         "ok": True,
+        "modo": "automatico",
         "actualizadas": len(actualizadas),
         "no_encontradas": len(no_encontradas),
         "errores": len(errores),

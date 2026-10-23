@@ -1687,6 +1687,7 @@ class MetaPagina(Base):
     wa_phone_id = Column(String(60), nullable=True)      # Meta API phone_number_id de esta línea
     vendedor_slug = Column(String(50), nullable=True)    # slug interno del vendedor (e.g. "melanie", "javier")
     aliado_codigo = Column(String(20), nullable=True)    # código de aliado CRM (e.g. "AL-010")
+    tipo = Column(String(20), default="PAGINA_FB")       # PAGINA_FB | LINEA_WA
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 

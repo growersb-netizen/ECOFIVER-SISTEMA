@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from database.database import get_db, SessionLocal
 from database.models import MetaPagina, Usuario, FacebookInteraccion, ConfiguracionSistema, InboxMensaje
 from database.encryption import encrypt_value
-from routers.auth import require_auth, get_user_roles
+from routers.auth import require_auth, get_user_roles, get_current_user
 from routers.configuracion import get_config_value
 from routers.ecopost import META_GRAPH_URL
 
@@ -78,7 +78,11 @@ async def api_redes_admin_paginas(
         {
             "page_id": p.page_id,
             "nombre": p.nombre,
+            "portafolio": getattr(p, "portafolio", None) or "EcoFiver",
             "numero_whatsapp": p.numero_whatsapp or "",
+            "wa_phone_id": getattr(p, "wa_phone_id", None) or "",
+            "aliado_codigo": getattr(p, "aliado_codigo", None) or "",
+            "tipo": getattr(p, "tipo", None) or "PAGINA_FB",
             "tiene_token": bool(p.page_token),
             "webhook_subscribed": bool(p.webhook_subscribed),
             "activa": bool(p.activa),
@@ -86,6 +90,7 @@ async def api_redes_admin_paginas(
             "auto_reply_comentarios": bool(p.auto_reply_comentarios),
             "auto_eliminar_negativos": bool(p.auto_eliminar_negativos),
             "vendedor": getattr(p, "vendedor", None) or "",
+            "vendedor_slug": getattr(p, "vendedor_slug", None) or "",
         }
         for p in paginas
     ]
@@ -117,9 +122,25 @@ async def api_redes_admin_patch_pagina(
         pg.activa = bool(body["activa"])
     if "vendedor" in body:
         pg.vendedor = (body["vendedor"] or "").strip() or None
+    if "wa_phone_id" in body:
+        pg.wa_phone_id = (body["wa_phone_id"] or "").strip() or None
+    if "aliado_codigo" in body:
+        pg.aliado_codigo = (body["aliado_codigo"] or "").strip().upper() or None
+    if "tipo" in body and body["tipo"] in ("PAGINA_FB", "LINEA_WA"):
+        pg.tipo = body["tipo"]
+    if "vendedor_slug" in body:
+        pg.vendedor_slug = (body["vendedor_slug"] or "").strip().lower() or None
+    if "portafolio" in body:
+        pg.portafolio = (body["portafolio"] or "").strip() or "EcoFiver"
 
     db.commit()
-    return {"ok": True, "page_id": page_id, "nombre": pg.nombre, "activa": pg.activa, "numero_whatsapp": pg.numero_whatsapp}
+    return {
+        "ok": True, "page_id": page_id, "nombre": pg.nombre,
+        "activa": pg.activa, "numero_whatsapp": pg.numero_whatsapp,
+        "wa_phone_id": pg.wa_phone_id or "",
+        "aliado_codigo": pg.aliado_codigo or "",
+        "tipo": getattr(pg, "tipo", "PAGINA_FB") or "PAGINA_FB",
+    }
 
 
 @router.post("/api/redes/admin/paginas/batch-auto-reply")
@@ -227,7 +248,11 @@ async def api_redes_paginas(
             "auto_eliminar_negativos": bool(p.auto_eliminar_negativos),
             "webhook_subscribed": bool(p.webhook_subscribed),
             "numero_whatsapp": p.numero_whatsapp or "",
+            "wa_phone_id": getattr(p, "wa_phone_id", None) or "",
+            "aliado_codigo": getattr(p, "aliado_codigo", None) or "",
+            "tipo": getattr(p, "tipo", None) or "PAGINA_FB",
             "vendedor": getattr(p, "vendedor", None) or "",
+            "vendedor_slug": getattr(p, "vendedor_slug", None) or "",
             "page_token_ok": bool(p.page_token),  # True si tiene token propio de página
             "fan_count": None, "ig_followers": None, "picture": None,
         }
@@ -1174,6 +1199,153 @@ async def api_redes_waba_list(
         "total_wabas": len(resultados),
         "wabase": resultados,
         "errores": errores,
+    }
+
+
+# ─── SYNC WA PHONE IDs desde Meta → MetaPagina ────────────────────────────────
+
+@router.post("/api/redes/admin/sync-wa-phone-ids")
+async def api_redes_admin_sync_wa_phone_ids(
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Consulta todos los WABAs del Business Manager y, para cada número de teléfono,
+    busca la MetaPagina coincidente por numero_whatsapp y actualiza su wa_phone_id.
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
+        raise HTTPException(403, "Forbidden")
+
+    token = get_config_value("meta_page_access_token", db) or ""
+    if not token:
+        raise HTTPException(400, "No hay meta_page_access_token configurado")
+
+    actualizadas = []
+    no_encontradas = []
+    errores = []
+
+    async with httpx.AsyncClient(timeout=30) as hc:
+        # 1. Listar WABAs del BM
+        r_waba = await hc.get(
+            f"{META_GRAPH_URL}/{META_BUSINESS_ID}/whatsapp_business_accounts",
+            params={"fields": "id,name", "access_token": token, "limit": 50},
+        )
+        if r_waba.status_code != 200:
+            raise HTTPException(400, f"Error consultando WABAs: {r_waba.text[:200]}")
+
+        for waba in r_waba.json().get("data", []):
+            waba_id = waba.get("id")
+            try:
+                r_phones = await hc.get(
+                    f"{META_GRAPH_URL}/{waba_id}/phone_numbers",
+                    params={
+                        "fields": "id,display_phone_number,verified_name",
+                        "access_token": token, "limit": 50,
+                    },
+                )
+                if r_phones.status_code != 200:
+                    errores.append({"waba_id": waba_id, "error": r_phones.text[:100]})
+                    continue
+
+                for phone in r_phones.json().get("data", []):
+                    phone_id = phone.get("id", "")
+                    display = phone.get("display_phone_number", "")
+                    if not phone_id or not display:
+                        continue
+
+                    # limpiar número para comparar con numero_whatsapp
+                    clean = display.replace("+", "").replace(" ", "").replace("-", "")
+                    suffix9 = clean[-9:]
+
+                    # buscar MetaPagina(s) que coincidan
+                    paginas = db.query(MetaPagina).filter(
+                        MetaPagina.numero_whatsapp.ilike(f"%{suffix9}%")
+                    ).all()
+
+                    if not paginas:
+                        no_encontradas.append({
+                            "phone_number_id": phone_id,
+                            "display": display,
+                        })
+                        continue
+
+                    for pg in paginas:
+                        pg.wa_phone_id = phone_id
+                        actualizadas.append({
+                            "page_id": pg.page_id,
+                            "nombre": pg.nombre,
+                            "phone_number_id": phone_id,
+                            "display": display,
+                        })
+
+            except Exception as e:
+                errores.append({"waba_id": waba_id, "error": str(e)[:120]})
+
+    db.commit()
+    return {
+        "ok": True,
+        "actualizadas": len(actualizadas),
+        "no_encontradas": len(no_encontradas),
+        "errores": len(errores),
+        "detalle": actualizadas,
+        "sin_pagina": no_encontradas,
+        "errores_detalle": errores,
+    }
+
+
+@router.post("/api/redes/admin/batch-wa-aliado")
+async def api_redes_admin_batch_wa_aliado(
+    request: Request,
+    t: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Actualiza aliado_codigo, wa_phone_id, vendedor_slug y tipo para múltiples líneas WA.
+    Body: { "lineas": [ { "page_id": "...", "aliado_codigo": "AL-032", "wa_phone_id": "...",
+                          "vendedor_slug": "javier", "tipo": "LINEA_WA" }, ... ] }
+    Requiere ?t=<ML_AUDIT_TOKEN>.
+    """
+    expected = os.getenv("ML_AUDIT_TOKEN", "")
+    if not expected or t != expected:
+        raise HTTPException(403, "Forbidden")
+    body = await request.json()
+    lineas = body.get("lineas", [])
+    if not lineas:
+        raise HTTPException(400, "lineas[] requerido")
+
+    resultados = []
+    for item in lineas:
+        pid = (item.get("page_id") or "").strip()
+        if not pid:
+            continue
+        pg = db.query(MetaPagina).filter(MetaPagina.page_id == pid).first()
+        if not pg:
+            resultados.append({"page_id": pid, "ok": False, "error": "no encontrado"})
+            continue
+        if "aliado_codigo" in item:
+            pg.aliado_codigo = (item["aliado_codigo"] or "").strip().upper() or None
+        if "wa_phone_id" in item:
+            pg.wa_phone_id = (item["wa_phone_id"] or "").strip() or None
+        if "vendedor_slug" in item:
+            pg.vendedor_slug = (item["vendedor_slug"] or "").strip().lower() or None
+        if "vendedor" in item:
+            pg.vendedor = (item["vendedor"] or "").strip() or None
+        if "tipo" in item and item["tipo"] in ("PAGINA_FB", "LINEA_WA"):
+            pg.tipo = item["tipo"]
+        if "portafolio" in item:
+            pg.portafolio = (item["portafolio"] or "").strip() or "EcoFiver"
+        resultados.append({"page_id": pid, "nombre": pg.nombre, "ok": True,
+                           "aliado_codigo": pg.aliado_codigo or "",
+                           "wa_phone_id": pg.wa_phone_id or ""})
+
+    db.commit()
+    return {
+        "ok": True,
+        "total": len(lineas),
+        "actualizadas": sum(1 for r in resultados if r.get("ok")),
+        "resultados": resultados,
     }
 
 

@@ -212,10 +212,23 @@
   </div>
 </div>
 
+<!-- Tabs de sección principal: Páginas FB vs Líneas WhatsApp -->
+<div style="display:flex;gap:6px;margin-bottom:14px;background:var(--bg-card);border-radius:12px;padding:4px;border:1px solid var(--border)">
+  <button onclick="setSeccion('fb')" id="sec-btn-fb" class="tab-btn tab-active" style="flex:1;font-size:13px">
+    📘 Páginas Facebook
+  </button>
+  <button onclick="setSeccion('wa')" id="sec-btn-wa" class="tab-btn" style="flex:1;font-size:13px">
+    📲 Líneas WhatsApp
+  </button>
+</div>
+
+<!-- ══ SECCIÓN: PÁGINAS FACEBOOK ══ -->
+<div id="seccion-fb">
+
 <!-- Tabla de páginas -->
 <div class="card" style="padding:14px;margin-bottom:14px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <div style="font-size:13px;font-weight:700">Páginas y Líneas WA</div>
+    <div style="font-size:13px;font-weight:700">Páginas Facebook</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button onclick="abrirAgregarPagina()" class="btn btn-ghost btn-sm">+ Agregar</button>
       <button onclick="conectarConFacebook()" class="btn btn-ghost btn-sm" style="color:#1877f2">f Conectar OAuth</button>
@@ -462,6 +475,35 @@
     </div>
 
 </div><!-- /detalle-pagina -->
+
+</div><!-- /seccion-fb -->
+
+<!-- ══ SECCIÓN: LÍNEAS WHATSAPP ══ -->
+<div id="seccion-wa" style="display:none">
+  <div class="card" style="padding:14px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:13px;font-weight:700">Líneas WhatsApp Business</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Cada línea enruta los mensajes entrantes directamente al panel CRM del socio asignado</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button onclick="syncWaPhoneIds()" class="btn btn-ghost btn-sm" id="btn-sync-wa-ids" title="Sincronizar phone_number_id desde Meta API">🔄 Sync IDs desde Meta</button>
+      </div>
+    </div>
+
+    <!-- Leyenda de estado -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;color:var(--text-muted)">
+      <span class="pill pill-ok">✓ Enrutamiento activo</span>
+      <span class="pill pill-warn">⚠ Sin phone_id</span>
+      <span class="pill pill-off">✗ Sin aliado asignado</span>
+    </div>
+
+    <div id="wa-lineas-lista">
+      <div style="color:var(--text-muted);font-size:13px;padding:24px 0;text-align:center">Cargando líneas…</div>
+    </div>
+  </div>
+</div><!-- /seccion-wa -->
+
 {% endblock %}
 
 {% block extra_js %}
@@ -535,6 +577,94 @@ function _loadTab(tab) {
   else if (tab === 'auto')   renderAuto();
   else if (tab === 'publish') renderPublish();
   else if (tab === 'inbox') cargarInbox();
+}
+
+/* ─── SECCIONES: Facebook / WhatsApp ────────────────────────────────────── */
+let _curSeccion = 'fb';
+
+function setSeccion(sec) {
+  _curSeccion = sec;
+  ['fb', 'wa'].forEach(s => {
+    document.getElementById('sec-btn-' + s)?.classList.toggle('tab-active', s === sec);
+    const el = document.getElementById('seccion-' + s);
+    if (el) el.style.display = s === sec ? '' : 'none';
+  });
+  if (sec === 'wa') cargarWaLineas();
+}
+
+async function cargarWaLineas() {
+  const cont = document.getElementById('wa-lineas-lista');
+  if (!cont) return;
+  cont.innerHTML = '<span style="color:#8ca2c0">Cargando…</span>';
+  try {
+    const data = await _get('/api/redes/admin/paginas?t=ecofiver-admin-2026');
+    const lineas = (data || []).filter(p =>
+      p.tipo === 'LINEA_WA' || (p.page_id && !/^\d+$/.test(p.page_id))
+    );
+    renderWaLineas(lineas);
+  } catch(e) {
+    cont.innerHTML = '<span style="color:#f87171">Error: ' + esc(e.message) + '</span>';
+  }
+}
+
+function renderWaLineas(lineas) {
+  const cont = document.getElementById('wa-lineas-lista');
+  if (!cont) return;
+  if (!lineas || lineas.length === 0) {
+    cont.innerHTML = '<p style="color:#8ca2c0;margin:12px 0">No hay líneas WhatsApp registradas.</p>';
+    return;
+  }
+  const rows = lineas.map(l => {
+    const hasId  = l.wa_phone_id && l.wa_phone_id.trim();
+    const hasAli = l.aliado_codigo && l.aliado_codigo.trim();
+    const pillId  = hasId
+      ? `<span style="background:#164e27;color:#4ade80;padding:2px 8px;border-radius:10px;font-size:.75rem;font-family:monospace">${esc(l.wa_phone_id)}</span>`
+      : `<span style="background:#3b1515;color:#f87171;padding:2px 8px;border-radius:10px;font-size:.75rem">⚠ sin ID</span>`;
+    const pillAli = hasAli
+      ? `<span style="background:#1e2d4a;color:#60a5fa;padding:2px 8px;border-radius:10px;font-size:.75rem">${esc(l.aliado_codigo)}</span>`
+      : `<span style="background:#2d2010;color:#fb923c;padding:2px 8px;border-radius:10px;font-size:.75rem">sin aliado</span>`;
+    return `<tr>
+      <td style="padding:8px 10px;font-weight:600;color:#dce6f5">${esc(l.numero_whatsapp || l.page_id)}</td>
+      <td style="padding:8px 10px;color:#8ca2c0">${esc(l.vendedor || '—')}</td>
+      <td style="padding:8px 10px">${pillAli}</td>
+      <td style="padding:8px 10px">${pillId}</td>
+      <td style="padding:8px 10px;color:#647898;font-size:.8rem">${esc(l.portafolio || '—')}</td>
+    </tr>`;
+  }).join('');
+  cont.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+      <thead>
+        <tr style="border-bottom:1px solid #243350;color:#647898;text-align:left">
+          <th style="padding:6px 10px">Número / ID</th>
+          <th style="padding:6px 10px">Vendedor</th>
+          <th style="padding:6px 10px">Aliado</th>
+          <th style="padding:6px 10px">wa_phone_id</th>
+          <th style="padding:6px 10px">Portafolio</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function syncWaPhoneIds() {
+  const btn = document.getElementById('btn-sync-wa-ids');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sincronizando…'; }
+  try {
+    const r = await fetch('/api/redes/admin/sync-wa-phone-ids?t=ecofiver-admin-2026', { method: 'POST', credentials: 'include' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.detail || 'Error al sincronizar IDs');
+    const act = j.actualizadas || 0;
+    const noE = (j.no_encontradas || []).length;
+    let msg = `✅ ${act} línea(s) actualizada(s)`;
+    if (noE > 0) msg += ` — ${noE} número(s) sin coincidencia en Meta`;
+    if (j.errores && j.errores > 0) msg += ` — ⚠️ ${j.errores} error(es)`;
+    toast(msg, noE > 0 || j.errores > 0 ? 'warning' : 'success');
+    await cargarWaLineas();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync IDs desde Meta'; }
+  }
 }
 
 /* ─── WA CONSULTAS POR LÍNEA ─────────────────────────────────────────────── */
@@ -1491,7 +1621,7 @@ async function syncPaginas() {
   btn.disabled = true;
   btn.textContent = '⏳ Sincronizando…';
   try {
-    const r = await fetch('/api/redes/admin/sync-pages?t=eco-audit-2026', { method: 'POST', credentials: 'include' });
+    const r = await fetch('/api/redes/admin/sync-pages?t=ecofiver-admin-2026', { method: 'POST', credentials: 'include' });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.detail || 'Error al sincronizar');
     let msg = `✅ ${j.total} página(s) encontradas — ${j.creadas?.length || 0} nueva(s), ${j.actualizadas?.length || 0} actualizada(s)`;

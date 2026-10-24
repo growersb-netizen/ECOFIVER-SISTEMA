@@ -170,7 +170,8 @@ def send_whatsapp_otp(db: Session, to: str, codigo: str) -> bool:
 
 
 def notificar_asesor_nuevo_lead(db: Session, asesor_telefono: str, lead_nombre: str,
-                                 producto: str, localidad: str, forma_pago: str, lead_id: int):
+                                 producto: str, localidad: str, forma_pago: str, lead_id: int,
+                                 mensaje_entrante: str = None):
     """Notifica al asesor que le llegó un nuevo lead."""
     APP_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
     msg = (
@@ -179,16 +180,49 @@ def notificar_asesor_nuevo_lead(db: Session, asesor_telefono: str, lead_nombre: 
         f"🏠 Producto: {producto}\n"
         f"📍 Localidad: {localidad}\n"
         f"💳 Forma de pago: {forma_pago}\n"
-        f"🔗 Ver en CRM: {APP_URL}/leads"
     )
+    if mensaje_entrante:
+        msg += f'💬 Mensaje: "{mensaje_entrante[:150]}"\n'
+    msg += f"🔗 Ver en CRM: {APP_URL}/leads"
     return send_whatsapp_text(db, asesor_telefono, msg)
 
 
+def notificar_aliado_estado_lead(db: Session, aliado_codigo: str, lead_nombre: str,
+                                  nuevo_estado: str, lead_id: int):
+    """Notifica al aliado/organizador cuando cambia el estado de un lead asignado a su línea."""
+    from database.models import ConfiguracionSistema, Aliado
+    aliado = db.query(Aliado).filter(Aliado.codigo == aliado_codigo).first()
+    if not aliado or not aliado.telefono:
+        return False
+    APP_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
+    emojis = {
+        "CALIFICADO": "✅",
+        "VIDEOLLAMADA_AGENDADA": "📅",
+        "CERRADO_GANADO": "🎉",
+        "CERRADO_PERDIDO": "❌",
+    }
+    emoji = emojis.get(nuevo_estado, "🔄")
+    estado_label = nuevo_estado.replace("_", " ").title()
+    msg = (
+        f"{emoji} *Actualización de lead*\n"
+        f"👤 Cliente: {lead_nombre}\n"
+        f"📊 Estado: {estado_label}\n"
+        f"🔗 {APP_URL}/leads"
+    )
+    return send_whatsapp_text(db, aliado.telefono, msg)
+
+
 def notificar_rodrigo(db: Session, mensaje: str) -> bool:
-    """Envía notificación a Rodrigo (número hardcodeado en config o fallback)."""
+    """Envía notificación a Rodrigo. Busca 'tel_rodrigo' (UI) o 'notif_wa_destino' (legacy)."""
     from database.models import ConfiguracionSistema
-    dest_cfg = db.query(ConfiguracionSistema).filter(
-        ConfiguracionSistema.clave == "notif_wa_destino"
-    ).first()
-    numero = dest_cfg.valor if dest_cfg and dest_cfg.valor else "5491135164644"
+    numero = None
+    for clave in ("tel_rodrigo", "notif_wa_destino"):
+        cfg = db.query(ConfiguracionSistema).filter(
+            ConfiguracionSistema.clave == clave
+        ).first()
+        if cfg and cfg.valor:
+            numero = cfg.valor
+            break
+    if not numero:
+        numero = "5491135164644"  # fallback hardcodeado
     return send_whatsapp_text(db, numero, mensaje)

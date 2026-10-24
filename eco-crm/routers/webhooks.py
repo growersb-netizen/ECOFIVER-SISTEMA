@@ -242,14 +242,26 @@ def _procesar_mensaje_wa(
                 ConfiguracionSistema.clave == f"asesor_tel_{asesor.id}"
             ).first()
             if tel_cfg and tel_cfg.valor:
-                accion_txt = "📋 *Nuevo lead*" if es_nuevo else "💬 *Respuesta de lead*"
-                msg = (
-                    f"{accion_txt} — {nombre}\n"
-                    f"📱 Tel: {telefono}\n"
-                    f'💬 Mensaje: "{texto[:150]}"\n'
-                    f"🔗 Ver CRM: https://eco-crm-production.up.railway.app/leads"
-                )
-                send_whatsapp_text(db, tel_cfg.valor, msg)
+                APP_URL = os.environ.get("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
+                if es_nuevo:
+                    notificar_asesor_nuevo_lead(
+                        db,
+                        asesor_telefono=tel_cfg.valor,
+                        lead_nombre=nombre,
+                        producto=lead.producto_interes or "sin definir",
+                        localidad=lead.localidad or "sin localidad",
+                        forma_pago=lead.forma_pago or "sin definir",
+                        lead_id=lead.id,
+                        mensaje_entrante=texto[:200] if texto else None,
+                    )
+                else:
+                    msg = (
+                        f"💬 *Respuesta de lead* — {nombre}\n"
+                        f"📱 Tel: {telefono}\n"
+                        f'💬 Mensaje: "{texto[:150]}"\n'
+                        f"🔗 {APP_URL}/leads"
+                    )
+                    send_whatsapp_text(db, tel_cfg.valor, msg)
 
 
 def _siguiente_asesor_rr(db: Session) -> Optional[int]:

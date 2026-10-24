@@ -346,17 +346,7 @@ async def _resumen_diario_rodrigo():
             _or(Lead.en_rellamados.is_(None), Lead.en_rellamados == False),
         ).count()
 
-        # Teléfono de Rodrigo
-        tel_cfg = db.query(ConfiguracionSistema).filter(
-            ConfiguracionSistema.clave == "tel_rodrigo"
-        ).first()
-        tel_rodrigo = tel_cfg.valor if tel_cfg and tel_cfg.valor else None
-
         db.close()
-
-        if not tel_rodrigo:
-            log.warning("[RESUMEN 8AM] No hay tel_rodrigo configurado en ConfiguracionSistema")
-            return
 
         lineas = [
             f"📋 *Resumen del día — {hoy.strftime('%d/%m/%Y')}*",
@@ -370,10 +360,14 @@ async def _resumen_diario_rodrigo():
         ]
         mensaje = "\n".join(lineas)
         from database.database import SessionLocal as _SL
+        from utils.whatsapp import notificar_rodrigo as _notif_rodrigo
         _db2 = _SL()
-        send_whatsapp_text(_db2, tel_rodrigo, mensaje)
+        enviado = _notif_rodrigo(_db2, mensaje)
         _db2.close()
-        log.info("[RESUMEN 8AM] Enviado a Rodrigo OK")
+        if enviado:
+            log.info("[RESUMEN 8AM] Enviado a Rodrigo OK")
+        else:
+            log.warning("[RESUMEN 8AM] No se pudo enviar — configurar tel_rodrigo en Configuración → Notificaciones")
     except Exception as e:
         log.error(f"[RESUMEN 8AM] Error: {e}")
 

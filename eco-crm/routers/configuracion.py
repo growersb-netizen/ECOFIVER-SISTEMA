@@ -584,12 +584,14 @@ async def update_config(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_config_access),
 ):
-    if clave not in CONFIG_DEFS:
+    import re as _re
+    _is_asesor_tel = bool(_re.fullmatch(r"asesor_tel_\d+", clave))
+    if clave not in CONFIG_DEFS and not _is_asesor_tel:
         raise HTTPException(404, f"Clave '{clave}' no reconocida")
 
     data = await request.json()
     valor = data.get("valor", "")
-    defn = CONFIG_DEFS[clave]
+    defn = CONFIG_DEFS.get(clave) or {"es_secreto": False, "categoria": "notificaciones"}
 
     stored = encrypt_value(valor) if (defn["es_secreto"] and valor) else valor
 

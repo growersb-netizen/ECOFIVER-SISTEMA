@@ -132,6 +132,12 @@
     Números de WhatsApp que recibirán alertas automáticas. Formato internacional sin +: <code>5411XXXXXXXX</code>
   </p>
   <div id="notificaciones-list"><div class="loading">Cargando...</div></div>
+
+  <h3 style="font-size:14px;font-weight:600;color:var(--text-primary);margin:24px 0 8px">📱 WhatsApp de asesores</h3>
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px">
+    Cada asesor recibirá alertas WA cuando se le asigne un lead o marque INTERESADO.
+  </p>
+  <div id="asesores-tel-list"><div class="loading">Cargando asesores...</div></div>
 </div>
 
 {% endblock %}
@@ -157,6 +163,7 @@ async function loadConfig() {
     renderAll();
     loadRRPool();
     loadMetaPaginas();
+    loadAsesorTelList();
   } catch(e) {
     toast('Error al cargar configuración: ' + e.message, 'error');
   }
@@ -315,6 +322,40 @@ async function toggleRRMember(id, checked) {
     if (a) a.en_rr = !checked;
     renderRRPool();
     toast(e.message, 'error');
+  }
+}
+
+async function loadAsesorTelList() {
+  const container = document.getElementById('asesores-tel-list');
+  if (!container) return;
+  try {
+    const data = await API.get('/api/leads/rr-config');
+    const asesores = data.asesores || [];
+    if (!asesores.length) {
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No hay asesores registrados.</p>';
+      return;
+    }
+    container.innerHTML = asesores.map(a => {
+      const clave = `asesor_tel_${a.id}`;
+      const cfgEntry = allConfig.find(c => c.clave === clave);
+      const valorActual = cfgEntry ? cfgEntry.valor : '';
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+          <span style="width:180px;font-size:14px;font-weight:500;flex-shrink:0">${escHtml(a.nombre)}</span>
+          <input id="input-${clave}" type="tel" value="${escHtml(valorActual)}"
+                 placeholder="5491135000000"
+                 style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);
+                        background:var(--bg-secondary);color:var(--text-primary);font-size:13px">
+          <button onclick="saveConfig('${clave}')"
+                  style="padding:7px 14px;background:var(--green);color:#fff;border:none;
+                         border-radius:var(--radius);font-size:13px;cursor:pointer;white-space:nowrap">
+            Guardar
+          </button>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--error);font-size:13px">Error: ${escHtml(e.message)}</div>`;
   }
 }
 

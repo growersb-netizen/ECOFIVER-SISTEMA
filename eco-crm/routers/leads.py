@@ -981,6 +981,17 @@ async def update_lead(
         db.add(vl)
 
     db.commit()
+
+    # Notificar aliado cuando cambia el estado de un lead asignado a su línea
+    nuevo_estado = data.get("estado")
+    if (nuevo_estado and nuevo_estado != old_estado and lead.aliado_codigo and
+            nuevo_estado in ("CALIFICADO", "VIDEOLLAMADA_AGENDADA", "CERRADO_GANADO", "CERRADO_PERDIDO")):
+        try:
+            from utils.whatsapp import notificar_aliado_estado_lead
+            notificar_aliado_estado_lead(db, lead.aliado_codigo, lead.nombre, nuevo_estado, lead_id)
+        except Exception as e:
+            log.warning(f"Error notificando aliado cambio estado lead: {e}")
+
     return {"ok": True}
 
 
@@ -1185,6 +1196,25 @@ async def create_interaccion(
             db.commit()
         except Exception as e:
             log.warning(f"Error notificando lead interesado: {e}")
+        # Notificación WA al asesor
+        try:
+            if lead.asesor_apertura_id:
+                tel_cfg = db.query(ConfiguracionSistema).filter(
+                    ConfiguracionSistema.clave == f"asesor_tel_{lead.asesor_apertura_id}"
+                ).first()
+                if tel_cfg and tel_cfg.valor:
+                    from utils.whatsapp import send_whatsapp_text
+                    APP_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
+                    msg = (
+                        f"🔥 *Lead interesado*\n"
+                        f"👤 {lead.nombre}\n"
+                        f"🏠 {lead.producto_interes or 'sin definir'}\n"
+                        f"📍 {lead.localidad or 'sin localidad'}\n"
+                        f"🔗 {APP_URL}/leads"
+                    )
+                    send_whatsapp_text(db, tel_cfg.valor, msg)
+        except Exception as e:
+            log.warning(f"Error enviando WA asesor INTERESADO: {e}")
 
     return {
         "ok": True,

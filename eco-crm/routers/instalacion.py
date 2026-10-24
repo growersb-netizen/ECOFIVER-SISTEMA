@@ -328,6 +328,22 @@ async def registrar_cobro(
         v.estado = "INSTALADO"
 
     db.commit()
+
+    if v.cobro_estado == "COBRADO":
+        try:
+            from utils.whatsapp import notificar_rodrigo
+            monto = v.cobro_monto_real or ((v.precio_final or 0) + (v.tarifa_instalacion or 0))
+            notificar_rodrigo(
+                db,
+                f"🎉 *Instalación completada y cobrada*\n"
+                f"👤 {v.cliente_nombre}\n"
+                f"🏠 {v.producto} — {v.modelo_especifico or ''}\n"
+                f"📍 {v.cliente_localidad or ''}\n"
+                f"💰 Cobrado: ${monto:,.0f}"
+            )
+        except Exception as _e:
+            log.warning(f"Error notificando Rodrigo cobro instalación: {_e}")
+
     return {"ok": True, "cobro_estado": v.cobro_estado, "venta_estado": v.estado}
 
 

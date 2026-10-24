@@ -902,7 +902,7 @@ function toggleFiltroDistribuir() {
 async function loadLeads() {
   const params = new URLSearchParams();
   Object.entries(leadsFilter).forEach(([k, v]) => { if (v) params.set(k, v); });
-  if (typeof isAdmin !== 'undefined' && isAdmin) params.set('limit', '1000');
+  if (typeof isAdmin !== 'undefined' && isAdmin) params.set('limit', '5000');
 
   const data = await API.get(`/api/leads?${params}`);
   if (!data) return;

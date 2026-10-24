@@ -19,7 +19,8 @@
              onchange="closeMenuLeads();importLeadsFile(this)">
     </label>
     <button onclick="closeMenuLeads();openTransferirVendedor()" class="menu-it">⚡ Transferir</button>
-    <button onclick="closeMenuLeads();mostrarModalRedistribuir()" class="menu-it">🔀 Redistribuir</button>
+    <button onclick="closeMenuLeads();abrirDistribucionMasiva(null)" class="menu-it">📦 Distribuir masivo</button>
+    <button onclick="closeMenuLeads();mostrarModalRedistribuir()" class="menu-it">🔀 Redistribuir (básico)</button>
     <button onclick="closeMenuLeads();mostrarModalRellamados()" class="menu-it">♻️ Rellamados</button>
     <div style="border-top:1px solid var(--border);margin:4px 0"></div>
     <button onclick="closeMenuLeads();limpiarLeadsIA()" class="menu-it" style="color:#ef4444">🧹 Limpiar pruebas</button>
@@ -52,8 +53,20 @@
 .e-pill[data-e="CONTACTADO"].active       { color:#d97706; background:rgba(245,158,11,.12); border-color:#d97706; }
 .e-pill[data-e="CALIFICADO"].active       { color:#059669; background:rgba(16,185,129,.12); border-color:#059669; }
 .e-pill[data-e="VIDEOLLAMADA_AGENDADA"].active { color:#7c3aed; background:rgba(139,92,246,.12); border-color:#7c3aed; }
-.e-pill[data-e="CERRADO"].active          { color:#065f46; background:rgba(5,150,105,.12); border-color:#065f46; }
-.e-pill[data-e="PERDIDO"].active          { color:#6b7280; background:rgba(107,114,128,.12); border-color:#6b7280; }
+.e-pill[data-e="INTENTADO"].active         { color:#8b5cf6; background:rgba(139,92,246,.12); border-color:#8b5cf6; }
+.e-pill[data-e="EN_SEGUIMIENTO"].active   { color:#0284c7; background:rgba(2,132,199,.12);  border-color:#0284c7; }
+.e-pill[data-e="COTIZADO"].active         { color:#0891b2; background:rgba(8,145,178,.12);  border-color:#0891b2; }
+.e-pill[data-e="NEGOCIANDO"].active       { color:#dc2626; background:rgba(220,38,38,.12);  border-color:#dc2626; }
+.e-pill[data-e="CERRADO_GANADO"].active   { color:#065f46; background:rgba(5,150,105,.12);  border-color:#065f46; }
+.e-pill[data-e="CERRADO_PERDIDO"].active  { color:#6b7280; background:rgba(107,114,128,.12);border-color:#6b7280; }
+.e-pill[data-e="FRIO"].active             { color:#9ca3af; background:rgba(156,163,175,.12);border-color:#9ca3af; }
+.e-pill[data-e="INACTIVO"].active         { color:#4b5563; background:rgba(75,85,99,.12);   border-color:#4b5563; }
+
+/* ─── PANEL DISTRIBUCIÓN ─────────────────────────────────────── */
+.dist-asesor-row:has(.dist-asesor-chk:checked) { border-color:var(--primary);background:rgba(99,102,241,.06) }
+.dist-tag { display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;
+            border-radius:12px;cursor:pointer;user-select:none;transition:.12s }
+.dist-tag input { width:13px;height:13px;margin:0 }
 
 .leads-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:8px; }
 
@@ -92,6 +105,10 @@
   .leads-grid { grid-template-columns:1fr; }
   #bulk-bar { padding:10px 12px; gap:6px; }
 }
+@media(max-width:640px){
+  #modal-dist-masiva .modal { grid-template-columns:1fr!important }
+  #modal-dist-masiva .modal > .modal-body > div { grid-template-columns:1fr!important }
+}
 </style>
 
 <!-- Búsqueda -->
@@ -112,11 +129,17 @@
 <div class="e-pills" style="margin-bottom:8px">
   <button class="e-pill active" data-e=""                        onclick="setLEstado(this,'')">Todos</button>
   <button class="e-pill"        data-e="NUEVO"                   onclick="setLEstado(this,'NUEVO')">Nuevo</button>
+  <button class="e-pill"        data-e="INTENTADO"               onclick="setLEstado(this,'INTENTADO')">Intentado</button>
   <button class="e-pill"        data-e="CONTACTADO"              onclick="setLEstado(this,'CONTACTADO')">Contactado</button>
+  <button class="e-pill"        data-e="EN_SEGUIMIENTO"          onclick="setLEstado(this,'EN_SEGUIMIENTO')">Seguimiento</button>
   <button class="e-pill"        data-e="CALIFICADO"              onclick="setLEstado(this,'CALIFICADO')">Calificado</button>
+  <button class="e-pill"        data-e="COTIZADO"                onclick="setLEstado(this,'COTIZADO')">Cotizado</button>
+  <button class="e-pill"        data-e="NEGOCIANDO"              onclick="setLEstado(this,'NEGOCIANDO')">Negociando</button>
   <button class="e-pill"        data-e="VIDEOLLAMADA_AGENDADA"   onclick="setLEstado(this,'VIDEOLLAMADA_AGENDADA')">VL Agendada</button>
-  <button class="e-pill"        data-e="CERRADO"                 onclick="setLEstado(this,'CERRADO')">Cerrado</button>
-  <button class="e-pill"        data-e="PERDIDO"                 onclick="setLEstado(this,'PERDIDO')">Perdido</button>
+  <button class="e-pill"        data-e="CERRADO_GANADO"          onclick="setLEstado(this,'CERRADO_GANADO')">Cerrado ✓</button>
+  <button class="e-pill"        data-e="CERRADO_PERDIDO"         onclick="setLEstado(this,'CERRADO_PERDIDO')">Perdido</button>
+  <button class="e-pill"        data-e="FRIO"                    onclick="setLEstado(this,'FRIO')">Frío</button>
+  <button class="e-pill"        data-e="INACTIVO"                onclick="setLEstado(this,'INACTIVO')">Inactivo</button>
 </div>
 
 <!-- Producto pills -->
@@ -126,6 +149,43 @@
   <button class="e-pill"        data-p="PISCINA"  onclick="setLProducto(this,'PISCINA')">🏊 Piscina</button>
   <button class="e-pill"        data-p="COMBO"    onclick="setLProducto(this,'COMBO')">📦 Combo</button>
 </div>
+
+{% if 'ADMIN' in roles %}
+<!-- Filtros avanzados -->
+<div id="filtros-avz-wrap" style="margin-bottom:12px">
+  <button onclick="toggleFiltrosAvz()" id="btn-filtros-avz"
+          style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--text-muted);
+                 padding:0;display:flex;align-items:center;gap:5px;font-weight:600">
+    ▸ Filtros avanzados
+  </button>
+  <div id="filtros-avz" style="display:none;margin-top:8px;padding:12px;background:var(--bg-secondary);
+       border-radius:10px;border:1px solid var(--border)">
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+      <div style="flex:1;min-width:130px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">LOCALIDAD</div>
+        <input id="flt-localidad" class="form-control" placeholder="ej: CABA"
+               oninput="setFiltroAvz('localidad',this.value)">
+      </div>
+      <div style="flex:1;min-width:120px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">DESDE</div>
+        <input type="date" id="flt-fecha-desde" class="form-control"
+               onchange="setFiltroAvz('fecha_desde',this.value)">
+      </div>
+      <div style="flex:1;min-width:120px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">HASTA</div>
+        <input type="date" id="flt-fecha-hasta" class="form-control"
+               onchange="setFiltroAvz('fecha_hasta',this.value)">
+      </div>
+      <div style="flex:0;min-width:140px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">SIN ACTIVIDAD &gt; X DÍAS</div>
+        <input type="number" id="flt-dias" class="form-control" min="0" placeholder="días"
+               oninput="setFiltroAvz('dias_sin_actividad',this.value)" style="width:80px">
+      </div>
+      <button onclick="limpiarFiltrosAvz()" class="btn btn-secondary btn-sm" style="flex-shrink:0">Limpiar</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Alerta sin contactar -->
 <div id="alerta-sin-contactar" style="display:none;margin-bottom:12px"></div>
@@ -137,9 +197,13 @@
   <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:600;color:var(--primary)">
     <input type="checkbox" id="chk-todos" onchange="toggleSelTodos(this.checked)"
            style="width:16px;height:16px;accent-color:var(--primary)">
-    Seleccionar todos
+    Selec. página
   </label>
-  <span id="sel-bar-count" style="font-size:12px;color:var(--text-muted)"></span>
+  <button onclick="seleccionarTodoFiltro()" class="btn btn-secondary btn-sm"
+          title="Selecciona todos los leads que coinciden con los filtros activos (no solo los visibles)">
+    ☑ Todo el filtro
+  </button>
+  <span id="sel-bar-count" style="font-size:12px;color:var(--text-muted);flex:1"></span>
 </div>
 {% endif %}
 
@@ -156,8 +220,11 @@
 <!-- Bulk bar fija abajo -->
 <div id="bulk-bar">
   <span id="bulk-cnt" style="font-weight:700;color:var(--primary);white-space:nowrap">0 sel.</span>
-  <button onclick="abrirAsignMasivaModal()" class="btn btn-primary btn-sm" style="flex:1;min-width:110px;max-width:200px">
-    🤝 Asignar a…
+  <button onclick="abrirAsignMasivaModal()" class="btn btn-secondary btn-sm" style="flex:1;min-width:100px;max-width:180px">
+    🤝 Asignar socio
+  </button>
+  <button onclick="abrirDistribucionMasiva([...leadsSeleccionados])" class="btn btn-primary btn-sm" style="flex:1;min-width:110px;max-width:200px">
+    📦 Distribuir…
   </button>
   <button onclick="eliminarLeadsMasivo([...leadsSeleccionados])"
           class="btn btn-secondary btn-sm" style="border-color:#ef4444;color:#ef4444">🗑</button>
@@ -378,6 +445,107 @@
     <div class="modal-footer">
       <button onclick="closeModal('modal-reasignar')" class="btn btn-secondary">Cancelar</button>
       <button onclick="ejecutarReasignar()" class="btn btn-primary btn-lg">Confirmar reasignación</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── MODAL DISTRIBUCIÓN MASIVA ───────────────────────────────────────────── -->
+{% if 'ADMIN' in roles %}
+<div class="modal-overlay" id="modal-dist-masiva" style="display:none">
+  <div class="modal" style="max-width:700px;width:100%">
+    <div class="modal-header">
+      <span class="modal-title">📦 Distribución masiva de leads</span>
+      <button class="btn btn-icon" onclick="closeModal('modal-dist-masiva')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <!-- Col 1: Qué leads -->
+        <div>
+          <div style="font-size:12px;font-weight:800;color:var(--text-muted);letter-spacing:.05em;margin-bottom:10px">
+            1 · QUÉ LEADS DISTRIBUIR
+          </div>
+          <div style="margin-bottom:12px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px">ESTADOS</div>
+            <div id="dist-estado-checks" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">PRODUCTO</div>
+              <select id="dist-producto" class="form-control" onchange="actualizarPreviewDist()">
+                <option value="">Todos</option>
+                <option value="MODULO">Módulo</option>
+                <option value="PISCINA">Piscina</option>
+                <option value="COMBO">Combo</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">LOCALIDAD</div>
+              <input id="dist-localidad" class="form-control" placeholder="ej: CABA"
+                     oninput="actualizarPreviewDist()">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">DESDE</div>
+              <input type="date" id="dist-fecha-desde" class="form-control" onchange="actualizarPreviewDist()">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">HASTA</div>
+              <input type="date" id="dist-fecha-hasta" class="form-control" onchange="actualizarPreviewDist()">
+            </div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">SIN ACTIVIDAD MÁS DE</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="number" id="dist-dias" class="form-control" min="0" placeholder="días"
+                     oninput="actualizarPreviewDist()" style="width:80px">
+              <span style="font-size:13px;color:var(--text-muted)">días</span>
+            </div>
+          </div>
+          <!-- Badge de total disponible -->
+          <div id="dist-count-badge"
+               style="padding:12px;background:rgba(99,102,241,.09);border-radius:10px;
+                      text-align:center;font-weight:800;font-size:16px;color:var(--primary)">
+            — leads disponibles
+          </div>
+          <div id="dist-presel-badge" style="display:none;padding:8px 12px;margin-top:8px;
+               background:rgba(5,150,105,.09);border-radius:8px;font-size:13px;font-weight:700;color:#065f46">
+            ✓ Distribuyendo sólo los leads preseleccionados
+          </div>
+        </div>
+        <!-- Col 2: A quiénes -->
+        <div>
+          <div style="font-size:12px;font-weight:800;color:var(--text-muted);letter-spacing:.05em;margin-bottom:10px">
+            2 · A QUIÉNES DISTRIBUIR
+          </div>
+          <!-- Mode toggle -->
+          <div style="display:flex;gap:0;margin-bottom:12px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+            <button id="btn-mode-equit" onclick="setDistMode('equitativo')"
+                    style="flex:1;padding:8px;font-size:13px;font-weight:700;border:none;cursor:pointer;
+                           background:var(--primary);color:#fff">
+              ⚖ Equitativo
+            </button>
+            <button id="btn-mode-custom" onclick="setDistMode('custom')"
+                    style="flex:1;padding:8px;font-size:13px;font-weight:700;border:none;cursor:pointer;
+                           background:var(--bg-secondary);color:var(--text-secondary)">
+              🔢 Personalizado
+            </button>
+          </div>
+          <!-- Lista de asesores -->
+          <div id="dist-asesores-list"
+               style="display:flex;flex-direction:column;gap:5px;max-height:310px;overflow-y:auto">
+            <div style="text-align:center;padding:20px;color:var(--text-muted)">Cargando…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="gap:10px">
+      <span id="dist-footer-info" style="font-size:12px;color:var(--text-muted);flex:1;text-align:left"></span>
+      <button onclick="closeModal('modal-dist-masiva')" class="btn btn-secondary">Cancelar</button>
+      <button id="btn-ejecutar-dist" onclick="ejecutarDistribucionMasiva()" class="btn btn-primary btn-lg" disabled>
+        📦 Distribuir
+      </button>
     </div>
   </div>
 </div>
@@ -788,6 +956,308 @@ async function importLeadsFile(input) {
     const data = await API.postForm('/api/leads/importar', fd);
     toast(`✅ ${data.importados} leads importados`); loadLeads();
   } catch(e) { toast(e.message,'error'); }
+}
+
+// ─── FILTROS AVANZADOS ───────────────────────────────────────
+let _filtrosAvzOpen = false;
+function toggleFiltrosAvz() {
+  _filtrosAvzOpen = !_filtrosAvzOpen;
+  const panel = document.getElementById('filtros-avz');
+  const btn   = document.getElementById('btn-filtros-avz');
+  if (panel) panel.style.display = _filtrosAvzOpen ? 'block' : 'none';
+  if (btn)   btn.textContent = (_filtrosAvzOpen ? '▾' : '▸') + ' Filtros avanzados';
+}
+function setFiltroAvz(key, val) {
+  if (val) leadsFilter[key] = val;
+  else delete leadsFilter[key];
+  clearTimeout(window._fltTimer);
+  window._fltTimer = setTimeout(loadLeads, 400);
+}
+function limpiarFiltrosAvz() {
+  ['localidad','fecha_desde','fecha_hasta','dias_sin_actividad'].forEach(k => delete leadsFilter[k]);
+  const ids = ['flt-localidad','flt-fecha-desde','flt-fecha-hasta','flt-dias'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  loadLeads();
+}
+
+// ─── SELECCIONAR TODO EL FILTRO ──────────────────────────────
+async function seleccionarTodoFiltro() {
+  const params = new URLSearchParams(leadsFilter);
+  params.set('ids_only', '1');
+  try {
+    const data = await API.get(`/api/leads?${params}`);
+    if (!data || !data.ids) { toast('Sin resultados', 'info'); return; }
+    data.ids.forEach(id => leadsSeleccionados.add(id));
+    document.querySelectorAll('.lead-check').forEach(chk => {
+      const id = parseInt(chk.dataset.id);
+      if (leadsSeleccionados.has(id)) {
+        chk.checked = true;
+        chk.closest('.lc')?.classList.add('sel');
+      }
+    });
+    actualizarBulkBar();
+    const cnt = document.getElementById('sel-bar-count');
+    if (cnt) cnt.textContent = `(${leadsSeleccionados.size} leads totales)`;
+    toast(`☑ ${data.ids.length} leads seleccionados`);
+  } catch(e) { toast('Error al seleccionar', 'error'); }
+}
+
+// ─── DISTRIBUCIÓN MASIVA ──────────────────────────────────────
+const DIST_ESTADOS_DEF = [
+  {v:'NUEVO',           l:'Nuevo',       c:'#6366f1'},
+  {v:'INTENTADO',       l:'Intentado',   c:'#8b5cf6'},
+  {v:'CONTACTADO',      l:'Contactado',  c:'#d97706'},
+  {v:'EN_SEGUIMIENTO',  l:'Seguimiento', c:'#0284c7'},
+  {v:'CALIFICADO',      l:'Calificado',  c:'#059669'},
+  {v:'COTIZADO',        l:'Cotizado',    c:'#0891b2'},
+  {v:'NEGOCIANDO',      l:'Negociando',  c:'#dc2626'},
+  {v:'FRIO',            l:'Frío',        c:'#9ca3af'},
+];
+
+let _distMode = 'equitativo';
+let _distAsesores = [];
+let _distSelAsesores = new Set();
+let _distPreviewTimer = null;
+let _distIdsPresel = null;
+
+async function abrirDistribucionMasiva(idsPreseleccionados) {
+  _distIdsPresel = idsPreseleccionados && idsPreseleccionados.length ? idsPreseleccionados : null;
+  _distMode = 'equitativo';
+  _distSelAsesores = new Set();
+
+  // Renderizar checkboxes de estado
+  const checksEl = document.getElementById('dist-estado-checks');
+  if (checksEl) {
+    checksEl.innerHTML = DIST_ESTADOS_DEF.map(e => `
+      <label class="dist-tag"
+             style="border:1px solid ${e.c}33;background:${e.c}11;color:${e.c};font-size:11px">
+        <input type="checkbox" data-dist-estado="${e.v}" value="${e.v}"
+               onchange="actualizarPreviewDist()"
+               style="accent-color:${e.c}"
+               ${['NUEVO','INTENTADO'].includes(e.v) ? 'checked' : ''}>
+        ${e.l}
+      </label>`).join('');
+  }
+
+  // Reset form
+  const reset = {producto:'', localidad:'', 'dist-fecha-desde':'', 'dist-fecha-hasta':'', 'dist-dias':''};
+  Object.entries(reset).forEach(([k,v]) => { const el = document.getElementById(k); if (el) el.value = v; });
+
+  // Badge preselección
+  const preselBadge = document.getElementById('dist-presel-badge');
+  if (_distIdsPresel) {
+    document.getElementById('dist-count-badge').textContent = `${_distIdsPresel.length} leads seleccionados`;
+    if (preselBadge) preselBadge.style.display = 'block';
+  } else {
+    document.getElementById('dist-count-badge').textContent = 'Calculando…';
+    if (preselBadge) preselBadge.style.display = 'none';
+  }
+
+  document.getElementById('dist-asesores-list').innerHTML =
+    '<div style="text-align:center;padding:20px;color:var(--text-muted)">Cargando…</div>';
+  document.getElementById('btn-ejecutar-dist').disabled = true;
+  document.getElementById('dist-footer-info').textContent = '';
+
+  setDistMode('equitativo');
+  openModal('modal-dist-masiva');
+
+  await _cargarAsesoresDist();
+  if (!_distIdsPresel) actualizarPreviewDist();
+}
+
+async function _cargarAsesoresDist() {
+  try {
+    const data = await API.get('/api/leads/distribucion-preview');
+    _distAsesores = data.asesores || [];
+    _renderAsesoresDist();
+    _distAsesores.forEach(a => { if (a.en_rr) _distSelAsesores.add(a.id); });
+    if (!_distIdsPresel) actualizarPreviewDist();
+  } catch(e) {
+    document.getElementById('dist-asesores-list').innerHTML =
+      `<div style="color:#ef4444;padding:12px">Error: ${e.message}</div>`;
+  }
+}
+
+function _renderAsesoresDist() {
+  const lista = document.getElementById('dist-asesores-list');
+  if (!_distAsesores.length) {
+    lista.innerHTML = '<div style="color:var(--text-muted);padding:12px">Sin vendedores activos</div>';
+    return;
+  }
+  lista.innerHTML = _distAsesores.map(a => `
+    <div class="dist-asesor-row" data-id="${a.id}"
+         style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+                border:1px solid var(--border);background:var(--bg-secondary);transition:.1s">
+      <input type="checkbox" class="dist-asesor-chk" data-id="${a.id}"
+             onchange="toggleAsesorDist(${a.id},this.checked)"
+             style="width:15px;height:15px;accent-color:var(--primary);flex-shrink:0"
+             ${a.en_rr ? 'checked' : ''}>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${a.nombre}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">Tiene: <strong>${a.leads_actuales}</strong></div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;min-width:60px">
+        <div style="font-size:10px;color:var(--text-muted)">Recibirá</div>
+        <div class="dist-custom-wrap" data-id="${a.id}" style="display:none">
+          <input type="number" class="dist-cantidad-custom" data-id="${a.id}" min="0" value="0"
+                 style="width:56px;padding:4px;border-radius:6px;border:1px solid var(--border);
+                        text-align:center;font-weight:700;color:var(--primary)"
+                 oninput="actualizarTotalCustom()">
+        </div>
+        <strong class="dist-recibiria-val" data-id="${a.id}"
+                style="color:var(--primary);font-size:14px">—</strong>
+      </div>
+    </div>`).join('');
+}
+
+function toggleAsesorDist(id, checked) {
+  if (checked) _distSelAsesores.add(id);
+  else _distSelAsesores.delete(id);
+  if (!_distIdsPresel) actualizarPreviewDist();
+  else _actualizarBtnDist();
+}
+
+function setDistMode(mode) {
+  _distMode = mode;
+  const on  = 'flex:1;padding:8px;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--primary);color:#fff';
+  const off = 'flex:1;padding:8px;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--bg-secondary);color:var(--text-secondary)';
+  document.getElementById('btn-mode-equit').style.cssText  = mode==='equitativo' ? on : off;
+  document.getElementById('btn-mode-custom').style.cssText = mode==='custom'     ? on : off;
+  document.querySelectorAll('.dist-custom-wrap').forEach(el  => el.style.display = mode==='custom' ? 'block' : 'none');
+  document.querySelectorAll('.dist-recibiria-val').forEach(el => el.style.display = mode==='custom' ? 'none'  : 'inline');
+  if (mode==='custom') actualizarTotalCustom(); else actualizarPreviewDist();
+}
+
+function actualizarTotalCustom() {
+  let total = 0;
+  document.querySelectorAll('.dist-cantidad-custom').forEach(inp => {
+    const v = parseInt(inp.value || '0'); total += isNaN(v) ? 0 : v;
+  });
+  const badge = document.getElementById('dist-count-badge');
+  badge.textContent = `${total} leads a distribuir`;
+  _actualizarBtnDist();
+}
+
+function _actualizarBtnDist() {
+  const btn = document.getElementById('btn-ejecutar-dist');
+  const n = _distSelAsesores.size;
+  if (_distMode === 'custom') {
+    let total = 0;
+    document.querySelectorAll('.dist-cantidad-custom').forEach(inp => { const v = parseInt(inp.value||'0'); total += isNaN(v)?0:v; });
+    btn.disabled = total === 0 || n === 0;
+  } else {
+    if (_distIdsPresel) {
+      btn.disabled = n === 0;
+    } else {
+      const badge = document.getElementById('dist-count-badge').textContent;
+      btn.disabled = badge.includes('0 leads') || n === 0;
+    }
+  }
+}
+
+async function actualizarPreviewDist() {
+  clearTimeout(_distPreviewTimer);
+  _distPreviewTimer = setTimeout(_doPreviewDist, 450);
+}
+
+async function _doPreviewDist() {
+  if (_distIdsPresel) return;
+  const estados = [...document.querySelectorAll('[data-dist-estado]:checked')].map(c => c.value);
+  const params = new URLSearchParams();
+  if (estados.length) params.set('estado', estados.join(','));
+  const prod = document.getElementById('dist-producto')?.value; if (prod) params.set('producto', prod);
+  const loc  = document.getElementById('dist-localidad')?.value.trim(); if (loc) params.set('localidad', loc);
+  const fd   = document.getElementById('dist-fecha-desde')?.value; if (fd) params.set('fecha_desde', fd);
+  const fh   = document.getElementById('dist-fecha-hasta')?.value; if (fh) params.set('fecha_hasta', fh);
+  const dias = document.getElementById('dist-dias')?.value; if (dias) params.set('dias_sin_actividad', dias);
+  const asesorIds = [..._distSelAsesores].join(',');
+  if (asesorIds) params.set('asesor_ids', asesorIds);
+
+  document.getElementById('dist-count-badge').textContent = 'Calculando…';
+  try {
+    const data = await API.get(`/api/leads/distribucion-preview?${params}`);
+    document.getElementById('dist-count-badge').textContent = `${data.total_disponibles.toLocaleString()} leads disponibles`;
+    (data.asesores || []).forEach(a => {
+      const val = document.querySelector(`.dist-recibiria-val[data-id="${a.id}"]`);
+      if (val) val.textContent = a.recibiria !== null ? a.recibiria : '—';
+    });
+    const n = _distSelAsesores.size;
+    document.getElementById('dist-footer-info').textContent =
+      data.total_disponibles > 0 && n > 0
+        ? `${data.total_disponibles} leads → ${n} vendedor${n!==1?'es':''}`
+        : '';
+    document.getElementById('btn-ejecutar-dist').disabled = data.total_disponibles === 0 || n === 0;
+  } catch(e) {
+    document.getElementById('dist-count-badge').textContent = 'Error al calcular';
+  }
+}
+
+async function ejecutarDistribucionMasiva() {
+  const btn = document.getElementById('btn-ejecutar-dist');
+  btn.disabled = true;
+  try {
+    let ids;
+    let distribucion = {};
+
+    if (_distIdsPresel) {
+      ids = _distIdsPresel;
+    } else {
+      const estados = [...document.querySelectorAll('[data-dist-estado]:checked')].map(c => c.value);
+      const params = new URLSearchParams();
+      if (estados.length) params.set('estado', estados.join(','));
+      const prod = document.getElementById('dist-producto')?.value; if (prod) params.set('producto', prod);
+      const loc  = document.getElementById('dist-localidad')?.value.trim(); if (loc) params.set('localidad', loc);
+      const fd   = document.getElementById('dist-fecha-desde')?.value; if (fd) params.set('fecha_desde', fd);
+      const fh   = document.getElementById('dist-fecha-hasta')?.value; if (fh) params.set('fecha_hasta', fh);
+      const dias = document.getElementById('dist-dias')?.value; if (dias) params.set('dias_sin_actividad', dias);
+      params.set('ids_only', '1');
+      const idData = await API.get(`/api/leads?${params}`);
+      if (!idData?.ids?.length) { toast('Sin leads disponibles con esos filtros', 'info'); btn.disabled=false; return; }
+      ids = idData.ids;
+    }
+
+    if (_distMode === 'custom') {
+      document.querySelectorAll('.dist-cantidad-custom').forEach(inp => {
+        const aId = parseInt(inp.dataset.id);
+        const v   = parseInt(inp.value || '0');
+        if (_distSelAsesores.has(aId) && v > 0) distribucion[aId] = v;
+      });
+      if (!Object.keys(distribucion).length) { toast('Asigná cantidades a al menos un asesor', 'error'); btn.disabled=false; return; }
+    } else {
+      // Equitativo: calcular porciones iguales en el frontend
+      const sel = [..._distSelAsesores].sort();
+      const base = Math.floor(ids.length / sel.length);
+      const extra = ids.length % sel.length;
+      sel.forEach((id, i) => { distribucion[id] = base + (i < extra ? 1 : 0); });
+    }
+
+    const total = Object.values(distribucion).reduce((a,b)=>a+b, 0);
+    const n = Object.keys(distribucion).length;
+    const ok = await showConfirm(
+      `¿Distribuir hasta ${ids.length} leads entre ${n} vendedor${n!==1?'es':''}?`,
+      'Confirmar distribución', '#6366f1'
+    );
+    if (!ok) { btn.disabled=false; return; }
+
+    const estados_permitidos = _distIdsPresel
+      ? DIST_ESTADOS_DEF.map(e => e.v)  // todos los distribuibles cuando son preseleccionados
+      : ([...document.querySelectorAll('[data-dist-estado]:checked')].map(c=>c.value) || null);
+
+    const res = await API.post('/api/leads/reasignar-masivo', {
+      ids,
+      distribucion,
+      ...(estados_permitidos?.length ? {estados_permitidos} : {})
+    });
+    closeModal('modal-dist-masiva');
+    limpiarSelLeads();
+    toast(`✅ ${res.reasignados} leads distribuidos${res.omitidos?' · '+res.omitidos+' omitidos':''}`);
+    loadLeads();
+  } catch(e) {
+    toast(e.message || 'Error al distribuir', 'error');
+    btn.disabled = false;
+  }
 }
 </script>
 {% endblock %}

@@ -1068,6 +1068,10 @@ function renderLeadsCards() {
 
   if (typeof leadsSeleccionados !== 'undefined') leadsSeleccionados.clear();
   if (typeof actualizarBulkBar === 'function') actualizarBulkBar();
+  const selBar = document.getElementById('sel-bar');
+  if (selBar) selBar.style.display = leadsData.length ? 'flex' : 'none';
+  const chkTodos = document.getElementById('chk-todos');
+  if (chkTodos) chkTodos.checked = false;
 
   const ESTADO_COLOR = {
     NUEVO: '#6366f1', CONTACTADO: '#d97706', CALIFICADO: '#059669',
@@ -2027,7 +2031,7 @@ async function _cargarAliados() {
   if (_aliadosCache) return _aliadosCache;
   try {
     const data = await API.get('/api/aliados?estado=activo');
-    _aliadosCache = (data.aliados || []).filter(a => a.operativo);
+    _aliadosCache = data.aliados || [];
   } catch(e) { _aliadosCache = []; }
   return _aliadosCache;
 }

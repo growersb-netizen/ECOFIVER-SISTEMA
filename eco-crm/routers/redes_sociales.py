@@ -800,18 +800,32 @@ async def _responder_comentario(comment_id: str, mensaje: str, token: str) -> Tu
         return False, str(e)[:200]
 
 
-async def _eliminar_comentario(comment_id: str, token: str) -> bool:
-    """Elimina un comentario de Facebook."""
+async def _eliminar_comentario(comment_id: str, token: str) -> Tuple[bool, str]:
+    """Elimina (o esconde) un comentario de Facebook. Retorna (ok, error_text)."""
     try:
         async with httpx.AsyncClient(timeout=15) as hc:
             r = await hc.delete(
                 f"{META_GRAPH_URL}/{comment_id}",
                 params={"access_token": token},
             )
-        return r.status_code in (200, 204)
+        if r.status_code in (200, 204):
+            return True, ""
+        err_text = r.text[:300]
+        log.warning(f"DELETE comment {comment_id} falló {r.status_code}: {err_text}")
+        # Fallback: ocultar el comentario si no se puede borrar
+        async with httpx.AsyncClient(timeout=15) as hc:
+            r2 = await hc.post(
+                f"{META_GRAPH_URL}/{comment_id}",
+                params={"access_token": token, "is_hidden": "true"},
+            )
+        if r2.status_code in (200, 201):
+            log.info(f"Comentario {comment_id} ocultado (delete falló)")
+            return True, ""
+        log.error(f"Ocultar comment {comment_id} falló {r2.status_code}: {r2.text[:200]}")
+        return False, err_text
     except Exception as e:
         log.error(f"Error eliminando comentario {comment_id}: {e}")
-        return False
+        return False, str(e)
 
 
 async def _responder_mensaje(sender_id: str, mensaje: str, token: str) -> Tuple[bool, str]:
@@ -2226,16 +2240,22 @@ async def api_redes_admin_responder_comentarios(
 
         comment_id = c.objeto_id or str(c.id)
 
-        # Negativos → siempre eliminar
+        # Negativos → siempre eliminar/ocultar
         if c.sentimiento == "negativo":
-            ok_del = await _eliminar_comentario(comment_id, pg.page_token)
+            if not c.objeto_id:
+                # Sin ID de FB no podemos actuar; marcar ignorado
+                c.accion = "ignorado"
+                db.commit()
+                resultados.append({"id": c.id, "status": "ignorado_sin_id"})
+                continue
+            ok_del, del_err = await _eliminar_comentario(comment_id, pg.page_token)
             c.accion = "eliminado" if ok_del else "error"
             if ok_del:
                 eliminados += 1
                 resultados.append({"id": c.id, "status": "eliminado", "pagina": pg.nombre})
             else:
                 errores += 1
-                resultados.append({"id": c.id, "status": "error_eliminar"})
+                resultados.append({"id": c.id, "status": "error_eliminar", "detalle": del_err[:120] if del_err else ""})
             db.commit()
             continue
 

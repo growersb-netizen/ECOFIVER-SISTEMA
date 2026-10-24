@@ -296,6 +296,9 @@ def run_migrations():
             "ALTER TABLE meta_paginas ADD COLUMN portafolio TEXT DEFAULT 'EcoFiver'",
             # ── Redes Sociales: vendedor responsable de la página ─────────────────
             "ALTER TABLE meta_paginas ADD COLUMN vendedor TEXT",
+            # ── A2: FK lead → venta (bidireccional) ────────────────────────────
+            "ALTER TABLE leads ADD COLUMN venta_contado_id INTEGER",
+            "ALTER TABLE leads ADD COLUMN venta_financiada_id INTEGER",
         ]
         for stmt in migrations:
             try:

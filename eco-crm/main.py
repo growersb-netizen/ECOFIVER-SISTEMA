@@ -439,6 +439,31 @@ async def _recordatorio_cobranza(dias_delta: int):
         log.error(f"[COBRANZA-WA] Error en recordatorio (delta={dias_delta}): {e}")
 
 
+async def _sync_estado_plan_ventas_financiadas():
+    """00:30 ART — sincroniza estado_plan ACTIVO/ATRASADO según días de atraso."""
+    try:
+        from database.database import SessionLocal
+        from database.models import VentaFinanciada
+        from routers.ventas_financiadas import dias_atraso
+
+        db = SessionLocal()
+        ventas = db.query(VentaFinanciada).filter(
+            VentaFinanciada.estado_plan.in_(["ACTIVO", "ATRASADO"])
+        ).all()
+        actualizadas = 0
+        for v in ventas:
+            atraso = dias_atraso(v)
+            nuevo = "ATRASADO" if atraso > 0 else "ACTIVO"
+            if v.estado_plan != nuevo:
+                v.estado_plan = nuevo
+                actualizadas += 1
+        db.commit()
+        db.close()
+        log.info(f"[SYNC-PLAN] {actualizadas} ventas financiadas actualizadas (total={len(ventas)})")
+    except Exception as e:
+        log.error(f"[SYNC-PLAN] Error: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     # Generar claves VAPID si no existen
@@ -532,6 +557,15 @@ async def startup_event():
         id="cobranza_t_mas_2",
         name="Cobranza — Seguimiento T+2 días",
         args=[-2],
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    # Sync estado_plan ventas financiadas → 00:30 ART
+    scheduler.add_job(
+        _sync_estado_plan_ventas_financiadas,
+        trigger=CronTrigger(hour=0, minute=30, timezone="America/Argentina/Buenos_Aires"),
+        id="sync_estado_plan",
+        name="VentasFinanciadas — Sync estado_plan ACTIVO/ATRASADO",
         replace_existing=True,
         misfire_grace_time=3600,
     )

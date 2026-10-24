@@ -2719,6 +2719,20 @@ async def cargar_venta_contado(request: Request, socio: Aliado = Depends(require
         db.rollback()
         raise HTTPException(500, f"Error al guardar la venta: {_e}")
 
+    # Auto-vincular lead por teléfono
+    try:
+        tel = venta.cliente_telefono
+        if tel:
+            lead_lnk = db.query(Lead).filter(
+                Lead.telefono.ilike(f"%{tel.strip()}%")
+            ).order_by(Lead.created_at.desc()).first()
+            if lead_lnk and lead_lnk.estado not in ["CERRADO_GANADO", "CERRADO_PERDIDO"]:
+                lead_lnk.estado = "CERRADO_GANADO"
+                lead_lnk.venta_contado_id = venta.id
+                db.commit()
+    except Exception:
+        db.rollback()
+
     nivel_label = {
         "con": "Con instalación incluida",
         "sin_instalacion": "⚠️ SIN instalación (casco + equipo de filtrado) — la coordina el socio o un instalador de su zona",
@@ -5255,6 +5269,21 @@ async def organizador_cargar_venta(
     except Exception as _e:
         db.rollback()
         raise HTTPException(500, f"Error al guardar: {_e}")
+
+    # Auto-vincular lead por teléfono
+    try:
+        tel = venta.cliente_telefono
+        if tel:
+            lead_lnk = db.query(Lead).filter(
+                Lead.telefono.ilike(f"%{tel.strip()}%")
+            ).order_by(Lead.created_at.desc()).first()
+            if lead_lnk and lead_lnk.estado not in ["CERRADO_GANADO", "CERRADO_PERDIDO"]:
+                lead_lnk.estado = "CERRADO_GANADO"
+                lead_lnk.venta_contado_id = venta.id
+                db.commit()
+    except Exception:
+        db.rollback()
+
     return {"ok": True, "venta_id": venta.id}
 
 

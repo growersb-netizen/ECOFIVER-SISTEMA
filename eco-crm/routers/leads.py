@@ -203,6 +203,9 @@ def lead_to_dict(lead: Lead, db: Session) -> dict:
         "dni_cliente": lead.dni_cliente or "",
         "estado_verificacion": lead.estado_verificacion or "pendiente",
         "timestamp_comprobante": lead.timestamp_comprobante.isoformat() if lead.timestamp_comprobante else None,
+        # ── FK a ventas ──────────────────────────────────────────────────────
+        "venta_contado_id": lead.venta_contado_id if hasattr(lead, "venta_contado_id") else None,
+        "venta_financiada_id": lead.venta_financiada_id if hasattr(lead, "venta_financiada_id") else None,
     }
 
 

@@ -19,11 +19,20 @@ class RolEnum(str, enum.Enum):
 
 class EstadoLead(str, enum.Enum):
     NUEVO = "NUEVO"
+    INTENTADO = "INTENTADO"
     CONTACTADO = "CONTACTADO"
+    EN_SEGUIMIENTO = "EN_SEGUIMIENTO"
     CALIFICADO = "CALIFICADO"
+    COTIZADO = "COTIZADO"
+    NEGOCIANDO = "NEGOCIANDO"
     VIDEOLLAMADA_AGENDADA = "VIDEOLLAMADA_AGENDADA"
-    CERRADO = "CERRADO"
-    PERDIDO = "PERDIDO"
+    ESPERANDO_ADMISION = "ESPERANDO_ADMISION"
+    ADMITIDO = "ADMITIDO"
+    RECHAZADO_ADMISION = "RECHAZADO_ADMISION"
+    CERRADO_GANADO = "CERRADO_GANADO"
+    CERRADO_PERDIDO = "CERRADO_PERDIDO"
+    INACTIVO = "INACTIVO"
+    FRIO = "FRIO"
 
 
 class ProductoInteres(str, enum.Enum):
@@ -215,6 +224,9 @@ class Lead(Base):
     etiqueta_color = Column(String(20), nullable=True)   # ROJO|NARANJA|AMARILLO|VERDE|AZUL|GRIS
     # ── Bandeja de entrada — control bot/humano ──────────────────────────────
     modo_atencion = Column(String(20), default="bot")  # bot | humano | pausado
+    # ── FK a venta concretada (A2) ────────────────────────────────────────────
+    venta_contado_id = Column(Integer, ForeignKey("ventas_contado.id"), nullable=True, index=True)
+    venta_financiada_id = Column(Integer, ForeignKey("ventas_financiadas.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

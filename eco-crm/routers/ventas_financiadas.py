@@ -233,6 +233,7 @@ async def create_venta_financiada(
         ).order_by(Lead.created_at.desc()).first()
         if lead and lead.estado not in ["CERRADO_GANADO", "CERRADO_PERDIDO"]:
             lead.estado = "CERRADO_GANADO"
+            lead.venta_financiada_id = venta.id
             db.add(Interaccion(
                 lead_id=lead.id,
                 tipo="VENTA",

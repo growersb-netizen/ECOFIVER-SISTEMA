@@ -727,16 +727,17 @@ def _wa_url(numero: str) -> str:
     return f"https://wa.me/{n}"
 
 
-async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero_wa: str, db=None, vendedor_nombre: str = "") -> str:
+async def _generar_respuesta_ia(mensaje_usuario: str, pagina_nombre: str, numero_wa: str, db=None, vendedor_nombre: str = "", sentimiento: str = "") -> str:
     """Genera respuesta comercial.
     - Si la página tiene vendedor asignado → template directo (sin IA) que redirige al vendedor.
-    - Reclamos siempre → WA_RECLAMOS con template directo.
+    - Reclamos o sentimiento negativo → WA_RECLAMOS, nunca al vendedor.
     - Sin vendedor → IA con link de WA.
     """
-    es_reclamo = _es_reclamo(mensaje_usuario)
+    # Negativo detectado por IA (sentimiento del DB) o por palabras clave → siempre postventa
+    es_reclamo = _es_reclamo(mensaje_usuario) or sentimiento == "negativo"
     wa_destino = WA_RECLAMOS if es_reclamo else (numero_wa or WA_RECLAMOS)
 
-    # Reclamo: siempre template directo al número de postventa
+    # Reclamo/negativo: siempre template directo al número de postventa
     if es_reclamo:
         return (
             f"Hola, lamentamos la situación. "

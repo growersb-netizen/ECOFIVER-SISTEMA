@@ -2250,11 +2250,16 @@ async def api_redes_admin_responder_comentarios(
                 resultados.append({"id": c.id, "status": "ignorado_sin_id"})
                 continue
             ok_del, del_err = await _eliminar_comentario(comment_id, pg.page_token)
-            c.accion = "eliminado" if ok_del else "error"
             if ok_del:
+                c.accion = "eliminado"
                 eliminados += 1
                 resultados.append({"id": c.id, "status": "eliminado", "pagina": pg.nombre})
+            elif del_err and ("Unsupported" in del_err or "unsupported" in del_err):
+                # Meta no permite eliminar/ocultar (falta App Review de pages_manage_engagement)
+                c.accion = "ignorado"
+                resultados.append({"id": c.id, "status": "ignorado_no_permitido"})
             else:
+                c.accion = "error"
                 errores += 1
                 resultados.append({"id": c.id, "status": "error_eliminar", "detalle": del_err[:120] if del_err else ""})
             db.commit()

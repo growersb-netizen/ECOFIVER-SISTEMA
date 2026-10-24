@@ -108,7 +108,7 @@
 </div>
 
 <!-- Estado pills -->
-<div class="e-pills" style="margin-bottom:12px">
+<div class="e-pills" style="margin-bottom:8px">
   <button class="e-pill active" data-e=""                        onclick="setLEstado(this,'')">Todos</button>
   <button class="e-pill"        data-e="NUEVO"                   onclick="setLEstado(this,'NUEVO')">Nuevo</button>
   <button class="e-pill"        data-e="CONTACTADO"              onclick="setLEstado(this,'CONTACTADO')">Contactado</button>
@@ -116,6 +116,14 @@
   <button class="e-pill"        data-e="VIDEOLLAMADA_AGENDADA"   onclick="setLEstado(this,'VIDEOLLAMADA_AGENDADA')">VL Agendada</button>
   <button class="e-pill"        data-e="CERRADO"                 onclick="setLEstado(this,'CERRADO')">Cerrado</button>
   <button class="e-pill"        data-e="PERDIDO"                 onclick="setLEstado(this,'PERDIDO')">Perdido</button>
+</div>
+
+<!-- Producto pills -->
+<div class="e-pills" style="margin-bottom:12px">
+  <button class="e-pill active" data-p=""         onclick="setLProducto(this,'')">🗂 Todos</button>
+  <button class="e-pill"        data-p="MODULO"   onclick="setLProducto(this,'MODULO')">🏠 Módulo</button>
+  <button class="e-pill"        data-p="PISCINA"  onclick="setLProducto(this,'PISCINA')">🏊 Piscina</button>
+  <button class="e-pill"        data-p="COMBO"    onclick="setLProducto(this,'COMBO')">📦 Combo</button>
 </div>
 
 <!-- Alerta sin contactar -->
@@ -372,10 +380,18 @@ function setLTab(btn, tab) {
 }
 
 function setLEstado(btn, estado) {
-  document.querySelectorAll('.e-pill').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.e-pill[data-e]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (estado) leadsFilter.estado = estado;
   else delete leadsFilter.estado;
+  loadLeads();
+}
+
+function setLProducto(btn, producto) {
+  document.querySelectorAll('.e-pill[data-p]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (producto) leadsFilter.producto = producto;
+  else delete leadsFilter.producto;
   loadLeads();
 }
 

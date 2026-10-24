@@ -493,7 +493,13 @@ async def list_leads(
         ))
 
     total = q.count()
-    leads = q.order_by(Lead.created_at.desc()).offset(skip).limit(limit).all()
+    # Sin socio asignado primero, luego por fecha descendente
+    from sqlalchemy import case as sa_case
+    sin_socio = sa_case(
+        (or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""), 0),
+        else_=1
+    )
+    leads = q.order_by(sin_socio, Lead.created_at.desc()).offset(skip).limit(limit).all()
     return {"total": total, "leads": [lead_to_dict(l, db) for l in leads]}
 
 

@@ -2211,6 +2211,7 @@ async def api_redes_admin_responder_comentarios(
     paginas = {pg.page_id: pg for pg in db.query(MetaPagina).all()}
 
     enviados = 0
+    eliminados = 0
     errores = 0
     expirados_n = 0
     resultados = []
@@ -2222,8 +2223,22 @@ async def api_redes_admin_responder_comentarios(
             resultados.append({"id": c.id, "status": "error_sin_token"})
             continue
 
-        respuesta = await _generar_respuesta_ia(c.contenido or "", pg.nombre, pg.numero_whatsapp or "", db)
         comment_id = c.objeto_id or str(c.id)
+
+        # Negativos → eliminar (si la página tiene auto_eliminar_negativos activo)
+        if c.sentimiento == "negativo" and pg.auto_eliminar_negativos:
+            ok_del = await _eliminar_comentario(comment_id, pg.page_token)
+            c.accion = "eliminado" if ok_del else "error"
+            if ok_del:
+                eliminados += 1
+                resultados.append({"id": c.id, "status": "eliminado", "pagina": pg.nombre})
+            else:
+                errores += 1
+                resultados.append({"id": c.id, "status": "error_eliminar"})
+            db.commit()
+            continue
+
+        respuesta = await _generar_respuesta_ia(c.contenido or "", pg.nombre, pg.numero_whatsapp or "", db)
         ok, meta_err = await _responder_comentario(comment_id, respuesta, pg.page_token)
 
         if ok:
@@ -2248,7 +2263,12 @@ async def api_redes_admin_responder_comentarios(
 
         db.commit()
 
-    return {"ok": True, "total": len(comentarios), "expirados_auto": expirados_n, "enviados": enviados, "errores": errores, "resultados": resultados}
+    return {
+        "ok": True, "total": len(comentarios),
+        "expirados_auto": expirados_n, "enviados": enviados,
+        "eliminados": eliminados, "errores": errores,
+        "resultados": resultados,
+    }
 
 
 @router.post("/api/redes/admin/marcar-expirados")
@@ -2317,23 +2337,33 @@ async def api_redes_admin_limpiar_backlog(
 async def api_redes_admin_reset_errores(
     t: str = "",
     tipo: str = "mensaje",
+    desde: str = "error",
     db: Session = Depends(get_db),
 ):
     """
-    Resetea interacciones con accion='error' a 'pendiente' para reintento.
+    Resetea interacciones a 'pendiente' para reintento.
     ?tipo=mensaje | comentario | all
+    ?desde=error | expirado | ignorado | all  (estados origen)
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
     expected = os.getenv("ML_AUDIT_TOKEN", "")
     if not expected or t != expected:
         raise HTTPException(403, "Forbidden")
 
-    q = db.query(FacebookInteraccion).filter(FacebookInteraccion.accion == "error")
+    estados_validos = {"error", "expirado", "ignorado"}
+    if desde == "all":
+        estados = list(estados_validos)
+    elif desde in estados_validos:
+        estados = [desde]
+    else:
+        raise HTTPException(400, f"'desde' debe ser: error, expirado, ignorado, all")
+
+    q = db.query(FacebookInteraccion).filter(FacebookInteraccion.accion.in_(estados))
     if tipo != "all":
         q = q.filter(FacebookInteraccion.tipo == tipo)
     n = q.update({"accion": "pendiente"}, synchronize_session=False)
     db.commit()
-    return {"ok": True, "reseteados": n, "tipo": tipo}
+    return {"ok": True, "reseteados": n, "tipo": tipo, "desde": desde}
 
 
 @router.get("/api/redes/admin/pendientes")

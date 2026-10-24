@@ -2226,8 +2226,8 @@ async def api_redes_admin_responder_comentarios(
 
         comment_id = c.objeto_id or str(c.id)
 
-        # Negativos → eliminar (si la página tiene auto_eliminar_negativos activo)
-        if c.sentimiento == "negativo" and pg.auto_eliminar_negativos:
+        # Negativos → siempre eliminar
+        if c.sentimiento == "negativo":
             ok_del = await _eliminar_comentario(comment_id, pg.page_token)
             c.accion = "eliminado" if ok_del else "error"
             if ok_del:
@@ -2239,7 +2239,7 @@ async def api_redes_admin_responder_comentarios(
             db.commit()
             continue
 
-        respuesta = await _generar_respuesta_ia(c.contenido or "", pg.nombre, pg.numero_whatsapp or "", db)
+        respuesta = await _generar_respuesta_ia(c.contenido or "", pg.nombre, pg.numero_whatsapp or "", db, sentimiento=c.sentimiento or "")
         ok, meta_err = await _responder_comentario(comment_id, respuesta, pg.page_token)
 
         if ok:

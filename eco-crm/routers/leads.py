@@ -75,7 +75,7 @@ def asignar_asesor_round_robin(db: Session) -> Optional[int]:
     for u in candidatos:
         conteos[u.id] = db.query(Lead).filter(
             Lead.asesor_apertura_id == u.id,
-            Lead.estado.notin_(["CERRADO", "PERDIDO"])
+            Lead.estado.notin_(["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"])
         ).count()
 
     elegido = min(candidatos, key=lambda u: (conteos[u.id], u.id))
@@ -101,7 +101,7 @@ def _asignar_diferente(db: Session, excluir_id: int) -> Optional[int]:
     for u in candidatos:
         conteos[u.id] = db.query(Lead).filter(
             Lead.asesor_apertura_id == u.id,
-            Lead.estado.notin_(["CERRADO", "PERDIDO"])
+            Lead.estado.notin_(["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"])
         ).count()
 
     elegido = min(candidatos, key=lambda u: (conteos[u.id], u.id))
@@ -448,6 +448,12 @@ async def list_leads(
     con_socio: Optional[str] = None,   # "si" = con aliado_codigo, "no" = sin aliado_codigo
     excluir_ia: Optional[int] = None,  # 1 = excluir leads de agentes IA
     search: Optional[str] = None,
+    # ── Filtros nuevos ────────────────────────────────────────────────────────
+    localidad: Optional[str] = None,           # ilike parcial sobre lead.localidad
+    fecha_desde: Optional[str] = None,         # YYYY-MM-DD — created_at >=
+    fecha_hasta: Optional[str] = None,         # YYYY-MM-DD — created_at <=
+    dias_sin_actividad: Optional[int] = None,  # leads con updated_at (o created_at) sin tocar en N días
+    ids_only: Optional[int] = None,            # 1 = devuelve solo {"ids":[...], "total": N}
     skip: int = 0,
     limit: int = 200,
     db: Session = Depends(get_db),
@@ -456,8 +462,8 @@ async def list_leads(
     roles = get_user_roles(current_user)
     q = db.query(Lead)
 
-    # Admin puede pedir hasta 2000; otros roles tienen cap de 500
-    max_limit = 2000 if "ADMIN" in roles else 500
+    # Admin puede pedir hasta 5000; otros roles tienen cap de 500
+    max_limit = 5000 if "ADMIN" in roles else 500
     limit = min(limit, max_limit)
 
     # Asesores solo ven sus leads
@@ -465,7 +471,12 @@ async def list_leads(
         q = q.filter(Lead.asesor_apertura_id == current_user.id)
 
     if estado:
-        q = q.filter(Lead.estado == estado)
+        # Soporta múltiples estados separados por coma: "NUEVO,INTENTADO"
+        estados = [e.strip() for e in estado.split(",") if e.strip()]
+        if len(estados) == 1:
+            q = q.filter(Lead.estado == estados[0])
+        else:
+            q = q.filter(Lead.estado.in_(estados))
     if producto:
         q = q.filter(Lead.producto_interes == producto)
     if forma_pago:
@@ -494,8 +505,36 @@ async def list_leads(
             Lead.telefono.ilike(f"%{search}%"),
             Lead.localidad.ilike(f"%{search}%")
         ))
+    # ── Filtros nuevos ────────────────────────────────────────────────────────
+    if localidad:
+        q = q.filter(Lead.localidad.ilike(f"%{localidad}%"))
+    if fecha_desde:
+        try:
+            from datetime import date as _date
+            q = q.filter(Lead.created_at >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if fecha_hasta:
+        try:
+            q = q.filter(Lead.created_at <= datetime.strptime(fecha_hasta, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59))
+        except ValueError:
+            pass
+    if dias_sin_actividad is not None and dias_sin_actividad > 0:
+        corte = datetime.now() - timedelta(days=dias_sin_actividad)
+        q = q.filter(or_(
+            and_(Lead.updated_at.isnot(None), Lead.updated_at <= corte),
+            and_(Lead.updated_at.is_(None), Lead.created_at <= corte),
+        ))
 
     total = q.count()
+
+    # Modo ids_only: devuelve solo los IDs (para "seleccionar todo" en frontend)
+    if ids_only == 1:
+        from sqlalchemy import asc
+        id_rows = q.with_entities(Lead.id).order_by(Lead.created_at.desc()).all()
+        return {"ids": [r[0] for r in id_rows], "total": total}
+
     # Sin socio asignado primero, luego por fecha descendente
     from sqlalchemy import case as sa_case
     sin_socio = sa_case(
@@ -641,6 +680,133 @@ def _notificar_asesor_lead_nuevo(db: Session, asesor: Usuario, lead: Lead):
         log.warning(f"[LEAD] Error notificando al asesor {asesor.nombre}: {e}")
 
 
+@router.get("/api/leads/distribucion-preview")
+async def distribucion_preview(
+    request: Request,
+    # mismos filtros que /api/leads para reutilizar en frontend
+    estado: Optional[str] = None,
+    producto: Optional[str] = None,
+    forma_pago: Optional[str] = None,
+    origen: Optional[str] = None,
+    rellamados: Optional[int] = None,
+    con_socio: Optional[str] = None,
+    localidad: Optional[str] = None,
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    dias_sin_actividad: Optional[int] = None,
+    asesor_ids: Optional[str] = None,  # "1,2,3" — a quiénes distribuir
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_roles("ADMIN"))
+):
+    """
+    Preview de distribución masiva.
+    Devuelve cuántos leads hay disponibles con los filtros dados,
+    y cómo quedarían distribuidos entre los asesores indicados.
+    """
+    # ── Construir la misma query que list_leads pero sin paginación ────────────
+    EXCLUIR_DISTRIBUCION = ["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"]
+
+    q = db.query(Lead).filter(Lead.estado.notin_(EXCLUIR_DISTRIBUCION))
+    # Excluir base RELLAMADOS y leads de socios (canal propio)
+    q = q.filter(or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False))
+    q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
+
+    if estado:
+        estados = [e.strip() for e in estado.split(",") if e.strip()]
+        if len(estados) == 1:
+            q = q.filter(Lead.estado == estados[0])
+        else:
+            q = q.filter(Lead.estado.in_(estados))
+    if producto:
+        q = q.filter(Lead.producto_interes == producto)
+    if forma_pago:
+        q = q.filter(Lead.forma_pago == forma_pago)
+    if origen:
+        q = q.filter(Lead.origen == origen)
+    if rellamados == 1:
+        q = q.filter(Lead.en_rellamados == True)
+    if con_socio == "si":
+        q = q.filter(Lead.aliado_codigo.isnot(None), Lead.aliado_codigo != "")
+    elif con_socio == "no":
+        q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
+    if localidad:
+        q = q.filter(Lead.localidad.ilike(f"%{localidad}%"))
+    if fecha_desde:
+        try:
+            q = q.filter(Lead.created_at >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if fecha_hasta:
+        try:
+            q = q.filter(Lead.created_at <= datetime.strptime(fecha_hasta, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59))
+        except ValueError:
+            pass
+    if dias_sin_actividad is not None and dias_sin_actividad > 0:
+        corte = datetime.now() - timedelta(days=dias_sin_actividad)
+        q = q.filter(or_(
+            and_(Lead.updated_at.isnot(None), Lead.updated_at <= corte),
+            and_(Lead.updated_at.is_(None), Lead.created_at <= corte),
+        ))
+
+    total_disponibles = q.count()
+
+    # ── Asesores destino ───────────────────────────────────────────────────────
+    if asesor_ids:
+        ids_lista = [int(x) for x in asesor_ids.split(",") if x.strip().isdigit()]
+    else:
+        ids_lista = []
+
+    asesores_data = []
+    if ids_lista:
+        asesores = db.query(Usuario).filter(Usuario.id.in_(ids_lista), Usuario.activo == True).all()
+        n = len(asesores)
+        base = total_disponibles // n if n else 0
+        resto = total_disponibles % n if n else 0
+        for i, u in enumerate(asesores):
+            leads_actuales = db.query(Lead).filter(
+                Lead.asesor_apertura_id == u.id,
+                Lead.estado.notin_(EXCLUIR_DISTRIBUCION),
+            ).count()
+            recibiria = base + (1 if i < resto else 0)
+            asesores_data.append({
+                "id": u.id,
+                "nombre": u.nombre,
+                "leads_actuales": leads_actuales,
+                "recibiria": recibiria,
+                "total_post": leads_actuales + recibiria,
+            })
+    else:
+        # Si no se pasaron asesores, devolver todos los del pool RR con su conteo actual
+        pool_ids = _get_rr_pool_ids(db)
+        asesores = db.query(Usuario).filter(Usuario.activo == True).order_by(Usuario.nombre).all()
+        for u in asesores:
+            try:
+                roles_u = json.loads(u.roles_json or "[]")
+            except Exception:
+                roles_u = []
+            if "ASESOR_APERTURA" not in roles_u and "SUPERVISOR_CIERRE" not in roles_u:
+                continue
+            en_pool = (pool_ids is None) or (u.id in pool_ids)
+            leads_actuales = db.query(Lead).filter(
+                Lead.asesor_apertura_id == u.id,
+                Lead.estado.notin_(EXCLUIR_DISTRIBUCION),
+            ).count()
+            asesores_data.append({
+                "id": u.id,
+                "nombre": u.nombre,
+                "leads_actuales": leads_actuales,
+                "en_rr": en_pool,
+                "recibiria": None,
+                "total_post": None,
+            })
+
+    return {
+        "total_disponibles": total_disponibles,
+        "asesores": asesores_data,
+    }
+
+
 @router.get("/api/leads/rr-config")
 async def get_rr_config(
     db: Session = Depends(get_db),
@@ -706,7 +872,7 @@ async def conteo_vendedor(
     """Cuenta cuántos leads tiene un vendedor (para preview antes de transferir)."""
     q = db.query(Lead).filter(Lead.asesor_apertura_id == asesor_id)
     if solo_activos:
-        q = q.filter(Lead.estado.notin_(["CERRADO", "PERDIDO"]))
+        q = q.filter(Lead.estado.notin_(["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"]))
     total = q.count()
     u = db.query(Usuario).filter(Usuario.id == asesor_id).first()
     return {"total": total, "nombre": u.nombre if u else "Desconocido"}
@@ -729,7 +895,7 @@ async def reasignar_vendedor(
 
     q = db.query(Lead).filter(Lead.asesor_apertura_id == int(desde_id))
     if solo_activos:
-        q = q.filter(Lead.estado.notin_(["CERRADO", "PERDIDO"]))
+        q = q.filter(Lead.estado.notin_(["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"]))
 
     ts = datetime.now().strftime("%d/%m %H:%M")
     hacia = db.query(Usuario).filter(Usuario.id == int(hacia_id)).first()
@@ -761,7 +927,7 @@ async def intercambiar_vendedores(
     def q_leads(uid):
         q = db.query(Lead).filter(Lead.asesor_apertura_id == int(uid))
         if solo_activos:
-            q = q.filter(Lead.estado.notin_(["CERRADO", "PERDIDO"]))
+            q = q.filter(Lead.estado.notin_(["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"]))
         return q.all()
 
     leads_a = q_leads(id_a)
@@ -792,33 +958,63 @@ async def reasignar_masivo(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_roles("ADMIN"))
 ):
-    """Reasigna un lote de leads. asesor_id=None → round-robin automático."""
+    """
+    Reasigna un lote de leads. asesor_id=None → round-robin automático.
+    estados_permitidos: lista opcional de estados a redistribuir
+                        (default: ["NUEVO","INTENTADO"]).
+    distribucion: dict opcional {asesor_id: cantidad} para distribución
+                  con cantidades específicas por asesor.
+    """
     data = await request.json()
     ids = data.get("ids", [])
-    asesor_id = data.get("asesor_id")  # None = round-robin
+    asesor_id = data.get("asesor_id")       # None = round-robin
+    distribucion = data.get("distribucion") # {asesor_id: cantidad} — opcional
+
+    # El caller puede ampliar los estados redistribuibles; por defecto solo NUEVO/INTENTADO
+    ESTADOS_DEFAULT = ["NUEVO", "INTENTADO"]
+    estados_permitidos = data.get("estados_permitidos") or ESTADOS_DEFAULT
 
     if not ids:
         raise HTTPException(400, "No hay leads seleccionados")
 
-    # Solo se reparten los NO contactados (NUEVO) y los contactados sin resultado (INTENTADO).
-    # Los que ya están en la base RELLAMADOS se reparten desde "DISTRIBUIR RELLAMADOS".
-    ESTADOS_REDISTRIBUIBLES = ["NUEVO", "INTENTADO"]
+    # Pre-validar los leads (una sola query para no hacer N+1)
+    leads_map = {
+        l.id: l for l in db.query(Lead).filter(Lead.id.in_(ids)).all()
+    }
 
+    # Construir cola de asignaciones si se pasó distribución por asesor
+    cola_asesores: list[int] = []
+    if distribucion:
+        for aid, cant in distribucion.items():
+            cola_asesores.extend([int(aid)] * int(cant))
+
+    ts = datetime.now().strftime("%d/%m %H:%M")
     reasignados = 0
     omitidos = 0
+    idx_cola = 0
+
     for lead_id in ids:
-        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        lead = leads_map.get(lead_id)
         if not lead:
             continue
-        # Solo redistribuir leads no contactados / sin resultado, fuera de la base RELLAMADOS
-        if lead.estado not in ESTADOS_REDISTRIBUIBLES or lead.en_rellamados:
+        if lead.estado not in estados_permitidos or lead.en_rellamados:
             omitidos += 1
             continue
-        nuevo_id = int(asesor_id) if asesor_id else asignar_asesor_round_robin(db)
+
+        if cola_asesores:
+            if idx_cola >= len(cola_asesores):
+                omitidos += 1
+                continue
+            nuevo_id = cola_asesores[idx_cola]
+            idx_cola += 1
+        elif asesor_id:
+            nuevo_id = int(asesor_id)
+        else:
+            nuevo_id = asignar_asesor_round_robin(db)
+
         if nuevo_id:
             lead.asesor_apertura_id = nuevo_id
-            ts = datetime.now().strftime("%d/%m %H:%M")
-            lead.notas = (lead.notas or "") + f"\n[{ts}] 👤 Reasignado manualmente por {current_user.nombre}"
+            lead.notas = (lead.notas or "") + f"\n[{ts}] Reasignado por {current_user.nombre}"
         reasignados += 1
 
     db.commit()

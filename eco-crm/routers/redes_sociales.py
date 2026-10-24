@@ -812,15 +812,21 @@ async def _eliminar_comentario(comment_id: str, token: str) -> Tuple[bool, str]:
             return True, ""
         err_text = r.text[:300]
         log.warning(f"DELETE comment {comment_id} falló {r.status_code}: {err_text}")
-        # Fallback: ocultar el comentario si no se puede borrar
+        # Fallback: ocultar el comentario (is_hidden en body, no query)
         async with httpx.AsyncClient(timeout=15) as hc:
             r2 = await hc.post(
                 f"{META_GRAPH_URL}/{comment_id}",
-                params={"access_token": token, "is_hidden": "true"},
+                params={"access_token": token},
+                json={"is_hidden": True},
             )
         if r2.status_code in (200, 201):
-            log.info(f"Comentario {comment_id} ocultado (delete falló)")
-            return True, ""
+            try:
+                if r2.json().get("success") or r2.json().get("id"):
+                    log.info(f"Comentario {comment_id} ocultado (delete falló)")
+                    return True, ""
+            except Exception:
+                if r2.status_code == 200:
+                    return True, ""
         log.error(f"Ocultar comment {comment_id} falló {r2.status_code}: {r2.text[:200]}")
         return False, err_text
     except Exception as e:

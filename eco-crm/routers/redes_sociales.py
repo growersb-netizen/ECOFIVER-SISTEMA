@@ -2114,8 +2114,8 @@ async def api_redes_admin_enviar_consultas(
     db: Session = Depends(get_db),
 ):
     """
-    Genera y envía respuestas a todos los mensajes pendientes que NO son reclamos.
-    Los reclamos se saltan y quedan en accion='pendiente'.
+    Genera y envía respuestas a todos los mensajes pendientes.
+    Reclamos/negativos reciben el template de postventa (no se saltan).
     Requiere ?t=<ML_AUDIT_TOKEN>.
     """
     expected = os.getenv("ML_AUDIT_TOKEN", "")
@@ -2147,11 +2147,6 @@ async def api_redes_admin_enviar_consultas(
     resultados = []
 
     for m in genuinos[:limit]:
-        if _es_reclamo(m.contenido):
-            saltados_reclamo += 1
-            resultados.append({"id": m.id, "status": "saltado_reclamo", "usuario": m.usuario_nombre})
-            continue
-
         pg = paginas.get(m.page_id)
         if not pg or not pg.page_token:
             errores += 1
@@ -2160,7 +2155,7 @@ async def api_redes_admin_enviar_consultas(
 
         pg_nombre = pg.nombre
         numero_wa = pg.numero_whatsapp or ""
-        respuesta = await _generar_respuesta_ia(m.contenido, pg_nombre, numero_wa, db)
+        respuesta = await _generar_respuesta_ia(m.contenido, pg_nombre, numero_wa, db, sentimiento=m.sentimiento or "")
         ok, meta_err = await _responder_mensaje(m.usuario_id, respuesta, pg.page_token)
 
         if ok:

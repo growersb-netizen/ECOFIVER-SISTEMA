@@ -904,7 +904,18 @@ async function loadLeads() {
   Object.entries(leadsFilter).forEach(([k, v]) => { if (v) params.set(k, v); });
   if (typeof isAdmin !== 'undefined' && isAdmin) params.set('limit', '5000');
 
-  const data = await API.get(`/api/leads?${params}`);
+  let data;
+  try {
+    data = await API.get(`/api/leads?${params}`);
+  } catch(e) {
+    const cont = document.getElementById('leads-cards');
+    if (cont) cont.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px;color:#e53935">
+      <div style="font-size:24px;margin-bottom:8px">⚠️</div>
+      <div>Error al cargar leads: ${e.message || 'Error del servidor'}</div>
+    </div>`;
+    if (typeof toast === 'function') toast(e.message || 'Error al cargar leads', 'error');
+    return;
+  }
   if (!data) return;
   leadsData = data.leads;
 

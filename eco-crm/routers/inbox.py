@@ -27,7 +27,6 @@ from pydantic import BaseModel
 from database.database import get_db
 from database.models import Lead, InboxMensaje, MetaPagina
 from routers.auth import require_auth, get_user_roles
-from utils.whatsapp import send_whatsapp_text
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -105,13 +104,54 @@ async def _get_vendor_line(db: Session, wa_phone_id: str | None) -> MetaPagina |
 
     return None
 
-# SSE: set de colas activas por sesión
-_sse_queues: list[asyncio.Queue] = []
+# ─── HELPERS DE ACCESO POR ROL ───────────────────────────────────────────────
+
+def _is_admin(user) -> bool:
+    return "ADMIN" in get_user_roles(user)
+
+
+def _lineas_permitidas(user, db: Session):
+    """Devuelve lista de MetaPagina accesibles para el usuario.
+    None = sin restricción (admin). Lista vacía = sin acceso.
+    """
+    if _is_admin(user):
+        return None
+    from sqlalchemy import or_
+    conditions = []
+    vendedor_slug = getattr(user, "vendedor_slug", None)
+    if vendedor_slug:
+        conditions.append(MetaPagina.vendedor_slug == vendedor_slug)
+    aliado_codigo = getattr(user, "aliado_codigo", None)
+    if aliado_codigo:
+        conditions.append(MetaPagina.aliado_codigo == aliado_codigo)
+    if not conditions:
+        return []
+    return db.query(MetaPagina).filter(
+        MetaPagina.activa == True,
+        or_(*conditions),
+    ).all()
+
+
+def _wa_ids_permitidos(user, db: Session):
+    """Devuelve set de wa_phone_id accesibles. None = sin restricción (admin)."""
+    lineas = _lineas_permitidas(user, db)
+    if lineas is None:
+        return None
+    return {p.wa_phone_id for p in lineas if p.wa_phone_id}
+
+
+# SSE: colas activas — tuple(queue, allowed_wa_ids | None)
+# None = admin sin restricción; set = wa_phone_ids permitidos para este cliente
+_sse_queues: list[tuple[asyncio.Queue, set | None]] = []
 
 
 def _push_sse(event: dict):
-    """Envía un evento SSE a todos los clientes conectados."""
-    for q in list(_sse_queues):
+    """Envía un evento SSE solo a los clientes autorizados para el wa_linea del evento."""
+    wa_linea_evento = (event.get("wa_linea") or "").strip()
+    for q, allowed in list(_sse_queues):
+        # Eventos sin wa_linea (modo_cambiado, agente_cambiado) llegan a todos
+        if allowed is not None and wa_linea_evento and wa_linea_evento not in allowed:
+            continue
         try:
             q.put_nowait(event)
         except asyncio.QueueFull:
@@ -148,11 +188,19 @@ async def inbox_badge(
 ):
     """Devuelve el número de conversaciones con al menos un mensaje IN no leído."""
     from sqlalchemy import func as sqlfunc
-    count = (
+    q = (
         db.query(sqlfunc.count(sqlfunc.distinct(InboxMensaje.phone)))
         .filter(InboxMensaje.direccion == "IN", InboxMensaje.leido == False)
-        .scalar()
-    ) or 0
+    )
+    if not _is_admin(current_user):
+        ids = _wa_ids_permitidos(current_user, db)
+        if ids is None:
+            pass  # admin path (shouldn't happen, guarded above)
+        elif not ids:
+            return {"sin_leer": 0}
+        else:
+            q = q.filter(InboxMensaje.wa_linea.in_(ids))
+    count = q.scalar() or 0
     return {"sin_leer": count}
 
 
@@ -165,22 +213,38 @@ async def listar_lineas(
 ):
     """Devuelve las líneas WA configuradas como bandejas.
 
-    Incluye líneas con wa_phone_id conocido Y líneas de vendedores pendientes
-    de auto-descubrimiento (wa_phone_id=NULL con vendedor_slug asignado).
+    Admin: todas las líneas.
+    Vendedor: solo las líneas donde MetaPagina.vendedor_slug o aliado_codigo coincide.
     """
     from sqlalchemy import or_
-    paginas = (
-        db.query(MetaPagina)
-        .filter(
-            MetaPagina.activa == True,
-            or_(
-                MetaPagina.wa_phone_id.isnot(None),
-                MetaPagina.vendedor_slug.isnot(None),
-            ),
-        )
-        .order_by(MetaPagina.nombre)
-        .all()
+
+    base_cond = or_(
+        MetaPagina.wa_phone_id.isnot(None),
+        MetaPagina.vendedor_slug.isnot(None),
     )
+
+    if _is_admin(current_user):
+        paginas = (
+            db.query(MetaPagina)
+            .filter(MetaPagina.activa == True, base_cond)
+            .order_by(MetaPagina.nombre)
+            .all()
+        )
+    else:
+        lineas_obj = _lineas_permitidas(current_user, db)
+        if not lineas_obj:
+            return []
+        page_ids = {p.page_id for p in lineas_obj}
+        paginas = (
+            db.query(MetaPagina)
+            .filter(
+                MetaPagina.activa == True,
+                base_cond,
+                MetaPagina.page_id.in_(page_ids),
+            )
+            .order_by(MetaPagina.nombre)
+            .all()
+        )
     # Deduplicar por wa_phone_id cuando está disponible
     seen: set = set()
     result = []
@@ -207,15 +271,25 @@ async def listar_conversaciones(
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
-    """Lista de conversaciones activas ordenadas por último mensaje."""
+    """Lista de conversaciones activas ordenadas por último mensaje.
+
+    Admin: ve todas las líneas; el parámetro 'linea' filtra dentro de eso.
+    Vendedor: solo ve sus líneas asignadas; el parámetro 'linea' no puede
+    ampliar el acceso más allá de lo permitido.
+    """
     from sqlalchemy import func as sqlfunc
 
-    # Resolver wa_phone_id de la línea pedida
+    # Determinar wa_phone_ids permitidos para este usuario
+    allowed_ids: set | None = _wa_ids_permitidos(current_user, db)
+
+    # Resolver wa_phone_id de la línea pedida (filtro adicional solicitado por el cliente)
     wa_phone_id_filter: str | None = None
     if linea:
         pag = db.query(MetaPagina).filter(MetaPagina.page_id == linea).first()
-        if pag:
-            wa_phone_id_filter = pag.wa_phone_id or None
+        if pag and pag.wa_phone_id:
+            # Verificar que el usuario tenga acceso a esa línea
+            if allowed_ids is None or pag.wa_phone_id in allowed_ids:
+                wa_phone_id_filter = pag.wa_phone_id
 
     # Subquery: último mensaje por phone
     sub_q = db.query(
@@ -224,6 +298,11 @@ async def listar_conversaciones(
     )
     if wa_phone_id_filter:
         sub_q = sub_q.filter(InboxMensaje.wa_linea == wa_phone_id_filter)
+    elif allowed_ids is not None:
+        # No hay filtro de línea específica pero el usuario no es admin → restringir
+        if not allowed_ids:
+            return []
+        sub_q = sub_q.filter(InboxMensaje.wa_linea.in_(allowed_ids))
 
     sub = sub_q.group_by(InboxMensaje.phone).subquery()
     rows = (
@@ -292,7 +371,24 @@ async def get_mensajes(
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
-    """Mensajes de una conversación. Marca todos como leídos."""
+    """Mensajes de una conversación. Marca todos como leídos.
+    Vendedores solo pueden acceder a conversaciones de sus líneas asignadas.
+    """
+    if not _is_admin(current_user):
+        allowed_ids = _wa_ids_permitidos(current_user, db)
+        if allowed_ids is not None:
+            # Verificar que este phone tiene al menos un mensaje en una línea permitida
+            tiene_acceso = (
+                db.query(InboxMensaje)
+                .filter(
+                    InboxMensaje.phone == phone,
+                    InboxMensaje.wa_linea.in_(allowed_ids) if allowed_ids else False,
+                )
+                .first()
+            )
+            if not tiene_acceso:
+                raise HTTPException(status_code=403, detail="Sin acceso a esta conversación")
+
     mensajes = (
         db.query(InboxMensaje)
         .filter(InboxMensaje.phone == phone)
@@ -410,35 +506,14 @@ async def responder_manualmente(
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
-    """Admin responde manualmente a un número via WhatsApp."""
-    ok = send_whatsapp_text(db, payload.phone, payload.texto)
-    if not ok:
-        raise HTTPException(500, "No se pudo enviar el mensaje por WhatsApp")
-
-    # Guardar en inbox
-    msg = InboxMensaje(
-        lead_id=payload.lead_id,
-        phone=payload.phone.replace("+", "").replace(" ", ""),
-        direccion="OUT",
-        contenido=payload.texto,
-        remitente=f"admin:{current_user.nombre}",
-        leido=True,
+    """Endpoint deshabilitado: el CRM es una bandeja de supervisión.
+    Los mensajes se envían desde WhatsApp Business en el celular del vendedor.
+    El endpoint se mantiene para no romper dependencias pero siempre devuelve 403.
+    """
+    raise HTTPException(
+        status_code=403,
+        detail="La bandeja del CRM es de supervisión. Respondé desde WhatsApp Business en tu celular.",
     )
-    db.add(msg)
-    db.commit()
-    db.refresh(msg)
-
-    evento = {
-        "type": "nuevo_mensaje",
-        "phone": payload.phone,
-        "id": msg.id,
-        "direccion": "OUT",
-        "contenido": payload.texto,
-        "remitente": f"admin:{current_user.nombre}",
-        "created_at": msg.created_at.isoformat() if msg.created_at else None,
-    }
-    _push_sse(evento)
-    return {"ok": True, "id": msg.id}
 
 
 # ─── API — ENTRANTE DESDE MULTIAGENTE ────────────────────────────────────────
@@ -513,7 +588,7 @@ async def recibir_entrante(
         remitente=payload.remitente or ("cliente" if payload.direccion == "IN" else "agente"),
         leido=(payload.direccion == "OUT"),  # los salientes ya están "leídos"
         wa_message_id=payload.wa_message_id,
-        wa_linea=(payload.wa_linea or "").replace("+", "").replace(" ", "") or None,
+        wa_linea=wa_linea_clean,
     )
     db.add(msg)
     db.commit()
@@ -528,6 +603,7 @@ async def recibir_entrante(
         "direccion": payload.direccion,
         "contenido": payload.contenido,
         "remitente": msg.remitente,
+        "wa_linea": wa_linea_clean or "",
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
     }
     _push_sse(evento)
@@ -537,10 +613,21 @@ async def recibir_entrante(
 # ─── SSE — TIEMPO REAL ───────────────────────────────────────────────────────
 
 @router.get("/api/inbox/stream")
-async def inbox_stream(request: Request, current_user=Depends(require_auth)):
-    """Server-Sent Events — el admin recibe actualizaciones en tiempo real."""
+async def inbox_stream(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_auth),
+):
+    """Server-Sent Events — actualizaciones en tiempo real.
+    Admin: recibe eventos de todas las líneas.
+    Vendedor: recibe solo eventos de sus líneas asignadas.
+    """
+    # Calcular allowed_ids una sola vez antes de entrar al generador
+    allowed_ids: set | None = _wa_ids_permitidos(current_user, db)
+
     queue: asyncio.Queue = asyncio.Queue(maxsize=50)
-    _sse_queues.append(queue)
+    entry = (queue, allowed_ids)
+    _sse_queues.append(entry)
 
     async def event_generator() -> AsyncGenerator[str, None]:
         try:
@@ -555,7 +642,7 @@ async def inbox_stream(request: Request, current_user=Depends(require_auth)):
                     yield ": heartbeat\n\n"
         finally:
             try:
-                _sse_queues.remove(queue)
+                _sse_queues.remove(entry)
             except ValueError:
                 pass
 

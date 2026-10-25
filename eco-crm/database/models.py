@@ -178,6 +178,7 @@ class Usuario(Base):
     es_agente_ia = Column(Boolean, default=False)   # True = cuenta de agente IA
     agente_key   = Column(String(100), nullable=True, unique=True)  # API key propia del agente
     aliado_codigo = Column(String(20), nullable=True, index=True)   # vinculado a un socio comercial
+    vendedor_slug = Column(String(50), nullable=True)               # vincula con MetaPagina.vendedor_slug para acceso bandeja WA
 
     leads_apertura = relationship("Lead", foreign_keys="Lead.asesor_apertura_id", back_populates="asesor_apertura")
     leads_cierre = relationship("Lead", foreign_keys="Lead.supervisor_cierre_id", back_populates="supervisor_cierre")

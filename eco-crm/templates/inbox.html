@@ -326,6 +326,13 @@
     transition: background .15s;
   }
   #btn-send:hover { background: #008069; }
+  #supervision-notice {
+    text-align: center;
+    color: var(--wa-preview);
+    font-size: 12px;
+    padding: 8px 16px;
+    border-top: 1px solid rgba(134,150,160,.15);
+  }
   #bot-mode-notice {
     text-align: center;
     color: var(--wa-preview);
@@ -461,16 +468,10 @@
       <!-- Mensajes -->
       <div id="chat-messages" style="display:none"></div>
 
-      <!-- Footer -->
+      <!-- Footer — bandeja de supervisión, sin envío desde el CRM -->
       <div id="chat-footer" style="display:none">
-        <div id="bot-mode-notice" style="display:none">
-          🤖 El bot está respondiendo automáticamente. Cambiá a modo <b>Humano</b> para responder vos.
-        </div>
-        <div id="reply-area" style="display:none">
-          <textarea id="reply-text" rows="1" placeholder="Escribí un mensaje..." onkeydown="handleKey(event)"></textarea>
-          <button id="btn-send" onclick="enviarMensaje()" title="Enviar (Enter)">
-            <i class="bi bi-send-fill"></i>
-          </button>
+        <div id="supervision-notice">
+          👁 Bandeja de supervisión · los mensajes se envían desde <b>WhatsApp Business</b> en el celular
         </div>
       </div>
 
@@ -652,42 +653,6 @@
       </div>`;
   }
 
-  // ── Enviar mensaje manual ─────────────────────────────────────────────────
-  async function enviarMensaje() {
-    const texto = document.getElementById('reply-text').value.trim();
-    if (!texto || !convActiva) return;
-
-    document.getElementById('reply-text').value = '';
-    document.getElementById('btn-send').disabled = true;
-
-    try {
-      const r = await fetch('/api/inbox/conversaciones/responder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: convActiva.phone,
-          texto,
-          lead_id: convActiva.lead_id
-        })
-      });
-      if (!r.ok) {
-        const err = await r.json();
-        alert('Error: ' + (err.detail || 'No se pudo enviar'));
-      }
-    } catch(e) {
-      alert('Error de red al enviar');
-    } finally {
-      document.getElementById('btn-send').disabled = false;
-    }
-  }
-
-  function handleKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      enviarMensaje();
-    }
-  }
-
   // ── Cambiar modo / agente ─────────────────────────────────────────────────
   async function cambiarModo() {
     if (!convActiva?.lead_id) return alert('Esta conversación no tiene lead asociado aún.');
@@ -711,16 +676,8 @@
     });
   }
 
-  function actualizarModoUI(modo) {
-    const notice = document.getElementById('bot-mode-notice');
-    const reply = document.getElementById('reply-area');
-    if (modo === 'humano') {
-      notice.style.display = 'none';
-      reply.style.display = 'flex';
-    } else {
-      notice.style.display = 'block';
-      reply.style.display = 'none';
-    }
+  function actualizarModoUI(_modo) {
+    // Bandeja de solo lectura — el área de respuesta no existe en esta versión
   }
 
   // ── SSE — tiempo real ─────────────────────────────────────────────────────

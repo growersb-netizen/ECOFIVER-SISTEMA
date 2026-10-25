@@ -661,10 +661,8 @@ td {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   background: var(--bg-card);
-  z-index: 1;
 }
 
 .modal-title {
@@ -679,6 +677,7 @@ td {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 /* ─── KANBAN ─────────────────────────────────────────────────────────────────── */

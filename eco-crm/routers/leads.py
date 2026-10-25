@@ -1058,8 +1058,8 @@ async def reasignar_masivo(
         if lead.venta_contado_id is not None or lead.venta_financiada_id is not None:
             omitidos += 1
             continue
-        # Protección permanente: AL-010 nunca puede redistribuirse
-        if (lead.aliado_codigo or "") == "AL-010":
+        # Leads marcados explícitamente como no redistribuibles
+        if lead.redistribucion_bloqueada:
             omitidos += 1
             continue
         # En modo distribuir: solo leads sin responsable

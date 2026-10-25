@@ -213,6 +213,7 @@ class Lead(Base):
     # ── Recirculación de rellamados ───────────────────────────────────────────
     veces_recirculado = Column(Integer, default=0)   # cuántas veces se recirculó un INTENTADO (máx 3)
     en_rellamados = Column(Boolean, default=False)   # True = ya agotó las 3 recirculaciones → base RELLAMADOS
+    redistribucion_bloqueada = Column(Boolean, default=False)  # True = excluido del módulo reasignar-masivo
     # ── Canal Aliados Comerciales ─────────────────────────────────────────────
     aliado_codigo = Column(String(20), nullable=True, index=True)   # NULL = lead directo (no de canal)
     dni_cliente = Column(String(20), nullable=True, index=True)     # DNI del cliente (anti-duplicados entre aliados)

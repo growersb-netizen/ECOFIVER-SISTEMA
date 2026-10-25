@@ -711,17 +711,23 @@ async def distribucion_preview(
     EXCLUIR_DISTRIBUCION = ["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO", "CERRADO", "PERDIDO"]
 
     q = db.query(Lead).filter(Lead.estado.notin_(EXCLUIR_DISTRIBUCION))
-    # Siempre excluir base RELLAMADOS y leads del canal aliados (tienen su propio flujo)
+    # Siempre excluir leads en rellamados
     q = q.filter(or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False))
-    q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
     # Siempre excluir leads vinculados a ventas activas (contado o financiada)
     q = q.filter(Lead.venta_contado_id.is_(None))
     q = q.filter(Lead.venta_financiada_id.is_(None))
 
     if modo == "distribuir":
-        # Solo leads sin responsable asignado
+        # Solo leads sin asesor ni aliado asignado
+        q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
         q = q.filter(Lead.asesor_apertura_id.is_(None))
-    # en modo reasignar se incluyen leads con responsable (no se filtra por asesor_apertura_id)
+    else:
+        # reasignar: solo leads que ya tienen asesor o aliado asignado, y no están bloqueados
+        q = q.filter(or_(
+            Lead.asesor_apertura_id.isnot(None),
+            and_(Lead.aliado_codigo.isnot(None), Lead.aliado_codigo != ""),
+        ))
+        q = q.filter(or_(Lead.redistribucion_bloqueada.is_(None), Lead.redistribucion_bloqueada == False))
 
     if estado:
         estados = [e.strip() for e in estado.split(",") if e.strip()]
@@ -1088,9 +1094,11 @@ async def reasignar_masivo(
         # ── Aplicar asignación ────────────────────────────────────────────────
         if tipo_dest == "asesor" and dest:
             lead.asesor_apertura_id = dest
+            lead.aliado_codigo = None  # limpiar aliado si venía de canal aliados
             lead.notas = (lead.notas or "") + f"\n[{ts}] Distribuido a asesor #{dest} por {current_user.nombre}"
         elif tipo_dest == "aliado":
             lead.aliado_codigo = dest
+            lead.asesor_apertura_id = None  # limpiar asesor al mover a aliado
             nombre_al = aliados_validos.get(dest, dest)
             lead.notas = (lead.notas or "") + f"\n[{ts}] Distribuido a aliado {nombre_al} ({dest}) por {current_user.nombre}"
         else:

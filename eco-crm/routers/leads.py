@@ -199,6 +199,7 @@ def lead_to_dict(lead: Lead, db: Session) -> dict:
         "utm_campaign": lead.utm_campaign or "",
         # ── Canal Aliados ────────────────────────────────────────────────────
         "aliado_codigo": lead.aliado_codigo or None,
+        "canal_ingreso": lead.canal_ingreso or None,
         "etiqueta_color": lead.etiqueta_color or None,
         "dni_cliente": lead.dni_cliente or "",
         "estado_verificacion": lead.estado_verificacion or "pendiente",
@@ -445,8 +446,9 @@ async def list_leads(
     asesor_apertura_id: Optional[int] = None,  # alias por compatibilidad
     origen: Optional[str] = None,
     rellamados: Optional[int] = None,  # 1 = solo base RELLAMADOS, 0 = excluir
-    con_socio: Optional[str] = None,   # "si" = con aliado_codigo, "no" = sin aliado_codigo
-    excluir_ia: Optional[int] = None,  # 1 = excluir leads de agentes IA
+    con_socio: Optional[str] = None,      # "si" = con aliado_codigo, "no" = sin aliado_codigo
+    canal_ingreso: Optional[str] = None,  # "directo" | "crm"
+    excluir_ia: Optional[int] = None,     # 1 = excluir leads de agentes IA
     search: Optional[str] = None,
     # ── Filtros nuevos ────────────────────────────────────────────────────────
     localidad: Optional[str] = None,           # ilike parcial sobre lead.localidad
@@ -494,6 +496,11 @@ async def list_leads(
         q = q.filter(Lead.aliado_codigo.isnot(None), Lead.aliado_codigo != "")
     elif con_socio == "no":
         q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
+    if canal_ingreso:
+        if canal_ingreso == "sin_dato":
+            q = q.filter(Lead.canal_ingreso.is_(None))
+        else:
+            q = q.filter(Lead.canal_ingreso == canal_ingreso)
     if excluir_ia == 1:
         q = q.filter(or_(
             Lead.agente_asignado.is_(None),
@@ -1095,10 +1102,12 @@ async def reasignar_masivo(
         if tipo_dest == "asesor" and dest:
             lead.asesor_apertura_id = dest
             lead.aliado_codigo = None  # limpiar aliado si venía de canal aliados
+            lead.canal_ingreso = "crm"
             lead.notas = (lead.notas or "") + f"\n[{ts}] Distribuido a asesor #{dest} por {current_user.nombre}"
         elif tipo_dest == "aliado":
             lead.aliado_codigo = dest
             lead.asesor_apertura_id = None  # limpiar asesor al mover a aliado
+            lead.canal_ingreso = "crm"
             nombre_al = aliados_validos.get(dest, dest)
             lead.notas = (lead.notas or "") + f"\n[{ts}] Distribuido a aliado {nombre_al} ({dest}) por {current_user.nombre}"
         else:
@@ -1363,6 +1372,8 @@ async def asignar_aliado(
         if not al.contrato_firmado:
             raise HTTPException(400, f"Socio '{codigo}' no tiene contrato firmado")
     lead.aliado_codigo = codigo
+    if codigo:
+        lead.canal_ingreso = "crm"  # asignado por admin desde el CRM
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     nota = f"[{ts}] 🤝 {'Asignado a socio ' + codigo if codigo else 'Desasignado de socio'} por {current_user.nombre}"
     lead.notas = (lead.notas or "") + f"\n{nota}"

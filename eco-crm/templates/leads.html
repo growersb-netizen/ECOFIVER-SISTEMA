@@ -119,10 +119,20 @@
 </div>
 
 <!-- Tabs -->
-<div class="l-tabs" style="margin-bottom:10px">
-  <button class="l-tab active" id="ltab-todos"       onclick="setLTab(this,'todos')">Todos</button>
-  <button class="l-tab"        id="ltab-sin-asignar" onclick="setLTab(this,'sin-asignar')">📋 Sin asignar</button>
-  <button class="l-tab"        id="ltab-asignados"   onclick="setLTab(this,'asignados')">✅ Asignados</button>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+  <div class="l-tabs" style="margin-bottom:0">
+    <button class="l-tab active" id="ltab-todos"       onclick="setLTab(this,'todos')">Todos</button>
+    <button class="l-tab"        id="ltab-sin-asignar" onclick="setLTab(this,'sin-asignar')">📋 Sin asignar</button>
+    <button class="l-tab"        id="ltab-asignados"   onclick="setLTab(this,'asignados')">✅ Asignados</button>
+  </div>
+  <select onchange="leadsFilter.canal_ingreso=this.value||undefined;loadLeads()"
+          style="font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid var(--border);
+                 background:var(--bg-card);color:var(--text-primary);cursor:pointer">
+    <option value="">📡 Todos los canales</option>
+    <option value="directo">📲 Ingreso directo (WA)</option>
+    <option value="crm">🏢 Asignado por CRM</option>
+    <option value="sin_dato">— Sin canal registrado</option>
+  </select>
 </div>
 
 <!-- Estado pills -->

@@ -177,6 +177,7 @@ def _procesar_mensaje_wa(
             asesor_apertura_id=asesor_id,
             notas=notas_extra,
             aliado_codigo=aliado_codigo_linea,  # asigna directamente al socio de la línea
+            canal_ingreso="directo",            # entró por WA personal del asesor/aliado
         )
         if meta_pagina_id:
             try:

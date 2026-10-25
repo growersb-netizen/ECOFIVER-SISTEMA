@@ -1129,6 +1129,11 @@ function renderLeadsCards() {
 
     const assignedBadge = l.aliado_codigo
       ? `<span class="lb" style="background:rgba(229,184,75,.18);color:#b8860b">${l.aliado_codigo}</span>` : '';
+    const canalBadge = l.canal_ingreso === 'directo'
+      ? `<span class="lb" style="background:rgba(16,185,129,.12);color:#047857;font-size:9px;font-weight:800;letter-spacing:.04em">📲 DIRECTO</span>`
+      : l.canal_ingreso === 'crm'
+      ? `<span class="lb" style="background:rgba(99,102,241,.1);color:#4338ca;font-size:9px;font-weight:800;letter-spacing:.04em">🏢 CRM</span>`
+      : '';
 
     const selectAsignar = adminMode ? `
       <select id="sel-asignar-${l.id}" class="lc-sel${l.aliado_codigo ? '' : ' unassigned'}"
@@ -1154,6 +1159,7 @@ function renderLeadsCards() {
         <span class="lb" style="color:${ec};background:${eb}">${el}</span>
         ${l.producto_interes && l.producto_interes !== 'SIN_DEFINIR' ? `<span class="lb" style="color:#0ea5e9;background:rgba(14,165,233,.1)">${l.producto_interes}</span>` : ''}
         ${assignedBadge}
+        ${canalBadge}
         ${badgeDias}
       </div>
       <div class="lc-bottom">

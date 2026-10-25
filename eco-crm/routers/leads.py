@@ -695,21 +695,32 @@ async def distribucion_preview(
     fecha_hasta: Optional[str] = None,
     dias_sin_actividad: Optional[int] = None,
     asesor_ids: Optional[str] = None,  # "1,2,3" — a quiénes distribuir
+    # ── Nuevo: modo de operación ─────────────────────────────────────────────
+    modo: Optional[str] = "distribuir",  # "distribuir" | "reasignar"
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_roles("ADMIN"))
 ):
     """
     Preview de distribución masiva.
-    Devuelve cuántos leads hay disponibles con los filtros dados,
-    y cómo quedarían distribuidos entre los asesores indicados.
+    modo=distribuir: solo leads sin responsable, sin venta activa (leads disponibles puros).
+    modo=reasignar: leads ya asignados que se quieren mover de responsable.
     """
-    # ── Construir la misma query que list_leads pero sin paginación ────────────
+    from database.models import Aliado as AliadoModel
+
     EXCLUIR_DISTRIBUCION = ["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"]
 
     q = db.query(Lead).filter(Lead.estado.notin_(EXCLUIR_DISTRIBUCION))
-    # Excluir base RELLAMADOS y leads de socios (canal propio)
+    # Siempre excluir base RELLAMADOS y leads del canal aliados (tienen su propio flujo)
     q = q.filter(or_(Lead.en_rellamados.is_(None), Lead.en_rellamados == False))
     q = q.filter(or_(Lead.aliado_codigo.is_(None), Lead.aliado_codigo == ""))
+    # Siempre excluir leads vinculados a ventas activas (contado o financiada)
+    q = q.filter(Lead.venta_contado_id.is_(None))
+    q = q.filter(Lead.venta_financiada_id.is_(None))
+
+    if modo == "distribuir":
+        # Solo leads sin responsable asignado
+        q = q.filter(Lead.asesor_apertura_id.is_(None))
+    # en modo reasignar se incluyen leads con responsable (no se filtra por asesor_apertura_id)
 
     if estado:
         estados = [e.strip() for e in estado.split(",") if e.strip()]
@@ -751,7 +762,7 @@ async def distribucion_preview(
 
     total_disponibles = q.count()
 
-    # ── Asesores destino ───────────────────────────────────────────────────────
+    # ── Asesores (vendedores internos) ────────────────────────────────────────
     if asesor_ids:
         ids_lista = [int(x) for x in asesor_ids.split(",") if x.strip().isdigit()]
     else:
@@ -772,12 +783,12 @@ async def distribucion_preview(
             asesores_data.append({
                 "id": u.id,
                 "nombre": u.nombre,
+                "tipo": "asesor",
                 "leads_actuales": leads_actuales,
                 "recibiria": recibiria,
                 "total_post": leads_actuales + recibiria,
             })
     else:
-        # Si no se pasaron asesores, devolver todos los del pool RR con su conteo actual
         pool_ids = _get_rr_pool_ids(db)
         asesores = db.query(Usuario).filter(Usuario.activo == True).order_by(Usuario.nombre).all()
         for u in asesores:
@@ -795,15 +806,39 @@ async def distribucion_preview(
             asesores_data.append({
                 "id": u.id,
                 "nombre": u.nombre,
+                "tipo": "asesor",
                 "leads_actuales": leads_actuales,
                 "en_rr": en_pool,
                 "recibiria": None,
                 "total_post": None,
             })
 
+    # ── Aliados habilitados como destinatarios ────────────────────────────────
+    aliados_data = []
+    aliados_activos = db.query(AliadoModel).filter(
+        AliadoModel.estado == "activo",
+        AliadoModel.contrato_firmado == True,
+    ).order_by(AliadoModel.nombre).all()
+    for al in aliados_activos:
+        leads_actuales = db.query(Lead).filter(
+            Lead.aliado_codigo == al.codigo,
+            Lead.estado.notin_(EXCLUIR_DISTRIBUCION),
+        ).count()
+        aliados_data.append({
+            "codigo": al.codigo,
+            "nombre": al.nombre,
+            "tipo": "aliado",
+            "leads_actuales": leads_actuales,
+            "en_rr": False,
+            "recibiria": None,
+            "total_post": None,
+        })
+
     return {
         "total_disponibles": total_disponibles,
         "asesores": asesores_data,
+        "aliados": aliados_data,
+        "modo": modo,
     }
 
 
@@ -959,34 +994,53 @@ async def reasignar_masivo(
     current_user: Usuario = Depends(require_roles("ADMIN"))
 ):
     """
-    Reasigna un lote de leads. asesor_id=None → round-robin automático.
-    estados_permitidos: lista opcional de estados a redistribuir
-                        (default: ["NUEVO","INTENTADO"]).
-    distribucion: dict opcional {asesor_id: cantidad} para distribución
-                  con cantidades específicas por asesor.
+    Distribuye o reasigna un lote de leads.
+    modo="distribuir" (default): solo leads sin responsable ni venta activa.
+    modo="reasignar": permite mover leads que ya tienen responsable.
+    distribucion: {asesor_id_str: cantidad} para vendedores internos.
+    distribucion_aliados: {aliado_codigo: cantidad} para aliados.
+    asesor_id=None → round-robin automático (solo para modo reasignar).
     """
+    from database.models import Aliado as AliadoModel
+
     data = await request.json()
     ids = data.get("ids", [])
-    asesor_id = data.get("asesor_id")       # None = round-robin
-    distribucion = data.get("distribucion") # {asesor_id: cantidad} — opcional
+    asesor_id = data.get("asesor_id")
+    distribucion = data.get("distribucion") or {}          # {asesor_id: cantidad}
+    distribucion_aliados = data.get("distribucion_aliados") or {}  # {aliado_codigo: cantidad}
+    modo = data.get("modo", "distribuir")
 
-    # El caller puede ampliar los estados redistribuibles; por defecto solo NUEVO/INTENTADO
     ESTADOS_DEFAULT = ["NUEVO", "INTENTADO"]
     estados_permitidos = data.get("estados_permitidos") or ESTADOS_DEFAULT
 
     if not ids:
         raise HTTPException(400, "No hay leads seleccionados")
 
-    # Pre-validar los leads (una sola query para no hacer N+1)
     leads_map = {
         l.id: l for l in db.query(Lead).filter(Lead.id.in_(ids)).all()
     }
 
-    # Construir cola de asignaciones si se pasó distribución por asesor
-    cola_asesores: list[int] = []
-    if distribucion:
-        for aid, cant in distribucion.items():
-            cola_asesores.extend([int(aid)] * int(cant))
+    # ── Validar aliados destino ────────────────────────────────────────────────
+    aliados_validos: dict[str, str] = {}  # codigo → nombre
+    if distribucion_aliados:
+        codigos = list(distribucion_aliados.keys())
+        aliados_db = db.query(AliadoModel).filter(
+            AliadoModel.codigo.in_(codigos),
+            AliadoModel.estado == "activo",
+            AliadoModel.contrato_firmado == True,
+        ).all()
+        aliados_validos = {al.codigo: al.nombre for al in aliados_db}
+        codigos_invalidos = [c for c in codigos if c not in aliados_validos]
+        if codigos_invalidos:
+            raise HTTPException(400, f"Aliados no habilitados: {', '.join(codigos_invalidos)}")
+
+    # ── Construir cola de asignaciones ───────────────────────────────────────
+    # Cada elemento: ("asesor", asesor_id) | ("aliado", aliado_codigo)
+    cola: list[tuple[str, any]] = []
+    for aid, cant in distribucion.items():
+        cola.extend([("asesor", int(aid))] * int(cant))
+    for codigo, cant in distribucion_aliados.items():
+        cola.extend([("aliado", codigo)] * int(cant))
 
     ts = datetime.now().strftime("%d/%m %H:%M")
     reasignados = 0
@@ -997,24 +1051,45 @@ async def reasignar_masivo(
         lead = leads_map.get(lead_id)
         if not lead:
             continue
+
+        # ── Validaciones de estado y operativa ───────────────────────────────
         if lead.estado not in estados_permitidos or lead.en_rellamados:
             omitidos += 1
             continue
-
-        if cola_asesores:
-            if idx_cola >= len(cola_asesores):
+        # Nunca tocar leads con venta activa (seguridad en backend)
+        if lead.venta_contado_id is not None or lead.venta_financiada_id is not None:
+            omitidos += 1
+            continue
+        # En modo distribuir: solo leads sin responsable
+        if modo == "distribuir":
+            if lead.asesor_apertura_id is not None or (lead.aliado_codigo or ""):
                 omitidos += 1
                 continue
-            nuevo_id = cola_asesores[idx_cola]
+
+        # ── Elegir destinatario ───────────────────────────────────────────────
+        if cola:
+            if idx_cola >= len(cola):
+                omitidos += 1
+                continue
+            tipo_dest, dest = cola[idx_cola]
             idx_cola += 1
         elif asesor_id:
-            nuevo_id = int(asesor_id)
+            tipo_dest, dest = "asesor", int(asesor_id)
         else:
-            nuevo_id = asignar_asesor_round_robin(db)
+            tipo_dest, dest = "asesor", asignar_asesor_round_robin(db)
 
-        if nuevo_id:
-            lead.asesor_apertura_id = nuevo_id
-            lead.notas = (lead.notas or "") + f"\n[{ts}] Reasignado por {current_user.nombre}"
+        # ── Aplicar asignación ────────────────────────────────────────────────
+        if tipo_dest == "asesor" and dest:
+            lead.asesor_apertura_id = dest
+            lead.notas = (lead.notas or "") + f"\n[{ts}] Distribuido a asesor #{dest} por {current_user.nombre}"
+        elif tipo_dest == "aliado":
+            lead.aliado_codigo = dest
+            nombre_al = aliados_validos.get(dest, dest)
+            lead.notas = (lead.notas or "") + f"\n[{ts}] Distribuido a aliado {nombre_al} ({dest}) por {current_user.nombre}"
+        else:
+            omitidos += 1
+            continue
+
         reasignados += 1
 
     db.commit()

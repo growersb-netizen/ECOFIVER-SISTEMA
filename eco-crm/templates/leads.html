@@ -455,15 +455,38 @@
 <div class="modal-overlay" id="modal-dist-masiva" style="display:none">
   <div class="modal" style="max-width:700px;width:100%">
     <div class="modal-header">
-      <span class="modal-title">📦 Distribución masiva de leads</span>
+      <span class="modal-title" id="dist-modal-title">📦 Distribución masiva de leads</span>
       <button class="btn btn-icon" onclick="closeModal('modal-dist-masiva')">✕</button>
+    </div>
+    <!-- Toggle Distribuir / Reasignar -->
+    <div style="padding:10px 16px 0;display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border);flex-shrink:0">
+        <button id="btn-op-dist" onclick="setOpMode('distribuir')"
+                style="padding:7px 14px;font-size:13px;font-weight:700;border:none;cursor:pointer;
+                       background:var(--primary);color:#fff">
+          📦 Distribuir
+        </button>
+        <button id="btn-op-reasig" onclick="setOpMode('reasignar')"
+                style="padding:7px 14px;font-size:13px;font-weight:700;border:none;cursor:pointer;
+                       background:var(--bg-secondary);color:var(--text-secondary)">
+          ↩ Reasignar
+        </button>
+      </div>
+      <span id="dist-op-hint" style="font-size:11px;color:var(--text-muted);line-height:1.3">
+        Solo leads sin responsable asignado
+      </span>
+    </div>
+    <!-- Aviso reasignar -->
+    <div id="dist-reasig-warning" style="display:none;margin:8px 16px 0;padding:8px 12px;
+         background:rgba(245,158,11,.12);border-radius:8px;font-size:12px;color:#92400e;font-weight:600">
+      ⚠️ Modo reasignación: los leads seleccionados ya tienen responsable. Esta operación reemplazará la asignación actual.
     </div>
     <div class="modal-body" style="padding:16px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
         <!-- Col 1: Qué leads -->
         <div>
           <div style="font-size:12px;font-weight:800;color:var(--text-muted);letter-spacing:.05em;margin-bottom:10px">
-            1 · QUÉ LEADS DISTRIBUIR
+            1 · QUÉ LEADS
           </div>
           <div style="margin-bottom:12px">
             <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px">ESTADOS</div>
@@ -517,9 +540,9 @@
         <!-- Col 2: A quiénes -->
         <div>
           <div style="font-size:12px;font-weight:800;color:var(--text-muted);letter-spacing:.05em;margin-bottom:10px">
-            2 · A QUIÉNES DISTRIBUIR
+            2 · DESTINATARIOS
           </div>
-          <!-- Mode toggle -->
+          <!-- Mode toggle equitativo/personalizado -->
           <div style="display:flex;gap:0;margin-bottom:12px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
             <button id="btn-mode-equit" onclick="setDistMode('equitativo')"
                     style="flex:1;padding:8px;font-size:13px;font-weight:700;border:none;cursor:pointer;
@@ -532,9 +555,9 @@
               🔢 Personalizado
             </button>
           </div>
-          <!-- Lista de asesores -->
+          <!-- Lista de vendedores y aliados -->
           <div id="dist-asesores-list"
-               style="display:flex;flex-direction:column;gap:5px;max-height:310px;overflow-y:auto">
+               style="display:flex;flex-direction:column;gap:5px;max-height:280px;overflow-y:auto">
             <div style="text-align:center;padding:20px;color:var(--text-muted)">Cargando…</div>
           </div>
         </div>
@@ -1013,16 +1036,31 @@ const DIST_ESTADOS_DEF = [
   {v:'NEGOCIANDO',      l:'Negociando',  c:'#dc2626'},
   {v:'FRIO',            l:'Frío',        c:'#9ca3af'},
 ];
+// Estados por defecto según modo de operación
+const DIST_ESTADOS_DEFAULT_DIST = ['NUEVO', 'INTENTADO'];
+const DIST_ESTADOS_DEFAULT_REASIG = ['CONTACTADO', 'EN_SEGUIMIENTO', 'CALIFICADO', 'COTIZADO', 'NEGOCIANDO'];
 
 let _distMode = 'equitativo';
-let _distAsesores = [];
-let _distSelAsesores = new Set();
+let _distOpMode = 'distribuir';    // "distribuir" | "reasignar"
+let _distAsesores = [];            // vendedores + aliados mezclados
+let _distSelAsesores = new Set();  // numeric id para asesores, "AL-XXX" string para aliados
 let _distPreviewTimer = null;
 let _distIdsPresel = null;
+
+function setOpMode(modo) {
+  _resetOpModeUI(modo);
+  // Actualizar estados checked según modo
+  const defaultEstados = modo === 'distribuir' ? DIST_ESTADOS_DEFAULT_DIST : DIST_ESTADOS_DEFAULT_REASIG;
+  document.querySelectorAll('[data-dist-estado]').forEach(chk => {
+    chk.checked = defaultEstados.includes(chk.value);
+  });
+  if (!_distIdsPresel) actualizarPreviewDist();
+}
 
 async function abrirDistribucionMasiva(idsPreseleccionados) {
   _distIdsPresel = idsPreseleccionados && idsPreseleccionados.length ? idsPreseleccionados : null;
   _distMode = 'equitativo';
+  _distOpMode = 'distribuir';
   _distSelAsesores = new Set();
 
   // Renderizar checkboxes de estado
@@ -1034,10 +1072,12 @@ async function abrirDistribucionMasiva(idsPreseleccionados) {
         <input type="checkbox" data-dist-estado="${e.v}" value="${e.v}"
                onchange="actualizarPreviewDist()"
                style="accent-color:${e.c}"
-               ${['NUEVO','INTENTADO'].includes(e.v) ? 'checked' : ''}>
+               ${DIST_ESTADOS_DEFAULT_DIST.includes(e.v) ? 'checked' : ''}>
         ${e.l}
       </label>`).join('');
   }
+  // Reset toggle de modo operación (sin disparar preview todavía)
+  _resetOpModeUI('distribuir');
 
   // Reset form
   const reset = {producto:'', localidad:'', 'dist-fecha-desde':'', 'dist-fecha-hasta':'', 'dist-dias':''};
@@ -1065,11 +1105,36 @@ async function abrirDistribucionMasiva(idsPreseleccionados) {
   if (!_distIdsPresel) actualizarPreviewDist();
 }
 
+// Actualiza solo la UI del toggle sin disparar preview (usado en apertura del modal)
+function _resetOpModeUI(modo) {
+  _distOpMode = modo;
+  const on  = 'padding:7px 14px;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--primary);color:#fff';
+  const off = 'padding:7px 14px;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--bg-secondary);color:var(--text-secondary)';
+  const dBtn = document.getElementById('btn-op-dist');
+  const rBtn = document.getElementById('btn-op-reasig');
+  if (dBtn) dBtn.style.cssText = modo === 'distribuir' ? on : off;
+  if (rBtn) rBtn.style.cssText = modo === 'reasignar'  ? on : off;
+  const warn = document.getElementById('dist-reasig-warning');
+  if (warn) warn.style.display = modo === 'reasignar' ? 'block' : 'none';
+  const hint = document.getElementById('dist-op-hint');
+  if (hint) hint.textContent = modo === 'distribuir'
+    ? 'Solo leads sin responsable asignado'
+    : 'Leads con responsable que se quieren reasignar';
+  const title = document.getElementById('dist-modal-title');
+  if (title) title.textContent = modo === 'distribuir' ? '📦 Distribución masiva de leads' : '↩ Reasignación masiva de leads';
+  const btn = document.getElementById('btn-ejecutar-dist');
+  if (btn) btn.textContent = modo === 'distribuir' ? '📦 Distribuir' : '↩ Reasignar';
+}
+
 async function _cargarAsesoresDist() {
   try {
-    const data = await API.get('/api/leads/distribucion-preview');
-    _distAsesores = data.asesores || [];
+    const data = await API.get(`/api/leads/distribucion-preview?modo=${_distOpMode}`);
+    // Combinar vendedores + aliados en una sola lista con campo tipo
+    const asesores = (data.asesores || []);
+    const aliados  = (data.aliados  || []).map(al => ({...al, id: al.codigo}));  // usa codigo como id en la UI
+    _distAsesores = [...asesores, ...aliados];
     _renderAsesoresDist();
+    // Pre-seleccionar los que están en el pool RR (solo vendedores internos)
     _distAsesores.forEach(a => { if (a.en_rr) _distSelAsesores.add(a.id); });
     if (!_distIdsPresel) actualizarPreviewDist();
   } catch(e) {
@@ -1081,20 +1146,33 @@ async function _cargarAsesoresDist() {
 function _renderAsesoresDist() {
   const lista = document.getElementById('dist-asesores-list');
   if (!_distAsesores.length) {
-    lista.innerHTML = '<div style="color:var(--text-muted);padding:12px">Sin vendedores activos</div>';
+    lista.innerHTML = '<div style="color:var(--text-muted);padding:12px">Sin vendedores ni aliados disponibles</div>';
     return;
   }
-  lista.innerHTML = _distAsesores.map(a => `
+  // Separar vendedores de aliados para renderizar con separador
+  const vendedores = _distAsesores.filter(a => a.tipo === 'asesor');
+  const aliados    = _distAsesores.filter(a => a.tipo === 'aliado');
+
+  function filaDestino(a) {
+    const esAliado = a.tipo === 'aliado';
+    const idStr = JSON.stringify(a.id);  // number o string, safe para onclick
+    const badgeAliado = esAliado
+      ? `<span style="font-size:9px;background:#065f4611;color:#065f46;border-radius:4px;
+                      padding:1px 5px;font-weight:700;flex-shrink:0">ALIADO</span>`
+      : '';
+    return `
     <div class="dist-asesor-row" data-id="${a.id}"
          style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
-                border:1px solid var(--border);background:var(--bg-secondary);transition:.1s">
+                border:1px solid ${esAliado ? '#065f4630' : 'var(--border)'};
+                background:${esAliado ? 'rgba(5,95,70,.05)' : 'var(--bg-secondary)'};transition:.1s">
       <input type="checkbox" class="dist-asesor-chk" data-id="${a.id}"
-             onchange="toggleAsesorDist(${a.id},this.checked)"
+             onchange="toggleAsesorDist(${idStr},this.checked)"
              style="width:15px;height:15px;accent-color:var(--primary);flex-shrink:0"
              ${a.en_rr ? 'checked' : ''}>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          ${a.nombre}
+        <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:5px;
+                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${a.nombre} ${badgeAliado}
         </div>
         <div style="font-size:11px;color:var(--text-muted)">Tiene: <strong>${a.leads_actuales}</strong></div>
       </div>
@@ -1109,12 +1187,23 @@ function _renderAsesoresDist() {
         <strong class="dist-recibiria-val" data-id="${a.id}"
                 style="color:var(--primary);font-size:14px">—</strong>
       </div>
-    </div>`).join('');
+    </div>`;
+  }
+
+  let html = vendedores.map(filaDestino).join('');
+  if (aliados.length) {
+    html += `<div style="font-size:10px;font-weight:800;color:var(--text-muted);
+                         letter-spacing:.06em;padding:6px 2px 2px">ALIADOS COMERCIALES</div>`;
+    html += aliados.map(filaDestino).join('');
+  }
+  lista.innerHTML = html;
 }
 
 function toggleAsesorDist(id, checked) {
-  if (checked) _distSelAsesores.add(id);
-  else _distSelAsesores.delete(id);
+  // id puede ser número (asesor) o string "AL-XXX" (aliado)
+  const key = typeof id === 'string' ? id : parseInt(id);
+  if (checked) _distSelAsesores.add(key);
+  else _distSelAsesores.delete(key);
   if (!_distIdsPresel) actualizarPreviewDist();
   else _actualizarBtnDist();
 }
@@ -1166,27 +1255,32 @@ async function _doPreviewDist() {
   if (_distIdsPresel) return;
   const estados = [...document.querySelectorAll('[data-dist-estado]:checked')].map(c => c.value);
   const params = new URLSearchParams();
+  params.set('modo', _distOpMode);
   if (estados.length) params.set('estado', estados.join(','));
   const prod = document.getElementById('dist-producto')?.value; if (prod) params.set('producto', prod);
   const loc  = document.getElementById('dist-localidad')?.value.trim(); if (loc) params.set('localidad', loc);
   const fd   = document.getElementById('dist-fecha-desde')?.value; if (fd) params.set('fecha_desde', fd);
   const fh   = document.getElementById('dist-fecha-hasta')?.value; if (fh) params.set('fecha_hasta', fh);
   const dias = document.getElementById('dist-dias')?.value; if (dias) params.set('dias_sin_actividad', dias);
-  const asesorIds = [..._distSelAsesores].join(',');
-  if (asesorIds) params.set('asesor_ids', asesorIds);
+  // Solo pasar IDs de asesores (no aliados) en asesor_ids
+  const asesorIdsNum = [..._distSelAsesores].filter(x => typeof x === 'number').join(',');
+  if (asesorIdsNum) params.set('asesor_ids', asesorIdsNum);
 
   document.getElementById('dist-count-badge').textContent = 'Calculando…';
   try {
     const data = await API.get(`/api/leads/distribucion-preview?${params}`);
-    document.getElementById('dist-count-badge').textContent = `${data.total_disponibles.toLocaleString()} leads disponibles`;
+    const label = _distOpMode === 'distribuir' ? 'leads disponibles' : 'leads con responsable';
+    document.getElementById('dist-count-badge').textContent = `${data.total_disponibles.toLocaleString()} ${label}`;
+    // Actualizar "recibirá" para todos los destinatarios (asesores + aliados)
     (data.asesores || []).forEach(a => {
       const val = document.querySelector(`.dist-recibiria-val[data-id="${a.id}"]`);
       if (val) val.textContent = a.recibiria !== null ? a.recibiria : '—';
     });
     const n = _distSelAsesores.size;
+    const dest = n === 1 ? 'destinatario' : 'destinatarios';
     document.getElementById('dist-footer-info').textContent =
       data.total_disponibles > 0 && n > 0
-        ? `${data.total_disponibles} leads → ${n} vendedor${n!==1?'es':''}`
+        ? `${data.total_disponibles} leads → ${n} ${dest}`
         : '';
     document.getElementById('btn-ejecutar-dist').disabled = data.total_disponibles === 0 || n === 0;
   } catch(e) {
@@ -1199,7 +1293,12 @@ async function ejecutarDistribucionMasiva() {
   btn.disabled = true;
   try {
     let ids;
-    let distribucion = {};
+    let distribucion_asesores = {};  // {asesor_id_num: cantidad}
+    let distribucion_aliados = {};   // {aliado_codigo_str: cantidad}
+
+    // Separar selección por tipo de destinatario
+    const selAsesoresNum = [..._distSelAsesores].filter(x => typeof x === 'number');
+    const selAliadosCod  = [..._distSelAsesores].filter(x => typeof x === 'string');
 
     if (_distIdsPresel) {
       ids = _distIdsPresel;
@@ -1218,41 +1317,61 @@ async function ejecutarDistribucionMasiva() {
       ids = idData.ids;
     }
 
+    const todosSeleccionados = [...selAsesoresNum, ...selAliadosCod];
+    if (!todosSeleccionados.length) { toast('Seleccioná al menos un destinatario', 'error'); btn.disabled=false; return; }
+
     if (_distMode === 'custom') {
       document.querySelectorAll('.dist-cantidad-custom').forEach(inp => {
-        const aId = parseInt(inp.dataset.id);
-        const v   = parseInt(inp.value || '0');
-        if (_distSelAsesores.has(aId) && v > 0) distribucion[aId] = v;
+        const rawId = inp.dataset.id;
+        const v = parseInt(inp.value || '0');
+        if (v <= 0) return;
+        const numId = parseInt(rawId);
+        if (!isNaN(numId) && _distSelAsesores.has(numId)) {
+          distribucion_asesores[numId] = v;
+        } else if (_distSelAsesores.has(rawId)) {
+          distribucion_aliados[rawId] = v;
+        }
       });
-      if (!Object.keys(distribucion).length) { toast('Asigná cantidades a al menos un asesor', 'error'); btn.disabled=false; return; }
+      if (!Object.keys(distribucion_asesores).length && !Object.keys(distribucion_aliados).length) {
+        toast('Asigná cantidades a al menos un destinatario', 'error'); btn.disabled=false; return;
+      }
     } else {
-      // Equitativo: calcular porciones iguales en el frontend
-      const sel = [..._distSelAsesores].sort();
+      // Equitativo: distribuir en orden (asesores primero, luego aliados)
+      const sel = [...selAsesoresNum.sort((a,b)=>a-b), ...selAliadosCod.sort()];
       const base = Math.floor(ids.length / sel.length);
       const extra = ids.length % sel.length;
-      sel.forEach((id, i) => { distribucion[id] = base + (i < extra ? 1 : 0); });
+      sel.forEach((dest, i) => {
+        const cant = base + (i < extra ? 1 : 0);
+        if (typeof dest === 'number') distribucion_asesores[dest] = cant;
+        else distribucion_aliados[dest] = cant;
+      });
     }
 
-    const total = Object.values(distribucion).reduce((a,b)=>a+b, 0);
-    const n = Object.keys(distribucion).length;
+    const totalDest = todosSeleccionados.length;
+    const accion = _distOpMode === 'distribuir' ? 'Distribuir' : 'Reasignar';
     const ok = await showConfirm(
-      `¿Distribuir hasta ${ids.length} leads entre ${n} vendedor${n!==1?'es':''}?`,
-      'Confirmar distribución', '#6366f1'
+      `¿${accion} hasta ${ids.length} leads entre ${totalDest} destinatario${totalDest!==1?'s':''}?`,
+      `Confirmar ${accion.toLowerCase()}`, '#6366f1'
     );
     if (!ok) { btn.disabled=false; return; }
 
     const estados_permitidos = _distIdsPresel
-      ? DIST_ESTADOS_DEF.map(e => e.v)  // todos los distribuibles cuando son preseleccionados
+      ? DIST_ESTADOS_DEF.map(e => e.v)
       : ([...document.querySelectorAll('[data-dist-estado]:checked')].map(c=>c.value) || null);
 
-    const res = await API.post('/api/leads/reasignar-masivo', {
+    const payload = {
       ids,
-      distribucion,
-      ...(estados_permitidos?.length ? {estados_permitidos} : {})
-    });
+      modo: _distOpMode,
+      ...(Object.keys(distribucion_asesores).length ? {distribucion: distribucion_asesores} : {}),
+      ...(Object.keys(distribucion_aliados).length  ? {distribucion_aliados}                : {}),
+      ...(estados_permitidos?.length ? {estados_permitidos} : {}),
+    };
+
+    const res = await API.post('/api/leads/reasignar-masivo', payload);
     closeModal('modal-dist-masiva');
     limpiarSelLeads();
-    toast(`✅ ${res.reasignados} leads distribuidos${res.omitidos?' · '+res.omitidos+' omitidos':''}`);
+    const verbo = _distOpMode === 'distribuir' ? 'distribuidos' : 'reasignados';
+    toast(`✅ ${res.reasignados} leads ${verbo}${res.omitidos?' · '+res.omitidos+' omitidos':''}`);
     loadLeads();
   } catch(e) {
     toast(e.message || 'Error al distribuir', 'error');

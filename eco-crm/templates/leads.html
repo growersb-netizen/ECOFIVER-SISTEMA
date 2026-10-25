@@ -1060,10 +1060,10 @@ function setOpMode(modo) {
 async function abrirDistribucionMasiva(idsPreseleccionados) {
   _distIdsPresel = idsPreseleccionados && idsPreseleccionados.length ? idsPreseleccionados : null;
   _distMode = 'equitativo';
-  _distOpMode = 'distribuir';
+  _distOpMode = 'reasignar';
   _distSelAsesores = new Set();
 
-  // Renderizar checkboxes de estado
+  // Renderizar checkboxes de estado (default: estados de reasignación)
   const checksEl = document.getElementById('dist-estado-checks');
   if (checksEl) {
     checksEl.innerHTML = DIST_ESTADOS_DEF.map(e => `
@@ -1072,12 +1072,12 @@ async function abrirDistribucionMasiva(idsPreseleccionados) {
         <input type="checkbox" data-dist-estado="${e.v}" value="${e.v}"
                onchange="actualizarPreviewDist()"
                style="accent-color:${e.c}"
-               ${DIST_ESTADOS_DEFAULT_DIST.includes(e.v) ? 'checked' : ''}>
+               ${DIST_ESTADOS_DEFAULT_REASIG.includes(e.v) ? 'checked' : ''}>
         ${e.l}
       </label>`).join('');
   }
   // Reset toggle de modo operación (sin disparar preview todavía)
-  _resetOpModeUI('distribuir');
+  _resetOpModeUI('reasignar');
 
   // Reset form
   const reset = {producto:'', localidad:'', 'dist-fecha-desde':'', 'dist-fecha-hasta':'', 'dist-dias':''};

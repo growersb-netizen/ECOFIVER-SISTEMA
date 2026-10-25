@@ -642,7 +642,9 @@ td {
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   animation: slideUp 0.2s ease;
 }
 
@@ -670,7 +672,7 @@ td {
   font-weight: 700;
 }
 
-.modal-body { padding: 20px; }
+.modal-body { padding: 20px; flex: 1; overflow-y: auto; min-height: 0; }
 .modal-footer {
   padding: 16px 20px;
   border-top: 1px solid var(--border);

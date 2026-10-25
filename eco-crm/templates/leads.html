@@ -1312,7 +1312,8 @@ async function ejecutarDistribucionMasiva() {
       const fh   = document.getElementById('dist-fecha-hasta')?.value; if (fh) params.set('fecha_hasta', fh);
       const dias = document.getElementById('dist-dias')?.value; if (dias) params.set('dias_sin_actividad', dias);
       params.set('ids_only', '1');
-      const idData = await API.get(`/api/leads?${params}`);
+      params.set('modo', _distOpMode);
+      const idData = await API.get(`/api/leads/distribucion-preview?${params}`);
       if (!idData?.ids?.length) { toast('Sin leads disponibles con esos filtros', 'info'); btn.disabled=false; return; }
       ids = idData.ids;
     }

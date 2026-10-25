@@ -697,6 +697,7 @@ async def distribucion_preview(
     asesor_ids: Optional[str] = None,  # "1,2,3" — a quiénes distribuir
     # ── Nuevo: modo de operación ─────────────────────────────────────────────
     modo: Optional[str] = "distribuir",  # "distribuir" | "reasignar"
+    ids_only: Optional[int] = None,      # 1 = devuelve solo {"ids":[...], "total": N}
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_roles("ADMIN"))
 ):
@@ -761,6 +762,10 @@ async def distribucion_preview(
         ))
 
     total_disponibles = q.count()
+
+    if ids_only == 1:
+        id_rows = q.with_entities(Lead.id).order_by(Lead.created_at.desc()).all()
+        return {"ids": [r[0] for r in id_rows], "total": total_disponibles}
 
     # ── Asesores (vendedores internos) ────────────────────────────────────────
     if asesor_ids:

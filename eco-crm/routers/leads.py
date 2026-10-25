@@ -817,7 +817,6 @@ async def distribucion_preview(
     aliados_data = []
     aliados_activos = db.query(AliadoModel).filter(
         AliadoModel.estado == "activo",
-        AliadoModel.contrato_firmado == True,
     ).order_by(AliadoModel.nombre).all()
     for al in aliados_activos:
         leads_actuales = db.query(Lead).filter(
@@ -1027,7 +1026,6 @@ async def reasignar_masivo(
         aliados_db = db.query(AliadoModel).filter(
             AliadoModel.codigo.in_(codigos),
             AliadoModel.estado == "activo",
-            AliadoModel.contrato_firmado == True,
         ).all()
         aliados_validos = {al.codigo: al.nombre for al in aliados_db}
         codigos_invalidos = [c for c in codigos if c not in aliados_validos]

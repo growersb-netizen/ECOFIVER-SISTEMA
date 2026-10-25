@@ -728,10 +728,14 @@ async function ejecutarAsignMasiva() {
   const codigo = document.getElementById('asign-masiva-sel').value;
   if (!codigo) { toast('Seleccioná a quién asignar', 'error'); return; }
   const ids = [...leadsSeleccionados];
+  const btn = document.querySelector('#modal-asign-masiva .modal-footer .btn-primary');
+  const cntEl = document.getElementById('asign-masiva-cnt');
+  if (btn) { btn.disabled = true; btn.textContent = 'Asignando…'; }
   let ok = 0, fail = 0;
   for (const id of ids) {
     try { await API.patch(`/api/leads/${id}/asignar-aliado`, { aliado_codigo: codigo }); ok++; }
     catch(e) { fail++; }
+    if (cntEl) cntEl.textContent = `${ok + fail}/${ids.length}`;
   }
   closeModal('modal-asign-masiva');
   toast(`✅ ${ok} lead${ok!==1?'s':''} asignados a ${codigo}${fail?' · '+fail+' errores':''}`);

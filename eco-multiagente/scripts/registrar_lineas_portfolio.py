@@ -46,7 +46,7 @@ ok = 0
 for phone_id, numero, nombre, aliado, vendedor in LINEAS:
     payload = json.dumps({
         "nombre": nombre,
-        "numero": numero,
+        "numero_whatsapp": numero,   # clave correcta según admin_crear_linea_wa
         "wa_phone_id": phone_id,
         "aliado_codigo": aliado or "",
         "vendedor_slug": vendedor or "",

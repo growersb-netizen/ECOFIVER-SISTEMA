@@ -20,6 +20,7 @@ from typing import AsyncGenerator
 import httpx
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
+from sqlalchemy.exc import IntegrityError
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -277,7 +278,7 @@ async def listar_conversaciones(
     Vendedor: solo ve sus líneas asignadas; el parámetro 'linea' no puede
     ampliar el acceso más allá de lo permitido.
     """
-    from sqlalchemy import func as sqlfunc
+    from sqlalchemy import func as sqlfunc, or_, and_
 
     # Determinar wa_phone_ids permitidos para este usuario
     allowed_ids: set | None = _wa_ids_permitidos(current_user, db)
@@ -291,9 +292,10 @@ async def listar_conversaciones(
             if allowed_ids is None or pag.wa_phone_id in allowed_ids:
                 wa_phone_id_filter = pag.wa_phone_id
 
-    # Subquery: último mensaje por phone
+    # Subquery: último mensaje por (phone, wa_linea) — separa conversaciones multi-línea
     sub_q = db.query(
         InboxMensaje.phone,
+        InboxMensaje.wa_linea,
         sqlfunc.max(InboxMensaje.created_at).label("ultimo_at"),
     )
     if wa_phone_id_filter:
@@ -304,11 +306,19 @@ async def listar_conversaciones(
             return []
         sub_q = sub_q.filter(InboxMensaje.wa_linea.in_(allowed_ids))
 
-    sub = sub_q.group_by(InboxMensaje.phone).subquery()
+    sub = sub_q.group_by(InboxMensaje.phone, InboxMensaje.wa_linea).subquery()
+
+    # Join NULL-safe: InboxMensaje.wa_linea puede ser NULL para mensajes históricos
     rows = (
         db.query(InboxMensaje, sub.c.ultimo_at)
-        .join(sub, InboxMensaje.phone == sub.c.phone)
-        .filter(InboxMensaje.created_at == sub.c.ultimo_at)
+        .join(sub, and_(
+            InboxMensaje.phone == sub.c.phone,
+            InboxMensaje.created_at == sub.c.ultimo_at,
+            or_(
+                and_(InboxMensaje.wa_linea.is_(None), sub.c.wa_linea.is_(None)),
+                InboxMensaje.wa_linea == sub.c.wa_linea,
+            ),
+        ))
         .order_by(sub.c.ultimo_at.desc())
         .limit(100)
         .all()
@@ -316,15 +326,17 @@ async def listar_conversaciones(
 
     result = []
     for msg, ultimo_at in rows:
-        no_leidos = (
-            db.query(InboxMensaje)
-            .filter(
-                InboxMensaje.phone == msg.phone,
-                InboxMensaje.direccion == "IN",
-                InboxMensaje.leido == False,
-            )
-            .count()
+        # no_leidos: contar solo los de la misma línea (aislamiento por wa_linea)
+        no_leidos_q = db.query(InboxMensaje).filter(
+            InboxMensaje.phone == msg.phone,
+            InboxMensaje.direccion == "IN",
+            InboxMensaje.leido == False,
         )
+        if msg.wa_linea:
+            no_leidos_q = no_leidos_q.filter(InboxMensaje.wa_linea == msg.wa_linea)
+        else:
+            no_leidos_q = no_leidos_q.filter(InboxMensaje.wa_linea.is_(None))
+        no_leidos = no_leidos_q.count()
 
         # Default según la línea: vendedor → humano, agentes IA → bot
         linea_db = (
@@ -368,41 +380,64 @@ async def listar_conversaciones(
 @router.get("/api/inbox/conversaciones/{phone}/mensajes")
 async def get_mensajes(
     phone: str,
+    wa_linea: str = "",   # filtrar por línea específica (phone_number_id)
     db: Session = Depends(get_db),
     current_user=Depends(require_auth),
 ):
-    """Mensajes de una conversación. Marca todos como leídos.
-    Vendedores solo pueden acceder a conversaciones de sus líneas asignadas.
+    """Mensajes de una conversación, aislados por wa_linea cuando corresponde.
+    Admin: puede pasar wa_linea para filtrar; sin él ve todos.
+    Vendedores: solo ven mensajes de sus líneas asignadas.
     """
-    if not _is_admin(current_user):
-        allowed_ids = _wa_ids_permitidos(current_user, db)
-        if allowed_ids is not None:
-            # Verificar que este phone tiene al menos un mensaje en una línea permitida
-            tiene_acceso = (
-                db.query(InboxMensaje)
-                .filter(
-                    InboxMensaje.phone == phone,
-                    InboxMensaje.wa_linea.in_(allowed_ids) if allowed_ids else False,
-                )
-                .first()
+    allowed_ids: set | None = _wa_ids_permitidos(current_user, db)
+
+    # Determinar filtro efectivo de wa_linea
+    wa_linea_filter: str | None = None
+    if wa_linea:
+        # Verificar que el usuario tenga acceso a esa línea
+        if allowed_ids is None or wa_linea in allowed_ids:
+            wa_linea_filter = wa_linea
+        else:
+            raise HTTPException(status_code=403, detail="Sin acceso a esa línea")
+    elif allowed_ids is not None:
+        # Vendedor sin filtro explícito → verificar acceso y filtrar a sus líneas
+        if not allowed_ids:
+            raise HTTPException(status_code=403, detail="Sin acceso a esta conversación")
+        tiene_acceso = (
+            db.query(InboxMensaje)
+            .filter(
+                InboxMensaje.phone == phone,
+                InboxMensaje.wa_linea.in_(allowed_ids),
             )
-            if not tiene_acceso:
-                raise HTTPException(status_code=403, detail="Sin acceso a esta conversación")
+            .first()
+        )
+        if not tiene_acceso:
+            raise HTTPException(status_code=403, detail="Sin acceso a esta conversación")
+        # Para vendedores, limitar vista a sus propias líneas (evita mezcla multi-línea)
+        # Si solo tienen acceso a una línea, filtrar por ella directamente
+        if len(allowed_ids) == 1:
+            wa_linea_filter = next(iter(allowed_ids))
+        # else: tienen varias líneas → mostrar mensajes de todas sus líneas permitidas
 
-    mensajes = (
-        db.query(InboxMensaje)
-        .filter(InboxMensaje.phone == phone)
-        .order_by(InboxMensaje.created_at.asc())
-        .limit(200)
-        .all()
-    )
+    # Query de mensajes con aislamiento
+    q = db.query(InboxMensaje).filter(InboxMensaje.phone == phone)
+    if wa_linea_filter:
+        q = q.filter(InboxMensaje.wa_linea == wa_linea_filter)
+    elif allowed_ids is not None and len(allowed_ids) > 1:
+        q = q.filter(InboxMensaje.wa_linea.in_(allowed_ids))
 
-    # Marcar como leídos
-    db.query(InboxMensaje).filter(
+    mensajes = q.order_by(InboxMensaje.created_at.asc()).limit(200).all()
+
+    # Marcar como leídos (solo los de la vista actual)
+    upd_q = db.query(InboxMensaje).filter(
         InboxMensaje.phone == phone,
         InboxMensaje.direccion == "IN",
         InboxMensaje.leido == False,
-    ).update({"leido": True})
+    )
+    if wa_linea_filter:
+        upd_q = upd_q.filter(InboxMensaje.wa_linea == wa_linea_filter)
+    elif allowed_ids is not None:
+        upd_q = upd_q.filter(InboxMensaje.wa_linea.in_(allowed_ids))
+    upd_q.update({"leido": True})
     db.commit()
 
     # Info del lead
@@ -540,6 +575,14 @@ async def recibir_entrante(
     """
     _check_api_key(request)
 
+    # Deduplicación idempotente por wa_message_id (Meta puede reintentar el webhook)
+    if payload.wa_message_id:
+        existente_msg = db.query(InboxMensaje).filter(
+            InboxMensaje.wa_message_id == payload.wa_message_id
+        ).first()
+        if existente_msg:
+            return {"ok": True, "id": existente_msg.id, "duplicado": True}
+
     phone = payload.phone.replace("+", "").replace(" ", "").replace("-", "")
     wa_linea_clean = (payload.wa_linea or "").replace("+", "").replace(" ", "") or None
 
@@ -591,8 +634,18 @@ async def recibir_entrante(
         wa_linea=wa_linea_clean,
     )
     db.add(msg)
-    db.commit()
-    db.refresh(msg)
+    try:
+        db.commit()
+        db.refresh(msg)
+    except IntegrityError:
+        # Carrera entre dos webhooks concurrentes con el mismo wa_message_id
+        db.rollback()
+        existente_msg = db.query(InboxMensaje).filter(
+            InboxMensaje.wa_message_id == payload.wa_message_id
+        ).first()
+        if existente_msg:
+            return {"ok": True, "id": existente_msg.id, "duplicado": True}
+        raise
 
     evento = {
         "type": "nuevo_mensaje",

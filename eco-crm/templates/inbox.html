@@ -481,7 +481,7 @@
 
 <script>
   let conversaciones = [];
-  let convActiva = null;  // { phone, lead_id, nombre }
+  let convActiva = null;  // { phone, lead_id, nombre, wa_linea }
   let evtSource = null;
   let lineaActiva = '';   // page_id de MetaPagina seleccionada, '' = todas
 
@@ -531,9 +531,9 @@
       return;
     }
     container.innerHTML = items.map(c => `
-      <div class="conv-item ${convActiva?.phone === c.phone ? 'active' : ''}"
-           onclick="abrirConversacion('${c.phone}', '${c.nombre.replace(/'/g,"\\'")}', ${c.lead_id || 'null'})"
-           data-nombre="${c.nombre.toLowerCase()}" data-phone="${c.phone}">
+      <div class="conv-item ${convActiva?.phone === c.phone && convActiva?.wa_linea === (c.wa_linea||'') ? 'active' : ''}"
+           onclick="abrirConversacion('${c.phone}', '${c.nombre.replace(/'/g,"\\'")}', ${c.lead_id || 'null'}, '${(c.wa_linea||'').replace(/'/g,"\\'")}')"
+           data-nombre="${c.nombre.toLowerCase()}" data-phone="${c.phone}" data-wa-linea="${c.wa_linea||''}">
         <div class="conv-avatar ${c.modo}">${c.nombre.charAt(0).toUpperCase()}</div>
         <div class="conv-body">
           <div class="conv-name">${escHtml(c.nombre)}</div>
@@ -558,8 +558,8 @@
   }
 
   // ── Abrir conversación ────────────────────────────────────────────────────
-  async function abrirConversacion(phone, nombre, leadId) {
-    convActiva = { phone, nombre, lead_id: leadId };
+  async function abrirConversacion(phone, nombre, leadId, waLinea = '') {
+    convActiva = { phone, nombre, lead_id: leadId, wa_linea: waLinea };
 
     // Actualizar UI lista
     document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
@@ -613,7 +613,9 @@
   });
 
   async function cargarMensajes(phone) {
-    const r = await fetch(`/api/inbox/conversaciones/${phone}/mensajes`);
+    const waLinea = convActiva?.wa_linea || '';
+    const qs = waLinea ? `?wa_linea=${encodeURIComponent(waLinea)}` : '';
+    const r = await fetch(`/api/inbox/conversaciones/${phone}/mensajes${qs}`);
     const data = await r.json();
 
     // Config del lead
@@ -699,8 +701,9 @@
       if (evt.type === 'connected') return;
 
       if (evt.type === 'nuevo_mensaje') {
-        // Si el mensaje es de la conversación activa, agregarlo al chat
-        if (convActiva && evt.phone === convActiva.phone) {
+        // Agregar solo si coincide phone Y línea (evita mezcla multi-línea en tiempo real)
+        const mismaLinea = !convActiva?.wa_linea || !evt.wa_linea || convActiva.wa_linea === evt.wa_linea;
+        if (convActiva && evt.phone === convActiva.phone && mismaLinea) {
           const container = document.getElementById('chat-messages');
           const div = document.createElement('div');
           div.innerHTML = renderMensaje(evt);

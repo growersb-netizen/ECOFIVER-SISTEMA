@@ -27,6 +27,19 @@ WA_PHONE_ID_MELANIE = os.getenv("WA_PHONE_ID_MELANIE", "")   # 1126036495
 # ── Número admin de Rodrigo — canal privado con Máximo ───────────────────────
 ADMIN_WA_PHONES: set[str] = {"5491135164644"}
 
+# ── Líneas supervisor: registran en CRM sin activar bot ──────────────────────
+# WA_SUPERVISOR_PHONE_IDS = "1383774158147416,otro_id" (coma-separados)
+_supervisor_ids_raw = os.getenv("WA_SUPERVISOR_PHONE_IDS", "")
+WA_SUPERVISOR_PHONE_IDS: set[str] = {s.strip() for s in _supervisor_ids_raw.split(",") if s.strip()}
+
+# WA_SUPERVISOR_DISPLAY_MAP = "1383774158147416:rodrigo,otro:nombre" (para echoes)
+_supervisor_display_raw = os.getenv("WA_SUPERVISOR_DISPLAY_MAP", "")
+_SUPERVISOR_DISPLAY_MAP: dict[str, str] = {}
+for _smb_entry in _supervisor_display_raw.split(","):
+    if ":" in _smb_entry:
+        _smb_k, _smb_v = _smb_entry.split(":", 1)
+        _SUPERVISOR_DISPLAY_MAP[_smb_k.strip()] = _smb_v.strip()
+
 # ── CRM Inbox integration ─────────────────────────────────────────────────────
 CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
 CRM_API_KEY  = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
@@ -93,6 +106,63 @@ async def _crm_push_mensaje(phone: str, direccion: str, contenido: str,
                          json=payload, headers=_CRM_HEADERS)
     except Exception as e:
         logger.warning(f"[WA] No se pudo notificar al CRM inbox: {e}")
+
+async def _procesar_echo_smb(change_value: dict) -> None:
+    """
+    Procesa mensajes enviados desde WA Business App (Coexistence smb_message_echoes).
+    Los registra como OUT en CRM. Nunca activa bot ni responde.
+    """
+    try:
+        messages        = change_value.get("messages", [])
+        contacts        = change_value.get("contacts", [])
+        metadata        = change_value.get("metadata", {})
+        phone_number_id = metadata.get("phone_number_id", "")
+
+        if not messages:
+            return
+
+        message        = messages[0]
+        # Destinatario: Meta lo pone en contacts[0].wa_id o en messages[0]["to"]
+        recipient_phone = (
+            (contacts or [{}])[0].get("wa_id", "")
+            or message.get("to", "")
+        )
+        wa_msg_id      = message.get("id")
+        msg_type       = message.get("type", "text")
+
+        if msg_type == "text":
+            contenido = message.get("text", {}).get("body", "")
+        elif msg_type == "image":
+            cap = message.get("image", {}).get("caption", "")
+            contenido = f"[IMAGEN] {cap}" if cap else "[IMAGEN]"
+        elif msg_type == "audio":
+            contenido = "[AUDIO]"
+        elif msg_type == "document":
+            fname = message.get("document", {}).get("filename", "")
+            contenido = f"[DOCUMENTO] {fname}" if fname else "[DOCUMENTO]"
+        elif msg_type == "video":
+            contenido = "[VIDEO]"
+        else:
+            contenido = f"[{msg_type.upper()}]"
+
+        if not recipient_phone or not contenido:
+            logger.warning(f"[WA/echo] Echo incompleto — phone={recipient_phone} contenido={contenido!r}")
+            return
+
+        remitente = _SUPERVISOR_DISPLAY_MAP.get(phone_number_id, phone_number_id)
+
+        await _crm_push_mensaje(
+            phone=recipient_phone,
+            direccion="OUT",
+            contenido=contenido,
+            remitente=remitente,
+            wa_message_id=wa_msg_id,
+            wa_linea=phone_number_id,
+        )
+        logger.info(f"[WA/echo] OUT registrado: {recipient_phone} ← {remitente}: {contenido[:80]}")
+    except Exception as exc:
+        logger.error(f"[WA/echo] Error procesando smb_message_echoes: {exc}")
+
 
 def _get_wa_token() -> str:
     # META_PAGE_ACCESS_TOKEN = System User (never-expiry, todas las WABAs del portfolio)
@@ -180,6 +250,21 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
     # Determinar qué número de negocio recibió el mensaje (para responder desde el mismo)
     incoming_phone_id = batch[0].get("phone_number_id", "") if batch else ""
     nombre_contacto   = batch[0].get("nombre_contacto", "") if batch else ""
+
+    # ── Líneas supervisor: solo registrar en CRM, nunca activar bot ──────────
+    if incoming_phone_id and incoming_phone_id in WA_SUPERVISOR_PHONE_IDS:
+        await _crm_push_mensaje(
+            phone=phone_number,
+            direccion="IN",
+            contenido=texto,
+            remitente="cliente",
+            nombre=nombre_contacto,
+            wa_message_id=wa_msg_id,
+            wa_linea=incoming_phone_id,
+        )
+        logger.info(f"[WA] Línea supervisor {incoming_phone_id} — IN registrado sin bot para {phone_number}")
+        return
+
     if WA_PHONE_ID_MELANIE and incoming_phone_id == WA_PHONE_ID_MELANIE:
         send_phone_id = WA_PHONE_ID_MELANIE
         canal_base    = "whatsapp_melanie"
@@ -269,24 +354,34 @@ async def receive_message(request: Request, background: BackgroundTasks):
     except Exception:
         raise HTTPException(status_code=400, detail="JSON inválido")
 
-    # Meta envuelve todo en entry[0].changes[0].value
+    # Meta envuelve todo en entry[0].changes[0]
     try:
-        entry   = body["entry"][0]
-        change  = entry["changes"][0]["value"]
+        entry      = body["entry"][0]
+        raw_change = entry["changes"][0]
+        field      = raw_change.get("field", "messages")
+        change     = raw_change["value"]
+    except (KeyError, IndexError):
+        logger.info(f"[WA] WEBHOOK malformado: {str(body)[:200]}")
+        return {"status": "ignored"}
+
+    # smb_message_echoes — copia de mensajes enviados desde WA Business App (Coexistence)
+    if field == "smb_message_echoes":
+        background.add_task(_procesar_echo_smb, change)
+        return {"status": "accepted"}
+
+    try:
         message = change["messages"][0]
     except (KeyError, IndexError):
-        # Puede ser un status update u otro evento — logear para diagnóstico
+        # Status updates u otros eventos sin mensajes
         try:
-            change_val = body.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {})
-            statuses   = change_val.get("statuses", [])
-            field      = body.get("entry", [{}])[0].get("changes", [{}])[0].get("field", "?")
+            statuses = change.get("statuses", [])
             if statuses:
                 st = statuses[0]
-                logger.info(f"[WA] STATUS UPDATE recibido: status={st.get('status')} id={st.get('id')} phone={st.get('recipient_id')} errors={st.get('errors')}")
+                logger.info(f"[WA] STATUS UPDATE: status={st.get('status')} id={st.get('id')} phone={st.get('recipient_id')} errors={st.get('errors')}")
             else:
-                logger.info(f"[WA] WEBHOOK recibido (no-mensaje): field={field} body_keys={list(change_val.keys())}")
+                logger.info(f"[WA] WEBHOOK no-mensaje: field={field} keys={list(change.keys())}")
         except Exception:
-            logger.info(f"[WA] WEBHOOK recibido (formato desconocido): {str(body)[:200]}")
+            logger.info(f"[WA] WEBHOOK formato desconocido: {str(body)[:200]}")
         return {"status": "ignored"}
 
     phone_number    = message["from"]

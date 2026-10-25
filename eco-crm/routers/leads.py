@@ -707,7 +707,7 @@ async def distribucion_preview(
     """
     from database.models import Aliado as AliadoModel
 
-    EXCLUIR_DISTRIBUCION = ["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"]
+    EXCLUIR_DISTRIBUCION = ["CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO", "CERRADO", "PERDIDO"]
 
     q = db.query(Lead).filter(Lead.estado.notin_(EXCLUIR_DISTRIBUCION))
     # Siempre excluir base RELLAMADOS y leads del canal aliados (tienen su propio flujo)
@@ -1056,6 +1056,10 @@ async def reasignar_masivo(
             continue
         # Nunca tocar leads con venta activa (seguridad en backend)
         if lead.venta_contado_id is not None or lead.venta_financiada_id is not None:
+            omitidos += 1
+            continue
+        # Protección permanente: AL-010 nunca puede redistribuirse
+        if (lead.aliado_codigo or "") == "AL-010":
             omitidos += 1
             continue
         # En modo distribuir: solo leads sin responsable

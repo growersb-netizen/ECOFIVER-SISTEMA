@@ -4,7 +4,7 @@ import logging as _logging
 _log = _logging.getLogger(__name__)
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -576,7 +576,7 @@ async def get_metricas_avanzadas(
     if "ADMIN" not in roles and "SUPERVISOR_CIERRE" not in roles:
         raise HTTPException(403, "Sin permisos")
 
-    hoy = datetime.now()
+    hoy = datetime.now(timezone.utc)
     inicio_mes = hoy.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     hace_30 = hoy - timedelta(days=30)
 
@@ -639,11 +639,15 @@ async def get_metricas_avanzadas(
 
     from routers.ventas_financiadas import calcular_proximo_vencimiento
     flujo_30d = {}
+    hoy_n = hoy.replace(tzinfo=None)
+    fin_30_n = fin_30.replace(tzinfo=None)
     for v in ventas_activas:
         prox = calcular_proximo_vencimiento(v)
-        if prox and hoy <= prox <= fin_30:
-            dia = prox.strftime("%Y-%m-%d")
-            flujo_30d[dia] = flujo_30d.get(dia, 0) + (v.valor_cuota or 0)
+        if prox:
+            prox_n = prox.replace(tzinfo=None) if prox.tzinfo is not None else prox
+            if hoy_n <= prox_n <= fin_30_n:
+                dia = prox_n.strftime("%Y-%m-%d")
+                flujo_30d[dia] = flujo_30d.get(dia, 0) + (v.valor_cuota or 0)
 
     flujo_lista = [{"fecha": k, "monto": round(v)} for k, v in sorted(flujo_30d.items())]
     total_flujo_30d = sum(f["monto"] for f in flujo_lista)

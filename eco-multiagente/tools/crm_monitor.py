@@ -75,10 +75,10 @@ async def _crm_health_loop() -> None:
             continue
         try:
             async with httpx.AsyncClient(timeout=8) as c:
+                # GET /api/stock usa _require_api_key (Bearer) y es liviano
                 r = await c.get(
-                    f"{base_url}/api/leads/agent",
+                    f"{base_url}/api/stock",
                     headers={"Authorization": f"Bearer {api_key}"},
-                    params={"limit": 1},
                 )
             if r.status_code in (200, 404):
                 _stats["health_ok"]      = True

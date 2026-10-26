@@ -343,10 +343,10 @@ async def web_chat(body: WebChatRequest):
     )
 
 
-# ── Health check ────────────────────────────────────────────────────────────
-@app.get("/health")
-async def health_check():
-    """Estado operativo del sistema. No expone credenciales ni datos privados."""
+# ── Health check detallado (monitoreo CRM) ──────────────────────────────────
+@app.get("/health/crm")
+async def health_crm():
+    """Estado de conectividad CRM. No expone credenciales ni datos privados."""
     import time
     from tools.crm_monitor import get_stats
     stats = get_stats()

@@ -349,6 +349,9 @@ async def verify_webhook(request: Request):
 
 @router.post("/webhook/whatsapp")
 async def receive_message(request: Request, background: BackgroundTasks):
+    from tools.crm_monitor import record_wa_event
+    record_wa_event()
+
     try:
         body = await request.json()
     except Exception:

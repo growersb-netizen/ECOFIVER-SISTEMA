@@ -14,6 +14,12 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+from tools.crm_monitor import record_ok, record_fail as _record_fail
+
+def _record_fail_ex(fn: str, exc: Exception) -> None:
+    status = exc.response.status_code if hasattr(exc, "response") and exc.response is not None else 0
+    _record_fail(fn, status, str(exc))
+
 CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
 CRM_API_KEY = os.getenv("CRM_API_KEY", "")
 
@@ -40,9 +46,11 @@ async def get_lead(session_id: str) -> dict:
                 headers=HEADERS,
             )
             r.raise_for_status()
+            record_ok("get_lead")
             return r.json()
     except Exception as e:
         logger.warning(f"[CRM] get_lead({session_id}) falló: {e}")
+        _record_fail_ex("get_lead", e)
         return {}
 
 
@@ -56,9 +64,11 @@ async def create_lead(data: dict) -> dict:
                 json=data,
             )
             r.raise_for_status()
+            record_ok("create_lead")
             return r.json()
     except Exception as e:
         logger.warning(f"[CRM] create_lead falló: {e}")
+        _record_fail_ex("create_lead", e)
         return {"session_id": data.get("session_id", "unknown"), "agente_asignado": "valentina", "error": str(e)}
 
 
@@ -72,9 +82,11 @@ async def update_lead(session_id: str, data: dict) -> bool:
                 json=data,
             )
             r.raise_for_status()
+            record_ok("update_lead")
             return True
     except Exception as e:
         logger.warning(f"[CRM] update_lead({session_id}) falló: {e}")
+        _record_fail_ex("update_lead", e)
         return False
 
 
@@ -125,9 +137,11 @@ async def save_message(
                 },
             )
             r.raise_for_status()
+            record_ok("save_message")
             return True
     except Exception as e:
         logger.warning(f"[CRM] save_message({lead_id}) falló: {e}")
+        _record_fail_ex("save_message", e)
         return False
 
 

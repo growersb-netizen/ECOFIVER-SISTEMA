@@ -211,30 +211,65 @@ def _bootstrap_config():
         logger.warning(f"[Config] No se pudo crear .env en {_ENV_PATH.parent}: {e}")
 
 
+# ── Validación de credenciales críticas al iniciar ─────────────────────────
+def _validar_credenciales():
+    """
+    Verifica las variables de entorno críticas sin las cuales el sistema
+    no puede funcionar. Las variables opcionales solo emiten advertencias.
+    """
+    _REQUIRED = {
+        "CRM_API_KEY": "Las llamadas al CRM fallarán con 401",
+    }
+    _OPTIONAL = {
+        "WA_PHONE_ID_AGENTES":  "El routing de WhatsApp no funcionará",
+        "META_PAGE_ACCESS_TOKEN": "Los canales de Facebook/Instagram no funcionarán",
+    }
+    critical = False
+    for key, motivo in _REQUIRED.items():
+        if not os.getenv(key, ""):
+            logger.error(f"[CONFIG] Variable requerida ausente: {key} — {motivo}")
+            critical = True
+        else:
+            logger.info(f"[CONFIG] {key} ok (len={len(os.getenv(key))})")
+    for key, motivo in _OPTIONAL.items():
+        if not os.getenv(key, ""):
+            logger.warning(f"[CONFIG] Variable opcional ausente: {key} — {motivo}")
+    if critical:
+        logger.error("[CONFIG] Credenciales criticas faltantes — revisar Railway env vars")
+
+
 # ── Lifespan (startup / shutdown) ──────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🚀 Iniciando EcoFiver IA — Sistema Multiagente")
+    logger.info("Iniciando EcoFiver IA — Sistema Multiagente")
 
     # Bootstrap config persistente (primera vez en Fly.io)
     _bootstrap_config()
+
+    # Validar credenciales criticas (emite errores visibles en Railway logs)
+    _validar_credenciales()
 
     # Auto-configurar canales Meta (Page ID + IG User ID) desde token existente
     await _autoconfigurar_meta()
 
     # Iniciar scheduler de tareas programadas
     start_scheduler()
-    logger.info("⏰ Scheduler iniciado")
+    logger.info("Scheduler iniciado")
 
     # Iniciar bot de Telegram en background
     asyncio.create_task(start_telegram())
-    logger.info("📱 Bot Telegram iniciado en background")
+    logger.info("Bot Telegram iniciado en background")
+
+    # Iniciar health loop del CRM (ping cada 15 min)
+    from tools.crm_monitor import start_health_loop
+    start_health_loop()
+    logger.info("CRM health loop iniciado")
 
     # Iniciar polling de email en background (si hay credenciales configuradas)
     try:
         from channels.email_channel import iniciar_polling_email
         asyncio.create_task(iniciar_polling_email())
-        logger.info("📧 Polling de email iniciado en background")
+        logger.info("Polling de email iniciado en background")
     except Exception as e:
         logger.warning(f"Canal email no iniciado: {e}")
 
@@ -306,6 +341,26 @@ async def web_chat(body: WebChatRequest):
         reply=result["reply"],
         agent=result["agent"],
     )
+
+
+# ── Health check ────────────────────────────────────────────────────────────
+@app.get("/health")
+async def health_check():
+    """Estado operativo del sistema. No expone credenciales ni datos privados."""
+    import time
+    from tools.crm_monitor import get_stats
+    stats = get_stats()
+    return {
+        "status":    stats["status"],
+        "calls_ok":  stats["calls_ok"],
+        "calls_fail": stats["calls_fail"],
+        "last_fail_fn": stats["last_fail"]["fn"] if stats["last_fail"] else None,
+        "last_fail_status": stats["last_fail"]["status"] if stats["last_fail"] else None,
+        "crm_health_ok":  stats["health_ok"],
+        "last_ok_secs_ago": stats["last_ok_secs_ago"],
+        "last_wa_event_secs_ago": stats["last_wa_event_secs_ago"],
+        "ts": time.time(),
+    }
 
 
 # ── Lead generation endpoints ────────────────────────────────────────────

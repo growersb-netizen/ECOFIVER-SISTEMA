@@ -303,13 +303,10 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
             return
 
         result = await route_message(canal, phone_number, texto, tipo_final)
-        await enviar_mensaje_wa(phone_number, result["reply"], phone_id=send_phone_id)
-        await _crm_push_mensaje(
-            phone=phone_number,
-            direccion="OUT",
-            contenido=result["reply"],
+        await enviar_mensaje_wa(
+            phone_number, result["reply"],
+            phone_id=send_phone_id,
             remitente=result.get("agent", "agente"),
-            wa_linea=send_phone_id,
         )
 
     except Exception as e:
@@ -471,13 +468,8 @@ async def _process_message(phone_number: str, msg_type: str, message: dict):
             }
 
         # ── Enviar respuesta al cliente ──────────────────────────────────────
-        await send_whatsapp_message(phone_number, result["reply"])
-
-        # ── Notificar respuesta saliente al CRM ──────────────────────────────
-        await _crm_push_mensaje(
-            phone=phone_number,
-            direccion="OUT",
-            contenido=result["reply"],
+        await send_whatsapp_message(
+            phone_number, result["reply"],
             remitente=result.get("agent", "agente"),
         )
 
@@ -528,10 +520,15 @@ async def _transcribir_audio(audio_id: str) -> str:
 # ENVÍO DE MENSAJES SALIENTES
 # ─────────────────────────────────────────────
 
-async def enviar_mensaje_wa(phone_number: str, text: str, phone_id: str | None = None) -> bool:
+async def enviar_mensaje_wa(
+    phone_number: str,
+    text: str,
+    phone_id: str | None = None,
+    remitente: str = "agente",
+) -> bool:
     """
     Envía un mensaje via Meta Graph API usando un phone_id específico.
-    Usado por Franco (canal aliados) que tiene un número distinto al principal.
+    Registra automáticamente el mensaje saliente en el inbox del CRM.
     Si phone_id es None, usa WA_PHONE_ID del entorno.
     """
     wa_token = _get_wa_token()
@@ -555,20 +552,39 @@ async def enviar_mensaje_wa(phone_number: str, text: str, phone_id: str | None =
             if r.status_code != 200:
                 logger.error(f"[WA] enviar_mensaje_wa HTTP {r.status_code} → {phone_number}")
                 return False
+            wamid = None
+            try:
+                wamid = r.json().get("messages", [{}])[0].get("id")
+            except Exception:
+                pass
             logger.info(f"[WA] enviar_mensaje_wa → {phone_number} (phone_id={wa_pid[:8]}…)")
+            await _crm_push_mensaje(
+                phone=phone_number,
+                direccion="OUT",
+                contenido=text,
+                remitente=remitente,
+                wa_message_id=wamid,
+                wa_linea=wa_pid,
+            )
             return True
     except Exception as e:
         logger.error(f"[WA] enviar_mensaje_wa error: {e}")
         return False
 
 
-async def send_whatsapp_message(phone_number: str, text: str) -> bool:
+async def send_whatsapp_message(
+    phone_number: str,
+    text: str,
+    remitente: str = "agente",
+) -> bool:
     """
     Envía un mensaje de texto via Meta Graph API.
+    Registra automáticamente el mensaje saliente en el inbox del CRM.
 
     Args:
         phone_number: número en formato internacional (ej: 5491112345678)
         text: texto del mensaje (máx 4096 chars)
+        remitente: nombre del agente que envía (para el inbox CRM)
 
     Returns:
         True si se envió correctamente
@@ -608,7 +624,20 @@ async def send_whatsapp_message(phone_number: str, text: str) -> bool:
                     f"Respuesta Meta: {err_body}"
                 )
                 return False
+            wamid = None
+            try:
+                wamid = r.json().get("messages", [{}])[0].get("id")
+            except Exception:
+                pass
             logger.info(f"[WA] Mensaje enviado a {phone_number}")
+            await _crm_push_mensaje(
+                phone=phone_number,
+                direccion="OUT",
+                contenido=text,
+                remitente=remitente,
+                wa_message_id=wamid,
+                wa_linea=wa_phone_id,
+            )
             return True
     except Exception as e:
         logger.error(f"[WA] Error enviando mensaje a {phone_number}: {e}")

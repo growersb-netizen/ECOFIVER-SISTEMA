@@ -2,8 +2,12 @@
 Endpoints para organizadores — gestión del equipo, leads, ventas y videollamadas.
 Solo accesibles por socios con es_organizador = True.
 """
+import logging
+import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+log = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_
@@ -240,15 +244,20 @@ async def org_videollamadas(
     db: Session = Depends(get_db),
 ):
     _require_org(socio)
-    codigos = _codigos_equipo(socio, db)
-    vls = (
-        db.query(Videollamada)
-        .filter(Videollamada.aliado_codigo.in_(codigos))
-        .order_by(Videollamada.fecha_hora.asc())
-        .limit(200)
-        .all()
-    )
-    return {"total": len(vls), "videollamadas": [_vl_dict(v) for v in vls]}
+    try:
+        codigos = _codigos_equipo(socio, db)
+        codigos_validos = [c for c in codigos if c]  # elimina None
+        vls = (
+            db.query(Videollamada)
+            .filter(Videollamada.aliado_codigo.in_(codigos_validos))
+            .order_by(Videollamada.fecha_hora.asc())
+            .limit(200)
+            .all()
+        )
+        return {"total": len(vls), "videollamadas": [_vl_dict(v) for v in vls]}
+    except Exception as exc:
+        log.error("[org_videollamadas] %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(500, detail=f"Error al cargar VL: {exc}")
 
 
 @router.put("/api/organizador/videollamadas/{vl_id}/resultado")

@@ -215,6 +215,25 @@ async def org_crear_venta_contado(
 
 # ── Videollamadas ──────────────────────────────────────────────────────────────
 
+def _vl_dict(v: Videollamada) -> dict:
+    return {
+        "id": v.id,
+        "cliente_nombre": v.cliente_nombre or "",
+        "cliente_telefono": v.cliente_telefono or "",
+        "producto_interes": v.producto_interes or "",
+        "forma_pago": v.forma_pago or "",
+        "modelo_especifico": v.modelo_especifico or "",
+        "cantidad_cuotas": v.cantidad_cuotas,
+        "aliado_codigo": v.aliado_codigo or "",
+        "fecha_hora": v.fecha_hora.isoformat() if v.fecha_hora else None,
+        "estado": v.estado or "AGENDADA",
+        "resultado": v.resultado or "PENDIENTE",
+        "notas": v.notas or "",
+        "devolucion": v.devolucion or "",
+        "created_at": v.created_at.isoformat() if v.created_at else "",
+    }
+
+
 @router.get("/api/organizador/videollamadas")
 async def org_videollamadas(
     socio: Aliado = Depends(require_socio),
@@ -225,18 +244,59 @@ async def org_videollamadas(
     vls = (
         db.query(Videollamada)
         .filter(Videollamada.aliado_codigo.in_(codigos))
-        .order_by(Videollamada.created_at.desc())
+        .order_by(Videollamada.fecha_hora.asc())
         .limit(200)
         .all()
     )
-    return {"total": len(vls), "videollamadas": [
-        {
-            "id": v.id, "lead_nombre": v.lead_nombre or "", "aliado_codigo": v.aliado_codigo or "",
-            "fecha_hora": v.fecha_hora.isoformat() if v.fecha_hora else None,
-            "estado": v.estado or "",
-        }
-        for v in vls
-    ]}
+    return {"total": len(vls), "videollamadas": [_vl_dict(v) for v in vls]}
+
+
+@router.put("/api/organizador/videollamadas/{vl_id}/resultado")
+async def org_vl_resultado(
+    vl_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """El organizador registra estado y resultado de una VL de su equipo."""
+    _require_org(socio)
+    vl = db.query(Videollamada).filter(Videollamada.id == vl_id).first()
+    if not vl:
+        raise HTTPException(404, "Videollamada no encontrada")
+    codigos = _codigos_equipo(socio, db)
+    if vl.aliado_codigo not in codigos:
+        raise HTTPException(403, "No pertenece a tu organización")
+    data = await request.json()
+    if "estado" in data:
+        vl.estado = data["estado"]
+    if "resultado" in data:
+        vl.resultado = data["resultado"]
+    if data.get("notas"):
+        ts = datetime.now().strftime("%d/%m %H:%M")
+        vl.notas = (vl.notas or "") + f"\n[{ts}] {data['notas']}"
+    db.commit()
+    return {"ok": True}
+
+
+@router.put("/api/organizador/videollamadas/{vl_id}/devolucion")
+async def org_vl_devolucion(
+    vl_id: int,
+    request: Request,
+    socio: Aliado = Depends(require_socio),
+    db: Session = Depends(get_db),
+):
+    """El organizador registra la devolución de la VL para que el asesor la vea en su panel."""
+    _require_org(socio)
+    vl = db.query(Videollamada).filter(Videollamada.id == vl_id).first()
+    if not vl:
+        raise HTTPException(404, "Videollamada no encontrada")
+    codigos = _codigos_equipo(socio, db)
+    if vl.aliado_codigo not in codigos:
+        raise HTTPException(403, "No pertenece a tu organización")
+    data = await request.json()
+    vl.devolucion = (data.get("devolucion") or "").strip()
+    db.commit()
+    return {"ok": True}
 
 
 @router.delete("/api/organizador/videollamadas/{vl_id}")

@@ -4567,29 +4567,110 @@ async function orgGuardarVenta(){
   } catch(e){ showToast('Error al guardar',true); }
 }
 
+const VL_ESTADO_COLOR = {AGENDADA:'#f59e0b',REALIZADA:'#10b981',NO_SE_PRESENTO:'#ef4444',REPROGRAMAR:'#6366f1'};
+const VL_RESULT_COLOR = {PENDIENTE:'#9ca3af',AVANZO:'#3b82f6',NO_CALIFICO:'#f59e0b',CERRO:'#10b981'};
+
 async function orgCargarVL(){
   const cont = document.getElementById('org-vl-contenido');
   cont.innerHTML = '<p style="color:var(--text-muted)">Cargando…</p>';
   try {
     const data = await api('/api/organizador/videollamadas');
     const vls = data.videollamadas || [];
-    if(!vls.length){ cont.innerHTML='<p style="color:var(--text-muted)">Sin videollamadas registradas.</p>'; return; }
+    if(!vls.length){ cont.innerHTML='<p style="color:var(--text-muted)">Sin videollamadas registradas aún.</p>'; return; }
     cont.innerHTML = vls.map(v => {
       const socioLabel = _orgSocios.find(s=>s.codigo===v.aliado_codigo)?.nombre || v.aliado_codigo || '—';
       const fecha = v.fecha_hora ? new Date(v.fecha_hora).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'}) : '—';
-      return `<div class="venta-card" style="margin-bottom:10px">
+      const ec = VL_ESTADO_COLOR[v.estado] || '#9ca3af';
+      const rc = VL_RESULT_COLOR[v.resultado] || '#9ca3af';
+      const producto = [v.producto_interes, v.modelo_especifico, v.cantidad_cuotas ? v.cantidad_cuotas+' cuotas' : ''].filter(Boolean).join(' · ');
+      const devBadge = v.devolucion
+        ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(16,185,129,.08);border-radius:6px;font-size:12px;border-left:3px solid #10b981">
+             <strong style="color:#065f46">Devolución:</strong> ${v.devolucion}
+           </div>`
+        : '';
+      return `<div class="venta-card" style="margin-bottom:12px" id="org-vl-${v.id}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
-          <div><div style="font-weight:700;font-size:14px">${v.lead_nombre}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${fecha} · ${socioLabel}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px">${v.cliente_nombre}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">📅 ${fecha} · 👤 ${socioLabel}</div>
+            ${v.cliente_telefono ? `<div style="font-size:12px;color:var(--text-muted)">📱 ${v.cliente_telefono}</div>` : ''}
+            ${producto ? `<div style="font-size:12px;color:var(--text-muted)">📦 ${producto}</div>` : ''}
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <span style="font-size:11px;font-weight:700;color:var(--teal);background:rgba(78,195,181,.12);padding:2px 8px;border-radius:10px">${v.estado}</span>
-            <button class="btn-ghost" style="font-size:11px;padding:3px 8px;color:#ef4444" onclick="orgEliminarVL(${v.id})">🗑</button>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:700;color:${ec};background:${ec}18;padding:2px 8px;border-radius:10px">${v.estado}</span>
+            <span style="font-size:11px;font-weight:700;color:${rc};background:${rc}18;padding:2px 8px;border-radius:10px">${v.resultado}</span>
+          </div>
+        </div>
+        ${devBadge}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <select onchange="orgVLEstado(${v.id},this.value)"
+                  style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+            <option value="">Cambiar estado…</option>
+            <option value="AGENDADA">AGENDADA</option>
+            <option value="REALIZADA">REALIZADA</option>
+            <option value="NO_SE_PRESENTO">NO SE PRESENTÓ</option>
+            <option value="REPROGRAMAR">REPROGRAMAR</option>
+          </select>
+          <select onchange="orgVLResultado(${v.id},this.value)"
+                  style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+            <option value="">Cambiar resultado…</option>
+            <option value="PENDIENTE">PENDIENTE</option>
+            <option value="AVANZO">AVANZÓ</option>
+            <option value="NO_CALIFICO">NO CALIFICÓ</option>
+            <option value="CERRO">CERRÓ</option>
+          </select>
+          <button class="btn-ghost" style="font-size:11px;padding:4px 10px"
+                  onclick="orgVLDevolucionForm(${v.id})">✏️ Devolución</button>
+          <button class="btn-ghost" style="font-size:11px;padding:4px 8px;color:#ef4444"
+                  onclick="orgEliminarVL(${v.id})">🗑</button>
+        </div>
+        <div id="org-vl-dev-form-${v.id}" style="display:none;margin-top:10px">
+          <textarea id="org-vl-dev-txt-${v.id}" rows="2" placeholder="Escribí la devolución para el asesor…"
+                    style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;
+                           background:var(--surface);color:var(--text);resize:vertical">${v.devolucion||''}</textarea>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button class="btn-primary" style="font-size:12px;padding:5px 14px"
+                    onclick="orgVLGuardarDevolucion(${v.id})">Guardar devolución</button>
+            <button class="btn-ghost" style="font-size:12px;padding:5px 10px"
+                    onclick="document.getElementById('org-vl-dev-form-${v.id}').style.display='none'">Cancelar</button>
           </div>
         </div>
       </div>`;
     }).join('');
-  } catch(e){ cont.innerHTML='<p style="color:#ef4444">Error al cargar videollamadas.</p>'; }
+  } catch(e){ cont.innerHTML=`<p style="color:#ef4444">Error al cargar videollamadas: ${e.message}</p>`; }
+}
+
+async function orgVLEstado(vlId, estado){
+  if(!estado) return;
+  try {
+    await api(`/api/organizador/videollamadas/${vlId}/resultado`, {method:'PUT', body: JSON.stringify({estado})});
+    showToast('Estado actualizado');
+    orgCargarVL();
+  } catch(e){ showToast('Error: '+(e.message||''), true); }
+}
+
+async function orgVLResultado(vlId, resultado){
+  if(!resultado) return;
+  try {
+    await api(`/api/organizador/videollamadas/${vlId}/resultado`, {method:'PUT', body: JSON.stringify({resultado})});
+    showToast('Resultado actualizado');
+    orgCargarVL();
+  } catch(e){ showToast('Error: '+(e.message||''), true); }
+}
+
+function orgVLDevolucionForm(vlId){
+  const f = document.getElementById(`org-vl-dev-form-${vlId}`);
+  if(f) f.style.display = f.style.display==='none' ? 'block' : 'none';
+}
+
+async function orgVLGuardarDevolucion(vlId){
+  const txt = document.getElementById(`org-vl-dev-txt-${vlId}`)?.value.trim();
+  if(!txt){ showToast('Escribí la devolución primero', true); return; }
+  try {
+    await api(`/api/organizador/videollamadas/${vlId}/devolucion`, {method:'PUT', body: JSON.stringify({devolucion: txt})});
+    showToast('✅ Devolución guardada — el asesor la verá en su panel');
+    orgCargarVL();
+  } catch(e){ showToast('Error: '+(e.message||''), true); }
 }
 
 async function orgEliminarVL(vlId){

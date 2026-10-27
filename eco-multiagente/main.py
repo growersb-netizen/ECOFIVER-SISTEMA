@@ -19,8 +19,13 @@ if _ENV_PATH.exists():
     # para los valores que estén explícitamente seteados — permite que el panel
     # cambie AI_PROVIDER, GROQ_MODEL, etc. sin necesitar acceso a Railway.
     # Railway env vars siguen siendo el fallback para claves no seteadas en .env.
+    # Claves que deben venir SOLO de Railway (service references): nunca del .env
+    _RAILWAY_ONLY = {"CRM_API_KEY", "WA_TOKEN", "META_PAGE_ACCESS_TOKEN",
+                     "WA_PHONE_ID_AGENTES", "WA_PHONE_ID_PISCINAS"}
     from dotenv import dotenv_values as _dotenv_values
     for _k, _v in _dotenv_values(str(_ENV_PATH)).items():
+        if _k in _RAILWAY_ONLY:
+            continue  # ignorar .env para credenciales cross-servicio
         if _v:  # solo override si el .env tiene un valor no-vacío
             os.environ[_k] = _v
         elif _k not in os.environ:

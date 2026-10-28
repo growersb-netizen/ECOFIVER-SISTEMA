@@ -376,6 +376,31 @@ async def health_crm():
     }
 
 
+# ── Health de IA (inferencia) ────────────────────────────────────────────────
+@app.get("/health/ia")
+async def health_ia():
+    """Proveedor/modelo activo y contadores por proveedor. Sin claves, prompts ni texto de error."""
+    from providers.factory import get_active_provider_name
+    from providers.openrouter_provider import fallback_models
+    from tools.ai_monitor import get_stats
+    nombre = get_active_provider_name()
+    modelo_env = {
+        "openrouter": "OPENROUTER_MODEL", "groq": "GROQ_MODEL", "grok": "GROK_MODEL",
+        "gemini": "GEMINI_MODEL", "claude": "CLAUDE_MODEL", "openai": "OPENAI_MODEL",
+    }.get(nombre, "")
+    return {
+        "proveedor_primario": nombre,
+        "modelo_primario": os.getenv(modelo_env, "") or "(default del código)",
+        "claves_presentes": {
+            k: bool(os.getenv(k)) for k in
+            ("OPENROUTER_API_KEY", "GROQ_API_KEY", "GROK_API_KEY", "XAI_API_KEY",
+             "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+        },
+        "openrouter_fallbacks": fallback_models() if os.getenv("OPENROUTER_API_KEY") else [],
+        **get_stats(),
+    }
+
+
 # ── Health de seguridad (Etapa 0) ────────────────────────────────────────────
 @app.get("/health/seguridad")
 async def health_seguridad():

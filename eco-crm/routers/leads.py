@@ -19,6 +19,7 @@ from database.models import Lead, Videollamada, Usuario, Notificacion, Configura
 _AGENTES_IA = ["valentina", "pablo", "laura", "sabrina", "claudio"]
 _AGENTES_PRUEBA = ["pablo", "laura", "sabrina", "claudio"]
 from routers.auth import require_auth, require_roles, get_user_roles, get_current_user, require_auth_or_apikey
+from utils.api_keys import api_key_valida
 
 log = logging.getLogger(__name__)
 
@@ -560,7 +561,7 @@ async def create_lead(
     current_user: Optional[Usuario] = Depends(get_current_user)
 ):
     # Allow API key auth (for external agents) OR session auth (CRM users)
-    auth_ok = (x_api_key and x_api_key == API_KEY) or bool(current_user)
+    auth_ok = api_key_valida(x_api_key) or bool(current_user)
     if not auth_ok:
         raise HTTPException(401, "No autorizado")
 
@@ -1213,7 +1214,7 @@ async def incrementar_seguimiento(
     current_user: Optional[Usuario] = Depends(get_current_user)
 ):
     """Incrementa intentos_seguimiento del lead. Usado por el scheduler de agentes IA."""
-    auth_ok = (x_api_key and x_api_key == API_KEY) or bool(current_user)
+    auth_ok = api_key_valida(x_api_key) or bool(current_user)
     if not auth_ok:
         raise HTTPException(401, "No autorizado")
     lead = db.query(Lead).filter(Lead.id == lead_id).first()

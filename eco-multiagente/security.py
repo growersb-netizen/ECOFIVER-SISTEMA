@@ -101,8 +101,43 @@ def record_signature_result(result: str, rejected: bool) -> None:
         _sig_stats["rejected"] += 1
 
 
+# Por línea (phone_number_id): evidencia para activar "enforce" sin cortar ninguna línea.
+_sig_por_linea: dict[str, dict[str, int]] = {}
+
+
+def record_line_signature(phone_number_id: str, result: str) -> None:
+    if not phone_number_id or result == "skipped":
+        return
+    d = _sig_por_linea.setdefault(phone_number_id, {})
+    d[result] = d.get(result, 0) + 1
+
+
+def _etiquetas_lineas() -> dict[str, str]:
+    et = {}
+    for env, nombre in (("WA_PHONE_ID_MELANIE", "melanie"), ("WA_PHONE_ID_AGENTES", "agentes")):
+        v = os.getenv(env, "").strip()
+        if v:
+            et[v] = nombre
+    for v in os.getenv("WA_SUPERVISOR_PHONE_IDS", "").split(","):
+        if v.strip():
+            et[v.strip()] = "supervisada"
+    return et
+
+
 def signature_stats() -> dict:
-    return {"mode": signature_mode(), "secret_configured": bool(_app_secret()), **_sig_stats}
+    et = _etiquetas_lineas()
+    por_linea = {f"{et.get(pid, 'otra')}:{pid}": dict(c) for pid, c in _sig_por_linea.items()}
+    listo_para_enforce = bool(_sig_por_linea) and all(
+        c.get("valid", 0) > 0 and not c.get("invalid") and not c.get("missing")
+        for c in _sig_por_linea.values()
+    )
+    return {
+        "mode": signature_mode(),
+        "secret_configured": bool(_app_secret()),
+        **_sig_stats,
+        "por_linea": por_linea,
+        "listo_para_enforce": listo_para_enforce,
+    }
 
 
 # ── Deduplicación de mensajes entrantes ──────────────────────────────────────

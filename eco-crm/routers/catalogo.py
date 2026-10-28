@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from database.database import get_db
 from database.models import Usuario, PrecioHistorial
 from routers.auth import require_auth, require_roles, get_user_roles, get_current_user
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -30,7 +31,7 @@ _MEDIA_TYPE_FOTO = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png
 
 def _write_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):
     """Escritura de catálogo: sesión con rol de gestión, o X-API-Key (integraciones)."""
-    if x_api_key and x_api_key == API_KEY:
+    if api_key_valida(x_api_key):
         return
     if current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")):
         return

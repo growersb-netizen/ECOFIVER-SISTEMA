@@ -24,6 +24,7 @@ from routers.configuracion import get_config_value, _require_config_access
 from database.encryption import encrypt_value
 from utils.ai_client import ai_complete
 from utils.contexto_ecofiver import ctx_empresa, ctx_preguntas_ml, ctx_seo_ml
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -308,7 +309,7 @@ async def guardar_credenciales(
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Guarda Client ID + Client Secret de la app de MercadoLibre (encriptado)."""
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")
@@ -373,7 +374,7 @@ async def ml_conexion(
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Estado de la conexión OAuth con MercadoLibre."""
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")
@@ -1822,7 +1823,7 @@ async def fix_shipping_todos(
     import os as _os, asyncio as _asyncio
     audit_tok = _os.getenv("ML_AUDIT_TOKEN", "")
     ok_audit = audit_tok and t == audit_tok
-    ok_apikey = x_api_key and x_api_key == API_KEY
+    ok_apikey = api_key_valida(x_api_key)
     ok_user = current_user and "ADMIN" in get_user_roles(current_user)
     if not (ok_audit or ok_apikey or ok_user):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -2242,7 +2243,7 @@ async def generar_descripcion(
     a partir de palabras clave libres del producto. Usa el motor de IA unificado
     del CRM (hoy OpenRouter/gpt-4o-mini, con fallback a Grok/Gemini/Claude).
     """
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")
@@ -2306,7 +2307,7 @@ async def generar_titulo(
     Genera solo el título ML a partir de la descripción ya escrita del producto.
     Mucho más preciso que generarlo desde keywords, porque la IA tiene todo el contexto.
     """
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")
@@ -3759,7 +3760,7 @@ async def ml_listing_types(
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Diagnóstico: tipos de publicación disponibles en MLA (con el token de la cuenta)."""
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")
@@ -3781,7 +3782,7 @@ async def ml_precio_mercado(
     current_user: Optional[Usuario] = Depends(get_current_user),
 ):
     """Devuelve las publicaciones más baratas del sitio para un término (referencia de mercado)."""
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")

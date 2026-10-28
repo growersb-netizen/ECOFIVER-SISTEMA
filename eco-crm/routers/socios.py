@@ -40,6 +40,7 @@ from database.models import (
 from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
 from utils.whatsapp import send_whatsapp_text, notificar_rodrigo
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -115,7 +116,7 @@ def _require_verificado(socio: Aliado):
 
 def _require_gestion_interna(x_api_key: Optional[str], current_user: Optional[Usuario]):
     """Para las acciones que sigue haciendo el equipo interno (los 3 puntos humanos)."""
-    if x_api_key and x_api_key == API_KEY:
+    if api_key_valida(x_api_key):
         return
     if current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "SUPERVISOR_CIERRE", "ADMINISTRACION", "COORDINADOR_OPERATIVO")):
         return
@@ -4147,7 +4148,7 @@ async def ranking_socios(
     financiado desde que la inscripción está pagada.
     Accesible con sesión de socio O API key.
     """
-    if not socio and not (x_api_key and x_api_key == API_KEY):
+    if not socio and not api_key_valida(x_api_key):
         raise HTTPException(401, "No autenticado")
 
     if periodo == "ambos":

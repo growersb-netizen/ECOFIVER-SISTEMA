@@ -1,7 +1,7 @@
 """
 Dashboard de Control — EcoFiver IA
 Ruta base: /dashboard
-Contraseña: ADMIN_PASSWORD del .env (default: ecomodulos2026)
+Contraseña: ADMIN_PASSWORD (variable de entorno, sin valor por defecto)
 """
 
 import os
@@ -20,7 +20,7 @@ router = APIRouter()
 _env_base     = Path(os.getenv("DATA_DIR", "")) if os.getenv("DATA_DIR") else Path(__file__).parent
 ENV_PATH      = _env_base / ".env"
 
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "ecomodulos2026")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")  # sin default: la validación real está en auth.check_password
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -3170,7 +3170,6 @@ DASHBOARD_LOGIN = """<!DOCTYPE html>
     </div>
     <button type="submit">Ingresar al dashboard →</button>
   </form>
-  <p class="hint">Contraseña por defecto: <code>ecomodulos2026</code></p>
 </div>
 <script>
 document.getElementById('f').onsubmit = async function(e) {

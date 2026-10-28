@@ -19,6 +19,7 @@ from database.database import get_db
 from database.models import MetaPortafolio, MetaCampanaSnapshot, MetaPagina, Usuario, Lead
 from database.encryption import encrypt_value, decrypt_value
 from routers.auth import require_auth, get_user_roles
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -602,7 +603,7 @@ _API_KEY = os.getenv("API_KEY", "")
 def _require_api_key_meta(request: Request) -> bool:
     auth = request.headers.get("Authorization", "")
     key = auth.removeprefix("Bearer ").strip()
-    if key != _API_KEY:
+    if not api_key_valida(key):
         raise HTTPException(401, "API key inválida")
     return True
 

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import Usuario
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -131,7 +132,7 @@ def require_auth_or_apikey(
     para que created_by/vendedor_id/etc. queden con un id válido.
     """
     api_key_env = os.getenv("API_KEY", "")
-    if token and token == api_key_env:
+    if api_key_valida(token):
         return _get_or_create_agente_sistema(db)
     return require_auth(request, db, token)
 

@@ -1,6 +1,6 @@
 # EcoFiver AI Company — Etapa 0: Seguridad crítica
 
-Estado: **implementado y probado localmente** (68 tests). **No verificado en producción** hasta el deploy y el checklist de abajo.
+Estado: **implementado y probado localmente** (multiagente 69 tests, CRM 12 tests, MCP verificado en ejecución). **No verificado en producción** hasta el deploy y el checklist de abajo.
 
 ## Qué se corrigió
 
@@ -17,6 +17,10 @@ Estado: **implementado y probado localmente** (68 tests). **No verificado en pro
 | 9 | Credenciales por defecto en el código (contraseña de admin, API key del CRM) | Eliminadas; el acceso falla cerrado si falta la variable | `auth.py`, `cron.py`, `channels/whatsapp.py`, `tools/content_poster.py` |
 | 10 | **API key del CRM escrita en el JavaScript del panel de socios** (visible en el navegador de cualquier socio) | Quitada; el admin logueado sigue accediendo por sesión | `eco-crm/templates/panel_socio.html` |
 | 11 | Inbox del CRM: con `CRM_API_KEY` vacía aceptaba requests sin clave | Falla cerrado | `eco-crm/routers/inbox.py` |
+| 12 | `marketing.py` y `meta_ads.py` del CRM comparaban con `!=`: con `API_KEY` vacía y sin header, pasaban | Validación centralizada (`utils/api_keys.py`), falla cerrado, con soporte de rotación sin cortes (`API_KEY_ANTERIOR`) | `eco-crm/utils/api_keys.py` + 16 routers |
+| 13 | **Servidor MCP sin autenticación**: `POST /mcp` creaba contratos y registraba pagos para cualquiera | `MCP_AUTH_TOKEN` (header Bearer o ruta `/mcp/<token>`); sin token mantiene el comportamiento anterior y lo advierte | `ecofiver-mcp-server/src/index.ts` |
+| 14 | Contraseña por defecto `ADMIN_PASSWORD` en `dashboard.py` y `admin_panel.py`, y mostrada en la pantalla pública de login de `/dashboard` | Eliminadas | `eco-multiagente/dashboard.py`, `admin_panel.py` |
+| 15 | El `.env` del volumen pisaba los secretos de Railway (una rotación en Railway podía no tener efecto) | Para secretos de autenticación manda Railway; el `.env` queda como respaldo | `eco-multiagente/main.py` |
 
 Endpoint nuevo de observabilidad (sin datos privados): `GET /health/seguridad`.
 
@@ -48,7 +52,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST $M/leadgen/scraping/trigger  # 
 curl -s $M/health/seguridad                                                  # contadores
 ```
 
-Luego de unas horas de tráfico real: si `/health/seguridad` muestra `valid > 0` e `invalid = 0` y `missing = 0`, pasar `WA_WEBHOOK_SIGNATURE_MODE=enforce`.
+Luego de tráfico real en todas las líneas: cuando `/health/seguridad` muestre `listo_para_enforce: true` (cada línea vista —Melanie, agentes, supervisada— con firmas válidas y ninguna inválida o ausente), pasar `WA_WEBHOOK_SIGNATURE_MODE=enforce`. El modo `off` es solo una vía de emergencia, no un estado final.
 
 Regresión a confirmar: un mensaje de cliente a la línea de agentes recibe respuesta; un mensaje de Rodrigo a Máximo por WhatsApp recibe respuesta; la línea supervisada (1383774158147416) sigue sin respuesta de IA y registra en el inbox.
 
@@ -59,7 +63,8 @@ Regresión a confirmar: un mensaje de cliente a la línea de agentes recibe resp
 
 ## Pendiente que requiere autorización (no ejecutado)
 
-- **Rotar la API key del CRM**: el valor anterior está publicado en el historial de git y estuvo en el JavaScript del panel de socios. Rotarla implica cambiar `API_KEY`/`CRM_API_KEY` en eco-crm, eco-multiagente, ecofiver-mcp-server y cualquier integración externa (Zapia).
+- **Rotación de credenciales**: autorizada; procedimiento en `ROTACION_CREDENCIALES.md`. Requiere acceso a Railway.
+- ~~Rotar la API key del CRM~~ (ver procedimiento): el valor anterior está publicado en el historial de git y estuvo en el JavaScript del panel de socios. Rotarla implica cambiar `API_KEY`/`CRM_API_KEY` en eco-crm, eco-multiagente, ecofiver-mcp-server y cualquier integración externa (Zapia).
 - **Rotar la contraseña de admin del multiagente** si es la que estaba como valor por defecto en el código.
 - `/api/inbox/modo/{phone}` del CRM sigue sin autenticación (filtra modo y lead_id por teléfono). El multiagente ya envía la clave; cerrarlo en un segundo deploy, después de confirmar que este está activo.
 - `/dashboard/home` inyecta configuración no secreta (IDs, emails, URLs) en el HTML sin autenticación. Severidad media; requiere cambiar la carga de esa página.

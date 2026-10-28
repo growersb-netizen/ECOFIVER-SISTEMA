@@ -402,6 +402,9 @@ async def receive_message(request: Request, background: BackgroundTasks):
         logger.info(f"[WA] WEBHOOK malformado: {str(body)[:200]}")
         return {"status": "ignored"}
 
+    from security import record_line_signature
+    record_line_signature(change.get("metadata", {}).get("phone_number_id", ""), firma)
+
     # smb_message_echoes — copia de mensajes enviados desde WA Business App (Coexistence)
     if field == "smb_message_echoes":
         background.add_task(_procesar_echo_smb, change)

@@ -17,6 +17,7 @@ from database.models import (
     StockPiscina, StockPanel, Videollamada, Usuario, ConfiguracionSistema,
 )
 from routers.ventas_financiadas import dias_atraso
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 
@@ -58,7 +59,7 @@ def _asignar_round_robin(db: Session) -> Optional[int]:
 
 def _require_api_key(request: Request) -> bool:
     auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer ") and auth[7:].strip() == API_KEY:
+    if auth.startswith("Bearer ") and api_key_valida(auth[7:].strip()):
         return True
     raise HTTPException(status_code=401, detail="API key inválida")
 

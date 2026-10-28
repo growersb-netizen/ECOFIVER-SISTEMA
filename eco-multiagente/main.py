@@ -22,10 +22,16 @@ if _ENV_PATH.exists():
     # Claves que deben venir SOLO de Railway (service references): nunca del .env
     _RAILWAY_ONLY = {"CRM_API_KEY", "WA_TOKEN", "META_PAGE_ACCESS_TOKEN",
                      "WA_PHONE_ID_AGENTES", "WA_PHONE_ID_PISCINAS"}
+    # Secretos de autenticación: si Railway los define, Railway manda (una rotación
+    # en Railway tiene efecto); si no, se usa el .env del volumen como respaldo
+    # para no dejar sin acceso al panel.
+    _RAILWAY_PREFERIDO = {"ADMIN_PASSWORD", "MULTIAGENTE_API_KEY", "WA_APP_SECRET", "META_APP_SECRET"}
     from dotenv import dotenv_values as _dotenv_values
     for _k, _v in _dotenv_values(str(_ENV_PATH)).items():
         if _k in _RAILWAY_ONLY:
             continue  # ignorar .env para credenciales cross-servicio
+        if _k in _RAILWAY_PREFERIDO and os.environ.get(_k):
+            continue  # Railway define el secreto: no lo pisa el .env
         if _v:  # solo override si el .env tiene un valor no-vacío
             os.environ[_k] = _v
         elif _k not in os.environ:

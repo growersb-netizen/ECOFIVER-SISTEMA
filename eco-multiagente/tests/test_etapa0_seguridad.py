@@ -350,3 +350,23 @@ class TestWebhookWhatsApp:
         assert r1.json()["status"] == "accepted"
         assert r2.json()["status"] == "duplicate"
         assert enq.call_count == 1
+
+
+class TestEvidenciaPorLinea:
+
+    def test_contadores_por_linea_y_listo_para_enforce(self, wa, monkeypatch):
+        import security
+        security._sig_por_linea.clear()
+        client, _ = wa
+        monkeypatch.setenv("WA_WEBHOOK_SIGNATURE_MODE", "log")
+        monkeypatch.setenv("WA_PHONE_ID_MELANIE", "1562122100308561")
+        for i, pid in enumerate(["1562122100308561", "1037947576071396"]):
+            body = json.dumps(_msg("5491199990000", f"wamid.pl{i}", phone_id=pid)).encode()
+            client.post("/webhook/whatsapp", content=body, headers={
+                "Content-Type": "application/json", "X-Hub-Signature-256": _firmar(body, "secreto-test")})
+        st = security.signature_stats()
+        assert st["por_linea"]["melanie:1562122100308561"]["valid"] == 1
+        assert st["listo_para_enforce"] is True
+        # Un evento sin firma en cualquier línea bloquea el pase a enforce
+        client.post("/webhook/whatsapp", json=_msg("5491199990001", "wamid.pl9", phone_id="1383774158147416"))
+        assert security.signature_stats()["listo_para_enforce"] is False

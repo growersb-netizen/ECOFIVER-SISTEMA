@@ -11,6 +11,7 @@ from database.database import get_db
 from database.models import VentaFinanciada, Pago, Usuario, Lead, Interaccion, SolicitudContador
 from routers.auth import require_auth, require_roles, get_user_roles, get_current_user, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -20,7 +21,7 @@ API_KEY = os.getenv("API_KEY", "")
 
 def _import_auth(x_api_key: Optional[str], current_user: Optional[Usuario]):
     """Importación histórica: sesión ADMIN, o X-API-Key (uso puntual/scripts)."""
-    if x_api_key and x_api_key == API_KEY:
+    if api_key_valida(x_api_key):
         return
     if current_user and "ADMIN" in get_user_roles(current_user):
         return
@@ -458,7 +459,7 @@ async def limpiar_pagos_cuota(
     La tabla Pago no guarda el concepto del pago, por eso esta heurística;
     todo lo que no calza claramente queda en "excluidos" para revisión manual.
     """
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and "ADMIN" in get_user_roles(current_user))
     if not ok:
         raise HTTPException(403, "Sin permisos (requiere ADMIN)")

@@ -16,7 +16,7 @@ router = APIRouter()
 _env_base = Path(os.getenv("DATA_DIR", "")) if os.getenv("DATA_DIR") else Path(__file__).parent
 ENV_PATH  = _env_base / ".env"
 
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "ecomodulos2026")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")  # sin default: la validación real está en auth.check_password
 
 
 def read_env() -> dict:

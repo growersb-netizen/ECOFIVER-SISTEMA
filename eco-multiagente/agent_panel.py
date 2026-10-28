@@ -1256,7 +1256,11 @@ async def api_test_agent(name: str, request: Request):
         acciones_ejecutadas = []
         resultado_acciones = ""
         if acciones:
-            resultado_acciones = await ejecutar_acciones(acciones)
+            from tools.action_policy import ActionContext, CANAL_CONFIABLE
+            # Panel protegido por contraseña de admin → canal confiable.
+            resultado_acciones = await ejecutar_acciones(
+                acciones, ActionContext(agente=actual_agent, canal=CANAL_CONFIABLE, origen="panel"),
+            )
             acciones_ejecutadas = [a.get("tipo", "accion") for a in acciones]
             logger.info(f"[Panel] {name} ejecutó acciones reales: {acciones_ejecutadas}")
 

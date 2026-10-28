@@ -44,7 +44,7 @@ _SIGNAL_LEAK_RE = re.compile(
 )
 
 
-async def _post_procesar_reply(reply: str) -> str:
+async def _post_procesar_reply(reply: str, agente: str = "maximo") -> str:
     """
     Ejecuta acciones CRM reales ([CRM_ACTION:...]) y sustituye el simulador de
     cuotas ([SIMULAR:...]) por el cálculo real — el mismo post-procesamiento
@@ -58,7 +58,11 @@ async def _post_procesar_reply(reply: str) -> str:
     resultado_acciones = ""
     if acciones:
         try:
-            resultado_acciones = await ejecutar_acciones(acciones)
+            from tools.action_policy import ActionContext, CANAL_CONFIABLE
+            # Canal confiable: el bot solo atiende al CHAT_ID de Rodrigo.
+            resultado_acciones = await ejecutar_acciones(
+                acciones, ActionContext(agente=agente, canal=CANAL_CONFIABLE, origen="telegram"),
+            )
             logger.info(f"[TG] Acciones ejecutadas: {[a.get('tipo','?') for a in acciones]}")
         except Exception as e:
             logger.error(f"[TG] Error ejecutando acciones CRM: {e}")
@@ -264,7 +268,7 @@ async def _responder_agente(
                 return
 
             # Limpiar marcas, ejecutar acciones reales y enviar respuesta del nuevo agente
-            reply = await _post_procesar_reply(_DERIVAR_RE.sub("", reply).strip())
+            reply = await _post_procesar_reply(_DERIVAR_RE.sub("", reply).strip(), nuevo_key)
             sess["history"].append({"role": "user",      "content": mensaje})
             sess["history"].append({"role": "assistant",  "content": reply})
             if len(sess["history"]) > 80:
@@ -275,7 +279,7 @@ async def _responder_agente(
             return
 
     # ── Sin derivación: respuesta normal ────────────────────────────────
-    reply = await _post_procesar_reply(_DERIVAR_RE.sub("", reply).strip())
+    reply = await _post_procesar_reply(_DERIVAR_RE.sub("", reply).strip(), agent_key)
 
     sess["history"].append({"role": "user",      "content": mensaje})
     sess["history"].append({"role": "assistant",  "content": reply})

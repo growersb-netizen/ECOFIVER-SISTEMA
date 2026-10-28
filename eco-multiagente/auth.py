@@ -6,7 +6,9 @@ import os
 
 
 ADMIN_EMAIL    = os.getenv("ADMIN_EMAIL",    "admin@ecomodulosypiscinas.com.ar")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "NOAH2027")
+# Sin contraseña por defecto: si ADMIN_PASSWORD no está configurada, el acceso
+# administrativo queda deshabilitado (falla cerrado) y se loguea al iniciar.
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 
 def check_credentials(email: str, password: str) -> bool:

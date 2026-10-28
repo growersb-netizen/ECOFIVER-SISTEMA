@@ -10,6 +10,7 @@ Permite al admin:
 
 API usada por el multiagente para notificar mensajes entrantes y salientes.
 """
+import hmac
 import os
 import json
 import asyncio
@@ -163,7 +164,8 @@ def _push_sse(event: dict):
 
 def _check_api_key(request: Request):
     key = request.headers.get("X-API-Key", "")
-    if key != MULTIAGENTE_API_KEY:
+    # Falla cerrado: con CRM_API_KEY vacía, una request sin header coincidía con "".
+    if not MULTIAGENTE_API_KEY or not key or not hmac.compare_digest(key, MULTIAGENTE_API_KEY):
         raise HTTPException(status_code=401, detail="API Key inválida")
 
 

@@ -773,7 +773,7 @@ async def tarea_sync_meta_snapshots():
         import httpx
         import os
         crm_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
-        api_key = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
+        api_key = os.getenv("CRM_API_KEY", "")
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(
                 f"{crm_url}/api/meta/sync-snapshots",

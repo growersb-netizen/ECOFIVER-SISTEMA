@@ -7,13 +7,13 @@
 
 ### Auth estándar (todos los endpoints `/api/ext/...`)
 ```
-Header: X-Api-Key: eco-crm-api-key-2024
+Header: X-Api-Key: <API_KEY del CRM — pedir al administrador>
 ```
 
 ### Auth de agente IA (endpoints `/api/ext/agente/...`)
 Requiere **ambos** headers:
 ```
-X-Api-Key:    eco-crm-api-key-2024
+X-Api-Key:    <API_KEY del CRM — pedir al administrador>
 X-Agent-Key:  agt_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX   ← clave única del agente
 ```
 La `agente_key` se genera automáticamente cuando se activa la opción "Es agente IA" en la sección Usuarios del CRM.

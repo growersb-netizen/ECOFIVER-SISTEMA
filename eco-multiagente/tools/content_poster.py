@@ -282,7 +282,8 @@ async def publicar_instagram_foto(imagen_bytes: bytes, caption: str = "") -> boo
 # ── Hosting público (R2 del sitio web) para video / imágenes grandes ────────
 
 _R2_UPLOAD_URL = os.getenv("R2_UPLOAD_URL", "https://www.ecomodulosypiscinas.com.ar/api/admin/upload")
-_R2_API_KEY    = os.getenv("R2_API_KEY", "eco-crm-api-key-2024")
+# Sin clave literal en el código: R2_API_KEY o, por compatibilidad, la misma CRM_API_KEY.
+_R2_API_KEY    = os.getenv("R2_API_KEY") or os.getenv("CRM_API_KEY", "")
 
 
 async def subir_a_r2(file_bytes: bytes, filename: str, content_type: str) -> str:

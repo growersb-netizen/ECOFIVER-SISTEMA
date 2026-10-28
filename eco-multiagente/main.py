@@ -224,10 +224,12 @@ def _validar_credenciales():
     """
     _REQUIRED = {
         "CRM_API_KEY": "Las llamadas al CRM fallarán con 401",
+        "ADMIN_PASSWORD": "Paneles /admin, /panel, /dashboard y endpoints protegidos quedan deshabilitados",
     }
     _OPTIONAL = {
         "WA_PHONE_ID_AGENTES":  "El routing de WhatsApp no funcionará",
         "META_PAGE_ACCESS_TOKEN": "Los canales de Facebook/Instagram no funcionarán",
+        "WA_APP_SECRET":        "Sin secreto no se puede verificar la firma del webhook de WhatsApp (se usa META_APP_SECRET si existe)",
     }
     critical = False
     for key, motivo in _REQUIRED.items():
@@ -368,10 +370,26 @@ async def health_crm():
     }
 
 
+# ── Health de seguridad (Etapa 0) ────────────────────────────────────────────
+@app.get("/health/seguridad")
+async def health_seguridad():
+    """Contadores de firma de webhook, duplicados y acciones bloqueadas. Sin datos privados."""
+    from security import signature_stats, dedup_stats, _valid_keys
+    from tools.action_policy import stats as policy_stats
+    return {
+        "auth_configurada": bool(_valid_keys()),
+        "webhook_whatsapp_firma": signature_stats(),
+        "deduplicacion": dedup_stats(),
+        "politica_acciones": policy_stats(),
+    }
+
+
 # ── Lead generation endpoints ────────────────────────────────────────────
 @app.post("/leadgen/scraping/trigger")
-async def trigger_scraping():
-    """Dispara manualmente un ciclo de scraping orgánico."""
+async def trigger_scraping(request: Request):
+    """Dispara manualmente un ciclo de scraping orgánico. Requiere API key."""
+    from security import require_api_key
+    require_api_key(request)
     try:
         from tools.lead_scraper import ejecutar_ciclo_scraping
         resumen = await ejecutar_ciclo_scraping()
@@ -381,8 +399,10 @@ async def trigger_scraping():
 
 
 @app.post("/leadgen/content/publish")
-async def trigger_content():
-    """Dispara manualmente la publicación de contenido del día."""
+async def trigger_content(request: Request):
+    """Dispara manualmente la publicación de contenido del día. Requiere API key."""
+    from security import require_api_key
+    require_api_key(request)
     try:
         from tools.content_poster import generar_contenido, publicar_facebook
         contenido = await generar_contenido()
@@ -426,14 +446,20 @@ def _ultimo_scraping_resumen():
 
 # ── Audit log endpoints ───────────────────────────────────────────────────
 @app.get("/audit/log")
-async def audit_log_recientes(n: int = 50):
-    """Últimas N interacciones de todos los agentes (default 50)."""
+async def audit_log_recientes(request: Request, n: int = 50):
+    """Últimas N interacciones de todos los agentes (default 50). Requiere API key: contiene datos de clientes."""
+    from security import require_api_key
+    require_api_key(request)
+    n = max(1, min(n, 500))
     return {"entries": leer_ultimas(n), "total": n}
 
 
 @app.get("/audit/session/{session_id}")
-async def audit_log_session(session_id: str, n: int = 100):
-    """Historial de auditoría de una sesión específica."""
+async def audit_log_session(session_id: str, request: Request, n: int = 100):
+    """Historial de auditoría de una sesión específica. Requiere API key."""
+    from security import require_api_key
+    require_api_key(request)
+    n = max(1, min(n, 500))
     return {"session_id": session_id, "entries": leer_por_session(session_id, n)}
 
 
@@ -741,13 +767,13 @@ class _ComandoCRM(BaseModel):
 async def recibir_comando_crm(payload: _ComandoCRM, request: Request):
     """
     Recibe comandos del CRM Control Center.
-    Autenticación opcional via X-Api-Key (misma contraseña de admin).
+    Autenticación OBLIGATORIA via X-Api-Key (MULTIAGENTE_API_KEY o contraseña de admin).
     """
-    from auth import check_password
+    from security import api_key_valid, _valid_keys
 
-    api_key = request.headers.get("X-Api-Key", "")
-    # Rechazar si viene una clave y es incorrecta; sin clave = aceptar
-    if api_key and not check_password(api_key):
+    if not _valid_keys():
+        return JSONResponse({"ok": False, "error": "autenticación no configurada"}, status_code=503)
+    if not api_key_valid(request):
         return JSONResponse({"ok": False, "error": "no autorizado"}, status_code=401)
 
     from tools.audit_log import registrar_interaccion

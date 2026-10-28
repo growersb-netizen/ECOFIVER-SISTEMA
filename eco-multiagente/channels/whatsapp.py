@@ -42,7 +42,7 @@ for _smb_entry in _supervisor_display_raw.split(","):
 
 # ── CRM Inbox integration ─────────────────────────────────────────────────────
 CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
-CRM_API_KEY  = os.getenv("CRM_API_KEY", "eco-crm-api-key-2024")
+CRM_API_KEY  = os.getenv("CRM_API_KEY", "")
 _CRM_HEADERS = {"X-API-Key": CRM_API_KEY, "Content-Type": "application/json"}
 
 
@@ -50,7 +50,7 @@ async def _crm_get_modo(phone: str) -> str:
     """Consulta al CRM si la conversación está en modo bot o humano."""
     try:
         async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get(f"{CRM_BASE_URL}/api/inbox/modo/{phone}")
+            r = await c.get(f"{CRM_BASE_URL}/api/inbox/modo/{phone}", headers=_CRM_HEADERS)
         if r.status_code == 200:
             return r.json().get("modo", "bot")
     except Exception as e:
@@ -344,13 +344,51 @@ async def verify_webhook(request: Request):
 # RECEPCIÓN DE MENSAJES (POST)
 # ─────────────────────────────────────────────
 
+_ultima_alerta_admin_sin_firma = 0.0
+
+
+async def _alertar_admin_sin_firma(motivo: str) -> None:
+    """Avisa por Telegram (máx. 1 cada 30 min) que se descartó un mensaje 'de admin' sin firma válida."""
+    global _ultima_alerta_admin_sin_firma
+    import time as _t
+    if _t.time() - _ultima_alerta_admin_sin_firma < 1800:
+        return
+    _ultima_alerta_admin_sin_firma = _t.time()
+    try:
+        from channels.telegram_bot import send_alert
+        await send_alert(
+            "⚠️ Seguridad WhatsApp: se descartó un mensaje del número admin porque el webhook "
+            f"no traía una firma de Meta válida ({motivo}). Si fuiste vos, revisá WA_APP_SECRET."
+        )
+    except Exception:
+        pass
+
+
 @router.post("/webhook/whatsapp")
 async def receive_message(request: Request, background: BackgroundTasks):
     from tools.crm_monitor import record_wa_event
+    from security import (
+        verify_meta_signature, signature_mode, record_signature_result, is_duplicate_wamid,
+    )
     record_wa_event()
 
+    raw_body = await request.body()
+
+    # ── Firma de Meta (X-Hub-Signature-256) ─────────────────────────────────
+    modo_firma = signature_mode()
+    firma = "skipped"
+    if modo_firma != "off":
+        firma = verify_meta_signature(raw_body, request.headers.get("X-Hub-Signature-256", ""))
+        rechazar = modo_firma == "enforce" and firma != "valid"
+        record_signature_result(firma, rechazar)
+        if firma != "valid":
+            logger.warning(f"[WA] Firma de webhook: {firma} (modo={modo_firma})")
+        if rechazar:
+            raise HTTPException(status_code=403, detail="Firma inválida")
+
     try:
-        body = await request.json()
+        import json as _json
+        body = _json.loads(raw_body)
     except Exception:
         raise HTTPException(status_code=400, detail="JSON inválido")
 
@@ -388,6 +426,20 @@ async def receive_message(request: Request, background: BackgroundTasks):
     msg_type        = message.get("type", "text")
     phone_number_id = change.get("metadata", {}).get("phone_number_id", "")
     nombre_contacto = (change.get("contacts") or [{}])[0].get("profile", {}).get("name", "")
+
+    # ── Deduplicación: Meta reintenta entregas; cada wamid se procesa una vez ──
+    if is_duplicate_wamid(message.get("id")):
+        logger.info(f"[WA] wamid duplicado descartado: {message.get('id')}")
+        return {"status": "duplicate"}
+
+    # ── El canal admin (Máximo + acciones CRM) exige firma válida ─────────────
+    # Sin secreto configurado ("no_secret") o con verificación apagada se mantiene
+    # el comportamiento anterior; con secreto, un webhook "del admin" sin firma
+    # válida se descarta (nunca se degrada a canal cliente).
+    if phone_number in ADMIN_WA_PHONES and firma in ("invalid", "missing"):
+        logger.error(f"[WA] Mensaje de número admin con firma {firma} — descartado")
+        background.add_task(_alertar_admin_sin_firma, firma)
+        return {"status": "ignored"}
 
     # Encolar con debounce — si llegan más mensajes en los próximos 3.5 seg
     # se procesan todos juntos como una sola interacción
@@ -651,9 +703,13 @@ async def send_whatsapp_message(
 @router.post("/send/whatsapp")
 async def proactive_send(request: Request):
     """
-    Endpoint para que los agentes envíen mensajes proactivos.
-    Usado por el scheduler (cobros, recordatorios, etc.)
+    Envío proactivo de WhatsApp para integraciones internas.
+    Requiere API key (X-Api-Key): sin ella cualquiera podría escribir
+    desde los números de la empresa. El scheduler NO usa este endpoint
+    (llama a send_whatsapp_message directamente).
     """
+    from security import require_api_key
+    require_api_key(request)
     try:
         body = await request.json()
         phone = body.get("phone_number")

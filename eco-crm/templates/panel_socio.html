@@ -3915,7 +3915,7 @@ async function cargarGestionMateriales(){
   const cnt   = document.getElementById('gestion-count');
   if(!lista) return;
   try{
-    const r = await fetch('/api/admin/materiales-socio', { headers:{'X-API-Key':'eco-crm-api-key-2024'}, credentials:'include' });
+    const r = await fetch('/api/admin/materiales-socio', { credentials:'include' });
     if(!r.ok) return;
     const data = await r.json();
     // Solo foto_entrega y video sin título significativo (UUID o vacío)

@@ -11,14 +11,50 @@ logger = logging.getLogger(__name__)
 
 # Modelo por defecto. El anterior modelo gratuito (llama-3.3-70b-instruct:free)
 # fue dado de baja por OpenRouter (404). Se puede override con OPENROUTER_MODEL.
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/auto:free")
+# "openrouter/free" es el router de modelos gratuitos de OpenRouter.
+DEFAULT_MODEL = "openrouter/free"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+
+# IDs que alguna vez se usaron en este sistema y no existen en OpenRouter (404/400).
+# Se traducen al equivalente válido para que una variable vieja no deje sin IA.
+_MODELOS_INVALIDOS = {
+    "openrouter/auto:free": "openrouter/free",
+    "anthropic/claude-3-haiku": "anthropic/claude-haiku-4.5",
+    "google/gemini-flash-1.5": "google/gemini-2.5-flash",
+    "openai/chatgpt-4o-latest": "openai/gpt-4o",
+}
+
+
+def normalizar_modelo(model: str) -> str:
+    model = (model or "").strip()
+    if model in _MODELOS_INVALIDOS:
+        valido = _MODELOS_INVALIDOS[model]
+        logger.warning(f"[OpenRouterProvider] Modelo '{model}' no existe en OpenRouter → usando '{valido}'")
+        return valido
+    return model
+
+
+def fallback_models() -> list[str]:
+    """Modelos a probar como fallback: OPENROUTER_FALLBACK_MODELS (coma-separado) o
+    el modelo configurado + un modelo pago económico + el router gratuito."""
+    env = os.getenv("OPENROUTER_FALLBACK_MODELS", "")
+    if env.strip():
+        candidatos = [m.strip() for m in env.split(",") if m.strip()]
+    else:
+        candidatos = [os.getenv("OPENROUTER_MODEL", ""), "openai/gpt-4o-mini", DEFAULT_MODEL]
+    vistos, out = set(), []
+    for m in candidatos:
+        m = normalizar_modelo(m)
+        if m and m not in vistos:
+            vistos.add(m)
+            out.append(m)
+    return out
 
 
 class OpenRouterProvider(BaseProvider):
 
     def __init__(self, model: str = None):
-        self._model = model or os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+        self._model = normalizar_modelo(model or os.getenv("OPENROUTER_MODEL", "") or DEFAULT_MODEL)
 
     @property
     def name(self) -> str:

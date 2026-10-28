@@ -376,6 +376,31 @@ async def health_crm():
     }
 
 
+# ── Health de IA (inferencia) ────────────────────────────────────────────────
+@app.get("/health/ia")
+async def health_ia():
+    """Proveedor/modelo activo y contadores por proveedor. Sin claves, prompts ni texto de error."""
+    from providers.factory import get_active_provider_name
+    from providers.openrouter_provider import fallback_models
+    from tools.ai_monitor import get_stats
+    nombre = get_active_provider_name()
+    modelo_env = {
+        "openrouter": "OPENROUTER_MODEL", "groq": "GROQ_MODEL", "grok": "GROK_MODEL",
+        "gemini": "GEMINI_MODEL", "claude": "CLAUDE_MODEL", "openai": "OPENAI_MODEL",
+    }.get(nombre, "")
+    return {
+        "proveedor_primario": nombre,
+        "modelo_primario": os.getenv(modelo_env, "") or "(default del código)",
+        "claves_presentes": {
+            k: bool(os.getenv(k)) for k in
+            ("OPENROUTER_API_KEY", "GROQ_API_KEY", "GROK_API_KEY", "XAI_API_KEY",
+             "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+        },
+        "openrouter_fallbacks": fallback_models() if os.getenv("OPENROUTER_API_KEY") else [],
+        **get_stats(),
+    }
+
+
 # ── Health de seguridad (Etapa 0) ────────────────────────────────────────────
 @app.get("/health/seguridad")
 async def health_seguridad():
@@ -768,6 +793,17 @@ class _ComandoCRM(BaseModel):
     tipo: str = "LIBRE"
     contexto: dict = {}
     origen: str = ""
+
+@app.get("/api/comando/ping")
+async def ping_comando_crm(request: Request):
+    """Verifica la credencial del CRM sin efectos (no registra nada, no devuelve datos)."""
+    from security import api_key_valid, _valid_keys
+    if not _valid_keys():
+        return JSONResponse({"ok": False, "error": "autenticación no configurada"}, status_code=503)
+    if not api_key_valid(request):
+        return JSONResponse({"ok": False, "error": "no autorizado"}, status_code=401)
+    return {"ok": True}
+
 
 @app.post("/api/comando")
 async def recibir_comando_crm(payload: _ComandoCRM, request: Request):

@@ -323,6 +323,9 @@ class BaseAgent:
         full_msg = f"{prefix}\n\nMensaje: {message}" if prefix else message
         provider = self._get_provider()
 
+        from tools import ai_monitor
+        intentos: list[str] = []
+
         try:
             reply = await provider.generate(
                 system_prompt=self.system_prompt,
@@ -331,76 +334,90 @@ class BaseAgent:
             )
             if not reply:
                 raise ValueError(f"{provider.name} devolvió respuesta vacía/None")
+            ai_monitor.record_ok(provider.name)
         except Exception as e:
             err_str = str(e)
+            cat = ai_monitor.record_fail(provider.name, e)
+            intentos.append(f"{provider.name}={cat}")
             # Ante CUALQUIER error del proveedor primario, intentar la cadena de fallback
-            # (Groq → OpenRouter → Grok). Antes solo se hacía con 429/503 y por eso a veces
+            # (Groq → OpenRouter → Grok → Gemini). Antes solo se hacía con 429/503 y por eso a veces
             # caía en "no puedo responder" ante otros errores.
-            logger.warning(f"[{self.name}] {provider.name} falló ({err_str[:80]}), probando fallbacks...")
-            # Modelos disponibles según el diagnóstico de la cuenta Groq configurada
-            _groq_models = [
-                "qwen/qwen3.8-27b",
-                "groq/compound-mini",
-                "groq/compound",
-            ]
+            logger.warning(f"[{self.name}] {provider.name} falló [{cat}] ({err_str[:160]}), probando fallbacks...")
             reply = None
-            for gm in _groq_models:
-                try:
-                    from providers.groq_provider import GroqProvider
-                    fb = GroqProvider(model=gm)
-                    reply = await fb.generate(
-                        system_prompt=self.system_prompt,
-                        history=self.history,
-                        message=full_msg,
-                    )
-                    logger.info(f"[{self.name}] Fallback Groq/{gm} OK")
-                    break
-                except Exception as fe:
-                    logger.warning(f"[{self.name}] Groq/{gm} falló: {fe}")
 
-            # Si Groq también falló, intentar OpenRouter con modelo gratuito (sin créditos)
-            if reply is None and os.getenv("OPENROUTER_API_KEY"):
+            async def _intentar(fb) -> str | None:
                 try:
-                    from providers.openrouter_provider import OpenRouterProvider
-                    reply = await OpenRouterProvider(model="openrouter/auto:free").generate(
+                    r = await fb.generate(
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    logger.info(f"[{self.name}] Fallback OpenRouter:free OK")
+                    if not r:
+                        raise ValueError(f"{fb.name} devolvió respuesta vacía/None")
+                    ai_monitor.record_ok(fb.name)
+                    logger.info(f"[{self.name}] Fallback {fb.name} OK")
+                    return r
                 except Exception as fe:
-                    logger.warning(f"[{self.name}] OpenRouter:free falló: {fe}")
+                    c = ai_monitor.record_fail(fb.name, fe)
+                    intentos.append(f"{fb.name}={c}")
+                    logger.warning(f"[{self.name}] Fallback {fb.name} falló [{c}]: {str(fe)[:160]}")
+                    return None
+
+            # Modelos disponibles según el diagnóstico de la cuenta Groq configurada
+            if os.getenv("GROQ_API_KEY"):
+                from providers.groq_provider import GroqProvider
+                for gm in ["qwen/qwen3.8-27b", "groq/compound-mini", "groq/compound"]:
+                    reply = await _intentar(GroqProvider(model=gm))
+                    if reply:
+                        break
+
+            # OpenRouter: primero el modelo configurado (si el primario no era ese mismo),
+            # después el router gratuito. "openrouter/auto:free" NO existe en OpenRouter.
+            if reply is None and os.getenv("OPENROUTER_API_KEY"):
+                from providers.openrouter_provider import OpenRouterProvider, fallback_models
+                for om in fallback_models():
+                    fb = OpenRouterProvider(model=om)
+                    if fb.name == provider.name:
+                        continue  # ya falló como primario
+                    reply = await _intentar(fb)
+                    if reply:
+                        break
 
             if reply is None and (os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")):
-                try:
-                    from providers.grok_provider import GrokProvider
-                    reply = await GrokProvider().generate(
-                        system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    logger.info(f"[{self.name}] Fallback Grok OK")
-                except Exception as fe:
-                    logger.warning(f"[{self.name}] Grok falló: {fe}")
+                from providers.grok_provider import GrokProvider
+                fb = GrokProvider()
+                if fb.name != provider.name:
+                    reply = await _intentar(fb)
 
             # Último recurso: Gemini (free tier, generoso en cuotas diarias)
             if reply is None and os.getenv("GEMINI_API_KEY"):
-                try:
-                    from providers.gemini_provider import GeminiProvider
-                    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-                    reply = await GeminiProvider(model=model).generate(
-                        system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    logger.info(f"[{self.name}] Fallback Gemini/{model} OK")
-                except Exception as fe:
-                    logger.warning(f"[{self.name}] Gemini falló: {fe}")
+                from providers.gemini_provider import GeminiProvider
+                fb = GeminiProvider(model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
+                if fb.name != provider.name:
+                    reply = await _intentar(fb)
 
             if reply is None:
-                reply = "Dame un momentito y te respondo enseguida 🙏"
+                ai_monitor.record_fail_total(self.name, intentos)
+                # Turno fallido: NO se guarda en el historial (si se guardara, el historial
+                # se llena de "dame un momentito" y el modelo lo repite al recuperarse).
+                return "Dame un momentito y te respondo enseguida 🙏"
 
-        # Actualizar historial en formato común
-        self.history.append({"role": "user",      "content": full_msg})
+        # Historial: se guarda el mensaje ORIGINAL, no full_msg. El contexto (CRM, KB, fecha,
+        # historial del canal) se reinyecta fresco en cada turno; guardarlo en el historial
+        # lo duplicaba N veces. En Máximo (contexto CRM completo: 200 leads + todas las ventas)
+        # eso hacía crecer cada request hasta exceder la ventana de contexto de todos los
+        # proveedores → todos fallaban → "Dame un momentito" en loop hasta el próximo reinicio.
+        self.history.append({"role": "user",      "content": message})
         self.history.append({"role": "assistant",  "content": reply})
-
-        # Limitar historial a 15 turnos (30 entradas) — suficiente para una venta
-        # y reduce tokens enviados al LLM (menos rate limits, respuestas más rápidas).
-        if len(self.history) > 30:
-            self.history = self.history[-30:]
+        self._recortar_historial()
 
         return reply
+
+    def _recortar_historial(self):
+        """Limita el historial a 15 turnos (30 entradas) y HISTORY_MAX_CHARS caracteres.
+        Recorta in-place: Telegram y el panel comparten la lista por referencia."""
+        max_chars = int(os.getenv("HISTORY_MAX_CHARS", "24000"))
+        if len(self.history) > 30:
+            del self.history[:-30]
+        while len(self.history) > 2 and sum(len(h.get("content") or "") for h in self.history) > max_chars:
+            del self.history[:2]
 
     def reset(self):
         self.history = []

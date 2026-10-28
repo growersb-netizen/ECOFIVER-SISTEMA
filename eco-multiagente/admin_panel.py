@@ -184,9 +184,10 @@ def render_panel(env: dict, msg: str = "", msg_type: str = "ok") -> str:
             <select name="OPENROUTER_MODEL">
               <option value="openai/gpt-4o-mini" {'selected' if val('OPENROUTER_MODEL') in ('','openai/gpt-4o-mini') else ''}>openai/gpt-4o-mini — rápido y económico (recomendado)</option>
               <option value="openai/gpt-4o" {'selected' if val('OPENROUTER_MODEL') == 'openai/gpt-4o' else ''}>openai/gpt-4o — máxima calidad OpenAI</option>
-              <option value="openai/chatgpt-4o-latest" {'selected' if val('OPENROUTER_MODEL') == 'openai/chatgpt-4o-latest' else ''}>openai/chatgpt-4o-latest — versión más reciente</option>
-              <option value="anthropic/claude-3-haiku" {'selected' if val('OPENROUTER_MODEL') == 'anthropic/claude-3-haiku' else ''}>anthropic/claude-3-haiku — económico de Anthropic</option>
-              <option value="google/gemini-flash-1.5" {'selected' if val('OPENROUTER_MODEL') == 'google/gemini-flash-1.5' else ''}>google/gemini-flash-1.5 — Gemini vía OpenRouter</option>
+              <option value="openai/gpt-4.1-mini" {'selected' if val('OPENROUTER_MODEL') == 'openai/gpt-4.1-mini' else ''}>openai/gpt-4.1-mini — más contexto, económico</option>
+              <option value="anthropic/claude-haiku-4.5" {'selected' if val('OPENROUTER_MODEL') == 'anthropic/claude-haiku-4.5' else ''}>anthropic/claude-haiku-4.5 — económico de Anthropic</option>
+              <option value="google/gemini-2.5-flash" {'selected' if val('OPENROUTER_MODEL') == 'google/gemini-2.5-flash' else ''}>google/gemini-2.5-flash — Gemini vía OpenRouter</option>
+              <option value="openrouter/free" {'selected' if val('OPENROUTER_MODEL') == 'openrouter/free' else ''}>openrouter/free — modelos gratuitos (sin créditos, calidad variable)</option>
               <option value="meta-llama/llama-3.1-70b-instruct" {'selected' if val('OPENROUTER_MODEL') == 'meta-llama/llama-3.1-70b-instruct' else ''}>meta-llama/llama-3.1-70b-instruct — open source</option>
             </select>
           </div>

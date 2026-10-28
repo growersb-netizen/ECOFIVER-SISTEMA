@@ -38,7 +38,7 @@ Endpoint nuevo de observabilidad (sin datos privados): `GET /health/seguridad`.
 ## Checklist de deploy (antes de mergear)
 
 1. En Railway (multiagente): confirmar `ADMIN_PASSWORD` y `CRM_API_KEY` configuradas.
-2. En el CRM, `ConfiguracionSistema.orquestador_api_key` debe coincidir con `MULTIAGENTE_API_KEY` o `ADMIN_PASSWORD`; si no, el Control Center recibe 401 (antes los comandos solo se registraban: no se pierde funcionalidad).
+2. En el CRM, `ConfiguracionSistema.orquestador_api_key` debe coincidir con `MULTIAGENTE_API_KEY` o `ADMIN_PASSWORD`; si no, el Control Center recibe 401 (antes los comandos solo se registraban: no se pierde funcionalidad). **Corrección 28/10:** ese campo no se podía cargar desde la UI; ver `CORRECCION_POST_DEPLOY_ETAPA0.md` (ahora el CRM lee `MULTIAGENTE_API_KEY`).
 3. Confirmar en Railway que el multiagente corre con **1 réplica** (la deduplicación es en memoria).
 
 ## Verificación en producción (después del deploy)

@@ -78,11 +78,11 @@ fly volumes create ecomodulos_data --region gru --size 1
 ### Paso 4 — Configurar secretos
 
 ```bash
-fly secrets set GEMINI_API_KEY="AIzaSyAGruN5QxJYxwPVIO5fpV06blU1MVEi3M4"
+fly secrets set GEMINI_API_KEY="tu_api_key_de_gemini"
 fly secrets set WHATSAPP_TOKEN="EAABx..."
 fly secrets set WHATSAPP_PHONE_NUMBER_ID="123456789012345"
-fly secrets set WHATSAPP_VERIFY_TOKEN="ecomodulos_verify_2024"
-fly secrets set NOTIFICATION_NUMBER="5491162558279"
+fly secrets set WHATSAPP_VERIFY_TOKEN="un_token_de_verificacion_propio"
+fly secrets set NOTIFICATION_NUMBER="549XXXXXXXXXX"
 ```
 
 ### Paso 5 — Deploy

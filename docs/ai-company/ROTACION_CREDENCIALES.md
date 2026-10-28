@@ -60,3 +60,19 @@ Rollback en cualquier paso entre A1 y A4: volver a cargar el valor viejo en `API
 | C2 | En Claude.ai → Conectores: cambiar la URL del conector a `https://<mcp>/mcp/<token>` | El conector vuelve a listar las 3 herramientas |
 
 Entre C1 y C2 el conector de Claude.ai deja de funcionar. Hacer ambos pasos juntos.
+
+### D. GEMINI_API_KEY (detectada el 28/10/2026)
+Una API key real de Google/Gemini estaba escrita en `.env.example` y `README.md` de la raíz (bot legado `ecomodulos-agentes`). Se quitó de ambos archivos, pero **sigue en el historial de git** (commit `d04b4b6`, 22/10/2026): se considera comprometida aunque se borre.
+
+| Paso | Dónde | Acción | Verificación |
+|---|---|---|---|
+| D1 | Google AI Studio / Google Cloud → Credenciales | Revocar la clave que empieza con `AIzaSyAG` | La clave vieja deja de responder |
+| D2 | Railway → eco-multiagente | Si `GEMINI_API_KEY` usa esa misma clave: cargar una nueva o borrar la variable si ya no se usa Gemini (con el PR #4 todo pasa por OpenRouter) | `/health/ia` sin errores de Gemini, o Gemini ausente |
+| D3 | Railway / Fly → bot legado y CRM | Revisar si alguno usa la misma clave (`fly secrets list`, variables del CRM) | — |
+
+No se reescribe el historial de git: requiere un force-push de `main` (destructivo y sin autorización), y no sirve si la clave ya fue vista. Lo que protege es revocarla.
+
+#### Otros hallazgos del escaneo (sin acción urgente)
+- `WHATSAPP_VERIFY_TOKEN` / `WA_VERIFY_TOKEN`: tokens de verificación del webhook de Meta, escritos como valores por defecto en el código y en la migración `0031` del CRM. Solo sirven para el handshake de suscripción, no dan acceso a datos ni permiten enviar mensajes. No se cambian para no cortar los webhooks. Si se rotan, hay que hacerlo en Meta y en Railway a la vez.
+- `SECRET_KEY` / `JWT_SECRET` / URLs de base de datos en los `.env.example` y en el CI de fitness-os: son valores de ejemplo o de entorno local de prueba, no credenciales reales.
+- No se encontraron claves de OpenRouter, OpenAI, Anthropic, Groq, xAI, tokens de Meta, de Telegram ni claves privadas en el árbol ni en el historial.

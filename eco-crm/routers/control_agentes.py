@@ -7,9 +7,15 @@ y ejecutar flujos predefinidos desde una interfaz centralizada dentro del CRM.
 Configuración necesaria en ConfiguracionSistema:
   orquestador_url       → URL base del sistema multiagente (ej: https://eco-multiagente.up.railway.app)
   orquestador_endpoint  → Endpoint de comandos (default: /api/comando)
-  orquestador_api_key   → API Key para autenticación
+
+Credencial (se usa SOLO en el servidor; nunca llega al navegador), en este orden:
+  1. Variable de entorno MULTIAGENTE_API_KEY del CRM (recomendado: referencia de Railway
+     ${{eco-multiagente.MULTIAGENTE_API_KEY}}).
+  2. ConfiguracionSistema.orquestador_api_key (Configuración → API Keys; se guarda cifrada).
+El multiagente acepta su MULTIAGENTE_API_KEY o su ADMIN_PASSWORD.
 """
 import asyncio
+import os
 import httpx
 import logging
 from datetime import datetime, timedelta
@@ -21,6 +27,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database.database import get_db
+from database.encryption import decrypt_value
 from database.models import ComandoAgente, ConfiguracionSistema, Usuario
 from routers.auth import require_auth, get_user_roles
 
@@ -30,9 +37,108 @@ templates = Jinja2Templates(directory="templates")
 
 
 # ─── CATÁLOGO DE AGENTES ──────────────────────────────────────────────────────
-# 15 agentes especializados + 1 orquestador central
+# Agentes REALES de eco-multiagente (agents/*.py, AGENTES_DISPONIBLES en
+# orchestrator/router.py). El id coincide con la clave del orquestador.
+# No incluye a Valentín (agente privado de Rodrigo, fuera del ámbito operativo).
+
+def _ag(id, nombre, rol, area, descripcion, icono, color, capacidades, canal):
+    return {"id": id, "nombre": nombre, "rol": rol, "area": area, "descripcion": descripcion,
+            "icono": icono, "color": color, "capacidades": capacidades, "canal": canal, "activo": True}
+
 
 AGENTES_CATALOGO = [
+    # DIRECCIÓN
+    _ag("maximo", "Máximo", "CEO y Director Operativo", "SISTEMA",
+        "Agente de mayor jerarquía. Atiende a Rodrigo, ve el CRM completo y registra operaciones.",
+        "🧠", "#6366f1",
+        ["Resumen ejecutivo", "Registrar ventas, pagos y stock (canal admin)", "Coordinar agentes", "Reportes consolidados"],
+        "WhatsApp admin / Telegram"),
+    # VENTAS
+    _ag("aurora", "Aurora", "Gerente Comercial", "VENTAS",
+        "Supervisa el rendimiento comercial: pipeline, ventas del día, leads sin respuesta. Reporta a Máximo.",
+        "📊", "#3b82f6",
+        ["Resumen del pipeline", "Ranking de vendedores", "KPIs comerciales", "Leads sin respuesta"],
+        "Interno"),
+    _ag("tomas", "Tomás", "Supervisor de Ventas", "VENTAS",
+        "Analiza los datos del CRM, detecta leads desatendidos y oportunidades. Reporta a Aurora.",
+        "🧭", "#0ea5e9",
+        ["Detectar leads sin seguimiento", "Priorizar leads calientes", "Controlar equipo de ventas"],
+        "Interno"),
+    _ag("valentina", "Valentina", "Primer contacto", "VENTAS",
+        "Atiende WhatsApp, Instagram y el chat web; califica y deriva al especialista.",
+        "👋", "#ec4899",
+        ["Recibir consultas", "Calificar leads", "Derivar al especialista"],
+        "WhatsApp / Instagram / Web"),
+    _ag("camila", "Camila", "Piscinas contado", "VENTAS",
+        "Cierra ventas de piscinas al contado y coordina instalación. Reporta a Tomás.",
+        "🏊", "#16a34a",
+        ["Cotizar piscinas", "Cerrar ventas contado", "Coordinar instalación"],
+        "WhatsApp / Web"),
+    _ag("nicolas", "Nicolás", "Piscinas financiadas", "VENTAS",
+        "Califica y lleva a videollamada de admisión para piscina financiada. Reporta a Tomás.",
+        "💧", "#22c55e",
+        ["Calificar financiación", "Agendar videollamada de admisión"],
+        "WhatsApp / Web"),
+    _ag("luciano", "Luciano", "Módulos contado y combos", "VENTAS",
+        "Vende módulos NCE al contado y combos módulo + piscina. Reporta a Tomás.",
+        "🏠", "#f59e0b",
+        ["Cotizar módulos", "Combos módulo + piscina", "Cerrar ventas contado"],
+        "WhatsApp / Web"),
+    _ag("mateo", "Mateo", "Módulos financiados y combos", "VENTAS",
+        "Califica y lleva a videollamada de admisión para módulo o combo financiado. Reporta a Tomás.",
+        "🏡", "#84cc16",
+        ["Calificar financiación", "Agendar videollamada de admisión"],
+        "WhatsApp / Web"),
+    _ag("franco", "Franco", "Socios Comerciales", "VENTAS",
+        "Nexo entre los Socios Comerciales EcoFiver y Rodrigo. No habla con clientes finales.",
+        "🤝", "#14b8a6",
+        ["Atender socios comerciales", "Reportar a Rodrigo"],
+        "WhatsApp socios / Telegram"),
+    # ADMINISTRACIÓN Y COBRANZAS
+    _ag("ezequiel", "Ezequiel", "Administrador General", "ADMIN",
+        "Supervisa administración, cobranzas y finanzas. Reporta a Máximo.",
+        "🗂️", "#64748b",
+        ["Recaudación y cumplimiento", "Supervisar cobranzas", "Control administrativo"],
+        "Interno"),
+    _ag("elena", "Elena", "Finanzas y CRM", "ADMIN",
+        "Finanzas y datos del CRM: ventas, cuotas, precios. Reporta a Ezequiel.",
+        "💹", "#78716c",
+        ["Reportes financieros", "Control de cuotas", "Calidad de datos CRM"],
+        "Interno"),
+    _ag("ignacio", "Ignacio", "Cobranzas", "COBRANZAS",
+        "Recupera cuotas vencidas manteniendo la relación con el cliente. Reporta a Ezequiel.",
+        "💳", "#ef4444",
+        ["Cuotas vencidas", "Morosidad", "Proyección de cobranza", "Acuerdos de pago"],
+        "WhatsApp"),
+    # OPERACIONES
+    _ag("bruno", "Bruno", "Operaciones y Logística", "LOGISTICA",
+        "Stock, materiales, stock de piscinas, fletes y entregas. Reporta a Máximo.",
+        "🚚", "#06b6d4",
+        ["Stock y materiales", "Fletes y entregas", "Alertas de faltantes"],
+        "Interno"),
+    # MARKETING
+    _ag("renata", "Renata", "Marketing, Contenido y Web", "MARKETING",
+        "Contenido para redes, publicaciones y gestión del sitio web. Reporta a Máximo.",
+        "📸", "#a855f7",
+        ["Contenido para redes", "Gestión web", "Campañas"],
+        "Interno"),
+    # POSTVENTA
+    _ag("sebastian", "Sebastián", "Postventa y Soporte Técnico", "POSTVENTA",
+        "Atiende clientes con producto instalado: dudas, problemas y registro en CRM. Reporta a Máximo.",
+        "🛠️", "#8b5cf6",
+        ["Soporte técnico", "Reclamos", "Seguimiento postventa"],
+        "WhatsApp"),
+    _ag("daniela", "Daniela", "RRPP y Gestión de Crisis", "POSTVENTA",
+        "Sostiene la relación con clientes en conflicto. Línea directa con Máximo.",
+        "🕊️", "#f97316",
+        ["Clientes en conflicto", "Contención", "Escalamiento a Máximo"],
+        "WhatsApp"),
+]
+
+# ─── AGENTES HISTÓRICOS ───────────────────────────────────────────────────────
+# Catálogo anterior (no existen en eco-multiagente). Se conservan solo para
+# mostrar con nombre los comandos viejos del historial. No se ofrecen en el panel.
+AGENTES_HISTORICOS = [
     # ORQUESTADOR
     {
         "id": "orquestador",
@@ -193,95 +299,99 @@ AGENTES_CATALOGO = [
     },
 ]
 
+for _h in AGENTES_HISTORICOS:
+    _h["activo"] = False
+
+
 # ─── MENÚ DE ACCIONES RÁPIDAS ─────────────────────────────────────────────────
 
 ACCIONES_RAPIDAS = {
     "VENTAS": [
         {"id": "leads_sin_contactar", "titulo": "Listar leads sin contactar", "icono": "👥",
-         "instruccion": "Listar todos los leads en estado NUEVO o NO_CONTACTADO. Enviar lista a Rodrigo con nombre, teléfono y fecha de creación. Asignar a Pablo para contactar hoy.",
-         "agente": "pablo"},
+         "instruccion": "Listar todos los leads en estado NUEVO o NO_CONTACTADO. Enviar lista a Rodrigo con nombre, teléfono y fecha de creación. Asignar a los especialistas de ventas para contactar hoy.",
+         "agente": "tomas"},
         {"id": "seguimientos_vencidos", "titulo": "Seguimientos vencidos hoy", "icono": "⏰",
          "instruccion": "Identificar todos los leads con seguimiento programado para hoy o anterior sin gestionar. Notificar a cada asesor responsable y registrar en CRM.",
-         "agente": "laura"},
+         "agente": "tomas"},
         {"id": "pipeline_ventas", "titulo": "Resumen del pipeline", "icono": "📊",
          "instruccion": "Generar resumen del pipeline de ventas actual: leads por etapa, VLs agendadas esta semana, ventas cerradas este mes vs. mes anterior. Enviar reporte a Rodrigo.",
-         "agente": "gabriel"},
+         "agente": "aurora"},
         {"id": "ranking_vendedores", "titulo": "Ranking de vendedores", "icono": "🏆",
          "instruccion": "Calcular ranking de vendedores del mes actual por monto total de ventas cerradas (contado + financiadas). Mostrar top 5 con nombre y monto.",
-         "agente": "gabriel"},
+         "agente": "aurora"},
         {"id": "reactivar_leads_frios", "titulo": "Reactivar leads fríos (+30 días)", "icono": "🔥",
          "instruccion": "Identificar leads sin actividad por más de 30 días que estén en estado CONTACTADO o EN_SEGUIMIENTO. Enviar mensaje de reactivación personalizado por WhatsApp. Registrar gestión en CRM.",
-         "agente": "laura"},
+         "agente": "tomas"},
         {"id": "vls_semana", "titulo": "Estado de VLs de la semana", "icono": "📹",
          "instruccion": "Listar todas las videollamadas agendadas para los próximos 7 días. Confirmar con cada cliente 24hs antes vía WhatsApp. Reportar resultado.",
-         "agente": "sabrina"},
+         "agente": "tomas"},
     ],
     "COBRANZAS": [
         {"id": "cuotas_vencidas", "titulo": "Cuotas vencidas hoy", "icono": "🔴",
          "instruccion": "Listar todas las cuotas vencidas de ventas financiadas. Enviar recordatorio de pago por WhatsApp a cada cliente moroso. Registrar gestión de cobranza en CRM.",
-         "agente": "carlos"},
+         "agente": "ignacio"},
         {"id": "morosos_criticos", "titulo": "Morosos críticos (+60 días)", "icono": "⚠️",
          "instruccion": "Identificar clientes con cuotas vencidas hace más de 60 días. Escalar a negociación de acuerdo especial. Proponer plan de regularización. Reportar a Rodrigo.",
-         "agente": "marina"},
+         "agente": "ignacio"},
         {"id": "recaudacion_mes", "titulo": "Recaudación del mes", "icono": "💰",
          "instruccion": "Calcular total de pagos recibidos en el mes actual vs. total facturado en cuotas. Calcular tasa de cumplimiento. Generar reporte ejecutivo.",
-         "agente": "gabriel"},
+         "agente": "ezequiel"},
         {"id": "recordatorios_proximos", "titulo": "Recordatorios cuotas próximas", "icono": "📅",
          "instruccion": "Enviar recordatorio preventivo a todos los clientes con cuota que vence en los próximos 5 días. Mensaje amigable por WhatsApp.",
-         "agente": "carlos"},
+         "agente": "ignacio"},
     ],
     "FABRICA": [
         {"id": "ops_activas", "titulo": "Estado de producción actual", "icono": "⚙️",
          "instruccion": "Listar todas las órdenes de producción activas con su estado actual, operario asignado y fecha estimada de término. Alertar las que estén retrasadas.",
-         "agente": "marcos"},
+         "agente": "bruno"},
         {"id": "ops_urgentes", "titulo": "OPs urgentes pendientes", "icono": "🚨",
          "instruccion": "Identificar todas las órdenes de producción marcadas como URGENTE que estén en estado PENDIENTE o EN_PROCESO. Asignar prioridad máxima y notificar al jefe de fábrica.",
-         "agente": "marcos"},
+         "agente": "bruno"},
         {"id": "materiales_faltantes", "titulo": "Alertas de materiales", "icono": "📦",
          "instruccion": "Revisar stock de todos los materiales. Identificar los que están por debajo del mínimo. Generar pedido de compra para los críticos y enviar lista a responsable de compras.",
-         "agente": "elena"},
+         "agente": "bruno"},
         {"id": "produccion_semana", "titulo": "Plan de producción semanal", "icono": "📋",
          "instruccion": "Generar plan de producción para los próximos 7 días basado en órdenes pendientes y capacidad de fábrica. Incluir materiales necesarios. Enviar a Rodrigo para aprobación.",
-         "agente": "marcos"},
+         "agente": "bruno"},
     ],
     "LOGISTICA": [
         {"id": "entregas_hoy", "titulo": "Entregas programadas hoy", "icono": "🚚",
          "instruccion": "Listar todas las entregas/instalaciones programadas para hoy. Confirmar con cada equipo asignado. Notificar a los clientes con horario estimado de llegada.",
-         "agente": "diego"},
+         "agente": "bruno"},
         {"id": "envios_cargo_estado", "titulo": "Estado de envíos Vía Cargo", "icono": "📦",
          "instruccion": "Revisar todos los envíos por transporte en estado DESPACHADO o EN_TRANSITO. Actualizar tracking. Notificar a clientes con novedades. Reportar los que tienen problema.",
-         "agente": "ana"},
+         "agente": "bruno"},
         {"id": "coordinar_semana", "titulo": "Coordinar entregas de la semana", "icono": "📅",
          "instruccion": "Revisar todas las ventas con fecha de instalación programada para esta semana. Confirmar disponibilidad de equipo y vehículo. Notificar a clientes. Reportar conflictos.",
-         "agente": "diego"},
+         "agente": "bruno"},
         {"id": "flota_disponible", "titulo": "Estado de la flota", "icono": "🚗",
          "instruccion": "Revisar disponibilidad de todos los vehículos de la flota para la semana. Identificar conflictos de asignación. Reportar a Rodrigo.",
-         "agente": "diego"},
+         "agente": "bruno"},
     ],
     "ADMIN": [
         {"id": "resumen_ejecutivo", "titulo": "Resumen ejecutivo del día", "icono": "📊",
          "instruccion": "Generar resumen ejecutivo completo del día: ventas cerradas, leads nuevos, producción activa, entregas realizadas, cobranzas recibidas, gastos del día. Enviar a Rodrigo vía WhatsApp.",
-         "agente": "gabriel"},
+         "agente": "maximo"},
         {"id": "gastos_mes", "titulo": "Gastos del mes por sector", "icono": "💸",
          "instruccion": "Calcular total de gastos del mes actual por sector (Ventas, Fábrica, Operaciones, Administración). Comparar con mes anterior. Identificar desvíos significativos.",
-         "agente": "patricia"},
+         "agente": "elena"},
         {"id": "stock_disponible", "titulo": "Stock disponible para venta", "icono": "🏊",
          "instruccion": "Generar resumen de stock disponible: piscinas por modelo y color con cantidad y precio, paneles NCE con alertas de mínimo. Texto listo para compartir con asesores.",
-         "agente": "pablo"},
+         "agente": "bruno"},
         {"id": "kpis_semana", "titulo": "KPIs de la semana", "icono": "📈",
          "instruccion": "Calcular KPIs semanales: leads generados, tasa de conversión, ventas cerradas, monto total vendido, OPs completadas, entregas realizadas. Comparar con semana anterior.",
-         "agente": "gabriel"},
+         "agente": "aurora"},
     ],
     "MARKETING": [
         {"id": "actualizar_ml", "titulo": "Actualizar MercadoLibre", "icono": "🛒",
          "instruccion": "Revisar publicaciones activas en MercadoLibre. Actualizar stock según inventario actual. Responder preguntas pendientes. Reportar estado de cada publicación.",
-         "agente": "sofia"},
+         "agente": "renata"},
         {"id": "publicar_instagram", "titulo": "Publicar en Instagram", "icono": "📸",
          "instruccion": "Generar contenido para publicar en Instagram hoy: imagen de producto con precio y descripción. Usar el catálogo actual. Programar para el horario de mayor engagement.",
-         "agente": "sofia"},
+         "agente": "renata"},
         {"id": "actualizar_web", "titulo": "Actualizar precios en la web", "icono": "🌐",
          "instruccion": "Actualizar los precios y modelos disponibles en el sitio web según el catálogo actual del CRM. Verificar que los formularios de contacto estén funcionando.",
-         "agente": "sofia"},
+         "agente": "renata"},
     ],
 }
 
@@ -295,10 +405,10 @@ OBJETIVOS_CEO = [
         "descripcion": "Activa todos los agentes de ventas: reactivación de leads fríos, seguimientos pendientes, confirmación de VLs y cierre de negociaciones activas.",
         "color": "#16a34a",
         "instruccion": """OBJETIVO CEO — MAXIMIZAR VENTAS DEL MES:
-1. Pablo: Contactar todos los leads NUEVO sin gestión en las últimas 48hs.
-2. Laura: Reactivar los 20 leads más antiguos en estado CONTACTADO o EN_SEGUIMIENTO sin actividad reciente.
-3. Sabrina: Confirmar todas las videollamadas de la semana y preparar material de cierre.
-4. Gabriel: Generar reporte del pipeline con leads más calientes para priorizar.
+1. Tomás: Detectar todos los leads NUEVO sin gestión en las últimas 48hs y asignarlos a los especialistas (Camila, Nicolás, Luciano, Mateo).
+2. Tomás: Reactivar los 20 leads más antiguos en estado CONTACTADO o EN_SEGUIMIENTO sin actividad reciente.
+3. Nicolás y Mateo: Confirmar todas las videollamadas de admisión de la semana y preparar material de cierre.
+4. Aurora: Generar reporte del pipeline con leads más calientes para priorizar.
 Prioridad: URGENTE. Reportar resultados a Rodrigo al final del día.""",
         "area": "VENTAS",
     },
@@ -308,10 +418,10 @@ Prioridad: URGENTE. Reportar resultados a Rodrigo al final del día.""",
         "descripcion": "Activa los agentes de cobranzas para un operativo integral: recordatorios, negociaciones y registro de pagos.",
         "color": "#ef4444",
         "instruccion": """OBJETIVO CEO — REDUCIR MOROSIDAD:
-1. Carlos: Enviar recordatorio de pago a TODOS los clientes con cuota vencida hoy o en los últimos 30 días.
-2. Marina: Contactar a los 5 clientes con mayor deuda y proponer acuerdo de regularización.
-3. Carlos: Registrar en CRM todos los compromisos de pago obtenidos.
-4. Gabriel: Calcular monto total de deuda actual y proyección de recupero.
+1. Ignacio: Enviar recordatorio de pago a TODOS los clientes con cuota vencida hoy o en los últimos 30 días.
+2. Ignacio: Contactar a los 5 clientes con mayor deuda y proponer acuerdo de regularización.
+3. Ignacio: Registrar en CRM todos los compromisos de pago obtenidos.
+4. Ezequiel: Calcular monto total de deuda actual y proyección de recupero.
 Prioridad: URGENTE. Reportar resultados a Rodrigo.""",
         "area": "COBRANZAS",
     },
@@ -321,10 +431,10 @@ Prioridad: URGENTE. Reportar resultados a Rodrigo.""",
         "descripcion": "Revisa el estado de fábrica, prioriza órdenes urgentes y gestiona materiales faltantes.",
         "color": "#78716c",
         "instruccion": """OBJETIVO CEO — OPTIMIZAR PRODUCCIÓN:
-1. Marcos: Revisar todas las OPs activas y reordenar por prioridad (urgentes primero).
-2. Elena: Generar lista de materiales faltantes para las OPs de esta semana. Crear pedidos de compra urgentes.
-3. Marcos: Estimar fecha de término realista para cada OP activa y actualizar en sistema.
-4. Gabriel: Reportar % de OPs en tiempo vs. retrasadas.
+1. Bruno: Revisar todas las OPs activas y reordenar por prioridad (urgentes primero).
+2. Bruno: Generar lista de materiales faltantes para las OPs de esta semana. Crear pedidos de compra urgentes.
+3. Bruno: Estimar fecha de término realista para cada OP activa y actualizar en sistema.
+4. Aurora: Reportar % de OPs en tiempo vs. retrasadas.
 Prioridad: ALTA. Reportar a Rodrigo con plan de acción.""",
         "area": "FABRICA",
     },
@@ -334,11 +444,11 @@ Prioridad: ALTA. Reportar a Rodrigo con plan de acción.""",
         "descripcion": "Resumen matutino completo: producción, entregas del día, seguimientos y novedades de cobranzas.",
         "color": "#f59e0b",
         "instruccion": """ARRANQUE DIARIO — OPERATIVO COMPLETO:
-1. Gabriel: Generar resumen ejecutivo del día con estado general del negocio.
-2. Diego: Confirmar entregas e instalaciones programadas para hoy y notificar a los clientes.
-3. Ana: Revisar envíos por cargo en tránsito y actualizar tracking.
-4. Carlos: Enviar recordatorio a clientes con cuota que vence hoy.
-5. Pablo: Asignar leads nuevos recibidos durante la noche a los asesores.
+1. Máximo: Generar resumen ejecutivo del día con estado general del negocio.
+2. Bruno: Confirmar entregas e instalaciones programadas para hoy y notificar a los clientes.
+3. Bruno: Revisar envíos por cargo en tránsito y actualizar tracking.
+4. Ignacio: Enviar recordatorio a clientes con cuota que vence hoy.
+5. Tomás: Asignar leads nuevos recibidos durante la noche a los asesores.
 Enviar todo a Rodrigo vía WhatsApp antes de las 9:00 AM.""",
         "area": "GENERAL",
     },
@@ -348,9 +458,9 @@ Enviar todo a Rodrigo vía WhatsApp antes de las 9:00 AM.""",
         "descripcion": "Consolida los resultados de la semana: ventas, producción, cobros, entregas y gastos.",
         "color": "#3b82f6",
         "instruccion": """CIERRE SEMANAL — REPORTE EJECUTIVO:
-1. Gabriel: Consolidar KPIs de la semana: leads, ventas, monto, OPs completadas, entregas, cobros.
-2. Gabriel: Comparar vs. semana anterior y mes en curso.
-3. Patricia: Totalizar gastos de la semana por sector.
+1. Aurora: Consolidar KPIs de la semana: leads, ventas, monto, OPs completadas, entregas, cobros.
+2. Aurora: Comparar vs. semana anterior y mes en curso.
+3. Elena: Totalizar gastos de la semana por sector.
 4. Todas las áreas: Reportar pendientes más importantes para la semana siguiente.
 Enviar reporte completo a Rodrigo para revisión.""",
         "area": "ADMIN",
@@ -361,10 +471,10 @@ Enviar reporte completo a Rodrigo para revisión.""",
         "descripcion": "Activa el protocolo de atención urgente: reclamo, seguimiento y resolución rápida.",
         "color": "#ef4444",
         "instruccion": """PROTOCOLO DE EMERGENCIA — ATENCIÓN URGENTE:
-1. Valentina: Contactar al cliente de inmediato vía WhatsApp para escuchar el problema.
-2. Valentina: Crear reclamo en el sistema con todos los detalles.
-3. Diego/Ana (según tipo de entrega): Evaluar solución técnica y timeline de resolución.
-4. Gabriel: Notificar a Rodrigo con el detalle del caso y solución propuesta.
+1. Daniela: Contactar al cliente de inmediato vía WhatsApp para escuchar el problema.
+2. Sebastián: Crear reclamo en el sistema con todos los detalles.
+3. Sebastián y Bruno: Evaluar solución técnica y timeline de resolución.
+4. Máximo: Notificar a Rodrigo con el detalle del caso y solución propuesta.
 Prioridad: MÁXIMA. Respuesta al cliente en menos de 2 horas.""",
         "area": "GENERAL",
     },
@@ -376,6 +486,30 @@ Prioridad: MÁXIMA. Respuesta al cliente en menos de 2 horas.""",
 def _get_config(db: Session, clave: str, default: str = "") -> str:
     cfg = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == clave).first()
     return cfg.valor if cfg and cfg.valor else default
+
+
+def _nombres_agentes() -> dict:
+    """id → nombre para mostrar el historial (los históricos marcados como tales)."""
+    nombres = {"orquestador": "Orquestador"}
+    nombres.update({h["id"]: f'{h["nombre"]} (histórico)' for h in AGENTES_HISTORICOS})
+    nombres.update({a["id"]: a["nombre"] for a in AGENTES_CATALOGO})
+    return nombres
+
+
+def _get_orquestador_api_key(db: Session) -> str:
+    """Credencial para el multiagente: env MULTIAGENTE_API_KEY → config cifrada.
+    Antes se leía solo orquestador_api_key, que no tenía campo en la UI de Configuración:
+    quedaba vacía, no se enviaba X-Api-Key y desde la Etapa 0 el multiagente responde 401."""
+    k = os.getenv("MULTIAGENTE_API_KEY", "").strip()
+    if k:
+        return k
+    return (decrypt_value(_get_config(db, "orquestador_api_key")) or "").strip()
+
+
+_MSG_401 = ("El sistema de agentes rechazó la credencial del CRM (HTTP 401). "
+            "Configurá MULTIAGENTE_API_KEY en el CRM con el mismo valor que en eco-multiagente "
+            "(o la clave en Configuración → API Keys → \"Agentes IA — API Key\").")
+_MSG_503 = "El sistema de agentes no tiene autenticación configurada (HTTP 503): falta MULTIAGENTE_API_KEY/ADMIN_PASSWORD en eco-multiagente."
 
 
 def _comando_dict(c: ComandoAgente) -> dict:
@@ -422,6 +556,10 @@ async def _enviar_al_orquestador(instruccion: str, contexto: dict, prioridad: st
             r = await client.post(url, json=payload, headers=headers)
         if r.status_code < 300:
             return "ENVIADO", r.text[:500], r.status_code
+        elif r.status_code == 401:
+            return "ERROR", _MSG_401 if api_key else "El CRM no tiene credencial para el sistema de agentes. " + _MSG_401, 401
+        elif r.status_code == 503:
+            return "ERROR", _MSG_503, 503
         else:
             return "ERROR", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code
     except httpx.ConnectError:
@@ -447,6 +585,7 @@ async def control_agentes_page(
         "user": current_user,
         "roles": roles,
         "agentes": AGENTES_CATALOGO,
+        "nombres_agentes": _nombres_agentes(),
         "acciones": ACCIONES_RAPIDAS,
         "objetivos_ceo": OBJETIVOS_CEO,
         "orquestador_configurado": bool(orq_url),
@@ -463,20 +602,25 @@ async def get_status(
 ):
     orq_url = _get_config(db, "orquestador_url")
     orq_endpoint = _get_config(db, "orquestador_status_endpoint", "/health")
-    api_key = _get_config(db, "orquestador_api_key")
+    api_key = _get_orquestador_api_key(db)
 
     orquestador_online = False
     orquestador_respuesta = ""
+    # None = no verificado; True/False = la credencial del CRM es aceptada por el multiagente
+    autenticacion_ok = None
 
     if orq_url:
         try:
-            headers = {}
-            if api_key:
-                headers["X-Api-Key"] = api_key
             async with httpx.AsyncClient(timeout=5.0) as client:
-                r = await client.get(orq_url.rstrip("/") + orq_endpoint, headers=headers)
-            orquestador_online = r.status_code < 400
-            orquestador_respuesta = r.text[:200] if orquestador_online else f"HTTP {r.status_code}"
+                r = await client.get(orq_url.rstrip("/") + orq_endpoint)
+                orquestador_online = r.status_code < 400
+                orquestador_respuesta = r.text[:200] if orquestador_online else f"HTTP {r.status_code}"
+                if orquestador_online:
+                    # Verificación sin efectos: no registra comandos ni devuelve datos
+                    ra = await client.get(orq_url.rstrip("/") + "/api/comando/ping",
+                                          headers={"X-Api-Key": api_key} if api_key else {})
+                    if ra.status_code != 404:  # 404 = multiagente sin el endpoint (versión vieja)
+                        autenticacion_ok = ra.status_code == 200
         except Exception as e:
             orquestador_respuesta = str(e)[:100]
 
@@ -504,6 +648,8 @@ async def get_status(
         "orquestador_url": orq_url or "No configurado",
         "orquestador_respuesta": orquestador_respuesta,
         "configurado": bool(orq_url),
+        "credencial_configurada": bool(api_key),
+        "autenticacion_ok": autenticacion_ok,
         "actividad_agentes": actividad,
         "total_comandos": total_comandos,
         "comandos_hoy": comandos_hoy,
@@ -526,7 +672,7 @@ async def enviar_comando(
 
     orq_url = _get_config(db, "orquestador_url")
     orq_endpoint = _get_config(db, "orquestador_endpoint", "/api/comando")
-    api_key = _get_config(db, "orquestador_api_key")
+    api_key = _get_orquestador_api_key(db)
 
     titulo = data.get("titulo") or instruccion[:80]
     agente = data.get("agente_destino") or "orquestador"
@@ -601,6 +747,7 @@ async def get_historial(
 async def get_catalogo(current_user: Usuario = Depends(require_auth)):
     return {
         "agentes": AGENTES_CATALOGO,
+        "agentes_historicos": AGENTES_HISTORICOS,
         "acciones": ACCIONES_RAPIDAS,
         "objetivos_ceo": OBJETIVOS_CEO,
     }

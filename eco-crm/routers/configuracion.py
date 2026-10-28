@@ -2,6 +2,7 @@
 Módulo 12 — Configuración del Sistema
 Acceso: ADMIN y COORDINADOR_OPERATIVO
 """
+import os
 from datetime import datetime
 from typing import Optional
 
@@ -218,6 +219,13 @@ CONFIG_DEFS: dict = {
         "test_id": "orquestador",
         "placeholder": "https://eco-multiagente-production.up.railway.app",
         "default": "https://eco-multiagente-production.up.railway.app",
+    },
+    "orquestador_api_key": {
+        "label": "Agentes IA — API Key (Control Center)",
+        "categoria": "api_keys",
+        "es_secreto": True,
+        "test_id": "orquestador_auth",
+        "placeholder": "Mismo valor que MULTIAGENTE_API_KEY en eco-multiagente",
     },
     # ── Precios ──
     "flete_precio_km": {
@@ -669,6 +677,7 @@ async def test_connection(
             "claude_api_key": ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
             "wa_token":       ["WA_TOKEN"],
             "orquestador_url": ["ORQUESTADOR_URL"],
+            "orquestador_api_key": ["MULTIAGENTE_API_KEY"],
         }
         valor = None
         for env_var in ENV_MAP.get(clave, []):
@@ -832,6 +841,25 @@ async def _run_test(test_id: Optional[str], clave: str, valor: str, db: Session)
                 data = r.json()
                 agentes = data.get("agentes", "?")
                 return {"ok": True, "msg": f"✓ Sistema de agentes activo ({agentes} agentes)"}
+            return {"ok": False, "msg": f"Error {r.status_code}"}
+        except Exception as e:
+            return {"ok": False, "msg": f"Sin conexión: {str(e)[:80]}"}
+
+    elif test_id == "orquestador_auth":
+        # Verifica la credencial contra un endpoint protegido y sin efectos del multiagente
+        cfg_url = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == "orquestador_url").first()
+        url = ((cfg_url.valor if cfg_url and cfg_url.valor else "")
+               or os.getenv("ORQUESTADOR_URL", "")
+               or CONFIG_DEFS["orquestador_url"]["default"]).rstrip("/")
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get(f"{url}/api/comando/ping", headers={"X-Api-Key": valor})
+            if r.status_code == 200:
+                return {"ok": True, "msg": "✓ El sistema de agentes acepta la credencial"}
+            if r.status_code == 401:
+                return {"ok": False, "msg": "Credencial rechazada (401): no coincide con MULTIAGENTE_API_KEY del multiagente"}
+            if r.status_code == 404:
+                return {"ok": False, "msg": "El multiagente no tiene /api/comando/ping (desplegar la versión nueva)"}
             return {"ok": False, "msg": f"Error {r.status_code}"}
         except Exception as e:
             return {"ok": False, "msg": f"Sin conexión: {str(e)[:80]}"}

@@ -16,6 +16,7 @@ from database.models import ContenidoEcopost, Lead, PublicacionML, Usuario
 from routers.auth import require_auth, get_user_roles
 from utils.ai_client import ai_complete
 from utils.contexto_ecofiver import ctx_marketing_blog
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -67,7 +68,7 @@ async def debug_dashboard(
     import os
     from fastapi import HTTPException
     API_KEY = os.getenv("API_KEY", "")
-    if x_api_key != API_KEY:
+    if not api_key_valida(x_api_key):
         raise HTTPException(403, "Sin permisos")
     import traceback
     try:

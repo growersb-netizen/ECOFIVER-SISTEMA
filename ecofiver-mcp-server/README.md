@@ -15,6 +15,7 @@ Todas las tools llaman al endpoint unificado `POST /api/contratos` del CRM (`eco
 - `CRM_BASE_URL` — URL del CRM (default: `https://eco-crm-production.up.railway.app`)
 - `CRM_API_KEY` — API key del CRM (mismo valor que `API_KEY` en el servicio `eco-crm`)
 - `PORT` — puerto HTTP (Railway lo inyecta automáticamente)
+- `MCP_AUTH_TOKEN` — token de acceso al endpoint MCP. Con él configurado se exige `Authorization: Bearer <token>` o la ruta `POST /mcp/<token>` (para conectores de Claude.ai, que no permiten headers). Sin él, `POST /mcp` queda abierto y el servidor lo advierte al iniciar.
 
 ## Desarrollo local
 

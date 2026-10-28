@@ -6,7 +6,7 @@ import os, json
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 
-API_KEY = os.getenv("API_KEY", "eco-crm-api-key-2024")
+API_KEY = os.getenv("API_KEY", "")
 CRM = "https://eco-crm-production.up.railway.app"
 
 req = Request(f"{CRM}/api/admin/lineas-wa",

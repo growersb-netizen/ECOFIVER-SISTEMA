@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func as sqlfunc
 
 from database.database import get_db
+from utils.api_keys import api_key_valida
 from database.models import (
     Lead, Usuario, Videollamada, VentaContado, VentaFinanciada,
     Pago, GestionCobranza, OrdenFabricaPiscina, OrdenFabricaModulo,
@@ -44,7 +45,7 @@ API_KEY = os.getenv("API_KEY", "")
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 def require_api_key(x_api_key: Optional[str] = Header(None)):
-    if not x_api_key or x_api_key != API_KEY:
+    if not api_key_valida(x_api_key):
         raise HTTPException(401, "API key inválida o ausente. Enviá el header X-Api-Key.")
     return True
 

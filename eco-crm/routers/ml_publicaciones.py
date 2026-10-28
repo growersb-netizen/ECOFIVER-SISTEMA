@@ -28,6 +28,7 @@ from routers.mercadolibre import (
 )
 from utils.ai_client import ai_complete
 from utils.contexto_ecofiver import ctx_seo_ml
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -120,7 +121,7 @@ async def pagina_publicaciones(current_user: Usuario = Depends(_require_config_a
 
 
 def _auth(x_api_key, current_user):
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")

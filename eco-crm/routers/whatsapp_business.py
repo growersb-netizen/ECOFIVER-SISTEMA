@@ -23,6 +23,7 @@ from database.database import get_db
 from database.models import Usuario
 from routers.auth import get_current_user, get_user_roles
 from routers.configuracion import _require_config_access
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -40,7 +41,7 @@ VERTICALS = [
 
 
 def _auth(x_api_key, current_user):
-    ok = (x_api_key and x_api_key == API_KEY) or (
+    ok = api_key_valida(x_api_key) or (
         current_user and any(r in get_user_roles(current_user) for r in ("ADMIN", "COORDINADOR_OPERATIVO")))
     if not ok:
         raise HTTPException(403, "Sin permisos")

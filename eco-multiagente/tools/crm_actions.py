@@ -48,18 +48,29 @@ def limpiar_acciones(reply: str) -> str:
     return CRM_ACTION_PATTERN.sub("", reply).strip()
 
 
-async def ejecutar_acciones(acciones: list[dict]) -> str:
+async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
     """
-    Ejecuta una lista de acciones CRM en orden.
+    Ejecuta una lista de acciones CRM en orden, validando cada una contra
+    tools.action_policy (agente + canal). Sin ctx se aplica la política más
+    restrictiva (canal cliente).
     Retorna un bloque de texto con los resultados.
     """
     if not acciones:
         return ""
 
+    from tools.action_policy import evaluar, registrar_bloqueo
+
     resultados = []
     for accion in acciones:
-        tipo = accion.get("tipo", "").lower()
+        tipo = str(accion.get("tipo", "")).lower()
         datos = accion.get("datos", {})
+        if not isinstance(datos, dict):
+            datos = {}
+        decision = evaluar(tipo, datos, ctx)
+        if not decision.permitido:
+            registrar_bloqueo(tipo, ctx, decision.motivo)
+            resultados.append(f"⛔ Acción '{tipo}' no ejecutada: {decision.motivo}")
+            continue
         try:
             resultado = await _ejecutar_una(tipo, datos)
         except Exception as e:

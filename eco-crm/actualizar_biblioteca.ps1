@@ -1,5 +1,5 @@
 $BASE = "https://eco-crm-production.up.railway.app"
-$HEADERS = @{ "Content-Type" = "application/json"; "X-API-Key" = "eco-crm-api-key-2024" }
+$HEADERS = @{ "Content-Type" = "application/json"; "X-API-Key" = $env:CRM_API_KEY }
 
 $materiales = @(
   @{ id=229; titulo="Piscina rectangular - planta Zárate"; tipo="foto_entrega"; categoria="piscinas"; descripcion="Piscina rectangular verde turquesa terminada, vista interior en planta." }

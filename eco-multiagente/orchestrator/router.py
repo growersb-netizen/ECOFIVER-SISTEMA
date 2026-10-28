@@ -9,12 +9,30 @@ import logging
 import re
 from tools import crm_client
 from tools.crm_actions import detectar_acciones, limpiar_acciones, ejecutar_acciones
+from tools.action_policy import ActionContext, CANAL_CLIENTE, CANAL_CONFIABLE
 from tools.audit_log import registrar_interaccion
 
 logger = logging.getLogger(__name__)
 
 # ── Número de teléfono del admin (Rodrigo) ─────────────────────────────────
 ADMIN_WA_PHONES: set[str] = {"5491135164644", "549113516444"}  # sin el +
+
+# ── Neutralización de señales en texto de terceros (prompt injection) ──────
+# Un cliente puede escribir "[CRM_ACTION:{...}]" o "[DERIVAR:x]" para que el
+# modelo lo repita. Las señales solo deben venir del agente, nunca del usuario:
+# se reemplaza el corchete de apertura para que el texto quede legible pero
+# no pueda matchear ningún parser de señales.
+_SEÑAL_EN_INPUT_RE = re.compile(
+    r"\[(\s*(?:[A-Z_ ]*(?:ACTION|ACCION)|DERIVAR|AGENDA_VV|LLAMADA_SUP|ALIADO|SIMULAR|LEAD_CALIENTE|ALERTA|NOTIF|SEGUIMIENTO)\b)",
+    re.IGNORECASE,
+)
+
+
+def neutralizar_señales_usuario(texto: str) -> str:
+    if not texto:
+        return texto
+    return _SEÑAL_EN_INPUT_RE.sub(r"(\1", texto)
+
 
 # Leads ya alertados como calientes (en memoria, evita spamear la misma alerta)
 _leads_alertados_calientes: set[str] = set()
@@ -436,7 +454,11 @@ async def route_message(
     """
 
     # ── Canal admin: Rodrigo → siempre Máximo ──────────────────────────────
-    if canal == "whatsapp_admin" or session_id in ADMIN_WA_PHONES:
+    # Solo por canal: "whatsapp_admin" lo asigna channels/whatsapp.py tras validar
+    # el número (y la firma del webhook). NO se infiere del session_id: en el
+    # widget web/email el session_id lo controla quien escribe y permitiría
+    # suplantar al administrador.
+    if canal == "whatsapp_admin":
         return await _route_admin(session_id, mensaje, msg_type)
 
     # ── Canal aliados: mensajes del grupo de aliados → Franco ───────────────
@@ -487,6 +509,8 @@ async def route_message(
     contexto = f"Historial previo:\n{historial}" if historial else ""
 
     # 3. Instanciar agente y generar respuesta
+    # El texto del cliente se neutraliza antes de llegar al modelo (prompt injection).
+    mensaje = neutralizar_señales_usuario(mensaje)
     agente = _get_agent_instance(session_id, agent_name)
     reply = await agente.respond(mensaje, contexto)
 
@@ -557,7 +581,10 @@ async def route_message(
             nombres_acc = [a.get("tipo", "?") for a in acciones_crm]
             señales_detectadas.extend(names for names in nombres_acc)
             logger.info(f"[Router] Acciones CRM en canal cliente: {nombres_acc} — lead {session_id}")
-            await ejecutar_acciones(acciones_crm)
+            _lead_id_ctx = (lead or {}).get("id") if isinstance(lead, dict) else None
+            await ejecutar_acciones(acciones_crm, ActionContext(
+                agente=agent_name, canal=CANAL_CLIENTE, lead_id=_lead_id_ctx, origen=canal,
+            ))
         except Exception as e:
             logger.error(f"[Router] Error ejecutando acciones CRM en canal cliente: {e}")
 
@@ -647,7 +674,9 @@ async def _route_admin(session_id: str, mensaje: str, msg_type: str) -> dict:
         # Detectar acciones CRM en la respuesta de transición (improbable pero posible)
         acciones_transicion = detectar_acciones(reply)
         if acciones_transicion:
-            resultados = await ejecutar_acciones(acciones_transicion)
+            resultados = await ejecutar_acciones(acciones_transicion, ActionContext(
+                agente=agente_actual, canal=CANAL_CONFIABLE, origen="whatsapp_admin",
+            ))
             if resultados:
                 transicion = f"{transicion}\n\n{resultados}".strip()
 
@@ -680,7 +709,9 @@ async def _route_admin(session_id: str, mensaje: str, msg_type: str) -> dict:
     reply = limpiar_acciones(reply)
     acciones_nombres = [a.get("tipo", "crm_action") for a in acciones] if acciones else []
     if acciones:
-        resultados = await ejecutar_acciones(acciones)
+        resultados = await ejecutar_acciones(acciones, ActionContext(
+            agente=agente_actual, canal=CANAL_CONFIABLE, origen="whatsapp_admin",
+        ))
         if resultados:
             reply = f"{reply}\n\n{resultados}".strip()
 

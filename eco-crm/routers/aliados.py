@@ -28,6 +28,7 @@ from database.models import (
     Lead, Usuario, VentaContado, VentaFinanciada,
 )
 from routers.auth import get_current_user, get_user_roles, require_auth
+from utils.api_keys import api_key_valida
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -103,7 +104,7 @@ ROLES_GESTION = ("ADMIN", "SUPERVISOR_CIERRE", "ADMINISTRACION")
 
 def _auth(x_api_key: Optional[str], current_user: Optional[Usuario]) -> Optional[Usuario]:
     """Permite sesión CRM o API key (Franco). Devuelve el usuario si es sesión."""
-    if x_api_key and x_api_key == API_KEY:
+    if api_key_valida(x_api_key):
         return current_user
     if current_user:
         return current_user
@@ -112,7 +113,7 @@ def _auth(x_api_key: Optional[str], current_user: Optional[Usuario]) -> Optional
 
 def _solo_gestion(current_user: Optional[Usuario], x_api_key: Optional[str]):
     """Acciones sensibles: sólo roles de gestión o API key de Franco."""
-    if x_api_key and x_api_key == API_KEY:
+    if api_key_valida(x_api_key):
         return
     if current_user and any(r in get_user_roles(current_user) for r in ROLES_GESTION):
         return

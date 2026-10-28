@@ -324,24 +324,7 @@ async def _generar_imagen(key: str, descripcion: str, prompt_rol: str, formato_e
         except Exception as e:
             return "", f"OpenRouter excepción: {e}"
 
-    # ── Opción B: Hugging Face Inference API (si hay HUGGINGFACE_TOKEN) ──
-    hf_token = os.getenv("HUGGINGFACE_TOKEN", "")
-    if hf_token:
-        try:
-            hf_model = os.getenv("HF_IMAGE_MODEL", "black-forest-labs/FLUX.1-schnell")
-            async with httpx.AsyncClient(timeout=120) as c:
-                r = await c.post(
-                    f"https://api-inference.huggingface.co/models/{hf_model}",
-                    headers={"Authorization": f"Bearer {hf_token}", "x-wait-for-model": "true"},
-                    json={"inputs": prompt_final},
-                )
-                if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
-                    return _b64lib.b64encode(r.content).decode(), ""
-                return "", f"HF {r.status_code}: {r.text[:200]}"
-        except Exception as e:
-            return "", f"HF excepción: {e}"
-
-    return "", "No hay clave de generación de imágenes configurada (OpenRouter o HUGGINGFACE_TOKEN)"
+    return "", "No hay clave de OpenRouter configurada (todo el consumo de IA pasa por OpenRouter)"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

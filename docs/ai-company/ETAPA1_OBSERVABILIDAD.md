@@ -1,6 +1,6 @@
 # EcoFiver AI Company — Etapa 1 (parte independiente): observabilidad e informes
 
-Estado: **implementado y probado localmente** (92 tests del multiagente). **No desplegado.** Depende del PR de la Etapa 0 (se apoya en `security.require_api_key`).
+Estado: **implementado y probado localmente** (107 tests del multiagente, 16 del CRM). **No desplegado.** Depende del PR de la Etapa 0 (se apoya en `security.require_api_key`).
 
 ## Qué incluye
 
@@ -17,8 +17,24 @@ Estado: **implementado y probado localmente** (92 tests del multiagente). **No d
 
 Feature flag: `ETAPA1_INFORMES_TELEGRAM=0` vuelve al comportamiento anterior (sin envíos).
 
-## Hallazgo
-Máximo y Valentín **no usan OpenRouter**: tienen modelo propio y van directo a Gemini (`base_agent._get_provider`). `/health/ia` lo muestra en `por_modelo`.
+## Política: todo el consumo de IA pasa por OpenRouter
+Decisión del 28/10/2026. Antes había llamadas directas a Groq, Grok, Gemini, Claude y HuggingFace.
+
+| Uso | Antes | Ahora |
+|---|---|---|
+| Agentes (todos, incluido Máximo) | Proveedor según `AI_PROVIDER` (el `.env` del volumen podía fijar grok/groq/gemini) | Siempre OpenRouter, modelo `OPENROUTER_MODEL` (default `openai/gpt-4o-mini`). `AI_PROVIDER` distinto se ignora con aviso en el log |
+| Respaldo de agentes | Groq → OpenRouter free → Grok → Gemini directos | Otros modelos **dentro de OpenRouter**: `OPENROUTER_FALLBACK_MODELS` (default `openai/gpt-4o-mini,google/gemini-2.5-flash`, omitiendo el principal) |
+| Transcripción de audios | Groq Whisper → OpenRouter (audio enviado como imagen) → Gemini SDK | OpenRouter con `input_audio`; OGG/Opus se convierte a mp3 con ffmpeg (agregado al Dockerfile). Modelos: `AUDIO_OPENROUTER_MODELS` |
+| CRM `ai_complete` | OpenRouter y, sin clave, Grok/Gemini/Claude | Solo OpenRouter |
+| EcoPost imágenes | OpenRouter → Worker → Gemini Imagen directo | OpenRouter → Worker (que usa OpenRouter) |
+| CRM imágenes | OpenRouter → HuggingFace | Solo OpenRouter |
+| Visión (DNI), Worker de Cloudflare | Ya usaban OpenRouter | Sin cambios |
+
+Quedan, sin uso en el tráfico: los módulos de otros proveedores en `providers/` y los botones de "probar conexión" de los paneles de configuración (solo se ejecutan si alguien los presiona).
+
+**Corrección:** un informe anterior decía que Máximo usaba Gemini directo. Era incorrecto: Máximo no define modelo propio y usaba el proveedor global.
+
+**Riesgo a verificar después del deploy:** los audios dependen ahora de que el modelo de OpenRouter acepte `input_audio`. Prueba: mandar una nota de voz a la línea de agentes y ver en `/health/ia` el agente `transcripcion` con `ok`. Si falla, el cliente recibe el pedido de que escriba (comportamiento existente) y se cambia el modelo con `AUDIO_OPENROUTER_MODELS`, sin redeploy de código.
 
 ## Lo que NO incluye (y por qué)
 | Pendiente de la Etapa 1 | Bloqueo real |

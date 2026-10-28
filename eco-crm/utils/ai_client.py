@@ -53,8 +53,9 @@ PROVIDERS = {
     },
 }
 
-# OpenRouter es el predeterminado (mismo motor que los agentes del multiagente)
-PROVIDER_PRIORITY = ["openrouter", "grok", "gemini", "claude"]
+# Política de EcoFiver: TODO el consumo de IA pasa por OpenRouter. Los demás
+# proveedores quedan definidos (pantalla de configuración) pero no se usan.
+PROVIDER_PRIORITY = ["openrouter"]
 
 # Modelo gratuito de fallback cuando OpenRouter devuelve 402 (sin créditos).
 # Se elige uno con cuota gratuita generosa. Si el entorno define OPENROUTER_FREE_MODEL
@@ -105,8 +106,7 @@ def get_config_value(clave: str, db: Session) -> Optional[str]:
 
 def get_active_provider(db: Session) -> Optional[tuple[str, str]]:
     """
-    Devuelve (nombre_proveedor, api_key) del primer proveedor con clave configurada.
-    Orden: grok → gemini → claude
+    Devuelve ("openrouter", api_key) si hay clave de OpenRouter; si no, (None, None).
     """
     for pname in PROVIDER_PRIORITY:
         pconf = PROVIDERS[pname]

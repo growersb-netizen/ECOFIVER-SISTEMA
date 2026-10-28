@@ -33,8 +33,6 @@ templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger(__name__)
 
 CLOUDFLARE_WORKER_URL = "https://eco-agentes.growersb.workers.dev"
-GEMINI_TEXT_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-GEMINI_IMAGEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict"
 
 
 # ─── AUTH HELPER ─────────────────────────────────────────────────────────────
@@ -123,19 +121,6 @@ def _content_dict(c: ContenidoEcopost) -> dict:
     }
 
 
-async def _gemini_text(api_key: str, prompt: str) -> str:
-    """Llama a Gemini Flash para generar texto."""
-    body = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.65, "maxOutputTokens": 1024},
-    }
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(f"{GEMINI_TEXT_URL}?key={api_key}", json=body)
-        r.raise_for_status()
-        data = r.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-
-
 async def _generate_image_worker(prompt: str, tipo: str) -> Optional[str]:
     """
     Intenta generar imagen via Cloudflare Worker /generate (nuevo).
@@ -155,27 +140,6 @@ async def _generate_image_worker(prompt: str, tipo: str) -> Optional[str]:
     except Exception as e:
         logger.warning(f"[ecopost] Worker /generate falló: {e}")
     return None
-
-
-async def _generate_image_gemini(api_key: str, prompt: str, tipo: str) -> Optional[str]:
-    """
-    Genera imagen directamente via Gemini Imagen 3 (fallback cuando el worker no responde).
-    """
-    aspect = "1:1" if tipo != "story" else "9:16"
-    body = {
-        "instances": [{"prompt": prompt}],
-        "parameters": {"sampleCount": 1, "aspectRatio": aspect, "language": "es"},
-    }
-    try:
-        async with httpx.AsyncClient(timeout=60) as c:
-            r = await c.post(f"{GEMINI_IMAGEN_URL}?key={api_key}", json=body)
-            r.raise_for_status()
-            data = r.json()
-            b64 = data["predictions"][0].get("bytesBase64Encoded")
-            return b64
-    except Exception as e:
-        logger.error(f"[ecopost] Gemini Imagen directo falló: {e}")
-        return None
 
 
 async def _generate_image_openrouter(api_key: str, prompt: str, tipo: str) -> Optional[str]:
@@ -287,20 +251,17 @@ def _enriquecer_prompt_imagen(prompt: str, tipo: str, producto: str = "") -> str
 
 
 async def _generate_image(db: Session, prompt: str, tipo: str) -> Optional[str]:
-    """Intenta OpenRouter primero (motor configurado por defecto), con fallbacks legacy."""
+    """
+    Todo por OpenRouter: primero directo, después el Cloudflare Worker (que también
+    usa OpenRouter). Se quitó el respaldo a Gemini Imagen directo.
+    """
     import os
     or_key = get_config_value("openrouter_api_key", db) or os.getenv("OPENROUTER_API_KEY", "")
     if or_key:
         b64 = await _generate_image_openrouter(or_key, prompt, tipo)
         if b64:
             return b64
-    b64 = await _generate_image_worker(prompt, tipo)
-    if b64:
-        return b64
-    gemini_key = get_config_value("gemini_api_key", db)
-    if gemini_key:
-        b64 = await _generate_image_gemini(gemini_key, prompt, tipo)
-    return b64
+    return await _generate_image_worker(prompt, tipo)
 
 
 # ─── HTML PAGE ───────────────────────────────────────────────────────────────

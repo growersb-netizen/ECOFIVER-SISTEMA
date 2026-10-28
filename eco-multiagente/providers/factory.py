@@ -1,8 +1,8 @@
 """
 Factory de proveedores de IA.
-Lee AI_PROVIDER del entorno.
-Proveedores soportados: openrouter | grok | gemini | claude | openai
-Por defecto: openrouter si hay OPENROUTER_API_KEY, sino grok.
+Política: todo el consumo de IA pasa por OpenRouter (modelo principal
+OPENROUTER_MODEL y respaldos OPENROUTER_FALLBACK_MODELS). Los demás módulos de
+providers/ se conservan pero no se usan para tráfico.
 """
 import os
 import logging
@@ -15,63 +15,43 @@ _instances: dict[str, BaseProvider] = {}
 
 def get_active_provider_name() -> str:
     """
-    Lee AI_PROVIDER del entorno.
-    Auto-detecta por keys disponibles si no está configurado.
+    Política de EcoFiver: TODO el consumo de IA pasa por OpenRouter.
+    AI_PROVIDER (variable o .env del volumen) ya no elige otro proveedor; si
+    indica uno distinto se advierte en el log y se usa OpenRouter igual.
     """
-    configured = os.getenv("AI_PROVIDER", "").lower()
-    if configured:
-        return configured
-    # Auto-detect: prioridad OpenRouter (único proveedor oficial) → resto como fallback
-    if os.getenv("OPENROUTER_API_KEY"):
-        return "openrouter"
-    if os.getenv("GEMINI_API_KEY"):
-        return "gemini"
-    if os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY"):
-        return "grok"
-    if os.getenv("ANTHROPIC_API_KEY"):
-        return "claude"
-    if os.getenv("OPENAI_API_KEY"):
-        return "openai"
-    return "openrouter"  # default (fallará con error claro si no hay key)
+    configured = os.getenv("AI_PROVIDER", "").strip().lower()
+    if configured and configured != "openrouter":
+        global _aviso_emitido
+        if not _aviso_emitido:
+            logger.warning(f"[AI Factory] AI_PROVIDER={configured} ignorado: todo el tráfico de IA va por OpenRouter")
+            _aviso_emitido = True
+    return "openrouter"
+
+
+_aviso_emitido = False
 
 
 def get_provider() -> BaseProvider:
-    provider_name = get_active_provider_name()
+    if "openrouter" not in _instances:
+        from .openrouter_provider import OpenRouterProvider
+        model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+        _instances["openrouter"] = OpenRouterProvider(model=model)
+        logger.info(f"[AI Factory] Proveedor activo: {_instances['openrouter'].name}")
+    return _instances["openrouter"]
 
-    if provider_name not in _instances:
-        if provider_name == "openrouter":
-            from .openrouter_provider import OpenRouterProvider
-            model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-            _instances[provider_name] = OpenRouterProvider(model=model)
 
-        elif provider_name == "groq":
-            from .groq_provider import GroqProvider, DEFAULT_MODEL as GROQ_DEFAULT
-            model = os.getenv("GROQ_MODEL", GROQ_DEFAULT)
-            _instances[provider_name] = GroqProvider(model=model)
-
-        elif provider_name == "grok":
-            from .grok_provider import GrokProvider
-            model = os.getenv("GROK_MODEL", "grok-3-mini")
-            _instances[provider_name] = GrokProvider(model=model)
-
-        elif provider_name == "claude":
-            from .claude_provider import ClaudeProvider
-            model = os.getenv("CLAUDE_MODEL", "claude-haiku-20240307")
-            _instances[provider_name] = ClaudeProvider(model=model)
-
-        elif provider_name == "openai":
-            from .openai_provider import OpenAIProvider
-            model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-            _instances[provider_name] = OpenAIProvider(model=model)
-
-        else:  # gemini (fallback)
-            from .gemini_provider import GeminiProvider
-            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-            _instances[provider_name] = GeminiProvider(model=model)
-
-        logger.info(f"[AI Factory] Proveedor activo: {_instances[provider_name].name}")
-
-    return _instances[provider_name]
+def modelos_respaldo(modelo_principal: str = "") -> list[str]:
+    """
+    Modelos de respaldo DENTRO de OpenRouter, en orden. Configurable con
+    OPENROUTER_FALLBACK_MODELS="modelo1,modelo2". Se omite el modelo principal.
+    """
+    raw = os.getenv("OPENROUTER_FALLBACK_MODELS", "openai/gpt-4o-mini,google/gemini-2.5-flash")
+    vistos, out = set(), []
+    for m in (x.strip() for x in raw.split(",")):
+        if m and m != modelo_principal and m not in vistos:
+            vistos.add(m)
+            out.append(m)
+    return out
 
 
 def reset_provider_cache():

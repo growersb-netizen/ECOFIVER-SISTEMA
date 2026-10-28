@@ -1,44 +1,33 @@
 """
 Transcripcion de audio a texto - modulo compartido para WhatsApp y Telegram.
 
-Estrategia (en orden de prioridad):
-  1. Groq Whisper   (GROQ_API_KEY que empiece con gsk_  -- groq.com, no xAI)
-  2. OpenRouter con google/gemini-2.5-flash-preview:free
-  3. OpenRouter con google/gemini-flash-1.5-8b:free     (fallback modelo)
-  4. Gemini SDK directo si hay GEMINI_API_KEY
-  5. Mensaje descriptivo (no bloquea el flujo)
+Politica de EcoFiver: TODO el consumo de IA pasa por OpenRouter.
+Antes: Groq Whisper -> OpenRouter (audio enviado como image_url) -> Gemini SDK.
+Ahora: solo OpenRouter, con el formato de audio de la API (`input_audio`).
 
-OGG/Opus es el formato de WhatsApp y Telegram Voice Notes.
+- Los formatos que no son wav/mp3 (WhatsApp y Telegram mandan OGG/Opus) se
+  convierten a mp3 con ffmpeg (instalado en la imagen Docker). Si ffmpeg no
+  esta disponible se intenta con el formato original.
+- Modelos en orden: AUDIO_OPENROUTER_MODELS="modelo1,modelo2"
+  (default: google/gemini-2.5-flash, google/gemini-2.0-flash-001).
+- Cada intento queda en /health/ia (agente "transcripcion").
+- Si todo falla devuelve "(Audio recibido -- ...)": los canales responden
+  pidiendo que el cliente escriba (comportamiento existente).
 """
 
-import io
-import os
+import asyncio
 import base64
 import json as json_module
 import logging
+import os
+import shutil
+import time
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-# Groq.com (Whisper) -- clave empieza con gsk_
-# DISTINTO de xAI Grok (GROK_API_KEY que NO empieza con gsk_)
-_groq_raw    = os.getenv("GROQ_API_KEY", "") or os.getenv("GROK_API_KEY", "")
-GROQ_API_KEY = _groq_raw if _groq_raw.startswith("gsk_") else ""
-
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY", "")
-
-# Modelos OpenRouter a intentar en orden (el primero que funcione)
-_OR_MODELS = [
-    "google/gemini-2.5-flash-preview:free",
-    "google/gemini-flash-1.5-8b:free",
-    "google/gemini-flash-1.5",
-]
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-_GROQ_URL           = "https://api.groq.com/openai/v1/audio/transcriptions"
-_GROQ_WHISPER_MODEL = "whisper-large-v3-turbo"
 
 # Prompt ASCII puro (sin tildes) para evitar codec errors en cualquier entorno
 _PROMPT = (
@@ -47,15 +36,49 @@ _PROMPT = (
     "If empty or inaudible, return: (inaudible)"
 )
 
-_MIME_TO_FILENAME = {
-    "audio/ogg":   "audio.ogg",
-    "audio/mpeg":  "audio.mp3",
-    "audio/mp4":   "audio.m4a",
-    "audio/wav":   "audio.wav",
-    "audio/webm":  "audio.webm",
-    "audio/flac":  "audio.flac",
-    "audio/x-m4a": "audio.m4a",
-}
+_FORMATO_DIRECTO = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3", "audio/mp3": "mp3"}
+_FORMATO_ORIGINAL = {"audio/ogg": "ogg", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/webm": "webm",
+                     "audio/flac": "flac", "audio/aac": "aac"}
+
+
+def _modelos() -> list[str]:
+    raw = os.getenv("AUDIO_OPENROUTER_MODELS", "google/gemini-2.5-flash,google/gemini-2.0-flash-001")
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+class _OpenRouterAudio:
+    """Descriptor minimo para registrar la llamada en tools.ai_metrics."""
+    def __init__(self, model: str):
+        self._model = model
+
+
+async def _a_mp3(audio_bytes: bytes) -> bytes | None:
+    """Convierte cualquier audio a mp3 con ffmpeg. None si ffmpeg no esta o falla."""
+    if not shutil.which("ffmpeg"):
+        return None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
+            "-ac", "1", "-ar", "16000", "-f", "mp3", "pipe:1",
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        out, err = await asyncio.wait_for(proc.communicate(audio_bytes), timeout=30)
+        if proc.returncode == 0 and out:
+            return out
+        logger.warning(f"[Audio] ffmpeg fallo ({proc.returncode}): {err[:200]!r}")
+    except Exception as e:
+        logger.warning(f"[Audio] ffmpeg error: {e}")
+    return None
+
+
+async def _preparar(audio_bytes: bytes, mime: str) -> tuple[bytes, str]:
+    """Devuelve (bytes, formato) aptos para input_audio."""
+    if mime in _FORMATO_DIRECTO:
+        return audio_bytes, _FORMATO_DIRECTO[mime]
+    mp3 = await _a_mp3(audio_bytes)
+    if mp3:
+        return mp3, "mp3"
+    return audio_bytes, _FORMATO_ORIGINAL.get(mime, "ogg")
 
 
 async def transcribir_bytes(
@@ -64,7 +87,7 @@ async def transcribir_bytes(
     idioma: str = "es",
 ) -> str:
     """
-    Transcribe audio desde bytes usando la primera API disponible.
+    Transcribe audio desde bytes via OpenRouter.
 
     Returns:
         Texto transcripto o mensaje de error descriptivo.
@@ -72,75 +95,53 @@ async def transcribir_bytes(
     if not audio_bytes:
         return "(Audio vacio)"
 
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        logger.warning("[Audio] Sin OPENROUTER_API_KEY")
+        return "(Audio recibido -- sin metodo de transcripcion activo)"
+
     clean_mime = mime_type.split(";")[0].strip()
+    datos, formato = await _preparar(audio_bytes, clean_mime)
 
-    # ── Metodo 1: Groq Whisper ─────────────────────────────────────────────
-    if GROQ_API_KEY:
+    for model in _modelos():
+        t0 = time.monotonic()
         try:
-            resultado = await _groq(audio_bytes, clean_mime, idioma)
-            if resultado and resultado.strip():
-                return resultado
+            texto = await _openrouter(datos, formato, model, api_key)
+            _medir(model, ok=bool(texto), t0=t0, chars_out=len(texto or ""))
+            if texto:
+                return texto
+        except httpx.HTTPStatusError as e:
+            _medir(model, ok=False, t0=t0, error=f"HTTP {e.response.status_code}")
+            logger.warning(f"[Audio] OpenRouter {model} HTTP {e.response.status_code}: {e.response.text[:200]}")
         except Exception as e:
-            logger.warning(f"[Audio] Groq Whisper fallo: {e}")
-    else:
-        logger.debug("[Audio] No hay GROQ_API_KEY valida (gsk_...) -- saltando Groq")
+            _medir(model, ok=False, t0=t0, error=str(e))
+            logger.warning(f"[Audio] OpenRouter {model} fallo: {e}")
 
-    # ── Metodo 2: OpenRouter (prueba modelos en orden) ─────────────────────
-    if OPENROUTER_API_KEY:
-        for model in _OR_MODELS:
-            try:
-                resultado = await _openrouter(audio_bytes, clean_mime, model)
-                if resultado and not resultado.startswith("(Error"):
-                    return resultado
-            except httpx.HTTPStatusError as e:
-                logger.warning(f"[Audio] OpenRouter {model} HTTP {e.response.status_code}: {e}")
-                continue
-            except Exception as e:
-                logger.warning(f"[Audio] OpenRouter {model} fallo: {e}")
-                continue
-        logger.warning("[Audio] Todos los modelos de OpenRouter fallaron")
-
-    # ── Metodo 3: Gemini SDK directo ───────────────────────────────────────
-    if GEMINI_API_KEY:
-        try:
-            return await _gemini_sdk(audio_bytes, clean_mime)
-        except Exception as e:
-            logger.error(f"[Audio] Gemini SDK fallo: {e}")
-
-    logger.warning("[Audio] Sin metodo de transcripcion disponible")
+    logger.warning("[Audio] Todos los modelos de OpenRouter fallaron")
     return "(Audio recibido -- sin metodo de transcripcion activo)"
 
 
-async def _groq(audio_bytes: bytes, mime: str, idioma: str) -> str:
-    filename = _MIME_TO_FILENAME.get(mime, "audio.ogg")
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(
-            _GROQ_URL,
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-            files={"file": (filename, audio_bytes, mime)},
-            data={"model": _GROQ_WHISPER_MODEL, "language": idioma, "response_format": "text"},
-        )
-        r.raise_for_status()
-    texto = r.text.strip()
-    logger.info(f"[Audio/Groq] OK ({len(audio_bytes)}B): {texto[:80]}")
-    return texto
+def _medir(model: str, ok: bool, t0: float, chars_in: int = 0, chars_out: int = 0, error: str = "") -> None:
+    try:
+        from tools.ai_metrics import registrar_llamada
+        registrar_llamada(agente="transcripcion", provider=_OpenRouterAudio(model), ok=ok, fallback=False,
+                          latencia_s=time.monotonic() - t0, chars_in=chars_in, chars_out=chars_out, error=error)
+    except Exception:
+        pass
 
 
-async def _openrouter(audio_bytes: bytes, mime: str, model: str) -> str:
-    """
-    Envia audio como data URL multimodal a OpenRouter.
-    Usa json.dumps con ensure_ascii=True para evitar codec errors.
-    """
-    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
-    data_url  = f"data:{mime};base64,{audio_b64}"
-
+async def _openrouter(audio_bytes: bytes, formato: str, model: str, api_key: str) -> str:
+    """Envia el audio como input_audio (formato de la API de OpenRouter)."""
     payload = {
         "model": model,
         "messages": [{
             "role": "user",
             "content": [
-                {"type": "image_url", "image_url": {"url": data_url}},
                 {"type": "text", "text": _PROMPT},
+                {"type": "input_audio", "input_audio": {
+                    "data": base64.b64encode(audio_bytes).decode("ascii"),
+                    "format": formato,
+                }},
             ],
         }],
         "max_tokens": 1000,
@@ -149,7 +150,7 @@ async def _openrouter(audio_bytes: bytes, mime: str, model: str) -> str:
     # ensure_ascii=True garantiza que no haya bytes > 127 en el body
     body = json_module.dumps(payload, ensure_ascii=True).encode("utf-8")
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type":  "application/json",
         "HTTP-Referer":  "https://eco-multiagente-production.up.railway.app",
         "X-Title":       "EcoFiver IA",
@@ -160,41 +161,18 @@ async def _openrouter(audio_bytes: bytes, mime: str, model: str) -> str:
         r.raise_for_status()
         data = r.json()
 
-    texto = data["choices"][0]["message"]["content"].strip()
+    try:
+        from tools.ai_metrics import informar_uso
+        informar_uso(data.get("usage"))
+    except Exception:
+        pass
+
+    texto = (data["choices"][0]["message"]["content"] or "").strip()
     # Limpiar prefijos que el modelo agrega a veces
     for prefix in ("Transcription:", "The audio says:", "Audio:", "Transcripcion:"):
         if texto.lower().startswith(prefix.lower()):
             texto = texto[len(prefix):].strip()
             break
 
-    logger.info(f"[Audio/OR:{model}] OK ({len(audio_bytes)}B): {texto[:80]}")
-    return texto
-
-
-async def _gemini_sdk(audio_bytes: bytes, mime: str) -> str:
-    """Fallback: SDK oficial de Gemini con upload via BytesIO."""
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client(api_key=GEMINI_API_KEY)
-
-    # SDK necesita un file-like object, NO bytes crudos
-    audio_file = io.BytesIO(audio_bytes)
-    audio_file.name = _MIME_TO_FILENAME.get(mime, "audio.ogg")
-
-    uploaded = client.files.upload(
-        file=audio_file,
-        config={"mime_type": mime},
-    )
-
-    result = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=[
-            types.Part.from_uri(file_uri=uploaded.uri, mime_type=mime),
-            types.Part(text=_PROMPT),
-        ],
-    )
-
-    texto = result.text.strip()
-    logger.info(f"[Audio/Gemini] OK ({len(audio_bytes)}B): {texto[:80]}")
+    logger.info(f"[Audio/OR:{model}] OK ({len(audio_bytes)}B {formato}): {texto[:80]}")
     return texto

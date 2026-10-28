@@ -254,14 +254,14 @@ class BaseAgent:
 
     def _get_provider(self):
         """Obtiene el proveedor activo.
-        Agentes con model= propio (Máximo, Valentín) usan Gemini con ese modelo específico.
+        Un agente con model= propio usa ese modelo vía OpenRouter (hoy ninguno lo define).
         El resto usa el proveedor global configurado en AI_PROVIDER.
         """
         if self._model_override:
             if self._dedicated_provider is None:
-                from providers.gemini_provider import GeminiProvider
-                self._dedicated_provider = GeminiProvider(model=self._model_override)
-                logger.info(f"[{self.name}] Proveedor dedicado: Gemini ({self._model_override})")
+                from providers.openrouter_provider import OpenRouterProvider
+                self._dedicated_provider = OpenRouterProvider(model=self._model_override)
+                logger.info(f"[{self.name}] Modelo propio vía OpenRouter: {self._model_override}")
             return self._dedicated_provider
         from providers.factory import get_provider
         return get_provider()
@@ -335,64 +335,24 @@ class BaseAgent:
                 raise ValueError(f"{provider.name} devolvió respuesta vacía/None")
         except Exception as e:
             err_str = str(e)
-            # Ante CUALQUIER error del proveedor primario, intentar la cadena de fallback
-            # (Groq → OpenRouter → Grok). Antes solo se hacía con 429/503 y por eso a veces
-            # caía en "no puedo responder" ante otros errores.
+            # Ante CUALQUIER error del modelo principal, probar los modelos de respaldo.
             logger.warning(f"[{self.name}] {provider.name} falló ({err_str[:80]}), probando fallbacks...")
-            # Modelos disponibles según el diagnóstico de la cuenta Groq configurada
-            _groq_models = [
-                "qwen/qwen3.8-27b",
-                "groq/compound-mini",
-                "groq/compound",
-            ]
+            # Respaldo SOLO dentro de OpenRouter (política: todo el tráfico de IA por OpenRouter).
+            # Antes: Groq → OpenRouter free → Grok → Gemini directos.
+            from providers.factory import modelos_respaldo
+            from providers.openrouter_provider import OpenRouterProvider
             reply = None
-            for gm in _groq_models:
+            for modelo_fb in modelos_respaldo(getattr(provider, "_model", "")):
                 try:
-                    from providers.groq_provider import GroqProvider
-                    fb = GroqProvider(model=gm)
                     reply = await generar_medido(
-                        agente=self.name, provider=fb, fallback=True,
-                        system_prompt=self.system_prompt,
-                        history=self.history,
-                        message=full_msg,
-                    )
-                    logger.info(f"[{self.name}] Fallback Groq/{gm} OK")
-                    break
-                except Exception as fe:
-                    logger.warning(f"[{self.name}] Groq/{gm} falló: {fe}")
-
-            # Si Groq también falló, intentar OpenRouter con modelo gratuito (sin créditos)
-            if reply is None and os.getenv("OPENROUTER_API_KEY"):
-                try:
-                    from providers.openrouter_provider import OpenRouterProvider
-                    reply = await generar_medido(
-                        agente=self.name, provider=OpenRouterProvider(model="openrouter/auto:free"), fallback=True,
+                        agente=self.name, provider=OpenRouterProvider(model=modelo_fb), fallback=True,
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    logger.info(f"[{self.name}] Fallback OpenRouter:free OK")
+                    if reply:
+                        logger.info(f"[{self.name}] Respaldo OpenRouter/{modelo_fb} OK")
+                        break
+                    reply = None
                 except Exception as fe:
-                    logger.warning(f"[{self.name}] OpenRouter:free falló: {fe}")
-
-            if reply is None and (os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")):
-                try:
-                    from providers.grok_provider import GrokProvider
-                    reply = await generar_medido(
-                        agente=self.name, provider=GrokProvider(), fallback=True,
-                        system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    logger.info(f"[{self.name}] Fallback Grok OK")
-                except Exception as fe:
-                    logger.warning(f"[{self.name}] Grok falló: {fe}")
-
-            # Último recurso: Gemini (free tier, generoso en cuotas diarias)
-            if reply is None and os.getenv("GEMINI_API_KEY"):
-                try:
-                    from providers.gemini_provider import GeminiProvider
-                    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-                    reply = await generar_medido(
-                        agente=self.name, provider=GeminiProvider(model=model), fallback=True,
-                        system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    logger.info(f"[{self.name}] Fallback Gemini/{model} OK")
-                except Exception as fe:
-                    logger.warning(f"[{self.name}] Gemini falló: {fe}")
+                    logger.warning(f"[{self.name}] OpenRouter/{modelo_fb} falló: {fe}")
 
             if reply is None:
                 registrar_sin_respuesta(self.name)

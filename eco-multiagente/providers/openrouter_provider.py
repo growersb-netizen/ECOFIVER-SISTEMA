@@ -17,8 +17,10 @@ OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 class OpenRouterProvider(BaseProvider):
 
-    def __init__(self, model: str = None):
+    def __init__(self, model: str = None, max_tokens: int = 700, temperature: float = 0.7):
         self._model = model or os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+        self._max_tokens = max_tokens
+        self._temperature = temperature
 
     @property
     def name(self) -> str:
@@ -48,8 +50,8 @@ class OpenRouterProvider(BaseProvider):
                     json={
                         "model": self._model,
                         "messages": messages,
-                        "max_tokens": 700,
-                        "temperature": 0.7,
+                        "max_tokens": self._max_tokens,
+                        "temperature": self._temperature,
                     },
                 )
 

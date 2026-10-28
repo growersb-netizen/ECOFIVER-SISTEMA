@@ -56,6 +56,15 @@ def _precios() -> dict[str, tuple[float, float]]:
     return p
 
 
+def _precio_catalogo(modelo: str):
+    """USD por millón (entrada, salida) según el catálogo real de OpenRouter, si está cargado."""
+    try:
+        from tools.openrouter_catalog import precio_por_millon
+        return precio_por_millon(modelo)
+    except Exception:
+        return None
+
+
 def informar_uso(usage: dict | None) -> None:
     """Lo llaman los proveedores con el bloque `usage` de la respuesta (formato OpenAI/OpenRouter)."""
     _uso_ultima_llamada.set(usage if isinstance(usage, dict) else None)
@@ -133,6 +142,9 @@ def registrar_llamada(*, agente: str, provider, ok: bool, fallback: bool, latenc
             costo = None
     elif modelo.endswith(":free"):
         costo = 0.0
+    elif _precio_catalogo(modelo):
+        pin, pout = _precio_catalogo(modelo)
+        costo = (tin * pin + tout * pout) / 1_000_000
     elif modelo in _precios():
         pin, pout = _precios()[modelo]
         costo = (tin * pin + tout * pout) / 1_000_000

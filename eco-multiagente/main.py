@@ -266,6 +266,14 @@ async def lifespan(app: FastAPI):
     await _autoconfigurar_meta()
 
     # Iniciar scheduler de tareas programadas
+    # Catálogo real de modelos de OpenRouter (precios y capacidades) — no bloquea el arranque
+    try:
+        import asyncio as _aio
+        from tools.openrouter_catalog import actualizar as _actualizar_catalogo
+        _aio.get_running_loop().create_task(_actualizar_catalogo())
+    except Exception as e:
+        logger.warning(f"Catálogo OpenRouter no iniciado: {e}")
+
     start_scheduler()
     logger.info("Scheduler iniciado")
 
@@ -407,6 +415,24 @@ async def health_ia(request: Request, detalle: bool = False):
     errores = data.pop("errores_recientes", [])
     data["errores_recientes_cantidad"] = len(errores)
     return data
+
+
+@app.get("/health/ia/modelos")
+async def health_ia_modelos():
+    """
+    Modelo efectivo por agente (perfil activo + ajustes), precios del catálogo de
+    OpenRouter, avisos de validación y costo del día estimado para cada perfil
+    con los tokens realmente consumidos hoy. Sin datos privados.
+    """
+    from tools import model_policy, openrouter_catalog
+    from tools.ai_metrics import resumen
+    uso = resumen().get("por_agente", {})
+    return {
+        "perfil_activo": model_policy.perfil_activo(),
+        "catalogo": openrouter_catalog.estado(),
+        "agentes": model_policy.tabla(),
+        "comparacion_perfiles_hoy": model_policy.comparar_perfiles(uso),
+    }
 
 
 @app.get("/health/scheduler")

@@ -40,6 +40,18 @@ def get_provider() -> BaseProvider:
     return _instances["openrouter"]
 
 
+def get_provider_para(agente: str) -> BaseProvider:
+    """Proveedor OpenRouter con el modelo, temperatura y largo que corresponden al agente (tools.model_policy)."""
+    from tools.model_policy import resolver
+    from .openrouter_provider import OpenRouterProvider
+    cfg = resolver(agente)
+    clave = f"or:{cfg.modelo}:{cfg.max_tokens}:{cfg.temperatura}"
+    if clave not in _instances:
+        _instances[clave] = OpenRouterProvider(model=cfg.modelo, max_tokens=cfg.max_tokens, temperature=cfg.temperatura)
+        logger.info(f"[AI Factory] {agente} → OpenRouter {cfg.modelo} (temp {cfg.temperatura}, {cfg.max_tokens} tokens)")
+    return _instances[clave]
+
+
 def modelos_respaldo(modelo_principal: str = "") -> list[str]:
     """
     Modelos de respaldo DENTRO de OpenRouter, en orden. Configurable con

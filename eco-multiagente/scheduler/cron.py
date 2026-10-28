@@ -1130,6 +1130,16 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # 04:10 — Actualizar catálogo de modelos de OpenRouter (precios y capacidades)
+    from tools.openrouter_catalog import actualizar as _actualizar_catalogo
+    _scheduler.add_job(
+        _actualizar_catalogo,
+        CronTrigger(hour=4, minute=10, timezone=TIMEZONE),
+        id="catalogo_openrouter",
+        name="Catálogo de modelos OpenRouter",
+        replace_existing=True,
+    )
+
     # Etapa 1: registrar cada ejecución (inicio, fin, duración, resultado, error)
     from scheduler.run_log import instrumentar
     n_inst = instrumentar(_scheduler)

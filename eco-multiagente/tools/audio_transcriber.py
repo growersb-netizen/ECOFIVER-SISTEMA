@@ -42,8 +42,10 @@ _FORMATO_ORIGINAL = {"audio/ogg": "ogg", "audio/mp4": "m4a", "audio/x-m4a": "m4a
 
 
 def _modelos() -> list[str]:
-    raw = os.getenv("AUDIO_OPENROUTER_MODELS", "google/gemini-2.5-flash,google/gemini-2.0-flash-001")
-    return [m.strip() for m in raw.split(",") if m.strip()]
+    """Modelo y respaldos del rol "audio" (tools.model_policy; validados contra el catálogo)."""
+    from tools.model_policy import resolver
+    cfg = resolver("transcripcion")
+    return [cfg.modelo] + [m for m in cfg.respaldo if m != cfg.modelo]
 
 
 class _OpenRouterAudio:

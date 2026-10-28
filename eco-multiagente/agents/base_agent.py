@@ -263,8 +263,8 @@ class BaseAgent:
                 self._dedicated_provider = OpenRouterProvider(model=self._model_override)
                 logger.info(f"[{self.name}] Modelo propio vía OpenRouter: {self._model_override}")
             return self._dedicated_provider
-        from providers.factory import get_provider
-        return get_provider()
+        from providers.factory import get_provider_para
+        return get_provider_para(self.name)
 
     async def respond(self, message: str, context: str = "") -> str:
         # ── Contexto de fecha/temporada inyectado dinámicamente ───────────────
@@ -339,13 +339,17 @@ class BaseAgent:
             logger.warning(f"[{self.name}] {provider.name} falló ({err_str[:80]}), probando fallbacks...")
             # Respaldo SOLO dentro de OpenRouter (política: todo el tráfico de IA por OpenRouter).
             # Antes: Groq → OpenRouter free → Grok → Gemini directos.
-            from providers.factory import modelos_respaldo
+            from tools.model_policy import resolver
             from providers.openrouter_provider import OpenRouterProvider
+            cfg_modelo = resolver(self.name)
+            principal = getattr(provider, "_model", "")
             reply = None
-            for modelo_fb in modelos_respaldo(getattr(provider, "_model", "")):
+            for modelo_fb in [m for m in cfg_modelo.respaldo if m != principal]:
                 try:
                     reply = await generar_medido(
-                        agente=self.name, provider=OpenRouterProvider(model=modelo_fb), fallback=True,
+                        agente=self.name, fallback=True,
+                        provider=OpenRouterProvider(model=modelo_fb, max_tokens=cfg_modelo.max_tokens,
+                                                    temperature=cfg_modelo.temperatura),
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
                     if reply:
                         logger.info(f"[{self.name}] Respaldo OpenRouter/{modelo_fb} OK")

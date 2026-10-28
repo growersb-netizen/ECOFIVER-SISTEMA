@@ -56,7 +56,13 @@ class GroqProvider(BaseProvider):
                     last_err = httpx.HTTPStatusError("429", request=r.request, response=r)
                     continue
                 r.raise_for_status()
-                return r.json()["choices"][0]["message"]["content"].strip()
+                _data = r.json()
+                try:
+                    from tools.ai_metrics import informar_uso
+                    informar_uso(_data.get("usage"))
+                except Exception:
+                    pass
+                return _data["choices"][0]["message"]["content"].strip()
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429:
                     last_err = e

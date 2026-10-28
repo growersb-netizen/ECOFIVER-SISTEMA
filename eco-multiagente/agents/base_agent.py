@@ -322,9 +322,11 @@ class BaseAgent:
         prefix = "\n\n".join(parts)
         full_msg = f"{prefix}\n\nMensaje: {message}" if prefix else message
         provider = self._get_provider()
+        from tools.ai_metrics import generar_medido, registrar_sin_respuesta
 
         try:
-            reply = await provider.generate(
+            reply = await generar_medido(
+                agente=self.name, provider=provider, fallback=False,
                 system_prompt=self.system_prompt,
                 history=self.history,
                 message=full_msg,
@@ -348,7 +350,8 @@ class BaseAgent:
                 try:
                     from providers.groq_provider import GroqProvider
                     fb = GroqProvider(model=gm)
-                    reply = await fb.generate(
+                    reply = await generar_medido(
+                        agente=self.name, provider=fb, fallback=True,
                         system_prompt=self.system_prompt,
                         history=self.history,
                         message=full_msg,
@@ -362,7 +365,8 @@ class BaseAgent:
             if reply is None and os.getenv("OPENROUTER_API_KEY"):
                 try:
                     from providers.openrouter_provider import OpenRouterProvider
-                    reply = await OpenRouterProvider(model="openrouter/auto:free").generate(
+                    reply = await generar_medido(
+                        agente=self.name, provider=OpenRouterProvider(model="openrouter/auto:free"), fallback=True,
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
                     logger.info(f"[{self.name}] Fallback OpenRouter:free OK")
                 except Exception as fe:
@@ -371,7 +375,8 @@ class BaseAgent:
             if reply is None and (os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")):
                 try:
                     from providers.grok_provider import GrokProvider
-                    reply = await GrokProvider().generate(
+                    reply = await generar_medido(
+                        agente=self.name, provider=GrokProvider(), fallback=True,
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
                     logger.info(f"[{self.name}] Fallback Grok OK")
                 except Exception as fe:
@@ -382,13 +387,15 @@ class BaseAgent:
                 try:
                     from providers.gemini_provider import GeminiProvider
                     model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-                    reply = await GeminiProvider(model=model).generate(
+                    reply = await generar_medido(
+                        agente=self.name, provider=GeminiProvider(model=model), fallback=True,
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
                     logger.info(f"[{self.name}] Fallback Gemini/{model} OK")
                 except Exception as fe:
                     logger.warning(f"[{self.name}] Gemini falló: {fe}")
 
             if reply is None:
+                registrar_sin_respuesta(self.name)
                 reply = "Dame un momentito y te respondo enseguida 🙏"
 
         # Actualizar historial en formato común

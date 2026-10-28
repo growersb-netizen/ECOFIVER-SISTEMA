@@ -440,6 +440,21 @@ async def route_message(
     mensaje: str,
     msg_type: str = "text",
 ) -> dict:
+    """Punto de entrada: atribuye el consumo de IA a la conversación del canal (métricas)."""
+    from tools.ai_metrics import proceso_actual
+    token = proceso_actual.set(f"conversacion:{canal}")
+    try:
+        return await _route_message_impl(canal, session_id, mensaje, msg_type)
+    finally:
+        proceso_actual.reset(token)
+
+
+async def _route_message_impl(
+    canal: str,
+    session_id: str,
+    mensaje: str,
+    msg_type: str = "text",
+) -> dict:
     """
     Punto de entrada principal del router.
 

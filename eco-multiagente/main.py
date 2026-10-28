@@ -390,6 +390,35 @@ async def health_seguridad():
     }
 
 
+# ── Health de IA y scheduler (Etapa 1) ────────────────────────────────────────
+@app.get("/health/ia")
+async def health_ia(request: Request, detalle: bool = False):
+    """
+    Proveedor efectivo, modelo, fallos, respaldos, tokens y costo estimado del día.
+    Nunca incluye prompts ni respuestas. Los textos de error (pueden contener
+    fragmentos de credenciales devueltos por el proveedor) solo con ?detalle=true + API key.
+    """
+    from tools.ai_metrics import resumen
+    data = resumen()
+    if detalle:
+        from security import require_api_key
+        require_api_key(request)
+        return data
+    errores = data.pop("errores_recientes", [])
+    data["errores_recientes_cantidad"] = len(errores)
+    return data
+
+
+@app.get("/health/scheduler")
+async def health_scheduler(request: Request, detalle: bool = False):
+    """Última ejecución de cada tarea programada. ?detalle=true (con API key) incluye resultados y errores."""
+    from scheduler.run_log import resumen
+    if detalle:
+        from security import require_api_key
+        require_api_key(request)
+    return resumen(detalle=detalle)
+
+
 # ── Lead generation endpoints ────────────────────────────────────────────
 @app.post("/leadgen/scraping/trigger")
 async def trigger_scraping(request: Request):

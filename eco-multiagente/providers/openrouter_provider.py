@@ -59,6 +59,11 @@ class OpenRouterProvider(BaseProvider):
                 raise ValueError(f"OpenRouter API error {r.status_code}: {error_msg}")
 
             data = r.json()
+            try:
+                from tools.ai_metrics import informar_uso
+                informar_uso(data.get("usage"))
+            except Exception:
+                pass
             return data["choices"][0]["message"]["content"]
 
         except httpx.TimeoutException:

@@ -256,6 +256,8 @@ let _agenteSeleccionado = null;
 // Catálogo de acciones y objetivos CEO (server-side renderizado)
 const ACCIONES_MAP  = {{ acciones | tojson }};
 const OBJETIVOS_CEO = {{ objetivos_ceo | tojson }};
+// id → nombre (agentes actuales + históricos, para comandos viejos del historial)
+const NOMBRES_AGENTES = {{ nombres_agentes | tojson }};
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function setTab(tab) {
@@ -278,7 +280,15 @@ async function verificarStatus() {
     document.getElementById('stat-hoy').textContent   = s.comandos_hoy;
     document.getElementById('stat-total').textContent = s.total_comandos;
 
-    if (s.configurado && s.orquestador_online) {
+    if (s.configurado && s.orquestador_online && s.autenticacion_ok === false) {
+      // Online pero rechaza la credencial del CRM: los comandos darán 401
+      dot.style.background = '#f59e0b';
+      txt.textContent = s.credencial_configurada ? 'Online — credencial rechazada' : 'Online — falta credencial';
+      pill.title = 'Configurar MULTIAGENTE_API_KEY en el CRM (o Configuración → API Keys → Agentes IA — API Key)';
+      pill.style.background = 'rgba(245,158,11,.1)';
+      pill.style.color = '#d97706';
+      pill.style.borderColor = 'rgba(245,158,11,.3)';
+    } else if (s.configurado && s.orquestador_online) {
       dot.style.background = '#22c55e';
       txt.textContent = 'Sistema online';
       pill.style.background = 'rgba(34,197,94,.1)';
@@ -478,7 +488,7 @@ function renderHistorial(items) {
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span style="font-size:10px;color:var(--text-muted)">${c.area}</span>
             <span style="font-size:10px;color:var(--text-muted)">·</span>
-            <span style="font-size:10px;color:var(--text-muted)">${c.agente_destino || 'orquestador'}</span>
+            <span style="font-size:10px;color:var(--text-muted)">${NOMBRES_AGENTES[c.agente_destino] || c.agente_destino || 'orquestador'}</span>
             <span style="font-size:10px;color:var(--text-muted)">·</span>
             <span style="font-size:10px;color:var(--text-muted)">${fmtTime(c.created_at)}</span>
           </div>

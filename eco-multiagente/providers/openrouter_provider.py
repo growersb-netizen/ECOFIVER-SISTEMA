@@ -11,14 +11,33 @@ logger = logging.getLogger(__name__)
 
 # Modelo por defecto. El anterior modelo gratuito (llama-3.3-70b-instruct:free)
 # fue dado de baja por OpenRouter (404). Se puede override con OPENROUTER_MODEL.
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/auto:free")
+# "openrouter/free" es el router de modelos gratuitos de OpenRouter.
+DEFAULT_MODEL = "openrouter/free"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+
+# IDs que alguna vez se usaron en este sistema y no existen en OpenRouter (404/400).
+# Se traducen al equivalente válido para que una variable vieja no deje sin IA.
+_MODELOS_INVALIDOS = {
+    "openrouter/auto:free": "openrouter/free",
+    "anthropic/claude-3-haiku": "anthropic/claude-haiku-4.5",
+    "google/gemini-flash-1.5": "google/gemini-2.5-flash",
+    "openai/chatgpt-4o-latest": "openai/gpt-4o",
+}
+
+
+def normalizar_modelo(model: str) -> str:
+    model = (model or "").strip()
+    if model in _MODELOS_INVALIDOS:
+        valido = _MODELOS_INVALIDOS[model]
+        logger.warning(f"[OpenRouterProvider] Modelo '{model}' no existe en OpenRouter → usando '{valido}'")
+        return valido
+    return model
 
 
 class OpenRouterProvider(BaseProvider):
 
     def __init__(self, model: str = None, max_tokens: int = 700, temperature: float = 0.7):
-        self._model = model or os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+        self._model = normalizar_modelo(model or os.getenv("OPENROUTER_MODEL", "") or DEFAULT_MODEL)
         self._max_tokens = max_tokens
         self._temperature = temperature
 

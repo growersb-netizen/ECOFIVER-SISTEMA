@@ -824,6 +824,17 @@ class _ComandoCRM(BaseModel):
     contexto: dict = {}
     origen: str = ""
 
+@app.get("/api/comando/ping")
+async def ping_comando_crm(request: Request):
+    """Verifica la credencial del CRM sin efectos (no registra nada, no devuelve datos)."""
+    from security import api_key_valid, _valid_keys
+    if not _valid_keys():
+        return JSONResponse({"ok": False, "error": "autenticación no configurada"}, status_code=503)
+    if not api_key_valid(request):
+        return JSONResponse({"ok": False, "error": "no autorizado"}, status_code=401)
+    return {"ok": True}
+
+
 @app.post("/api/comando")
 async def recibir_comando_crm(payload: _ComandoCRM, request: Request):
     """

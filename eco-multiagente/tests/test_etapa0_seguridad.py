@@ -248,6 +248,12 @@ class TestEndpointsMain:
         r = main_client.post("/api/comando", json={"instruccion": "x"}, headers={"X-Api-Key": admin_pw})
         assert r.status_code == 200
 
+    def test_ping_comando_protegido_y_sin_efectos(self, main_client, admin_pw):
+        assert main_client.get("/api/comando/ping").status_code == 401
+        assert main_client.get("/api/comando/ping", headers={"X-Api-Key": "otra"}).status_code == 401
+        r = main_client.get("/api/comando/ping", headers={"X-Api-Key": admin_pw})
+        assert r.status_code == 200 and r.json() == {"ok": True}
+
     def test_health_seguridad_publico_sin_datos_privados(self, main_client):
         r = main_client.get("/health/seguridad")
         assert r.status_code == 200

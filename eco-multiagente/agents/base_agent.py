@@ -360,18 +360,29 @@ class BaseAgent:
 
             if reply is None:
                 registrar_sin_respuesta(self.name)
-                reply = "Dame un momentito y te respondo enseguida 🙏"
+                # Turno fallido: NO se guarda en el historial (si se guardara, el historial
+                # se llena de "dame un momentito" y el modelo lo repite al recuperarse).
+                return "Dame un momentito y te respondo enseguida 🙏"
 
-        # Actualizar historial en formato común
-        self.history.append({"role": "user",      "content": full_msg})
+        # Historial: se guarda el mensaje ORIGINAL, no full_msg. El contexto (CRM, KB, fecha,
+        # historial del canal) se reinyecta fresco en cada turno; guardarlo en el historial
+        # lo duplicaba N veces. En Máximo (contexto CRM completo: 200 leads + todas las ventas)
+        # eso hacía crecer cada request hasta exceder la ventana de contexto de todos los
+        # proveedores → todos fallaban → "Dame un momentito" en loop hasta el próximo reinicio.
+        self.history.append({"role": "user",      "content": message})
         self.history.append({"role": "assistant",  "content": reply})
-
-        # Limitar historial a 15 turnos (30 entradas) — suficiente para una venta
-        # y reduce tokens enviados al LLM (menos rate limits, respuestas más rápidas).
-        if len(self.history) > 30:
-            self.history = self.history[-30:]
+        self._recortar_historial()
 
         return reply
+
+    def _recortar_historial(self):
+        """Limita el historial a 15 turnos (30 entradas) y HISTORY_MAX_CHARS caracteres.
+        Recorta in-place: Telegram y el panel comparten la lista por referencia."""
+        max_chars = int(os.getenv("HISTORY_MAX_CHARS", "24000"))
+        if len(self.history) > 30:
+            del self.history[:-30]
+        while len(self.history) > 2 and sum(len(h.get("content") or "") for h in self.history) > max_chars:
+            del self.history[:2]
 
     def reset(self):
         self.history = []

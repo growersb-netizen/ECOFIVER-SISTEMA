@@ -254,17 +254,17 @@ class BaseAgent:
 
     def _get_provider(self):
         """Obtiene el proveedor activo.
-        Agentes con model= propio (Máximo, Valentín) usan Gemini con ese modelo específico.
+        Un agente con model= propio usa ese modelo vía OpenRouter (hoy ninguno lo define).
         El resto usa el proveedor global configurado en AI_PROVIDER.
         """
         if self._model_override:
             if self._dedicated_provider is None:
-                from providers.gemini_provider import GeminiProvider
-                self._dedicated_provider = GeminiProvider(model=self._model_override)
-                logger.info(f"[{self.name}] Proveedor dedicado: Gemini ({self._model_override})")
+                from providers.openrouter_provider import OpenRouterProvider
+                self._dedicated_provider = OpenRouterProvider(model=self._model_override)
+                logger.info(f"[{self.name}] Modelo propio vía OpenRouter: {self._model_override}")
             return self._dedicated_provider
-        from providers.factory import get_provider
-        return get_provider()
+        from providers.factory import get_provider_para
+        return get_provider_para(self.name)
 
     async def respond(self, message: str, context: str = "") -> str:
         # ── Contexto de fecha/temporada inyectado dinámicamente ───────────────
@@ -322,79 +322,44 @@ class BaseAgent:
         prefix = "\n\n".join(parts)
         full_msg = f"{prefix}\n\nMensaje: {message}" if prefix else message
         provider = self._get_provider()
-
-        from tools import ai_monitor
-        intentos: list[str] = []
+        from tools.ai_metrics import generar_medido, registrar_sin_respuesta
 
         try:
-            reply = await provider.generate(
+            reply = await generar_medido(
+                agente=self.name, provider=provider, fallback=False,
                 system_prompt=self.system_prompt,
                 history=self.history,
                 message=full_msg,
             )
             if not reply:
                 raise ValueError(f"{provider.name} devolvió respuesta vacía/None")
-            ai_monitor.record_ok(provider.name)
         except Exception as e:
             err_str = str(e)
-            cat = ai_monitor.record_fail(provider.name, e)
-            intentos.append(f"{provider.name}={cat}")
-            # Ante CUALQUIER error del proveedor primario, intentar la cadena de fallback
-            # (Groq → OpenRouter → Grok → Gemini). Antes solo se hacía con 429/503 y por eso a veces
-            # caía en "no puedo responder" ante otros errores.
-            logger.warning(f"[{self.name}] {provider.name} falló [{cat}] ({err_str[:160]}), probando fallbacks...")
+            # Ante CUALQUIER error del modelo principal, probar los modelos de respaldo.
+            logger.warning(f"[{self.name}] {provider.name} falló ({err_str[:80]}), probando fallbacks...")
+            # Respaldo SOLO dentro de OpenRouter (política: todo el tráfico de IA por OpenRouter).
+            # Antes: Groq → OpenRouter free → Grok → Gemini directos.
+            from tools.model_policy import resolver
+            from providers.openrouter_provider import OpenRouterProvider
+            cfg_modelo = resolver(self.name)
+            principal = getattr(provider, "_model", "")
             reply = None
-
-            async def _intentar(fb) -> str | None:
+            for modelo_fb in [m for m in cfg_modelo.respaldo if m != principal]:
                 try:
-                    r = await fb.generate(
+                    reply = await generar_medido(
+                        agente=self.name, fallback=True,
+                        provider=OpenRouterProvider(model=modelo_fb, max_tokens=cfg_modelo.max_tokens,
+                                                    temperature=cfg_modelo.temperatura),
                         system_prompt=self.system_prompt, history=self.history, message=full_msg)
-                    if not r:
-                        raise ValueError(f"{fb.name} devolvió respuesta vacía/None")
-                    ai_monitor.record_ok(fb.name)
-                    logger.info(f"[{self.name}] Fallback {fb.name} OK")
-                    return r
+                    if reply:
+                        logger.info(f"[{self.name}] Respaldo OpenRouter/{modelo_fb} OK")
+                        break
+                    reply = None
                 except Exception as fe:
-                    c = ai_monitor.record_fail(fb.name, fe)
-                    intentos.append(f"{fb.name}={c}")
-                    logger.warning(f"[{self.name}] Fallback {fb.name} falló [{c}]: {str(fe)[:160]}")
-                    return None
-
-            # Modelos disponibles según el diagnóstico de la cuenta Groq configurada
-            if os.getenv("GROQ_API_KEY"):
-                from providers.groq_provider import GroqProvider
-                for gm in ["qwen/qwen3.8-27b", "groq/compound-mini", "groq/compound"]:
-                    reply = await _intentar(GroqProvider(model=gm))
-                    if reply:
-                        break
-
-            # OpenRouter: primero el modelo configurado (si el primario no era ese mismo),
-            # después el router gratuito. "openrouter/auto:free" NO existe en OpenRouter.
-            if reply is None and os.getenv("OPENROUTER_API_KEY"):
-                from providers.openrouter_provider import OpenRouterProvider, fallback_models
-                for om in fallback_models():
-                    fb = OpenRouterProvider(model=om)
-                    if fb.name == provider.name:
-                        continue  # ya falló como primario
-                    reply = await _intentar(fb)
-                    if reply:
-                        break
-
-            if reply is None and (os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")):
-                from providers.grok_provider import GrokProvider
-                fb = GrokProvider()
-                if fb.name != provider.name:
-                    reply = await _intentar(fb)
-
-            # Último recurso: Gemini (free tier, generoso en cuotas diarias)
-            if reply is None and os.getenv("GEMINI_API_KEY"):
-                from providers.gemini_provider import GeminiProvider
-                fb = GeminiProvider(model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
-                if fb.name != provider.name:
-                    reply = await _intentar(fb)
+                    logger.warning(f"[{self.name}] OpenRouter/{modelo_fb} falló: {fe}")
 
             if reply is None:
-                ai_monitor.record_fail_total(self.name, intentos)
+                registrar_sin_respuesta(self.name)
                 # Turno fallido: NO se guarda en el historial (si se guardara, el historial
                 # se llena de "dame un momentito" y el modelo lo repite al recuperarse).
                 return "Dame un momentito y te respondo enseguida 🙏"

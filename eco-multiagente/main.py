@@ -266,6 +266,14 @@ async def lifespan(app: FastAPI):
     await _autoconfigurar_meta()
 
     # Iniciar scheduler de tareas programadas
+    # Catálogo real de modelos de OpenRouter (precios y capacidades) — no bloquea el arranque
+    try:
+        import asyncio as _aio
+        from tools.openrouter_catalog import actualizar as _actualizar_catalogo
+        _aio.get_running_loop().create_task(_actualizar_catalogo())
+    except Exception as e:
+        logger.warning(f"Catálogo OpenRouter no iniciado: {e}")
+
     start_scheduler()
     logger.info("Scheduler iniciado")
 
@@ -376,31 +384,6 @@ async def health_crm():
     }
 
 
-# ── Health de IA (inferencia) ────────────────────────────────────────────────
-@app.get("/health/ia")
-async def health_ia():
-    """Proveedor/modelo activo y contadores por proveedor. Sin claves, prompts ni texto de error."""
-    from providers.factory import get_active_provider_name
-    from providers.openrouter_provider import fallback_models
-    from tools.ai_monitor import get_stats
-    nombre = get_active_provider_name()
-    modelo_env = {
-        "openrouter": "OPENROUTER_MODEL", "groq": "GROQ_MODEL", "grok": "GROK_MODEL",
-        "gemini": "GEMINI_MODEL", "claude": "CLAUDE_MODEL", "openai": "OPENAI_MODEL",
-    }.get(nombre, "")
-    return {
-        "proveedor_primario": nombre,
-        "modelo_primario": os.getenv(modelo_env, "") or "(default del código)",
-        "claves_presentes": {
-            k: bool(os.getenv(k)) for k in
-            ("OPENROUTER_API_KEY", "GROQ_API_KEY", "GROK_API_KEY", "XAI_API_KEY",
-             "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
-        },
-        "openrouter_fallbacks": fallback_models() if os.getenv("OPENROUTER_API_KEY") else [],
-        **get_stats(),
-    }
-
-
 # ── Health de seguridad (Etapa 0) ────────────────────────────────────────────
 @app.get("/health/seguridad")
 async def health_seguridad():
@@ -413,6 +396,53 @@ async def health_seguridad():
         "deduplicacion": dedup_stats(),
         "politica_acciones": policy_stats(),
     }
+
+
+# ── Health de IA y scheduler (Etapa 1) ────────────────────────────────────────
+@app.get("/health/ia")
+async def health_ia(request: Request, detalle: bool = False):
+    """
+    Proveedor efectivo, modelo, fallos, respaldos, tokens y costo estimado del día.
+    Nunca incluye prompts ni respuestas. Los textos de error (pueden contener
+    fragmentos de credenciales devueltos por el proveedor) solo con ?detalle=true + API key.
+    """
+    from tools.ai_metrics import resumen
+    data = resumen()
+    if detalle:
+        from security import require_api_key
+        require_api_key(request)
+        return data
+    errores = data.pop("errores_recientes", [])
+    data["errores_recientes_cantidad"] = len(errores)
+    return data
+
+
+@app.get("/health/ia/modelos")
+async def health_ia_modelos():
+    """
+    Modelo efectivo por agente (perfil activo + ajustes), precios del catálogo de
+    OpenRouter, avisos de validación y costo del día estimado para cada perfil
+    con los tokens realmente consumidos hoy. Sin datos privados.
+    """
+    from tools import model_policy, openrouter_catalog
+    from tools.ai_metrics import resumen
+    uso = resumen().get("por_agente", {})
+    return {
+        "perfil_activo": model_policy.perfil_activo(),
+        "catalogo": openrouter_catalog.estado(),
+        "agentes": model_policy.tabla(),
+        "comparacion_perfiles_hoy": model_policy.comparar_perfiles(uso),
+    }
+
+
+@app.get("/health/scheduler")
+async def health_scheduler(request: Request, detalle: bool = False):
+    """Última ejecución de cada tarea programada. ?detalle=true (con API key) incluye resultados y errores."""
+    from scheduler.run_log import resumen
+    if detalle:
+        from security import require_api_key
+        require_api_key(request)
+    return resumen(detalle=detalle)
 
 
 # ── Lead generation endpoints ────────────────────────────────────────────

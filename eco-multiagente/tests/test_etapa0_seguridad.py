@@ -366,13 +366,23 @@ class TestEvidenciaPorLinea:
         client, _ = wa
         monkeypatch.setenv("WA_WEBHOOK_SIGNATURE_MODE", "log")
         monkeypatch.setenv("WA_PHONE_ID_MELANIE", "1562122100308561")
-        for i, pid in enumerate(["1562122100308561", "1037947576071396"]):
+        monkeypatch.setenv("WA_PHONE_ID_AGENTES", "1037947576071396")
+        monkeypatch.setenv("WA_SUPERVISOR_PHONE_IDS", "1383774158147416")
+        # Solo Melanie: no alcanza (caso real de producción del 28/10)
+        body = json.dumps(_msg("5491199990000", "wamid.pl-m", phone_id="1562122100308561")).encode()
+        client.post("/webhook/whatsapp", content=body, headers={
+            "Content-Type": "application/json", "X-Hub-Signature-256": _firmar(body, "secreto-test")})
+        st = security.signature_stats()
+        assert st["listo_para_enforce"] is False
+        assert "agentes:1037947576071396" in st["lineas_sin_evidencia"]
+        for i, pid in enumerate(["1037947576071396", "1383774158147416"]):
             body = json.dumps(_msg("5491199990000", f"wamid.pl{i}", phone_id=pid)).encode()
             client.post("/webhook/whatsapp", content=body, headers={
                 "Content-Type": "application/json", "X-Hub-Signature-256": _firmar(body, "secreto-test")})
         st = security.signature_stats()
         assert st["por_linea"]["melanie:1562122100308561"]["valid"] == 1
+        assert st["lineas_sin_evidencia"] == []
         assert st["listo_para_enforce"] is True
         # Un evento sin firma en cualquier línea bloquea el pase a enforce
-        client.post("/webhook/whatsapp", json=_msg("5491199990001", "wamid.pl9", phone_id="1383774158147416"))
+        client.post("/webhook/whatsapp", json=_msg("5491199990001", "wamid.pl9", phone_id="1037947576071396"))
         assert security.signature_stats()["listo_para_enforce"] is False

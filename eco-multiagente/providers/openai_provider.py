@@ -54,7 +54,19 @@ class OpenAIProvider(BaseProvider):
                 error_msg = r.json().get("error", {}).get("message", r.text[:200])
                 raise ValueError(f"OpenAI API error {r.status_code}: {error_msg}")
 
-            return r.json()["choices"][0]["message"]["content"]
+            _data = r.json()
+
+            try:
+
+                from tools.ai_metrics import informar_uso
+
+                informar_uso(_data.get("usage"))
+
+            except Exception:
+
+                pass
+
+            return _data["choices"][0]["message"]["content"]
 
         except httpx.TimeoutException:
             logger.error("[OpenAIProvider] Timeout")

@@ -34,27 +34,12 @@ def normalizar_modelo(model: str) -> str:
     return model
 
 
-def fallback_models() -> list[str]:
-    """Modelos a probar como fallback: OPENROUTER_FALLBACK_MODELS (coma-separado) o
-    el modelo configurado + un modelo pago económico + el router gratuito."""
-    env = os.getenv("OPENROUTER_FALLBACK_MODELS", "")
-    if env.strip():
-        candidatos = [m.strip() for m in env.split(",") if m.strip()]
-    else:
-        candidatos = [os.getenv("OPENROUTER_MODEL", ""), "openai/gpt-4o-mini", DEFAULT_MODEL]
-    vistos, out = set(), []
-    for m in candidatos:
-        m = normalizar_modelo(m)
-        if m and m not in vistos:
-            vistos.add(m)
-            out.append(m)
-    return out
-
-
 class OpenRouterProvider(BaseProvider):
 
-    def __init__(self, model: str = None):
+    def __init__(self, model: str = None, max_tokens: int = 700, temperature: float = 0.7):
         self._model = normalizar_modelo(model or os.getenv("OPENROUTER_MODEL", "") or DEFAULT_MODEL)
+        self._max_tokens = max_tokens
+        self._temperature = temperature
 
     @property
     def name(self) -> str:
@@ -84,8 +69,8 @@ class OpenRouterProvider(BaseProvider):
                     json={
                         "model": self._model,
                         "messages": messages,
-                        "max_tokens": 700,
-                        "temperature": 0.7,
+                        "max_tokens": self._max_tokens,
+                        "temperature": self._temperature,
                     },
                 )
 
@@ -95,6 +80,11 @@ class OpenRouterProvider(BaseProvider):
                 raise ValueError(f"OpenRouter API error {r.status_code}: {error_msg}")
 
             data = r.json()
+            try:
+                from tools.ai_metrics import informar_uso
+                informar_uso(data.get("usage"))
+            except Exception:
+                pass
             return data["choices"][0]["message"]["content"]
 
         except httpx.TimeoutException:

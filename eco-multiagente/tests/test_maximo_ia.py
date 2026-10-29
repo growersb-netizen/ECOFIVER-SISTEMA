@@ -4,19 +4,21 @@ Ejecutar: pytest tests/test_maximo_ia.py -v
 
 No llaman a ningún proveedor real: todo está mockeado.
 """
-import os
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 
 from agents.base_agent import BaseAgent
 from providers.base_provider import BaseProvider
-from providers.openrouter_provider import OpenRouterProvider, fallback_models, normalizar_modelo
-from tools import ai_monitor
+from providers.openrouter_provider import OpenRouterProvider, normalizar_modelo
 
 ESPERA = "Dame un momentito y te respondo enseguida 🙏"
 CONTEXTO_CRM_GIGANTE = "[DATOS CRM EN TIEMPO REAL]\n" + ("  [#123] NUEVO — Nombre Apellido — 1155554444 — Tigre — piscina — Camila — 01/10\n" * 400)
+UN_TURNO = len(CONTEXTO_CRM_GIGANTE) + 30000  # contexto CRM + prompt de sistema + mensaje, con margen
+
+
+def _tamano(system_prompt, history, message):
+    return len(system_prompt) + len(message) + sum(len(h["content"]) for h in history)
 
 
 class ProveedorConVentana(BaseProvider):
@@ -32,7 +34,7 @@ class ProveedorConVentana(BaseProvider):
         return self.label
 
     async def generate(self, system_prompt, history, message):
-        total = len(system_prompt) + len(message) + sum(len(h["content"]) for h in history)
+        total = _tamano(system_prompt, history, message)
         self.llamadas.append(total)
         if total > self.max_chars:
             raise ValueError("Error 400: This model's maximum context length is exceeded")
@@ -59,7 +61,7 @@ def _agente(provider):
 
 @pytest.fixture(autouse=True)
 def _sin_contexto_externo(monkeypatch):
-    """Aísla respond() del CRM, la KB y de claves reales de fallback."""
+    """Aísla respond() del CRM, la KB y de claves reales."""
     import tools.crm_context as crm_context
     import tools.knowledge_base as kb
 
@@ -67,8 +69,7 @@ def _sin_contexto_externo(monkeypatch):
         return CONTEXTO_CRM_GIGANTE
     monkeypatch.setattr(crm_context, "get_crm_context", _ctx)
     monkeypatch.setattr(kb, "get_runtime_context", lambda _n: "")
-    for k in ("GROQ_API_KEY", "OPENROUTER_API_KEY", "GROK_API_KEY", "XAI_API_KEY", "GEMINI_API_KEY",
-              "OPENROUTER_MODEL", "OPENROUTER_FALLBACK_MODELS", "HISTORY_MAX_CHARS"):
+    for k in ("OPENROUTER_API_KEY", "OPENROUTER_MODEL", "OPENROUTER_FALLBACK_MODELS", "HISTORY_MAX_CHARS"):
         monkeypatch.delenv(k, raising=False)
 
 
@@ -78,16 +79,14 @@ class TestHistorial:
 
     @pytest.mark.asyncio
     async def test_maximo_sigue_respondiendo_en_conversacion_larga(self):
-        """Reproduce el bug: con el contexto CRM completo, antes el request crecía en cada
-        turno hasta exceder la ventana del modelo y todos los turnos siguientes fallaban."""
-        un_turno = len(CONTEXTO_CRM_GIGANTE) + 5000
-        prov = ProveedorConVentana(max_chars=un_turno * 3)  # entra 1 turno con margen, no 15
+        """Con el código anterior el request crecía en cada turno hasta exceder la ventana
+        del modelo y todos los turnos siguientes fallaban (desde el turno 3 en este test)."""
+        prov = ProveedorConVentana(max_chars=UN_TURNO * 3)
         ag = _agente(prov)
         for i in range(20):
             reply = await ag.respond(f"pregunta {i}")
             assert reply != ESPERA, f"turno {i} cayó en respuesta de espera"
-        # El tamaño del request no crece con los turnos (no se acumula el contexto)
-        assert max(prov.llamadas) < un_turno + 30000
+        assert max(prov.llamadas) < UN_TURNO
 
     @pytest.mark.asyncio
     async def test_historial_guarda_mensaje_original_sin_contexto(self):
@@ -124,79 +123,84 @@ class TestHistorial:
         assert ag.history == []
 
 
-# ─── Cadena de fallback ───────────────────────────────────────────────────────
+# ─── Regresión de punta a punta: 20 mensajes de Rodrigo a Máximo por WhatsApp ──
 
-class TestFallback:
+class TestRegresionCanalAdmin:
+
+    @pytest.mark.asyncio
+    async def test_20_mensajes_consecutivos_a_maximo_memoria_acotada(self, monkeypatch):
+        """Ruta real: route_message(canal="whatsapp_admin") → instancia cacheada del Máximo real
+        (agents.maximo, con su prompt completo) → OpenRouterProvider. Solo se simulan la red y el CRM."""
+        from orchestrator import router
+
+        monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+        router.clear_agent_cache()
+        tamanos = []
+
+        async def fake_generate(self, system_prompt, history, message):
+            total = _tamano(system_prompt, history, message)
+            tamanos.append(total)
+            if total > UN_TURNO * 3:
+                raise ValueError("OpenRouter API error 400: maximum context length exceeded")
+            return f"respuesta {len(tamanos)}"
+
+        with patch.object(OpenRouterProvider, "generate", fake_generate), \
+             patch.object(router.crm_client, "get_conversation_history", AsyncMock(return_value="")), \
+             patch.object(router.crm_client, "save_message", AsyncMock(return_value=True)), \
+             patch.object(router, "registrar_interaccion", lambda **kw: None):
+            for i in range(20):
+                res = await router.route_message(
+                    canal="whatsapp_admin", session_id="5491135164644",
+                    mensaje=f"Máximo, pregunta distinta número {i}", msg_type="text")
+                assert res["agent"] == "maximo"
+                assert res["reply"] != ESPERA, f"mensaje {i}: Máximo respondió con el mensaje de espera"
+
+            maximo = router._agent_cache["admin_rodrigo:maximo"]
+            # Memoria acotada: entradas y caracteres; sin el volcado del CRM adentro
+            assert len(maximo.history) <= 30
+            assert sum(len(h["content"]) for h in maximo.history) <= 24000
+            assert "DATOS CRM" not in "".join(h["content"] for h in maximo.history)
+            # El tamaño del request se estabiliza: el último no supera al primero por más que el historial acotado
+            assert tamanos[-1] - tamanos[0] <= 24000
+        router.clear_agent_cache()
+
+
+# ─── Modelos ──────────────────────────────────────────────────────────────────
+
+class TestModelos:
 
     def test_modelo_inexistente_se_normaliza(self):
         assert normalizar_modelo("openrouter/auto:free") == "openrouter/free"
         assert OpenRouterProvider(model="openrouter/auto:free")._model == "openrouter/free"
         assert OpenRouterProvider(model="openai/gpt-4o-mini")._model == "openai/gpt-4o-mini"
 
-    def test_fallbacks_openrouter_validos_y_sin_duplicados(self, monkeypatch):
+    def test_default_es_un_modelo_existente(self, monkeypatch):
+        monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
+        assert OpenRouterProvider()._model == "openrouter/free"
         monkeypatch.setenv("OPENROUTER_MODEL", "openrouter/auto:free")
-        fbs = fallback_models()
-        assert "openrouter/auto:free" not in fbs
-        assert fbs == ["openrouter/free", "openai/gpt-4o-mini"]
-        monkeypatch.setenv("OPENROUTER_FALLBACK_MODELS", "google/gemini-2.5-flash, openrouter/free")
-        assert fallback_models() == ["google/gemini-2.5-flash", "openrouter/free"]
+        assert OpenRouterProvider()._model == "openrouter/free"
 
     @pytest.mark.asyncio
-    async def test_primario_falla_y_responde_openrouter(self, monkeypatch):
+    async def test_primario_falla_y_responde_un_respaldo_de_openrouter(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "x")
         usados = []
 
         async def fake_generate(self, system_prompt, history, message):
             usados.append(self._model)
-            if self._model == "openai/gpt-4o-mini":
-                raise ValueError("OpenRouter API error 402: Insufficient credits")
             return "respuesta real"
 
         with patch.object(OpenRouterProvider, "generate", fake_generate):
-            ag = _agente(ProveedorQueFalla(ValueError("Groq 429 rate limit")))
+            ag = _agente(ProveedorQueFalla(ValueError("OpenRouter API error 402: Insufficient credits")))
             reply = await ag.respond("hola")
         assert reply == "respuesta real"
-        assert usados == ["openai/gpt-4o-mini", "openrouter/free"]
-
-    @pytest.mark.asyncio
-    async def test_no_reintenta_el_mismo_modelo_que_fallo_como_primario(self, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "x")
-        monkeypatch.setenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-        usados = []
-
-        async def fake_generate(self, system_prompt, history, message):
-            usados.append(self._model)
-            return "ok"
-
-        with patch.object(OpenRouterProvider, "generate", fake_generate):
-            primario = ProveedorQueFalla(ValueError("timeout"), label="OpenRouter (openai/gpt-4o-mini)")
-            await _agente(primario).respond("hola")
-        assert usados == ["openrouter/free"]
+        assert usados and "openrouter/auto:free" not in usados
+        assert ag.history[0]["content"] == "hola"
 
 
-# ─── Observabilidad ───────────────────────────────────────────────────────────
+# ─── Integración PR #4 + PR #5 ────────────────────────────────────────────────
 
-class TestHealthIA:
-
-    def test_clasificacion_de_errores(self):
-        c = lambda m: ai_monitor.clasificar_error(ValueError(m))[1]
-        assert c("OpenRouter API error 402: Insufficient credits") == "sin_creditos"
-        assert c("OpenRouter API error 404: No endpoints found for openrouter/auto:free") == "modelo_inexistente"
-        assert c("OpenRouter API error 401: User not found") == "clave_invalida"
-        assert c("Error 400: maximum context length is 128000 tokens") == "contexto_excedido"
-        assert c("Groq 429 rate limit") == "rate_limit"
-        assert c("OPENROUTER_API_KEY no configurada") == "sin_clave"
-
-    def test_endpoint_publico_sin_secretos(self, monkeypatch):
-        secreto = "sk-or-v1-SECRETO-DE-PRUEBA"
-        monkeypatch.setenv("OPENROUTER_API_KEY", secreto)
-        monkeypatch.setenv("AI_PROVIDER", "openrouter")
-        ai_monitor.record_fail("OpenRouter (x)", ValueError(f"401 invalid key {secreto}"))
-        import main
-        r = TestClient(main.app).get("/health/ia")
-        assert r.status_code == 200
-        assert secreto not in r.text
-        d = r.json()
-        assert d["proveedor_primario"] == "openrouter"
-        assert d["claves_presentes"]["OPENROUTER_API_KEY"] is True
-        assert d["por_proveedor"]["OpenRouter (x)"]["last_categoria"] == "clave_invalida"
+def test_health_ia_tiene_una_sola_ruta_registrada():
+    """Los dos PRs agregaban /health/ia: FastAPI no avisa y la segunda queda inalcanzable."""
+    import main
+    rutas = [r for r in main.app.routes if getattr(r, "path", "") == "/health/ia"]
+    assert len(rutas) == 1

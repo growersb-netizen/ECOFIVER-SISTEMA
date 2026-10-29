@@ -4,6 +4,7 @@ Zona horaria: America/Argentina/Buenos_Aires (GMT-3 fijo, sin DST).
 """
 
 import logging
+import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 import pytz
@@ -18,6 +19,84 @@ _scheduler: AsyncIOScheduler | None = None
 # ─────────────────────────────────────────────
 # TAREAS
 # ─────────────────────────────────────────────
+
+# ── Canal ejecutivo (Telegram de Rodrigo) ─────────────────────────────────────
+# Etapa 1: los análisis de Aurora/Tomás/Renata dejaban de descartarse y llegan acá.
+# ETAPA1_INFORMES_TELEGRAM=0 vuelve al comportamiento anterior (sin envío).
+
+def _informes_telegram_activos() -> bool:
+    return os.getenv("ETAPA1_INFORMES_TELEGRAM", "1").strip() not in ("0", "false", "no", "")
+
+
+def _limpiar_senales(texto: str) -> str:
+    """Quita señales internas ([CRM_ACTION…], [DERIVAR…], etc.): en informes no se ejecutan ni deben verse."""
+    import re as _re
+    from tools.crm_actions import limpiar_acciones
+    texto = limpiar_acciones(texto or "")
+    texto = _re.sub(r"\[(?:DERIVAR|AGENDA_VV|LLAMADA_SUP|ALIADO|SIMULAR|LEAD_CALIENTE|ALERTA|NOTIF|SEGUIMIENTO)[^\]]*\]",
+                    "", texto, flags=_re.IGNORECASE)
+    return texto.strip()
+
+
+async def _enviar_ejecutivo(texto: str) -> bool:
+    """Envía al Telegram de Rodrigo en bloques de ≤4000 caracteres. True si se envió."""
+    try:
+        from channels import telegram_bot as tg
+        if not tg._app or not tg.TELEGRAM_CHAT_ID_RODRIGO:
+            logger.warning("[CRON] Telegram no configurado: informe no enviado")
+            return False
+        texto = _limpiar_senales(texto)
+        for i in range(0, len(texto), 4000):
+            await tg._app.bot.send_message(chat_id=tg.TELEGRAM_CHAT_ID_RODRIGO, text=texto[i:i + 4000])
+        return True
+    except Exception as e:
+        logger.error(f"[CRON] Error enviando informe ejecutivo: {e}")
+        return False
+
+
+# Leads ya informados por Tomás → hora (evita repetir la misma alerta durante 6 h)
+_tomas_alertados: dict[str, float] = {}
+
+
+def _horas_desde(iso: str) -> float | None:
+    try:
+        from datetime import datetime as _dt, timezone as _tz
+        d = _dt.fromisoformat(iso.replace("Z", "+00:00"))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=_tz.utc)
+        return (_dt.now(_tz.utc) - d).total_seconds() / 3600
+    except Exception:
+        return None
+
+
+def armar_alerta_tomas(leads: list[dict], ahora: float | None = None) -> tuple[str, list[str]]:
+    """
+    Alerta determinística (sin IA) de leads sin seguimiento.
+    Retorna (texto, ids_nuevos). Texto vacío si no hay leads nuevos que informar.
+    """
+    import time as _t
+    ahora = ahora or _t.time()
+    for k in [k for k, ts in _tomas_alertados.items() if ahora - ts > 6 * 3600]:
+        _tomas_alertados.pop(k, None)
+    nuevos = [l for l in leads if str(l.get("id")) not in _tomas_alertados]
+    if not nuevos:
+        return "", []
+    lineas = [f"👀 Tomás — {len(leads)} lead(s) sin seguimiento hace más de 2 h ({len(nuevos)} nuevo(s) en esta alerta):"]
+    for l in nuevos[:10]:
+        h = _horas_desde(l.get("updated_at") or l.get("created_at") or "")
+        hace = f"{h:.0f} h" if h is not None else "?"
+        prod = l.get("producto_interes") or "SIN_DEFINIR"
+        pago = l.get("forma_pago") or "SIN_DEFINIR"
+        lineas.append(
+            f"• {l.get('nombre') or 'Sin nombre'} ({l.get('telefono') or '-'}) — {prod}/{pago} — "
+            f"estado {l.get('estado','?')} — asignado a {l.get('agente_asignado','?')} — sin movimiento hace {hace}"
+        )
+    if len(nuevos) > 10:
+        lineas.append(f"… y {len(nuevos) - 10} más.")
+    lineas.append("Acción sugerida: contactar primero los que tienen producto y forma de pago definidos. "
+                  "Tomás no les escribe automáticamente (requiere plantilla aprobada).")
+    return "\n".join(lineas), [str(l.get("id")) for l in nuevos]
+
 
 async def tarea_reporte_diario():
     """08:00 AM — Máximo genera y envía reporte diario a Rodrigo."""
@@ -37,13 +116,20 @@ async def tarea_reporte_aurora_manana():
         from tools import crm_client
         aurora = get_agent()
         stats = await crm_client.get_pipeline_stats()
-        await aurora.respond(
-            "Generá el reporte matutino del pipeline para Máximo. "
-            "Estado actual, prioridades del día y alertas.",
+        informe = await aurora.respond(
+            "Generá el reporte matutino del pipeline para Rodrigo y Máximo. Máximo 15 líneas: "
+            "1) estado actual con los números reales, 2) las 3 prioridades del día, "
+            "3) acciones concretas, cada una con responsable (agente o persona) y plazo. "
+            "No inventes datos: usá solo los números recibidos.",
             f"Stats actuales: {stats}",
         )
+        enviado = False
+        if _informes_telegram_activos() and informe:
+            enviado = await _enviar_ejecutivo(f"📊 Aurora — informe de la mañana\n\n{informe}")
+        return {"informe_chars": len(informe or ""), "enviado_telegram": enviado}
     except Exception as e:
         logger.error(f"[CRON] tarea_reporte_aurora_manana error: {e}")
+        return {"error": str(e)}
 
 
 async def tarea_check_leads_sin_respuesta():
@@ -54,20 +140,25 @@ async def tarea_check_leads_sin_respuesta():
         from agents.tomas import get_agent
         leads = await crm_client.get_leads_sin_respuesta(horas=2)
         if not leads:
-            return
-        tomas = get_agent()
-        resumen = f"Hay {len(leads)} leads sin respuesta hace más de 2 horas: "
-        resumen += ", ".join([
-            l.get("nombre", l.get("session_id", "desconocido"))
-            for l in leads[:10]
-        ])
-        await tomas.respond(
-            f"ALERTA AUTOMÁTICA: {resumen}. "
-            "Activá intervención inmediata en los leads calientes.",
-        )
-        logger.info(f"[CRON] Tomás alertado sobre {len(leads)} leads sin respuesta")
+            return {"leads_sin_respuesta": 0, "alertados": 0}
+        if not _informes_telegram_activos():
+            return {"leads_sin_respuesta": len(leads), "alertados": 0, "nota": "informes desactivados"}
+        # Alerta determinística (sin IA): antes se le pedía a Tomás por IA y la
+        # respuesta se descartaba sin llegar a nadie.
+        texto, ids_nuevos = armar_alerta_tomas(leads)
+        enviado = False
+        if texto:
+            enviado = await _enviar_ejecutivo(texto)
+            if enviado:
+                import time as _t
+                for i in ids_nuevos:
+                    _tomas_alertados[i] = _t.time()
+        logger.info(f"[CRON] Tomás: {len(leads)} leads sin respuesta, {len(ids_nuevos)} nuevos, enviado={enviado}")
+        return {"leads_sin_respuesta": len(leads), "alertados": len(ids_nuevos) if enviado else 0,
+                "enviado_telegram": enviado}
     except Exception as e:
         logger.error(f"[CRON] tarea_check_leads_sin_respuesta error: {e}")
+        return {"error": str(e)}
 
 
 async def tarea_reporte_aurora_tarde():
@@ -80,13 +171,20 @@ async def tarea_reporte_aurora_tarde():
         stats  = await crm_client.get_pipeline_stats()
         ventas = await crm_client.get_ventas_hoy()
         cuotas = await crm_client.get_cuotas_vencidas(1)
-        await aurora.respond(
-            "Generá el reporte vespertino para Máximo: "
-            "resultados del día, tendencias y ajustes necesarios.",
+        informe = await aurora.respond(
+            "Generá el reporte de cierre del día para Rodrigo y Máximo. Máximo 15 líneas: "
+            "resultados del día con números reales, desvíos, y acciones para mañana "
+            "con responsable y plazo. No inventes datos.",
             f"Stats: {stats}\nVentas hoy: {ventas}\nCuotas vencidas: {len(cuotas)}",
         )
+        enviado = False
+        if _informes_telegram_activos() and informe:
+            enviado = await _enviar_ejecutivo(f"📊 Aurora — cierre del día\n\n{informe}")
+        return {"informe_chars": len(informe or ""), "enviado_telegram": enviado,
+                "cuotas_vencidas": len(cuotas)}
     except Exception as e:
         logger.error(f"[CRON] tarea_reporte_aurora_tarde error: {e}")
+        return {"error": str(e)}
 
 
 async def tarea_cobros_ignacio():
@@ -390,15 +488,20 @@ async def tarea_calendario_contenido_semanal():
         from datetime import datetime
         renata = get_agent()
         semana = datetime.now(TIMEZONE).strftime("Semana del %d/%m/%Y")
-        await renata.respond(
+        calendario = await renata.respond(
             f"Planificá el calendario de contenido para {semana}: "
             "posts diarios de lunes a domingo para Facebook e Instagram. "
             "Considerá la temporada actual, los productos estrella y el funnel de ventas. "
             "Incluí tipo de post, foco, CTA y hashtags sugeridos para cada día."
         )
         logger.info("[CRON] Calendario semanal de contenido generado")
+        enviado = False
+        if _informes_telegram_activos() and calendario:
+            enviado = await _enviar_ejecutivo(f"🎨 Renata — propuesta de calendario ({semana})\n\n{calendario}")
+        return {"calendario_chars": len(calendario or ""), "enviado_telegram": enviado}
     except Exception as e:
         logger.error(f"[CRON] tarea_calendario_contenido_semanal error: {e}")
+        return {"error": str(e)}
 
 
 async def tarea_reactivacion_leads_frios():
@@ -1027,9 +1130,24 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # 04:10 — Actualizar catálogo de modelos de OpenRouter (precios y capacidades)
+    from tools.openrouter_catalog import actualizar as _actualizar_catalogo
+    _scheduler.add_job(
+        _actualizar_catalogo,
+        CronTrigger(hour=4, minute=10, timezone=TIMEZONE),
+        id="catalogo_openrouter",
+        name="Catálogo de modelos OpenRouter",
+        replace_existing=True,
+    )
+
+    # Etapa 1: registrar cada ejecución (inicio, fin, duración, resultado, error)
+    from scheduler.run_log import instrumentar
+    n_inst = instrumentar(_scheduler)
+
     _scheduler.start()
     logger.info(
-        f"[CRON] Scheduler iniciado con {len(_scheduler.get_jobs())} tareas programadas"
+        f"[CRON] Scheduler iniciado con {len(_scheduler.get_jobs())} tareas programadas "
+        f"({n_inst} con registro de ejecución)"
     )
 
 

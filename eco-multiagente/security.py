@@ -127,15 +127,19 @@ def _etiquetas_lineas() -> dict[str, str]:
 def signature_stats() -> dict:
     et = _etiquetas_lineas()
     por_linea = {f"{et.get(pid, 'otra')}:{pid}": dict(c) for pid, c in _sig_por_linea.items()}
-    listo_para_enforce = bool(_sig_por_linea) and all(
-        c.get("valid", 0) > 0 and not c.get("invalid") and not c.get("missing")
-        for c in _sig_por_linea.values()
+    sin_problemas = all(not c.get("invalid") and not c.get("missing") for c in _sig_por_linea.values())
+    # Todas las líneas configuradas (Melanie, agentes, supervisada) deben haber
+    # entregado al menos un evento con firma válida: una sola línea no alcanza.
+    lineas_sin_evidencia = sorted(
+        f"{nombre}:{pid}" for pid, nombre in et.items() if _sig_por_linea.get(pid, {}).get("valid", 0) == 0
     )
+    listo_para_enforce = bool(_sig_por_linea) and bool(et) and sin_problemas and not lineas_sin_evidencia
     return {
         "mode": signature_mode(),
         "secret_configured": bool(_app_secret()),
         **_sig_stats,
         "por_linea": por_linea,
+        "lineas_sin_evidencia": lineas_sin_evidencia,
         "listo_para_enforce": listo_para_enforce,
     }
 

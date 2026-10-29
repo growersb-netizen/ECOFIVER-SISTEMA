@@ -73,3 +73,12 @@ Funcional (manual):
 ## Rollback
 
 Revertir los commits. No hay migraciones ni cambios de datos. Las variables nuevas son opcionales.
+
+## Integración con el PR #4 (Etapa 1)
+
+Cuando se fusione el PR #4, que fue integrado con este PR:
+
+- **`/health/ia` pasa a ser la del PR #4** (`tools/ai_metrics.py`). Es la única ruta registrada, y lo verifica un test. Los campos `claves_presentes`, `por_proveedor` y `last_categoria` de esta guía dejan de existir. Se reemplazan por `proveedor_configurado`, `modelo_configurado`, `ultimo_proveedor_efectivo`, `pct_respaldo`, `por_agente`, `por_modelo` y `totales`. Los textos de error solo se ven con `?detalle=true` y la API key.
+- **La cadena de respaldo pasa a ser la del PR #4:** solo usa OpenRouter, con modelos por rol validados contra el catálogo.
+- **Se conserva entera la corrección de memoria de este PR.** Una regresión de punta a punta lo verifica: 20 mensajes por `route_message(canal="whatsapp_admin")` al Máximo real. Sin la corrección, falla en el 5.º mensaje.
+- **Se conserva la normalización de IDs inexistentes** (`openrouter/auto:free` → `openrouter/free`). El PR #4 todavía tenía `openrouter/auto:free` como modelo por defecto.

@@ -38,6 +38,15 @@ Devolvé SOLO un JSON válido, sin texto antes ni después, con esta forma exact
 }"""
 
 
+def _modelo_vision() -> str:
+    """Modelo del rol "vision" (tools.model_policy; validado: debe aceptar imágenes)."""
+    try:
+        from tools.model_policy import resolver
+        return resolver("vision").modelo
+    except Exception:
+        return VISION_MODEL
+
+
 async def extraer_datos_documento(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     """
     Extrae datos de un documento (DNI) desde una foto usando visión real.
@@ -51,7 +60,7 @@ async def extraer_datos_documento(image_bytes: bytes, mime_type: str = "image/jp
     data_url = f"data:{mime_type};base64,{b64}"
 
     payload = {
-        "model": VISION_MODEL,
+        "model": _modelo_vision(),
         "messages": [{
             "role": "user",
             "content": [

@@ -183,6 +183,20 @@ def es_despedida(msg: str) -> bool:
     return len(m) <= 40 and bool(_DESPEDIDA_RE.match(m))
 
 
+# Pedido de no recibir más mensajes (cliente)
+_BAJA_RE = re.compile(
+    r"\b(?:no\s+(?:me\s+)?(?:escriban|escribas|manden|mandes|envien|envies|contacten|molesten|llamen)\s*(?:mas)?"
+    r"|no\s+quiero\s+(?:recibir|que\s+me\s+(?:escriban|manden|contacten))"
+    r"|dejen\s+de\s+(?:escribirme|mandarme|enviarme|molestarme)|deja\s+de\s+(?:escribirme|mandarme)"
+    r"|darme\s+de\s+baja|dame\s+de\s+baja|quiero\s+la\s+baja|borrame|no\s+me\s+interesa\s+mas)\b"
+)
+
+
+def es_pedido_de_baja(msg: str) -> bool:
+    m = _normalizar(msg)
+    return bool(_BAJA_RE.search(m)) or m in ("stop", "baja", "unsubscribe")
+
+
 # Consulta del negocio estando con Valentín (personal) → vuelve a Máximo
 _CONSULTA_COMERCIAL_RE = re.compile(
     r"\b(?:precio|precios|piscina|piscinas|pileta|piletas|modulo|modulos|venta|ventas|cuota|cuotas|"
@@ -583,13 +597,26 @@ async def _route_message_impl(
         agent_name = (lead or {}).get("agente_asignado", "valentina").lower()
         _agent_assignments[session_id] = agent_name
 
+    # Autorización en el servidor: un cliente solo puede ser atendido por agentes
+    # de atención comercial, sin importar lo que diga el CRM (asignación manual,
+    # datos viejos) o lo que haya pedido el modelo.
+    if agent_name not in AGENTES_CLIENTE:
+        logger.warning(f"[Router] Agente '{agent_name}' no permitido para clientes ({session_id}) → valentina")
+        agent_name = "valentina"
+        _agent_assignments[session_id] = agent_name
+
     # 2. Obtener historial de los últimos 10 mensajes para contexto
     historial = await crm_client.get_conversation_history(session_id, limit=10)
     contexto = f"Historial previo:\n{historial}" if historial else ""
 
-    # 2b. Despedida del cliente: cierre corto, sin IA y sin promociones
-    if es_despedida(mensaje):
-        reply = "¡Gracias por escribirnos! Cuando quieras, acá estamos. 👋"
+    # 2b. Despedida o pedido de no recibir más mensajes: cierre corto, sin IA y sin
+    # promociones. No se promete la baja definitiva: todavía no se registra en el CRM.
+    if es_despedida(mensaje) or es_pedido_de_baja(mensaje):
+        if es_pedido_de_baja(mensaje):
+            logger.warning(f"[Router] Pedido de no recibir más mensajes de {session_id} ({canal})")
+            reply = "Entendido. Cortamos acá la conversación. Si más adelante necesitás algo, escribinos. 👋"
+        else:
+            reply = "¡Gracias por escribirnos! Cuando quieras, acá estamos. 👋"
         await crm_client.save_message(lead_id=session_id, user_msg=mensaje, agent_reply=reply,
                                       agent_name=agent_name, msg_type=msg_type)
         registrar_interaccion(canal=canal, session_id=session_id, agente=agent_name,

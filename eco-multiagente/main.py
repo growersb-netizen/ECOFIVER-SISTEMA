@@ -331,6 +331,10 @@ app.include_router(agent_panel_router)
 
 
 # ── Modelos Pydantic ───────────────────────────────────────────────────────
+import re as _re
+_SESSION_WEB_RE = _re.compile(r"[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}")
+
+
 class WebChatRequest(BaseModel):
     session_id: str
     message: str
@@ -351,6 +355,11 @@ async def web_chat(body: WebChatRequest):
     """
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Mensaje vacío")
+    # El CRM busca el lead por session_id o por teléfono: un session_id con el
+    # teléfono (o email) de un cliente real le daría al visitante el historial y el
+    # lead de ese cliente. El widget genera UUIDs; cualquier otra cosa se rechaza.
+    if not _SESSION_WEB_RE.fullmatch(body.session_id or ""):
+        raise HTTPException(status_code=400, detail="session_id inválido")
 
     result = await route_message(
         canal="web",

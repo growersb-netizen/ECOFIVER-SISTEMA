@@ -93,43 +93,107 @@ AGENTES_DISPONIBLES = {
 # ── Detección directa de cambio de agente en canal admin ───────────────────
 # Evita que el fallback de IA (Groq/Llama) confunda nombres de agentes.
 # Solo activa cuando el mensaje contiene un verbo de solicitud de cambio.
-_SWITCH_REQUEST_RE = re.compile(
-    r"\b(pasame|pasá|conectame|conectá|quiero hablar|llamá|llamame|"
-    r"derivame|necesito hablar|poneme con|hablame con|buscame|traeme)\b",
-    re.IGNORECASE,
-)
+# ── Cambio de agente en el canal admin (determinístico, sin IA) ──────────────
+# Antes: bastaba un verbo suelto ("pasame", que en Argentina también es "mandame")
+# + una palabra contenida en el mensaje. Resultado: "No quiero hablar más con
+# Valentín" pasaba A Valentín, "Valentina" activaba a Valentín (subcadena) y
+# "pasame las operaciones" activaba a Bruno. Máximo ni figuraba.
+# Ahora: pedido explícito "<verbo> con/a <agente>", palabra completa, sin tildes.
+
+AGENTES_NOMBRE: dict[str, str] = {
+    "maximo": "Máximo (Dirección)", "aurora": "Aurora (Gerencia comercial)",
+    "tomas": "Tomás (Seguimiento)", "valentina": "Valentina (Atención comercial)",
+    "camila": "Camila (Piscinas contado)", "nicolas": "Nicolás (Piscinas financiadas)",
+    "luciano": "Luciano (Módulos contado)", "mateo": "Mateo (Módulos financiados)",
+    "renata": "Renata (Marketing)", "bruno": "Bruno (Operaciones)",
+    "ezequiel": "Ezequiel (Administración)", "elena": "Elena (Financiación)",
+    "ignacio": "Ignacio (Cobranzas)", "daniela": "Daniela (Relaciones institucionales)",
+    "sebastian": "Sebastián (Postventa)", "valentin": "Dr. Valentín (uso personal)",
+    "franco": "Franco (Socios)",
+}
+
+# Agentes a los que puede llegar un CLIENTE (derivación [DERIVAR:x] en su canal).
+# Máximo recibe el CRM completo y Valentín es personal: nunca para clientes.
+AGENTES_CLIENTE: set[str] = {"valentina", "camila", "nicolas", "luciano", "mateo", "sebastian"}
+
 _AGENTE_KEYWORDS: dict[str, list[str]] = {
-    "valentin":  ["valentin", "valentín", "dr ríos", "dr rios", "dr. ríos",
-                  "terapeuta", "psicólogo", "psicologo", "dr. rios"],
-    "aurora":    ["aurora", "gerente comercial"],
-    "tomas":     ["tomas", "tomás", "supervisor"],
+    "maximo":    ["maximo", "el ceo", "direccion"],
+    "valentin":  ["valentin", "dr rios", "dr. rios", "el terapeuta", "el psicologo"],
+    "aurora":    ["aurora", "la gerente comercial", "gerente comercial"],
+    "tomas":     ["tomas", "el supervisor"],
     "camila":    ["camila"],
     "mateo":     ["mateo"],
-    "nicolas":   ["nicolas", "nicolás"],
+    "nicolas":   ["nicolas"],
     "luciano":   ["luciano"],
-    "renata":    ["renata", "marketing"],
-    "bruno":     ["bruno", "logística", "logistica", "operaciones"],
-    "ezequiel":  ["ezequiel", "administración", "administracion"],
-    "ignacio":   ["ignacio", "cobrador", "cobros"],
-    "elena":     ["elena", "finanzas"],
-    "daniela":   ["daniela", "rrpp", "crisis"],
-    "sebastian": ["sebastian", "sebastián", "postventa"],
+    "renata":    ["renata"],
+    "bruno":     ["bruno"],
+    "ezequiel":  ["ezequiel"],
+    "ignacio":   ["ignacio", "el cobrador"],
+    "elena":     ["elena"],
+    "daniela":   ["daniela"],
+    "sebastian": ["sebastian", "postventa"],
     "valentina": ["valentina"],
 }
 
+_VERBO_CAMBIO = (
+    r"(?:pasame|pasa|pasar|pasarme|pases|pasen|conectame|conecta|derivame|deriva|poneme|pone|"
+    r"comunicame|transferime|volve|volver|vuelvo|llama|llamame|traeme|"
+    r"(?:quiero|necesito|queria|prefiero)\s+hablar|hablar|hablame)"
+)
+_NEGACION_RE = re.compile(
+    r"\b(?:no\s+(?:quiero|necesito|me\s+pases|me\s+pasen|hables|sigas)|basta\s+de|deja\s+de|"
+    r"no\s+mas\s+(?:con|de))\b"
+)
 
-def _detectar_switch_agente(msg_lower: str) -> str | None:
+
+def _normalizar(texto: str) -> str:
+    t = (texto or "").lower().strip()
+    for a, b in (("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u"), ("ü", "u")):
+        t = t.replace(a, b)
+    return re.sub(r"\s+", " ", t)
+
+
+def _detectar_switch_agente(msg: str) -> str | None:
     """
-    Detecta si Rodrigo pide cambiar de agente en el canal admin.
-    Solo actúa cuando hay un verbo de solicitud explícito.
-    Retorna el nombre del agente o None.
+    Detecta un pedido explícito de cambio de agente en el canal admin.
+    Retorna el agente pedido, "salir" si el pedido es negativo ("no quiero hablar
+    más con X", "basta de X") o None si no hay pedido.
     """
-    if not _SWITCH_REQUEST_RE.search(msg_lower):
-        return None
+    m = _normalizar(msg)
     for agente, keywords in _AGENTE_KEYWORDS.items():
-        if any(kw in msg_lower for kw in keywords):
+        kw_re = "|".join(re.escape(k) for k in keywords)
+        patron = rf"\b{_VERBO_CAMBIO}\s+(?:mas\s+)?(?:con|a)\s+(?:el\s+|la\s+|los\s+)?(?:{kw_re})\b"
+        if re.search(patron, m) or re.search(rf"\bbasta\s+de\s+(?:{kw_re})\b", m):
+            if _NEGACION_RE.search(m):
+                return "salir"
             return agente
     return None
+
+
+# ── Fin de conversación ──────────────────────────────────────────────────────
+_DESPEDIDA_RE = re.compile(
+    r"^(?:chau|chao|adios|hasta luego|hasta manana|nos vemos|bye|"
+    r"listo,? gracias|gracias,? chau|ok,? gracias,? chau|basta|terminamos|fin|cortamos)"
+    r"[\s!.,]*(?:gracias|chau|nos vemos|saludos)?[\s!.,👋🙏]*$"
+)
+
+
+def es_despedida(msg: str) -> bool:
+    m = _normalizar(msg)
+    return len(m) <= 40 and bool(_DESPEDIDA_RE.match(m))
+
+
+# Consulta del negocio estando con Valentín (personal) → vuelve a Máximo
+_CONSULTA_COMERCIAL_RE = re.compile(
+    r"\b(?:precio|precios|piscina|piscinas|pileta|piletas|modulo|modulos|venta|ventas|cuota|cuotas|"
+    r"lead|leads|cliente|clientes|stock|flete|pipeline|cobranza|cobranzas|financiacion|presupuesto|"
+    r"catalogo|vendedor|vendedores|factura|facturacion|reporte|informe)\b"
+)
+
+
+def es_consulta_comercial(msg: str) -> bool:
+    return bool(_CONSULTA_COMERCIAL_RE.search(_normalizar(msg)))
+
 
 # Caché de instancias de agentes por sesión
 # Clave: lead_id, Valor: instancia del agente
@@ -523,6 +587,15 @@ async def _route_message_impl(
     historial = await crm_client.get_conversation_history(session_id, limit=10)
     contexto = f"Historial previo:\n{historial}" if historial else ""
 
+    # 2b. Despedida del cliente: cierre corto, sin IA y sin promociones
+    if es_despedida(mensaje):
+        reply = "¡Gracias por escribirnos! Cuando quieras, acá estamos. 👋"
+        await crm_client.save_message(lead_id=session_id, user_msg=mensaje, agent_reply=reply,
+                                      agent_name=agent_name, msg_type=msg_type)
+        registrar_interaccion(canal=canal, session_id=session_id, agente=agent_name,
+                              mensaje_usuario=mensaje, respuesta_agente=reply, msg_type=msg_type)
+        return {"reply": reply, "agent": agent_name, "lead_id": session_id}
+
     # 3. Instanciar agente y generar respuesta
     # El texto del cliente se neutraliza antes de llegar al modelo (prompt injection).
     mensaje = neutralizar_señales_usuario(mensaje)
@@ -540,6 +613,10 @@ async def _route_message_impl(
 
     # 4. Detectar señales de derivación (solo aplica cuando hay [DERIVAR:x])
     nuevo_agente = _detectar_derivacion(reply)
+    if nuevo_agente and nuevo_agente not in AGENTES_CLIENTE:
+        # Un cliente nunca llega a Máximo (CRM completo), Valentín (personal) ni áreas internas.
+        logger.warning(f"[Router] Derivación de cliente a '{nuevo_agente}' bloqueada para {session_id}")
+        nuevo_agente = None
     if nuevo_agente and nuevo_agente in AGENTES_DISPONIBLES:
         logger.info(
             f"[Router] Derivación: {agent_name} → {nuevo_agente} para {session_id}"
@@ -651,21 +728,29 @@ async def _route_admin(session_id: str, mensaje: str, msg_type: str) -> dict:
     El agente activo se persiste en _agent_assignments["admin_rodrigo"].
     Para volver a Máximo: "pasame con Máximo" / "volvé a Máximo".
     """
-    msg_lower = mensaje.lower().strip()
+    agente_previo = _agent_assignments.get("admin_rodrigo", "maximo")
 
-    # ── 1. Volver a Máximo ───────────────────────────────────────────────────
-    _VOLVER_MAXIMO = ["volvé a máximo", "pasame con máximo", "quiero hablar con máximo",
-                      "llamá a máximo", "volver a maximo", "maximo por favor"]
-    if any(k in msg_lower for k in _VOLVER_MAXIMO):
+    # ── 0. Fin de conversación: sin IA, sin promociones, memoria limpia ──────
+    if es_despedida(mensaje):
+        clear_agent_cache("admin_rodrigo")
         _agent_assignments["admin_rodrigo"] = "maximo"
+        reply = "👋 Listo, cierro la conversación. Cuando quieras me escribís."
+        logger.info(f"[Router/Admin] Despedida — cierre (agente previo: {agente_previo})")
+        registrar_interaccion(canal="whatsapp_admin", session_id="admin_rodrigo", agente="sistema",
+                              mensaje_usuario=mensaje, respuesta_agente=reply, msg_type=msg_type)
+        return {"reply": reply, "agent": "sistema", "lead_id": "admin_rodrigo"}
 
-    # ── 2. Cambio explícito a otro agente (detección directa del texto) ──────
-    # Esto evita que el modelo de IA (Groq/Llama en fallback) confunda nombres.
-    else:
-        switch_target = _detectar_switch_agente(msg_lower)
-        if switch_target:
-            logger.info(f"[Router/Admin] Switch directo detectado → {switch_target}")
-            _agent_assignments["admin_rodrigo"] = switch_target
+    # ── 1. Cambio explícito de agente (determinístico) ───────────────────────
+    aviso_cambio = ""
+    pedido = _detectar_switch_agente(mensaje)
+    if pedido == "salir":
+        pedido = "maximo"
+    if pedido is None and agente_previo == "valentin" and es_consulta_comercial(mensaje):
+        pedido = "maximo"   # Valentín no tiene datos del negocio
+    if pedido and pedido != agente_previo:
+        _agent_assignments["admin_rodrigo"] = pedido
+        aviso_cambio = f"🔀 Ahora estás hablando con {AGENTES_NOMBRE.get(pedido, pedido)}."
+        logger.info(f"[Router/Admin] Cambio de agente: {agente_previo} → {pedido}")
 
     agente_actual = _agent_assignments.get("admin_rodrigo", "maximo")
 
@@ -697,6 +782,8 @@ async def _route_admin(session_id: str, mensaje: str, msg_type: str) -> dict:
 
         # Mostrar mensaje de transición + respuesta del nuevo agente
         reply_final = f"{transicion}\n\n{reply_nuevo}".strip() if transicion else reply_nuevo
+        reply_final = _firmar_respuesta_admin(
+            reply_final, nuevo_agente, f"🔀 Ahora estás hablando con {AGENTES_NOMBRE.get(nuevo_agente, nuevo_agente)}.")
 
         await crm_client.save_message(
             lead_id="admin_rodrigo",
@@ -730,6 +817,8 @@ async def _route_admin(session_id: str, mensaje: str, msg_type: str) -> dict:
         if resultados:
             reply = f"{reply}\n\n{resultados}".strip()
 
+    reply = _firmar_respuesta_admin(reply, agente_actual, aviso_cambio)
+
     await crm_client.save_message(
         lead_id="admin_rodrigo",
         user_msg=mensaje,
@@ -746,7 +835,20 @@ async def _route_admin(session_id: str, mensaje: str, msg_type: str) -> dict:
         acciones_crm=acciones_nombres if acciones_nombres else None,
         msg_type=msg_type,
     )
+    logger.info(f"[Router/Admin] Respondió: {agente_actual}")
     return {"reply": reply, "agent": agente_actual, "lead_id": "admin_rodrigo"}
+
+
+def _firmar_respuesta_admin(reply: str, agente: str, aviso_cambio: str = "") -> str:
+    """Confirma el cambio de agente y, si no es Máximo, indica quién responde."""
+    partes = []
+    if aviso_cambio:
+        partes.append(aviso_cambio)
+    if agente != "maximo":
+        nombre = AGENTES_NOMBRE.get(agente, agente).split(" (")[0]
+        reply = f"[{nombre}] {reply}"
+    partes.append(reply)
+    return "\n\n".join(p for p in partes if p)
 
 
 async def _notificar_tomas(

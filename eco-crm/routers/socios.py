@@ -2098,6 +2098,19 @@ async def socio_actualizar_lead(
     if not lead:
         raise HTTPException(404, "Lead no encontrado o no pertenece a este socio")
     data = await request.json()
+    campos_gestion = ("estado", "etiqueta_color", "notas", "proximo_seguimiento",
+                      "forma_pago", "producto_interes", "localidad")
+    anteriores = {campo: getattr(lead, campo) for campo in campos_gestion}
+    seguimiento = lead.proximo_seguimiento
+    if "proximo_seguimiento" in data:
+        val = data["proximo_seguimiento"]
+        if val:
+            try:
+                seguimiento = datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                raise HTTPException(422, "Fecha de próximo seguimiento inválida")
+        else:
+            seguimiento = None
     ESTADOS_VALIDOS = {"NUEVO", "INTENTADO", "CONTACTADO", "EN_SEGUIMIENTO", "CALIFICADO", "CERRADO_GANADO", "CERRADO_PERDIDO", "INACTIVO"}
     COLORES_VALIDOS = {"", "rojo", "amarillo", "verde", "azul", "gris", "naranja"}
     if "estado" in data and data["estado"] in ESTADOS_VALIDOS:
@@ -2107,21 +2120,20 @@ async def socio_actualizar_lead(
     if "notas" in data:
         lead.notas = str(data["notas"])[:2000]
     if "proximo_seguimiento" in data:
-        val = data["proximo_seguimiento"]
-        if val:
-            try:
-                from dateutil import parser as _dp
-                lead.proximo_seguimiento = _dp.parse(val)
-            except Exception:
-                pass
-        else:
-            lead.proximo_seguimiento = None
+        lead.proximo_seguimiento = seguimiento
     if "forma_pago" in data and data["forma_pago"] in {"CONTADO", "PMI", "DIRECTA_50", "SIN_DEFINIR"}:
         lead.forma_pago = data["forma_pago"]
     if "producto_interes" in data and data["producto_interes"] in {"PISCINA", "MODULO", "COMBO", "SIN_DEFINIR"}:
         lead.producto_interes = data["producto_interes"]
     if "localidad" in data:
         lead.localidad = str(data["localidad"])[:200]
+    cambios = {campo: {"antes": str(anteriores[campo]), "despues": str(getattr(lead, campo))}
+               for campo in campos_gestion if anteriores[campo] != getattr(lead, campo)}
+    if cambios:
+        from database.models import Interaccion
+        db.add(Interaccion(lead_id=lead.id, tipo="NOTA", resultado="RESPONDIO",
+                           notas=json.dumps({"aliado": socio.codigo, "cambios": cambios},
+                                            ensure_ascii=False)))
     db.commit()
     return {"ok": True, "id": lead.id, "estado": lead.estado, "etiqueta_color": lead.etiqueta_color,
             "proximo_seguimiento": lead.proximo_seguimiento.isoformat() if lead.proximo_seguimiento else None}

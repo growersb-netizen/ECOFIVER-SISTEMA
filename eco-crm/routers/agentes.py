@@ -435,6 +435,83 @@ async def leads_frios(
     return [_lead_dict(l) for l in leads]
 
 
+# ─── DATOS DE LEAD META CON TOKEN DE SU PÁGINA ──────────────────────────────
+
+class _MetaLeadGraphError(Exception):
+    def __init__(self, code=None):
+        self.code = code
+        super().__init__("Meta Graph no confirmó la consulta")
+
+
+async def _meta_lead_graph_get(client, resource_id, fields, token):
+    """No incluir credenciales en URL, errores ni respuestas al consumidor."""
+    import httpx
+    try:
+        response = await client.get(
+            f"https://graph.facebook.com/v23.0/{resource_id}",
+            params={"fields": fields}, headers={"Authorization": f"Bearer {token}"},
+        )
+        data = response.json()
+    except (httpx.HTTPError, ValueError):
+        raise _MetaLeadGraphError() from None
+    if not isinstance(data, dict):
+        raise _MetaLeadGraphError()
+    if response.is_error or data.get("error"):
+        error = data.get("error") or {}
+        raise _MetaLeadGraphError(error.get("code") if isinstance(error, dict) else None)
+    return data
+
+
+@router.get("/api/leads/meta-datos/{leadgen_id}")
+async def obtener_datos_lead_meta(
+    leadgen_id: str,
+    page_id: str,
+    db: Session = Depends(get_db),
+    _: bool = Depends(_require_api_key),
+):
+    """Consulta un lead con la identidad de su página; nunca devuelve tokens."""
+    import re
+    import httpx
+    from database.models import MetaPagina
+    from routers.configuracion import get_config_value
+
+    if not all(re.fullmatch(r"[0-9]{1,50}", value) for value in (leadgen_id, page_id)):
+        raise HTTPException(422, "Los identificadores Meta deben ser numéricos")
+    pagina = db.query(MetaPagina).filter_by(page_id=page_id, activa=True).first()
+    if not pagina:
+        raise HTTPException(404, "Página Meta activa no encontrada")
+    fields = "id,field_data,created_time,ad_id,ad_name,form_id"
+    token = pagina.page_token
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            refresh = not token
+            if token:
+                try:
+                    data = await _meta_lead_graph_get(client, leadgen_id, fields, token)
+                except _MetaLeadGraphError as error:
+                    if error.code != 190:
+                        raise
+                    refresh = True
+            if refresh:
+                global_token = get_config_value("meta_page_access_token", db)
+                if not global_token:
+                    raise _MetaLeadGraphError()
+                page_data = await _meta_lead_graph_get(client, page_id, "access_token", global_token)
+                token = page_data.get("access_token")
+                if not isinstance(token, str) or not token:
+                    raise _MetaLeadGraphError()
+                # Evita que el auditor ORM copie el token renovado a changed_fields.
+                db.query(MetaPagina).filter_by(id=pagina.id).update(
+                    {MetaPagina.page_token: token}, synchronize_session=False,
+                )
+                db.commit()
+                data = await _meta_lead_graph_get(client, leadgen_id, fields, token)
+    except _MetaLeadGraphError:
+        raise HTTPException(503, "No se pudieron consultar los datos del formulario Meta") from None
+    return {key: data[key] for key in ("id", "field_data", "created_time", "ad_id", "ad_name", "form_id")
+            if key in data}
+
+
 # ─── REGISTRAR LEAD META ADS ──────────────────────────────────────────────────
 
 @router.post("/api/leads/meta")
@@ -445,33 +522,14 @@ async def registrar_lead_meta(
 ):
     """Registra un lead proveniente de Meta Lead Ads. Idempotente por meta_lead_id."""
     data = await request.json()
-    session_id = data.get("session_id") or data.get("telefono", "")
-    meta_id    = data.get("meta_lead_id", "")
-
-    # Buscar existente por session_id o meta_lead_id en notas
-    existing = _find_lead(session_id, db)
-    if existing:
-        return _lead_dict(existing)
-
-    telefono = data.get("telefono", session_id)
-    nombre   = data.get("nombre", "") or f"Lead Meta {meta_id[:8]}"
-
-    lead = Lead(
-        session_id=session_id,
-        nombre=nombre,
-        telefono=telefono,
-        localidad=data.get("ciudad", ""),
-        producto_interes=data.get("producto_interes", "SIN_DEFINIR").upper(),
-        forma_pago="SIN_DEFINIR",
-        estado="NUEVO",
-        origen="WHATSAPP",
-        agente_asignado="valentina",
-        notas=f"Meta Ads | ID:{meta_id} | Email:{data.get('email','')} | Anuncio:{data.get('ad_name','')}",
-    )
-    db.add(lead)
-    db.commit()
-    db.refresh(lead)
-    return _lead_dict(lead)
+    from utils.meta_ingreso import registrar_formulario_meta
+    lead = registrar_formulario_meta(db, data)
+    result = _lead_dict(lead)
+    result.update(asesor_apertura_id=lead.asesor_apertura_id,
+                  aliado_codigo=lead.aliado_codigo,
+                  created=getattr(lead, "meta_created", False),
+                  duplicate_event=getattr(lead, "meta_duplicate_event", False))
+    return result
 
 
 # ─── VIDEOLLAMADAS PRÓXIMAS ───────────────────────────────────────────────────

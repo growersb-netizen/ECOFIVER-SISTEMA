@@ -22,7 +22,7 @@ import hmac
 import hashlib
 import logging
 import httpx
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
@@ -49,13 +49,13 @@ def _inferir_producto(texto: str) -> str:
     for prod, kw in _PRODUCTO_KEYWORDS.items():
         if any(k in texto for k in kw):
             return prod
-    return "general"
+    return "sin_definir"
 
 
 def _verificar_firma(body_bytes: bytes, signature_header: str) -> bool:
     """Verifica X-Hub-Signature-256 de Meta para confirmar que el webhook es legítimo."""
     if not META_APP_SECRET:
-        return True  # En desarrollo sin secret, aceptar todo
+        return False
     if not signature_header or not signature_header.startswith("sha256="):
         return False
     expected = "sha256=" + hmac.new(
@@ -64,29 +64,36 @@ def _verificar_firma(body_bytes: bytes, signature_header: str) -> bool:
     return hmac.compare_digest(expected, signature_header)
 
 
-async def _obtener_datos_lead(leadgen_id: str) -> dict:
+async def _obtener_datos_lead(leadgen_id: str, page_id: str = "") -> dict:
     """
     Llama a Meta Graph API para obtener los datos del formulario completo.
     Retorna dict con nombre, telefono, email, etc.
     """
-    if not META_PAGE_TOKEN:
-        logger.warning("[META] META_PAGE_ACCESS_TOKEN no configurado")
-        return {}
-    try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(
-                f"{META_API_BASE}/{leadgen_id}",
-                params={
-                    "fields":       "field_data,created_time,ad_id,ad_name,form_id",
-                    "access_token": META_PAGE_TOKEN,
-                },
-            )
-            r.raise_for_status()
-            data = r.json()
-    except Exception as e:
-        logger.error(f"[META] Error obteniendo lead {leadgen_id}: {e}")
-        return {}
+    if page_id:
+        from tools import crm_client
+        # El token global del multiagente puede pertenecer a otro usuario o
+        # portafolio. Con página conocida, sólo el CRM resuelve esa identidad.
+        data = await crm_client.obtener_datos_lead_meta(leadgen_id, page_id)
+    else:
+        if not META_PAGE_TOKEN:
+            logger.warning("[META] META_PAGE_ACCESS_TOKEN no configurado")
+            return {}
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.get(
+                    f"{META_API_BASE}/{leadgen_id}",
+                    params={"fields": "field_data,created_time,ad_id,ad_name,form_id"},
+                    headers={"Authorization": f"Bearer {META_PAGE_TOKEN}"},
+                )
+                r.raise_for_status()
+                data = r.json()
+        except Exception as e:
+            status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else "no disponible"
+            logger.error("[META] No se obtuvo lead %s (HTTP %s)", leadgen_id, status)
+            return {}
 
+    import re
+    import unicodedata
     resultado = {"meta_lead_id": leadgen_id}
     campo_map = {
         "full_name":    "nombre",
@@ -96,59 +103,62 @@ async def _obtener_datos_lead(leadgen_id: str) -> dict:
         "phone":        "telefono",
         "email":        "email",
         "city":         "ciudad",
+        "de_que_provincia_y_localidad_sos": "ciudad",
+        "provincia_y_localidad": "ciudad",
         "zip_code":     "cp",
     }
     for campo in data.get("field_data", []):
         key   = campo.get("name", "").lower()
-        valor = campo.get("values", [""])[0]
-        mapped = campo_map.get(key)
+        valor = (campo.get("values") or [""])[0]
+        normalized = "".join(ch for ch in unicodedata.normalize("NFKD", key)
+                             if not unicodedata.combining(ch))
+        normalized = re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
+        mapped = campo_map.get(normalized)
         if mapped:
             resultado[mapped] = valor
         else:
             resultado[key] = valor
 
     resultado["ad_name"]  = data.get("ad_name", "")
-    resultado["forma_id"] = data.get("form_id", "")
+    resultado["form_id"] = data.get("form_id", "")
+    resultado["field_data"] = data.get("field_data", [])
+    resultado["ad_id"] = data.get("ad_id", "")
     resultado["producto_interes"] = _inferir_producto(
-        data.get("ad_name", "") + " " + resultado.get("ciudad", "")
+        data.get("ad_name", "")
     )
     return resultado
 
 
-async def _contactar_lead_wa(lead: dict) -> None:
-    """
-    Crea el lead en CRM y le envía el primer mensaje de Valentina por WhatsApp
-    dentro de los 5 minutos de haber completado el formulario.
-    """
+async def _registrar_lead_crm(lead: dict) -> tuple[dict, dict]:
+    """Persiste el formulario antes del ACK, sin depender de IA ni WhatsApp."""
     from tools import crm_client
-    from channels.whatsapp import send_whatsapp_message
-    from orchestrator.router import route_message
+    import re
 
-    telefono = lead.get("telefono", "").strip()
-    nombre   = lead.get("nombre", "")
-    producto = lead.get("producto_interes", "general")
-
-    if not telefono:
-        logger.warning(f"[META] Lead {lead.get('meta_lead_id')} sin teléfono — sin contacto WA")
-        return
-
-    # Normalizar teléfono argentino al formato Meta (549XXXXXXXXXX)
-    telefono = telefono.replace("+", "").replace(" ", "").replace("-", "")
+    telefono = re.sub(r"\D", "", str(lead.get("telefono") or ""))
     if telefono.startswith("0"):
         telefono = "549" + telefono[1:]
     elif telefono.startswith("15") and len(telefono) == 10:
         telefono = "549" + telefono
     elif not telefono.startswith("549") and len(telefono) == 10:
         telefono = "549" + telefono
+    payload = {**lead, "telefono": telefono, "canal_origen": "meta_ads", "session_id": telefono}
+    lead_crm = await crm_client.registrar_lead_meta(payload)
+    if not lead_crm.get("id"):
+        raise RuntimeError("CRM no confirmó el registro del lead Meta")
+    return payload, lead_crm
 
-    # Registrar en CRM
-    lead_crm = await crm_client.registrar_lead_meta({
-        **lead,
-        "telefono":     telefono,
-        "canal_origen": "meta_ads",
-        "session_id":   telefono,
-    })
-    logger.info(f"[META] Lead registrado en CRM: {lead_crm.get('id', '?')} — {nombre} ({telefono})")
+
+async def _contactar_lead_wa(lead: dict) -> None:
+    """Contacta sólo después de persistir; errores WA no invalidan el ingreso."""
+    telefono = lead.get("telefono", "")
+    nombre = lead.get("nombre", "")
+    producto = lead.get("producto_interes", "general")
+    if not telefono:
+        logger.info("[META] Lead registrado sin teléfono; pendiente de gestión humana")
+        return
+
+    from channels.whatsapp import send_whatsapp_message
+    from orchestrator.router import route_message
 
     # Primer mensaje: Valentina toma el hilo con contexto del formulario
     contexto = (
@@ -204,7 +214,7 @@ async def meta_verify(request: Request):
 # ── WEBHOOK RECEPCIÓN (POST) ────────────────────────────────────────────────
 
 @router.post("/webhook/meta")
-async def meta_webhook(request: Request):
+async def meta_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Recibe eventos de Meta:
     - Lead Ads: nuevos leads de formularios
@@ -212,7 +222,10 @@ async def meta_webhook(request: Request):
     """
     body_bytes = await request.body()
 
-    # Verificar firma si tenemos APP_SECRET
+    # Fallar cerrado: sin secret no puede autenticarse el ingreso.
+    if not META_APP_SECRET:
+        raise HTTPException(status_code=503, detail="Falta configurar META_APP_SECRET")
+
     sig = request.headers.get("X-Hub-Signature-256", "")
     if META_APP_SECRET and not _verificar_firma(body_bytes, sig):
         logger.warning("[META] Firma inválida en webhook")
@@ -221,6 +234,8 @@ async def meta_webhook(request: Request):
     try:
         import json
         body = json.loads(body_bytes)
+        if not isinstance(body, dict):
+            raise ValueError("Se esperaba objeto")
     except Exception:
         raise HTTPException(status_code=400, detail="JSON inválido")
 
@@ -236,7 +251,18 @@ async def meta_webhook(request: Request):
                     leadgen_id = change["value"].get("leadgen_id", "")
                     if leadgen_id:
                         logger.info(f"[META] Nuevo lead ads: {leadgen_id}")
-                        asyncio.create_task(_procesar_lead_ads(leadgen_id))
+                        try:
+                            page_id = str(change["value"].get("page_id") or entry.get("id") or "")
+                            lead, saved = await _procesar_lead_ads(leadgen_id, page_id)
+                        except Exception:
+                            logger.error("[META] No se confirmó persistencia de Lead Ads")
+                            raise HTTPException(503, "Ingreso de Lead Ads pendiente; reintentar") from None
+                        if saved.get("created") is True:
+                            background_tasks.add_task(_contactar_lead_seguro, lead)
+            # El CRM procesa sus propios DMs; un reenvío conserva el cuerpo
+            # firmado original pero delega aquí sólo la persistencia de leads.
+            if request.headers.get("X-Ecofiver-Lead-Only") == "1":
+                continue
             # Messenger DMs
             for msg_event in entry.get("messaging", []):
                 if "message" in msg_event and not msg_event["message"].get("is_echo"):
@@ -257,16 +283,19 @@ async def meta_webhook(request: Request):
     return {"status": "ok"}
 
 
-async def _procesar_lead_ads(leadgen_id: str) -> None:
-    """Obtiene datos del lead y lo contacta por WhatsApp en background."""
+async def _procesar_lead_ads(leadgen_id: str, page_id: str = "") -> tuple[dict, dict]:
+    """Propaga fallos para que Meta reintente hasta confirmar persistencia."""
+    lead = await _obtener_datos_lead(leadgen_id, page_id)
+    if not lead:
+        raise RuntimeError("Meta Graph no entregó los datos del lead")
+    return await _registrar_lead_crm(lead)
+
+
+async def _contactar_lead_seguro(lead: dict) -> None:
     try:
-        lead = await _obtener_datos_lead(leadgen_id)
-        if lead:
-            await _contactar_lead_wa(lead)
-        else:
-            logger.warning(f"[META] No se obtuvieron datos del lead {leadgen_id}")
-    except Exception as e:
-        logger.error(f"[META] Error procesando lead {leadgen_id}: {e}")
+        await _contactar_lead_wa(lead)
+    except Exception:
+        logger.exception("[META] Lead persistido; falló contacto WhatsApp")
 
 
 async def _procesar_instagram_dm(msg_event: dict) -> None:

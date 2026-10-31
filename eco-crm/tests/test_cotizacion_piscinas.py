@@ -255,3 +255,18 @@ def test_vendedores_socios_usan_la_misma_herramienta(m, monkeypatch):
     h = c.post("/api/comercial/cotizar", headers=tok(3), json={"modelo": "Minideck", "localidad": "Pilar",
                                                                  "provincia": "Buenos Aires"})
     assert h.json()["precio_final"] == 2490000 + 180000                   # vendedor humano del CRM
+
+
+def test_nombres_unificados_resuelven_al_modelo_oficial():
+    """Decisión del 31/10: las variantes viejas de la lista de precios cotizan como el modelo oficial."""
+    from utils.cotizacion import modelo_canonico
+    assert modelo_canonico("Minideck Chico") == "Minideck"
+    assert modelo_canonico("arco romano grande curvo") == "Arco Romano Grande"
+    assert modelo_canonico("Playa y Abanico Mediana") == "Playa y Abanico"
+    assert modelo_canonico("Arco Romano Mediano Curvo") == "Arco Romano Mediano C/Desnivel"
+    assert modelo_canonico("Minimalista Chica") == "Minimalista Chica"          # oficial: sin cambios
+
+
+def test_flete_unificado_sin_tarifa_de_miniportante():
+    from routers.configuracion import CONFIG_DEFS
+    assert "flete_miniportante_km" not in CONFIG_DEFS

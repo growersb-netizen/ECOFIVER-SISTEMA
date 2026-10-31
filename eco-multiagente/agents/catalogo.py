@@ -33,7 +33,7 @@ CATALOGO = {
     "flete_por_km": 3000,                  # general: piscinas (resto) y módulos
     "flete_alto_por_km": 5000,             # solo Arco Romano Grande y Playa y Abanico
     "flete_hidromasajes_por_km": 2000,     # hidromasajes / jacuzzis
-    "flete_miniportante_por_km": 4000,     # ⚠️ valor histórico sin reconfirmar en la última corrección de tarifas
+    "flete_miniportante_por_km": 3000,     # flete unificado (31/10): ya no hay tarifa propia; se usa la general de tarifas
     "flete_financiado": 0,       # BONIFICADO en financiación (piscinas, módulos, combos)
     "fabrica_direccion": "Av. Antártida Argentina 3105, Zárate, Buenos Aires",
     "ciudad_origen": "Zárate",

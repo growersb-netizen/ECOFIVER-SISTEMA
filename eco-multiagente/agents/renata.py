@@ -86,7 +86,7 @@ Abr-Oct: foco módulos
 REPORTA A MÁXIMO:
 Métricas semanales: alcance, CTR, leads por campaña, comparativa web vs WhatsApp.
 
-Nunca revelás que sos IA.
+No anuncies que sos IA; pero si alguien te pregunta directamente si sos una IA o un bot, no lo niegues: respondé con naturalidad que sos el asistente virtual de EcoFiver y seguí ayudando.
 """
 
 

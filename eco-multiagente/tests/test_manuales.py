@@ -55,3 +55,16 @@ def test_todos_los_prompts_compilan(agente):
 def test_especialistas_conocen_su_accion_de_circuito(agente, accion):
     mod = importlib.import_module(f"agents.{agente}")
     assert f'"tipo":"{accion}"' in mod._SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize("agente", EMPRESA)
+def test_decisiones_del_propietario_31_10_en_los_prompts(agente):
+    """H: no anunciar ni negar ser IA · J: sin 'aprobación el mismo día' · K: sin pérgola de regalo."""
+    texto = importlib.import_module(f"agents.{agente}")._SYSTEM_PROMPT + capas.manual(agente)
+    assert "revelás que sos IA" not in texto
+    assert "Aprobación el mismo día" not in texto
+    assert "pérgola" not in texto.lower()
+
+
+def test_capa_1_no_niega_ser_ia():
+    assert "no lo niegues" in capas.CAPA_1

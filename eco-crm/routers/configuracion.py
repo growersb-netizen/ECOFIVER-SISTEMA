@@ -268,14 +268,6 @@ CONFIG_DEFS: dict = {
         "placeholder": "Calle 123, Zárate, Buenos Aires, Argentina",
         "default": "Zárate, Buenos Aires, Argentina",
     },
-    "flete_miniportante_km": {
-        "label": "Flete Miniportante — Precio por km ($)",
-        "categoria": "precios",
-        "es_secreto": False,
-        "test_id": None,
-        "placeholder": "2000",
-        "default": "2000",
-    },
     "descuento_combo_pct": {
         "label": "Descuento Combo módulo + piscina (%)",
         "categoria": "precios",

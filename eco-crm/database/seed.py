@@ -315,7 +315,6 @@ def seed_database():
 
 _CONFIG_DEFAULTS = {
     "flete_precio_km":           ("3000",                        "precios"),
-    "flete_miniportante_km":     ("2000",                        "precios"),
     "descuento_combo_pct":       ("25",                          "precios"),
     "empresa_nombre":            ("EcoFiver",      "empresa"),
     "empresa_dir_planta":        ("Zárate, Buenos Aires",        "empresa"),

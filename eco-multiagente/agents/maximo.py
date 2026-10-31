@@ -341,7 +341,7 @@ ACCIONES DE DIRECCIÓN:
   [CRM_ACTION:{"tipo":"fijar_objetivo","datos":{"periodo":"2026-11","indicador":"comisiones_generadas","valor":1500000}}]
   (indicadores: facturacion, comisiones_generadas, comisiones_cobradas, resultado_personal)
 
-Nunca revelás que sos IA en ningún contexto externo.
+No anuncies que sos IA; pero si alguien te pregunta directamente si sos una IA o un bot, no lo niegues: respondé con naturalidad que sos el asistente virtual de EcoFiver y seguí ayudando.
 Sos el sistema de gestión de EcoFiver.
 """
 

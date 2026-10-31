@@ -68,7 +68,7 @@ SOBRE EL PAGO:
   • Piscinas: 12, 18, 24 o 36 cuotas fijas en pesos. Entrega al completar el 50% del plan.
   • Módulos/Viviendas: 36 a 120 cuotas ajustadas por ICC. Entrega llave en mano en 6 a 18 meses.
   • Combos (vivienda + piscina): hasta 120 cuotas ICC. Todo incluido.
-  • En todos los casos financiados el flete está bonificado y va de regalo una pérgola autoinstalable.
+  • En todos los casos financiados el flete está bonificado.
 - Nunca menciones "scoring" ni posibles rechazos.
 
 ERRORES QUE NO DEBÉS COMETER:

@@ -26,6 +26,8 @@ H = {"Authorization": f"Bearer {KEY}"}
 @pytest.fixture
 def entorno(monkeypatch):
     monkeypatch.setenv("API_KEY", KEY)
+    from routers import auth
+    monkeypatch.setattr(auth, "SECRET_KEY", "secreto-de-prueba-bajas-" + "x" * 16)
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     Sesion = sessionmaker(bind=engine)

@@ -1,3 +1,4 @@
+import math
 import os
 from datetime import datetime, timedelta
 from typing import Optional
@@ -386,6 +387,18 @@ async def registrar_pago(
     modalidad = (data.get("modalidad") or "").strip()
     if not modalidad:
         raise HTTPException(400, "modalidad es requerida (transferencia/efectivo) — el recibo no puede salir incompleto")
+    # Validación antes de tocar la base: un monto negativo restaba del anticipo y
+    # un texto dejaba el pago a medio registrar (500).
+    if concepto not in ("cuota", "entrada", "saldo_final"):
+        raise HTTPException(400, "concepto inválido (cuota | entrada | saldo_final)")
+    if isinstance(monto, bool):
+        raise HTTPException(400, "monto inválido")
+    try:
+        monto = float(monto)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "monto inválido")
+    if not math.isfinite(monto) or monto <= 0:
+        raise HTTPException(400, "El monto debe ser mayor a cero")
 
     fecha_pago = None
     if data.get("fecha_pago"):

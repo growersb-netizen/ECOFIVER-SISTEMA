@@ -41,7 +41,8 @@ AGENT_CRM_NEEDS: dict[str, list[str]] = {
     "Mateo":     ["precios", "flete"],
     "Nicolás":   ["precios", "flete"],
     "Luciano":   ["precios", "flete"],
-    "Sebastián": ["pipeline_stats"],
+    # Atiende clientes: sin métricas internas del negocio
+    "Sebastián": [],
 }
 
 

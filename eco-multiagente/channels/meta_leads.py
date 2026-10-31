@@ -158,6 +158,9 @@ async def _contactar_lead_wa(lead: dict) -> None:
     if not telefono:
         logger.info("[META] Lead registrado sin teléfono; pendiente de gestión humana")
         return
+    from tools.contacto_comercial import puede_contactar
+    if not await puede_contactar(telefono, "meta primer contacto"):
+        return  # el lead ya quedó registrado; solo no se le escribe
 
     from channels.whatsapp import send_whatsapp_message
     from orchestrator.router import route_message

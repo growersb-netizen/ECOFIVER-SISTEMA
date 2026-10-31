@@ -29,7 +29,11 @@ from sqlalchemy.orm import Session
 from database.database import get_db
 from database.encryption import decrypt_value
 from database.models import ComandoAgente, ConfiguracionSistema, Usuario
-from routers.auth import require_auth, get_user_roles
+from routers.auth import require_auth, require_roles, get_user_roles
+
+# Control IA envía órdenes a Máximo por el canal confiable (acciones sensibles):
+# solo administradores. La interfaz ya lo ocultaba; ahora lo exige el servidor.
+_solo_admin = require_roles("ADMIN")
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -576,7 +580,7 @@ async def _enviar_al_orquestador(instruccion: str, contexto: dict, prioridad: st
 async def control_agentes_page(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(_solo_admin),
 ):
     roles = get_user_roles(current_user)
     orq_url = _get_config(db, "orquestador_url")
@@ -598,7 +602,7 @@ async def control_agentes_page(
 @router.get("/api/control-agentes/status")
 async def get_status(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(_solo_admin),
 ):
     orq_url = _get_config(db, "orquestador_url")
     orq_endpoint = _get_config(db, "orquestador_status_endpoint", "/health")
@@ -663,7 +667,7 @@ async def get_status(
 async def enviar_comando(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(_solo_admin),
 ):
     data = await request.json()
     instruccion = (data.get("instruccion") or "").strip()
@@ -730,7 +734,7 @@ async def get_historial(
     tipo: Optional[str] = None,
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_auth),
+    current_user: Usuario = Depends(_solo_admin),
 ):
     q = db.query(ComandoAgente)
     if area:
@@ -744,7 +748,7 @@ async def get_historial(
 # ─── API: CATÁLOGO ────────────────────────────────────────────────────────────
 
 @router.get("/api/control-agentes/catalogo")
-async def get_catalogo(current_user: Usuario = Depends(require_auth)):
+async def get_catalogo(current_user: Usuario = Depends(_solo_admin)):
     return {
         "agentes": AGENTES_CATALOGO,
         "agentes_historicos": AGENTES_HISTORICOS,

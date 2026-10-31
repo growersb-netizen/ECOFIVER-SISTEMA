@@ -4,6 +4,7 @@ Gestión de contenido para redes sociales: copy + imagen con IA, flujo de aproba
 Acceso: ADMIN y COORDINADOR_OPERATIVO
 """
 import json
+import os
 import base64
 import logging
 import secrets
@@ -33,6 +34,12 @@ templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger(__name__)
 
 CLOUDFLARE_WORKER_URL = "https://eco-agentes.growersb.workers.dev"
+
+
+def _worker_headers() -> dict:
+    """El Worker exige este token cuando tiene configurado WORKER_TOKEN."""
+    tok = os.getenv("ECO_WORKER_TOKEN", "").strip()
+    return {"Authorization": f"Bearer {tok}"} if tok else {}
 
 
 # ─── AUTH HELPER ─────────────────────────────────────────────────────────────
@@ -131,6 +138,7 @@ async def _generate_image_worker(prompt: str, tipo: str) -> Optional[str]:
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(
                 f"{CLOUDFLARE_WORKER_URL}/generate",
+                headers=_worker_headers(),
                 json={"prompt": prompt, "width": width, "height": height},
             )
             if r.status_code == 200:
@@ -568,6 +576,7 @@ async def api_generar_copy(
             async with httpx.AsyncClient(timeout=30) as c:
                 r = await c.post(
                     f"{CLOUDFLARE_WORKER_URL}/generar-copy",
+                    headers=_worker_headers(),
                     json={
                         "producto": body.producto,
                         "modelo": body.modelo,

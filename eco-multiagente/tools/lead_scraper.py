@@ -457,6 +457,9 @@ async def _contactar_lead_proactivo(lead: dict) -> None:
     telefono = lead.get("telefono", "")
     if not telefono or not telefono.startswith("549"):
         return
+    from tools.contacto_comercial import puede_contactar
+    if not await puede_contactar(telefono, "scraper"):
+        return
 
     try:
         from channels.whatsapp import send_whatsapp_message

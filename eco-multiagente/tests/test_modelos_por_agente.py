@@ -16,10 +16,10 @@ CATALOGO = [
     {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "context_length": 1000000,
      "pricing": {"prompt": "0.0000003", "completion": "0.0000025"},
      "architecture": {"input_modalities": ["text", "image", "audio", "file"], "output_modalities": ["text"]}},
-    {"id": "google/gemini-2.0-flash-001", "name": "Gemini 2.0 Flash", "context_length": 1000000,
+    {"id": "google/gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "context_length": 1000000,
      "pricing": {"prompt": "0.0000001", "completion": "0.0000004"},
      "architecture": {"input_modalities": ["text", "image", "audio"], "output_modalities": ["text"]}},
-    {"id": "anthropic/claude-sonnet-4", "name": "Claude Sonnet 4", "context_length": 200000,
+    {"id": "anthropic/claude-sonnet-4.5", "name": "Claude Sonnet 4.5", "context_length": 200000,
      "pricing": {"prompt": "0.000003", "completion": "0.000015"},
      "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}},
 ]
@@ -62,7 +62,7 @@ class TestPerfiles:
         camila = model_policy.resolver("Camila")
         aurora = model_policy.resolver("Aurora")
         assert (maximo.rol, maximo.modelo, maximo.temperatura, maximo.max_tokens) == \
-               ("direccion", "anthropic/claude-sonnet-4", 0.3, 1500)
+               ("direccion", "anthropic/claude-sonnet-4.5", 0.3, 1500)
         assert (camila.rol, camila.modelo, camila.temperatura) == ("ventas", "openai/gpt-4o-mini", 0.6)
         assert (aurora.rol, aurora.modelo) == ("analisis", "google/gemini-2.5-flash")
         assert model_policy.resolver("Valentín").modelo == "openai/gpt-4o-mini"  # privado: base
@@ -89,18 +89,18 @@ class TestPerfiles:
 class TestValidacionConCatalogo:
 
     def test_modelo_inexistente_usa_respaldo_valido(self, monkeypatch):
-        _con_catalogo([m for m in CATALOGO if m["id"] != "anthropic/claude-sonnet-4"])
+        _con_catalogo([m for m in CATALOGO if m["id"] != "anthropic/claude-sonnet-4.5"])
         monkeypatch.setenv("AI_PERFIL_MODELOS", "recomendado")
         c = model_policy.resolver("Máximo")
         assert c.modelo == "google/gemini-2.5-flash"
-        assert any("claude-sonnet-4" in a and "no existe" in a for a in c.avisos)
+        assert any("claude-sonnet-4.5" in a and "no existe" in a for a in c.avisos)
 
     def test_audio_exige_modelo_con_entrada_de_audio(self, monkeypatch):
         _con_catalogo()
         monkeypatch.setenv("AI_MODELOS_JSON", json.dumps({"transcripcion": {
-            "modelo": "openai/gpt-4o-mini", "respaldo": ["google/gemini-2.0-flash-001"]}}))
+            "modelo": "openai/gpt-4o-mini", "respaldo": ["google/gemini-2.5-flash-lite"]}}))
         c = model_policy.resolver("transcripcion")
-        assert c.modelo == "google/gemini-2.0-flash-001"
+        assert c.modelo == "google/gemini-2.5-flash-lite"
         assert any("audio" in a for a in c.avisos)
 
     def test_vision_exige_imagen(self, monkeypatch):
@@ -131,7 +131,7 @@ class TestUsoReal:
              patch("tools.crm_context.get_crm_context", new_callable=AsyncMock, return_value=""):
             await BaseAgent(name="Máximo", system_prompt="x", atiende_clientes=False).respond("hola")
             await BaseAgent(name="Camila", system_prompt="x", atiende_clientes=False).respond("hola")
-        assert vistos == [("anthropic/claude-sonnet-4", 0.3, 1500), ("openai/gpt-4o-mini", 0.6, 600)]
+        assert vistos == [("anthropic/claude-sonnet-4.5", 0.3, 1500), ("openai/gpt-4o-mini", 0.6, 600)]
 
     @pytest.mark.asyncio
     async def test_respaldo_usa_los_modelos_del_rol(self, monkeypatch):
@@ -143,7 +143,7 @@ class TestUsoReal:
 
         async def fake(self, system_prompt, history, message):
             vistos.append(self._model)
-            if self._model == "anthropic/claude-sonnet-4":
+            if self._model == "anthropic/claude-sonnet-4.5":
                 raise RuntimeError("timeout")
             return "ok"
 
@@ -151,14 +151,14 @@ class TestUsoReal:
              patch("tools.crm_context.get_crm_context", new_callable=AsyncMock, return_value=""):
             out = await BaseAgent(name="Máximo", system_prompt="x", atiende_clientes=False).respond("hola")
         assert out == "ok"
-        assert vistos == ["anthropic/claude-sonnet-4", "google/gemini-2.5-flash"]
+        assert vistos == ["anthropic/claude-sonnet-4.5", "google/gemini-2.5-flash"]
 
     @pytest.mark.asyncio
     async def test_costo_con_precio_del_catalogo(self):
         _con_catalogo()
 
         class P:
-            _model = "anthropic/claude-sonnet-4"
+            _model = "anthropic/claude-sonnet-4.5"
 
             async def generate(self, system_prompt, history, message):
                 ai_metrics.informar_uso({"prompt_tokens": 1_000_000, "completion_tokens": 100_000})

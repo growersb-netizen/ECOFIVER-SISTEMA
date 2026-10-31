@@ -16,6 +16,7 @@ from database.models import (
 )
 from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
+from utils.stock import descontar, sumar
 
 _log = logging.getLogger(__name__)
 router = APIRouter()
@@ -178,8 +179,8 @@ def _crear_circuito_post_venta(db, venta: VentaContado, desde_stock: bool):
                 StockPiscina.modelo.ilike(venta.modelo_especifico or ""),
                 StockPiscina.color.ilike(venta.color or ""),
             ).first()
-            if stock and stock.cantidad > 0:
-                stock.cantidad -= 1
+            if stock and descontar(db, StockPiscina, stock.id, "cantidad", 1):
+                db.refresh(stock)
                 log.info(f"[STOCK] Descontado 1 de {stock.modelo}/{stock.color}. Nuevo: {stock.cantidad}")
             else:
                 log.warning(f"[STOCK] No se encontró stock para {venta.modelo_especifico}/{venta.color} o ya en 0")

@@ -14,7 +14,7 @@ Perfiles (AI_PERFIL_MODELOS):
                costo de cada perfil con el uso real del día.
 
 Ajuste fino sin redeploy de código (se aplica sobre el perfil):
-  AI_MODELOS_JSON='{"maximo": {"modelo": "anthropic/claude-sonnet-4"},
+  AI_MODELOS_JSON='{"maximo": {"modelo": "anthropic/claude-sonnet-4.5"},
                     "rol:ventas": {"temperatura": 0.5}}'
 
 Validación: si el catálogo de OpenRouter está disponible y el modelo no existe
@@ -55,12 +55,12 @@ PERFIL_RECOMENDADO: dict[str, dict] = {
     "ventas":     {"modelo": "openai/gpt-4o-mini", "respaldo": ["google/gemini-2.5-flash"], "temperatura": 0.6, "max_tokens": 600},
     "postventa":  {"modelo": "openai/gpt-4o-mini", "respaldo": ["google/gemini-2.5-flash"], "temperatura": 0.4, "max_tokens": 700},
     "socios":     {"modelo": "openai/gpt-4o-mini", "respaldo": ["google/gemini-2.5-flash"], "temperatura": 0.6, "max_tokens": 700},
-    "direccion":  {"modelo": "anthropic/claude-sonnet-4", "respaldo": ["google/gemini-2.5-flash", "openai/gpt-4o-mini"], "temperatura": 0.3, "max_tokens": 1500},
+    "direccion":  {"modelo": "anthropic/claude-sonnet-4.5", "respaldo": ["google/gemini-2.5-flash", "openai/gpt-4o-mini"], "temperatura": 0.3, "max_tokens": 1500},
     "analisis":   {"modelo": "google/gemini-2.5-flash", "respaldo": ["openai/gpt-4o-mini"], "temperatura": 0.3, "max_tokens": 1200},
     "contenido":  {"modelo": "google/gemini-2.5-flash", "respaldo": ["openai/gpt-4o-mini"], "temperatura": 0.8, "max_tokens": 1200},
-    "reputacion": {"modelo": "anthropic/claude-sonnet-4", "respaldo": ["openai/gpt-4o-mini"], "temperatura": 0.3, "max_tokens": 800},
+    "reputacion": {"modelo": "anthropic/claude-sonnet-4.5", "respaldo": ["openai/gpt-4o-mini"], "temperatura": 0.3, "max_tokens": 800},
     "privado":    {},  # lo decide el administrador; usa la base
-    "audio":      {"modelo": "google/gemini-2.5-flash", "respaldo": ["google/gemini-2.0-flash-001"], "temperatura": 0.0, "max_tokens": 1000},
+    "audio":      {"modelo": "google/gemini-2.5-flash", "respaldo": ["google/gemini-2.5-flash-lite"], "temperatura": 0.0, "max_tokens": 1000},
     "vision":     {"modelo": "openai/gpt-4o-mini", "respaldo": ["google/gemini-2.5-flash"], "temperatura": 0.0, "max_tokens": 800},
 }
 
@@ -91,7 +91,7 @@ def _lista(raw: str) -> list[str]:
 def _base(rol: str) -> dict:
     principal = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
     if rol == "audio":
-        modelos = _lista(os.getenv("AUDIO_OPENROUTER_MODELS", "google/gemini-2.5-flash,google/gemini-2.0-flash-001"))
+        modelos = _lista(os.getenv("AUDIO_OPENROUTER_MODELS", "google/gemini-2.5-flash,google/gemini-2.5-flash-lite"))
         return {"modelo": modelos[0], "respaldo": modelos[1:], "temperatura": 0.0, "max_tokens": 1000}
     if rol == "vision":
         return {"modelo": os.getenv("OPENROUTER_VISION_MODEL", "openai/gpt-4o-mini"), "respaldo": [],

@@ -18,6 +18,7 @@ from database.models import (
     Empleado, Usuario,
 )
 from routers.auth import require_auth, get_user_roles
+from utils.stock import descontar, sumar
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -236,11 +237,12 @@ async def registrar_entrega(
             raise HTTPException(404, "Insumo no encontrado")
 
         stock_anterior = m.stock_actual or 0
-        if stock_anterior < cantidad:
-            raise HTTPException(400, f"Stock insuficiente: hay {stock_anterior} {m.unidad}")
-
-        # Actualizar stock
-        m.stock_actual = stock_anterior - cantidad
+        # Control y descuento en una sola sentencia (dos entregas simultáneas no
+        # pueden llevarse la misma unidad).
+        if not descontar(db, MaterialInventario, m.id, "stock_actual", cantidad):
+            db.refresh(m)
+            raise HTTPException(400, f"Stock insuficiente: hay {m.stock_actual or 0} {m.unidad}")
+        db.refresh(m)
         m.updated_at = ahora
 
         # Registrar movimiento

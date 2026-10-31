@@ -9,7 +9,7 @@ Ahora: solo OpenRouter, con el formato de audio de la API (`input_audio`).
   convierten a mp3 con ffmpeg (instalado en la imagen Docker). Si ffmpeg no
   esta disponible se intenta con el formato original.
 - Modelos en orden: AUDIO_OPENROUTER_MODELS="modelo1,modelo2"
-  (default: google/gemini-2.5-flash, google/gemini-2.0-flash-001).
+  (default: google/gemini-2.5-flash, google/gemini-2.5-flash-lite).
 - Cada intento queda en /health/ia (agente "transcripcion").
 - Si todo falla devuelve "(Audio recibido -- ...)": los canales responden
   pidiendo que el cliente escriba (comportamiento existente).
@@ -20,6 +20,7 @@ import base64
 import json as json_module
 import logging
 import os
+import re
 import shutil
 import time
 
@@ -39,6 +40,24 @@ _PROMPT = (
 _FORMATO_DIRECTO = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3", "audio/mp3": "mp3"}
 _FORMATO_ORIGINAL = {"audio/ogg": "ogg", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/webm": "webm",
                      "audio/flac": "flac", "audio/aac": "aac"}
+
+
+# Respuestas típicas de un modelo que NO transcribió (negativas o descripciones del audio).
+# Acotado a frases sobre la tarea, para no confundir a un cliente que dice "no puedo pagar".
+_NO_TRANSCRIPCION_RE = re.compile(
+    r"^\W*(?:"
+    r"i'?m sorry|i am sorry|sorry,|i can'?t|i cannot|i'?m unable|i am unable|unable to|as an ai"
+    r"|lo siento,? (?:pero )?no (?:puedo|pude) (?:ayudar|transcribir|procesar|escuchar|entender)"
+    r"|no (?:puedo|pude|es posible) (?:transcribir|procesar|escuchar) (?:el|este|tu) audio"
+    r"|(?:the|this) audio (?:is|contains|appears|seems)"
+    r"|el audio (?:es|contiene|parece|está)"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def no_es_transcripcion(texto: str) -> bool:
+    return bool(_NO_TRANSCRIPCION_RE.search((texto or "").strip()))
 
 
 def _modelos() -> list[str]:
@@ -109,6 +128,13 @@ async def transcribir_bytes(
         t0 = time.monotonic()
         try:
             texto = await _openrouter(datos, formato, model, api_key)
+            if texto and no_es_transcripcion(texto):
+                # El modelo respondió algo que no es la transcripción (una negativa o
+                # una descripción). Antes se le pasaba al agente como si fuera lo que
+                # dijo el usuario.
+                _medir(model, ok=False, t0=t0, error=f"respuesta no es transcripción: {texto[:80]}")
+                logger.warning(f"[Audio] {model} no devolvió una transcripción: {texto[:160]!r}")
+                continue
             _medir(model, ok=bool(texto), t0=t0, chars_out=len(texto or ""))
             if texto:
                 return texto

@@ -331,9 +331,13 @@ app.include_router(agent_panel_router)
 
 
 # ── Modelos Pydantic ───────────────────────────────────────────────────────
+from tools import web_session
+
+
 class WebChatRequest(BaseModel):
     session_id: str
     message: str
+    session_token: str = ""
 
 
 class WebChatResponse(BaseModel):
@@ -342,6 +346,12 @@ class WebChatResponse(BaseModel):
 
 
 # ── Endpoint: Widget web ───────────────────────────────────────────────────
+@app.post("/chat/web/sesion")
+async def web_chat_sesion():
+    """Emite una sesión nueva del widget: id aleatorio + firma del servidor."""
+    return web_session.nueva_sesion()
+
+
 @app.post("/chat/web", response_model=WebChatResponse)
 async def web_chat(body: WebChatRequest):
     """
@@ -351,6 +361,11 @@ async def web_chat(body: WebChatRequest):
     """
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Mensaje vacío")
+    # La sesión la emite el servidor (/chat/web/sesion) y viene firmada: nadie puede
+    # usar el id de otra persona (ni un teléfono o email, que el CRM resolvería al
+    # lead de ese cliente) sin su firma.
+    if not web_session.sesion_valida(body.session_id, body.session_token):
+        raise HTTPException(status_code=401, detail="Sesión inválida o vencida")
 
     result = await route_message(
         canal="web",
@@ -390,11 +405,14 @@ async def health_seguridad():
     """Contadores de firma de webhook, duplicados y acciones bloqueadas. Sin datos privados."""
     from security import signature_stats, dedup_stats, _valid_keys
     from tools.action_policy import stats as policy_stats
+    from tools.contacto_comercial import stats as contacto_stats
     return {
         "auth_configurada": bool(_valid_keys()),
         "webhook_whatsapp_firma": signature_stats(),
         "deduplicacion": dedup_stats(),
         "politica_acciones": policy_stats(),
+        "widget_sesiones": web_session.estado(),
+        "contacto_comercial": contacto_stats(),
     }
 
 
@@ -533,7 +551,8 @@ async def serve_widget_js():
     path = os.path.join(WIDGET_DIR, "chat.js")
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="chat.js no encontrado")
-    return FileResponse(path, media_type="application/javascript")
+    # no-cache: que los navegadores tomen la versión nueva del widget (sesiones firmadas)
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/web_widget/chat.css")

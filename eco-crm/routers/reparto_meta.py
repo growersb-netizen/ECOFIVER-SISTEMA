@@ -17,6 +17,7 @@ from database.models import (
     MetaLeadCampana, MetaLeadDestino, MetaLeadOrganizacion, MetaLeadRecepcion,
 )
 from routers import auth
+from utils import sesiones
 
 router = APIRouter(prefix="/api/reparto-meta", tags=["Reparto Meta"])
 
@@ -49,19 +50,18 @@ def require_reparto_actor(request: Request, db: Session = Depends(get_db)):
     token = token or request.cookies.get("socio_token") or request.cookies.get("access_token")
     if not token or not auth.SECRET_KEY:
         raise HTTPException(401, "No autenticado")
-    try:
-        claims = jwt.decode(token, auth.SECRET_KEY, algorithms=["HS256"], options={"require_exp": True})
-        identity = int(claims["sub"])
-        kind = claims.get("typ")
-    except (JWTError, ValueError, TypeError, KeyError):
-        raise HTTPException(401, "Sesión inválida")
-    if kind == "socio":
-        socio = db.query(Aliado).filter_by(id=identity, estado="activo").first()
+    # Contrato central (utils/sesiones.py): cada clase con su audiencia; un token
+    # de socio nunca se interpreta como Usuario ni al revés.
+    claims_socio = sesiones.validar(token, "socio", auth.SECRET_KEY)
+    if claims_socio:
+        socio = db.query(Aliado).filter_by(id=int(claims_socio["sub"]), estado="activo").first()
         if not socio:
             raise HTTPException(401, "Sesión inválida")
         return _actor_socio(socio)
-    if kind not in (None, "crm"):
+    claims = sesiones.validar(token, "crm", auth.SECRET_KEY)
+    if not claims:
         raise HTTPException(401, "Sesión inválida")
+    identity = int(claims["sub"])
     user = db.query(Usuario).filter_by(id=identity, activo=True).first()
     if not user:
         raise HTTPException(401, "Sesión inválida")

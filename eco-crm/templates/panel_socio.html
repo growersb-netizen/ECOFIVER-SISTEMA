@@ -1040,7 +1040,9 @@
             </select>
           </div>
           <label>Distancia estimada desde Zárate (km) <span style="color:var(--text-muted);font-weight:400">(para calcular el flete)</span></label>
-          <input id="c-km" type="number" placeholder="Ej: 120">
+          <div style="display:flex;gap:8px;align-items:center"><input id="c-km" type="number" placeholder="Ej: 120" style="flex:1">
+            <button type="button" class="btn btn-ghost" style="white-space:nowrap" onclick="cotizarPorRuta('c')">📍 Calcular por ruta</button></div>
+          <div class="msg" id="c-cotizacion" style="margin-top:4px"></div>
           <label>Precio final</label><input id="c-precio" type="number">
           <label>Fecha de entrega estimada <span style="color:var(--text-muted);font-weight:400">(opcional — para el calendario)</span></label>
           <input id="c-fecha-entrega" type="date" style="width:100%;box-sizing:border-box">
@@ -1068,7 +1070,9 @@
             <select id="f-color"></select>
           </div>
           <label>Distancia estimada desde Zárate (km) <span style="color:var(--text-muted);font-weight:400">(para calcular el flete)</span></label>
-          <input id="f-km" type="number" placeholder="Ej: 120">
+          <div style="display:flex;gap:8px;align-items:center"><input id="f-km" type="number" placeholder="Ej: 120" style="flex:1">
+            <button type="button" class="btn btn-ghost" style="white-space:nowrap" onclick="cotizarPorRuta('f')">📍 Calcular por ruta</button></div>
+          <div class="msg" id="f-cotizacion" style="margin-top:4px"></div>
           <label>Cuotas</label><input id="f-cuotas" type="number" value="24">
           <button class="btn-primary" style="margin-top:14px" onclick="cargarFinanciado()">Cargar venta financiada</button>
           <div class="msg" id="f-msg"></div>
@@ -3293,6 +3297,35 @@ function poblarProductoVenta(prefix){
     document.getElementById('c-modulo-part-wrap').classList.toggle('hidden', categoria !== 'modulos');
     actualizarPrecioVenta('c');
   }
+}
+
+// Cotización por ruta (servicio central del CRM: km reales desde la fábrica, tarifa y promoción vigentes).
+// Al cliente se le informa UN precio final; el detalle queda como referencia interna.
+async function cotizarPorRuta(prefix){
+  const out = document.getElementById(prefix + '-cotizacion');
+  const modelo = (document.getElementById(prefix + '-modelo') || {}).value || '';
+  const locTxt = (document.getElementById(prefix + '-loc') || {}).value || '';
+  const [localidad, provincia] = locTxt.split(',').map(x => (x || '').trim());
+  const direccion = ((document.getElementById(prefix + '-domicilio') || {}).value || '').trim();
+  if(!modelo || !localidad){ out.textContent = 'Elegí el producto y cargá la localidad.'; return; }
+  out.textContent = 'Calculando ruta…';
+  try {
+    const r = await fetch('/api/socio/cotizar', {method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({modelo, localidad, provincia: provincia || '', direccion})});
+    const q = await r.json();
+    if(!r.ok){ out.textContent = 'No se pudo cotizar: ' + (q.detail || r.status); return; }
+    if(!q.ok){
+      out.textContent = q.motivo === 'localidad_ambigua'
+        ? `Hay más de una "${localidad}": escribí la localidad con la provincia (ej. "${localidad}, ${(q.candidatos||[])[0]||'Buenos Aires'}").`
+        : 'Sin cotización automática: ' + (q.detalle || q.motivo) ;
+      return;
+    }
+    document.getElementById(prefix + '-km').value = q.interno.km_ida;
+    const promo = q.promocion_disponible ? ` · Con la promo de traslado (reservando fecha): ${fmt(q.promocion_disponible.precio_final_con_promocion)}` : '';
+    out.textContent = `Precio final al cliente: ${fmt(q.precio_final)} (incluye ${q.incluye.join(', ')})${promo}. ` +
+                      `Referencia interna: ${q.interno.km_ida} km por ruta.`;
+  } catch(e){ out.textContent = 'Error de conexión al cotizar.'; }
 }
 
 function actualizarPrecioVenta(prefix){

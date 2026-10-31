@@ -105,38 +105,107 @@ def cerrar_contado_ia(db: Session, agente: str, d: dict) -> tuple[VentaContado, 
     if not lead:
         raise ErrorMotor("El cierre debe estar asociado al lead de la conversación", 400)
     modelo = str(d.get("modelo") or "").strip()
-    precio_cat = precio_catalogo(producto, modelo)
+    if producto == "PISCINA":
+        v = _venta_piscina(db, agente, lead, modelo, d)
+    else:
+        v = _venta_modulo(db, agente, lead, modelo, d)
+    if isinstance(v, tuple):          # (existente, False)
+        return v
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+    return v, True
+
+
+def _existente(db: Session, lead_id: int, modelo: str):
+    return (db.query(VentaContado)
+            .filter(VentaContado.lead_id == lead_id, VentaContado.modelo_especifico == modelo,
+                    VentaContado.estado != "CANCELADO", VentaContado.circuito_estado.isnot(None)).first())
+
+
+def _faltan(d: dict, campos) -> None:
+    faltan = [c for c in campos if not str(d.get(c) or "").strip()]
+    if faltan:
+        raise ErrorMotor(f"Faltan datos para el cierre: {', '.join(faltan)}", 400)
+
+
+def _venta_piscina(db: Session, agente: str, lead, modelo: str, d: dict):
+    """Piscina de contado: precio final único validado contra la cotización del servidor."""
+    from datetime import date as _date
+    from utils.cotizacion import cotizar_piscina
+    _faltan(d, ("cliente_nombre", "cliente_localidad", "cliente_domicilio", "color", "aceptacion_cliente",
+                "fecha_entrega_solicitada", "precio_final_acordado"))
+    try:
+        fecha = _date.fromisoformat(str(d["fecha_entrega_solicitada"])[:10])
+    except ValueError:
+        raise ErrorMotor("fecha_entrega_solicitada inválida (AAAA-MM-DD)", 400)
+    if fecha < _date.today():
+        raise ErrorMotor("La fecha de entrega solicitada ya pasó", 400)
+    q = cotizar_piscina(db, modelo, str(d["cliente_localidad"]), str(d.get("cliente_provincia") or ""),
+                        reserva_fecha=True)
+    if not q["ok"]:
+        raise ErrorMotor(f"No se puede cerrar: {q['detalle']}",
+                         409 if q["motivo"] in ("distancia_no_disponible", "localidad_ambigua") else 400)
+    try:
+        acordado = float(d["precio_final_acordado"])
+    except (TypeError, ValueError):
+        raise ErrorMotor("Precio inválido", 400)
+    if abs(acordado - q["precio_final"]) > 1:
+        raise ErrorMotor(f"El precio acordado no coincide con la cotización vigente (${q['precio_final']:,.0f}). "
+                         "La IA no puede modificar precios ni aplicar descuentos no autorizados", 403)
+    existente = _existente(db, lead.id, modelo)
+    if existente:
+        return existente, False
+    i = q["interno"]
+    nota_ruta = f" Distancia: {i['km_ida']} km ({i['proveedor']}, {i['estado_distancia']})."
+    q_dir = cotizar_piscina(db, modelo, str(d["cliente_localidad"]), str(d.get("cliente_provincia") or ""),
+                            reserva_fecha=True, direccion=str(d["cliente_domicilio"]))
+    if q_dir.get("ok") and abs(q_dir["interno"]["km_ida"] - i["km_ida"]) >= 5:
+        nota_ruta += (f" REVISAR: por la dirección exacta son {q_dir['interno']['km_ida']} km "
+                      f"(precio acordado con el cliente por localidad: se respeta).")
+    condiciones = (f"Precio final único ${q['precio_final']:,.0f} (incluye {', '.join(q['incluye'])}). "
+                   f"Pago contra entrega en domicilio, sin seña."
+                   + (" Promoción aplicada sobre el traslado." if i["promocion_id"] else ""))
+    return VentaContado(
+        cliente_nombre=str(d["cliente_nombre"])[:150], cliente_telefono=lead.telefono or "",
+        cliente_localidad=str(d["cliente_localidad"])[:100], cliente_domicilio=str(d["cliente_domicilio"])[:300],
+        producto="PISCINA", modelo_especifico=modelo, color=str(d["color"])[:50],
+        precio_final=i["precio_producto"], flete_calculado=i["flete_neto"], flete_bruto=i["flete_bruto"],
+        descuento_flete=i["descuento_flete"], distancia_km=i["km_ida"], promocion_id=i["promocion_id"],
+        precio_total_acordado=q["precio_final"], fecha_entrega_solicitada=fecha,
+        forma_pago="CONTADO", modalidad_cobro="CONTRAENTREGA", cobro_estado="PENDIENTE",
+        estado="PENDIENTE_COORDINACION", circuito_estado="CIERRE_COMERCIAL_CONFIRMADO",
+        cerrada_por=f"agente:{agente}", lead_id=lead.id,
+        notas=(f"Cierre comercial por {agente} (IA). {condiciones}{nota_ruta} Fecha de entrega solicitada: {fecha:%d/%m/%Y}. "
+               f"Aceptación del cliente: {str(d['aceptacion_cliente'])[:500]}"),
+    )
+
+
+def _venta_modulo(db: Session, agente: str, lead, modelo: str, d: dict):
+    """Viviendas/módulos de contado: precio de catálogo exacto (reglas de piscinas no aplican)."""
+    precio_cat = precio_catalogo(str(d.get("producto")).upper(), modelo)
     if precio_cat is None:
         raise ErrorMotor(f"'{modelo}' no tiene precio de contado vigente en el catálogo", 400)
     try:
-        precio = float(d.get("precio"))
+        precio = float(d.get("precio") if d.get("precio") is not None else d.get("precio_final_acordado"))
     except (TypeError, ValueError):
         raise ErrorMotor("Precio inválido", 400)
     if abs(precio - precio_cat) > 0.5:
         raise ErrorMotor(f"El precio no coincide con el catálogo vigente (${precio_cat:,.0f}). "
                          "La IA no puede modificar precios ni aplicar descuentos", 403)
-    faltan = [c for c in ("cliente_nombre", "cliente_localidad", "cliente_domicilio", "aceptacion_cliente")
-              if not str(d.get(c) or "").strip()]
-    if faltan:
-        raise ErrorMotor(f"Faltan datos para el cierre: {', '.join(faltan)}", 400)
-    existente = (db.query(VentaContado)
-                 .filter(VentaContado.lead_id == lead.id, VentaContado.modelo_especifico == modelo,
-                         VentaContado.estado != "CANCELADO", VentaContado.circuito_estado.isnot(None)).first())
+    _faltan(d, ("cliente_nombre", "cliente_localidad", "aceptacion_cliente"))
+    existente = _existente(db, lead.id, modelo)
     if existente:
         return existente, False
-    v = VentaContado(
+    return VentaContado(
         cliente_nombre=str(d["cliente_nombre"])[:150], cliente_telefono=lead.telefono or "",
-        cliente_localidad=str(d["cliente_localidad"])[:100], cliente_domicilio=str(d["cliente_domicilio"])[:300],
-        producto=producto, modelo_especifico=modelo, color=(d.get("color") or None), precio_final=precio_cat,
-        forma_pago="CONTADO", modalidad_cobro="CONTRAENTREGA", cobro_estado="PENDIENTE",
+        cliente_localidad=str(d["cliente_localidad"])[:100], cliente_domicilio=(str(d.get("cliente_domicilio") or "")[:300] or None),
+        producto=str(d.get("producto")).upper(), modelo_especifico=modelo, color=(d.get("color") or None),
+        precio_final=precio_cat, forma_pago="CONTADO", modalidad_cobro="CONTRAENTREGA", cobro_estado="PENDIENTE",
         estado="PENDIENTE_COORDINACION", circuito_estado="CIERRE_COMERCIAL_CONFIRMADO",
         cerrada_por=f"agente:{agente}", lead_id=lead.id,
         notas=f"Cierre comercial por {agente} (IA). Aceptación del cliente: {str(d['aceptacion_cliente'])[:500]}",
     )
-    db.add(v)
-    db.commit()
-    db.refresh(v)
-    return v, True
 
 
 def solicitar_entrega(db: Session, venta: VentaContado, actor: str) -> VentaContado:

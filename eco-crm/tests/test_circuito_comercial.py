@@ -18,8 +18,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database.database import Base, get_db
-from database.models import (ComisionPropietario, Entrega, ExpedienteEvento, Lead, Usuario, VentaContado,
-                             VentaFinanciada)
+from database.models import (ComisionPropietario, DistanciaLocalidad, Entrega, ExpedienteEvento, Lead, Usuario,
+                             VentaContado, VentaFinanciada)
 from routers import auth, circuito_comercial, instalacion, logistica, ventas_financiadas
 from utils import circuito_comercial as cc
 
@@ -29,6 +29,10 @@ IA = {"Authorization": f"Bearer {KEY}", "X-Origen-Cliente": "multiagente"}
 MCP = {"Authorization": f"Bearer {KEY}"}                       # mismo API key, sin identidad de agentes
 PRECIO_PISCINA = 2490000                                        # Minideck (catálogo)
 PRECIO_MODULO = 4990000                                         # Módulo ECO 12m²
+FLETE_30KM = 30 * 3000
+PRECIO_FINAL = PRECIO_PISCINA + FLETE_30KM                      # precio final único informado al cliente
+CATALOGO = {"piscinas": {"precios": {"Minideck": PRECIO_PISCINA}, "medidas": {
+    "Minideck": {"largo_m": 3.0, "profundidad_max_m": 0.7}}}}
 
 
 @pytest.fixture
@@ -37,6 +41,8 @@ def m(monkeypatch):
     monkeypatch.setenv("API_KEY", KEY)
     monkeypatch.setattr(cc, "precio_catalogo", lambda prod, modelo: {
         ("PISCINA", "Minideck"): PRECIO_PISCINA, ("MODULO", "Módulo ECO 12m²"): PRECIO_MODULO}.get((prod, modelo)))
+    from utils import cotizacion
+    monkeypatch.setattr(cotizacion, "_catalogo", lambda: CATALOGO)
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(eng)
     S = sessionmaker(bind=eng)
@@ -48,6 +54,8 @@ def m(monkeypatch):
                        es_agente_ia=(uid == 7), aliado_codigo=("AL-010" if uid == 6 else None)))
     db.add(Lead(id=10, nombre="Ana Pérez", telefono="5491100000010"))
     db.commit()
+    from utils.cotizacion import cargar_distancia
+    cargar_distancia(db, "Zárate", "", 30, "Google Maps (prueba)", 1)
     app = FastAPI()
     for r in (circuito_comercial, logistica, instalacion, ventas_financiadas):
         app.include_router(r.router)
@@ -65,8 +73,9 @@ def m(monkeypatch):
 
 
 def _cierre(c, agente="camila", **kw):
-    body = {"lead_id": 10, "producto": "PISCINA", "modelo": "Minideck", "precio": PRECIO_PISCINA, "color": "Celeste",
-            "cliente_nombre": "Ana Pérez", "cliente_localidad": "Zárate", "cliente_domicilio": "Belgrano 123",
+    body = {"lead_id": 10, "producto": "PISCINA", "modelo": "Minideck", "precio_final_acordado": PRECIO_FINAL,
+            "color": "Celeste", "cliente_nombre": "Ana Pérez", "cliente_localidad": "Zárate",
+            "cliente_domicilio": "Belgrano 123", "fecha_entrega_solicitada": "2099-01-15",
             "aceptacion_cliente": "Sí, la quiero, la pago contra entrega", **kw}
     return c.post("/api/comercial/contado/cierres", headers={**IA, "X-Agente": agente}, json=body)
 
@@ -89,8 +98,8 @@ def test_ia_puede_cerrar_venta_de_contado(m):
     ("nicolas", {}, 403),                                                         # financiación: no cierra contado
     ("valentina", {}, 403),
     ("luciano", {}, 403),                                                         # Luciano: viviendas, no piscinas
-    ("camila", {"precio": PRECIO_PISCINA - 200000}, 403),                         # descuento no autorizado
-    ("camila", {"modelo": "Modelo inventado", "precio": 1}, 400),
+    ("camila", {"precio_final_acordado": PRECIO_FINAL - 200000}, 403),            # descuento no autorizado
+    ("camila", {"modelo": "Modelo inventado"}, 400),
     ("camila", {"forma_pago": "FINANCIADO"}, 403),
     ("camila", {"aceptacion_cliente": ""}, 400),
     ("camila", {"lead_id": 999}, 400),
@@ -102,14 +111,15 @@ def test_cierres_no_permitidos(m, agente, kw, codigo):
 
 def test_luciano_cierra_viviendas_y_modulos(m):
     c, _, _ = m
-    r = _cierre(c, "luciano", producto="MODULO", modelo="Módulo ECO 12m²", precio=PRECIO_MODULO, color=None)
+    r = _cierre(c, "luciano", producto="MODULO", modelo="Módulo ECO 12m²", precio=PRECIO_MODULO, color=None,
+                precio_final_acordado=None)
     assert r.status_code == 200 and r.json()["venta"]["producto"] == "MODULO"
 
 
 def test_endpoints_de_ia_exigen_clave_e_identidad(m):
     c, _, tok = m
-    body = {"lead_id": 10, "producto": "PISCINA", "modelo": "Minideck", "precio": PRECIO_PISCINA, "cliente_nombre": "A",
-            "cliente_localidad": "Z", "cliente_domicilio": "B", "aceptacion_cliente": "sí"}
+    body = {"lead_id": 10, "producto": "PISCINA", "modelo": "Minideck", "precio_final_acordado": PRECIO_FINAL,
+            "cliente_nombre": "A", "cliente_localidad": "Zárate", "cliente_domicilio": "B", "aceptacion_cliente": "sí"}
     assert c.post("/api/comercial/contado/cierres", headers={"X-Origen-Cliente": "multiagente", "X-Agente": "camila"},
                   json=body).status_code == 401                                  # la identidad sola no autentica
     assert c.post("/api/comercial/contado/cierres", headers={**MCP, "X-Agente": "camila"}, json=body).status_code == 403

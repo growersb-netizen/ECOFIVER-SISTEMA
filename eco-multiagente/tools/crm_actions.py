@@ -72,6 +72,9 @@ async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
         datos = accion.get("datos", {})
         if not isinstance(datos, dict):
             datos = {}
+        # En una conversación con un cliente el único lead posible es el de la conversación
+        if ctx is not None and ctx.canal == "cliente" and ctx.lead_id and datos.get("lead_id") in (None, ""):
+            datos = {**datos, "lead_id": ctx.lead_id}
         decision = evaluar(tipo, datos, ctx)
         if not decision.permitido:
             registrar_bloqueo(tipo, ctx, decision.motivo)
@@ -571,8 +574,9 @@ async def _crm_circuito(ruta: str, cuerpo: dict) -> tuple[int, dict]:
 
 async def _cerrar_venta_contado(datos: dict) -> str:
     """Cierre comercial de contado: el CRM valida agente, producto, lead y precio de catálogo."""
-    cuerpo = {k: datos[k] for k in ("lead_id", "producto", "modelo", "precio", "color", "cliente_nombre",
-                                    "cliente_localidad", "cliente_domicilio", "aceptacion_cliente")
+    cuerpo = {k: datos[k] for k in ("lead_id", "producto", "modelo", "precio", "precio_final_acordado", "color",
+                                    "cliente_nombre", "cliente_localidad", "cliente_provincia", "cliente_domicilio",
+                                    "fecha_entrega_solicitada", "aceptacion_cliente")
               if datos.get(k) is not None}
     status, d = await _crm_circuito("/api/comercial/contado/cierres", cuerpo)
     if status != 200:
@@ -580,7 +584,8 @@ async def _cerrar_venta_contado(datos: dict) -> str:
     v = d["venta"]
     status2, d2 = await _crm_circuito(f"/api/comercial/contado/{v['id']}/solicitar-entrega", {})
     pedido = "y entrega solicitada a logística" if status2 == 200 else f"(entrega no solicitada: {d2.get('detail', status2)})"
-    return (f"✅ Cierre comercial #{v['id']} registrado: {v['producto']} {v['modelo']} ${v['precio_final']:,.0f} "
+    total = v.get("precio_total_acordado") or v["precio_final"]
+    return (f"✅ Cierre comercial #{v['id']} registrado: {v['producto']} {v['modelo']} — precio final ${total:,.0f} "
             f"{pedido}. Pago en domicilio contra entrega; el cobro lo confirma una persona.")
 
 

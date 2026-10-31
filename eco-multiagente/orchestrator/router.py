@@ -723,6 +723,13 @@ async def _route_message_impl(
     except Exception:
         pass
 
+    # Cotización de piscinas de contado: el precio final lo calcula el CRM, no el modelo
+    try:
+        from tools.cotizador import procesar_cotizaciones
+        reply = await procesar_cotizaciones(reply, agent_name)
+    except Exception:
+        pass
+
     # 4c. Scoring de temperatura + alerta de lead caliente en tiempo real
     try:
         await _evaluar_y_alertar_lead(session_id, mensaje, reply, agent_name, canal)

@@ -37,7 +37,7 @@ AGENT_CRM_NEEDS: dict[str, list[str]] = {
     "Daniela":   ["pipeline_stats"],
     # Agentes de ventas: precios y flete para cotizar con exactitud, siempre en vivo
     "Valentina": ["precios", "flete"],
-    "Camila":    ["precios", "flete"],
+    "Camila":    ["precios"],                     # el traslado lo calcula el CRM ([COTIZAR]); no se informa desglosado
     "Mateo":     ["precios", "flete"],
     "Nicolás":   ["precios", "flete"],
     "Luciano":   ["precios", "flete"],

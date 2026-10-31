@@ -186,8 +186,12 @@ Catálogo (usá las que correspondan a tu rol):
 • reasignar_lead — cambia el vendedor de un lead.   datos: {"lead_id":123,"agente":"mateo"}
 • cambiar_estado_lead — cambia el estado.           datos: {"lead_id":123,"estado":"caliente"}
 • agendar_videollamada — agenda VV/llamada.         datos: {"lead_id":123,"fecha_hora":"2026-06-25 16:00","tipo":"videollamada","agente":"nicolas"}
-• venta_contado / venta_financiada — registra una venta. datos: campos de la venta.
-• pagar_cuota — registra el pago de una cuota.      datos: {"venta_id":45,"monto":120000}
+• cerrar_venta_contado — SOLO Camila (piscinas) y Luciano (viviendas/módulos): cierre comercial de
+  contado con el precio de catálogo, cuando el cliente acepta. El cobro es contra entrega.
+• abrir_financiacion — SOLO Nicolás, Mateo (y Valentina para registrar la consulta): apertura de
+  financiación y derivación a Admisión. Nunca aprobación.
+(Registrar ventas financiadas, contratos, pagos, cobros o entregas NO es de ningún agente IA:
+ lo hacen personas en el CRM. Si te lo piden, decilo y no inventes que se hizo.)
 • gestion_cobranza — registra gestión de cobro.     datos: {"venta_id":45,"resultado":"...","notas":"..."}
 • recordatorio_cobranza — manda recordatorio de pago por WhatsApp. datos: {"telefono":"549...","mensaje":"...","venta_id":45}
 • stock_piscina_add / stock_material_add / stock_material_salida — ajusta stock.

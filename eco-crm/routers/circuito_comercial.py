@@ -62,13 +62,42 @@ class CierreContado(BaseModel):
     lead_id: int
     producto: str
     modelo: str
-    precio: float
+    precio: Optional[float] = None                 # módulos: precio de catálogo
+    precio_final_acordado: Optional[float] = None  # piscinas: precio final único cotizado por el servidor
     color: Optional[str] = None
     cliente_nombre: str
     cliente_localidad: str
-    cliente_domicilio: str
+    cliente_provincia: Optional[str] = None
+    cliente_domicilio: Optional[str] = None
+    fecha_entrega_solicitada: Optional[str] = None
     aceptacion_cliente: str
     forma_pago: str = "CONTADO"
+
+
+class PedidoCotizacion(BaseModel):
+    modelo: str
+    localidad: str
+    provincia: str = ""
+    direccion: str = ""
+    reserva_fecha: bool = False
+
+
+class NuevaDistancia(BaseModel):
+    localidad: str
+    provincia: str = ""
+    direccion: str = ""
+    km_ida: float
+    fuente: str
+
+
+class NuevaPromocion(BaseModel):
+    nombre: str
+    valor: float
+    desde: date
+    hasta: date
+    producto: str = "PISCINA"
+    requiere_reserva_fecha: bool = True
+    nota: str = ""
 
 
 class Evidencia(BaseModel):
@@ -119,7 +148,10 @@ class NuevoGasto(BaseModel):
 
 def _venta_dict(v: VentaContado) -> dict:
     return {"id": v.id, "cliente_nombre": v.cliente_nombre, "producto": v.producto, "modelo": v.modelo_especifico,
-            "precio_final": v.precio_final, "circuito_estado": cc.estado_contado_efectivo(v), "cerrada_por": v.cerrada_por,
+            "precio_final": v.precio_final, "precio_total_acordado": v.precio_total_acordado,
+            "flete": v.flete_calculado, "descuento_flete": v.descuento_flete,
+            "fecha_entrega_solicitada": v.fecha_entrega_solicitada.isoformat() if v.fecha_entrega_solicitada else None,
+            "circuito_estado": cc.estado_contado_efectivo(v), "cerrada_por": v.cerrada_por,
             "lead_id": v.lead_id, "entrega_confirmada_at": v.entrega_confirmada_at.isoformat() if v.entrega_confirmada_at else None,
             "cobro_estado": v.cobro_estado, "created_at": v.created_at.isoformat() if v.created_at else None}
 
@@ -171,6 +203,97 @@ def ia_estado_expediente(exp_id: int, body: CambioExpediente, request: Request, 
     except ErrorMotor as e2:
         _err(e2)
     return {"ok": True, "expediente": cc.expediente_dict(e, con_datos=False)}
+
+
+@router.post("/api/comercial/contado/cotizar")
+def ia_cotizar(body: PedidoCotizacion, request: Request, db: Session = Depends(get_db)):
+    """Cotización del servidor: precio final único + desglose interno. Nunca inventa distancias ni promos."""
+    _agente(request)
+    from utils.cotizacion import cotizar_piscina
+    return cotizar_piscina(db, body.modelo, body.localidad, body.provincia, body.reserva_fecha,
+                           direccion=body.direccion)
+
+
+def _socio(request: Request, db: Session = Depends(get_db)):
+    from routers.socios import require_socio
+    return require_socio(request, db)
+
+
+@router.post("/api/socio/cotizar")
+def cotizar_socio(body: PedidoCotizacion, db: Session = Depends(get_db), _=Depends(_socio)):
+    """Panel de socios: misma herramienta de cotización (distancia por ruta, tarifas, promociones)."""
+    from utils.cotizacion import cotizar_piscina
+    return cotizar_piscina(db, body.modelo, body.localidad, body.provincia, body.reserva_fecha,
+                           direccion=body.direccion)
+
+
+@router.post("/api/comercial/cotizar")
+def cotizar_humano(body: PedidoCotizacion, db: Session = Depends(get_db), user: Usuario = Depends(require_auth)):
+    """La misma herramienta para vendedores humanos: precio final único + detalle interno."""
+    from utils.cotizacion import cotizar_piscina
+    return cotizar_piscina(db, body.modelo, body.localidad, body.provincia, body.reserva_fecha,
+                           direccion=body.direccion)
+
+
+# ── Personas: distancias verificadas y promociones autorizadas ───────────────
+
+def _interno(user: Usuario = Depends(require_auth)) -> Usuario:
+    if getattr(user, "es_agente_ia", False) or getattr(user, "aliado_codigo", None) or \
+            not (set(get_user_roles(user)) & {"ADMIN", "LOGISTICA", "COORDINADOR_OPERATIVO", "PROPIETARIO"}):
+        raise HTTPException(403, "Reservado al equipo interno (administración/logística)")
+    return user
+
+
+@router.get("/api/comercial/distancias")
+def listar_distancias(db: Session = Depends(get_db), _: Usuario = Depends(_interno)):
+    from database.models import DistanciaLocalidad
+    return {"distancias": [{"id": x.id, "tipo": x.tipo, "localidad": x.localidad, "provincia": x.provincia,
+                            "destino": x.destino_texto, "origen": x.origen_texto, "km_ida": x.km_ida,
+                            "proveedor": x.proveedor, "estado": x.estado, "ruta": x.ruta_ref, "fuente": x.fuente,
+                            "actualizado_at": x.actualizado_at.isoformat() if x.actualizado_at else None}
+                           for x in db.query(DistanciaLocalidad).order_by(DistanciaLocalidad.localidad)]}
+
+
+@router.post("/api/comercial/distancias")
+def cargar_distancia(body: NuevaDistancia, db: Session = Depends(get_db), user: Usuario = Depends(_interno)):
+    from utils.cotizacion import cargar_distancia as _cargar
+    try:
+        x = _cargar(db, body.localidad, body.provincia, body.km_ida, body.fuente, user.id, body.direccion)
+    except ErrorMotor as e:
+        _err(e)
+    return {"ok": True, "distancia": {"id": x.id, "localidad": x.localidad, "km_ida": x.km_ida}}
+
+
+@router.get("/api/comercial/promociones")
+def listar_promociones(db: Session = Depends(get_db), _: Usuario = Depends(_interno)):
+    from database.models import PromocionComercial
+    return {"promociones": [{"id": p.id, "nombre": p.nombre, "tipo": p.tipo, "valor": p.valor, "producto": p.producto,
+                             "desde": p.desde.isoformat(), "hasta": p.hasta.isoformat(), "activa": bool(p.activa),
+                             "requiere_reserva_fecha": bool(p.requiere_reserva_fecha)}
+                            for p in db.query(PromocionComercial).order_by(PromocionComercial.id.desc())]}
+
+
+@router.post("/api/comercial/promociones")
+def crear_promocion(body: NuevaPromocion, db: Session = Depends(get_db), user: Usuario = Depends(_propietario)):
+    """Solo el propietario autoriza promociones (la IA las aplica, no las crea)."""
+    from utils.cotizacion import crear_promocion as _crear
+    try:
+        p = _crear(db, nombre=body.nombre, valor=body.valor, desde=body.desde, hasta=body.hasta, usuario_id=user.id,
+                   producto=body.producto.upper(), requiere_reserva_fecha=body.requiere_reserva_fecha, nota=body.nota)
+    except ErrorMotor as e:
+        _err(e)
+    return {"ok": True, "promocion": {"id": p.id, "nombre": p.nombre}}
+
+
+@router.post("/api/comercial/promociones/{promo_id}/desactivar")
+def desactivar_promocion(promo_id: int, db: Session = Depends(get_db), _: Usuario = Depends(_propietario)):
+    from database.models import PromocionComercial
+    p = db.get(PromocionComercial, promo_id)
+    if not p:
+        raise HTTPException(404, "Promoción inexistente")
+    p.activa = False
+    db.commit()
+    return {"ok": True}
 
 
 # ── Personas: contado ─────────────────────────────────────────────────────────

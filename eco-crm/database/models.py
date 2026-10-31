@@ -330,6 +330,12 @@ class VentaContado(Base):
     entrega_evidencia           = Column(Text, nullable=True)
     cobro_confirmado_por_id     = Column(Integer, nullable=True)
     cobro_evidencia             = Column(Text, nullable=True)
+    # Desglose interno (al cliente se le informa un único precio final)
+    flete_bruto                 = Column(Float, nullable=True)
+    descuento_flete             = Column(Float, nullable=True)
+    promocion_id                = Column(Integer, nullable=True)
+    precio_total_acordado       = Column(Float, nullable=True)   # producto + traslado neto
+    fecha_entrega_solicitada    = Column(Date, nullable=True)
 
     # ── Venta cargada por un Socio Comercial (canal Aliados) ──────────────────
     aliado_codigo               = Column(String(20), ForeignKey("aliados.codigo"), nullable=True, index=True)
@@ -2107,4 +2113,51 @@ class ObjetivoEconomico(Base):
     origen        = Column(String(40), default="panel")             # panel | conversacion_maximo
     nota          = Column(Text, default="")
     autorizado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DistanciaLocalidad(Base):
+    """
+    Caché de distancias por ruta desde la fábrica (no en línea recta).
+    estado: CALCULADA (proveedor de rutas) | VERIFICADA (confirmada o cargada por una persona).
+    Se recalcula si cambia el origen (origen_clave) o el destino.
+    """
+    __tablename__ = "distancias_localidades"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    clave         = Column(String(300), nullable=False, unique=True, index=True)  # destino normalizado (+ origen)
+    tipo          = Column(String(12), default="LOCALIDAD")        # LOCALIDAD | DIRECCION
+    localidad     = Column(String(120), nullable=False)
+    provincia     = Column(String(80), default="")
+    destino_texto = Column(String(300), default="")                # dirección formateada por el proveedor
+    origen_texto  = Column(String(300), default="")
+    origen_clave  = Column(String(300), default="")
+    km_ida        = Column(Float, nullable=False)
+    proveedor     = Column(String(40), default="")                 # google_routes | manual
+    ruta_ref      = Column(Text, default="")                       # referencia/resumen de la ruta
+    estado        = Column(String(12), default="CALCULADA")
+    fuente        = Column(String(200), default="")
+    cargado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    actualizado_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PromocionComercial(Base):
+    """
+    Promoción vigente y autorizada por una persona. La IA solo aplica promociones
+    de esta tabla (no inventa). Tipo FLETE_PCT: % de descuento sobre el traslado,
+    válido si el cliente reserva la fecha de instalación durante la vigencia.
+    """
+    __tablename__ = "promociones_comerciales"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    nombre        = Column(String(150), nullable=False)
+    tipo          = Column(String(20), nullable=False)        # FLETE_PCT
+    valor         = Column(Float, nullable=False)             # 50 = 50%
+    producto      = Column(String(20), default="PISCINA")
+    desde         = Column(Date, nullable=False)
+    hasta         = Column(Date, nullable=False)              # inclusive
+    requiere_reserva_fecha = Column(Boolean, default=True)
+    activa        = Column(Boolean, default=True)
+    autorizada_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    nota          = Column(Text, default="")
     created_at    = Column(DateTime(timezone=True), server_default=func.now())

@@ -925,3 +925,19 @@ async def consultar_baja(telefono: str) -> Optional[bool]:
         logger.warning(f"[CRM] consultar_baja falló: {e}")
         _record_fail_ex("consultar_baja", e)
         return None
+
+
+async def autorizar_saliente(telefono: str, origen: str = "", agente: str = "") -> Optional[dict]:
+    """Autorización del CRM para un contacto que inicia el sistema (baja, ventana 24 h, deduplicación).
+    None si el CRM no respondió (no se envía)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.post(f"{CRM_BASE_URL}/api/contactos/saliente/autorizar", headers=HEADERS,
+                                  json={"telefono": telefono, "origen": origen[:80], "agente": agente})
+            r.raise_for_status()
+            record_ok("autorizar_saliente")
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] autorizar_saliente falló: {e}")
+        _record_fail_ex("autorizar_saliente", e)
+        return None

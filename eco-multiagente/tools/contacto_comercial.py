@@ -1,5 +1,7 @@
 """
-Compuerta de contactos comerciales automáticos (bajas registradas en el CRM).
+Compuerta de contactos comerciales automáticos: horario y estado del agente,
+baja comercial, ventana de 24 h de WhatsApp (fuera de ella hace falta plantilla
+aprobada por Meta) y deduplicación entre tareas — lo decide el CRM.
 
 Todo envío que el sistema inicia por su cuenta a un cliente o lead —seguimientos,
 nutrición, reactivación, primer contacto, contacto pedido a un agente interno—
@@ -29,14 +31,16 @@ async def puede_contactar(telefono: str, origen: str = "", agente: str = "valent
         _stats["bloqueados_horario_o_estado"] = _stats.get("bloqueados_horario_o_estado", 0) + 1
         logger.info(f"[Contacto] {origen}: {motivo} → no se envía")
         return False
-    excluido = await crm_client.consultar_baja(telefono)
-    if excluido is None:
+    r = await crm_client.autorizar_saliente(telefono, origen, agente)
+    if r is None:
         _stats["bloqueados_sin_confirmar"] += 1
-        logger.warning(f"[Contacto] {origen}: no se pudo confirmar la baja con el CRM → no se envía")
+        logger.warning(f"[Contacto] {origen}: no se pudo confirmar con el CRM → no se envía")
         return False
-    if excluido:
-        _stats["bloqueados_baja"] += 1
-        logger.info(f"[Contacto] {origen}: contacto con baja comercial → no se envía")
+    if not r.get("permitido"):
+        motivo = r.get("motivo", "no_autorizado")
+        clave = {"baja_comercial": "bloqueados_baja"}.get(motivo, f"bloqueados_{motivo}")
+        _stats[clave] = _stats.get(clave, 0) + 1
+        logger.info(f"[Contacto] {origen}: {motivo} → no se envía")
         return False
     _stats["permitidos"] += 1
     return True

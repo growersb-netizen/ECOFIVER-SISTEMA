@@ -37,11 +37,11 @@ def _limpio():
 @pytest.mark.asyncio
 async def test_saliente_permitido_solo_si_el_crm_lo_confirma():
     with _crm(salientes={"valentina": True}), \
-         patch.object(crm_client, "consultar_baja", AsyncMock(return_value=False)):
+         patch.object(crm_client, "autorizar_saliente", AsyncMock(return_value={"permitido": True})):
         assert await contacto_comercial.puede_contactar(TEL, "prueba")
     control_agentes._reset_para_tests()
     with _crm(salientes={"valentina": False}), \
-         patch.object(crm_client, "consultar_baja", AsyncMock(return_value=False)) as baja:
+         patch.object(crm_client, "autorizar_saliente", AsyncMock(return_value={"permitido": True})) as baja:
         assert not await contacto_comercial.puede_contactar(TEL, "prueba")
         baja.assert_not_awaited()                     # ni siquiera consulta: fuera de horario
 

@@ -2161,3 +2161,14 @@ class PromocionComercial(Base):
     autorizada_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     nota          = Column(Text, default="")
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContactoProactivo(Base):
+    """Registro de cada contacto saliente iniciado por el sistema (deduplicación y auditoría)."""
+    __tablename__ = "contactos_proactivos"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    telefono_clave = Column(String(20), nullable=False, index=True)
+    origen         = Column(String(80), default="")      # cron seguimiento | meta primer contacto | accion ...
+    agente         = Column(String(30), default="")
+    created_at     = Column(DateTime(timezone=True), server_default=func.now(), index=True)

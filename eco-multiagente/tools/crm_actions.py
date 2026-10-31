@@ -314,7 +314,6 @@ async def _contactar_leads_sin_respuesta(datos: dict) -> str:
         from channels.whatsapp import send_whatsapp_message
         from agents.valentina import get_agent
         import re as _re
-        valentina = get_agent()
         for l in leads[:limite]:
             tel = _normalizar_tel(l.get("telefono", ""))
             if not tel:
@@ -330,7 +329,7 @@ async def _contactar_leads_sin_respuesta(datos: dict) -> str:
                 f"{nombre} que consultó por {prod} y quedó sin respuesta. Presentate como Valentina "
                 f"de EcoFiver. Preguntá si seguís pudiendo ayudar."
             )
-            msg = await valentina.respond(prompt)
+            msg = await get_agent().respond(prompt)
             msg = _re.sub(r"\[[^\]]+\]", "", msg).strip()
             if msg and await send_whatsapp_message(tel, msg):
                 enviados += 1
@@ -438,7 +437,6 @@ async def _reactivar_leads_frios(datos: dict) -> str:
         from channels.whatsapp import send_whatsapp_message
         from agents.valentina import get_agent
         import re as _re
-        valentina = get_agent()
         for l in leads[:limite]:
             tel = _normalizar_tel(l.get("telefono", ""))
             if not tel:
@@ -448,7 +446,7 @@ async def _reactivar_leads_frios(datos: dict) -> str:
             nombre = l.get("nombre", "") or "vecino"
             prompt = (f"Mensaje corto y cálido de reactivación para {nombre}, que consultó hace "
                       f"un tiempo y no avanzó. Sin presión, ofrecé novedad/beneficio. Como Valentina de EcoFiver.")
-            msg = _re.sub(r"\[[^\]]+\]", "", await valentina.respond(prompt)).strip()
+            msg = _re.sub(r"\[[^\]]+\]", "", await get_agent().respond(prompt)).strip()
             if msg and await send_whatsapp_message(tel, msg):
                 enviados += 1
     except Exception as e:

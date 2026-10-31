@@ -899,6 +899,14 @@ async def recibir_comando_crm(payload: _ComandoCRM, request: Request):
                          "motor_activo": motor_tareas.habilitado()})
 
 
+@app.get("/health/whatsapp")
+async def health_whatsapp():
+    """Entregas reales de WhatsApp (estados y fallas por código, sin teléfonos ni contenido)."""
+    from tools.entregas_wa import stats
+    from tools.contacto_comercial import stats as contacto
+    return {"entregas": stats(), "salientes_autorizacion": contacto()}
+
+
 @app.get("/health/motor")
 async def health_motor():
     """Estado del worker del motor de tareas (sin contenido de tareas)."""

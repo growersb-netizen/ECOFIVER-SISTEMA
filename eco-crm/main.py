@@ -251,6 +251,8 @@ from routers import circuito_comercial as _circuito  # contado / financiación /
 app.include_router(_circuito.router)
 from routers import politicas as _politicas  # políticas versionadas y dirección (Fase 3)
 app.include_router(_politicas.router)
+from routers import backups as _backups  # backups de la base (solo el propietario)
+app.include_router(_backups.router)
 app.include_router(instalacion.router)
 app.include_router(panolero.router)
 app.include_router(asistencia_rapida.router)
@@ -498,7 +500,7 @@ async def startup_event():
         run_backup,
         trigger=CronTrigger(hour=3, minute=0, timezone="America/Argentina/Buenos_Aires"),
         id="backup_diario",
-        name="Backup diario SQLite",
+        name="Backup diario (PostgreSQL + SQLite heredado)",
         replace_existing=True,
         misfire_grace_time=3600,
     )

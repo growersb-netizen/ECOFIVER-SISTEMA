@@ -25,11 +25,17 @@ def _valida(key, claves: list[str]) -> bool:
     return any(hmac.compare_digest(key, c) for c in claves)
 
 
+def agentes_ia_key_valida(key) -> bool:
+    """Clave propia del sistema de agentes IA (AGENTES_IA_API_KEY). Quien la usa queda identificado
+    como IA en el CRM aunque no mande el encabezado X-Origen-Cliente (ver utils/origen.py)."""
+    return _valida(key, _claves("AGENTES_IA_API_KEY", "AGENTES_IA_API_KEY_ANTERIOR"))
+
+
 def api_key_valida(key) -> bool:
-    """API key general del CRM (header X-Api-Key o Bearer)."""
-    return _valida(key, _claves("API_KEY", "API_KEY_ANTERIOR"))
+    """API key general del CRM (header X-Api-Key o Bearer). Acepta también la clave propia de la IA."""
+    return _valida(key, _claves("API_KEY", "API_KEY_ANTERIOR")) or agentes_ia_key_valida(key)
 
 
 def multiagente_key_valida(key) -> bool:
-    """Clave que usa el multiagente para el inbox (CRM_API_KEY en el CRM)."""
-    return _valida(key, _claves("CRM_API_KEY", "CRM_API_KEY_ANTERIOR"))
+    """Clave que usa el multiagente para el inbox (CRM_API_KEY en el CRM, o la clave propia de la IA)."""
+    return _valida(key, _claves("CRM_API_KEY", "CRM_API_KEY_ANTERIOR")) or agentes_ia_key_valida(key)

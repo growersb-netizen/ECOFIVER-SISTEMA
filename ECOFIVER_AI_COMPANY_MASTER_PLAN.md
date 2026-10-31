@@ -145,22 +145,22 @@ Orden, migraciones, variables (solo nombres), verificación y reversión: `docs/
 | # | Tema | Tipo |
 |---|---|---|
 | A | ~~Máximo como herramienta de carga por WhatsApp~~ | **RESUELTA:** "como antes", en el canal confiable del propietario (`0d0c867`) |
-| B | **Clave de Google Maps Platform** (Geocoding + Routes) | Sin ella no hay cotización automática |
-| C | Dirección exacta de la fábrica (`fabrica_direccion`) | Configuración |
-| D | Asignar roles `PROPIETARIO` (vos) y `ADMISION` (personal de admisión) | Datos de usuarios |
-| E | `flete_miniportante_km` ($2.000) existe en el panel pero no se usa: ¿regla vieja o vigente? | Regla de negocio |
-| F | ¿Las piscinas enterradas tienen la excavación incluida en el precio de catálogo? (Se asumió que sí) | Confirmar |
-| G | Inconsistencia del catálogo: nombres de modelos (ej. "Minideck Chico") distintos de las claves de precios ("Minideck") | Datos |
-| H | "Nunca revelás que sos IA": en Camila se cambió a "no lo niegues si te preguntan directamente". ¿Aplicarlo a todos? | Decisión (riesgo legal) |
+| B | **Clave de Google Maps Platform** (Geocoding + Routes) | Pendiente: la carga el propietario en Configuración → API Keys |
+| C | Dirección de la fábrica | **DEFINIDA:** Av. Antártida Argentina & Calle 6, Zárate, Buenos Aires. La carga el propietario en Configuración → Precios |
+| D | Roles | **RESUELTA:** PROPIETARIO y ADMISION asignados (Rodrigo; Admisión = socio AL-010, que ve todos los expedientes) |
+| E | Flete | **RESUELTA:** unificado en $3.000/km; $5.000/km solo para las de 8,10 m (Arco Romano Grande) y 9,20 m (Playa y Abanico). Se eliminó la tarifa de miniportante |
+| F | Precio | **CONFIRMADA:** el precio es por la obra completa (instalación completa y equipo de filtrado; excavación en enterradas) |
+| G | Nombres | **RESUELTA:** 16 modelos oficiales; las 9 variantes viejas de la lista de precios (mismo precio) se resuelven al oficial en el cotizador, los cierres y el flete. El archivo del catálogo no se tocó porque la web podría usarlas |
+| H | IA | **RESUELTA:** no se anuncia, pero no se niega si preguntan directamente. Aplicado en los 15 prompts y en la capa 1 de seguridad |
 | I | Ventas viejas: ¿generar comisiones retroactivas de entregas anteriores al despliegue? (Hoy: no) | Decisión |
-| J | "Aprobación el mismo día" en Nicolás y Mateo: promete el tiempo de una decisión humana | Decisión (texto comercial) |
-| K | Flete bonificado y pérgola de regalo en financiadas (Valentina, Nicolás): ¿vigentes? | Confirmar |
+| J | **RESUELTA:** "La aprobación la decide Admisión: te responde en la videollamada" |  |
+| K | **RESUELTA:** el flete bonificado en financiadas sigue; la pérgola de regalo se eliminó de los prompts |  |
 | L | Correr las 14 evaluaciones contra el modelo real (costo bajo, pero pago) | Aprobación |
-| M | Cargar `AGENTES_IA_API_KEY` propia para la IA (identidad no cooperativa) | Recomendado antes de desplegar |
+| M | `AGENTES_IA_API_KEY` | Código listo (la clave se acepta como clave de servicio y siempre identifica a la IA). Falta cargarla en Railway (ver `DESPLIEGUE_Y_VALIDACION.md` §8) |
 | N | ~~Aprobar el despliegue~~ | **RESUELTA:** desplegado el 31/10 (PR #10 → verificación → PR #11 → verificación) |
 | 1 | Subir las ramas locales de Codex | Acción del propietario |
-| 2 | El backup no cubre PostgreSQL (producción) | Infraestructura |
-| 3 | Repositorios públicos (`ECOFIVER-SISTEMA`, `eco-modulos-web`) | Decisión |
+| 2 | Backup de PostgreSQL | **RESUELTO en código:** volcado diario a las 03:00, se suben a R2 si está configurado, botón y descarga en el panel del propietario y `restaurar_backup_pg.py` (ida y vuelta exacta en las 92 tablas). Recomendado además: backups nativos de Railway |
+| 3 | Repositorio público y clave de Gemini en 3 commits viejos (no en los archivos actuales) | **Propietario:** rotar la clave en Google y pasar el repo a privado |
 | 4 | Quién puede registrar pagos | Regla de negocio |
 | 5 | Socios administradores por SSO con ADMIN global | Regla de negocio |
 | 6 | Qué leads ve cada rol | Regla de negocio |

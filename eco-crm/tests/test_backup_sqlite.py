@@ -51,13 +51,14 @@ def test_copia_de_archivo_pierde_el_wal(tmp_path):
     viva.close()
 
 
-def test_advierte_si_la_base_productiva_es_postgres(tmp_path, monkeypatch, caplog):
+def test_con_postgres_respalda_la_base_productiva_y_el_sqlite_heredado(tmp_path, monkeypatch):
     db = tmp_path / "eco_crm.db"
     _base_wal(str(db)).close()
     monkeypatch.setattr(backup, "DB_PATH", db)
     monkeypatch.setattr(backup, "BACKUP_DIR", tmp_path / "backups")
     monkeypatch.setattr(backup, "_upload_r2", lambda p: None)
     monkeypatch.setenv("DATABASE_URL", "postgresql://u@h/db")
-    with caplog.at_level("WARNING"):
-        backup.run_backup()
-    assert "NO la base productiva" in caplog.text
+    llamadas = []
+    monkeypatch.setattr(backup, "run_backup_pg", lambda: llamadas.append("pg") or True)
+    assert backup.run_backup() is True and llamadas == ["pg"]
+    assert list((tmp_path / "backups").glob("eco_crm_2*.db"))                 # el SQLite heredado también

@@ -1,5 +1,5 @@
 """
-backup.py — Backup automático del SQLite del CRM.
+backup.py — Backup automático del CRM: PostgreSQL (producción) y SQLite heredado.
 
 Uso manual:    python backup.py
 Uso scheduler: importado desde main.py via APScheduler (cron 03:00 ART)
@@ -53,11 +53,99 @@ def _upload_r2(local_path: Path) -> None:
         print(f"[BACKUP-R2] ⚠  No se pudo subir a R2: {e}")
 
 
+# ── PostgreSQL (producción) ──────────────────────────────────────────────────
+# Volcado lógico de todas las tablas a un .jsonl.gz: no depende de la versión de
+# pg_dump ni del servidor, se sube a R2 como el resto y se restaura con
+# restaurar_backup_pg.py sobre una base vacía (nunca sobre producción).
+
+def _valor_json(v):
+    import base64
+    import datetime as _dt
+    import decimal
+    import uuid
+    if isinstance(v, _dt.datetime):
+        return {"$dt": v.isoformat()}
+    if isinstance(v, _dt.date):
+        return {"$d": v.isoformat()}
+    if isinstance(v, _dt.time):
+        return {"$t": v.isoformat()}
+    if isinstance(v, decimal.Decimal):
+        return {"$dec": str(v)}
+    if isinstance(v, (bytes, bytearray, memoryview)):
+        return {"$b64": base64.b64encode(bytes(v)).decode()}
+    if isinstance(v, uuid.UUID):
+        return str(v)
+    return v
+
+
+def volcar_postgres(database_url: str, destino: Path) -> dict:
+    """Vuelca todas las tablas (incluida alembic_version) a destino (.jsonl.gz). Devuelve conteos."""
+    import gzip
+    import json
+    from sqlalchemy import MetaData, create_engine, select
+    engine = create_engine(database_url.replace("postgres://", "postgresql://", 1))
+    meta = MetaData()
+    meta.reflect(bind=engine)
+    conteos = {}
+    tmp = destino.with_suffix(destino.suffix + ".parcial")
+    with engine.connect() as conn, gzip.open(tmp, "wt", encoding="utf-8") as f:
+        conn = conn.execution_options(stream_results=True, isolation_level="REPEATABLE READ")
+        with conn.begin():                                   # una sola foto consistente de toda la base
+            f.write(json.dumps({"$formato": "ecofiver-pg-jsonl", "version": 1,
+                                "creado": datetime.now().isoformat()}) + "\n")
+            for tabla in meta.sorted_tables:
+                cols = [c.name for c in tabla.columns]
+                f.write(json.dumps({"$tabla": tabla.name, "columnas": cols}) + "\n")
+                n = 0
+                for fila in conn.execute(select(tabla)):
+                    f.write(json.dumps([_valor_json(v) for v in fila], ensure_ascii=False, default=str) + "\n")
+                    n += 1
+                conteos[tabla.name] = n
+    tmp.rename(destino)
+    engine.dispose()
+    return conteos
+
+
+def run_backup_pg() -> bool:
+    database_url = os.getenv("DATABASE_URL", "")
+    if "postgres" not in database_url:
+        return False
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = BACKUP_DIR / f"eco_crm_pg_{ts}.jsonl.gz"
+    try:
+        conteos = volcar_postgres(database_url, dest)
+        size_kb = dest.stat().st_size // 1024
+        logger.info(f"[BACKUP-PG] ✓  {dest.name} ({size_kb} KB) · {len(conteos)} tablas · "
+                    f"{sum(conteos.values())} filas")
+    except Exception as e:
+        logger.error(f"[BACKUP-PG] ✗  Error al volcar PostgreSQL: {e}")
+        return False
+    _upload_r2(dest)
+    try:
+        viejos = sorted(BACKUP_DIR.glob("eco_crm_pg_*.jsonl.gz"), key=lambda p: p.stat().st_mtime)
+        for old in (viejos[:-MAX_BACKUPS] if len(viejos) > MAX_BACKUPS else []):
+            old.unlink()
+    except Exception as e:
+        logger.warning(f"[BACKUP-PG] ⚠  No se pudo rotar backups: {e}")
+    return True
+
+
 def run_backup() -> bool:
     """
-    Ejecuta el backup del SQLite.
-    Retorna True si tuvo éxito, False si hubo algún error.
+    Backup diario: PostgreSQL (producción) y, si existe, el SQLite heredado.
+    Retorna True si el backup de la base en uso tuvo éxito.
     """
+    if "postgres" in os.getenv("DATABASE_URL", ""):
+        ok_pg = run_backup_pg()
+        if DB_PATH.exists():
+            _run_backup_sqlite()
+        return ok_pg
+    return _run_backup_sqlite()
+
+
+def _run_backup_sqlite() -> bool:
+    """Copia consistente del SQLite (base local o heredada)."""
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     dest = BACKUP_DIR / f"eco_crm_{ts}.db"
 
@@ -68,11 +156,6 @@ def run_backup() -> bool:
 
     # ── 2. Crear directorio de backups si no existe ──────────────────────────
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-
-    if "postgres" in os.getenv("DATABASE_URL", ""):
-        # Producción usa PostgreSQL: este job solo copia el SQLite heredado.
-        logger.warning("[BACKUP] ⚠  DATABASE_URL es PostgreSQL: este backup copia el SQLite heredado, "
-                       "NO la base productiva. Respaldar PostgreSQL por separado.")
 
     # ── 3. Copiar ────────────────────────────────────────────────────────────
     # API de backup de SQLite: copia consistente aunque haya escrituras en curso
@@ -102,7 +185,7 @@ def run_backup() -> bool:
 
     # ── 4. Rotar: mantener solo los últimos MAX_BACKUPS ──────────────────────
     try:
-        backups = sorted(BACKUP_DIR.glob("eco_crm_*.db"), key=lambda p: p.stat().st_mtime)
+        backups = sorted(BACKUP_DIR.glob("eco_crm_2*.db"), key=lambda p: p.stat().st_mtime)
         to_delete = backups[:-MAX_BACKUPS] if len(backups) > MAX_BACKUPS else []
         for old in to_delete:
             old.unlink()

@@ -33,8 +33,8 @@ def _clave_de(request: Request) -> str:
 def es_agente_ia(request: Request) -> bool:
     if (request.headers.get(ENCABEZADO) or "").strip().lower() == VALOR_AGENTES:
         return True
-    propia = os.getenv("AGENTES_IA_API_KEY", "").strip()
-    return bool(propia) and hmac.compare_digest(_clave_de(request), propia)
+    from utils.api_keys import agentes_ia_key_valida
+    return agentes_ia_key_valida(_clave_de(request))
 
 
 def autorizacion_humana(request: Request) -> str:

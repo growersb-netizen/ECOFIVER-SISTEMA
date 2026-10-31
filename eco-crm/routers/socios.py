@@ -37,6 +37,7 @@ from database.models import (
     Entrega, OrdenFabricaPiscina, OrdenFabricaModulo, StockPiscina, MetaPagina,
     SesionPanel,
 )
+from utils import sesiones
 from routers.auth import require_auth, get_user_roles, get_current_user, create_access_token, hash_password
 from routers.catalogo import load_catalogo
 from utils.whatsapp import send_whatsapp_text, notificar_rodrigo
@@ -69,21 +70,17 @@ BIBLIOTECA_DIR.mkdir(parents=True, exist_ok=True)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _crear_token_socio(aliado_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(hours=SOCIO_TOKEN_EXPIRE_HOURS)
-    return jwt.encode({"sub": str(aliado_id), "typ": "socio", "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    return sesiones.emitir("socio", aliado_id, SECRET_KEY, timedelta(hours=SOCIO_TOKEN_EXPIRE_HOURS))
 
 
 def get_current_socio(request: Request, db: Session = Depends(get_db)) -> Optional[Aliado]:
     token = request.cookies.get(SOCIO_TOKEN_COOKIE)
     if not token:
         return None
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("typ") != "socio":
-            return None
-        aliado_id = int(payload.get("sub"))
-    except (JWTError, ValueError, TypeError):
+    claims = sesiones.validar(token, "socio", SECRET_KEY)
+    if not claims:
         return None
+    aliado_id = int(claims["sub"])
     return db.query(Aliado).filter(Aliado.id == aliado_id, Aliado.estado == "activo").first()
 
 

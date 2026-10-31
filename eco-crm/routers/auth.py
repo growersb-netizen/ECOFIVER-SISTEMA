@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from database.database import get_db
 from database.models import Usuario
 from utils.api_keys import api_key_valida
+from utils import sesiones
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -44,10 +45,10 @@ def hash_password(password: str) -> str:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    """Sesión CRM (Usuario). Contrato en utils/sesiones.py: typ=crm, aud=ecofiver-crm."""
+    extra = {k: v for k, v in data.items() if k not in ("sub", "typ", "aud", "exp")}
+    return sesiones.emitir("crm", data["sub"], SECRET_KEY,
+                           expires_delta or timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS), extra)
 
 
 def get_user_roles(user: Usuario) -> List[str]:
@@ -58,13 +59,11 @@ def get_user_roles(user: Usuario) -> List[str]:
 
 
 def get_current_user_from_token(token: str, db: Session) -> Optional[Usuario]:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = int(payload.get("sub"))
-        user = db.query(Usuario).filter(Usuario.id == user_id, Usuario.activo == True).first()
-        return user
-    except Exception:
+    # Solo sesiones CRM: un token del panel de socios nunca es un Usuario.
+    claims = sesiones.validar(token, "crm", SECRET_KEY)
+    if not claims:
         return None
+    return db.query(Usuario).filter(Usuario.id == int(claims["sub"]), Usuario.activo == True).first()  # noqa: E712
 
 
 def get_current_user(

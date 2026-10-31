@@ -158,9 +158,17 @@ async def _contactar_lead_wa(lead: dict) -> None:
     if not telefono:
         logger.info("[META] Lead registrado sin teléfono; pendiente de gestión humana")
         return
-    from tools.contacto_comercial import puede_contactar
-    if not await puede_contactar(telefono, "meta primer contacto"):
+    from tools.contacto_comercial import modo_contacto
+    modo = await modo_contacto(telefono, "meta primer contacto", plantilla=True)
+    if not modo:
         return  # el lead ya quedó registrado; solo no se le escribe
+    if modo == "plantilla":
+        # Un lead de formulario nunca escribió por WhatsApp: siempre está fuera de la ventana de 24 h.
+        # Va la plantilla aprobada; cuando responda, Valentina sigue la conversación normalmente.
+        from tools import plantillas_wa
+        prod = producto if producto and str(producto).lower() != "general" else "nuestros productos"
+        await plantillas_wa.enviar(telefono, "primer_contacto", [nombre or "vecino", prod], remitente="valentina")
+        return
 
     from channels.whatsapp import send_whatsapp_message
     from orchestrator.router import route_message

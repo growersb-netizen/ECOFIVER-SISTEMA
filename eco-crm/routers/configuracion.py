@@ -122,6 +122,22 @@ CONFIG_DEFS: dict = {
         "placeholder": "opcional",
     },
     # ── Meta / Facebook / Instagram ──
+    "wa_plantillas_habilitadas": {
+        "label": "WhatsApp: usar plantillas aprobadas fuera de la ventana de 24 h (si/no)",
+        "categoria": "meta",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "no",
+        "default": "no",
+    },
+    "wa_plantillas_max_dia": {
+        "label": "WhatsApp: máximo de plantillas comerciales por día (tienen costo por mensaje)",
+        "categoria": "meta",
+        "es_secreto": False,
+        "test_id": None,
+        "placeholder": "40",
+        "default": "40",
+    },
     "meta_app_id": {
         "label": "Meta — App ID",
         "categoria": "meta",

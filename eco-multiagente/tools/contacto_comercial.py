@@ -15,6 +15,7 @@ avisos contractuales (cuotas, videollamada agendada por el cliente).
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 from tools import crm_client
 
@@ -23,27 +24,37 @@ logger = logging.getLogger(__name__)
 _stats = {"bloqueados_baja": 0, "bloqueados_sin_confirmar": 0, "bloqueados_horario_o_estado": 0, "permitidos": 0}
 
 
-async def puede_contactar(telefono: str, origen: str = "", agente: str = "valentina") -> bool:
-    """Contacto comercial saliente: agente activo, dentro de horario (o guardia) y sin baja."""
-    from tools.control_agentes import puede_iniciar_saliente
-    permitido, motivo = await puede_iniciar_saliente(agente)
-    if not permitido:
-        _stats["bloqueados_horario_o_estado"] = _stats.get("bloqueados_horario_o_estado", 0) + 1
-        logger.info(f"[Contacto] {origen}: {motivo} → no se envía")
-        return False
-    r = await crm_client.autorizar_saliente(telefono, origen, agente)
+async def modo_contacto(telefono: str, origen: str = "", agente: str = "valentina", plantilla: bool = False,
+                        contractual: bool = False) -> Optional[str]:
+    """'texto' (ventana de 24 h abierta), 'plantilla' (fuera de ella, plantillas habilitadas por el
+    propietario) o None (no se envía). Lo comercial además exige agente activo y horario."""
+    if not contractual:
+        from tools.control_agentes import puede_iniciar_saliente
+        permitido, motivo = await puede_iniciar_saliente(agente)
+        if not permitido:
+            _stats["bloqueados_horario_o_estado"] = _stats.get("bloqueados_horario_o_estado", 0) + 1
+            logger.info(f"[Contacto] {origen}: {motivo} → no se envía")
+            return None
+    r = await crm_client.autorizar_saliente(telefono, origen, agente, con_plantilla=plantilla, contractual=contractual)
     if r is None:
         _stats["bloqueados_sin_confirmar"] += 1
         logger.warning(f"[Contacto] {origen}: no se pudo confirmar con el CRM → no se envía")
-        return False
+        return None
     if not r.get("permitido"):
         motivo = r.get("motivo", "no_autorizado")
         clave = {"baja_comercial": "bloqueados_baja"}.get(motivo, f"bloqueados_{motivo}")
         _stats[clave] = _stats.get(clave, 0) + 1
         logger.info(f"[Contacto] {origen}: {motivo} → no se envía")
-        return False
-    _stats["permitidos"] += 1
-    return True
+        return None
+    modo = r.get("modo", "texto")
+    _stats["permitidos" if modo == "texto" else "plantillas"] = _stats.get(
+        "permitidos" if modo == "texto" else "plantillas", 0) + 1
+    return modo
+
+
+async def puede_contactar(telefono: str, origen: str = "", agente: str = "valentina") -> bool:
+    """Contacto comercial con texto libre: agente activo, horario, sin baja y dentro de la ventana de 24 h."""
+    return await modo_contacto(telefono, origen, agente) == "texto"
 
 
 def stats() -> dict:

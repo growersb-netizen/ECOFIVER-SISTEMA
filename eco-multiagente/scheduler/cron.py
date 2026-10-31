@@ -8,7 +8,8 @@ import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from tools.contacto_comercial import puede_contactar
+from tools.contacto_comercial import modo_contacto, puede_contactar  # noqa: F401
+from tools import plantillas_wa
 import pytz
 
 logger = logging.getLogger(__name__)
@@ -204,6 +205,15 @@ async def tarea_cobros_ignacio():
             cliente_phone = cuota.get("telefono", "")
             mes_cuota = cuota.get("mes", "este mes")
 
+            if dias_vencida <= 7 and cliente_phone:
+                modo = await modo_contacto(cliente_phone, "recordatorio cuota", plantilla=True, contractual=True)
+                if not modo:
+                    continue
+                if modo == "plantilla":
+                    await plantillas_wa.enviar(cliente_phone, "recordatorio_cuota", [cliente_nombre, mes_cuota],
+                                               remitente="ignacio")
+                    continue
+
             if dias_vencida <= 3:
                 # Recordatorio cordial automático
                 mensaje = await get_agent().respond(
@@ -310,7 +320,14 @@ async def tarea_seguimiento_leads_frios():
 
             if not telefono:
                 continue
-            if not await puede_contactar(telefono, "cron seguimiento"):
+            modo = await modo_contacto(telefono, "cron seguimiento", plantilla=True)
+            if not modo:
+                continue
+            if modo == "plantilla":   # fuera de la ventana de 24 h: plantilla aprobada (sin generar texto)
+                if await plantillas_wa.enviar(telefono, "seguimiento", [nombre, producto], remitente="valentina"):
+                    enviados += 1
+                    if lead_id:
+                        await crm_client.incrementar_intentos_seguimiento(lead_id)
                 continue
 
             template = TEMPLATES.get(intento, TEMPLATES[0])
@@ -360,7 +377,11 @@ async def tarea_contacto_leads_nuevos():
             producto = lead.get("producto_interes", "") or "nuestros productos"
             if not telefono:
                 continue
-            if not await puede_contactar(telefono, "cron primer contacto"):
+            modo = await modo_contacto(telefono, "cron primer contacto", plantilla=True)
+            if not modo:
+                continue
+            if modo == "plantilla":
+                await plantillas_wa.enviar(telefono, "primer_contacto", [nombre, producto], remitente="valentina")
                 continue
             msg = await get_agent().respond(
                 f"Primer contacto para {nombre} que se interesó en {producto}. "
@@ -398,6 +419,12 @@ async def tarea_recordatorio_videollamadas():
             hora     = vv.get("hora", "en breve")
             if not telefono:
                 continue
+            modo = await modo_contacto(telefono, "recordatorio videollamada", plantilla=True, contractual=True)
+            if not modo:
+                continue
+            if modo == "plantilla":
+                await plantillas_wa.enviar(telefono, "recordatorio_videollamada", [nombre, hora], remitente="recordatorio")
+                continue
             msg = (
                 f"Hola {nombre}! Te recuerdo que en breve tenemos nuestra videollamada "
                 f"a las {hora}. ¿Confirmás que vas a poder estar? "
@@ -430,7 +457,11 @@ async def tarea_nutricion_24h():
             producto = lead.get("producto_interes", "") or "nuestros productos"
             if not telefono:
                 continue
-            if not await puede_contactar(telefono, "cron nutricion 24h"):
+            modo = await modo_contacto(telefono, "cron nutricion 24h", plantilla=True)
+            if not modo:
+                continue
+            if modo == "plantilla":
+                await plantillas_wa.enviar(telefono, "seguimiento", [nombre, producto], remitente="valentina")
                 continue
             msg = await get_agent().respond(
                 f"Mensaje de nutrición (educativo, no de venta) para {nombre} "
@@ -531,7 +562,11 @@ async def tarea_reactivacion_leads_frios():
             producto = lead.get("producto_interes", "") or "nuestros productos"
             if not telefono:
                 continue
-            if not await puede_contactar(telefono, "cron reactivacion"):
+            modo = await modo_contacto(telefono, "cron reactivacion", plantilla=True)
+            if not modo:
+                continue
+            if modo == "plantilla":
+                await plantillas_wa.enviar(telefono, "reactivacion", [nombre, producto], remitente="valentina")
                 continue
             msg = await get_agent().respond(
                 f"Mensaje de reactivación estacional para {nombre} que consultó "

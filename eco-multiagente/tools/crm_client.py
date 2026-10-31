@@ -927,13 +927,15 @@ async def consultar_baja(telefono: str) -> Optional[bool]:
         return None
 
 
-async def autorizar_saliente(telefono: str, origen: str = "", agente: str = "") -> Optional[dict]:
+async def autorizar_saliente(telefono: str, origen: str = "", agente: str = "", con_plantilla: bool = False,
+                             contractual: bool = False) -> Optional[dict]:
     """Autorización del CRM para un contacto que inicia el sistema (baja, ventana 24 h, deduplicación).
     None si el CRM no respondió (no se envía)."""
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             r = await client.post(f"{CRM_BASE_URL}/api/contactos/saliente/autorizar", headers=HEADERS,
-                                  json={"telefono": telefono, "origen": origen[:80], "agente": agente})
+                                  json={"telefono": telefono, "origen": origen[:80], "agente": agente,
+                                        "con_plantilla": con_plantilla, "contractual": contractual})
             r.raise_for_status()
             record_ok("autorizar_saliente")
             return r.json()

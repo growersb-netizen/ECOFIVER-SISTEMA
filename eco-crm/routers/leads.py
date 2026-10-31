@@ -29,6 +29,15 @@ templates = Jinja2Templates(directory="templates")
 API_KEY = os.getenv("API_KEY", "")
 
 
+def _require_gestion_lead(lead: Lead, user: Usuario):
+    """El equipo de supervisión y el responsable pueden gestionar el lead."""
+    roles = get_user_roles(user)
+    if ("ADMIN" in roles or "SUPERVISOR_CIERRE" in roles or
+            user.id in (lead.asesor_apertura_id, lead.supervisor_cierre_id)):
+        return
+    raise HTTPException(403, "El lead no está asignado a este usuario")
+
+
 # ─── ROUND-ROBIN ASSIGNMENT ───────────────────────────────────────────────────
 
 def _get_rr_pool_ids(db: Session) -> Optional[set]:
@@ -304,6 +313,7 @@ async def registrar_contacto(
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead no encontrado")
+    _require_gestion_lead(lead, current_user)
 
     data = await request.json()
     resultado = data.get("resultado", "NO_CONTESTO")
@@ -314,8 +324,8 @@ async def registrar_contacto(
         "NO_CONTESTO":   "INTENTADO",
         "INTERESADO":    "CONTACTADO",
         "AGENDA_VL":     "VIDEOLLAMADA_AGENDADA",
-        "NO_INTERESA":   "PERDIDO",
-        "CERRO_VENTA":   "CERRADO",
+        "NO_INTERESA":   "CERRADO_PERDIDO",
+        "CERRO_VENTA":   "CERRADO_GANADO",
     }
     nuevo_estado = estado_map.get(resultado)
     if nuevo_estado:
@@ -1236,6 +1246,7 @@ async def get_lead(
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead no encontrado")
+    _require_gestion_lead(lead, current_user)
     return lead_to_dict(lead, db)
 
 
@@ -1249,6 +1260,7 @@ async def update_lead(
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead no encontrado")
+    _require_gestion_lead(lead, current_user)
 
     data = await request.json()
     old_estado = lead.estado
@@ -1304,6 +1316,7 @@ async def update_lead_estado(
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead no encontrado")
+    _require_gestion_lead(lead, current_user)
     data = await request.json()
     old_estado = lead.estado
     lead.estado = data["estado"]
@@ -1411,6 +1424,7 @@ async def get_interacciones(
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead no encontrado")
+    _require_gestion_lead(lead, current_user)
     items = db.query(Interaccion).filter(
         Interaccion.lead_id == lead_id
     ).order_by(Interaccion.created_at.asc()).all()
@@ -1443,6 +1457,7 @@ async def create_interaccion(
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead no encontrado")
+    _require_gestion_lead(lead, current_user)
 
     data = await request.json()
     tipo = data.get("tipo", "NOTA").upper()

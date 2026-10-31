@@ -443,6 +443,17 @@ async def get_leads_frios_para_reactivar(dias_inactivo: int = 30) -> list:
         return []
 
 
+async def obtener_datos_lead_meta(leadgen_id: str, page_id: str) -> dict:
+    """El CRM resuelve el token específico de página; no circula hacia agentes."""
+    async with httpx.AsyncClient(timeout=40) as client:
+        response = await client.get(
+            f"{CRM_BASE_URL}/api/leads/meta-datos/{leadgen_id}",
+            headers=HEADERS, params={"page_id": page_id},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
 async def registrar_lead_meta(data: dict) -> dict:
     """
     Registra un lead proveniente de Meta Lead Ads o Instagram DM.
@@ -459,16 +470,10 @@ async def registrar_lead_meta(data: dict) -> dict:
             return r.json()
     except Exception as e:
         logger.warning(f"[CRM] registrar_lead_meta falló: {e}")
-        # Fallback: crear como lead normal
-        return await create_lead({
-            "session_id":      data.get("meta_lead_id", data.get("telefono", "meta_unknown")),
-            "canal_origen":    data.get("canal_origen", "meta_ads"),
-            "agente_asignado": "valentina",
-            "estado":          "nuevo",
-            "nombre":          data.get("nombre", ""),
-            "telefono":        data.get("telefono", ""),
-            "email":           data.get("email", ""),
-        })
+        # No degradar un formulario a un lead genérico: perdería atribución
+        # y podría duplicarse después de un timeout con registro ya confirmado.
+        raise
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════

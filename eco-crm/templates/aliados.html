@@ -6,6 +6,10 @@
 <button class="btn btn-primary" onclick="openModal('modal-nuevo-aliado')">+ Nuevo aliado</button>
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/reparto-meta.css?v=20261031">
+{% endblock %}
+
 {% block content %}
 <style>
   .al-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
@@ -51,6 +55,7 @@
   <button class="al-tab" onclick="alTab('paquetes',this)">📦 Paquetes</button>
   <button class="al-tab" onclick="alTab('operacion',this)">🔧 Operación de Socios</button>
   <button class="al-tab" onclick="alTab('organizaciones',this)">🏢 Organizaciones</button>
+  {% if "ADMIN" in roles %}<button class="al-tab" onclick="alTab('reparto',this)">🎯 Reparto de leads</button>{% endif %}
   <button class="al-tab" onclick="alTab('stock',this)">🏊 Stock</button>
   <button class="al-tab" onclick="alTab('calendario',this)">📅 Calendario</button>
 </div>
@@ -82,6 +87,10 @@
     <div id="sc-lista"><div class="al-empty">Ingresá un nombre para buscar.</div></div>
   </div>
 </div>
+
+{% if "ADMIN" in roles %}
+<div id="pane-reparto" class="al-pane"><div id="reparto-admin-contenido"></div></div>
+{% endif %}
 
 <!-- ═══ RANKING ═══ -->
 <div id="pane-ranking" class="al-pane">
@@ -571,7 +580,15 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="/static/js/reparto-meta.js?v=20261031"></script>
 <script>
+let repartoAdminUI = null;
+function cargarRepartoAdmin(){
+  const container = document.getElementById("reparto-admin-contenido");
+  if(!container) return;
+  if(!repartoAdminUI) repartoAdminUI = RepartoMetaUI.mount(container);
+  repartoAdminUI.load().catch(()=>{});
+}
 const AL = { get:(u)=>fetch(u,{credentials:'same-origin'}).then(r=>r.json()),
   send:(u,m,b)=>fetch(u,{method:m,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}) };
 function esc(s){return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/'/g,"\\'");}
@@ -585,6 +602,7 @@ function alTab(name,btn){
   if(name==='paquetes') cargarPaquetes();
   if(name==='operacion') cargarOperacionSocios();
   if(name==='organizaciones') adminCargarOrganizaciones();
+  if(name==='reparto') cargarRepartoAdmin();
   if(name==='stock') adminCargarStock();
   if(name==='calendario') cargarCalendario();
 }

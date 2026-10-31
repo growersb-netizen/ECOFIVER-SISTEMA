@@ -7,6 +7,9 @@ import re
 import time
 import os
 import asyncio
+import hashlib
+import hmac
+import json
 from typing import Optional, List, Tuple
 
 import httpx
@@ -26,6 +29,9 @@ from routers.ecopost import META_GRAPH_URL
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 log = logging.getLogger(__name__)
+
+# Mantener captación de formularios junto con comentarios y mensajes.
+FB_SUBSCRIBED_FIELDS = "feed,messages,message_reactions,leadgen"
 
 
 def _check_access(user: Usuario, db: Session):
@@ -975,11 +981,11 @@ async def facebook_webhook_verify(
 
     verify_token = get_config_value("facebook_webhook_verify_token", db) or os.getenv("FB_WEBHOOK_VERIFY_TOKEN", "")
 
-    if mode == "subscribe" and token == verify_token:
+    if mode == "subscribe" and verify_token and token == verify_token:
         log.info("[FB-WEBHOOK] Verificación exitosa")
         return PlainTextResponse(challenge)
     else:
-        log.warning(f"[FB-WEBHOOK] Verificación fallida — token recibido: {token!r}")
+        log.warning("[FB-WEBHOOK] Verificación fallida")
         raise HTTPException(403, "Token inválido")
 
 
@@ -989,18 +995,52 @@ async def facebook_webhook_receive(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """
-    Recibe eventos del webhook de Facebook (POST).
-    Procesa comentarios y mensajes en background.
-    Siempre responde 200 a Facebook inmediatamente.
-    """
+    """Confirma Lead Ads solamente después de persistirlos en el CRM."""
+    body_bytes = await request.body()
     try:
-        body = await request.json()
-    except Exception:
-        return {"ok": True}
+        body = json.loads(body_bytes)
+        if not isinstance(body, dict):
+            raise ValueError("Se esperaba objeto")
+    except (ValueError, TypeError):
+        raise HTTPException(400, "JSON inválido")
 
     if body.get("object") != "page":
         return {"ok": True}
+
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    app_secret = get_config_value("meta_app_secret", db) or os.getenv("META_APP_SECRET", "")
+    # Todo evento autenticado se valida ANTES de ejecutar acciones sociales.
+    if not app_secret:
+        raise HTTPException(503, "Falta configurar META_APP_SECRET")
+    expected = "sha256=" + hmac.new(app_secret.encode(), body_bytes, hashlib.sha256).hexdigest()
+    if not signature or not hmac.compare_digest(signature, expected):
+        raise HTTPException(403, "Firma inválida")
+
+    # El reenvío vuelve a llamar al CRM: devolver la conexión al pool
+    # antes de esperar la red evita agotar el pool con callbacks concurrentes.
+    if db is not None:
+        db.close()
+
+    has_leads = any(change.get("field") == "leadgen"
+                    for entry in body.get("entry", [])
+                    for change in entry.get("changes", []))
+    if has_leads:
+        ma_url = os.getenv(
+            "MULTIAGENTE_WEBHOOK_URL",
+            "https://eco-multiagente-production.up.railway.app/webhook/meta",
+        )
+        try:
+            async with httpx.AsyncClient(timeout=45) as hc:
+                response = await hc.post(
+                    ma_url, content=body_bytes,
+                    headers={"Content-Type": "application/json",
+                             "X-Hub-Signature-256": signature,
+                             "X-Ecofiver-Lead-Only": "1"},
+                )
+                response.raise_for_status()
+        except httpx.HTTPError:
+            log.warning("[FB-WEBHOOK] Lead Ads no confirmado por multiagente; se permite reintento Meta")
+            raise HTTPException(503, "Ingreso de Lead Ads pendiente; reintentar")
 
     async def _bg():
         _db = SessionLocal()
@@ -1012,24 +1052,6 @@ async def facebook_webhook_receive(
                     log.error(f"[FB-WEBHOOK] Error procesando entry: {e}")
         finally:
             _db.close()
-
-        # Reenviar solo eventos leadgen al multiagente (Lead Ads → WhatsApp automático)
-        leadgen_entries = []
-        for entry in body.get("entry", []):
-            lg_changes = [c for c in entry.get("changes", []) if c.get("field") == "leadgen"]
-            if lg_changes:
-                leadgen_entries.append({**entry, "changes": lg_changes})
-        if leadgen_entries:
-            _ma_url = os.getenv(
-                "MULTIAGENTE_WEBHOOK_URL",
-                "https://eco-multiagente-production.up.railway.app/webhook/meta",
-            )
-            try:
-                async with httpx.AsyncClient(timeout=10) as hc:
-                    await hc.post(_ma_url, json={**body, "entry": leadgen_entries})
-                log.info(f"[FB-WEBHOOK] {len(leadgen_entries)} leadgen(s) enviados al multiagente")
-            except Exception as e:
-                log.warning(f"[FB-WEBHOOK] Forward leadgen a multiagente falló: {e}")
 
     background_tasks.add_task(_bg)
     return {"ok": True}
@@ -1508,7 +1530,7 @@ async def api_redes_subscribe_webhook(
     db: Session = Depends(get_db),
 ):
     """
-    Suscribe la página a los eventos de webhook (feed + messages).
+    Suscribe comentarios, mensajes y formularios de clientes potenciales.
     Requiere que el page_token tenga permisos pages_manage_engagement y pages_messaging.
     """
     _check_access(user, db)
@@ -1528,7 +1550,7 @@ async def api_redes_subscribe_webhook(
             f"{META_GRAPH_URL}/{page_id}/subscribed_apps",
             params={
                 "access_token": token_a_usar,
-                "subscribed_fields": "feed,messages,message_reactions",
+                "subscribed_fields": FB_SUBSCRIBED_FIELDS,
             },
         )
         resultados["subscribed_apps"] = r.json()
@@ -1558,7 +1580,7 @@ async def api_redes_audit_refresh_subscribe(
     2. Para cada page_id en la lista (o para todos en la DB), extrae el page_token
        via GET /{page_id}?fields=access_token usando el user_token
     3. Actualiza el page_token en la DB
-    4. Llama a POST /{page_id}/subscribed_apps?subscribed_fields=feed,messages,message_reactions
+    4. Llama a POST /{page_id}/subscribed_apps?subscribed_fields=feed,messages,message_reactions,leadgen
     5. Devuelve el resultado
 
     Body JSON: { "user_token": "...", "page_ids": ["id1", "id2"] }
@@ -1643,7 +1665,7 @@ async def api_redes_audit_refresh_subscribe(
                 f"{META_GRAPH_URL}/{pid}/subscribed_apps",
                 params={
                     "access_token": page_token,
-                    "subscribed_fields": "feed,messages,message_reactions",
+                    "subscribed_fields": FB_SUBSCRIBED_FIELDS,
                 },
             )
             resultado_pg["subscribed_apps"] = r_sub.json()
@@ -1684,7 +1706,7 @@ async def api_redes_admin_subscribe_all(
             token_a_usar = pg.page_token
             r = await hc.post(
                 f"{META_GRAPH_URL}/{pg.page_id}/subscribed_apps",
-                params={"access_token": token_a_usar, "subscribed_fields": "feed,messages,message_reactions"},
+                params={"access_token": token_a_usar, "subscribed_fields": FB_SUBSCRIBED_FIELDS},
             )
             body = r.json()
             ok = body.get("success", False)
@@ -1693,7 +1715,7 @@ async def api_redes_admin_subscribe_all(
             if not ok and body.get("error", {}).get("code") == 200 and global_token and global_token != token_a_usar:
                 r2 = await hc.post(
                     f"{META_GRAPH_URL}/{pg.page_id}/subscribed_apps",
-                    params={"access_token": global_token, "subscribed_fields": "feed,messages,message_reactions"},
+                    params={"access_token": global_token, "subscribed_fields": FB_SUBSCRIBED_FIELDS},
                 )
                 body2 = r2.json()
                 if body2.get("success"):
@@ -1760,7 +1782,7 @@ async def api_redes_admin_subscribe_via_system_token(
                 "access_token": admin_token,
                 "appsecret_proof": appsecret_proof,
                 "system_user_id": META_SYSTEM_USER_ID,
-                "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_engagement",
+                "scope": "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_engagement,leads_retrieval",
             },
         )
         if r_st.status_code != 200 or "access_token" not in r_st.json():
@@ -1808,7 +1830,7 @@ async def api_redes_admin_subscribe_via_system_token(
             pg.page_token = page_token
             r_sub = await hc.post(
                 f"{META_GRAPH_URL}/{pid}/subscribed_apps",
-                params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                params={"access_token": page_token, "subscribed_fields": FB_SUBSCRIBED_FIELDS},
             )
             body = r_sub.json()
             ok = body.get("success", False)
@@ -1906,7 +1928,7 @@ async def api_redes_admin_sync_pages(
                 pg.page_token = page_token
                 r_sub = await hc.post(
                     f"{META_GRAPH_URL}/{pid}/subscribed_apps",
-                    params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                    params={"access_token": page_token, "subscribed_fields": FB_SUBSCRIBED_FIELDS},
                 )
                 if r_sub.json().get("success"):
                     pg.webhook_subscribed = True
@@ -1928,7 +1950,7 @@ async def api_redes_admin_sync_pages(
                     continue
                 r_sub = await hc.post(
                     f"{META_GRAPH_URL}/{pg.page_id}/subscribed_apps",
-                    params={"access_token": pg.page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                    params={"access_token": pg.page_token, "subscribed_fields": FB_SUBSCRIBED_FIELDS},
                 )
                 if r_sub.json().get("success"):
                     pg.webhook_subscribed = True
@@ -2000,7 +2022,7 @@ async def api_redes_admin_subscribe_via_token_get(
             # Suscribir webhook
             r_sub = await hc.post(
                 f"{META_GRAPH_URL}/{pid}/subscribed_apps",
-                params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                params={"access_token": page_token, "subscribed_fields": FB_SUBSCRIBED_FIELDS},
             )
             body_sub = r_sub.json()
             ok_sub = body_sub.get("success", False)
@@ -2717,7 +2739,7 @@ async def api_redes_save_user_token(
 
 FB_OAUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth"
 FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
-FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_posts,pages_read_user_content,pages_manage_engagement,business_management"
+FB_SCOPES = "pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list,pages_manage_posts,pages_read_user_content,pages_manage_engagement,business_management,leads_retrieval"
 
 
 def _get_base_url(db: Session) -> str:
@@ -3464,7 +3486,7 @@ async def api_redes_fb_oauth_token(
 
             r_sub = await hc.post(
                 f"{META_GRAPH_URL}/{pid}/subscribed_apps",
-                params={"access_token": page_token, "subscribed_fields": "feed,messages,message_reactions"},
+                params={"access_token": page_token, "subscribed_fields": FB_SUBSCRIBED_FIELDS},
             )
             sub_data = r_sub.json()
             pg.webhook_subscribed = bool(sub_data.get("success"))

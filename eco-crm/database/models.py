@@ -1,3 +1,4 @@
+from sqlalchemy import false as sql_false
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, Text, ForeignKey, Enum, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -1826,3 +1827,46 @@ class RespuestaAutoML(Base):
     respuesta_texto = Column(Text, nullable=False)                    # Lo que se respondió
     respondida_por  = Column(String(20), default="auto")             # "auto" | "manual"
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MetaLeadCampana(Base):
+    """Formulario real de Meta y su producto para reparto comercial explícito."""
+    __tablename__ = "meta_lead_campanas"
+    form_id = Column(String(50), primary_key=True)
+    page_id = Column(String(50), nullable=False)
+    nombre = Column(String(150), nullable=False)
+    producto = Column(String(20), nullable=False)  # MODULO | PISCINA
+    activa = Column(Boolean, nullable=False, default=False, server_default=sql_false())
+    actualizado_por = Column(String(150), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MetaLeadDestino(Base):
+    """Participación voluntaria por producto; una cuenta nunca entra por defecto."""
+    __tablename__ = "meta_lead_destinos"
+    clave = Column(String(60), primary_key=True)  # aliado:AL-010 | asesor:3
+    habilitado = Column(Boolean, nullable=False, default=False, server_default=sql_false())
+    modulos = Column(Boolean, nullable=False, default=False, server_default=sql_false())
+    piscinas = Column(Boolean, nullable=False, default=False, server_default=sql_false())
+    actualizado_por = Column(String(150), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MetaLeadOrganizacion(Base):
+    """Pausa de una campaña para todos los vendedores de una organización."""
+    __tablename__ = "meta_lead_organizaciones"
+    form_id = Column(String(50), ForeignKey("meta_lead_campanas.form_id"), primary_key=True)
+    organizacion_codigo = Column(String(20), ForeignKey("aliados.codigo"), primary_key=True)
+    habilitada = Column(Boolean, nullable=False, default=False, server_default=sql_false())
+    actualizado_por = Column(String(150), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MetaLeadRecepcion(Base):
+    """Evento de formulario durable, incluido cuando falta un destinatario elegible."""
+    __tablename__ = "meta_lead_recepciones"
+    meta_lead_id = Column(String(100), primary_key=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    form_id = Column(String(50), nullable=False, default="", index=True)
+    datos_json = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

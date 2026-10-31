@@ -1,17 +1,24 @@
 # ECOFIVER AI COMPANY: MASTER PLAN
 
 > Documento vivo. Se actualiza después de cada entrega importante. Permite retomar el trabajo en otra sesión sin perder contexto.
-> Última actualización: 31/10/2026 (noche). Fases 1 a 6 PROBADAS; Fase 7 preparada; Fase 8 en `docs/ai-company/DESPLIEGUE_Y_VALIDACION.md`.
+> Última actualización: 31/10/2026, 17:15. **PRs #10 y #11 fusionados a `main` y DESPLEGADOS en producción** con autorización del propietario (sin backup previo, por su decisión).
+>
+> **Verificación en producción** (solo lecturas, sin tocar datos ni clientes):
+> - CRM y multiagente sanos; migraciones 0039–0045 aplicadas, porque el CRM arrancó con las rutas nuevas.
+> - Motor activo (`/health/motor`: 0 ejecutadas, 0 fallidas).
+> - Lo protegido rechaza a quien no tiene sesión o clave: la API responde 401 y las páginas redirigen al login.
+>
+> **Para pasar a VERIFICADA EN PRODUCCIÓN falta la prueba funcional con sesión de administrador** (§5 de `docs/ai-company/DESPLIEGUE_Y_VALIDACION.md`).
 
 ## 0. Cómo leer este documento
 Cada funcionalidad se clasifica en uno de estos niveles: **NO IMPLEMENTADA · IMPLEMENTADA · PROBADA · DESPLEGADA · VERIFICADA EN PRODUCCIÓN**. Nada pasa a DESPLEGADA sin la aprobación explícita del propietario.
 
-Ramas y PRs (ninguno fusionado):
+Ramas y PRs:
 
 | PR | Rama | Base | Contenido |
 |---|---|---|---|
-| #10 | `ccr-b6d2e636-iqq5ux-integracion-fase-0-5` | `main` | Fase 0.5: seguridad, autenticación y reparto Meta (incluye los PRs #7 y #9) |
-| #11 | `ccr-b6d2e636-iqq5ux-fase-1-motor` | rama del PR #10 | Fases 1 a 6 (motor, control, circuito comercial, dirección, profesionalización, oficina virtual) |
+| #10 (**fusionado y desplegado**, `ef047cf`) | `ccr-b6d2e636-iqq5ux-integracion-fase-0-5` | `main` | Fase 0.5: seguridad, autenticación y reparto Meta (incluye los PRs #7 y #9) |
+| #11 (**fusionado y desplegado**, `78be32e`) | `ccr-b6d2e636-iqq5ux-fase-1-motor` | `main` | Fases 1 a 6 (motor, control, circuito comercial, dirección, profesionalización, oficina virtual) |
 
 ## 1. Estado inicial (31/10/2026)
 - **Producción:** CRM (FastAPI + PostgreSQL, Railway), multiagente (FastAPI, Railway), Worker de Cloudflare, MCP de contratos y web en Vercel (`eco-modulos-web`).
@@ -150,7 +157,7 @@ Orden, migraciones, variables (solo nombres), verificación y reversión: `docs/
 | K | Flete bonificado y pérgola de regalo en financiadas (Valentina, Nicolás): ¿vigentes? | Confirmar |
 | L | Correr las 14 evaluaciones contra el modelo real (costo bajo, pero pago) | Aprobación |
 | M | Cargar `AGENTES_IA_API_KEY` propia para la IA (identidad no cooperativa) | Recomendado antes de desplegar |
-| N | Aprobar el despliegue: PR #10 → verificación → PR #11 → verificación | Aprobación |
+| N | ~~Aprobar el despliegue~~ | **RESUELTA:** desplegado el 31/10 (PR #10 → verificación → PR #11 → verificación) |
 | 1 | Subir las ramas locales de Codex | Acción del propietario |
 | 2 | El backup no cubre PostgreSQL (producción) | Infraestructura |
 | 3 | Repositorios públicos (`ECOFIVER-SISTEMA`, `eco-modulos-web`) | Decisión |
@@ -194,7 +201,7 @@ Orden, migraciones, variables (solo nombres), verificación y reversión: `docs/
 ## 8. Próximas acciones
 1. **Propietario:** decisiones B, C, D, H, J, K, M y N (ver §4). Con B (clave de Google) y C, la cotización automática queda operativa.
 2. **Propietario:** subir las ramas de Codex. Cuando estén, se integran contra el PR #10 (Fase 0).
-3. Después de aprobar: desplegar en dos pasos según `DESPLIEGUE_Y_VALIDACION.md`, con el motor en `off`, verificar y luego encender.
+3. **Propietario:** prueba funcional con sesión ADMIN. Abrí `/oficina-ia` y `/operaciones-ia` y dale una orden inocua a Aurora ("resumí el embudo de la semana"); tiene que terminar COMPLETADO, con evidencia.
 4. Con aprobación: correr las evaluaciones (L) y ajustar los manuales según los resultados.
 5. Plantillas de WhatsApp para seguimientos fuera de la ventana de 24 h.
 

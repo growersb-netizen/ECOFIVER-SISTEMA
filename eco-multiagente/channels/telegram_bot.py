@@ -700,15 +700,16 @@ async def send_to_aliados_wa(text: str) -> bool:
     Usado por las tareas del scheduler (material lunes, caso ganado, ranking).
     El número destino es el propio canal/grupo de aliados en WhatsApp.
     """
-    import os
-    franco_wa = os.getenv("FRANCO_WHATSAPP_NUMBER", "")
-    if not franco_wa:
-        logger.warning("[TG/Aliados] FRANCO_WHATSAPP_NUMBER no configurado — mensaje no enviado")
+    from tools.franco_wa import destino_aliados, enviar_franco
+    destino = destino_aliados()
+    if not destino:
+        # Antes se usaba el mismo valor como emisor y destino (fallaba siempre).
+        # WhatsApp Cloud API no envía a grupos: hace falta un teléfono destino.
+        logger.error("[TG/Aliados] Sin destinatario válido (FRANCO_WHATSAPP_NUMBER debe ser un teléfono "
+                     "distinto del emisor; Cloud API no envía a grupos) — mensaje no enviado")
         return False
     try:
-        from channels.whatsapp import enviar_mensaje_wa
-        ok = await enviar_mensaje_wa(franco_wa, text, phone_id=franco_wa)
-        return ok
+        return await enviar_franco(destino, text)
     except Exception as e:
         logger.error(f"[TG/Aliados] send_to_aliados_wa error: {e}")
         return False

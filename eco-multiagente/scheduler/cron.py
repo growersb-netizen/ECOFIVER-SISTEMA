@@ -630,8 +630,8 @@ async def tarea_franco_onboarding_postulantes():
         from tools.franco_quiz import iniciar_quiz, esta_en_quiz, MENSAJE_BIENVENIDA, PREGUNTAS
         from channels.whatsapp import enviar_mensaje_wa
 
-        FRANCO_WA = os.getenv("FRANCO_WHATSAPP_NUMBER", "")
-        if not FRANCO_WA:
+        from tools.franco_wa import phone_id_franco, enviar_franco
+        if not phone_id_franco():
             return
 
         from tools import crm_client
@@ -664,7 +664,7 @@ async def tarea_franco_onboarding_postulantes():
             primera_pregunta = f"\n*Pregunta 1 de 10:* {PREGUNTAS[0]['texto']}"
 
             try:
-                await enviar_mensaje_wa(telefono, bienvenida + primera_pregunta, phone_id=FRANCO_WA)
+                await enviar_franco(telefono, bienvenida + primera_pregunta)
                 logger.info(f"[CRON] Franco — quiz iniciado para {codigo} ({telefono})")
             except Exception as we:
                 logger.warning(f"[CRON] Franco — WA falló para {telefono}: {we}")
@@ -681,7 +681,8 @@ async def tarea_franco_timeout_postulantes():
         from tools.franco_quiz import postulantes_con_timeout, estado_quiz, limpiar_estado, MENSAJE_TIMEOUT
         from channels.whatsapp import enviar_mensaje_wa
 
-        FRANCO_WA = os.getenv("FRANCO_WHATSAPP_NUMBER", "")
+        from tools.franco_wa import phone_id_franco, enviar_franco
+        FRANCO_WA = phone_id_franco()
         con_timeout = postulantes_con_timeout()
         if not con_timeout:
             return
@@ -708,11 +709,7 @@ async def tarea_franco_timeout_postulantes():
             # Mensaje de cierre amable
             if FRANCO_WA and nombre:
                 try:
-                    await enviar_mensaje_wa(
-                        telefono,
-                        MENSAJE_TIMEOUT.format(nombre=nombre),
-                        phone_id=FRANCO_WA,
-                    )
+                    await enviar_franco(telefono, MENSAJE_TIMEOUT.format(nombre=nombre))
                 except Exception:
                     pass
 
@@ -795,8 +792,8 @@ async def tarea_franco_reenganche_aliados():
         import os
         from tools.crm_aliados import get_aliados_inactivos
 
-        FRANCO_WA_NUMBER = os.getenv("FRANCO_WHATSAPP_NUMBER", "")
-        if not FRANCO_WA_NUMBER:
+        from tools.franco_wa import phone_id_franco, enviar_franco
+        if not phone_id_franco():
             return
 
         inactivos = await get_aliados_inactivos(dias=14)
@@ -817,7 +814,7 @@ async def tarea_franco_reenganche_aliados():
                 f"Nombre: {nombre}. Mandá el mensaje de re-enganche indicado en tu rol.",
             )
             try:
-                await enviar_mensaje_wa(telefono, msg, phone_id=FRANCO_WA_NUMBER)
+                await enviar_franco(telefono, msg)
             except Exception as we:
                 logger.warning(f"[CRON] Franco re-enganche WA falló para {telefono}: {we}")
 
@@ -841,8 +838,8 @@ async def tarea_franco_resumen_mensual():
         if hoy.day > 7 or hoy.weekday() == 6:
             return
 
-        FRANCO_WA_NUMBER = os.getenv("FRANCO_WHATSAPP_NUMBER", "")
-        if not FRANCO_WA_NUMBER:
+        from tools.franco_wa import phone_id_franco, enviar_franco
+        if not phone_id_franco():
             return
 
         from tools.crm_aliados import get_aliados_activos, get_aliado_ventas, get_aliado_comisiones
@@ -870,7 +867,7 @@ async def tarea_franco_resumen_mensual():
                 "Generá el resumen mensual personalizado según tu rol.",
             )
             try:
-                await enviar_mensaje_wa(telefono, msg, phone_id=FRANCO_WA_NUMBER)
+                await enviar_franco(telefono, msg)
             except Exception as we:
                 logger.warning(f"[CRON] Franco resumen mensual WA falló para {telefono}: {we}")
 

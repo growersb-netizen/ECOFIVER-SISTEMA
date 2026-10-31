@@ -31,11 +31,11 @@ Estado: **implementado y probado localmente** (122 tests del multiagente). No de
 | ventas | openai/gpt-4o-mini | google/gemini-2.5-flash | 0.6 | 600 |
 | postventa | openai/gpt-4o-mini | google/gemini-2.5-flash | 0.4 | 700 |
 | socios | openai/gpt-4o-mini | google/gemini-2.5-flash | 0.6 | 700 |
-| direccion | anthropic/claude-sonnet-4 | gemini-2.5-flash, gpt-4o-mini | 0.3 | 1500 |
+| direccion | anthropic/claude-sonnet-4.5 | gemini-2.5-flash, gpt-4o-mini | 0.3 | 1500 |
 | analisis | google/gemini-2.5-flash | openai/gpt-4o-mini | 0.3 | 1200 |
 | contenido | google/gemini-2.5-flash | openai/gpt-4o-mini | 0.8 | 1200 |
-| reputacion | anthropic/claude-sonnet-4 | openai/gpt-4o-mini | 0.3 | 800 |
-| audio | google/gemini-2.5-flash | google/gemini-2.0-flash-001 | 0 | 1000 |
+| reputacion | anthropic/claude-sonnet-4.5 | openai/gpt-4o-mini | 0.3 | 800 |
+| audio | google/gemini-2.5-flash | google/gemini-2.5-flash-lite | 0 | 1000 |
 | vision | openai/gpt-4o-mini | google/gemini-2.5-flash | 0 | 800 |
 
 Ajuste fino sin cambiar código (se aplica encima del perfil activo):

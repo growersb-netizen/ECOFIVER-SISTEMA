@@ -24,6 +24,14 @@ WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN", "eco_modules_verify_2026")
 WA_PHONE_ID_AGENTES = os.getenv("WA_PHONE_ID_AGENTES", "")   # 1168733406
 WA_PHONE_ID_MELANIE = os.getenv("WA_PHONE_ID_MELANIE", "")   # 1126036495
 
+# ── Notas de voz ──────────────────────────────────────────────────────────────
+MARCA_NOTA_DE_VOZ = "🎤 [Nota de voz — transcripción automática]"
+NOTA_DE_VOZ_NO_TRANSCRIPTA = "🎤 [Nota de voz — no se pudo transcribir]"
+RESPUESTA_AUDIO_FALLIDO = (
+    "Recibí tu mensaje de voz 🎙️, pero no pude entenderlo bien. "
+    "¿Me lo podés escribir? Así te respondo enseguida. 🙏"
+)
+
 # ── Número admin de Rodrigo — canal privado con Máximo ───────────────────────
 ADMIN_WA_PHONES: set[str] = {"5491135164644"}
 
@@ -219,6 +227,7 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
     wa_msg_id = None
     textos: list[str] = []
     tiene_audio = False
+    audio_fallido = False
 
     for item in batch:
         msg_type = item["msg_type"]
@@ -234,18 +243,27 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
             if t and not any(t.startswith(p) for p in (
                 "(Audio recibido", "(Audio vacio", "(sin metodo", "(inaudible"
             )):
-                textos.append(t)
+                # El agente debe saber que es una transcripción automática (puede tener errores)
+                textos.append(f"{MARCA_NOTA_DE_VOZ} {t}")
                 tiene_audio = True
+            else:
+                audio_fallido = True
+                logger.warning(f"[WA] Nota de voz de {phone_number} sin transcripción válida: {str(t)[:120]!r}")
 
         elif msg_type == "image":
             cap = message["image"].get("caption", "")
             textos.append(f"[IMAGEN] {cap}" if cap else "[IMAGEN RECIBIDA]")
 
     if not textos:
-        return
+        if not audio_fallido:
+            return
+        # Antes: si la única nota de voz no se podía transcribir, no se respondía nada.
+        # Ahora sigue el flujo normal (línea supervisada, Melanie, modo humano) y, si
+        # corresponde responder, se pide al usuario que lo escriba.
+        textos = [NOTA_DE_VOZ_NO_TRANSCRIPTA]
 
     texto      = "\n".join(textos)
-    tipo_final = "audio_transcripto" if tiene_audio else "text"
+    tipo_final = "audio_transcripto" if tiene_audio else ("audio_fallido" if audio_fallido and texto == NOTA_DE_VOZ_NO_TRANSCRIPTA else "text")
 
     # Determinar qué número de negocio recibió el mensaje (para responder desde el mismo)
     incoming_phone_id = batch[0].get("phone_number_id", "") if batch else ""
@@ -300,6 +318,13 @@ async def _process_batch(phone_number: str, batch: list[dict]) -> None:
         # Melanie: la IA de Meta atiende ese número; registramos en inbox + integraciones
         if canal_base == "whatsapp_melanie":
             await _melanie_registrar_lead(phone_number, texto, nombre_contacto)
+            return
+
+        if tipo_final == "audio_fallido":
+            await enviar_mensaje_wa(
+                phone_number, RESPUESTA_AUDIO_FALLIDO,
+                phone_id=send_phone_id, remitente="sistema",
+            )
             return
 
         result = await route_message(canal, phone_number, texto, tipo_final)

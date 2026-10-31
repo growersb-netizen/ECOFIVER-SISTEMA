@@ -867,3 +867,42 @@ async def crear_contrato(payload: dict) -> dict:
     except Exception as e:
         logger.warning(f"[CRM] crear_contrato falló: {e}")
         return {"error": str(e)}
+
+
+# ─── Bajas de comunicaciones comerciales ─────────────────────────────────────
+
+async def registrar_baja(session_id: str, telefono: str = "", canal: str = "", texto: str = "") -> dict:
+    """Registra en el CRM que el contacto pidió no recibir más mensajes comerciales.
+    {} si el CRM no respondió (la baja NO quedó registrada)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.post(
+                f"{CRM_BASE_URL}/api/contactos/baja",
+                headers=HEADERS,
+                json={"session_id": session_id, "telefono": telefono, "canal": canal, "texto": texto[:300]},
+            )
+            r.raise_for_status()
+            record_ok("registrar_baja")
+            return r.json()
+    except Exception as e:
+        logger.error(f"[CRM] registrar_baja falló: {e}")
+        _record_fail_ex("registrar_baja", e)
+        return {}
+
+
+async def consultar_baja(telefono: str) -> Optional[bool]:
+    """True/False según el CRM; None si no se pudo consultar."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(
+                f"{CRM_BASE_URL}/api/contactos/baja",
+                headers=HEADERS,
+                params={"telefono": telefono},
+            )
+            r.raise_for_status()
+            record_ok("consultar_baja")
+            return bool(r.json().get("excluido"))
+    except Exception as e:
+        logger.warning(f"[CRM] consultar_baja falló: {e}")
+        _record_fail_ex("consultar_baja", e)
+        return None

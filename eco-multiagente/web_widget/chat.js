@@ -13,20 +13,30 @@
   const WELCOME_MSG =
     "¡Hola! ¿Cómo estás? 😊\nContame, ¿estás buscando una piscina o un módulo?";
 
-  // ── Genera session_id único por visita (UUID v4) ───────────────
-  function generateUUID() {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-      const r = (Math.random() * 16) | 0;
-      const v = c === "x" ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
+  // ── Sesión emitida y firmada por el servidor ──────────────────
+  // El id ya no lo inventa el navegador: el servidor lo emite junto con una firma
+  // (POST /chat/web/sesion) y /chat/web rechaza cualquier id sin su firma.
+  const SESSION_URL = API_URL.replace(/\/$/, "") + "/sesion";
+  const SESSION_KEY = "eco_chat_sesion_v2";
+  let session = null;
+  try { session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null"); } catch (e) { session = null; }
+
+  async function obtenerSesion(renovar) {
+    if (session && !renovar) return session;
+    const res = await fetch(SESSION_URL, { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    session = await res.json();
+    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* modo privado */ }
+    return session;
   }
 
-  const SESSION_KEY = "eco_chat_session_id";
-  let sessionId = sessionStorage.getItem(SESSION_KEY);
-  if (!sessionId) {
-    sessionId = generateUUID();
-    sessionStorage.setItem(SESSION_KEY, sessionId);
+  async function postMensaje(text, renovar) {
+    const s = await obtenerSesion(renovar);
+    return fetch(API_URL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ session_id: s.session_id, session_token: s.session_token, message: text }),
+    });
   }
 
   let isOpen        = false;
@@ -155,11 +165,8 @@
     showTyping();
 
     try {
-      const res = await fetch(API_URL, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ session_id: sessionId, message: text }),
-      });
+      let res = await postMensaje(text, false);
+      if (res.status === 401) res = await postMensaje(text, true);  // sesión vencida (p. ej. reinicio)
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

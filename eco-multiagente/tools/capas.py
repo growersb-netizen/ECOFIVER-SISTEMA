@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 import time
 import unicodedata
+from functools import lru_cache
+from pathlib import Path
 
 import httpx
 
@@ -61,13 +63,31 @@ async def capa_2(agente: str) -> str:
     return texto
 
 
+MANUALES_DIR = Path(__file__).resolve().parent.parent / "agents" / "manuales"
+
+
+@lru_cache(maxsize=32)
+def manual(agente: str) -> str:
+    """Manual profesional del puesto (agents/manuales/<agente>.md). Vacío si no existe."""
+    if not agente or not agente.isalpha():
+        return ""
+    f = MANUALES_DIR / f"{agente}.md"
+    try:
+        return f.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 async def componer(nombre_agente: str, prompt_puesto: str) -> str:
     agente = clave_agente(nombre_agente)
     if agente == "valentin":
         return prompt_puesto
-    partes = [CAPA_1, await capa_2(agente), "[CAPA 3 — TU PUESTO, PRODUCTO Y PROCEDIMIENTOS]\n" + prompt_puesto]
+    m = manual(agente)
+    puesto = prompt_puesto + ("\n\n" + m if m else "")
+    partes = [CAPA_1, await capa_2(agente), "[CAPA 3 — TU PUESTO, PRODUCTO Y PROCEDIMIENTOS]\n" + puesto]
     return "\n\n".join(p for p in partes if p)
 
 
 def _reset_para_tests() -> None:
     _cache.clear()
+    manual.cache_clear()

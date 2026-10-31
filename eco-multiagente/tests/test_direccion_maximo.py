@@ -25,7 +25,7 @@ async def test_capas_con_precedencia_y_politicas_activas():
     with patch.object(capas.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw)):
         texto = await capas.componer("Camila", "Sos Camila...")
     i1, i2, i3 = texto.index("[CAPA 1"), texto.index("[CAPA 2"), texto.index("[CAPA 3")
-    assert i1 < i2 < i3 and "Venta consultiva (v2)" in texto and texto.endswith("Sos Camila...")
+    assert i1 < i2 < i3 and "Venta consultiva (v2)" in texto and "Sos Camila..." in texto[i3:]
 
 
 @pytest.mark.asyncio

@@ -95,6 +95,8 @@ async def _obtener_datos_lead(leadgen_id: str, page_id: str = "") -> dict:
     import re
     import unicodedata
     resultado = {"meta_lead_id": leadgen_id}
+    if page_id:
+        resultado["page_id"] = page_id
     campo_map = {
         "full_name":    "nombre",
         "first_name":   "nombre",

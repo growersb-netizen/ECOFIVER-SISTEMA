@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel de Socios · EcoFiver</title>
+<link rel="stylesheet" href="/static/css/reparto-meta.css?v=20261031">
 <style>
   /* ═══════════════════════════════════════════════════
    * ECOFIVER PANEL — DESIGN SYSTEM PREMIUM
@@ -860,6 +861,7 @@
        style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px;color:#9c6fe4;font-weight:700">
       🏢 Mi Organización
     </a>
+    <a class="nav-item hidden" id="nav-reparto" data-section="reparto" onclick="nav('reparto')" style="color:var(--teal);font-weight:700">🎯 Reparto de leads</a>
     <a class="nav-item hidden" id="nav-leads-admin" data-section="leads-admin" onclick="nav('leads-admin')"
        style="color:var(--teal);font-weight:700">
       🎯 Gestión de Leads
@@ -1480,6 +1482,8 @@
       </div>
     </section>
 
+    <section class="section" id="sec-reparto"><div id="reparto-socio-contenido"></div></section>
+
     <!-- DASHBOARD ORGANIZADOR -->
     <section class="section" id="sec-organizador">
       <div class="section-header">
@@ -1893,7 +1897,18 @@
   </main>
 </div>
 
+<script src="/static/js/reparto-meta.js?v=20261031"></script>
 <script>
+let repartoSocioUI = null;
+async function iniciarRepartoSocio(){
+  if(!repartoSocioUI) repartoSocioUI = RepartoMetaUI.mount(document.getElementById('reparto-socio-contenido'));
+  try {
+    const data = await repartoSocioUI.load({silentDenied:true});
+    document.getElementById('nav-reparto').classList.toggle('hidden', !data);
+  } catch(e) {
+    document.getElementById('nav-reparto').classList.add('hidden');
+  }
+}
 const API = '';
 let SOCIO = null;
 let CATALOGO = null;
@@ -2136,6 +2151,7 @@ async function cargarApp(){
   if(SOCIO.tiene_acceso_crm && !SOCIO.es_admin_crm){
     document.getElementById('nav-admin-crm').classList.remove('hidden');
   }
+  iniciarRepartoSocio();
   // Dashboard organizador
   if(SOCIO.es_organizador){
     document.getElementById('nav-organizador').classList.remove('hidden');
@@ -2286,6 +2302,7 @@ function nav(section){
   if(section==='biblioteca') cargarBiblioteca();
   if(section==='leads-admin') recargarTablaLeads();
   if(section==='organizador') orgCargarEstructura();
+  if(section==='reparto' && repartoSocioUI) repartoSocioUI.load().catch(()=>{});
   if(section==='stock') cargarStock();
   if(section==='capacitacion'){ cargarCapacitacionGuias(); cargarQuiz(); }
   if(section==='ayuda') cargarFaq();

@@ -40,7 +40,7 @@ from routers import (
     aliados, ml_publicaciones, negocio, whatsapp_business, cobranza_historica,
     integraciones, redes_sociales, imagenes, ml_biblioteca, socios, organizador,
 )
-from routers import ml_audit, meta_ads
+from routers import ml_audit, meta_ads, reparto_meta
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +84,14 @@ Path("data/ecopost_videos").mkdir(parents=True, exist_ok=True)   # videos Ecopos
 seed_database()
 seed_config_defaults()
 seed_rr_defaults()
+
+# El mapeo inicial de formularios es idempotente también en SQLite.
+from database.database import SessionLocal as _MetaSeedSession
+from utils.meta_ingreso import seed_campanas_meta
+with _MetaSeedSession() as _db_meta_seed:
+    seed_campanas_meta(_db_meta_seed)
+    _db_meta_seed.commit()
+
 
 # Aliados: admin + socios fundadores + activaciones pendientes (idempotente)
 try:
@@ -207,6 +215,7 @@ async def service_worker():
 # Include routers
 app.include_router(auth.router)
 app.include_router(agentes.router)   # antes de leads para que /sin-respuesta no colisione
+app.include_router(reparto_meta.router)
 app.include_router(dashboard.router)
 app.include_router(leads.router)
 app.include_router(videollamadas.router)

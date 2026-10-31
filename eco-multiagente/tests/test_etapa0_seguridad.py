@@ -245,8 +245,9 @@ class TestEndpointsMain:
         assert r.status_code == 401
 
     def test_comando_con_clave_200(self, main_client, admin_pw):
-        r = main_client.post("/api/comando", json={"instruccion": "x"}, headers={"X-Api-Key": admin_pw})
-        assert r.status_code == 200
+        r = main_client.post("/api/comando", json={"instruccion": "x", "contexto": {"tarea_id": 1}},
+                             headers={"X-Api-Key": admin_pw})
+        assert r.status_code == 200 and r.json()["estado"] == "EN_COLA"   # encola, no "ejecutado"
 
     def test_ping_comando_protegido_y_sin_efectos(self, main_client, admin_pw):
         assert main_client.get("/api/comando/ping").status_code == 401

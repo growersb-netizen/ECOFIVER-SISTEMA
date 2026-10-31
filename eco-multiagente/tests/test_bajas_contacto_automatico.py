@@ -27,7 +27,7 @@ def _consulta(tel):
     return {CON_BAJA: True, SIN_BAJA: False}.get(tel)      # otro → None (CRM no confirmó)
 
 
-def _autorizar(tel, origen="", agente=""):
+def _autorizar(tel, origen="", agente="", **_):
     return {CON_BAJA: {"permitido": False, "motivo": "baja_comercial"}, SIN_BAJA: {"permitido": True}}.get(tel)
 
 
@@ -139,7 +139,7 @@ async def test_cada_lead_del_lote_usa_un_agente_sin_historial_de_otro_cliente():
             return "Hola!"
     leads = [{"id": i, "telefono": f"54911000000{i}", "nombre": n, "estado": "NUEVO"} for i, n in enumerate(["Ana", "Beto", "Caro"])]
     with patch.object(crm_client, "get_leads_nuevos_sin_contactar", AsyncMock(return_value=leads)), \
-         patch("scheduler.cron.puede_contactar", AsyncMock(return_value=True)), \
+         patch("scheduler.cron.modo_contacto", AsyncMock(return_value="texto")), \
          patch("channels.whatsapp.send_whatsapp_message", AsyncMock(return_value=True)), \
          patch("agents.valentina.get_agent", side_effect=lambda: Valentina()), \
          patch("asyncio.sleep", AsyncMock()):

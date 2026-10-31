@@ -160,7 +160,8 @@ async def autorizar_contacto_saliente(
     """Antes de cada mensaje que inicia el sistema: baja, ventana de 24 h de WhatsApp y deduplicación."""
     from utils.contacto_saliente import autorizar
     data = await request.json()
-    return autorizar(db, str(data.get("telefono") or ""), str(data.get("origen") or ""), str(data.get("agente") or ""))
+    return autorizar(db, str(data.get("telefono") or ""), str(data.get("origen") or ""), str(data.get("agente") or ""),
+                     con_plantilla=bool(data.get("con_plantilla")), contractual=bool(data.get("contractual")))
 
 
 @router.post("/api/contactos/baja/reactivar")

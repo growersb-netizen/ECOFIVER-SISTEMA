@@ -156,3 +156,18 @@ def test_pagina_operaciones_solo_admin_humano(m):
     assert r.status_code == 200 and "Operaciones IA" in r.text and "esc(" in r.text
     assert c.get("/operaciones-ia", headers=tok(2)).status_code == 403
     assert c.get("/operaciones-ia").status_code == 401
+
+
+def test_oficina_virtual_solo_admin_humano_y_sin_dependencias_externas(m):
+    c, _, tok = m
+    r = c.get("/oficina-ia", headers=tok(1))
+    assert r.status_code == 200 and "/static/js/oficina-ia.js" in r.text and "/operaciones-ia" in r.text
+    assert c.get("/oficina-ia", headers=tok(2)).status_code == 403
+    assert c.get("/oficina-ia").status_code == 401
+    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    js = open(os.path.join(raiz, "static/js/oficina-ia.js"), encoding="utf-8").read()
+    assert "http://" not in js and "https://" not in js                      # motor 3D vendorizado, sin CDN
+    assert "MIT License" in open(os.path.join(raiz, "static/vendor/three/LICENSE"), encoding="utf-8").read()
+    # la escena solo lee endpoints reales del motor; no fabrica estados
+    for url in ("/api/agentes/control", "/api/aprobaciones", "/api/admision/resumen"):
+        assert url in js

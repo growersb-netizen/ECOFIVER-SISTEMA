@@ -33,6 +33,13 @@ def pagina_operaciones(request: Request, user: Usuario = Depends(_humano)):
                                       {"request": request, "user": user, "roles": get_user_roles(user)})
 
 
+@router.get("/oficina-ia", response_class=HTMLResponse)
+def pagina_oficina(request: Request, user: Usuario = Depends(_humano)):
+    """Oficina virtual 3D: misma fuente de datos que /operaciones-ia (estados reales del motor)."""
+    return templates.TemplateResponse(request, "oficina_ia.html",
+                                      {"request": request, "user": user, "roles": get_user_roles(user)})
+
+
 class CambioEstado(BaseModel):
     estado: str
     motivo: str = ""

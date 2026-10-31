@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Oficina IA — EcoFiver{% endblock %}
+{% block page_title %}🏙️ Oficina virtual{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <span id="of-horario" class="op-pill">…</span>
+  <span id="of-conexion" class="op-pill">Conectando…</span>
+  <button onclick="ofVista()" class="btn btn-ghost" style="padding:7px 12px;font-size:13px" title="Vista general">🎥</button>
+  <a href="/operaciones-ia" class="btn btn-ghost" style="padding:7px 12px;font-size:13px">Vista 2D</a>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include "_op_estilos.html" %}
+<style>
+  .of-wrap{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
+  #of-escena{position:relative;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;background:var(--bg-secondary)}
+  #of-lienzo{display:block;width:100%;height:min(72vh,720px);touch-action:none;cursor:grab}
+  #of-lienzo:active{cursor:grabbing}
+  .of-ley{position:absolute;left:10px;bottom:10px;display:flex;gap:10px;flex-wrap:wrap;background:rgba(15,23,42,.72);
+    color:#f8fafc;font-size:11px;padding:6px 10px;border-radius:10px;pointer-events:none}
+  .of-ley span{display:inline-flex;align-items:center;gap:4px}
+  .of-punto{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+  .of-lado{display:flex;flex-direction:column;gap:12px}
+  #of-ficha{border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;background:var(--bg-card);color:var(--text-primary);min-height:120px}
+  #of-lista{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto}
+  .of-item{display:grid;grid-template-columns:14px 1fr;column-gap:8px;text-align:left;padding:7px 9px;border-radius:8px;
+    border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);cursor:pointer;font:inherit;font-size:13px}
+  .of-item .of-punto{grid-row:span 2;align-self:center}
+  .of-item:hover,.of-sel{border-color:var(--green)}
+  .of-sub{font-size:11px;color:var(--text-secondary)}
+  .of-link{font-size:12px;color:var(--green-light);align-self:center}
+  .of-sin3d{padding:40px;text-align:center;color:var(--text-primary)}
+  @media (max-width:900px){.of-wrap{grid-template-columns:1fr}#of-lienzo{height:56vh}}
+</style>
+
+<div class="card" style="padding:12px;margin-bottom:12px">
+  <p class="op-intro" style="margin:0">
+    Cada agente está en su puesto y muestra su <b>estado real</b>: trabajando (tarea en ejecución en el motor), esperando
+    tu aprobación (mano levantada), con tareas en cola, disponible, pausado (de pie) o desactivado (puesto vacío).
+    Si se pierde la conexión, todo queda en gris: nunca se muestra un estado viejo como actual. Arrastrá para girar y
+    usá la rueda o el pellizco para acercar.
+  </p>
+</div>
+
+<div class="of-wrap">
+  <div id="of-escena">
+    <canvas id="of-lienzo" aria-label="Oficina virtual 3D con los 16 agentes" role="img"></canvas>
+    <div class="of-ley">
+      <span><i class="of-punto" style="background:#22c55e"></i>Trabajando</span>
+      <span><i class="of-punto" style="background:#3b82f6"></i>Espera aprobación</span>
+      <span><i class="of-punto" style="background:#eab308"></i>En cola</span>
+      <span><i class="of-punto" style="background:#94a3b8"></i>Disponible</span>
+      <span><i class="of-punto" style="background:#f59e0b"></i>Pausado</span>
+      <span><i class="of-punto" style="background:#ef4444"></i>Desactivado</span>
+      <span><i class="of-punto" style="background:#4b5563"></i>Sin datos</span>
+    </div>
+  </div>
+  <div class="of-lado">
+    <div id="of-ficha"></div>
+    <div id="of-lista" aria-label="Lista de agentes"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="/static/js/oficina-ia.js?v=20261031"></script>
+{% endblock %}

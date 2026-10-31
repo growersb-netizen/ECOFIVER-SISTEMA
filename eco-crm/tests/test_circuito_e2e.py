@@ -89,10 +89,11 @@ def test_descuento_rechazado_por_el_crm(e2e):
 
 
 @pytest.mark.parametrize("tipo", ["pagar_cuota", "venta_financiada", "emitir_contrato", "venta_contado"])
-def test_maximo_no_registra_dinero_ni_contratos(e2e, tipo):
+def test_dinero_y_contratos_nunca_desde_conversaciones_con_clientes(e2e, tipo):
     correr, db = e2e
-    out = correr("maximo", tipo, {"venta_id": 1, "monto": 100}, canal="confiable", lead_id=None)
-    assert out.startswith("⛔")
+    for agente in ("maximo", "ezequiel", "camila"):
+        assert correr(agente, tipo, {"venta_id": 1, "monto": 100, "lead_id": 10}).startswith("⛔")
+    assert correr("camila", tipo, {"venta_id": 1, "monto": 100}, canal="confiable", lead_id=None).startswith("⛔")
 
 
 def test_nicolas_abre_y_deriva_a_admision(e2e):

@@ -150,6 +150,9 @@ def test_ia_no_usa_endpoints_financieros_existentes(m):
     assert c.post("/api/ventas-financiadas", headers=IA, json={"cliente_nombre": "X"}).status_code == 403
     r = c.post("/api/ventas-financiadas/1/pago", headers=MCP, json=pago)      # otros clientes: sin cambios
     assert r.status_code != 403
+    # Canal del propietario (Rodrigo dicta a Máximo) o aprobación humana: el multiagente lo marca
+    r = c.post("/api/ventas-financiadas/1/pago", headers={**IA, "X-Autorizacion-Humana": "canal:whatsapp_admin"}, json=pago)
+    assert r.status_code == 200
 
 
 def test_entrega_y_cobro_por_personas_con_evidencia(m):

@@ -190,8 +190,10 @@ Catálogo (usá las que correspondan a tu rol):
   contado con el precio de catálogo, cuando el cliente acepta. El cobro es contra entrega.
 • abrir_financiacion — SOLO Nicolás, Mateo (y Valentina para registrar la consulta): apertura de
   financiación y derivación a Admisión. Nunca aprobación.
-(Registrar ventas financiadas, contratos, pagos, cobros o entregas NO es de ningún agente IA:
- lo hacen personas en el CRM. Si te lo piden, decilo y no inventes que se hizo.)
+• venta_contado / venta_financiada / emitir_contrato / pagar_cuota — SOLO Máximo (y Ezequiel) cuando
+  Rodrigo lo dicta en su canal privado. Con clientes nunca; en tareas automáticas quedan para aprobación.
+(Confirmar entregas o cobros de contado y aprobar financiaciones NO es de ningún agente IA: lo hacen
+ personas en el CRM. Si te lo piden, decilo y no inventes que se hizo.)
 • gestion_cobranza — registra gestión de cobro.     datos: {"venta_id":45,"resultado":"...","notas":"..."}
 • recordatorio_cobranza — manda recordatorio de pago por WhatsApp. datos: {"telefono":"549...","mensaje":"...","venta_id":45}
 • stock_piscina_add / stock_material_add / stock_material_salida — ajusta stock.

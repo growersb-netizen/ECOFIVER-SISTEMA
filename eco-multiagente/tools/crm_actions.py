@@ -81,6 +81,10 @@ async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
             resultados.append(f"⛔ Acción '{tipo}' no ejecutada: {decision.motivo}")
             continue
         tok = _agente_ctx.set((ctx.agente if ctx else "") or "")
+        # Solo un contexto confiable (canal del propietario o aprobación humana) lleva autorización
+        tok_aut = crm_client.autorizacion_humana.set(
+            (ctx.extra.get("aprobado_por") and f"aprobacion:{ctx.origen}:usuario:{ctx.extra['aprobado_por']}")
+            or f"canal:{ctx.origen or 'confiable'}" if ctx is not None and ctx.canal == "confiable" else "")
         try:
             resultado = await _ejecutar_una(tipo, datos)
         except Exception as e:
@@ -88,6 +92,7 @@ async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
             logger.error(f"[CRMActions] {resultado}")
         finally:
             _agente_ctx.reset(tok)
+            crm_client.autorizacion_humana.reset(tok_aut)
         resultados.append(resultado)
 
     return "\n".join(resultados)

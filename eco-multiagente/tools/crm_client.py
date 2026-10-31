@@ -40,6 +40,21 @@ HEADERS_XKEY = {
 
 TIMEOUT = 10.0
 
+import contextvars as _cv
+
+# Autorización humana de la operación en curso (canal del propietario o aprobación
+# decidida por una persona). El CRM solo acepta operaciones de dinero/contratos del
+# sistema de agentes cuando viene esta marca. La pone tools.crm_actions, nunca el modelo.
+autorizacion_humana: _cv.ContextVar[str] = _cv.ContextVar("autorizacion_humana", default="")
+
+
+def _headers_operacion() -> dict:
+    h = dict(HEADERS)
+    a = autorizacion_humana.get()
+    if a:
+        h["X-Autorizacion-Humana"] = a[:120]
+    return h
+
 
 async def get_lead(session_id: str) -> dict:
     """Obtiene un lead por session_id (teléfono o UUID de sesión web)."""
@@ -491,7 +506,7 @@ async def registrar_venta_contado(data: dict) -> dict:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/ventas-contado",
-                headers=HEADERS,
+                headers=_headers_operacion(),
                 json=data,
             )
             r.raise_for_status()
@@ -507,7 +522,7 @@ async def registrar_venta_financiada(data: dict) -> dict:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/ventas-financiadas",
-                headers=HEADERS,
+                headers=_headers_operacion(),
                 json=data,
             )
             r.raise_for_status()
@@ -531,7 +546,7 @@ async def pagar_cuota(
         async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/ventas-financiadas/{venta_id}/pago",
-                headers=HEADERS,
+                headers=_headers_operacion(),
                 json={"monto": monto, "notas": notas, "concepto": concepto, "modalidad": modalidad},
             )
             r.raise_for_status()
@@ -858,7 +873,7 @@ async def crear_contrato(payload: dict) -> dict:
     """
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
-            r = await client.post(f"{CRM_BASE_URL}/api/contratos", headers=HEADERS, json=payload)
+            r = await client.post(f"{CRM_BASE_URL}/api/contratos", headers=_headers_operacion(), json=payload)
             if r.status_code == 409:
                 return {"error": "DNI ya tiene una solicitud activa", "detail": r.json()}
             if r.status_code == 400:

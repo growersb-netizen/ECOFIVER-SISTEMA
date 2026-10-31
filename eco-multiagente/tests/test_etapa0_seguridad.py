@@ -51,10 +51,16 @@ class TestPoliticaAcciones:
         assert evaluar("contactar_lead", datos, ActionContext("tomas", CANAL_CONFIABLE)).permitido
         assert not evaluar("contactar_lead", datos, ActionContext("camila", CANAL_CONFIABLE)).permitido
         assert not evaluar("contactar_lead", datos, ActionContext("valentin", CANAL_CONFIABLE)).permitido
-        # Reglas del propietario: ningún agente IA registra pagos, ventas financiadas ni contratos
-        for agente in ("maximo", "ezequiel", "ignacio"):
-            for tipo in ("pagar_cuota", "venta_financiada", "emitir_contrato", "venta_contado"):
-                assert not evaluar(tipo, {"venta_id": 1, "monto": 100}, ActionContext(agente, CANAL_CONFIABLE)).permitido
+        # Dinero y contratos: Máximo/Ezequiel solo en el canal del propietario (decisión del 31/10);
+        # nunca desde una conversación con clientes ni para otros agentes.
+        datos_pago = {"venta_id": 1, "monto": 100, "lead_id": 1}
+        for tipo in ("pagar_cuota", "venta_financiada", "emitir_contrato", "venta_contado"):
+            assert evaluar(tipo, datos_pago, ActionContext("maximo", CANAL_CONFIABLE)).permitido
+            assert evaluar(tipo, datos_pago, ActionContext("ezequiel", CANAL_CONFIABLE)).permitido
+            assert not evaluar(tipo, datos_pago, ActionContext("camila", CANAL_CONFIABLE)).permitido
+            assert not evaluar(tipo, datos_pago, ActionContext("valentin", CANAL_CONFIABLE)).permitido
+            for agente in ("maximo", "ezequiel", "camila"):
+                assert not evaluar(tipo, datos_pago, ActionContext(agente, "cliente", lead_id=1)).permitido
 
     def test_nombre_con_tilde_se_normaliza(self):
         assert evaluar("reasignar_lead", {"lead_id": 1, "agente": "x"},

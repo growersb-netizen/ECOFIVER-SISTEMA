@@ -39,12 +39,13 @@ ACTION_LEVEL: dict[str, str] = {
     # de catálogo validado en el CRM y abre financiaciones hasta Admisión.
     "cerrar_venta_contado": OPERATIVA,
     "abrir_financiacion": OPERATIVA,
-    # Reservado a personas (Admisión, cobranzas, administración): la IA no registra
-    # ventas financiadas, pagos ni contratos, ni siquiera con aprobación.
-    "venta_contado": PROHIBIDA,
-    "venta_financiada": PROHIBIDA,
-    "pagar_cuota": PROHIBIDA,
-    "emitir_contrato": PROHIBIDA,
+    # Dinero y contratos: solo en el canal del propietario (Rodrigo dicta a Máximo,
+    # decisión del 31/10) o tras aprobación humana. Nunca desde conversaciones con
+    # clientes ni de forma autónoma (el motor las manda a aprobación).
+    "venta_contado": SENSIBLE,
+    "venta_financiada": SENSIBLE,
+    "pagar_cuota": SENSIBLE,
+    "emitir_contrato": SENSIBLE,
     "stock_piscina_add": SENSIBLE,
     "stock_material_add": SENSIBLE,
     "stock_material_salida": SENSIBLE,
@@ -60,10 +61,6 @@ ACTION_LEVEL: dict[str, str] = {
 
 _MOTIVO_PROHIBIDA = {
     "disparar_scraping": "'disparar_scraping' está prohibida por política (requiere consentimiento del contacto)",
-    "venta_contado": "Registrar ventas es de personas; la IA usa 'cerrar_venta_contado' (precio de catálogo validado)",
-    "venta_financiada": "Las financiaciones las aprueba y cierra Admisión (personas), nunca la IA",
-    "pagar_cuota": "Los pagos los registra una persona con evidencia, nunca la IA",
-    "emitir_contrato": "Los contratos financiados los formaliza Admisión (personas), nunca la IA",
 }
 _TODAS_NO_PROHIBIDAS = {k for k, v in ACTION_LEVEL.items() if v != PROHIBIDA}
 _SOLO_ESPECIALISTAS = {"cerrar_venta_contado", "abrir_financiacion"}
@@ -82,7 +79,7 @@ AGENT_ALLOWED: dict[str, set[str]] = {
     "mateo": set(_VENDEDOR) | {"abrir_financiacion"},          # financiación de viviendas y módulos
     "sebastian": {"update_lead", "cambiar_estado_lead", "gestion_cobranza"},
     "ignacio": {"update_lead", "gestion_cobranza", "recordatorio_cobranza"},
-    "ezequiel": {"gestion_cobranza"},          # control documental: registra gestiones, no pagos ni contratos
+    "ezequiel": {"venta_contado", "venta_financiada", "pagar_cuota", "emitir_contrato", "gestion_cobranza"},
     "elena": {"update_lead"},
     "bruno": {"stock_piscina_add", "stock_material_add", "stock_material_salida"},
     "renata": {"publicar_contenido"},

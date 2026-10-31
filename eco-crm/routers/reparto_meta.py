@@ -65,7 +65,11 @@ def require_reparto_actor(request: Request, db: Session = Depends(get_db)):
     user = db.query(Usuario).filter_by(id=identity, activo=True).first()
     if not user:
         raise HTTPException(401, "Sesión inválida")
-    if user.aliado_codigo == "AL-010":
+    # Las sesiones históricas del SSO admin no guardaban aliado_codigo.
+    # La identidad interna reservada también identifica a Claudia en esos JWT
+    # ya emitidos; se obtiene del Usuario autenticado, nunca del body o claims.
+    if (user.aliado_codigo == "AL-010" or
+            (user.email or "").strip().lower() == "socio.admin.al010@ecofiver.crm"):
         socio = db.query(Aliado).filter_by(codigo="AL-010", estado="activo").first()
         if not socio:
             raise HTTPException(403, "Organización no disponible")

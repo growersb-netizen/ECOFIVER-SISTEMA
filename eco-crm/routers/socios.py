@@ -5589,10 +5589,15 @@ async def socio_acceso_admin(
             roles_json=_json.dumps(["ADMIN"]),
             activo=True,
             es_agente_ia=False,
+            aliado_codigo=socio.codigo,
         )
         db.add(usuario_admin)
         db.commit()
         db.refresh(usuario_admin)
+    elif usuario_admin.aliado_codigo != socio.codigo:
+        # Reparar las cuentas históricas antes de emitir otra sesión.
+        usuario_admin.aliado_codigo = socio.codigo
+        db.commit()
 
     # Crear token de sesión admin
     from datetime import timedelta

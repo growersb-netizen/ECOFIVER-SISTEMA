@@ -43,3 +43,27 @@ recepciones de Meta. Los controles nuevos comienzan apagados; la puesta en march
 puede conservar explícitamente el grupo anterior desde la API o la interfaz.
 Los reintentos externos siguen sujetos al servicio de Meta; no hay un proceso
 programado de reconciliación con todos los formularios de la cuenta.
+
+## Verificación de puesta en marcha
+
+Se conservó explícitamente el grupo anterior para viviendas: asesores 2 y 3 y
+aliados AL-010, AL-043 y AL-055. La organización AL-010 participa en Plan 18
+Pasos. Piscinas quedó apagado para todos hasta configurar una campaña y sus
+destinatarios. Los demás vendedores permanecen disponibles para habilitarlos
+desde los controles.
+
+La prueba nativa de Meta generó el lead de prueba `2059463944705093`, recibido
+automáticamente por el callback y registrado como lead CRM `2814`, asignado a
+AL-010 con producto MODULO. Se guardaron gestión y seguimiento desde el panel
+del responsable. Un reenvío conservó el mismo registro y su gestión.
+
+Un ciclo de prueba produjo exactamente estos cinco turnos: AL-010, AL-043,
+AL-055, asesor 2 y asesor 3. Los registros CRM de prueba 2814–2818 quedaron
+INACTIVO, con el historial conservado. Antes de crear la prueba, Meta informó
+cero leads en Plan 18 Pasos; no había leads reales anteriores de ese formulario
+para recuperar.
+
+Las comprobaciones en producción verificaron alcance global de Rodrigo,
+alcance de Claudia sobre ella y sus diez vendedores, y respuesta 403 al intentar
+cambiar un aliado de otra organización. Las pruebas locales finales suman 74
+casos aprobados, además de los controles de interfaz mediante DOM y sintaxis.

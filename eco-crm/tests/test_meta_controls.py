@@ -200,3 +200,43 @@ def test_activar_campana_suscribe_leadgen_y_fallo_no_activa(setup, monkeypatch):
     state["allow"] = True
     response = client.post("/api/reparto-meta/campanas", json=payload, headers=root())
     assert response.status_code == 200 and db.get(MetaLeadCampana, "400").activa
+
+
+def test_cookie_crm_historica_de_claudia_sin_vinculo_no_es_admin_global(setup):
+    client, db = setup
+    user = Usuario(id=55, nombre="Claudia histórica", email="socio.admin.al010@ecofiver.crm",
+                   password_hash="unused", roles_json='["ADMIN"]', activo=True,
+                   aliado_codigo=None)
+    db.add(user)
+    db.commit()
+    headers = {"Cookie": f"access_token={token(user.id)}"}
+    data = client.get("/api/reparto-meta", headers=headers).json()
+    assert data["alcance"] == "organizacion"
+    assert data["organizacion_codigo"] == "AL-010"
+    assert not data["puede_crear_campanas"]
+    assert client.patch("/api/reparto-meta/destinos/aliado:AL-099", json={"habilitado": True},
+                        headers=headers).status_code == 403
+    assert client.patch("/api/reparto-meta/organizaciones/AL-002/campanas/100",
+                        json={"habilitada": True}, headers=headers).status_code == 403
+    assert db.get(MetaLeadDestino, "aliado:AL-099") is None
+
+
+@pytest.mark.parametrize("existing", [True, False])
+def test_sso_admin_vincula_usuario_socio_antes_de_emitir_sesion(setup, monkeypatch, existing):
+    from routers import socios
+    client, db = setup
+    roles = '["ADMIN", "FABRICA"]'
+    if existing:
+        db.add(Usuario(id=55, nombre="Claudia histórica", email="socio.admin.al010@ecofiver.crm",
+                       password_hash="unused", roles_json=roles, activo=True, aliado_codigo=None))
+        db.commit()
+    client.app.add_api_route("/socio/acceso-admin", socios.socio_acceso_admin, methods=["GET"])
+    client.app.dependency_overrides[socios.require_socio] = lambda: db.get(Aliado, 10)
+    monkeypatch.setattr(socios, "hash_password", lambda _value: "test-hash-unused")
+    response = client.get("/socio/acceso-admin", follow_redirects=False)
+    assert response.status_code == 302 and response.headers["location"] == "/aliados"
+    user = db.query(Usuario).filter_by(email="socio.admin.al010@ecofiver.crm").one()
+    assert user.aliado_codigo == "AL-010"
+    assert user.roles_json == (roles if existing else json.dumps(["ADMIN"]))
+    headers = {"Cookie": f"access_token={response.cookies['access_token']}"}
+    assert client.get("/api/reparto-meta", headers=headers).json()["alcance"] == "organizacion"

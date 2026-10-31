@@ -87,6 +87,17 @@ async function orImagen(apiKey, prompt) {
   return { image_base64: b64, mime_type: "image/png" };
 }
 
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+
+function tokenValido(request, esperado) {
+  const auth = request.headers.get("Authorization") || "";
+  const recibido = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!recibido || recibido.length !== esperado.length) return false;
+  let diff = 0;                                  // comparación en tiempo constante
+  for (let i = 0; i < esperado.length; i++) diff |= recibido.charCodeAt(i) ^ esperado.charCodeAt(i);
+  return diff === 0;
+}
+
 // ── ROUTER ───────────────────────────────────────────────────────────────────
 
 export default {
@@ -104,7 +115,16 @@ export default {
 
     // ── GET /health ──────────────────────────────────────────────────────────
     if (method === "GET" && path === "/health") {
-      return json({ ok: true, service: "eco-agentes", version: "3.0", provider: "openrouter" });
+      return json({ ok: true, service: "eco-agentes", version: "3.0", provider: "openrouter",
+                    auth: env.WORKER_TOKEN ? "requerida" : "abierta" });
+    }
+
+    // ── Autenticación ────────────────────────────────────────────────────────
+    // Sin esto, cualquiera con la URL consume créditos de OpenRouter.
+    // Se activa al configurar el secreto WORKER_TOKEN (wrangler secret put WORKER_TOKEN);
+    // el CRM lo envía desde ECO_WORKER_TOKEN.
+    if (env.WORKER_TOKEN && !tokenValido(request, env.WORKER_TOKEN)) {
+      return json({ ok: false, error: "No autorizado" }, 401);
     }
 
     if (!apiKey) {

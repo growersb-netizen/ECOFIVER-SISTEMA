@@ -221,3 +221,13 @@ def test_contexto_de_la_tarea_indica_facultad_de_delegar(e2e):
     e2e["ciclo"]()
     ctx = {n: c for (n, m, c, h) in AgenteSimulado.vistos}
     assert "[DELEGAR:" in ctx["maximo"] and "No podés delegar" in ctx["camila"]
+
+
+
+def test_dentro_de_una_tarea_no_se_crean_tareas_sueltas(e2e):
+    AgenteSimulado.respuestas["maximo"] = "Encargo. " + _accion("crear_tarea", agente="aurora", instruccion="x")
+    tid = e2e["orden"]("maximo", "Organizá el equipo")
+    e2e["ciclo"]()
+    ev = e2e["ver"](tid)["evidencia"]
+    assert ev["acciones_bloqueadas"] == [{"tipo": "crear_tarea", "motivo": "en una tarea se delega con [DELEGAR]"}]
+    assert ev["subtareas"] == []

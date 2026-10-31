@@ -71,7 +71,8 @@ async def _crm(metodo: str, ruta: str, json_body: Optional[dict] = None) -> dict
 
 
 async def crear_tarea(agente: str, instruccion: str, **kw) -> dict:
-    return (await _crm("POST", "/api/motor/tareas", {"agente": agente, "instruccion": instruccion, **kw}))["tarea"]
+    cuerpo = {"agente": agente, "instruccion": instruccion, **{k: v for k, v in kw.items() if v is not None}}
+    return (await _crm("POST", "/api/motor/tareas", cuerpo))["tarea"]
 
 
 async def _agentes_habilitados() -> Optional[list[str]]:
@@ -122,7 +123,9 @@ async def _procesar_salida(t: dict, reply: str) -> tuple[str, dict]:
         tipo = str(accion.get("tipo", "")).lower()
         datos = accion.get("datos") if isinstance(accion.get("datos"), dict) else {}
         decision = evaluar(tipo, datos, ctx)
-        if not decision.permitido:
+        if tipo == "crear_tarea":         # dentro del motor solo se delega con [DELEGAR] (con límites)
+            evidencia["acciones_bloqueadas"].append({"tipo": tipo, "motivo": "en una tarea se delega con [DELEGAR]"})
+        elif not decision.permitido:
             evidencia["acciones_bloqueadas"].append({"tipo": tipo, "motivo": decision.motivo})
         elif ACTION_LEVEL.get(tipo) == OPERATIVA:
             res = await ejecutar_acciones([{"tipo": tipo, "datos": datos}], ctx)

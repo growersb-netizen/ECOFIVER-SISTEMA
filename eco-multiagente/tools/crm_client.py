@@ -941,3 +941,16 @@ async def autorizar_saliente(telefono: str, origen: str = "", agente: str = "") 
         logger.warning(f"[CRM] autorizar_saliente falló: {e}")
         _record_fail_ex("autorizar_saliente", e)
         return None
+
+
+
+async def get_panel_propietario() -> dict:
+    """Panel económico del propietario (solo para Máximo)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(f"{CRM_BASE_URL}/api/motor/propietario/panel", headers={**HEADERS, "X-Agente": "maximo"})
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] panel propietario no disponible: {e}")
+        return {}

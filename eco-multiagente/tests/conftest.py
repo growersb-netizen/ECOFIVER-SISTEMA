@@ -19,3 +19,16 @@ def _control_sin_red(request):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "control_real: usa el control de agentes con un CRM simulado explícito")
+    config.addinivalue_line("markers", "capas_reales: usa la capa 2 de políticas con un CRM simulado explícito")
+
+
+@pytest.fixture(autouse=True)
+def _capas_sin_red(request):
+    """Sin red en las pruebas: la capa 2 (políticas del CRM) vacía, salvo pruebas que la controlen."""
+    if request.node.get_closest_marker("capas_reales"):
+        yield
+        return
+    from tools import capas
+    capas._reset_para_tests()
+    with patch.object(capas, "capa_2", AsyncMock(return_value="")):
+        yield

@@ -147,6 +147,13 @@ async def _ejecutar_una(tipo: str, datos: dict) -> str:
         return await _cerrar_venta_contado(datos)
     elif tipo == "abrir_financiacion":
         return await _abrir_financiacion(datos)
+    # ── Dirección (Fase 3) ───────────────────────────────────────────────────
+    elif tipo == "crear_tarea":
+        return await _crear_tarea(datos)
+    elif tipo == "proponer_politica":
+        return await _proponer_politica(datos)
+    elif tipo == "fijar_objetivo":
+        return await _fijar_objetivo(datos)
     else:
         return f"⚠️ Tipo de acción desconocido: '{tipo}'"
 
@@ -615,3 +622,46 @@ async def _abrir_financiacion(datos: dict) -> str:
         exp = d["expediente"]
     return (f"✅ Expediente de financiación #{exp['id']} en {exp['estado']}. "
             "La aprobación y el cierre los hace Admisión (personas).")
+
+
+
+# ── Dirección (Fase 3) ────────────────────────────────────────────────────────
+
+async def _crear_tarea(datos: dict) -> str:
+    """Máximo (o Aurora/Tomás) encarga trabajo a otro agente: tarea real del motor, con resultado y evidencia."""
+    from tools.motor_tareas import crear_tarea
+    try:
+        t = await crear_tarea(str(datos.get("agente", "")), str(datos.get("instruccion", ""))[:8000],
+                              titulo=str(datos.get("titulo", ""))[:200], prioridad=str(datos.get("prioridad", "NORMAL")),
+                              creado_por_agente=_agente_ctx.get() or None)
+    except Exception as e:
+        return f"❌ Tarea no creada: {e}"
+    return f"✅ Tarea #{t['id']} encargada a {t['agente']} (queda en el motor; el resultado se registra al terminar)."
+
+
+async def _proponer_politica(datos: dict) -> str:
+    """Propuesta de política: queda PENDIENTE de la aprobación del propietario (no rige hasta entonces)."""
+    cuerpo = {k: datos[k] for k in ("titulo", "instruccion", "objetivo", "departamento", "agentes", "metrica_exito", "codigo")
+              if datos.get(k) is not None}
+    status, d = await _crm_circuito("/api/motor/politicas", cuerpo)
+    if status != 200:
+        return f"❌ Política no propuesta: {d.get('detail', f'HTTP {status}')}"
+    p = d["politica"]
+    return (f"📝 Política #{p['id']} \"{p['titulo']}\" (v{p['version']}) propuesta para {', '.join(p['agentes'])}. "
+            "No rige hasta que el propietario la apruebe en el panel.")
+
+
+async def _fijar_objetivo(datos: dict) -> str:
+    """Objetivo económico pedido por el propietario en su canal: queda versionado con su autorización."""
+    import httpx
+    headers = {**crm_client._headers_operacion(), "X-Agente": _agente_ctx.get()}
+    cuerpo = {k: datos[k] for k in ("periodo", "indicador", "valor", "producto", "canal", "nota") if datos.get(k) is not None}
+    async with httpx.AsyncClient(timeout=crm_client.TIMEOUT) as c:
+        r = await c.post(f"{crm_client.CRM_BASE_URL}/api/motor/objetivos", headers=headers, json=cuerpo)
+    try:
+        d = r.json()
+    except Exception:
+        d = {}
+    if r.status_code != 200:
+        return f"❌ Objetivo no registrado: {d.get('detail', f'HTTP {r.status_code}')}"
+    return f"✅ Objetivo registrado (versión {d['objetivo']['version']}): {cuerpo.get('indicador')} {cuerpo.get('periodo')} = ${float(cuerpo.get('valor', 0)):,.0f}"

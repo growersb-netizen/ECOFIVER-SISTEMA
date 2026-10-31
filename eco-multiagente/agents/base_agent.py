@@ -329,11 +329,16 @@ class BaseAgent:
         full_msg = f"{prefix}\n\nMensaje: {message}" if prefix else message
         provider = self._get_provider()
         from tools.ai_metrics import generar_medido, registrar_sin_respuesta
+        try:
+            from tools.capas import componer
+            system_prompt = await componer(self.name, self.system_prompt)
+        except Exception:
+            system_prompt = self.system_prompt
 
         try:
             reply = await generar_medido(
                 agente=self.name, provider=provider, fallback=False,
-                system_prompt=self.system_prompt,
+                system_prompt=system_prompt,
                 history=self.history,
                 message=full_msg,
             )
@@ -356,7 +361,7 @@ class BaseAgent:
                         agente=self.name, fallback=True,
                         provider=OpenRouterProvider(model=modelo_fb, max_tokens=cfg_modelo.max_tokens,
                                                     temperature=cfg_modelo.temperatura),
-                        system_prompt=self.system_prompt, history=self.history, message=full_msg)
+                        system_prompt=system_prompt, history=self.history, message=full_msg)
                     if reply:
                         logger.info(f"[{self.name}] Respaldo OpenRouter/{modelo_fb} OK")
                         break

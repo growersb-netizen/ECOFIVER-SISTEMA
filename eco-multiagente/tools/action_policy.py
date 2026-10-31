@@ -39,6 +39,11 @@ ACTION_LEVEL: dict[str, str] = {
     # de catálogo validado en el CRM y abre financiaciones hasta Admisión.
     "cerrar_venta_contado": OPERATIVA,
     "abrir_financiacion": OPERATIVA,
+    # Dirección (Fase 3): crear tareas del motor y proponer políticas (que activa el propietario)
+    "crear_tarea": OPERATIVA,
+    "proponer_politica": OPERATIVA,
+    # Objetivos económicos del propietario: solo por pedido suyo en su canal
+    "fijar_objetivo": SENSIBLE,
     # Dinero y contratos: solo en el canal del propietario (Rodrigo dicta a Máximo,
     # decisión del 31/10) o tras aprobación humana. Nunca desde conversaciones con
     # clientes ni de forma autónoma (el motor las manda a aprobación).
@@ -64,14 +69,15 @@ _MOTIVO_PROHIBIDA = {
 }
 _TODAS_NO_PROHIBIDAS = {k for k, v in ACTION_LEVEL.items() if v != PROHIBIDA}
 _SOLO_ESPECIALISTAS = {"cerrar_venta_contado", "abrir_financiacion"}
+_DIRECCION = {"crear_tarea", "proponer_politica"}
 _VENDEDOR = {"update_lead", "cambiar_estado_lead", "agendar_videollamada"}
 
 # Lista blanca por agente (matriz de permisos del diagnóstico, §10).
 AGENT_ALLOWED: dict[str, set[str]] = {
     "maximo": set(_TODAS_NO_PROHIBIDAS) - _SOLO_ESPECIALISTAS,
-    "aurora": {"update_lead", "cambiar_estado_lead", "reasignar_lead", "recordar"},
+    "aurora": {"update_lead", "cambiar_estado_lead", "reasignar_lead", "recordar"} | _DIRECCION,
     "tomas": {"update_lead", "cambiar_estado_lead", "reasignar_lead", "agendar_videollamada",
-              "contactar_lead", "contactar_leads_sin_respuesta", "reactivar_leads_frios"},
+              "contactar_lead", "contactar_leads_sin_respuesta", "reactivar_leads_frios"} | _DIRECCION,
     "valentina": set(_VENDEDOR) | {"abrir_financiacion"},      # solo abre la consulta
     "camila": set(_VENDEDOR) | {"cerrar_venta_contado"},       # piscinas de contado
     "nicolas": set(_VENDEDOR) | {"abrir_financiacion"},        # financiación de piscinas

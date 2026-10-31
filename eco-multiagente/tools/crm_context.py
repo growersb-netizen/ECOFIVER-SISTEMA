@@ -26,6 +26,7 @@ AGENT_CRM_NEEDS: dict[str, list[str]] = {
         # Contexto completo para conocimiento total del negocio:
         "todos_leads", "ventas_contado", "ventas_financiadas",
         "metricas_avanzadas", "ranking", "morosidad", "proyeccion_cobranza",
+        "panel_propietario",
     ],
     "Aurora":    ["pipeline_stats", "ventas_hoy", "leads_sin_respuesta", "precios", "flete"],
     "Tomás":     ["pipeline_stats", "leads_sin_respuesta"],
@@ -99,6 +100,8 @@ async def get_crm_context(agent_name: str) -> str:
         tasks["morosidad"] = crm_client.get_morosidad()
     if "proyeccion_cobranza" in needs:
         tasks["proyeccion_cobranza"] = crm_client.get_proyeccion_cobranza()
+    if "panel_propietario" in needs:
+        tasks["panel_propietario"] = crm_client.get_panel_propietario()
 
     try:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -113,6 +116,8 @@ async def get_crm_context(agent_name: str) -> str:
         _build_context_parts(parts, data)
     except Exception:
         logger.exception(f"[CRMCtx] Error armando contexto para {agent_name} (se usa lo parcial)")
+
+    _panel_propietario(parts, data.get("panel_propietario"))
 
     if len(parts) == 1:  # solo el header — nada se pudo armar
         return ""
@@ -428,3 +433,22 @@ def _build_context_parts(parts: list, data: dict) -> None:
         return ""
 
     return "\n\n".join(parts)
+
+
+
+def _panel_propietario(parts: list, p) -> None:
+    """Ingresos personales del propietario (comisiones), separados de la cooperativa."""
+    if not isinstance(p, dict) or not p.get("periodo"):
+        return
+    f = lambda n: "$" + f"{round(n or 0):,}".replace(",", ".")
+    obj = p.get("objetivos", {}).get("comisiones_generadas")
+    lineas = [f"Panel económico del propietario {p['periodo']} (comisiones; NO es la contabilidad de la cooperativa):",
+              f"  Generadas: {f(p['comisiones_generadas']['total'])} · Cobradas: {f(p['comisiones_cobradas']['total'])} · "
+              f"Pendientes: {f(p['comisiones_pendientes']['total'])}",
+              f"  Proyectadas (no confirmadas): {f(p['comisiones_proyectadas']['total'])} · "
+              f"Publicidad real: {f(p['inversion_publicitaria']['gasto_real'])} · Resultado personal: {f(p['resultado_personal']['total'])}",
+              f"  Objetivo comisiones generadas: {f(obj['valor']) + ' (' + str(obj['cumplimiento_pct']) + '%)' if obj else 'sin definir'} · "
+              f"Proyección de cierre (estimación): {f(p['proyeccion_cierre_mes']['comisiones_generadas'])}"]
+    if p.get("datos_faltantes"):
+        lineas.append("  Datos faltantes: " + " | ".join(p["datos_faltantes"]))
+    parts.append("\n".join(lineas))

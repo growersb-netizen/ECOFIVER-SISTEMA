@@ -35,6 +35,11 @@
   </div>
 </div>
 <div class="op-sec">
+  <h3>Políticas empresariales</h3>
+  <p class="op-sub">Propuestas de Máximo y la dirección. No rigen hasta que las aprobás; podés suspender o revertir.</p>
+  <div id="pp-pol"><div class="op-vacio">Cargando…</div></div>
+</div>
+<div class="op-sec">
   <h3>Comisiones</h3>
   <table class="op-tabla"><thead><tr><th>#</th><th>Tipo</th><th>Operación</th><th>Regla</th><th>Monto</th><th>Estado</th><th>Generada</th><th></th></tr></thead>
     <tbody id="pp-com"><tr><td colspan="8" class="op-vacio">Cargando…</td></tr></tbody></table>
@@ -81,6 +86,27 @@
         : `<tr><td colspan="8" class="op-vacio">Todavía no hay comisiones generadas (se generan al entregar / al pagarse las cuotas iniciales).</td></tr>`;
     } catch(e){ document.getElementById("pp-kpis").innerHTML = `<div class="op-vacio">${esc(e.message)}</div>`; }
   };
+  async function ppPoliticas(){
+    const d = await api("/api/politicas");
+    const vivas = d.politicas.filter(p => ["PENDIENTE_APROBACION", "ACTIVA"].includes(p.estado));
+    document.getElementById("pp-pol").innerHTML = vivas.length ? vivas.map(p => `<div class="op-card" style="margin-bottom:8px">
+      <b>${esc(p.titulo)}</b> <span class="op-sub">v${p.version} · ${esc(p.estado)} · ${esc(p.autor)} · para ${esc(p.agentes.join(", "))}</span>
+      <div class="op-det" style="margin:6px 0">${esc(p.instruccion)}${p.objetivo ? "\n\nObjetivo: " + esc(p.objetivo) : ""}${p.metrica_exito ? "\nMétrica: " + esc(p.metrica_exito) : ""}</div>
+      <div class="op-btns">${p.estado === "PENDIENTE_APROBACION"
+        ? `<button onclick="ppPol(${p.id},'aprobar')">✅ Aprobar y activar</button><button onclick="ppPol(${p.id},'rechazar')">✖ Rechazar</button>`
+        : `<button onclick="ppPol(${p.id},'suspender')">Suspender</button><button onclick="ppPol(${p.id},'revertir')">Revertir a la versión anterior</button>`}</div></div>`).join("")
+      : `<div class="op-vacio">No hay políticas pendientes ni activas.</div>`;
+  }
+  window.ppPol = async (id, accion) => {
+    try {
+      if(accion === "aprobar" || accion === "rechazar"){
+        await api(`/api/politicas/${id}/decidir`, {method:"POST", body: JSON.stringify({aprobar: accion === "aprobar", comentario: prompt("Comentario (opcional):") || ""})});
+      } else {
+        await api(`/api/politicas/${id}/${accion}`, {method:"POST", body: JSON.stringify({motivo: prompt("Motivo:") || ""})});
+      }
+      await ppPoliticas();
+    } catch(e){ alert(e.message); }
+  };
   window.ppObjetivo = async () => {
     try { await api("/api/propietario/objetivos", {method:"POST", body: JSON.stringify({periodo: per.value,
       indicador: document.getElementById("pp-ind").value, valor: parseFloat(document.getElementById("pp-val").value)})}); await ppCargar(); }
@@ -97,6 +123,7 @@
   window.ppAnular = async id => { const motivo = prompt("Motivo de la anulación:"); if(!motivo) return;
     try { await api(`/api/propietario/comisiones/${id}/anular`, {method:"POST", body: JSON.stringify({motivo})}); await ppCargar(); } catch(e){ alert(e.message); } };
   ppCargar();
+  ppPoliticas().catch(e => { document.getElementById("pp-pol").innerHTML = `<div class="op-vacio">${esc(e.message)}</div>`; });
 })();
 </script>
 {% endblock %}

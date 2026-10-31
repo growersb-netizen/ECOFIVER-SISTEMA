@@ -2172,3 +2172,42 @@ class ContactoProactivo(Base):
     origen         = Column(String(80), default="")      # cron seguimiento | meta primer contacto | accion ...
     agente         = Column(String(30), default="")
     created_at     = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class PoliticaEmpresarial(Base):
+    """
+    Política empresarial versionada (capa 2 de instrucciones de los agentes).
+    Una conversación con Máximo solo puede PROPONER; activa el propietario.
+    Nunca amplía permisos del backend (son independientes del texto).
+    """
+    __tablename__ = "politicas_empresariales"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    codigo           = Column(String(60), nullable=False, index=True)    # misma política, distintas versiones
+    version          = Column(Integer, nullable=False, default=1)
+    titulo           = Column(String(200), nullable=False)
+    objetivo         = Column(Text, default="")
+    instruccion      = Column(Text, nullable=False)                     # texto operativo que reciben los agentes
+    departamento     = Column(String(30), default="")
+    agentes          = Column(JSON, default=[])                          # agentes afectados
+    metrica_exito    = Column(Text, default="")
+    estado           = Column(String(25), nullable=False, default="PENDIENTE_APROBACION")
+    autor            = Column(String(60), default="")                    # agente:maximo | usuario:<id>
+    aprobado_por_id  = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    aprobado_at      = Column(DateTime(timezone=True), nullable=True)
+    aplicada_desde   = Column(DateTime(timezone=True), nullable=True)
+    resultado        = Column(Text, default="")
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PoliticaEvento(Base):
+    """Historial inmutable de cada política."""
+    __tablename__ = "politicas_eventos"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    politica_id  = Column(Integer, nullable=False, index=True)
+    de           = Column(String(25), default="")
+    a            = Column(String(25), nullable=False)
+    actor        = Column(String(60), nullable=False)
+    detalle      = Column(Text, default="")
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())

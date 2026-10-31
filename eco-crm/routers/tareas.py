@@ -43,6 +43,7 @@ def _err(e: motor.ErrorMotor):
 
 class NuevaTarea(BaseModel):
     agente: str
+    creado_por_agente: Optional[str] = None
     instruccion: str = Field(min_length=1, max_length=8000)
     titulo: str = ""
     prioridad: str = "NORMAL"
@@ -99,11 +100,12 @@ class Decision(BaseModel):
 
 @router.post("/api/motor/tareas")
 def motor_crear(body: NuevaTarea, db: Session = Depends(get_db), _: bool = Depends(_api_key)):
-    """Tarea pedida por el sistema de agentes sin tarea padre (p. ej. /api/comando heredado)."""
+    """Tarea pedida por el sistema de agentes sin tarea padre (/api/comando, o Máximo desde el chat del propietario)."""
     try:
         t, creada = motor.crear_tarea(db, agente=body.agente, instruccion=body.instruccion, titulo=body.titulo,
                                       prioridad=body.prioridad, area=body.area, contexto=body.contexto,
-                                      clave_idempotencia=body.clave_idempotencia)
+                                      clave_idempotencia=body.clave_idempotencia,
+                                      creado_por_agente=body.creado_por_agente)
     except motor.ErrorMotor as e:
         _err(e)
     return {"ok": True, "creada": creada, "tarea": motor.tarea_dict(t)}

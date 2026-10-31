@@ -249,6 +249,8 @@ from routers import agentes_control as _agentes_control  # control empresarial (
 app.include_router(_agentes_control.router)
 from routers import circuito_comercial as _circuito  # contado / financiación / Admisión / comisiones
 app.include_router(_circuito.router)
+from routers import politicas as _politicas  # políticas versionadas y dirección (Fase 3)
+app.include_router(_politicas.router)
 app.include_router(instalacion.router)
 app.include_router(panolero.router)
 app.include_router(asistencia_rapida.router)

@@ -13,6 +13,7 @@ Estrategia:
 
 import os
 import shutil
+import sqlite3
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -68,9 +69,26 @@ def run_backup() -> bool:
     # ── 2. Crear directorio de backups si no existe ──────────────────────────
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
+    if "postgres" in os.getenv("DATABASE_URL", ""):
+        # Producción usa PostgreSQL: este job solo copia el SQLite heredado.
+        logger.warning("[BACKUP] ⚠  DATABASE_URL es PostgreSQL: este backup copia el SQLite heredado, "
+                       "NO la base productiva. Respaldar PostgreSQL por separado.")
+
     # ── 3. Copiar ────────────────────────────────────────────────────────────
+    # API de backup de SQLite: copia consistente aunque haya escrituras en curso
+    # e incluye lo confirmado en el WAL (shutil.copy2 del .db no lo incluía).
     try:
-        shutil.copy2(str(DB_PATH), str(dest))
+        src = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+        dst = sqlite3.connect(str(dest))
+        try:
+            src.backup(dst)
+            ok = dst.execute("PRAGMA integrity_check").fetchone()[0]
+        finally:
+            dst.close()
+            src.close()
+        if ok != "ok":
+            dest.unlink(missing_ok=True)
+            raise RuntimeError(f"integrity_check del backup: {ok}")
         size_kb = dest.stat().st_size // 1024
         logger.info(f"[BACKUP] ✓  {dest.name}  ({size_kb} KB)  —  {datetime.now().isoformat()}")
         print(f"[BACKUP] ✓  {dest.name}  ({size_kb} KB)  —  {datetime.now().isoformat()}")

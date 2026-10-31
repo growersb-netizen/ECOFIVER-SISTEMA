@@ -319,6 +319,18 @@ class VentaContado(Base):
     cobro_fecha             = Column(DateTime(timezone=True), nullable=True)
     cobro_notas             = Column(Text, default="")
 
+    # ── Circuito comercial de contado (reglas del propietario) ──────────────────
+    # CIERRE_COMERCIAL_CONFIRMADO → ENTREGA_PENDIENTE → ENTREGA_CONFIRMADA →
+    # COBRO_PENDIENTE → COBRO_CONFIRMADO. El cierre comercial no implica cobro.
+    circuito_estado             = Column(String(30), nullable=True)
+    cerrada_por                 = Column(String(50), nullable=True)   # "agente:camila" | "usuario:<id>"
+    lead_id                     = Column(Integer, nullable=True, index=True)
+    entrega_confirmada_at       = Column(DateTime(timezone=True), nullable=True)
+    entrega_confirmada_por_id   = Column(Integer, nullable=True)
+    entrega_evidencia           = Column(Text, nullable=True)
+    cobro_confirmado_por_id     = Column(Integer, nullable=True)
+    cobro_evidencia             = Column(Text, nullable=True)
+
     # ── Venta cargada por un Socio Comercial (canal Aliados) ──────────────────
     aliado_codigo               = Column(String(20), ForeignKey("aliados.codigo"), nullable=True, index=True)
     confirmacion_48hs_en        = Column(DateTime(timezone=True), nullable=True)  # equipo confirmó fecha/detalles
@@ -1988,3 +2000,111 @@ class GuardiaOperativa(Base):
     creado_por_id   = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     activa          = Column(Boolean, default=True)
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class ExpedienteFinanciacion(Base):
+    """
+    Circuito de financiación: la IA abre y deriva; Admisión (humana) verifica,
+    aprueba o rechaza y cierra. Los estados APROBADO_POR_ADMISION,
+    RECHAZADO_POR_ADMISION, CIERRE_HUMANO_CONFIRMADO y DOCUMENTACION_PENDIENTE
+    solo los cambia personal autorizado de Admisión (verificado en el servidor).
+    """
+    __tablename__ = "expedientes_financiacion"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    lead_id         = Column(Integer, nullable=True, index=True)
+    cliente_nombre  = Column(String(150), nullable=False)
+    cliente_telefono = Column(String(30), nullable=True)
+    producto        = Column(String(20), nullable=False)      # PISCINA | MODULO | VIVIENDA
+    modelo          = Column(String(150), default="")
+    valor_cuota_estimado = Column(Float, nullable=True)        # informativo (apertura); el contractual va en la venta
+    datos_apertura  = Column(JSON, default={})                 # datos autorizados, sin documentación sensible
+    estado          = Column(String(30), nullable=False, default="CONSULTA_RECIBIDA")
+    abierto_por     = Column(String(50), default="")            # "agente:nicolas" | "usuario:<id>"
+    asignado_admision_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    videollamada_id = Column(Integer, nullable=True)
+    venta_financiada_id = Column(Integer, ForeignKey("ventas_financiadas.id"), nullable=True)
+    cuotas_iniciales_confirmadas_at = Column(DateTime(timezone=True), nullable=True)
+    cuotas_iniciales_confirmadas_por_id = Column(Integer, nullable=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ExpedienteEvento(Base):
+    """Historial auditable del expediente (inmutable)."""
+    __tablename__ = "expedientes_eventos"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    expediente_id  = Column(Integer, nullable=False, index=True)
+    estado_anterior = Column(String(30), default="")
+    estado_nuevo   = Column(String(30), nullable=False)
+    actor          = Column(String(60), nullable=False)        # "agente:nicolas" | "usuario:<id>"
+    detalle        = Column(Text, default="")
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ComisionPropietario(Base):
+    """
+    Ingresos personales del propietario por comisiones (separados de la
+    contabilidad de la cooperativa y de las comisiones de socios).
+      CONTADO: 10% del producto, se GENERA al confirmarse la entrega.
+      FINANCIADO: 100% de las dos cuotas iniciales, se GENERA con Admisión
+      aprobada + suscripción formalizada + dos cuotas iniciales pagas.
+    Una fila por operación y concepto (clave única): reprocesar no duplica.
+    Las proyectadas no se guardan: se calculan desde las operaciones abiertas.
+    """
+    __tablename__ = "comisiones_propietario"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    clave              = Column(String(80), nullable=False, unique=True)   # "contado:<venta_id>" | "financiada:<venta_id>"
+    tipo               = Column(String(20), nullable=False)                # CONTADO | FINANCIADO
+    venta_contado_id   = Column(Integer, ForeignKey("ventas_contado.id"), nullable=True, index=True)
+    venta_financiada_id = Column(Integer, ForeignKey("ventas_financiadas.id"), nullable=True, index=True)
+    expediente_id      = Column(Integer, nullable=True)
+    producto           = Column(String(20), default="")
+    base_calculo       = Column(Float, nullable=False)      # precio del producto | valor de cuota
+    regla              = Column(String(80), nullable=False)  # "10% del producto" | "2 cuotas iniciales"
+    monto              = Column(Float, nullable=False)
+    estado             = Column(String(20), nullable=False, default="GENERADA")   # GENERADA | COBRADA | ANULADA
+    generada_at        = Column(DateTime(timezone=True), nullable=False)          # fecha real del evento (entrega / pago)
+    cobrada_at         = Column(DateTime(timezone=True), nullable=True)
+    cobrada_evidencia  = Column(Text, nullable=True)
+    anulada_motivo     = Column(Text, nullable=True)
+    actualizada_por_id = Column(Integer, nullable=True)
+    canal              = Column(String(40), nullable=True)
+    created_at         = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GastoPublicitario(Base):
+    """Inversión publicitaria del propietario. PRESUPUESTO (plan) separado de GASTO (real)."""
+    __tablename__ = "gastos_publicitarios"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    tipo          = Column(String(15), nullable=False)          # PRESUPUESTO | GASTO
+    fecha         = Column(Date, nullable=False)
+    monto         = Column(Float, nullable=False)
+    campana       = Column(String(150), default="")
+    producto      = Column(String(20), default="")
+    canal         = Column(String(40), default="")              # meta | google | mercadolibre | otro
+    nota          = Column(Text, default="")
+    registrado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ObjetivoEconomico(Base):
+    """Objetivos del propietario, versionados: un cambio crea una versión nueva (no se pisa)."""
+    __tablename__ = "objetivos_economicos"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    periodo       = Column(String(7), nullable=False, index=True)   # YYYY-MM
+    indicador     = Column(String(40), nullable=False)              # facturacion | comisiones_generadas | comisiones_cobradas | resultado_personal
+    producto      = Column(String(20), default="")
+    canal         = Column(String(40), default="")
+    valor         = Column(Float, nullable=False)
+    version       = Column(Integer, nullable=False, default=1)
+    vigente       = Column(Boolean, default=True)
+    origen        = Column(String(40), default="panel")             # panel | conversacion_maximo
+    nota          = Column(Text, default="")
+    autorizado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())

@@ -23,15 +23,19 @@ def _record_fail_ex(fn: str, exc: Exception) -> None:
 CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
 CRM_API_KEY = os.getenv("CRM_API_KEY", "")
 
+# X-Origen-Cliente identifica al sistema de agentes IA ante el CRM, que le niega
+# las operaciones reservadas a personas (pagos, cobros, entregas, financiaciones).
 HEADERS = {
     "Authorization": f"Bearer {CRM_API_KEY}",
     "Content-Type": "application/json",
+    "X-Origen-Cliente": "multiagente",
 }
 
 # Algunos endpoints (routers/negocio.py) validan X-API-Key en vez de Bearer.
 HEADERS_XKEY = {
     "X-API-Key": CRM_API_KEY,
     "Content-Type": "application/json",
+    "X-Origen-Cliente": "multiagente",
 }
 
 TIMEOUT = 10.0

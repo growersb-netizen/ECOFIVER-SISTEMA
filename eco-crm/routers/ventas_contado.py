@@ -17,6 +17,7 @@ from database.models import (
 from routers.auth import require_auth, require_roles, get_user_roles, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
 from utils.stock import descontar, sumar
+from utils.origen import negar_a_agentes_ia
 
 _log = logging.getLogger(__name__)
 router = APIRouter()
@@ -243,7 +244,7 @@ async def list_ventas_contado(
     return [venta_to_dict(v, db) for v in ventas]
 
 
-@router.post("/api/ventas-contado")
+@router.post("/api/ventas-contado", dependencies=[Depends(negar_a_agentes_ia)])
 async def create_venta_contado(
     request: Request,
     db: Session = Depends(get_db),

@@ -48,6 +48,12 @@ def limpiar_acciones(reply: str) -> str:
     return CRM_ACTION_PATTERN.sub("", reply).strip()
 
 
+import contextvars as _cv
+
+# Agente que emitió la acción (lo necesitan las acciones del circuito comercial)
+_agente_ctx: _cv.ContextVar[str] = _cv.ContextVar("accion_agente", default="")
+
+
 async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
     """
     Ejecuta una lista de acciones CRM en orden, validando cada una contra
@@ -71,11 +77,14 @@ async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
             registrar_bloqueo(tipo, ctx, decision.motivo)
             resultados.append(f"⛔ Acción '{tipo}' no ejecutada: {decision.motivo}")
             continue
+        tok = _agente_ctx.set((ctx.agente if ctx else "") or "")
         try:
             resultado = await _ejecutar_una(tipo, datos)
         except Exception as e:
             resultado = f"❌ Error inesperado en '{tipo}': {e}"
             logger.error(f"[CRMActions] {resultado}")
+        finally:
+            _agente_ctx.reset(tok)
         resultados.append(resultado)
 
     return "\n".join(resultados)
@@ -125,6 +134,11 @@ async def _ejecutar_una(tipo: str, datos: dict) -> str:
     # ── Emisión de contratos ─────────────────────────────────────────────────
     elif tipo == "emitir_contrato":
         return await _emitir_contrato(datos)
+    # ── Circuito comercial (validado en el CRM) ──────────────────────────────
+    elif tipo == "cerrar_venta_contado":
+        return await _cerrar_venta_contado(datos)
+    elif tipo == "abrir_financiacion":
+        return await _abrir_financiacion(datos)
     else:
         return f"⚠️ Tipo de acción desconocido: '{tipo}'"
 
@@ -538,3 +552,58 @@ async def _emitir_contrato(datos: dict) -> str:
     pdf = result.get("pdf_url")
     linea_pdf = f" — PDF: {pdf}" if pdf else " — el PDF no se pudo generar, se puede regenerar después"
     return f"✅ Contrato emitido — Solicitud N° {numero}{linea_pdf}"
+
+
+
+# ── Circuito comercial ────────────────────────────────────────────────────────
+
+async def _crm_circuito(ruta: str, cuerpo: dict) -> tuple[int, dict]:
+    import httpx
+    headers = {**crm_client.HEADERS, "X-Agente": _agente_ctx.get()}
+    async with httpx.AsyncClient(timeout=crm_client.TIMEOUT) as c:
+        r = await c.post(f"{crm_client.CRM_BASE_URL}{ruta}", headers=headers, json=cuerpo)
+    try:
+        data = r.json()
+    except Exception:
+        data = {}
+    return r.status_code, data
+
+
+async def _cerrar_venta_contado(datos: dict) -> str:
+    """Cierre comercial de contado: el CRM valida agente, producto, lead y precio de catálogo."""
+    cuerpo = {k: datos[k] for k in ("lead_id", "producto", "modelo", "precio", "color", "cliente_nombre",
+                                    "cliente_localidad", "cliente_domicilio", "aceptacion_cliente")
+              if datos.get(k) is not None}
+    status, d = await _crm_circuito("/api/comercial/contado/cierres", cuerpo)
+    if status != 200:
+        return f"❌ Cierre no registrado: {d.get('detail', f'HTTP {status}')}"
+    v = d["venta"]
+    status2, d2 = await _crm_circuito(f"/api/comercial/contado/{v['id']}/solicitar-entrega", {})
+    pedido = "y entrega solicitada a logística" if status2 == 200 else f"(entrega no solicitada: {d2.get('detail', status2)})"
+    return (f"✅ Cierre comercial #{v['id']} registrado: {v['producto']} {v['modelo']} ${v['precio_final']:,.0f} "
+            f"{pedido}. Pago en domicilio contra entrega; el cobro lo confirma una persona.")
+
+
+async def _abrir_financiacion(datos: dict) -> str:
+    """Apertura de financiación; Nicolás y Mateo pueden derivar a Admisión (nunca aprobar)."""
+    cuerpo = {k: datos[k] for k in ("lead_id", "producto", "modelo", "cliente_nombre", "cliente_telefono",
+                                    "valor_cuota_estimado") if datos.get(k) is not None}
+    cuerpo["datos_apertura"] = datos.get("datos_apertura") or {}
+    status, d = await _crm_circuito("/api/comercial/financiacion/expedientes", cuerpo)
+    if status != 200:
+        return f"❌ Apertura no registrada: {d.get('detail', f'HTTP {status}')}"
+    exp = d["expediente"]
+    destino = str(datos.get("etapa") or "").upper()
+    camino = {"PRECALIFICADO": ["APERTURA_EN_PROCESO", "PRECALIFICADO"],
+              "VIDEOLLAMADA_PENDIENTE": ["APERTURA_EN_PROCESO", "VIDEOLLAMADA_PENDIENTE"],
+              "EN_ADMISION": ["APERTURA_EN_PROCESO", "PRECALIFICADO", "EN_ADMISION"]}.get(destino, [])
+    for estado in camino:
+        if exp["estado"] == estado or (estado == "APERTURA_EN_PROCESO" and exp["estado"] != "CONSULTA_RECIBIDA"):
+            continue
+        status, d = await _crm_circuito(f"/api/comercial/financiacion/expedientes/{exp['id']}/estado",
+                                        {"estado": estado, "detalle": str(datos.get("detalle") or "")[:500]})
+        if status != 200:
+            return f"⚠️ Expediente #{exp['id']} abierto, pero no pasó a {estado}: {d.get('detail', status)}"
+        exp = d["expediente"]
+    return (f"✅ Expediente de financiación #{exp['id']} en {exp['estado']}. "
+            "La aprobación y el cierre los hace Admisión (personas).")

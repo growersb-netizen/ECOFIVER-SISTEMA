@@ -13,6 +13,7 @@ from database.models import VentaFinanciada, Pago, Usuario, Lead, Interaccion, S
 from routers.auth import require_auth, require_roles, get_user_roles, get_current_user, require_auth_or_apikey
 from routers.notificaciones import notificar_nueva_venta
 from utils.api_keys import api_key_valida
+from utils.origen import negar_a_agentes_ia
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -175,7 +176,7 @@ async def list_ventas_financiadas(
     return [venta_to_dict(v) for v in ventas]
 
 
-@router.post("/api/ventas-financiadas")
+@router.post("/api/ventas-financiadas", dependencies=[Depends(negar_a_agentes_ia)])
 async def create_venta_financiada(
     request: Request,
     db: Session = Depends(get_db),
@@ -274,7 +275,7 @@ _CAMPOS_EDITABLES_VENTA = [
 _CAMPOS_ECONOMICOS_VENTA = {"precio_total", "anticipo", "monto_inscripcion", "cantidad_cuotas", "valor_cuota"}
 
 
-@router.put("/api/ventas-financiadas/{venta_id}")
+@router.put("/api/ventas-financiadas/{venta_id}", dependencies=[Depends(negar_a_agentes_ia)])
 async def update_venta_financiada(
     venta_id: int,
     request: Request,
@@ -360,7 +361,7 @@ async def get_historial_venta_financiada(
     } for r in registros]
 
 
-@router.post("/api/ventas-financiadas/{venta_id}/pago")
+@router.post("/api/ventas-financiadas/{venta_id}/pago", dependencies=[Depends(negar_a_agentes_ia)])
 async def registrar_pago(
     venta_id: int,
     request: Request,
@@ -450,7 +451,7 @@ async def registrar_pago(
     return resultado
 
 
-@router.post("/api/ventas-financiadas/limpiar-pagos-cuota")
+@router.post("/api/ventas-financiadas/limpiar-pagos-cuota", dependencies=[Depends(negar_a_agentes_ia)])
 async def limpiar_pagos_cuota(
     request: Request,
     db: Session = Depends(get_db),
@@ -581,7 +582,7 @@ def _categoria_producto(producto: Optional[str]) -> str:
     return "PISCINA"
 
 
-@router.post("/api/ventas-financiadas/importar-historico")
+@router.post("/api/ventas-financiadas/importar-historico", dependencies=[Depends(negar_a_agentes_ia)])
 async def importar_historico(
     request: Request,
     db: Session = Depends(get_db),
@@ -698,7 +699,7 @@ async def importar_historico(
     }
 
 
-@router.post("/api/ventas-financiadas/corregir-fechas-historico")
+@router.post("/api/ventas-financiadas/corregir-fechas-historico", dependencies=[Depends(negar_a_agentes_ia)])
 async def corregir_fechas_historico(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_auth_or_apikey),
@@ -725,7 +726,7 @@ async def corregir_fechas_historico(
     return {"ok": True, "corregidas": corregidas, "total": len(corregidas)}
 
 
-@router.post("/api/ventas-financiadas/aplicar-icac")
+@router.post("/api/ventas-financiadas/aplicar-icac", dependencies=[Depends(negar_a_agentes_ia)])
 async def aplicar_icac(
     request: Request,
     db: Session = Depends(get_db),

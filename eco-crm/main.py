@@ -247,6 +247,8 @@ from routers import tareas as _tareas  # motor de tareas (Fase 1)
 app.include_router(_tareas.router)
 from routers import agentes_control as _agentes_control  # control empresarial (Fase 2)
 app.include_router(_agentes_control.router)
+from routers import circuito_comercial as _circuito  # contado / financiación / Admisión / comisiones
+app.include_router(_circuito.router)
 app.include_router(instalacion.router)
 app.include_router(panolero.router)
 app.include_router(asistencia_rapida.router)

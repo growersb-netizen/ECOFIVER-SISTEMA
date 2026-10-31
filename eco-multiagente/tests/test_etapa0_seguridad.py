@@ -46,11 +46,15 @@ class TestPoliticaAcciones:
         assert not evaluar("borrar_base", {}, ctx).permitido
 
     def test_canal_confiable_respeta_lista_blanca_por_agente(self):
-        datos = {"venta_id": 1, "monto": 100}
-        assert evaluar("pagar_cuota", datos, ActionContext("maximo", CANAL_CONFIABLE)).permitido
-        assert evaluar("pagar_cuota", datos, ActionContext("ezequiel", CANAL_CONFIABLE)).permitido
-        assert not evaluar("pagar_cuota", datos, ActionContext("camila", CANAL_CONFIABLE)).permitido
-        assert not evaluar("pagar_cuota", datos, ActionContext("valentin", CANAL_CONFIABLE)).permitido
+        datos = {"telefono": "5491100000000", "mensaje": "hola"}
+        assert evaluar("contactar_lead", datos, ActionContext("maximo", CANAL_CONFIABLE)).permitido
+        assert evaluar("contactar_lead", datos, ActionContext("tomas", CANAL_CONFIABLE)).permitido
+        assert not evaluar("contactar_lead", datos, ActionContext("camila", CANAL_CONFIABLE)).permitido
+        assert not evaluar("contactar_lead", datos, ActionContext("valentin", CANAL_CONFIABLE)).permitido
+        # Reglas del propietario: ningún agente IA registra pagos, ventas financiadas ni contratos
+        for agente in ("maximo", "ezequiel", "ignacio"):
+            for tipo in ("pagar_cuota", "venta_financiada", "emitir_contrato", "venta_contado"):
+                assert not evaluar(tipo, {"venta_id": 1, "monto": 100}, ActionContext(agente, CANAL_CONFIABLE)).permitido
 
     def test_nombre_con_tilde_se_normaliza(self):
         assert evaluar("reasignar_lead", {"lead_id": 1, "agente": "x"},
@@ -106,7 +110,7 @@ class TestEjecucionConPolitica:
         from tools import crm_actions
         with patch.object(crm_actions, "_ejecutar_una", new_callable=AsyncMock, return_value="✅ ok") as ej:
             out = await crm_actions.ejecutar_acciones(
-                [{"tipo": "pagar_cuota", "datos": {"venta_id": 5, "monto": 10}}],
+                [{"tipo": "reasignar_lead", "datos": {"lead_id": 5, "agente": "camila"}}],
                 ActionContext(agente="maximo", canal=CANAL_CONFIABLE, origen="telegram"),
             )
         ej.assert_awaited_once()

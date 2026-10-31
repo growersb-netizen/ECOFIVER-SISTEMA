@@ -255,6 +255,7 @@ async def update_entrega(
     # Cuando se marca INSTALADA: generar token de seguimiento en el lead
     if data.get("estado") == "INSTALADA" and estado_anterior != "INSTALADA":
         _generar_token_seguimiento(db, entrega)
+        _circuito_entrega_confirmada(db, entrega, current_user)
 
     # Cuando se devuelve a ventas: notificar al vendedor que cargó la venta
     if data.get("estado") == "DEVOLVER_A_VENTAS" and estado_anterior != "DEVOLVER_A_VENTAS":
@@ -262,6 +263,21 @@ async def update_entrega(
 
     db.commit()
     return {"ok": True}
+
+
+def _circuito_entrega_confirmada(db: Session, entrega: Entrega, usuario) -> None:
+    """Entrega instalada (confirmación operativa de una persona) → circuito de contado y comisión del propietario."""
+    if not entrega.venta_contado_id:
+        return
+    try:
+        from utils.circuito_comercial import confirmar_entrega
+        venta = db.query(VentaContado).filter(VentaContado.id == entrega.venta_contado_id).first()
+        if venta:
+            confirmar_entrega(db, venta, usuario, f"Logística: entrega #{entrega.id} marcada INSTALADA",
+                              verificar_rol=False)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[CIRCUITO] Entrega #{entrega.id} sin registrar en el circuito: {e}")
 
 
 def _notificar_devolucion_a_ventas(db: Session, entrega: Entrega, notas: str = ""):

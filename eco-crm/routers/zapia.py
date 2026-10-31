@@ -35,6 +35,7 @@ from database.models import (
     StockPiscina, StockPanel, Entrega, Reclamo, MensajeConversacion,
     Notificacion, ConfiguracionSistema, Gasto, EnvioViaCargo,
 )
+from utils.stock import descontar, sumar
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ext", tags=["API Externa Zapia"])
@@ -1960,8 +1961,9 @@ async def create_envio_ext(
         stock = db.query(StockPiscina).filter(
             StockPiscina.modelo.ilike(f"%{envio.modelo_especifico}%"),
         ).first()
-        if stock and stock.cantidad >= envio.cantidad:
-            stock.cantidad -= envio.cantidad
+        if stock and not descontar(db, StockPiscina, stock.id, "cantidad", envio.cantidad):
+            logging.getLogger(__name__).warning(
+                f"[STOCK] Sin stock suficiente de {stock.modelo} para el envío (se registra igual, como antes)")
 
     db.commit()
     db.refresh(envio)

@@ -21,6 +21,8 @@ from sqlalchemy import func
 from database.database import get_db
 from database.models import EnvioViaCargo, VentaContado, Usuario, StockPiscina, StockPanel
 from routers.auth import require_auth, get_user_roles, require_roles
+import logging
+from utils.stock import descontar, sumar
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -240,8 +242,9 @@ async def create_envio(
         stock = db.query(StockPiscina).filter(
             StockPiscina.modelo.ilike(f"%{envio.modelo_especifico}%")
         ).first()
-        if stock and stock.cantidad >= envio.cantidad:
-            stock.cantidad -= envio.cantidad
+        if stock and not descontar(db, StockPiscina, stock.id, "cantidad", envio.cantidad):
+            logging.getLogger(__name__).warning(
+                f"[STOCK] Sin stock suficiente de {stock.modelo} para el envío (se registra igual, como antes)")
 
     db.commit()
     db.refresh(envio)

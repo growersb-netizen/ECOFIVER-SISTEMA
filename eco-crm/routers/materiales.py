@@ -19,6 +19,8 @@ from database.models import (
     ConfiguracionSistema,
 )
 from routers.auth import require_auth, get_user_roles, require_auth_or_apikey
+import math
+from utils.stock import descontar, sumar
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -246,10 +248,18 @@ async def registrar_movimiento(
     data = await request.json()
     tipo = data.get("tipo", "ENTRADA")
     cantidad = float(data.get("cantidad", 0))
+    if tipo in ("SALIDA", "ENTRADA") and not (math.isfinite(cantidad) and cantidad > 0):
+        # Una ENTRADA negativa restaba stock y una SALIDA negativa lo sumaba.
+        raise HTTPException(400, "La cantidad debe ser mayor a 0")
     if tipo == "SALIDA":
-        mat.stock_actual = max(0, mat.stock_actual - cantidad)
+        if descontar(db, MaterialInventario, mat.id, "stock_actual", cantidad):
+            db.refresh(mat)
+        else:  # comportamiento existente: una salida mayor al stock lo deja en 0
+            db.refresh(mat)
+            mat.stock_actual = 0
     elif tipo == "ENTRADA":
-        mat.stock_actual += cantidad
+        sumar(db, MaterialInventario, mat.id, "stock_actual", cantidad)
+        db.refresh(mat)
     elif tipo == "AJUSTE":
         mat.stock_actual = cantidad
     db.add(MovimientoMaterial(

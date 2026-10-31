@@ -20,6 +20,7 @@ from database.models import (
     Empleado, Usuario, Gasto,
 )
 from routers.auth import require_auth, get_user_roles
+from utils.stock import descontar, sumar
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -486,7 +487,8 @@ async def registrar_movimiento_insumo(
 
     stock_anterior = m.stock_actual or 0
     if tipo == "ENTRADA":
-        m.stock_actual = stock_anterior + cantidad
+        sumar(db, MaterialInventario, m.id, "stock_actual", cantidad)
+        db.refresh(m)
         # Si se informa precio, actualizar precio de referencia (solo ADMIN/ADMINISTRACION)
         precio_nuevo = data.get("precio_referencia_nuevo")
         if precio_nuevo is not None:
@@ -494,9 +496,10 @@ async def registrar_movimiento_insumo(
             if any(r in roles for r in ROLES_COSTOS):
                 m.precio_referencia = float(precio_nuevo)
     elif tipo == "SALIDA":
-        if stock_anterior < cantidad:
-            raise HTTPException(400, f"Stock insuficiente. Disponible: {stock_anterior} {m.unidad}")
-        m.stock_actual = stock_anterior - cantidad
+        if not descontar(db, MaterialInventario, m.id, "stock_actual", cantidad):
+            db.refresh(m)
+            raise HTTPException(400, f"Stock insuficiente. Disponible: {m.stock_actual or 0} {m.unidad}")
+        db.refresh(m)
     elif tipo == "AJUSTE":
         m.stock_actual = cantidad
     else:

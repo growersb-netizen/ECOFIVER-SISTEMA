@@ -15,6 +15,13 @@ from tools import crm_client, contacto_comercial
 CON_BAJA = "5491111111111"
 SIN_BAJA = "5491122222222"
 
+@pytest.fixture(autouse=True)
+def _horario_autorizado():
+    """Estas pruebas verifican otra compuerta; el horario/estado se prueba en test_control_agentes.py."""
+    with patch("tools.control_agentes.puede_iniciar_saliente", AsyncMock(return_value=(True, ""))):
+        yield
+
+
 
 def _consulta(tel):
     return {CON_BAJA: True, SIN_BAJA: False}.get(tel)      # otro → None (CRM no confirmó)

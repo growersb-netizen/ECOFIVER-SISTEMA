@@ -1948,3 +1948,43 @@ class ExclusionComercial(Base):
     actualizada_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     reactivada_por = Column(String(150), nullable=True)
     motivo_reactivacion = Column(String(300), nullable=True)
+
+
+
+class AgenteControl(Base):
+    """Estado ADMINISTRATIVO de un agente (lo decide un administrador). Sin fila = ACTIVO.
+    La actividad real (qué está haciendo) se calcula aparte desde tareas y métricas."""
+    __tablename__ = "agentes_control"
+
+    agente          = Column(String(30), primary_key=True)
+    estado          = Column(String(20), nullable=False, default="ACTIVO")   # ACTIVO | PAUSADO | DESACTIVADO
+    motivo          = Column(Text, default="")
+    actualizado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    actualizado_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class AgenteControlEvento(Base):
+    """Historial auditable de cambios de estado administrativo (solo se agregan filas)."""
+    __tablename__ = "agentes_control_eventos"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    agente          = Column(String(30), nullable=False, index=True)
+    estado_anterior = Column(String(20), default="")
+    estado_nuevo    = Column(String(20), nullable=False)
+    motivo          = Column(Text, default="")
+    usuario_id      = Column(Integer, nullable=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GuardiaOperativa(Base):
+    """Ventana autorizada para operar salientes fuera del horario (L-S 09-21 ART)."""
+    __tablename__ = "guardias_operativas"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    alcance         = Column(String(40), nullable=False)       # "todos" | "dep:<departamento>" | "agente:<nombre>"
+    desde           = Column(DateTime(timezone=True), nullable=False)
+    hasta           = Column(DateTime(timezone=True), nullable=False)
+    motivo          = Column(Text, default="")
+    creado_por_id   = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    activa          = Column(Boolean, default=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())

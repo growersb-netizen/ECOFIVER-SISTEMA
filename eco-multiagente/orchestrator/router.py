@@ -612,6 +612,24 @@ async def _route_message_impl(
         agent_name = "valentina"
         _agent_assignments[session_id] = agent_name
 
+    # Control empresarial (Fase 2): si el agente asignado está pausado o
+    # desactivado, atiende Valentina (sin cambiar la asignación del CRM). El
+    # entrante se atiende 24/7; sin ningún agente activo, el mensaje queda
+    # registrado y se avisa al cliente, sin respuesta de IA.
+    from tools.control_agentes import agente_para_cliente
+    atiende = await agente_para_cliente(agent_name)
+    if atiende is None:
+        reply = "¡Gracias por escribirnos! Recibimos tu mensaje y en breve te responde una persona del equipo."
+        await crm_client.save_message(lead_id=session_id, user_msg=mensaje, agent_reply=reply,
+                                      agent_name="sistema", msg_type=msg_type)
+        registrar_interaccion(canal=canal, session_id=session_id, agente="sistema",
+                              mensaje_usuario=mensaje, respuesta_agente=reply, msg_type=msg_type)
+        logger.warning(f"[Router] Sin agentes de atención activos — mensaje de {session_id} sin IA")
+        return {"reply": reply, "agent": "sistema", "lead_id": session_id}
+    if atiende != agent_name:
+        logger.info(f"[Router] {agent_name} no está activo → atiende {atiende} ({session_id})")
+        agent_name = atiende
+
     # 2. Obtener historial de los últimos 10 mensajes para contexto
     historial = await crm_client.get_conversation_history(session_id, limit=10)
     contexto = f"Historial previo:\n{historial}" if historial else ""

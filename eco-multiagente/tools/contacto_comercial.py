@@ -18,10 +18,17 @@ from tools import crm_client
 
 logger = logging.getLogger(__name__)
 
-_stats = {"bloqueados_baja": 0, "bloqueados_sin_confirmar": 0, "permitidos": 0}
+_stats = {"bloqueados_baja": 0, "bloqueados_sin_confirmar": 0, "bloqueados_horario_o_estado": 0, "permitidos": 0}
 
 
-async def puede_contactar(telefono: str, origen: str = "") -> bool:
+async def puede_contactar(telefono: str, origen: str = "", agente: str = "valentina") -> bool:
+    """Contacto comercial saliente: agente activo, dentro de horario (o guardia) y sin baja."""
+    from tools.control_agentes import puede_iniciar_saliente
+    permitido, motivo = await puede_iniciar_saliente(agente)
+    if not permitido:
+        _stats["bloqueados_horario_o_estado"] = _stats.get("bloqueados_horario_o_estado", 0) + 1
+        logger.info(f"[Contacto] {origen}: {motivo} → no se envía")
+        return False
     excluido = await crm_client.consultar_baja(telefono)
     if excluido is None:
         _stats["bloqueados_sin_confirmar"] += 1

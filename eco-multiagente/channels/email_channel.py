@@ -287,7 +287,8 @@ async def _procesar_email(item: dict) -> None:
         )
 
         # ── Si tiene teléfono → también contactar por WhatsApp ───────────────
-        if telefono and telefono.startswith("549"):
+        from tools.contacto_comercial import puede_contactar
+        if telefono and telefono.startswith("549") and await puede_contactar(telefono, "email → whatsapp"):
             try:
                 from channels.whatsapp import send_whatsapp_message
                 msg_wa = (

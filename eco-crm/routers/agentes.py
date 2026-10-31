@@ -18,6 +18,8 @@ from database.models import (
 )
 from routers.ventas_financiadas import dias_atraso
 from utils.api_keys import api_key_valida
+from utils import exclusiones
+from routers.auth import require_roles
 
 router = APIRouter()
 
@@ -105,7 +107,74 @@ async def get_lead_by_session(
     lead = _find_lead(session_id, db)
     if not lead:
         return {}
-    return _lead_dict(lead)
+    d = _lead_dict(lead)
+    d["baja_comercial"] = exclusiones.esta_excluido(db, lead.telefono)
+    return d
+
+
+# ─── BAJAS DE COMUNICACIONES COMERCIALES ─────────────────────────────────────
+
+@router.post("/api/contactos/baja")
+async def registrar_baja_comercial(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(_require_api_key),
+):
+    """
+    Registra que un contacto pidió no recibir más comunicaciones comerciales.
+    Body: {session_id?, telefono?, canal?, texto?}. El teléfono sale del body o del
+    lead de la sesión. Idempotente. Sin teléfono no hay a quién excluir: registrado=false.
+    """
+    data = await request.json()
+    session_id = str(data.get("session_id") or "")
+    lead = _find_lead(session_id, db) if session_id else None
+    tel = str(data.get("telefono") or "") or (lead.telefono if lead else "")
+    ex, ya_existia = exclusiones.registrar_baja(
+        db, tel, lead_id=lead.id if lead else None,
+        canal=str(data.get("canal") or ""), texto=str(data.get("texto") or ""),
+    )
+    if not ex:
+        return {"ok": True, "registrado": False, "motivo": "sin_telefono"}
+    return {"ok": True, "registrado": True, "ya_existia": ya_existia,
+            "desde": ex.created_at.isoformat() if ex.created_at else ""}
+
+
+@router.get("/api/contactos/baja")
+async def consultar_baja_comercial(
+    telefono: str,
+    db: Session = Depends(get_db),
+    _: bool = Depends(_require_api_key),
+):
+    """{excluido: bool}. Lo consulta el multiagente antes de cada contacto automático."""
+    ex = exclusiones.exclusion_activa(db, telefono)
+    return {"excluido": ex is not None,
+            "desde": ex.created_at.isoformat() if ex and ex.created_at else ""}
+
+
+@router.post("/api/contactos/baja/reactivar")
+async def reactivar_comunicaciones(
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_roles("ADMIN")),
+):
+    """
+    Levanta una baja. Solo un administrador humano (sesión del CRM, no la API key
+    de los agentes) y con motivo: p. ej. el contacto pidió volver a recibir novedades.
+    """
+    if getattr(usuario, "es_agente_ia", False):
+        raise HTTPException(status_code=403, detail="Solo un administrador humano")
+    data = await request.json()
+    motivo = str(data.get("motivo") or "").strip()
+    if len(motivo) < 5:
+        raise HTTPException(status_code=400, detail="Indicá el motivo de la reactivación")
+    ex = exclusiones.exclusion_activa(db, str(data.get("telefono") or ""))
+    if not ex:
+        return {"ok": True, "reactivado": False, "motivo": "sin_baja_activa"}
+    ex.activa = False
+    ex.reactivada_por = (usuario.nombre or usuario.email or "")[:150]
+    ex.motivo_reactivacion = motivo[:300]
+    db.commit()
+    return {"ok": True, "reactivado": True}
 
 
 @router.post("/api/leads/agent")
@@ -255,7 +324,7 @@ async def leads_sin_respuesta(
         .limit(20)
         .all()
     )
-    return [_lead_dict(l) for l in leads]
+    return [_lead_dict(l) for l in exclusiones.sin_excluidos(db, leads)]
 
 
 # ─── CUOTAS VENCIDAS ──────────────────────────────────────────────────────────
@@ -383,7 +452,7 @@ async def leads_nuevos_sin_contactar(
         .limit(20)
         .all()
     )
-    return [_lead_dict(l) for l in leads]
+    return [_lead_dict(l) for l in exclusiones.sin_excluidos(db, leads)]
 
 
 # ─── LEADS PARA NUTRIR (20-30hs) ─────────────────────────────────────────────
@@ -408,7 +477,7 @@ async def leads_para_nutrir(
         .limit(15)
         .all()
     )
-    return [_lead_dict(l) for l in leads]
+    return [_lead_dict(l) for l in exclusiones.sin_excluidos(db, leads)]
 
 
 # ─── LEADS FRÍOS ─────────────────────────────────────────────────────────────
@@ -432,7 +501,7 @@ async def leads_frios(
         .limit(30)
         .all()
     )
-    return [_lead_dict(l) for l in leads]
+    return [_lead_dict(l) for l in exclusiones.sin_excluidos(db, leads)]
 
 
 # ─── DATOS DE LEAD META CON TOKEN DE SU PÁGINA ──────────────────────────────

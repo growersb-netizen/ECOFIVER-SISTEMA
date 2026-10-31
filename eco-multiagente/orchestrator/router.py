@@ -192,6 +192,13 @@ _BAJA_RE = re.compile(
 )
 
 
+_AVISO_BAJA = (
+    "[RESTRICCIÓN DEL SISTEMA] Este contacto pidió no recibir comunicaciones comerciales. "
+    "Respondé solo lo que pregunta. No ofrezcas promociones, novedades ni seguimientos, "
+    "y no propongas volver a escribirle."
+)
+
+
 def es_pedido_de_baja(msg: str) -> bool:
     m = _normalizar(msg)
     return bool(_BAJA_RE.search(m)) or m in ("stop", "baja", "unsubscribe")
@@ -608,13 +615,25 @@ async def _route_message_impl(
     # 2. Obtener historial de los últimos 10 mensajes para contexto
     historial = await crm_client.get_conversation_history(session_id, limit=10)
     contexto = f"Historial previo:\n{historial}" if historial else ""
+    if (lead or {}).get("baja_comercial"):
+        # Volvió a escribir por iniciativa propia: se le responde, pero la baja sigue vigente.
+        contexto = (_AVISO_BAJA + "\n\n" + contexto).strip()
 
     # 2b. Despedida o pedido de no recibir más mensajes: cierre corto, sin IA y sin
-    # promociones. No se promete la baja definitiva: todavía no se registra en el CRM.
+    # promociones. La baja se registra en el CRM (persistente, por teléfono) y solo
+    # se le confirma al contacto si el CRM la guardó.
     if es_despedida(mensaje) or es_pedido_de_baja(mensaje):
         if es_pedido_de_baja(mensaje):
-            logger.warning(f"[Router] Pedido de no recibir más mensajes de {session_id} ({canal})")
-            reply = "Entendido. Cortamos acá la conversación. Si más adelante necesitás algo, escribinos. 👋"
+            res = await crm_client.registrar_baja(session_id, telefono=(lead or {}).get("telefono", ""),
+                                                  canal=canal, texto=mensaje)
+            if res.get("registrado"):
+                logger.warning(f"[Router] Baja comercial registrada ({canal})")
+                reply = ("Entendido. No te vamos a enviar más mensajes comerciales. "
+                         "Si más adelante necesitás algo, escribinos cuando quieras. 👋")
+            else:
+                logger.error(f"[Router] Pedido de baja NO registrado en el CRM ({canal}): "
+                             f"{res.get('motivo') or 'CRM sin respuesta'}")
+                reply = "Entendido. Cortamos acá la conversación. Si más adelante necesitás algo, escribinos. 👋"
         else:
             reply = "¡Gracias por escribirnos! Cuando quieras, acá estamos. 👋"
         await crm_client.save_message(lead_id=session_id, user_msg=mensaje, agent_reply=reply,

@@ -332,6 +332,11 @@ def _generar_token_seguimiento(db: Session, entrega: Entrega):
 def _enviar_wa_testimonio(db: Session, telefono: str, nombre: str, token: str):
     """Envía mensaje WA invitando al cliente a dejar su opinión (usa WA Cloud API configurado)."""
     try:
+        from utils.exclusiones import esta_excluido
+        if esta_excluido(db, telefono):
+            import logging
+            logging.getLogger(__name__).info("[WA TESTIMONIO] Contacto con baja comercial: no se envía")
+            return
         import os
         base_url = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
         link = f"{base_url}/seguimiento/{token}"

@@ -248,6 +248,10 @@ async def _contactar_lead(datos: dict) -> str:
     nombre = datos.get("nombre", "")
     if not tel or not mensaje:
         return "❌ Falta teléfono o mensaje para contactar al lead"
+    from tools.contacto_comercial import puede_contactar
+    if not await puede_contactar(tel, "accion contactar_lead"):
+        return (f"⛔ No se envió: {nombre or 'el contacto'} pidió no recibir mensajes comerciales "
+                f"(o no se pudo confirmar con el CRM). Si te vuelve a escribir, se le responde normal.")
     try:
         from channels.whatsapp import send_whatsapp_message
         ok = await send_whatsapp_message(tel, mensaje)
@@ -282,8 +286,9 @@ async def _contactar_leads_sin_respuesta(datos: dict) -> str:
     if not leads:
         return "✅ No hay leads sin respuesta para contactar en este momento."
 
-    enviados, sin_tel = 0, 0
+    enviados, sin_tel, excluidos = 0, 0, 0
     try:
+        from tools.contacto_comercial import puede_contactar
         from channels.whatsapp import send_whatsapp_message
         from agents.valentina import get_agent
         import re as _re
@@ -292,6 +297,9 @@ async def _contactar_leads_sin_respuesta(datos: dict) -> str:
             tel = _normalizar_tel(l.get("telefono", ""))
             if not tel:
                 sin_tel += 1
+                continue
+            if not await puede_contactar(tel, "accion contactar_leads_sin_respuesta"):
+                excluidos += 1
                 continue
             nombre = l.get("nombre", "") or "vecino"
             prod = l.get("producto_interes", "nuestros productos")
@@ -310,6 +318,8 @@ async def _contactar_leads_sin_respuesta(datos: dict) -> str:
     resumen = f"✅ Contacté {enviados} lead(s) sin respuesta por WhatsApp"
     if sin_tel:
         resumen += f" ({sin_tel} no tenían teléfono cargado)"
+    if excluidos:
+        resumen += f" ({excluidos} omitidos: pidieron no recibir mensajes comerciales)"
     return resumen
 
 
@@ -402,6 +412,7 @@ async def _reactivar_leads_frios(datos: dict) -> str:
         return "✅ No hay leads fríos para reactivar ahora."
     enviados = 0
     try:
+        from tools.contacto_comercial import puede_contactar
         from channels.whatsapp import send_whatsapp_message
         from agents.valentina import get_agent
         import re as _re
@@ -409,6 +420,8 @@ async def _reactivar_leads_frios(datos: dict) -> str:
         for l in leads[:limite]:
             tel = _normalizar_tel(l.get("telefono", ""))
             if not tel:
+                continue
+            if not await puede_contactar(tel, "accion reactivar_leads_frios"):
                 continue
             nombre = l.get("nombre", "") or "vecino"
             prompt = (f"Mensaje corto y cálido de reactivación para {nombre}, que consultó hace "

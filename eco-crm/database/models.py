@@ -1870,3 +1870,25 @@ class MetaLeadRecepcion(Base):
     form_id = Column(String(50), nullable=False, default="", index=True)
     datos_json = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ExclusionComercial(Base):
+    """
+    Bajas de comunicaciones comerciales (pedido del contacto: "no me escriban más").
+    La clave es el teléfono normalizado, no el lead: la baja vale para todos los
+    leads con ese número, incluidos los que se creen después. Que el contacto
+    vuelva a escribir NO la levanta; solo la levanta un administrador (reactivar).
+    """
+    __tablename__ = "exclusiones_comerciales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    telefono_clave = Column(String(20), nullable=False, unique=True, index=True)  # últimos 10 dígitos
+    telefono = Column(String(30), nullable=True)            # como llegó
+    lead_id = Column(Integer, nullable=True, index=True)    # lead desde el que se pidió (referencia)
+    canal = Column(String(30), nullable=True)               # whatsapp | web | email | instagram | ...
+    texto = Column(String(300), nullable=True)              # mensaje del contacto
+    activa = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    actualizada_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    reactivada_por = Column(String(150), nullable=True)
+    motivo_reactivacion = Column(String(300), nullable=True)

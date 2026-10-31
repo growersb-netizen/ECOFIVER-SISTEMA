@@ -7,6 +7,8 @@ import logging
 import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+
+from tools.contacto_comercial import puede_contactar
 import pytz
 
 logger = logging.getLogger(__name__)
@@ -312,6 +314,8 @@ async def tarea_seguimiento_leads_frios():
 
             if not telefono:
                 continue
+            if not await puede_contactar(telefono, "cron seguimiento"):
+                continue
 
             template = TEMPLATES.get(intento, TEMPLATES[0])
             prompt   = template.format(nombre=nombre, producto=producto)
@@ -361,6 +365,8 @@ async def tarea_contacto_leads_nuevos():
             nombre   = lead.get("nombre", "") or "vecino"
             producto = lead.get("producto_interes", "") or "nuestros productos"
             if not telefono:
+                continue
+            if not await puede_contactar(telefono, "cron primer contacto"):
                 continue
             msg = await valentina.respond(
                 f"Primer contacto para {nombre} que se interesó en {producto}. "
@@ -431,6 +437,8 @@ async def tarea_nutricion_24h():
             nombre   = lead.get("nombre", "") or "vecino"
             producto = lead.get("producto_interes", "") or "nuestros productos"
             if not telefono:
+                continue
+            if not await puede_contactar(telefono, "cron nutricion 24h"):
                 continue
             msg = await valentina.respond(
                 f"Mensaje de nutrición (educativo, no de venta) para {nombre} "
@@ -532,6 +540,8 @@ async def tarea_reactivacion_leads_frios():
             nombre   = lead.get("nombre", "") or "vecino"
             producto = lead.get("producto_interes", "") or "nuestros productos"
             if not telefono:
+                continue
+            if not await puede_contactar(telefono, "cron reactivacion"):
                 continue
             msg = await valentina.respond(
                 f"Mensaje de reactivación estacional para {nombre} que consultó "

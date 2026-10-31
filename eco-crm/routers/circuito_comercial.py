@@ -156,6 +156,20 @@ def _venta_dict(v: VentaContado) -> dict:
             "cobro_estado": v.cobro_estado, "created_at": v.created_at.isoformat() if v.created_at else None}
 
 
+# ── Páginas ───────────────────────────────────────────────────────────────────
+
+@router.get("/admision", response_class=HTMLResponse)
+def pagina_admision(request: Request, user: Usuario = Depends(_admision)):
+    return templates.TemplateResponse(request, "admision.html",
+                                      {"request": request, "user": user, "roles": get_user_roles(user)})
+
+
+@router.get("/panel-propietario", response_class=HTMLResponse)
+def pagina_propietario(request: Request, user: Usuario = Depends(_propietario)):
+    return templates.TemplateResponse(request, "panel_propietario.html",
+                                      {"request": request, "user": user, "roles": get_user_roles(user)})
+
+
 # ── Agentes IA ────────────────────────────────────────────────────────────────
 
 @router.post("/api/comercial/contado/cierres")

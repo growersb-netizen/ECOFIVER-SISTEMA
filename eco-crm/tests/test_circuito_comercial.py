@@ -323,3 +323,15 @@ def test_panel_objetivos_gastos_y_cobro_de_comision(m):
     p = c.get(f"/api/propietario/panel?periodo={periodo}", headers=tok(1)).json()
     assert p["comisiones_cobradas"]["total"] == 249000.0 and p["resultado_personal"]["total"] == 199000.0
     assert c.post(f"/api/propietario/comisiones/{com.id}/anular", headers=tok(1), json={"motivo": "x"}).status_code == 400
+
+
+def test_paginas_de_admision_y_propietario_con_permisos(m):
+    c, _, tok = m
+    assert c.get("/admision", headers=tok(3)).status_code == 200
+    assert "Departamento de Admisión" in c.get("/admision", headers=tok(3)).text
+    for uid in (1, 2, 6):
+        assert c.get("/admision", headers=tok(uid)).status_code == 403
+    r = c.get("/panel-propietario", headers=tok(1))
+    assert r.status_code == 200 and "Panel económico" in r.text
+    for uid in (2, 3, 6, 7):
+        assert c.get("/panel-propietario", headers=tok(uid)).status_code == 403

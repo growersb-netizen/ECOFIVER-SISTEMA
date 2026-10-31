@@ -76,6 +76,7 @@
       {% endif %}
 
       {# ── WHATSAPP ──────────────────────────────────────────────────────── #}
+      {% if 'ADMISION' in roles %}<a href="/admision" class="nav-item"><span class="nav-icon">🗂️</span> Admisión</a>{% endif %}
       {% if 'ADMIN' in roles %}
       <div class="nav-section">WhatsApp</div>
       <a href="/inbox" class="nav-item" style="background:linear-gradient(135deg,#25d36618,#16a34a08);border-left:3px solid #25d366">
@@ -84,6 +85,7 @@
       </a>
       <a href="/control-agentes" class="nav-item" style="background:linear-gradient(135deg,#6366f118,#8b5cf608);border-left:3px solid #6366f1"><span class="nav-icon">🧠</span> Control IA</a>
       <a href="/operaciones-ia" class="nav-item"><span class="nav-icon">🏢</span> Operaciones IA</a>
+      {% if 'PROPIETARIO' in roles %}<a href="/panel-propietario" class="nav-item"><span class="nav-icon">💼</span> Mis comisiones</a>{% endif %}
       <a href="/integraciones" class="nav-item"><span class="nav-icon">🤖</span> Leads IA · Melanie</a>
       {% endif %}
 

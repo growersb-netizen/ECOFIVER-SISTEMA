@@ -42,12 +42,13 @@
           <label class="label">Roles *</label>
           <div id="roles-checkboxes" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
             {% for rol_key, rol_label in roles_disponibles %}
-            <label class="role-check {% if rol_key == 'ADMIN' and not es_admin %}role-locked{% endif %}"
+            {% set solo_admin = rol_key in ['ADMIN', 'ADMISION', 'PROPIETARIO'] and not es_admin %}
+            <label class="role-check {% if solo_admin %}role-locked{% endif %}"
                    id="lbl-{{ rol_key }}">
               <input type="checkbox" name="roles" value="{{ rol_key }}"
-                     {% if rol_key == 'ADMIN' and not es_admin %}disabled{% endif %}>
+                     {% if solo_admin %}disabled{% endif %}>
               <span class="role-name">{{ rol_label }}</span>
-              {% if rol_key == 'ADMIN' and not es_admin %}
+              {% if solo_admin %}
               <span style="font-size:10px;color:var(--text-muted)"> (solo ADMIN)</span>
               {% endif %}
             </label>
@@ -157,7 +158,7 @@ function renderUsers() {
           ${!u.activo?'<span style="font-size:11px;color:#888">(inactivo)</span>':''}
           ${u.es_agente_ia?'<span style="font-size:10px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:1px 7px;border-radius:10px;margin-left:4px">IA</span>':''}
         </div>
-        <div class="user-row-email">${escHtml(u.email)}</div>
+        <div class="user-row-email">${escHtml(u.email)}${u.aliado_codigo ? ` · <b>Socio ${escHtml(u.aliado_codigo)}</b>` : ""}</div>
         <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">${rolesPills}</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0">

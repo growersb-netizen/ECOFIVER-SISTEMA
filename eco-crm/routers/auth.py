@@ -202,7 +202,11 @@ ROLES_DISPONIBLES = [
     ("COBRANZAS",             "Cobranzas"),
     ("FABRICA",               "Fábrica"),
     ("ADMINISTRACION",        "Administración"),
+    ("ADMISION",              "Admisión de financiaciones"),
+    ("PROPIETARIO",           "Propietario (comisiones personales)"),
 ]
+# Roles que solo un ADMIN puede dar o quitar (dan acceso a decisiones de crédito o a ingresos del dueño)
+ROLES_SOLO_ADMIN = {"ADMIN", "ADMISION", "PROPIETARIO"}
 
 
 def _require_gestion(user: Usuario = Depends(require_auth)) -> Usuario:
@@ -225,6 +229,7 @@ async def list_usuarios(
         "nombre": u.nombre,
         "email": u.email,
         "roles": get_user_roles(u),
+        "aliado_codigo": getattr(u, "aliado_codigo", None),
         "activo": u.activo,
         "es_agente_ia": getattr(u, "es_agente_ia", False),
         "agente_key": getattr(u, "agente_key", None),
@@ -253,8 +258,8 @@ async def create_usuario(
     es_admin = "ADMIN" in caller_roles
     roles = data.get("roles", [])
 
-    if "ADMIN" in roles and not es_admin:
-        raise HTTPException(403, "Solo un ADMIN puede asignar el rol ADMIN")
+    if ROLES_SOLO_ADMIN & set(roles) and not es_admin:
+        raise HTTPException(403, "Solo un ADMIN puede asignar los roles ADMIN, ADMISION o PROPIETARIO")
     if not re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", data.get("email", "")):
         raise HTTPException(400, "Email inválido")
     if db.query(Usuario).filter(Usuario.email == data["email"].lower().strip()).first():
@@ -308,8 +313,9 @@ async def update_usuario(
             raise HTTPException(400, "Contraseña mínimo 6 caracteres")
         target.password_hash = hash_password(data["password"])
     if "roles" in data:
-        if "ADMIN" in data["roles"] and not es_admin:
-            raise HTTPException(403, "Solo ADMIN puede asignar rol ADMIN")
+        cambiados = set(data["roles"]) ^ set(target_roles)
+        if cambiados & ROLES_SOLO_ADMIN and not es_admin:
+            raise HTTPException(403, "Solo un ADMIN puede dar o quitar los roles ADMIN, ADMISION o PROPIETARIO")
         target.roles_json = json.dumps(data["roles"])
     if "activo" in data:
         target.activo = data["activo"]

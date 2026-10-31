@@ -52,8 +52,9 @@ def _propietario(user: Usuario = Depends(require_auth)) -> Usuario:
 
 
 def _admision(user: Usuario = Depends(require_auth)) -> Usuario:
-    if getattr(user, "es_agente_ia", False) or getattr(user, "aliado_codigo", None) or \
-            "ADMISION" not in get_user_roles(user):
+    """Solo quien tiene el rol ADMISION asignado por un ADMIN. Puede ser el usuario de un socio
+    (decisión del propietario: la Admisión la hace AL-010); ser ADMIN o socio no alcanza por sí solo."""
+    if getattr(user, "es_agente_ia", False) or "ADMISION" not in get_user_roles(user):
         raise HTTPException(403, "Reservado al Departamento de Admisión")
     return user
 

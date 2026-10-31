@@ -81,6 +81,16 @@ def _humano_interno(usuario) -> None:
         raise ErrorMotor("Las cuentas de socios no confirman operaciones internas", 403)
 
 
+def _persona_admision(usuario) -> None:
+    """Decisiones sobre expedientes: persona interna, o la cuenta de un socio SOLO si un ADMIN le
+    asignó el rol ADMISION (decisión del propietario: la Admisión la hace AL-010).
+    Entregas, cobros y pagos siguen cerrados a las cuentas de socios."""
+    if usuario is not None and getattr(usuario, "aliado_codigo", None) and "ADMISION" in _roles(usuario) \
+            and not getattr(usuario, "es_agente_ia", False):
+        return
+    _humano_interno(usuario)
+
+
 # ── Contado: precio de catálogo ───────────────────────────────────────────────
 
 def precio_catalogo(producto: str, modelo: str) -> Optional[float]:
@@ -301,7 +311,7 @@ def abrir_expediente(db: Session, d: dict, *, agente: Optional[str] = None, usua
             raise ErrorMotor(f"'{agente}' no realiza aperturas de financiación de {producto}", 403)
         actor = f"agente:{agente}"
     else:
-        _humano_interno(usuario)
+        _persona_admision(usuario)
         actor = f"usuario:{usuario.id}"
     if not str(d.get("cliente_nombre") or "").strip():
         raise ErrorMotor("Falta el nombre del cliente")
@@ -348,7 +358,7 @@ def cambiar_estado_expediente(db: Session, exp: ExpedienteFinanciacion, nuevo: s
             db.commit()
             raise ErrorMotor(f"No autorizado: {motivo}", 403)
     else:
-        _humano_interno(usuario)
+        _persona_admision(usuario)
         actor = f"usuario:{usuario.id}"
         if nuevo in RESERVADOS_ADMISION or anterior in RESERVADOS_ADMISION:
             if "ADMISION" not in _roles(usuario):

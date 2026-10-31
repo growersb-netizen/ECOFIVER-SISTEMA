@@ -1,7 +1,7 @@
 # ECOFIVER AI COMPANY: MASTER PLAN
 
 > Documento vivo. Se actualiza después de cada entrega importante. Permite retomar el trabajo en otra sesión sin perder contexto.
-> Última actualización: 31/10/2026 (tarde).
+> Última actualización: 31/10/2026 (noche). Fases 1 a 6 PROBADAS; Fase 7 preparada; Fase 8 en `docs/ai-company/DESPLIEGUE_Y_VALIDACION.md`.
 
 ## 0. Cómo leer este documento
 Cada funcionalidad se clasifica en uno de estos niveles: **NO IMPLEMENTADA · IMPLEMENTADA · PROBADA · DESPLEGADA · VERIFICADA EN PRODUCCIÓN**. Nada pasa a DESPLEGADA sin la aprobación explícita del propietario.
@@ -11,7 +11,7 @@ Ramas y PRs (ninguno fusionado):
 | PR | Rama | Base | Contenido |
 |---|---|---|---|
 | #10 | `ccr-b6d2e636-iqq5ux-integracion-fase-0-5` | `main` | Fase 0.5: seguridad, autenticación y reparto Meta (incluye los PRs #7 y #9) |
-| (nuevo) | `ccr-b6d2e636-iqq5ux-fase-1-motor` | rama del PR #10 | Fase 1 en adelante (motor de tareas y siguientes) |
+| #11 | `ccr-b6d2e636-iqq5ux-fase-1-motor` | rama del PR #10 | Fases 1 a 6 (motor, control, circuito comercial, dirección, profesionalización, oficina virtual) |
 
 ## 1. Estado inicial (31/10/2026)
 - **Producción:** CRM (FastAPI + PostgreSQL, Railway), multiagente (FastAPI, Railway), Worker de Cloudflare, MCP de contratos y web en Vercel (`eco-modulos-web`).
@@ -58,7 +58,7 @@ Ramas y PRs (ninguno fusionado):
 | Acciones sensibles con aprobación humana | PROBADA | `aprobaciones_accion`; solo un admin humano decide |
 | `/api/comando` ya no simula ejecución | PROBADA | Encola y despierta al motor |
 | Concurrencia real (12 workers) | PROBADA | PostgreSQL 16 local |
-| Interfaz para ver tareas y aprobar | **NO IMPLEMENTADA** | Pendiente (va con la Fase 2) |
+| Interfaz para ver tareas y aprobar | PROBADA en Chromium | `/operaciones-ia` |
 
 ### Fase 2: control empresarial · **PROBADA**
 | Requisito | Estado | Dónde |
@@ -81,8 +81,8 @@ Ramas y PRs (ninguno fusionado):
 | 23 endpoints financieros cerrados a la identidad del multiagente | PROBADA |
 | Comisión de contado: 10 % del producto al entregar; sin duplicados aunque llegue por tres vías | PROBADA |
 | Comisión financiada: 2 cuotas iniciales con aprobación, suscripción y pago | PROBADA |
-| Panel personal del propietario (generadas, cobradas, pendientes, proyectadas, publicidad, objetivos versionados) | PROBADA (API); interfaz pendiente |
-| Interfaz de Admisión | NO IMPLEMENTADA (la API existe) |
+| Panel personal del propietario (generadas, cobradas, pendientes, proyectadas, publicidad, objetivos versionados) | PROBADA (API + `/panel-propietario` en Chromium) |
+| Interfaz de Admisión | PROBADA en Chromium (`/admision`) |
 
 ### Piscinas de contado (reglas del 31/10) + servicio de distancias · **PROBADA**
 | Regla | Estado | Dónde |
@@ -101,10 +101,43 @@ Ramas y PRs (ninguno fusionado):
 | Venta pendiente de entrega y cobro; comisión al entregar sobre el producto | PROBADA | |
 | Misma herramienta para vendedores (panel de socios y CRM) | IMPLEMENTADA (botón "Calcular por ruta"; sin prueba en navegador) | |
 
+### Fase 3: Máximo como CEO · **PROBADA**
+| Requisito | Estado | Dónde |
+|---|---|---|
+| Instrucciones por capas: 1 seguridad (fija) > 2 políticas activas > 3 puesto + manual > contexto | PROBADA | `eco-multiagente/tools/capas.py` |
+| Políticas versionadas: Máximo propone, solo el propietario aprueba; suspender/revertir a la versión anterior | PROBADA | `politicas_empresariales` (migración 0045) |
+| Una política no puede tocar precios, descuentos, crédito, comisiones, contratos ni permisos | PROBADA (422) | `utils/politicas.py` |
+| Objetivos económicos desde el chat solo con pedido del propietario en su canal | PROBADA | `/api/motor/objetivos` |
+| Máximo encarga tareas desde el chat (con autoría) y lee el panel económico | PROBADA | `crear_tarea`, `/api/motor/propietario/panel` |
+| Máximo sigue cargando ventas, contratos y pagos en el canal del propietario (decisión A: "como antes") | PROBADA | `0d0c867` |
+
+### Fase 4: correcciones del circuito comercial · **PROBADA**
+- Ventana de 24 h de WhatsApp: los salientes fuera de ventana no se envían como texto libre y quedan registrados (`ContactoProactivo`).
+- Seguimientos sin duplicar (20 h); bajas respetadas; memoria aislada por lead en los lotes (se reprodujo y corrigió la fuga Ana→Beto).
+- Las entregas reales disparan el circuito (logística, instalación, socios).
+
+### Profesionalización de los 16 agentes · **PROBADA** (evaluaciones sin ejecutar)
+- Manual del puesto para los 16 (misión, dominio, modelo de decisión, metodología, procedimientos, casos complejos, colaboración, autonomía, prohibiciones, indicadores, mejora continua): `eco-multiagente/agents/manuales/`, cargado en la capa 3.
+- Nicolás y Mateo registran aperturas (`abrir_financiacion`); Luciano cierra contado de módulos.
+- Harness `eco-multiagente/evals/` (14 casos con verificación determinística). **No se corrió contra el modelo** porque tiene costo.
+- Auditoría por agente y decisiones: `docs/ai-company/AUDITORIA_AGENTES.md`.
+
+### Fase 6: oficina virtual 3D · **PROBADA en Chromium**
+- `/oficina-ia` (solo ADMIN humano): 16 agentes en sus puestos (Valentín excluido), oficina ejecutiva de Máximo y sala de Admisión (personas, solo números agregados).
+- Estados reales del motor: trabajando, espera aprobación, en cola, disponible, pausado, desactivado. Sin conexión todo queda "sin datos".
+- Día y noche según el horario de salientes. La ficha permite activar, pausar o desactivar con la misma API.
+- Alternativa 2D: lista accesible en la página y `/operaciones-ia`; si no hay WebGL, cae a la lista.
+- Geometría procedural; Three.js r160 (MIT), vendorizado y verificado contra npm. Captura: `docs/ai-company/img/oficina-virtual.png`.
+
+### Fase 7: preparación del despliegue · **PREPARADA** (no ejecutada)
+Orden, migraciones, variables (solo nombres), verificación y reversión: `docs/ai-company/DESPLIEGUE_Y_VALIDACION.md`.
+
+### Fase 8: validación final · ver la tabla de clasificación en `docs/ai-company/DESPLIEGUE_Y_VALIDACION.md` §7
+
 ## 4. Bloqueos y decisiones pendientes del propietario
 | # | Tema | Tipo |
 |---|---|---|
-| A | **Máximo como herramienta de carga por WhatsApp** (ventas, contratos con DNI, pagos): hoy queda bloqueado por la regla "la IA no registra pagos ni formaliza". Opciones: (A) dejarlo bloqueado y cargar en el CRM o con MCP; (B) Máximo prepara y se ejecuta recién con "APROBAR #n" desde tu número verificado | **Decisión urgente antes de desplegar** |
+| A | ~~Máximo como herramienta de carga por WhatsApp~~ | **RESUELTA:** "como antes", en el canal confiable del propietario (`0d0c867`) |
 | B | **Clave de Google Maps Platform** (Geocoding + Routes) | Sin ella no hay cotización automática |
 | C | Dirección exacta de la fábrica (`fabrica_direccion`) | Configuración |
 | D | Asignar roles `PROPIETARIO` (vos) y `ADMISION` (personal de admisión) | Datos de usuarios |
@@ -113,6 +146,11 @@ Ramas y PRs (ninguno fusionado):
 | G | Inconsistencia del catálogo: nombres de modelos (ej. "Minideck Chico") distintos de las claves de precios ("Minideck") | Datos |
 | H | "Nunca revelás que sos IA": en Camila se cambió a "no lo niegues si te preguntan directamente". ¿Aplicarlo a todos? | Decisión (riesgo legal) |
 | I | Ventas viejas: ¿generar comisiones retroactivas de entregas anteriores al despliegue? (Hoy: no) | Decisión |
+| J | "Aprobación el mismo día" en Nicolás y Mateo: promete el tiempo de una decisión humana | Decisión (texto comercial) |
+| K | Flete bonificado y pérgola de regalo en financiadas (Valentina, Nicolás): ¿vigentes? | Confirmar |
+| L | Correr las 14 evaluaciones contra el modelo real (costo bajo, pero pago) | Aprobación |
+| M | Cargar `AGENTES_IA_API_KEY` propia para la IA (identidad no cooperativa) | Recomendado antes de desplegar |
+| N | Aprobar el despliegue: PR #10 → verificación → PR #11 → verificación | Aprobación |
 | 1 | Subir las ramas locales de Codex | Acción del propietario |
 | 2 | El backup no cubre PostgreSQL (producción) | Infraestructura |
 | 3 | Repositorios públicos (`ECOFIVER-SISTEMA`, `eco-modulos-web`) | Decisión |
@@ -139,13 +177,14 @@ Ramas y PRs (ninguno fusionado):
   - Gastos publicitarios: presupuesto separado de gasto real, sin costos de fabricación.
   - Indicadores personales del propietario separados de la contabilidad de la cooperativa.
 
-## 6. Pruebas (estado en la rama `fase-1-motor`)
+## 6. Pruebas (estado en la rama `fase-1-motor`, 31/10 noche)
 | Suite | Resultado |
 |---|---|
-| CRM | 270 passed, 2 skipped (PostgreSQL: corridas aparte, OK) |
-| Multiagente | 335 passed |
-| Motor e2e (worker real ↔ CRM real, IA simulada) | 8 passed |
-| Migraciones 0039/0040 en PostgreSQL 16 | OK |
+| CRM (incluye motor e2e y circuito e2e con worker real) | 291 passed, 2 skipped |
+| Multiagente (incluye manuales, evaluaciones e importación de los 17 agentes) | 398 passed |
+| Oficina virtual: lógica de estados (`node --test eco-crm/tests/js/oficina_estado.test.mjs`) | 7 passed |
+| Oficina virtual en Chromium (escritorio 1440 px y móvil 390 px) | Sin errores de JS ni scroll horizontal |
+| Migraciones 0039–0045 en PostgreSQL 16 | OK |
 
 ## 7. Riesgos
 - Al desplegar el motor, cualquier tarea creada por un administrador **se ejecuta de verdad**. Se puede apagar con `MOTOR_TAREAS=off`.
@@ -153,13 +192,19 @@ Ramas y PRs (ninguno fusionado):
 - La sesión remota no ve Railway: lo de producción se verifica con los endpoints `/health*`.
 
 ## 8. Próximas acciones
-1. Fase 4: corregir la memoria compartida en los lotes, el registro de envíos fallidos (statuses de Meta) y la deduplicación de seguimientos.
-2. Interfaces de Admisión y del panel del propietario.
-4. Fase 3: políticas versionadas y objetivos económicos de Máximo.
-5. Profesionalización por agente (manuales y evaluaciones).
-6. Oficina 3D sobre los endpoints reales.
+1. **Propietario:** decisiones B, C, D, H, J, K, M y N (ver §4). Con B (clave de Google) y C, la cotización automática queda operativa.
+2. **Propietario:** subir las ramas de Codex. Cuando estén, se integran contra el PR #10 (Fase 0).
+3. Después de aprobar: desplegar en dos pasos según `DESPLIEGUE_Y_VALIDACION.md`, con el motor en `off`, verificar y luego encender.
+4. Con aprobación: correr las evaluaciones (L) y ajustar los manuales según los resultados.
+5. Plantillas de WhatsApp para seguimientos fuera de la ventana de 24 h.
 
 ## 9. Registro de commits (rama `fase-1-motor`)
+- `1f1fb22` Fase 6: oficina virtual 3D conectada a los estados reales del motor
+- `46378d8` Profesionalización de los 16 agentes: manuales del puesto en capa 3 y harness de evaluaciones
+- `da30f0c` feat(direccion): Máximo CEO (políticas versionadas, capas de instrucciones, tareas y objetivos)
+- `0c1bfa5` feat(ui): páginas de Admisión y panel económico del propietario
+- `551ff29` fix(comercial): ventana de 24 h, seguimientos sin duplicar, memoria aislada por lead, entregas reales
+- `0d0c867` fix(politica): Máximo sigue cargando ventas, contratos y pagos en el canal del propietario
 - `c0abe70` feat(control): estado por agente/departamento, horario de salientes y guardias
 - `fe2304a` feat(ui): Operaciones IA (vista 2D)
 - `2ab95ed` feat(comercial): contado y financiación con Admisión humana y comisiones del propietario

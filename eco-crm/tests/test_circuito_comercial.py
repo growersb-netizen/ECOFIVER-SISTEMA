@@ -48,10 +48,10 @@ def m(monkeypatch):
     S = sessionmaker(bind=eng)
     db = S()
     roles = {1: '["ADMIN","PROPIETARIO"]', 2: '["ASESOR_APERTURA"]', 3: '["ADMISION"]', 4: '["LOGISTICA"]',
-             5: '["COBRANZAS"]', 6: '["ADMIN"]', 7: '["ADMIN"]'}
+             5: '["COBRANZAS"]', 6: '["ADMIN"]', 7: '["ADMIN"]', 8: '["ADMIN","ADMISION"]'}
     for uid, r in roles.items():
         db.add(Usuario(id=uid, nombre=f"u{uid}", email=f"u{uid}@t", password_hash="x", roles_json=r, activo=True,
-                       es_agente_ia=(uid == 7), aliado_codigo=("AL-010" if uid == 6 else None)))
+                       es_agente_ia=(uid == 7), aliado_codigo=("AL-010" if uid in (6, 8) else None)))
     db.add(Lead(id=10, nombre="Ana Pérez", telefono="5491100000010"))
     db.commit()
     from utils.cotizacion import cargar_distancia
@@ -335,3 +335,17 @@ def test_paginas_de_admision_y_propietario_con_permisos(m):
     assert r.status_code == 200 and "Panel económico" in r.text
     for uid in (2, 3, 6, 7):
         assert c.get("/panel-propietario", headers=tok(uid)).status_code == 403
+
+
+def test_socio_con_rol_admision_asignado_decide(m):
+    """Decisión del propietario: la Admisión la hace el socio AL-010, pero solo con el rol ADMISION explícito."""
+    c, _, tok = m
+    e = _abrir(c).json()["expediente"]
+    for est in ("APERTURA_EN_PROCESO", "PRECALIFICADO", "EN_ADMISION"):
+        _estado_ia(c, e["id"], est)
+    assert c.get("/admision", headers=tok(8)).status_code == 200
+    assert c.get("/admision", headers=tok(6)).status_code == 403          # mismo socio, ADMIN sin ADMISION: no
+    r = c.post(f"/api/admision/expedientes/{e['id']}/estado", headers=tok(8),
+               json={"estado": "APROBADO_POR_ADMISION", "detalle": "Verificado en videollamada"})
+    assert r.json()["expediente"]["estado"] == "APROBADO_POR_ADMISION"
+    assert c.get("/panel-propietario", headers=tok(8)).status_code == 403  # Admisión no ve tus ingresos

@@ -10,16 +10,27 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.database import get_db
 from database.models import AgenteControlEvento, GuardiaOperativa, Usuario
+from routers.auth import get_user_roles
 from routers.tareas import _api_key, _humano
 from utils import control_agentes as ctl
 from utils.motor_tareas import ErrorMotor
 
 router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+
+
+@router.get("/operaciones-ia", response_class=HTMLResponse)
+def pagina_operaciones(request: Request, user: Usuario = Depends(_humano)):
+    """Vista 2D de EcoFiver AI Company: agentes, tareas, aprobaciones y guardias (datos reales del motor)."""
+    return templates.TemplateResponse(request, "operaciones_ia.html",
+                                      {"request": request, "user": user, "roles": get_user_roles(user)})
 
 
 class CambioEstado(BaseModel):

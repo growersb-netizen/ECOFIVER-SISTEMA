@@ -147,3 +147,12 @@ def test_actividad_real_distinta_del_estado_administrativo(m):
     ctl.cambiar_estado(db, "aurora", "PAUSADO", "pausa durante la ejecución", 1)
     a = next(x for x in c.get("/api/agentes/control", headers=tok(1)).json()["agentes"] if x["agente"] == "aurora")
     assert a["estado"] == "PAUSADO" and a["actividad"]["tarea_en_curso"]["id"] == t.id
+
+
+def test_pagina_operaciones_solo_admin_humano(m):
+    c, _, tok = m
+    from fastapi.templating import Jinja2Templates  # noqa: F401
+    r = c.get("/operaciones-ia", headers=tok(1))
+    assert r.status_code == 200 and "Operaciones IA" in r.text and "esc(" in r.text
+    assert c.get("/operaciones-ia", headers=tok(2)).status_code == 403
+    assert c.get("/operaciones-ia").status_code == 401

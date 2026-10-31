@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Operaciones IA — EcoFiver{% endblock %}
+{% block page_title %}🏢 Operaciones IA · EcoFiver AI Company{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <span id="op-horario" class="op-pill">…</span>
+  <span id="op-conexion" class="op-pill">Conectando…</span>
+  <button onclick="opRefrescar()" class="btn btn-ghost" style="padding:7px 12px;font-size:13px" aria-label="Actualizar">🔄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  .op-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .op-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;
+    background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border)}
+  .op-pill button{background:var(--bg-hover);color:var(--text-primary);border:1px solid var(--border-light);border-radius:6px;cursor:pointer;font-size:11px;padding:1px 6px}
+  .op-card{border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;background:var(--bg-card);color:var(--text-primary)}
+  .op-card h4{margin:0 0 2px;font-size:15px;color:var(--text-primary)}
+  .op-dep{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
+  .op-sub{font-size:11px;color:var(--text-secondary)}
+  .op-estado{font-size:11px;font-weight:800;padding:2px 8px;border-radius:10px;display:inline-block;margin:6px 0}
+  .op-ACTIVO{background:rgba(45,158,79,.18);color:var(--green-light)}
+  .op-PAUSADO{background:rgba(245,158,11,.18);color:var(--warning)}
+  .op-DESACTIVADO{background:rgba(229,57,53,.18);color:var(--error)}
+  .op-act{font-size:12px;color:var(--text-primary);min-height:34px}
+  .op-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .op-btns button{font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid var(--border-light);
+    background:var(--bg-hover);color:var(--text-primary);cursor:pointer}
+  .op-btns button:hover{border-color:var(--green)}
+  .op-sec{margin-top:22px}
+  .op-sec h3{font-size:16px;margin:0 0 10px;color:var(--text-primary)}
+  .op-tabla{width:100%;border-collapse:collapse;font-size:13px;color:var(--text-primary)}
+  .op-tabla th,.op-tabla td{text-align:left;padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+  .op-tabla th{color:var(--text-muted);font-size:11px;text-transform:uppercase}
+  .op-tabla tbody tr:hover{background:var(--bg-hover);cursor:pointer}
+  .op-form{display:grid;grid-template-columns:160px 1fr 120px auto;gap:8px;align-items:start}
+  .op-form textarea,.op-form select,.op-form input{width:100%;padding:8px;border:1px solid var(--border-light);border-radius:8px;
+    font:inherit;background:var(--bg-secondary);color:var(--text-primary)}
+  .op-det{white-space:pre-wrap;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px;
+    font-size:12px;max-height:340px;overflow:auto;color:var(--text-primary)}
+  .op-vacio{color:var(--text-muted);font-size:13px;padding:8px 0}
+  .op-intro{margin:0;font-size:13px;color:var(--text-secondary)}
+  @media (max-width:760px){.op-form{grid-template-columns:1fr}}
+</style>
+
+<div class="card" style="padding:14px">
+  <p class="op-intro">
+    Estado <b>administrativo</b> (lo decidís vos) y <b>actividad real</b> (lo que el motor registra). Las tareas, resultados y
+    aprobaciones vienen del motor: nada se muestra como hecho sin evidencia registrada.
+  </p>
+</div>
+
+<div class="op-sec">
+  <h3>Agentes</h3>
+  <div id="op-departamentos" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+  <div id="op-agentes" class="op-grid"><div class="op-vacio">Cargando…</div></div>
+</div>
+
+<div class="op-sec card" style="padding:14px">
+  <h3>Nueva orden</h3>
+  <div class="op-form">
+    <select id="op-n-agente" aria-label="Agente"></select>
+    <textarea id="op-n-instr" rows="2" placeholder="Instrucción (ej.: Analizá la conversión de contado de la semana)"></textarea>
+    <select id="op-n-prio" aria-label="Prioridad"><option>NORMAL</option><option>URGENTE</option><option>BAJA</option></select>
+    <button class="btn btn-primary" onclick="opCrearTarea()">Enviar</button>
+  </div>
+  <div id="op-n-msg" class="op-sub" style="margin-top:6px"></div>
+</div>
+
+<div class="op-sec">
+  <h3>Aprobaciones pendientes</h3>
+  <div id="op-aprob"><div class="op-vacio">Cargando…</div></div>
+</div>
+
+<div class="op-sec">
+  <h3>Tareas</h3>
+  <table class="op-tabla"><thead><tr><th>#</th><th>Agente</th><th>Título</th><th>Estado</th><th>Intentos</th><th>Costo</th></tr></thead>
+    <tbody id="op-tareas"><tr><td colspan="6" class="op-vacio">Cargando…</td></tr></tbody></table>
+  <div id="op-detalle" style="margin-top:10px"></div>
+</div>
+
+<div class="op-sec card" style="padding:14px">
+  <h3>Guardias (salientes fuera de horario)</h3>
+  <div class="op-form" style="grid-template-columns:180px 1fr 1fr 1fr auto">
+    <input id="op-g-alc" value="todos" aria-label="Alcance" title="todos | dep:comercial | agente:camila">
+    <input id="op-g-desde" type="datetime-local" aria-label="Desde">
+    <input id="op-g-hasta" type="datetime-local" aria-label="Hasta">
+    <input id="op-g-mot" placeholder="Motivo" aria-label="Motivo">
+    <button class="btn btn-ghost" onclick="opCrearGuardia()">Autorizar</button>
+  </div>
+  <div id="op-guardias" style="margin-top:8px"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const NOMBRES = {maximo:"Máximo",aurora:"Aurora",tomas:"Tomás",valentina:"Valentina",camila:"Camila",nicolas:"Nicolás",
+    luciano:"Luciano",mateo:"Mateo",renata:"Renata",bruno:"Bruno",ezequiel:"Ezequiel",elena:"Elena",ignacio:"Ignacio",
+    sebastian:"Sebastián",daniela:"Daniela",franco:"Franco"};
+  const nom = a => NOMBRES[a] || a;
+
+  async function api(url, opts={}){
+    const r = await fetch(url, {credentials:"same-origin", headers:{"Content-Type":"application/json"}, ...opts});
+    let data = {}; try { data = await r.json(); } catch(e) {}
+    if(!r.ok) throw new Error(data.detail || ("HTTP " + r.status));
+    return data;
+  }
+  function conexion(ok, txt){
+    const el = document.getElementById("op-conexion");
+    el.textContent = txt; el.style.color = ok ? "var(--green-light)" : "var(--error)";
+  }
+
+  async function cargarAgentes(){
+    const d = await api("/api/agentes/control");
+    const h = document.getElementById("op-horario");
+    h.textContent = d.en_horario ? "🟢 Horario de salientes" : "🌙 Fuera de horario de salientes";
+    h.title = d.horario;
+    document.getElementById("op-departamentos").innerHTML = Object.keys(d.departamentos).map(dep =>
+      `<span class="op-pill">${esc(dep)}
+        <button title="Activar departamento" onclick="opEstadoDep('${esc(dep)}','ACTIVO')">▶</button>
+        <button title="Pausar departamento" onclick="opEstadoDep('${esc(dep)}','PAUSADO')">⏸</button></span>`).join("");
+    document.getElementById("op-agentes").innerHTML = d.agentes.map(a => {
+      const act = a.actividad, t = act.tarea_en_curso;
+      const actividad = t ? `⚙️ Trabajando en #${t.id}: ${esc(t.titulo)}`
+        : (act.pendientes ? `⏳ ${act.pendientes} tarea(s) en cola` : "Sin tareas en curso");
+      return `<div class="op-card">
+        <div class="op-dep">${esc(a.departamento)}</div><h4>${esc(nom(a.agente))}</h4>
+        <span class="op-estado op-${esc(a.estado)}">${esc(a.estado)}</span>
+        ${a.motivo ? `<div class="op-sub">${esc(a.motivo)}</div>` : ""}
+        <div class="op-act">${actividad}<br><span class="op-sub">Hoy: ${act.completadas_hoy} completadas · ${act.fallidas_hoy} fallidas</span><br>
+          <span class="op-sub">Salientes: ${a.salientes_permitidos ? "permitidos" : esc(a.salientes_motivo)}</span></div>
+        <div class="op-btns">
+          <button onclick="opEstado('${esc(a.agente)}','ACTIVO')">Activar</button>
+          <button onclick="opEstado('${esc(a.agente)}','PAUSADO')">Pausar</button>
+          <button onclick="opEstado('${esc(a.agente)}','DESACTIVADO')">Desactivar</button>
+          <button onclick="opInstruir('${esc(a.agente)}')">Instrucción</button>
+        </div></div>`;
+    }).join("");
+    const sel = document.getElementById("op-n-agente");
+    if(!sel.options.length) sel.innerHTML = d.agentes.map(a => `<option value="${esc(a.agente)}">${esc(nom(a.agente))}</option>`).join("");
+    document.getElementById("op-guardias").innerHTML = d.guardias_activas.length
+      ? d.guardias_activas.map(g => `<div class="op-pill">${esc(g.alcance)} hasta ${esc(new Date(g.hasta + (g.hasta.endsWith("Z")?"":"Z")).toLocaleString("es-AR"))} — ${esc(g.motivo)}
+          <button onclick="opFinGuardia(${g.id})">Finalizar</button></div>`).join(" ")
+      : `<div class="op-vacio">Sin guardias activas.</div>`;
+  }
+
+  async function cargarTareas(){
+    const d = await api("/api/tareas?limit=40");
+    document.getElementById("op-tareas").innerHTML = d.tareas.length ? d.tareas.map(t => `
+      <tr onclick="opVer(${t.id})"><td>${t.id}</td><td>${esc(nom(t.agente))}${t.creado_por !== "humano" ? ` <small>(de ${esc(nom(t.creado_por))})</small>` : ""}</td>
+      <td>${esc(t.titulo)}</td><td>${esc(t.estado)}${t.cancelacion_solicitada ? " (cancelando)" : ""}</td>
+      <td>${t.intentos}/${t.max_intentos}</td><td>US$ ${Number(t.costo_usd).toFixed(4)}</td></tr>`).join("")
+      : `<tr><td colspan="6" class="op-vacio">Todavía no hay tareas.</td></tr>`;
+  }
+
+  async function cargarAprobaciones(){
+    const d = await api("/api/aprobaciones");
+    document.getElementById("op-aprob").innerHTML = d.aprobaciones.length ? d.aprobaciones.map(a => `
+      <div class="op-card" style="margin-bottom:8px"><b>#${a.id} · ${esc(a.tipo_accion)}</b> propuesta por ${esc(nom(a.agente))}
+        ${a.tarea_id ? ` (tarea #${a.tarea_id})` : ""}<div class="op-det" style="margin:6px 0">${esc(a.motivo)}\n${esc(JSON.stringify(a.datos, null, 2))}</div>
+        <div class="op-btns"><button onclick="opDecidir(${a.id}, true)">✅ Aprobar</button><button onclick="opDecidir(${a.id}, false)">✖ Rechazar</button></div></div>`).join("")
+      : `<div class="op-vacio">No hay acciones esperando tu aprobación.</div>`;
+  }
+
+  window.opVer = async id => {
+    const t = await api(`/api/tareas/${id}`);
+    document.getElementById("op-detalle").innerHTML = `<div class="op-card">
+      <h4>#${t.id} · ${esc(nom(t.agente))} · ${esc(t.estado)}</h4>
+      <div class="op-sub">${esc(t.instruccion)}</div>
+      ${["PENDIENTE","ERROR","EN_EJECUCION"].includes(t.estado) ? `<div class="op-btns"><button onclick="opCancelar(${t.id})">Cancelar</button></div>` : ""}
+      <h4 style="margin-top:10px">Resultado</h4><div class="op-det">${esc(t.resultado ? t.resultado.texto : "—")}</div>
+      <h4 style="margin-top:10px">Evidencia</h4><div class="op-det">${esc(JSON.stringify(t.evidencia || {}, null, 2))}</div>
+      <h4 style="margin-top:10px">Historial</h4><div class="op-det">${t.eventos.map(e => esc(`${e.ts} · ${e.tipo} · ${e.actor} ${e.detalle}`)).join("\n")}</div>
+      ${t.subtareas.length ? `<h4 style="margin-top:10px">Subtareas</h4>` + t.subtareas.map(s => `<div><a href="#" onclick="opVer(${s.id});return false">#${s.id}</a> ${esc(nom(s.agente))} · ${esc(s.estado)}</div>`).join("") : ""}
+    </div>`;
+  };
+  window.opEstado = async (agente, estado) => {
+    let motivo = "";
+    if(estado !== "ACTIVO"){ motivo = prompt(`Motivo para ${estado.toLowerCase()} a ${nom(agente)}:`); if(!motivo) return; }
+    try { await api(`/api/agentes/${agente}/estado`, {method:"POST", body: JSON.stringify({estado, motivo})}); await cargarAgentes(); }
+    catch(e){ alert(e.message); }
+  };
+  window.opEstadoDep = async (dep, estado) => {
+    const motivo = prompt(`Motivo para ${estado.toLowerCase()} el departamento ${dep}:`); if(motivo === null) return;
+    try { await api(`/api/departamentos/${dep}/estado`, {method:"POST", body: JSON.stringify({estado, motivo})}); await cargarAgentes(); }
+    catch(e){ alert(e.message); }
+  };
+  window.opInstruir = agente => { document.getElementById("op-n-agente").value = agente; document.getElementById("op-n-instr").focus(); };
+  window.opCrearTarea = async () => {
+    const msg = document.getElementById("op-n-msg");
+    try {
+      const d = await api("/api/tareas", {method:"POST", body: JSON.stringify({
+        agente: document.getElementById("op-n-agente").value, instruccion: document.getElementById("op-n-instr").value,
+        prioridad: document.getElementById("op-n-prio").value})});
+      msg.textContent = `Tarea #${d.tarea.id} en cola. Se ejecuta cuando el agente esté activo; el resultado queda en el historial.`;
+      document.getElementById("op-n-instr").value = ""; await cargarTareas();
+    } catch(e){ msg.textContent = "No se pudo crear: " + e.message; }
+  };
+  window.opCancelar = async id => { if(!confirm("¿Cancelar la tarea y sus subtareas?")) return;
+    await api(`/api/tareas/${id}/cancelar`, {method:"POST"}); await opVer(id); await cargarTareas(); };
+  window.opDecidir = async (id, aprobar) => {
+    const comentario = prompt(aprobar ? "Comentario (opcional):" : "Motivo del rechazo:") ?? "";
+    try { await api(`/api/aprobaciones/${id}/decidir`, {method:"POST", body: JSON.stringify({aprobar, comentario})}); await cargarAprobaciones(); }
+    catch(e){ alert(e.message); }
+  };
+  window.opCrearGuardia = async () => {
+    const v = id => document.getElementById(id).value;
+    try { await api("/api/guardias", {method:"POST", body: JSON.stringify({alcance: v("op-g-alc"),
+      desde: new Date(v("op-g-desde")).toISOString(), hasta: new Date(v("op-g-hasta")).toISOString(), motivo: v("op-g-mot")})});
+      await cargarAgentes(); } catch(e){ alert(e.message); }
+  };
+  window.opFinGuardia = async id => { await api(`/api/guardias/${id}/finalizar`, {method:"POST"}); await cargarAgentes(); };
+  window.opRefrescar = async () => {
+    try { await Promise.all([cargarAgentes(), cargarTareas(), cargarAprobaciones()]); conexion(true, "● Conectado"); }
+    catch(e){ conexion(false, "● Sin conexión: " + e.message); }
+  };
+  opRefrescar();
+  setInterval(opRefrescar, 15000);
+})();
+</script>
+{% endblock %}

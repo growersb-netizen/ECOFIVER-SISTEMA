@@ -1270,6 +1270,62 @@ class ComandoAgente(Base):
 
     enviado_por     = relationship("Usuario", foreign_keys=[enviado_por_id])
 
+    # ── Motor de tareas (Fase 1) ─────────────────────────────────────────────
+    # Solo las filas con version_motor=1 son tareas ejecutables: los comandos
+    # históricos (antes solo se registraban) nunca se ejecutan retroactivamente.
+    version_motor   = Column(Integer, nullable=True)
+    clave_idempotencia = Column(String(120), nullable=True, unique=True)
+    intentos        = Column(Integer, default=0)
+    max_intentos    = Column(Integer, default=3)
+    proximo_intento = Column(DateTime(timezone=True), nullable=True)
+    lease_token     = Column(String(40), nullable=True)
+    lease_hasta     = Column(DateTime(timezone=True), nullable=True)
+    worker          = Column(String(80), nullable=True)
+    padre_id        = Column(Integer, nullable=True, index=True)
+    raiz_id         = Column(Integer, nullable=True, index=True)
+    profundidad     = Column(Integer, default=0)
+    creado_por_agente = Column(String(50), nullable=True)   # NULL = humano
+    resultado       = Column(JSON, nullable=True)
+    evidencia       = Column(JSON, nullable=True)
+    costo_usd       = Column(Float, default=0)
+    cancelacion_solicitada = Column(Boolean, default=False)
+    iniciado_at     = Column(DateTime(timezone=True), nullable=True)
+    finalizado_at   = Column(DateTime(timezone=True), nullable=True)
+
+
+class TareaEvento(Base):
+    """Historial auditable de cada tarea del motor (inmutable: solo se agregan filas)."""
+    __tablename__ = "tareas_eventos"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    tarea_id   = Column(Integer, nullable=False, index=True)
+    tipo       = Column(String(30), nullable=False)
+    detalle    = Column(Text, default="")
+    actor      = Column(String(100), default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AprobacionAccion(Base):
+    """
+    Acción sensible propuesta por un agente durante una tarea. Nunca se ejecuta
+    sin la decisión de un administrador humano; el texto del modelo no autoriza.
+    """
+    __tablename__ = "aprobaciones_accion"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    tarea_id    = Column(Integer, nullable=True, index=True)
+    agente      = Column(String(50), nullable=False)
+    tipo_accion = Column(String(50), nullable=False)
+    datos       = Column(JSON, default={})
+    motivo      = Column(Text, default="")
+    estado      = Column(String(20), default="PENDIENTE")  # PENDIENTE|APROBADA|RECHAZADA|EJECUTADA|FALLIDA
+    decidido_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    decidido_at = Column(DateTime(timezone=True), nullable=True)
+    comentario  = Column(Text, default="")
+    resultado   = Column(Text, default="")
+    lease_token = Column(String(40), nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
 
 # ─── EQUIPOS INSTALADORES ────────────────────────────────────────────────────
 

@@ -684,46 +684,44 @@ async def enviar_comando(
     tipo = data.get("tipo") or "LIBRE"
     area = data.get("area") or "GENERAL"
 
-    # Crear registro en DB
-    cmd = ComandoAgente(
-        tipo=tipo,
-        area=area,
-        prioridad=prioridad,
-        titulo=titulo,
-        instruccion=instruccion,
-        agente_destino=agente,
-        contexto=data.get("contexto") or {},
-        estado="PENDIENTE",
-        enviado_por_id=current_user.id,
-    )
-    db.add(cmd)
+    # La orden es una tarea del motor (Fase 1): queda PENDIENTE hasta que el
+    # sistema de agentes la ejecute y registre resultado y evidencia. Antes se
+    # marcaba "ENVIADO" aunque nadie la ejecutara.
+    from utils import motor_tareas
+    try:
+        cmd, _ = motor_tareas.crear_tarea(
+            db, agente=agente, instruccion=instruccion, titulo=titulo, prioridad=prioridad,
+            area=area, contexto=data.get("contexto") or {}, enviado_por_id=current_user.id,
+            clave_idempotencia=(data.get("clave_idempotencia") or None),
+        )
+    except motor_tareas.ErrorMotor as e:
+        raise HTTPException(e.codigo, str(e))
+    cmd.tipo = tipo if tipo in ("LIBRE", "RAPIDO", "CEO") else "TAREA"
     db.commit()
-    db.refresh(cmd)
 
-    # Intentar enviar al orquestador si está configurado
+    # Aviso al sistema de agentes para que la tome ya (si no responde, la toma
+    # igual en su próximo sondeo). El aviso nunca marca la tarea como ejecutada.
+    aviso = ""
     if orq_url:
-        estado, respuesta, http_status = await _enviar_al_orquestador(
+        estado_envio, respuesta, http_status = await _enviar_al_orquestador(
             instruccion=instruccion,
-            contexto=data.get("contexto") or {},
+            contexto={**(data.get("contexto") or {}), "tarea_id": cmd.id},
             prioridad=prioridad,
             titulo=titulo,
-            agente=agente,
+            agente=cmd.agente_destino,
             orquestador_url=orq_url,
             orquestador_endpoint=orq_endpoint,
             api_key=api_key,
         )
-        cmd.estado = estado
-        cmd.respuesta = respuesta
         cmd.http_status = http_status
-        if estado == "ERROR":
-            cmd.error_detalle = respuesta
+        if estado_envio == "ERROR":
+            aviso = respuesta
     else:
-        # Sin orquestador configurado: se guarda como "PENDIENTE" en cola local
-        cmd.estado = "PENDIENTE"
-        cmd.respuesta = "Guardado localmente. Configurá la URL del orquestador para envío automático."
-
+        aviso = "Sin URL del orquestador: la tarea queda en cola hasta que el sistema de agentes la tome."
+    cmd.respuesta = cmd.respuesta or ""
     db.commit()
-    return {"ok": True, "id": cmd.id, "estado": cmd.estado, "respuesta": cmd.respuesta}
+    return {"ok": True, "id": cmd.id, "tarea_id": cmd.id, "estado": cmd.estado, "aviso": aviso,
+            "respuesta": cmd.respuesta}
 
 
 # ─── API: HISTORIAL ───────────────────────────────────────────────────────────

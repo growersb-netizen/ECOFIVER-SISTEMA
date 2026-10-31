@@ -88,17 +88,19 @@ class TestCredencial:
     def test_reproduce_401_sin_credencial(self, db, multiagente):
         """Estado de producción: orquestador_api_key vacía → sin X-Api-Key → 401."""
         res = _comando(db, _usuario(db))
-        assert res["estado"] == "ERROR"
-        assert "401" in res["respuesta"]
+        # La orden queda como tarea en cola (no "ENVIADO"); el aviso informa el 401
+        assert res["estado"] == "PENDIENTE"
+        assert "401" in res["aviso"]
         assert "X-Api-Key" not in multiagente[-1].headers
 
     def test_env_multiagente_api_key_autentica(self, db, multiagente, monkeypatch):
         monkeypatch.setenv("MULTIAGENTE_API_KEY", CLAVE_MULTIAGENTE)
         res = _comando(db, _usuario(db))
-        assert res["estado"] == "ENVIADO"
+        assert res["estado"] == "PENDIENTE" and res["aviso"] == ""
         assert multiagente[-1].headers["X-Api-Key"] == CLAVE_MULTIAGENTE
         cmd = db.query(ComandoAgente).one()
-        assert cmd.http_status == 200 and cmd.agente_destino == "aurora"
+        assert cmd.http_status == 200 and cmd.agente_destino == "aurora" and cmd.version_motor == 1
+        assert json.loads(multiagente[-1].content)["contexto"]["tarea_id"] == cmd.id
 
     def test_clave_de_configuracion_cifrada_se_descifra(self, db, multiagente, monkeypatch):
         monkeypatch.setenv("ENCRYPTION_KEY", "clave-de-cifrado-de-prueba")
@@ -108,7 +110,8 @@ class TestCredencial:
         db.add(ConfiguracionSistema(clave="orquestador_api_key", valor=cifrada, es_secreto=True))
         db.commit()
         assert cc._get_orquestador_api_key(db) == CLAVE_MULTIAGENTE
-        assert _comando(db, _usuario(db))["estado"] == "ENVIADO"
+        res = _comando(db, _usuario(db))
+        assert res["estado"] == "PENDIENTE" and res["aviso"] == ""
 
     def test_env_tiene_prioridad_sobre_configuracion(self, db, monkeypatch):
         db.add(ConfiguracionSistema(clave="orquestador_api_key", valor="vieja"))
@@ -119,9 +122,9 @@ class TestCredencial:
     def test_credencial_incorrecta_da_mensaje_accionable(self, db, multiagente, monkeypatch):
         monkeypatch.setenv("MULTIAGENTE_API_KEY", "incorrecta")
         res = _comando(db, _usuario(db))
-        assert res["estado"] == "ERROR"
-        assert "MULTIAGENTE_API_KEY" in res["respuesta"]
-        assert "incorrecta" not in res["respuesta"]  # nunca se refleja la clave
+        assert res["estado"] == "PENDIENTE"
+        assert "MULTIAGENTE_API_KEY" in res["aviso"]
+        assert "incorrecta" not in json.dumps(res)  # nunca se refleja la clave
 
     def test_status_informa_autenticacion_sin_exponer_clave(self, db, multiagente, monkeypatch):
         user = _usuario(db)

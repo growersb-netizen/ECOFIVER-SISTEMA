@@ -29,6 +29,7 @@ from database.models import (
 )
 from routers.auth import get_current_user, get_user_roles, require_auth
 from utils.api_keys import api_key_valida
+from utils.origen import negar_a_agentes_ia
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -582,7 +583,7 @@ async def comisiones_del_aliado(
 # COMISIONES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@router.post("/api/comisiones")
+@router.post("/api/comisiones", dependencies=[Depends(negar_a_agentes_ia)])
 async def crear_comision(
     request: Request,
     db: Session = Depends(get_db),
@@ -625,7 +626,7 @@ async def crear_comision(
     return {"ok": True, **_comision_dict(c)}
 
 
-@router.post("/api/comisiones/{comision_id}/liquidar")
+@router.post("/api/comisiones/{comision_id}/liquidar", dependencies=[Depends(negar_a_agentes_ia)])
 async def liquidar_comision(
     comision_id: int,
     db: Session = Depends(get_db),

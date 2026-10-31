@@ -20,6 +20,7 @@ from routers.auth import require_auth, require_roles, get_user_roles, require_au
 from routers.configuracion import get_config_value
 from routers.aliados import siguiente_numero_solicitud
 from utils.documentos import render_html, html_to_pdf, monto_en_letras, split_nombre_apellido
+from utils.origen import negar_a_agentes_ia
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -864,7 +865,7 @@ def _venta_base_dict(venta: VentaFinanciada) -> dict:
     }
 
 
-@router.post("/api/contratos/emitir/{venta_financiada_id}")
+@router.post("/api/contratos/emitir/{venta_financiada_id}", dependencies=[Depends(negar_a_agentes_ia)])
 async def emitir_contrato(
     venta_financiada_id: int,
     request: Request,
@@ -1051,7 +1052,7 @@ async def generar_recibo_pdf(
     return recibo
 
 
-@router.post("/api/contratos/emitir-recibo/{venta_financiada_id}")
+@router.post("/api/contratos/emitir-recibo/{venta_financiada_id}", dependencies=[Depends(negar_a_agentes_ia)])
 async def emitir_recibo(
     venta_financiada_id: int,
     request: Request,
@@ -1130,7 +1131,7 @@ def _contrato_a_dict(contrato: Contrato, venta: Optional[VentaFinanciada], reque
     }
 
 
-@router.post("/api/contratos", status_code=201)
+@router.post("/api/contratos", status_code=201, dependencies=[Depends(negar_a_agentes_ia)])
 async def crear_contrato_unificado(
     request: Request,
     db: Session = Depends(get_db),
@@ -1348,7 +1349,7 @@ async def consultar_contrato_por_numero(
     return _contrato_a_dict(contrato, venta, request)
 
 
-@router.post("/api/contratos/{numero_solicitud}/pagos")
+@router.post("/api/contratos/{numero_solicitud}/pagos", dependencies=[Depends(negar_a_agentes_ia)])
 async def registrar_pago_por_numero(
     numero_solicitud: str,
     request: Request,

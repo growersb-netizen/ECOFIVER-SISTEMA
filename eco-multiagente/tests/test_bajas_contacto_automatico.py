@@ -15,9 +15,20 @@ from tools import crm_client, contacto_comercial
 CON_BAJA = "5491111111111"
 SIN_BAJA = "5491122222222"
 
+@pytest.fixture(autouse=True)
+def _horario_autorizado():
+    """Estas pruebas verifican otra compuerta; el horario/estado se prueba en test_control_agentes.py."""
+    with patch("tools.control_agentes.puede_iniciar_saliente", AsyncMock(return_value=(True, ""))):
+        yield
+
+
 
 def _consulta(tel):
     return {CON_BAJA: True, SIN_BAJA: False}.get(tel)      # otro → None (CRM no confirmó)
+
+
+def _autorizar(tel, origen="", agente=""):
+    return {CON_BAJA: {"permitido": False, "motivo": "baja_comercial"}, SIN_BAJA: {"permitido": True}}.get(tel)
 
 
 @pytest.fixture
@@ -26,7 +37,7 @@ def envios():
     enviados = []
     valentina = MagicMock()
     valentina.respond = AsyncMock(return_value="Hola! Soy Valentina de EcoFiver.")
-    with patch.object(crm_client, "consultar_baja", AsyncMock(side_effect=_consulta)), \
+    with patch.object(crm_client, "autorizar_saliente", AsyncMock(side_effect=_autorizar)), \
          patch("channels.whatsapp.send_whatsapp_message",
                AsyncMock(side_effect=lambda tel, msg, *a, **k: enviados.append(tel) or True)), \
          patch("agents.valentina.get_agent", return_value=valentina), \
@@ -36,7 +47,7 @@ def envios():
 
 @pytest.mark.asyncio
 async def test_compuerta_falla_cerrado():
-    with patch.object(crm_client, "consultar_baja", AsyncMock(side_effect=_consulta)):
+    with patch.object(crm_client, "autorizar_saliente", AsyncMock(side_effect=_autorizar)):
         assert await contacto_comercial.puede_contactar(SIN_BAJA)
         assert not await contacto_comercial.puede_contactar(CON_BAJA)
         assert not await contacto_comercial.puede_contactar("5491199999999")   # CRM caído / sin respuesta
@@ -110,3 +121,27 @@ async def test_scraper_respeta_la_baja(envios):
     await lead_scraper._contactar_lead_proactivo({"telefono": CON_BAJA})
     await lead_scraper._contactar_lead_proactivo({"telefono": SIN_BAJA})
     assert envios == [SIN_BAJA]
+
+
+@pytest.mark.asyncio
+async def test_cada_lead_del_lote_usa_un_agente_sin_historial_de_otro_cliente():
+    """Antes: una sola Valentina para todo el lote → el mensaje a Beto llevaba el historial de Ana."""
+    from scheduler import cron
+    historias = []
+
+    class Valentina:
+        def __init__(self):
+            self.history = []
+
+        async def respond(self, message, context=""):
+            historias.append(list(self.history))
+            self.history.append(message)
+            return "Hola!"
+    leads = [{"id": i, "telefono": f"54911000000{i}", "nombre": n, "estado": "NUEVO"} for i, n in enumerate(["Ana", "Beto", "Caro"])]
+    with patch.object(crm_client, "get_leads_nuevos_sin_contactar", AsyncMock(return_value=leads)), \
+         patch("scheduler.cron.puede_contactar", AsyncMock(return_value=True)), \
+         patch("channels.whatsapp.send_whatsapp_message", AsyncMock(return_value=True)), \
+         patch("agents.valentina.get_agent", side_effect=lambda: Valentina()), \
+         patch("asyncio.sleep", AsyncMock()):
+        await cron.tarea_contacto_leads_nuevos()
+    assert historias == [[], [], []]

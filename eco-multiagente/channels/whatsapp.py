@@ -444,6 +444,8 @@ async def receive_message(request: Request, background: BackgroundTasks):
             if statuses:
                 st = statuses[0]
                 logger.info(f"[WA] STATUS UPDATE: status={st.get('status')} id={st.get('id')} phone={st.get('recipient_id')} errors={st.get('errors')}")
+                from tools.entregas_wa import registrar_estado
+                registrar_estado(st)
             else:
                 logger.info(f"[WA] WEBHOOK no-mensaje: field={field} keys={list(change.keys())}")
         except Exception:

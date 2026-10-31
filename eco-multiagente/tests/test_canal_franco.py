@@ -12,6 +12,13 @@ from tools import franco_wa
 PHONE_ID = "1037947576071396"     # formato de ID de Meta (no es un teléfono)
 TEL = "5491135164644"
 
+@pytest.fixture(autouse=True)
+def _horario_autorizado():
+    """Estas pruebas verifican otra compuerta; el horario/estado se prueba en test_control_agentes.py."""
+    with patch("tools.control_agentes.puede_iniciar_saliente", AsyncMock(return_value=(True, ""))):
+        yield
+
+
 
 @pytest.fixture
 def entorno(monkeypatch):

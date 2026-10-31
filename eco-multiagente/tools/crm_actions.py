@@ -48,6 +48,12 @@ def limpiar_acciones(reply: str) -> str:
     return CRM_ACTION_PATTERN.sub("", reply).strip()
 
 
+import contextvars as _cv
+
+# Agente que emitió la acción (lo necesitan las acciones del circuito comercial)
+_agente_ctx: _cv.ContextVar[str] = _cv.ContextVar("accion_agente", default="")
+
+
 async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
     """
     Ejecuta una lista de acciones CRM en orden, validando cada una contra
@@ -66,16 +72,27 @@ async def ejecutar_acciones(acciones: list[dict], ctx=None) -> str:
         datos = accion.get("datos", {})
         if not isinstance(datos, dict):
             datos = {}
+        # En una conversación con un cliente el único lead posible es el de la conversación
+        if ctx is not None and ctx.canal == "cliente" and ctx.lead_id and datos.get("lead_id") in (None, ""):
+            datos = {**datos, "lead_id": ctx.lead_id}
         decision = evaluar(tipo, datos, ctx)
         if not decision.permitido:
             registrar_bloqueo(tipo, ctx, decision.motivo)
             resultados.append(f"⛔ Acción '{tipo}' no ejecutada: {decision.motivo}")
             continue
+        tok = _agente_ctx.set((ctx.agente if ctx else "") or "")
+        # Solo un contexto confiable (canal del propietario o aprobación humana) lleva autorización
+        tok_aut = crm_client.autorizacion_humana.set(
+            (ctx.extra.get("aprobado_por") and f"aprobacion:{ctx.origen}:usuario:{ctx.extra['aprobado_por']}")
+            or f"canal:{ctx.origen or 'confiable'}" if ctx is not None and ctx.canal == "confiable" else "")
         try:
             resultado = await _ejecutar_una(tipo, datos)
         except Exception as e:
             resultado = f"❌ Error inesperado en '{tipo}': {e}"
             logger.error(f"[CRMActions] {resultado}")
+        finally:
+            _agente_ctx.reset(tok)
+            crm_client.autorizacion_humana.reset(tok_aut)
         resultados.append(resultado)
 
     return "\n".join(resultados)
@@ -125,6 +142,18 @@ async def _ejecutar_una(tipo: str, datos: dict) -> str:
     # ── Emisión de contratos ─────────────────────────────────────────────────
     elif tipo == "emitir_contrato":
         return await _emitir_contrato(datos)
+    # ── Circuito comercial (validado en el CRM) ──────────────────────────────
+    elif tipo == "cerrar_venta_contado":
+        return await _cerrar_venta_contado(datos)
+    elif tipo == "abrir_financiacion":
+        return await _abrir_financiacion(datos)
+    # ── Dirección (Fase 3) ───────────────────────────────────────────────────
+    elif tipo == "crear_tarea":
+        return await _crear_tarea(datos)
+    elif tipo == "proponer_politica":
+        return await _proponer_politica(datos)
+    elif tipo == "fijar_objetivo":
+        return await _fijar_objetivo(datos)
     else:
         return f"⚠️ Tipo de acción desconocido: '{tipo}'"
 
@@ -292,7 +321,6 @@ async def _contactar_leads_sin_respuesta(datos: dict) -> str:
         from channels.whatsapp import send_whatsapp_message
         from agents.valentina import get_agent
         import re as _re
-        valentina = get_agent()
         for l in leads[:limite]:
             tel = _normalizar_tel(l.get("telefono", ""))
             if not tel:
@@ -308,7 +336,7 @@ async def _contactar_leads_sin_respuesta(datos: dict) -> str:
                 f"{nombre} que consultó por {prod} y quedó sin respuesta. Presentate como Valentina "
                 f"de EcoFiver. Preguntá si seguís pudiendo ayudar."
             )
-            msg = await valentina.respond(prompt)
+            msg = await get_agent().respond(prompt)
             msg = _re.sub(r"\[[^\]]+\]", "", msg).strip()
             if msg and await send_whatsapp_message(tel, msg):
                 enviados += 1
@@ -416,7 +444,6 @@ async def _reactivar_leads_frios(datos: dict) -> str:
         from channels.whatsapp import send_whatsapp_message
         from agents.valentina import get_agent
         import re as _re
-        valentina = get_agent()
         for l in leads[:limite]:
             tel = _normalizar_tel(l.get("telefono", ""))
             if not tel:
@@ -426,7 +453,7 @@ async def _reactivar_leads_frios(datos: dict) -> str:
             nombre = l.get("nombre", "") or "vecino"
             prompt = (f"Mensaje corto y cálido de reactivación para {nombre}, que consultó hace "
                       f"un tiempo y no avanzó. Sin presión, ofrecé novedad/beneficio. Como Valentina de EcoFiver.")
-            msg = _re.sub(r"\[[^\]]+\]", "", await valentina.respond(prompt)).strip()
+            msg = _re.sub(r"\[[^\]]+\]", "", await get_agent().respond(prompt)).strip()
             if msg and await send_whatsapp_message(tel, msg):
                 enviados += 1
     except Exception as e:
@@ -538,3 +565,103 @@ async def _emitir_contrato(datos: dict) -> str:
     pdf = result.get("pdf_url")
     linea_pdf = f" — PDF: {pdf}" if pdf else " — el PDF no se pudo generar, se puede regenerar después"
     return f"✅ Contrato emitido — Solicitud N° {numero}{linea_pdf}"
+
+
+
+# ── Circuito comercial ────────────────────────────────────────────────────────
+
+async def _crm_circuito(ruta: str, cuerpo: dict) -> tuple[int, dict]:
+    import httpx
+    headers = {**crm_client.HEADERS, "X-Agente": _agente_ctx.get()}
+    async with httpx.AsyncClient(timeout=crm_client.TIMEOUT) as c:
+        r = await c.post(f"{crm_client.CRM_BASE_URL}{ruta}", headers=headers, json=cuerpo)
+    try:
+        data = r.json()
+    except Exception:
+        data = {}
+    return r.status_code, data
+
+
+async def _cerrar_venta_contado(datos: dict) -> str:
+    """Cierre comercial de contado: el CRM valida agente, producto, lead y precio de catálogo."""
+    cuerpo = {k: datos[k] for k in ("lead_id", "producto", "modelo", "precio", "precio_final_acordado", "color",
+                                    "cliente_nombre", "cliente_localidad", "cliente_provincia", "cliente_domicilio",
+                                    "fecha_entrega_solicitada", "aceptacion_cliente")
+              if datos.get(k) is not None}
+    status, d = await _crm_circuito("/api/comercial/contado/cierres", cuerpo)
+    if status != 200:
+        return f"❌ Cierre no registrado: {d.get('detail', f'HTTP {status}')}"
+    v = d["venta"]
+    status2, d2 = await _crm_circuito(f"/api/comercial/contado/{v['id']}/solicitar-entrega", {})
+    pedido = "y entrega solicitada a logística" if status2 == 200 else f"(entrega no solicitada: {d2.get('detail', status2)})"
+    total = v.get("precio_total_acordado") or v["precio_final"]
+    return (f"✅ Cierre comercial #{v['id']} registrado: {v['producto']} {v['modelo']} — precio final ${total:,.0f} "
+            f"{pedido}. Pago en domicilio contra entrega; el cobro lo confirma una persona.")
+
+
+async def _abrir_financiacion(datos: dict) -> str:
+    """Apertura de financiación; Nicolás y Mateo pueden derivar a Admisión (nunca aprobar)."""
+    cuerpo = {k: datos[k] for k in ("lead_id", "producto", "modelo", "cliente_nombre", "cliente_telefono",
+                                    "valor_cuota_estimado") if datos.get(k) is not None}
+    cuerpo["datos_apertura"] = datos.get("datos_apertura") or {}
+    status, d = await _crm_circuito("/api/comercial/financiacion/expedientes", cuerpo)
+    if status != 200:
+        return f"❌ Apertura no registrada: {d.get('detail', f'HTTP {status}')}"
+    exp = d["expediente"]
+    destino = str(datos.get("etapa") or "").upper()
+    camino = {"PRECALIFICADO": ["APERTURA_EN_PROCESO", "PRECALIFICADO"],
+              "VIDEOLLAMADA_PENDIENTE": ["APERTURA_EN_PROCESO", "VIDEOLLAMADA_PENDIENTE"],
+              "EN_ADMISION": ["APERTURA_EN_PROCESO", "PRECALIFICADO", "EN_ADMISION"]}.get(destino, [])
+    for estado in camino:
+        if exp["estado"] == estado or (estado == "APERTURA_EN_PROCESO" and exp["estado"] != "CONSULTA_RECIBIDA"):
+            continue
+        status, d = await _crm_circuito(f"/api/comercial/financiacion/expedientes/{exp['id']}/estado",
+                                        {"estado": estado, "detalle": str(datos.get("detalle") or "")[:500]})
+        if status != 200:
+            return f"⚠️ Expediente #{exp['id']} abierto, pero no pasó a {estado}: {d.get('detail', status)}"
+        exp = d["expediente"]
+    return (f"✅ Expediente de financiación #{exp['id']} en {exp['estado']}. "
+            "La aprobación y el cierre los hace Admisión (personas).")
+
+
+
+# ── Dirección (Fase 3) ────────────────────────────────────────────────────────
+
+async def _crear_tarea(datos: dict) -> str:
+    """Máximo (o Aurora/Tomás) encarga trabajo a otro agente: tarea real del motor, con resultado y evidencia."""
+    from tools.motor_tareas import crear_tarea
+    try:
+        t = await crear_tarea(str(datos.get("agente", "")), str(datos.get("instruccion", ""))[:8000],
+                              titulo=str(datos.get("titulo", ""))[:200], prioridad=str(datos.get("prioridad", "NORMAL")),
+                              creado_por_agente=_agente_ctx.get() or None)
+    except Exception as e:
+        return f"❌ Tarea no creada: {e}"
+    return f"✅ Tarea #{t['id']} encargada a {t['agente']} (queda en el motor; el resultado se registra al terminar)."
+
+
+async def _proponer_politica(datos: dict) -> str:
+    """Propuesta de política: queda PENDIENTE de la aprobación del propietario (no rige hasta entonces)."""
+    cuerpo = {k: datos[k] for k in ("titulo", "instruccion", "objetivo", "departamento", "agentes", "metrica_exito", "codigo")
+              if datos.get(k) is not None}
+    status, d = await _crm_circuito("/api/motor/politicas", cuerpo)
+    if status != 200:
+        return f"❌ Política no propuesta: {d.get('detail', f'HTTP {status}')}"
+    p = d["politica"]
+    return (f"📝 Política #{p['id']} \"{p['titulo']}\" (v{p['version']}) propuesta para {', '.join(p['agentes'])}. "
+            "No rige hasta que el propietario la apruebe en el panel.")
+
+
+async def _fijar_objetivo(datos: dict) -> str:
+    """Objetivo económico pedido por el propietario en su canal: queda versionado con su autorización."""
+    import httpx
+    headers = {**crm_client._headers_operacion(), "X-Agente": _agente_ctx.get()}
+    cuerpo = {k: datos[k] for k in ("periodo", "indicador", "valor", "producto", "canal", "nota") if datos.get(k) is not None}
+    async with httpx.AsyncClient(timeout=crm_client.TIMEOUT) as c:
+        r = await c.post(f"{crm_client.CRM_BASE_URL}/api/motor/objetivos", headers=headers, json=cuerpo)
+    try:
+        d = r.json()
+    except Exception:
+        d = {}
+    if r.status_code != 200:
+        return f"❌ Objetivo no registrado: {d.get('detail', f'HTTP {r.status_code}')}"
+    return f"✅ Objetivo registrado (versión {d['objetivo']['version']}): {cuerpo.get('indicador')} {cuerpo.get('periodo')} = ${float(cuerpo.get('valor', 0)):,.0f}"

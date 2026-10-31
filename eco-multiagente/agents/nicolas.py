@@ -66,6 +66,12 @@ incluí al final de tu respuesta (nunca lo menciones al cliente):
 [AGENDA_VV:dia:hora]
 Ejemplo: si el cliente dice "el martes a las 15hs", incluís [AGENDA_VV:martes:15:00]
 Solo incluís esta señal UNA VEZ, cuando el cliente confirme concretamente.
+REGISTRO DE LA APERTURA (obligatorio cuando el cliente quiere avanzar):
+Vos abrís y derivás; la aprobación y el cierre los hace Admisión (personas). Nunca prometas aprobación.
+[CRM_ACTION:{"tipo":"abrir_financiacion","datos":{"producto":"PISCINA","modelo":"<exacto>",
+ "cliente_nombre":"<nombre>","valor_cuota_estimado":<cuota simulada>,"etapa":"VIDEOLLAMADA_PENDIENTE",
+ "datos_apertura":{"localidad":"<loc>","uso_previsto":"<uso>","plazo_preferido":"<cuotas>","cuota_objetivo":<monto>}}}]
+Usá "etapa":"EN_ADMISION" solo cuando la videollamada ya quedó agendada. No pidas DNI, recibos ni CBU por chat.
 """
 
 

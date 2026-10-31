@@ -294,9 +294,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Canal email no iniciado: {e}")
 
+    # Motor de tareas (Fase 1): ejecuta las órdenes del CRM con resultado y evidencia
+    from tools import motor_tareas as _motor
+    _motor_task = None
+    if _motor.habilitado():
+        _motor_task = asyncio.create_task(_motor.bucle())
+        logger.info("Motor de tareas iniciado")
+    else:
+        logger.warning("Motor de tareas deshabilitado (MOTOR_TAREAS=off)")
+
     yield
 
     # Shutdown
+    if _motor_task:
+        _motor_task.cancel()
     stop_scheduler()
     logger.info("Sistema EcoFiver IA apagado correctamente.")
 
@@ -857,8 +868,12 @@ async def ping_comando_crm(request: Request):
 @app.post("/api/comando")
 async def recibir_comando_crm(payload: _ComandoCRM, request: Request):
     """
-    Recibe comandos del CRM Control Center.
+    Aviso del CRM (Control IA) de que hay una tarea nueva en el motor.
     Autenticación OBLIGATORIA via X-Api-Key (MULTIAGENTE_API_KEY o contraseña de admin).
+
+    Nunca responde "ejecutado": la tarea queda en cola y el motor la ejecuta,
+    registrando resultado y evidencia en el CRM. Si el aviso no trae tarea_id
+    (cliente anterior), se crea la tarea en el CRM.
     """
     from security import api_key_valid, _valid_keys
 
@@ -867,27 +882,36 @@ async def recibir_comando_crm(payload: _ComandoCRM, request: Request):
     if not api_key_valid(request):
         return JSONResponse({"ok": False, "error": "no autorizado"}, status_code=401)
 
-    from tools.audit_log import registrar_interaccion
-    registrar_interaccion(
-        canal="control_center",
-        session_id=f"cmd-{payload.agente}",
-        agente=payload.agente,
-        mensaje_usuario=f"[{payload.tipo}] {payload.titulo}",
-        respuesta_agente=f"Comando registrado: {payload.instruccion[:200]}",
-    )
+    from tools import motor_tareas
+    tarea_id = (payload.contexto or {}).get("tarea_id")
+    if not tarea_id:
+        try:
+            t = await motor_tareas.crear_tarea(payload.agente, payload.instruccion, titulo=payload.titulo,
+                                               prioridad=payload.prioridad, contexto=payload.contexto or {})
+            tarea_id = t["id"]
+        except Exception as e:
+            logger.warning(f"[ControlCenter] No se pudo crear la tarea en el CRM: {e}")
+            return JSONResponse({"ok": False, "error": "no se pudo registrar la tarea en el CRM"},
+                                status_code=502)
+    motor_tareas.despertar()
+    logger.info(f"[ControlCenter] Tarea #{tarea_id} en cola (agente={payload.agente})")
+    return JSONResponse({"ok": True, "tarea_id": tarea_id, "estado": "EN_COLA",
+                         "motor_activo": motor_tareas.habilitado()})
 
-    logger.info(
-        f"[ControlCenter] tipo={payload.tipo} agente={payload.agente} "
-        f"prioridad={payload.prioridad} instruccion={payload.instruccion[:80]!r}"
-    )
 
-    return JSONResponse({
-        "ok": True,
-        "recibido": True,
-        "agente": payload.agente,
-        "tipo": payload.tipo,
-        "mensaje": f"Comando registrado. Agente destino: {payload.agente}",
-    })
+@app.get("/health/whatsapp")
+async def health_whatsapp():
+    """Entregas reales de WhatsApp (estados y fallas por código, sin teléfonos ni contenido)."""
+    from tools.entregas_wa import stats
+    from tools.contacto_comercial import stats as contacto
+    return {"entregas": stats(), "salientes_autorizacion": contacto()}
+
+
+@app.get("/health/motor")
+async def health_motor():
+    """Estado del worker del motor de tareas (sin contenido de tareas)."""
+    from tools import motor_tareas
+    return {"habilitado": motor_tareas.habilitado(), **motor_tareas.stats()}
 
 
 # ── Entry point ───────────────────────────────────────────────────────────

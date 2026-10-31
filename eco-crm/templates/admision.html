@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Admisión — EcoFiver{% endblock %}
+{% block page_title %}🗂️ Departamento de Admisión{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px;align-items:center">
+  <select id="ad-filtro" class="op-pill" onchange="adCargar()" aria-label="Filtrar por estado">
+    <option value="">Todos los estados</option>
+    <option>EN_ADMISION</option><option>DOCUMENTACION_PENDIENTE</option><option>APROBADO_POR_ADMISION</option>
+    <option>RECHAZADO_POR_ADMISION</option><option>CIERRE_HUMANO_CONFIRMADO</option><option>VIDEOLLAMADA_PENDIENTE</option>
+  </select>
+  <button onclick="adCargar()" class="btn btn-ghost" style="padding:7px 12px;font-size:13px" aria-label="Actualizar">🔄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include "_op_estilos.html" %}
+<div class="card" style="padding:14px">
+  <p class="op-intro">Expedientes de financiación derivados por los agentes (Nicolás, Mateo) o cargados por el equipo.
+    <b>Aprobar, rechazar, pedir documentación y cerrar</b> son decisiones exclusivas de este departamento: quedan
+    auditadas con tu usuario. La IA no puede tomarlas. No adjuntes documentación sensible en los campos de texto.</p>
+</div>
+<div class="op-sec">
+  <h3>Resumen</h3>
+  <div id="ad-resumen" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+</div>
+<div class="op-sec">
+  <h3>Expedientes</h3>
+  <table class="op-tabla"><thead><tr><th>#</th><th>Cliente</th><th>Producto</th><th>Estado</th><th>Abierto por</th><th>Actualizado</th></tr></thead>
+    <tbody id="ad-lista"><tr><td colspan="6" class="op-vacio">Cargando…</td></tr></tbody></table>
+  <div id="ad-detalle" style="margin-top:10px"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  async function api(url, opts={}){
+    const r = await fetch(url, {credentials:"same-origin", headers:{"Content-Type":"application/json"}, ...opts});
+    let d = {}; try { d = await r.json(); } catch(e) {}
+    if(!r.ok) throw new Error(d.detail || ("HTTP " + r.status));
+    return d;
+  }
+  const SIGUIENTES = {
+    EN_ADMISION: ["DOCUMENTACION_PENDIENTE", "APROBADO_POR_ADMISION", "RECHAZADO_POR_ADMISION"],
+    DOCUMENTACION_PENDIENTE: ["EN_ADMISION", "APROBADO_POR_ADMISION", "RECHAZADO_POR_ADMISION"],
+    APROBADO_POR_ADMISION: ["CIERRE_HUMANO_CONFIRMADO", "RECHAZADO_POR_ADMISION"],
+  };
+  window.adCargar = async () => {
+    try {
+      const f = document.getElementById("ad-filtro").value;
+      const [lista, res] = await Promise.all([api("/api/admision/expedientes" + (f ? "?estado=" + f : "")),
+                                              api("/api/admision/resumen")]);
+      document.getElementById("ad-resumen").innerHTML = Object.entries(res.por_estado).map(([e, n]) =>
+        `<span class="op-pill">${esc(e)}: <b>${n}</b></span>`).join("") || `<span class="op-vacio">Sin expedientes.</span>`;
+      document.getElementById("ad-lista").innerHTML = lista.expedientes.length ? lista.expedientes.map(e => `
+        <tr onclick="adVer(${e.id})"><td>${e.id}</td><td>${esc(e.cliente_nombre)}</td><td>${esc(e.producto)} ${esc(e.modelo)}</td>
+        <td>${esc(e.estado)}</td><td>${esc(e.abierto_por)}</td><td>${esc((e.updated_at||"").slice(0,16).replace("T"," "))}</td></tr>`).join("")
+        : `<tr><td colspan="6" class="op-vacio">No hay expedientes con ese filtro.</td></tr>`;
+    } catch(e){ document.getElementById("ad-lista").innerHTML = `<tr><td colspan="6" class="op-vacio">${esc(e.message)}</td></tr>`; }
+  };
+  window.adVer = async id => {
+    const e = await api(`/api/admision/expedientes/${id}`);
+    const botones = (SIGUIENTES[e.estado] || []).map(s => `<button onclick="adDecidir(${e.id}, '${s}')">${esc(s.replaceAll("_"," "))}</button>`).join("");
+    const cuotas = e.estado === "CIERRE_HUMANO_CONFIRMADO" && !e.cuotas_iniciales_confirmadas_at
+      ? `<button onclick="adCuotas(${e.id})">Confirmar pago de las 2 cuotas iniciales</button>` : "";
+    document.getElementById("ad-detalle").innerHTML = `<div class="op-card">
+      <h4>#${e.id} · ${esc(e.cliente_nombre)} · ${esc(e.estado)}</h4>
+      <div class="op-sub">Tel: ${esc(e.cliente_telefono)} · ${esc(e.producto)} ${esc(e.modelo)} · cuota estimada: ${e.valor_cuota_estimado ? "$" + Math.round(e.valor_cuota_estimado).toLocaleString("es-AR") : "—"}
+        ${e.venta_financiada_id ? ` · venta financiada #${e.venta_financiada_id}` : ""}</div>
+      <h4 style="margin-top:10px">Datos de apertura</h4><div class="op-det">${esc(JSON.stringify(e.datos_apertura, null, 2))}</div>
+      <div class="op-btns">${botones}${cuotas}</div>
+      <h4 style="margin-top:10px">Historial (auditado)</h4>
+      <div class="op-det">${e.eventos.map(x => esc(`${x.ts} · ${x.de || "—"} → ${x.a} · ${x.actor} ${x.detalle}`)).join("\n")}</div></div>`;
+  };
+  window.adDecidir = async (id, estado) => {
+    let cuerpo = {estado, detalle: ""};
+    if(estado === "CIERRE_HUMANO_CONFIRMADO"){
+      const vf = prompt("Número de venta financiada formalizada (ID en el CRM):"); if(!vf) return;
+      cuerpo.venta_financiada_id = parseInt(vf, 10);
+    }
+    cuerpo.detalle = prompt(estado.startsWith("APROBADO") || estado.startsWith("RECHAZADO")
+      ? "Fundamento de la decisión (obligatorio):" : "Detalle (opcional):") ?? "";
+    try { await api(`/api/admision/expedientes/${id}/estado`, {method:"POST", body: JSON.stringify(cuerpo)}); await adVer(id); await adCargar(); }
+    catch(e){ alert(e.message); }
+  };
+  window.adCuotas = async id => {
+    const evidencia = prompt("Evidencia del pago de las dos cuotas iniciales (recibos, comprobantes):"); if(!evidencia) return;
+    try { await api(`/api/admision/expedientes/${id}/cuotas-iniciales`, {method:"POST", body: JSON.stringify({evidencia})}); await adVer(id); }
+    catch(e){ alert(e.message); }
+  };
+  adCargar();
+})();
+</script>
+{% endblock %}

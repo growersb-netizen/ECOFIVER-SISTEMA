@@ -46,6 +46,11 @@ def destino_aliados() -> str | None:
 
 
 async def enviar_franco(telefono: str, texto: str) -> bool:
+    from tools.control_agentes import puede_iniciar_saliente
+    permitido, motivo = await puede_iniciar_saliente("franco")
+    if not permitido:
+        logger.info(f"[Franco/WA] Saliente no enviado: {motivo}")
+        return False
     pid = phone_id_franco()
     if not pid:
         logger.error("[Franco/WA] Sin FRANCO_WA_PHONE_ID (ID del número emisor en Meta): mensaje no enviado")

@@ -1,0 +1,33 @@
+<style>
+  .op-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .op-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;
+    background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border)}
+  .op-pill button{background:var(--bg-hover);color:var(--text-primary);border:1px solid var(--border-light);border-radius:6px;cursor:pointer;font-size:11px;padding:1px 6px}
+  .op-card{border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;background:var(--bg-card);color:var(--text-primary)}
+  .op-card h4{margin:0 0 2px;font-size:15px;color:var(--text-primary)}
+  .op-dep{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
+  .op-sub{font-size:11px;color:var(--text-secondary)}
+  .op-estado{font-size:11px;font-weight:800;padding:2px 8px;border-radius:10px;display:inline-block;margin:6px 0}
+  .op-ACTIVO{background:rgba(45,158,79,.18);color:var(--green-light)}
+  .op-PAUSADO{background:rgba(245,158,11,.18);color:var(--warning)}
+  .op-DESACTIVADO{background:rgba(229,57,53,.18);color:var(--error)}
+  .op-act{font-size:12px;color:var(--text-primary);min-height:34px}
+  .op-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .op-btns button{font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid var(--border-light);
+    background:var(--bg-hover);color:var(--text-primary);cursor:pointer}
+  .op-btns button:hover{border-color:var(--green)}
+  .op-sec{margin-top:22px}
+  .op-sec h3{font-size:16px;margin:0 0 10px;color:var(--text-primary)}
+  .op-tabla{width:100%;border-collapse:collapse;font-size:13px;color:var(--text-primary)}
+  .op-tabla th,.op-tabla td{text-align:left;padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+  .op-tabla th{color:var(--text-muted);font-size:11px;text-transform:uppercase}
+  .op-tabla tbody tr:hover{background:var(--bg-hover);cursor:pointer}
+  .op-form{display:grid;grid-template-columns:160px 1fr 120px auto;gap:8px;align-items:start}
+  .op-form textarea,.op-form select,.op-form input{width:100%;padding:8px;border:1px solid var(--border-light);border-radius:8px;
+    font:inherit;background:var(--bg-secondary);color:var(--text-primary)}
+  .op-det{white-space:pre-wrap;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px;
+    font-size:12px;max-height:340px;overflow:auto;color:var(--text-primary)}
+  .op-vacio{color:var(--text-muted);font-size:13px;padding:8px 0}
+  .op-intro{margin:0;font-size:13px;color:var(--text-secondary)}
+  @media (max-width:760px){.op-form{grid-template-columns:1fr}}
+</style>

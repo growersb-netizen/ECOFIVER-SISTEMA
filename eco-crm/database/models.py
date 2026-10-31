@@ -319,6 +319,24 @@ class VentaContado(Base):
     cobro_fecha             = Column(DateTime(timezone=True), nullable=True)
     cobro_notas             = Column(Text, default="")
 
+    # ── Circuito comercial de contado (reglas del propietario) ──────────────────
+    # CIERRE_COMERCIAL_CONFIRMADO → ENTREGA_PENDIENTE → ENTREGA_CONFIRMADA →
+    # COBRO_PENDIENTE → COBRO_CONFIRMADO. El cierre comercial no implica cobro.
+    circuito_estado             = Column(String(30), nullable=True)
+    cerrada_por                 = Column(String(50), nullable=True)   # "agente:camila" | "usuario:<id>"
+    lead_id                     = Column(Integer, nullable=True, index=True)
+    entrega_confirmada_at       = Column(DateTime(timezone=True), nullable=True)
+    entrega_confirmada_por_id   = Column(Integer, nullable=True)
+    entrega_evidencia           = Column(Text, nullable=True)
+    cobro_confirmado_por_id     = Column(Integer, nullable=True)
+    cobro_evidencia             = Column(Text, nullable=True)
+    # Desglose interno (al cliente se le informa un único precio final)
+    flete_bruto                 = Column(Float, nullable=True)
+    descuento_flete             = Column(Float, nullable=True)
+    promocion_id                = Column(Integer, nullable=True)
+    precio_total_acordado       = Column(Float, nullable=True)   # producto + traslado neto
+    fecha_entrega_solicitada    = Column(Date, nullable=True)
+
     # ── Venta cargada por un Socio Comercial (canal Aliados) ──────────────────
     aliado_codigo               = Column(String(20), ForeignKey("aliados.codigo"), nullable=True, index=True)
     confirmacion_48hs_en        = Column(DateTime(timezone=True), nullable=True)  # equipo confirmó fecha/detalles
@@ -1270,6 +1288,62 @@ class ComandoAgente(Base):
 
     enviado_por     = relationship("Usuario", foreign_keys=[enviado_por_id])
 
+    # ── Motor de tareas (Fase 1) ─────────────────────────────────────────────
+    # Solo las filas con version_motor=1 son tareas ejecutables: los comandos
+    # históricos (antes solo se registraban) nunca se ejecutan retroactivamente.
+    version_motor   = Column(Integer, nullable=True)
+    clave_idempotencia = Column(String(120), nullable=True, unique=True)
+    intentos        = Column(Integer, default=0)
+    max_intentos    = Column(Integer, default=3)
+    proximo_intento = Column(DateTime(timezone=True), nullable=True)
+    lease_token     = Column(String(40), nullable=True)
+    lease_hasta     = Column(DateTime(timezone=True), nullable=True)
+    worker          = Column(String(80), nullable=True)
+    padre_id        = Column(Integer, nullable=True, index=True)
+    raiz_id         = Column(Integer, nullable=True, index=True)
+    profundidad     = Column(Integer, default=0)
+    creado_por_agente = Column(String(50), nullable=True)   # NULL = humano
+    resultado       = Column(JSON, nullable=True)
+    evidencia       = Column(JSON, nullable=True)
+    costo_usd       = Column(Float, default=0)
+    cancelacion_solicitada = Column(Boolean, default=False)
+    iniciado_at     = Column(DateTime(timezone=True), nullable=True)
+    finalizado_at   = Column(DateTime(timezone=True), nullable=True)
+
+
+class TareaEvento(Base):
+    """Historial auditable de cada tarea del motor (inmutable: solo se agregan filas)."""
+    __tablename__ = "tareas_eventos"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    tarea_id   = Column(Integer, nullable=False, index=True)
+    tipo       = Column(String(30), nullable=False)
+    detalle    = Column(Text, default="")
+    actor      = Column(String(100), default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AprobacionAccion(Base):
+    """
+    Acción sensible propuesta por un agente durante una tarea. Nunca se ejecuta
+    sin la decisión de un administrador humano; el texto del modelo no autoriza.
+    """
+    __tablename__ = "aprobaciones_accion"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    tarea_id    = Column(Integer, nullable=True, index=True)
+    agente      = Column(String(50), nullable=False)
+    tipo_accion = Column(String(50), nullable=False)
+    datos       = Column(JSON, default={})
+    motivo      = Column(Text, default="")
+    estado      = Column(String(20), default="PENDIENTE")  # PENDIENTE|APROBADA|RECHAZADA|EJECUTADA|FALLIDA
+    decidido_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    decidido_at = Column(DateTime(timezone=True), nullable=True)
+    comentario  = Column(Text, default="")
+    resultado   = Column(Text, default="")
+    lease_token = Column(String(40), nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
 
 # ─── EQUIPOS INSTALADORES ────────────────────────────────────────────────────
 
@@ -1892,3 +1966,248 @@ class ExclusionComercial(Base):
     actualizada_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     reactivada_por = Column(String(150), nullable=True)
     motivo_reactivacion = Column(String(300), nullable=True)
+
+
+
+class AgenteControl(Base):
+    """Estado ADMINISTRATIVO de un agente (lo decide un administrador). Sin fila = ACTIVO.
+    La actividad real (qué está haciendo) se calcula aparte desde tareas y métricas."""
+    __tablename__ = "agentes_control"
+
+    agente          = Column(String(30), primary_key=True)
+    estado          = Column(String(20), nullable=False, default="ACTIVO")   # ACTIVO | PAUSADO | DESACTIVADO
+    motivo          = Column(Text, default="")
+    actualizado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    actualizado_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class AgenteControlEvento(Base):
+    """Historial auditable de cambios de estado administrativo (solo se agregan filas)."""
+    __tablename__ = "agentes_control_eventos"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    agente          = Column(String(30), nullable=False, index=True)
+    estado_anterior = Column(String(20), default="")
+    estado_nuevo    = Column(String(20), nullable=False)
+    motivo          = Column(Text, default="")
+    usuario_id      = Column(Integer, nullable=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GuardiaOperativa(Base):
+    """Ventana autorizada para operar salientes fuera del horario (L-S 09-21 ART)."""
+    __tablename__ = "guardias_operativas"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    alcance         = Column(String(40), nullable=False)       # "todos" | "dep:<departamento>" | "agente:<nombre>"
+    desde           = Column(DateTime(timezone=True), nullable=False)
+    hasta           = Column(DateTime(timezone=True), nullable=False)
+    motivo          = Column(Text, default="")
+    creado_por_id   = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    activa          = Column(Boolean, default=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class ExpedienteFinanciacion(Base):
+    """
+    Circuito de financiación: la IA abre y deriva; Admisión (humana) verifica,
+    aprueba o rechaza y cierra. Los estados APROBADO_POR_ADMISION,
+    RECHAZADO_POR_ADMISION, CIERRE_HUMANO_CONFIRMADO y DOCUMENTACION_PENDIENTE
+    solo los cambia personal autorizado de Admisión (verificado en el servidor).
+    """
+    __tablename__ = "expedientes_financiacion"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    lead_id         = Column(Integer, nullable=True, index=True)
+    cliente_nombre  = Column(String(150), nullable=False)
+    cliente_telefono = Column(String(30), nullable=True)
+    producto        = Column(String(20), nullable=False)      # PISCINA | MODULO | VIVIENDA
+    modelo          = Column(String(150), default="")
+    valor_cuota_estimado = Column(Float, nullable=True)        # informativo (apertura); el contractual va en la venta
+    datos_apertura  = Column(JSON, default={})                 # datos autorizados, sin documentación sensible
+    estado          = Column(String(30), nullable=False, default="CONSULTA_RECIBIDA")
+    abierto_por     = Column(String(50), default="")            # "agente:nicolas" | "usuario:<id>"
+    asignado_admision_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    videollamada_id = Column(Integer, nullable=True)
+    venta_financiada_id = Column(Integer, ForeignKey("ventas_financiadas.id"), nullable=True)
+    cuotas_iniciales_confirmadas_at = Column(DateTime(timezone=True), nullable=True)
+    cuotas_iniciales_confirmadas_por_id = Column(Integer, nullable=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ExpedienteEvento(Base):
+    """Historial auditable del expediente (inmutable)."""
+    __tablename__ = "expedientes_eventos"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    expediente_id  = Column(Integer, nullable=False, index=True)
+    estado_anterior = Column(String(30), default="")
+    estado_nuevo   = Column(String(30), nullable=False)
+    actor          = Column(String(60), nullable=False)        # "agente:nicolas" | "usuario:<id>"
+    detalle        = Column(Text, default="")
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ComisionPropietario(Base):
+    """
+    Ingresos personales del propietario por comisiones (separados de la
+    contabilidad de la cooperativa y de las comisiones de socios).
+      CONTADO: 10% del producto, se GENERA al confirmarse la entrega.
+      FINANCIADO: 100% de las dos cuotas iniciales, se GENERA con Admisión
+      aprobada + suscripción formalizada + dos cuotas iniciales pagas.
+    Una fila por operación y concepto (clave única): reprocesar no duplica.
+    Las proyectadas no se guardan: se calculan desde las operaciones abiertas.
+    """
+    __tablename__ = "comisiones_propietario"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    clave              = Column(String(80), nullable=False, unique=True)   # "contado:<venta_id>" | "financiada:<venta_id>"
+    tipo               = Column(String(20), nullable=False)                # CONTADO | FINANCIADO
+    venta_contado_id   = Column(Integer, ForeignKey("ventas_contado.id"), nullable=True, index=True)
+    venta_financiada_id = Column(Integer, ForeignKey("ventas_financiadas.id"), nullable=True, index=True)
+    expediente_id      = Column(Integer, nullable=True)
+    producto           = Column(String(20), default="")
+    base_calculo       = Column(Float, nullable=False)      # precio del producto | valor de cuota
+    regla              = Column(String(80), nullable=False)  # "10% del producto" | "2 cuotas iniciales"
+    monto              = Column(Float, nullable=False)
+    estado             = Column(String(20), nullable=False, default="GENERADA")   # GENERADA | COBRADA | ANULADA
+    generada_at        = Column(DateTime(timezone=True), nullable=False)          # fecha real del evento (entrega / pago)
+    cobrada_at         = Column(DateTime(timezone=True), nullable=True)
+    cobrada_evidencia  = Column(Text, nullable=True)
+    anulada_motivo     = Column(Text, nullable=True)
+    actualizada_por_id = Column(Integer, nullable=True)
+    canal              = Column(String(40), nullable=True)
+    created_at         = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GastoPublicitario(Base):
+    """Inversión publicitaria del propietario. PRESUPUESTO (plan) separado de GASTO (real)."""
+    __tablename__ = "gastos_publicitarios"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    tipo          = Column(String(15), nullable=False)          # PRESUPUESTO | GASTO
+    fecha         = Column(Date, nullable=False)
+    monto         = Column(Float, nullable=False)
+    campana       = Column(String(150), default="")
+    producto      = Column(String(20), default="")
+    canal         = Column(String(40), default="")              # meta | google | mercadolibre | otro
+    nota          = Column(Text, default="")
+    registrado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ObjetivoEconomico(Base):
+    """Objetivos del propietario, versionados: un cambio crea una versión nueva (no se pisa)."""
+    __tablename__ = "objetivos_economicos"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    periodo       = Column(String(7), nullable=False, index=True)   # YYYY-MM
+    indicador     = Column(String(40), nullable=False)              # facturacion | comisiones_generadas | comisiones_cobradas | resultado_personal
+    producto      = Column(String(20), default="")
+    canal         = Column(String(40), default="")
+    valor         = Column(Float, nullable=False)
+    version       = Column(Integer, nullable=False, default=1)
+    vigente       = Column(Boolean, default=True)
+    origen        = Column(String(40), default="panel")             # panel | conversacion_maximo
+    nota          = Column(Text, default="")
+    autorizado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DistanciaLocalidad(Base):
+    """
+    Caché de distancias por ruta desde la fábrica (no en línea recta).
+    estado: CALCULADA (proveedor de rutas) | VERIFICADA (confirmada o cargada por una persona).
+    Se recalcula si cambia el origen (origen_clave) o el destino.
+    """
+    __tablename__ = "distancias_localidades"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    clave         = Column(String(300), nullable=False, unique=True, index=True)  # destino normalizado (+ origen)
+    tipo          = Column(String(12), default="LOCALIDAD")        # LOCALIDAD | DIRECCION
+    localidad     = Column(String(120), nullable=False)
+    provincia     = Column(String(80), default="")
+    destino_texto = Column(String(300), default="")                # dirección formateada por el proveedor
+    origen_texto  = Column(String(300), default="")
+    origen_clave  = Column(String(300), default="")
+    km_ida        = Column(Float, nullable=False)
+    proveedor     = Column(String(40), default="")                 # google_routes | manual
+    ruta_ref      = Column(Text, default="")                       # referencia/resumen de la ruta
+    estado        = Column(String(12), default="CALCULADA")
+    fuente        = Column(String(200), default="")
+    cargado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    actualizado_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PromocionComercial(Base):
+    """
+    Promoción vigente y autorizada por una persona. La IA solo aplica promociones
+    de esta tabla (no inventa). Tipo FLETE_PCT: % de descuento sobre el traslado,
+    válido si el cliente reserva la fecha de instalación durante la vigencia.
+    """
+    __tablename__ = "promociones_comerciales"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    nombre        = Column(String(150), nullable=False)
+    tipo          = Column(String(20), nullable=False)        # FLETE_PCT
+    valor         = Column(Float, nullable=False)             # 50 = 50%
+    producto      = Column(String(20), default="PISCINA")
+    desde         = Column(Date, nullable=False)
+    hasta         = Column(Date, nullable=False)              # inclusive
+    requiere_reserva_fecha = Column(Boolean, default=True)
+    activa        = Column(Boolean, default=True)
+    autorizada_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    nota          = Column(Text, default="")
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContactoProactivo(Base):
+    """Registro de cada contacto saliente iniciado por el sistema (deduplicación y auditoría)."""
+    __tablename__ = "contactos_proactivos"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    telefono_clave = Column(String(20), nullable=False, index=True)
+    origen         = Column(String(80), default="")      # cron seguimiento | meta primer contacto | accion ...
+    agente         = Column(String(30), default="")
+    created_at     = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class PoliticaEmpresarial(Base):
+    """
+    Política empresarial versionada (capa 2 de instrucciones de los agentes).
+    Una conversación con Máximo solo puede PROPONER; activa el propietario.
+    Nunca amplía permisos del backend (son independientes del texto).
+    """
+    __tablename__ = "politicas_empresariales"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    codigo           = Column(String(60), nullable=False, index=True)    # misma política, distintas versiones
+    version          = Column(Integer, nullable=False, default=1)
+    titulo           = Column(String(200), nullable=False)
+    objetivo         = Column(Text, default="")
+    instruccion      = Column(Text, nullable=False)                     # texto operativo que reciben los agentes
+    departamento     = Column(String(30), default="")
+    agentes          = Column(JSON, default=[])                          # agentes afectados
+    metrica_exito    = Column(Text, default="")
+    estado           = Column(String(25), nullable=False, default="PENDIENTE_APROBACION")
+    autor            = Column(String(60), default="")                    # agente:maximo | usuario:<id>
+    aprobado_por_id  = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    aprobado_at      = Column(DateTime(timezone=True), nullable=True)
+    aplicada_desde   = Column(DateTime(timezone=True), nullable=True)
+    resultado        = Column(Text, default="")
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PoliticaEvento(Base):
+    """Historial inmutable de cada política."""
+    __tablename__ = "politicas_eventos"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    politica_id  = Column(Integer, nullable=False, index=True)
+    de           = Column(String(25), default="")
+    a            = Column(String(25), nullable=False)
+    actor        = Column(String(60), nullable=False)
+    detalle      = Column(Text, default="")
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())

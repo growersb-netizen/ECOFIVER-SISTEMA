@@ -151,6 +151,18 @@ async def consultar_baja_comercial(
             "desde": ex.created_at.isoformat() if ex and ex.created_at else ""}
 
 
+@router.post("/api/contactos/saliente/autorizar")
+async def autorizar_contacto_saliente(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(_require_api_key),
+):
+    """Antes de cada mensaje que inicia el sistema: baja, ventana de 24 h de WhatsApp y deduplicación."""
+    from utils.contacto_saliente import autorizar
+    data = await request.json()
+    return autorizar(db, str(data.get("telefono") or ""), str(data.get("origen") or ""), str(data.get("agente") or ""))
+
+
 @router.post("/api/contactos/baja/reactivar")
 async def reactivar_comunicaciones(
     request: Request,

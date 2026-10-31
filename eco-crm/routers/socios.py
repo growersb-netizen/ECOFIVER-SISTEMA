@@ -42,6 +42,7 @@ from routers.auth import require_auth, get_user_roles, get_current_user, create_
 from routers.catalogo import load_catalogo
 from utils.whatsapp import send_whatsapp_text, notificar_rodrigo
 from utils.api_keys import api_key_valida
+from utils.origen import negar_a_agentes_ia
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -2952,7 +2953,7 @@ async def marcar_en_produccion(
     return {"ok": True}
 
 
-@router.post("/api/ventas-contado/{venta_id}/entregada-cobrada")
+@router.post("/api/ventas-contado/{venta_id}/entregada-cobrada", dependencies=[Depends(negar_a_agentes_ia)])
 async def marcar_entregada_cobrada(
     venta_id: int, db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
@@ -2970,6 +2971,19 @@ async def marcar_entregada_cobrada(
     venta.cobro_fecha = datetime.now()
     venta.estado = "COBRADO"
     db.commit()
+
+    # Con una persona identificada: circuito de contado y comisión del propietario.
+    # Por API key no hay persona: queda para confirmar en el circuito.
+    if current_user is not None:
+        try:
+            from utils.circuito_comercial import confirmar_cobro, confirmar_entrega
+            confirmar_entrega(db, venta, current_user, f"Entregada y cobrada (gestión interna) #{venta.id}",
+                              verificar_rol=False)
+            confirmar_cobro(db, venta, current_user, f"Entregada y cobrada (gestión interna) #{venta.id}",
+                            verificar_rol=False)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[CIRCUITO] Venta #{venta.id} sin registrar en el circuito: {e}")
 
     if venta.aliado_codigo:
         pct = obtener_porcentaje_comision(db, "contado", venta.producto, venta.modelo_especifico)
@@ -3296,7 +3310,7 @@ async def _registrar_pago_inscripcion(venta: VentaFinanciada, monto: float, db: 
     return resultado
 
 
-@router.post("/api/ventas-financiadas/{venta_id}/registrar-pago-inscripcion")
+@router.post("/api/ventas-financiadas/{venta_id}/registrar-pago-inscripcion", dependencies=[Depends(negar_a_agentes_ia)])
 async def registrar_pago_inscripcion(
     venta_id: int, request: Request, db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
@@ -3319,7 +3333,7 @@ async def registrar_pago_inscripcion(
     return {"ok": True, **resultado}
 
 
-@router.post("/api/ventas-financiadas/{venta_id}/inscripcion-pagada")
+@router.post("/api/ventas-financiadas/{venta_id}/inscripcion-pagada", dependencies=[Depends(negar_a_agentes_ia)])
 async def marcar_inscripcion_pagada(
     venta_id: int, db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
@@ -3607,7 +3621,7 @@ async def confirmar_plan_cliente(token: str, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/api/ventas-financiadas/{venta_id}/auditoria-completada")
+@router.post("/api/ventas-financiadas/{venta_id}/auditoria-completada", dependencies=[Depends(negar_a_agentes_ia)])
 async def completar_auditoria_bienvenida(
     venta_id: int, db: Session = Depends(get_db),
     x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
@@ -3944,7 +3958,7 @@ async def admin_listar_comisiones_config(
     } for c in filas], "vigentes": _tabla_comisiones_vigentes(db)}
 
 
-@router.put("/api/admin/comisiones/config")
+@router.put("/api/admin/comisiones/config", dependencies=[Depends(negar_a_agentes_ia)])
 async def admin_actualizar_comision_config(
     request: Request, x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -3986,7 +4000,7 @@ async def admin_actualizar_comision_config(
     return {"ok": True, "id": row.id, "porcentaje_pct": round(porcentaje * 100, 2)}
 
 
-@router.delete("/api/admin/comisiones/config/{config_id}")
+@router.delete("/api/admin/comisiones/config/{config_id}", dependencies=[Depends(negar_a_agentes_ia)])
 async def admin_borrar_comision_config(
     config_id: int, x_api_key: Optional[str] = Header(None), current_user: Optional[Usuario] = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -4309,7 +4323,7 @@ async def admin_ver_comprobante(
     return FileResponse(str(fpath), media_type=media, filename=fpath.name)
 
 
-@router.post("/api/admin/solicitudes-recibo/{venta_id}/aprobar")
+@router.post("/api/admin/solicitudes-recibo/{venta_id}/aprobar", dependencies=[Depends(negar_a_agentes_ia)])
 async def admin_aprobar_recibo(
     venta_id: int,
     request: Request,
@@ -4393,7 +4407,7 @@ async def admin_aprobar_recibo(
     }
 
 
-@router.post("/api/admin/solicitudes-recibo/{venta_id}/rechazar")
+@router.post("/api/admin/solicitudes-recibo/{venta_id}/rechazar", dependencies=[Depends(negar_a_agentes_ia)])
 async def admin_rechazar_recibo(
     venta_id: int,
     request: Request,

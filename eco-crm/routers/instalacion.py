@@ -20,6 +20,10 @@ from database.models import (
     EquipoInstalador, TarifaInstalacion, VentaContado, Usuario
 )
 from routers.auth import require_auth, get_user_roles
+from utils.origen import negar_a_agentes_ia
+import logging
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -305,7 +309,7 @@ async def list_contraentregas(
 
 # ─── REGISTRAR COBRO CONTRAENTREGA ────────────────────────────────────────────
 
-@router.post("/api/instalacion/contraentregas/{venta_id}/cobro")
+@router.post("/api/instalacion/contraentregas/{venta_id}/cobro", dependencies=[Depends(negar_a_agentes_ia)])
 async def registrar_cobro(
     venta_id: int,
     request: Request,
@@ -328,6 +332,17 @@ async def registrar_cobro(
         v.estado = "INSTALADO"
 
     db.commit()
+
+    # Instalación cobrada en domicilio (registrada por una persona) → circuito y comisión
+    if v.cobro_estado == "COBRADO":
+        try:
+            from utils.circuito_comercial import confirmar_cobro, confirmar_entrega
+            confirmar_entrega(db, v, current_user, f"Instalación: cobro contraentrega #{v.id} registrado",
+                              verificar_rol=False)
+            confirmar_cobro(db, v, current_user, f"Cobro contraentrega registrado en instalación: {v.cobro_notas or ''}".strip(),
+                            v.cobro_monto_real, verificar_rol=False)
+        except Exception as e:
+            log.warning(f"[CIRCUITO] Venta #{v.id} sin registrar en el circuito: {e}")
 
     if v.cobro_estado == "COBRADO":
         try:

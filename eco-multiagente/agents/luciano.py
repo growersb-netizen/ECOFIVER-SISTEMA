@@ -55,6 +55,13 @@ incluí al final de tu respuesta (nunca lo menciones al cliente):
 [LLAMADA_SUP:dia:hora]
 Ejemplo: si dice "el lunes a las 10hs", incluís [LLAMADA_SUP:lunes:10:00]
 Solo incluís esta señal UNA VEZ, cuando el cliente confirme concretamente.
+REGISTRO DEL CIERRE DE CONTADO (cuando el cliente acepta comprar):
+Pedí lo que falte (nombre y apellido, localidad, domicilio) y registrá con el precio de catálogo exacto:
+[CRM_ACTION:{{"tipo":"cerrar_venta_contado","datos":{{"producto":"MODULO","modelo":"<exacto>",
+ "precio":<precio de catálogo>,"cliente_nombre":"<nombre>","cliente_localidad":"<loc>",
+ "cliente_domicilio":"<calle y número>","aceptacion_cliente":"<frase textual del cliente>"}}}}]
+(producto "VIVIENDA" si es una vivienda). El cierre comercial NO es el cobro: queda pendiente de entrega
+y cobro contra entrega. Si el sistema rechaza el cierre, no digas que quedó registrado.
 """
 
 

@@ -23,18 +23,37 @@ def _record_fail_ex(fn: str, exc: Exception) -> None:
 CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://eco-crm-production.up.railway.app")
 CRM_API_KEY = os.getenv("CRM_API_KEY", "")
 
+# X-Origen-Cliente identifica al sistema de agentes IA ante el CRM, que le niega
+# las operaciones reservadas a personas (pagos, cobros, entregas, financiaciones).
 HEADERS = {
     "Authorization": f"Bearer {CRM_API_KEY}",
     "Content-Type": "application/json",
+    "X-Origen-Cliente": "multiagente",
 }
 
 # Algunos endpoints (routers/negocio.py) validan X-API-Key en vez de Bearer.
 HEADERS_XKEY = {
     "X-API-Key": CRM_API_KEY,
     "Content-Type": "application/json",
+    "X-Origen-Cliente": "multiagente",
 }
 
 TIMEOUT = 10.0
+
+import contextvars as _cv
+
+# Autorización humana de la operación en curso (canal del propietario o aprobación
+# decidida por una persona). El CRM solo acepta operaciones de dinero/contratos del
+# sistema de agentes cuando viene esta marca. La pone tools.crm_actions, nunca el modelo.
+autorizacion_humana: _cv.ContextVar[str] = _cv.ContextVar("autorizacion_humana", default="")
+
+
+def _headers_operacion() -> dict:
+    h = dict(HEADERS)
+    a = autorizacion_humana.get()
+    if a:
+        h["X-Autorizacion-Humana"] = a[:120]
+    return h
 
 
 async def get_lead(session_id: str) -> dict:
@@ -487,7 +506,7 @@ async def registrar_venta_contado(data: dict) -> dict:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/ventas-contado",
-                headers=HEADERS,
+                headers=_headers_operacion(),
                 json=data,
             )
             r.raise_for_status()
@@ -503,7 +522,7 @@ async def registrar_venta_financiada(data: dict) -> dict:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/ventas-financiadas",
-                headers=HEADERS,
+                headers=_headers_operacion(),
                 json=data,
             )
             r.raise_for_status()
@@ -527,7 +546,7 @@ async def pagar_cuota(
         async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
             r = await client.post(
                 f"{CRM_BASE_URL}/api/ventas-financiadas/{venta_id}/pago",
-                headers=HEADERS,
+                headers=_headers_operacion(),
                 json={"monto": monto, "notas": notas, "concepto": concepto, "modalidad": modalidad},
             )
             r.raise_for_status()
@@ -854,7 +873,7 @@ async def crear_contrato(payload: dict) -> dict:
     """
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_FULL) as client:
-            r = await client.post(f"{CRM_BASE_URL}/api/contratos", headers=HEADERS, json=payload)
+            r = await client.post(f"{CRM_BASE_URL}/api/contratos", headers=_headers_operacion(), json=payload)
             if r.status_code == 409:
                 return {"error": "DNI ya tiene una solicitud activa", "detail": r.json()}
             if r.status_code == 400:
@@ -906,3 +925,32 @@ async def consultar_baja(telefono: str) -> Optional[bool]:
         logger.warning(f"[CRM] consultar_baja falló: {e}")
         _record_fail_ex("consultar_baja", e)
         return None
+
+
+async def autorizar_saliente(telefono: str, origen: str = "", agente: str = "") -> Optional[dict]:
+    """Autorización del CRM para un contacto que inicia el sistema (baja, ventana 24 h, deduplicación).
+    None si el CRM no respondió (no se envía)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.post(f"{CRM_BASE_URL}/api/contactos/saliente/autorizar", headers=HEADERS,
+                                  json={"telefono": telefono, "origen": origen[:80], "agente": agente})
+            r.raise_for_status()
+            record_ok("autorizar_saliente")
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] autorizar_saliente falló: {e}")
+        _record_fail_ex("autorizar_saliente", e)
+        return None
+
+
+
+async def get_panel_propietario() -> dict:
+    """Panel económico del propietario (solo para Máximo)."""
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(f"{CRM_BASE_URL}/api/motor/propietario/panel", headers={**HEADERS, "X-Agente": "maximo"})
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning(f"[CRM] panel propietario no disponible: {e}")
+        return {}

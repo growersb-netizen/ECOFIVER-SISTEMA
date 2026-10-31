@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Mis comisiones — EcoFiver{% endblock %}
+{% block page_title %}💼 Panel económico del propietario{% endblock %}
+
+{% block top_actions %}
+<div style="display:flex;gap:8px;align-items:center">
+  <input id="pp-periodo" type="month" class="op-pill" onchange="ppCargar()" aria-label="Período">
+  <button onclick="ppCargar()" class="btn btn-ghost" style="padding:7px 12px;font-size:13px" aria-label="Actualizar">🔄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include "_op_estilos.html" %}
+<div class="card" style="padding:14px"><p class="op-intro">Tus ingresos por comisiones, separados de la contabilidad de la
+  cooperativa. Contado: 10% del producto al confirmarse la entrega. Financiado: las 2 cuotas iniciales al confirmarse su pago.
+  Lo <b>proyectado</b> y las <b>estimaciones</b> se muestran aparte de lo confirmado.</p></div>
+<div class="op-sec"><div id="pp-kpis" class="op-grid"></div></div>
+<div class="op-sec"><h3>Datos faltantes</h3><div id="pp-faltantes" class="op-sub"></div></div>
+<div class="op-sec card" style="padding:14px">
+  <h3>Objetivo del mes</h3>
+  <div class="op-form" style="grid-template-columns:220px 1fr auto">
+    <select id="pp-ind"><option value="comisiones_generadas">Comisiones generadas</option><option value="comisiones_cobradas">Comisiones cobradas</option>
+      <option value="resultado_personal">Resultado personal</option><option value="facturacion">Facturación comercial</option></select>
+    <input id="pp-val" type="number" placeholder="Monto objetivo">
+    <button class="btn btn-ghost" onclick="ppObjetivo()">Guardar (nueva versión)</button>
+  </div>
+</div>
+<div class="op-sec card" style="padding:14px">
+  <h3>Inversión publicitaria</h3>
+  <div class="op-form" style="grid-template-columns:140px 150px 1fr 1fr auto">
+    <select id="pp-g-tipo"><option value="GASTO">Gasto real</option><option value="PRESUPUESTO">Presupuesto</option></select>
+    <input id="pp-g-fecha" type="date"><input id="pp-g-monto" type="number" placeholder="Monto">
+    <input id="pp-g-camp" placeholder="Campaña / canal (ej. Meta piscinas)">
+    <button class="btn btn-ghost" onclick="ppGasto()">Registrar</button>
+  </div>
+</div>
+<div class="op-sec">
+  <h3>Políticas empresariales</h3>
+  <p class="op-sub">Propuestas de Máximo y la dirección. No rigen hasta que las aprobás; podés suspender o revertir.</p>
+  <div id="pp-pol"><div class="op-vacio">Cargando…</div></div>
+</div>
+<div class="op-sec">
+  <h3>Comisiones</h3>
+  <table class="op-tabla"><thead><tr><th>#</th><th>Tipo</th><th>Operación</th><th>Regla</th><th>Monto</th><th>Estado</th><th>Generada</th><th></th></tr></thead>
+    <tbody id="pp-com"><tr><td colspan="8" class="op-vacio">Cargando…</td></tr></tbody></table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const $ = n => "$" + Math.round(n || 0).toLocaleString("es-AR");
+  async function api(url, opts={}){
+    const r = await fetch(url, {credentials:"same-origin", headers:{"Content-Type":"application/json"}, ...opts});
+    let d = {}; try { d = await r.json(); } catch(e) {}
+    if(!r.ok) throw new Error(d.detail || ("HTTP " + r.status));
+    return d;
+  }
+  const per = document.getElementById("pp-periodo");
+  per.value = new Date().toISOString().slice(0, 7);
+  const kpi = (t, v, sub, etiqueta) => `<div class="op-card"><div class="op-dep">${esc(t)}${etiqueta ? " · " + esc(etiqueta) : ""}</div>
+    <h4 style="font-size:20px">${v}</h4><div class="op-sub">${esc(sub)}</div></div>`;
+  window.ppCargar = async () => {
+    try {
+      const p = await api("/api/propietario/panel?periodo=" + per.value);
+      const obj = p.objetivos.comisiones_generadas;
+      document.getElementById("pp-kpis").innerHTML = [
+        kpi("Facturación comercial", $(p.facturacion_comercial.total), p.facturacion_comercial.fuente),
+        kpi("Comisiones generadas", $(p.comisiones_generadas.total), `${p.comisiones_generadas.cantidad} operación(es)`),
+        kpi("Comisiones cobradas", $(p.comisiones_cobradas.total), p.comisiones_cobradas.fuente),
+        kpi("Comisiones pendientes", $(p.comisiones_pendientes.total), p.comisiones_pendientes.fuente),
+        kpi("Comisiones proyectadas", $(p.comisiones_proyectadas.total), p.comisiones_proyectadas.fuente, "proyección"),
+        kpi("Inversión publicitaria", $(p.inversion_publicitaria.gasto_real), `Presupuesto: ${$(p.inversion_publicitaria.presupuesto)}`),
+        kpi("Resultado personal", $(p.resultado_personal.total), p.resultado_personal.fuente),
+        kpi("Objetivo del mes", obj ? $(obj.valor) : "Sin definir", obj ? `Cumplimiento ${obj.cumplimiento_pct ?? 0}% · versión ${obj.version}` : "Cargalo abajo"),
+        kpi("Proyección de cierre", $(p.proyeccion_cierre_mes.comisiones_generadas), p.proyeccion_cierre_mes.fuente, "estimación"),
+      ].join("");
+      document.getElementById("pp-faltantes").innerHTML = p.datos_faltantes.length ? p.datos_faltantes.map(esc).join("<br>") : "Sin datos faltantes.";
+      const c = await api("/api/propietario/comisiones");
+      document.getElementById("pp-com").innerHTML = c.comisiones.length ? c.comisiones.map(x => `<tr>
+        <td>${x.id}</td><td>${esc(x.tipo)}</td><td>${x.venta_contado_id ? "Contado #" + x.venta_contado_id : "Financiada #" + x.venta_financiada_id}</td>
+        <td>${esc(x.regla)} sobre ${$(x.base_calculo)}</td><td>${$(x.monto)}</td><td>${esc(x.estado)}</td>
+        <td>${esc((x.generada_at || "").slice(0,10))}</td>
+        <td>${x.estado === "GENERADA" ? `<span class="op-btns"><button onclick="ppCobrada(${x.id})">Cobrada</button><button onclick="ppAnular(${x.id})">Anular</button></span>` : ""}</td></tr>`).join("")
+        : `<tr><td colspan="8" class="op-vacio">Todavía no hay comisiones generadas (se generan al entregar / al pagarse las cuotas iniciales).</td></tr>`;
+    } catch(e){ document.getElementById("pp-kpis").innerHTML = `<div class="op-vacio">${esc(e.message)}</div>`; }
+  };
+  async function ppPoliticas(){
+    const d = await api("/api/politicas");
+    const vivas = d.politicas.filter(p => ["PENDIENTE_APROBACION", "ACTIVA"].includes(p.estado));
+    document.getElementById("pp-pol").innerHTML = vivas.length ? vivas.map(p => `<div class="op-card" style="margin-bottom:8px">
+      <b>${esc(p.titulo)}</b> <span class="op-sub">v${p.version} · ${esc(p.estado)} · ${esc(p.autor)} · para ${esc(p.agentes.join(", "))}</span>
+      <div class="op-det" style="margin:6px 0">${esc(p.instruccion)}${p.objetivo ? "\n\nObjetivo: " + esc(p.objetivo) : ""}${p.metrica_exito ? "\nMétrica: " + esc(p.metrica_exito) : ""}</div>
+      <div class="op-btns">${p.estado === "PENDIENTE_APROBACION"
+        ? `<button onclick="ppPol(${p.id},'aprobar')">✅ Aprobar y activar</button><button onclick="ppPol(${p.id},'rechazar')">✖ Rechazar</button>`
+        : `<button onclick="ppPol(${p.id},'suspender')">Suspender</button><button onclick="ppPol(${p.id},'revertir')">Revertir a la versión anterior</button>`}</div></div>`).join("")
+      : `<div class="op-vacio">No hay políticas pendientes ni activas.</div>`;
+  }
+  window.ppPol = async (id, accion) => {
+    try {
+      if(accion === "aprobar" || accion === "rechazar"){
+        await api(`/api/politicas/${id}/decidir`, {method:"POST", body: JSON.stringify({aprobar: accion === "aprobar", comentario: prompt("Comentario (opcional):") || ""})});
+      } else {
+        await api(`/api/politicas/${id}/${accion}`, {method:"POST", body: JSON.stringify({motivo: prompt("Motivo:") || ""})});
+      }
+      await ppPoliticas();
+    } catch(e){ alert(e.message); }
+  };
+  window.ppObjetivo = async () => {
+    try { await api("/api/propietario/objetivos", {method:"POST", body: JSON.stringify({periodo: per.value,
+      indicador: document.getElementById("pp-ind").value, valor: parseFloat(document.getElementById("pp-val").value)})}); await ppCargar(); }
+    catch(e){ alert(e.message); }
+  };
+  window.ppGasto = async () => {
+    const v = id => document.getElementById(id).value;
+    try { await api("/api/propietario/gastos", {method:"POST", body: JSON.stringify({tipo: v("pp-g-tipo"), fecha: v("pp-g-fecha"),
+      monto: parseFloat(v("pp-g-monto")), campana: v("pp-g-camp")})}); await ppCargar(); }
+    catch(e){ alert(e.message); }
+  };
+  window.ppCobrada = async id => { const evidencia = prompt("Evidencia del cobro (transferencia, recibo):"); if(!evidencia) return;
+    try { await api(`/api/propietario/comisiones/${id}/cobrada`, {method:"POST", body: JSON.stringify({evidencia})}); await ppCargar(); } catch(e){ alert(e.message); } };
+  window.ppAnular = async id => { const motivo = prompt("Motivo de la anulación:"); if(!motivo) return;
+    try { await api(`/api/propietario/comisiones/${id}/anular`, {method:"POST", body: JSON.stringify({motivo})}); await ppCargar(); } catch(e){ alert(e.message); } };
+  ppCargar();
+  ppPoliticas().catch(e => { document.getElementById("pp-pol").innerHTML = `<div class="op-vacio">${esc(e.message)}</div>`; });
+})();
+</script>
+{% endblock %}

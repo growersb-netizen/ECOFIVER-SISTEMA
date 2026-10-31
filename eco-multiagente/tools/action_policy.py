@@ -35,7 +35,18 @@ ACTION_LEVEL: dict[str, str] = {
     "agendar_videollamada": OPERATIVA,
     "gestion_cobranza": OPERATIVA,
     "recordar": OPERATIVA,
-    # Dinero, contratos e inventario
+    # Circuito comercial (reglas del propietario): la IA cierra contado con precio
+    # de catálogo validado en el CRM y abre financiaciones hasta Admisión.
+    "cerrar_venta_contado": OPERATIVA,
+    "abrir_financiacion": OPERATIVA,
+    # Dirección (Fase 3): crear tareas del motor y proponer políticas (que activa el propietario)
+    "crear_tarea": OPERATIVA,
+    "proponer_politica": OPERATIVA,
+    # Objetivos económicos del propietario: solo por pedido suyo en su canal
+    "fijar_objetivo": SENSIBLE,
+    # Dinero y contratos: solo en el canal del propietario (Rodrigo dicta a Máximo,
+    # decisión del 31/10) o tras aprobación humana. Nunca desde conversaciones con
+    # clientes ni de forma autónoma (el motor las manda a aprobación).
     "venta_contado": SENSIBLE,
     "venta_financiada": SENSIBLE,
     "pagar_cuota": SENSIBLE,
@@ -53,20 +64,25 @@ ACTION_LEVEL: dict[str, str] = {
     "disparar_scraping": PROHIBIDA,
 }
 
+_MOTIVO_PROHIBIDA = {
+    "disparar_scraping": "'disparar_scraping' está prohibida por política (requiere consentimiento del contacto)",
+}
 _TODAS_NO_PROHIBIDAS = {k for k, v in ACTION_LEVEL.items() if v != PROHIBIDA}
+_SOLO_ESPECIALISTAS = {"cerrar_venta_contado", "abrir_financiacion"}
+_DIRECCION = {"crear_tarea", "proponer_politica"}
 _VENDEDOR = {"update_lead", "cambiar_estado_lead", "agendar_videollamada"}
 
 # Lista blanca por agente (matriz de permisos del diagnóstico, §10).
 AGENT_ALLOWED: dict[str, set[str]] = {
-    "maximo": set(_TODAS_NO_PROHIBIDAS),
-    "aurora": {"update_lead", "cambiar_estado_lead", "reasignar_lead", "recordar"},
+    "maximo": set(_TODAS_NO_PROHIBIDAS) - _SOLO_ESPECIALISTAS,
+    "aurora": {"update_lead", "cambiar_estado_lead", "reasignar_lead", "recordar"} | _DIRECCION,
     "tomas": {"update_lead", "cambiar_estado_lead", "reasignar_lead", "agendar_videollamada",
-              "contactar_lead", "contactar_leads_sin_respuesta", "reactivar_leads_frios"},
-    "valentina": set(_VENDEDOR),
-    "camila": set(_VENDEDOR),
-    "nicolas": set(_VENDEDOR),
-    "luciano": set(_VENDEDOR),
-    "mateo": set(_VENDEDOR),
+              "contactar_lead", "contactar_leads_sin_respuesta", "reactivar_leads_frios"} | _DIRECCION,
+    "valentina": set(_VENDEDOR) | {"abrir_financiacion"},      # solo abre la consulta
+    "camila": set(_VENDEDOR) | {"cerrar_venta_contado"},       # piscinas de contado
+    "nicolas": set(_VENDEDOR) | {"abrir_financiacion"},        # financiación de piscinas
+    "luciano": set(_VENDEDOR) | {"cerrar_venta_contado"},      # viviendas y módulos de contado
+    "mateo": set(_VENDEDOR) | {"abrir_financiacion"},          # financiación de viviendas y módulos
     "sebastian": {"update_lead", "cambiar_estado_lead", "gestion_cobranza"},
     "ignacio": {"update_lead", "gestion_cobranza", "recordatorio_cobranza"},
     "ezequiel": {"venta_contado", "venta_financiada", "pagar_cuota", "emitir_contrato", "gestion_cobranza"},
@@ -79,7 +95,7 @@ AGENT_ALLOWED: dict[str, set[str]] = {
 }
 
 # Acciones admitidas en conversaciones con terceros, y campos seguros de update_lead.
-CLIENT_CHANNEL_ACTIONS = {"update_lead", "agendar_videollamada"}
+CLIENT_CHANNEL_ACTIONS = {"update_lead", "agendar_videollamada", "cerrar_venta_contado", "abrir_financiacion"}
 CLIENT_SAFE_LEAD_FIELDS = {
     "notas", "nombre", "email", "localidad", "provincia",
     "producto_interes", "forma_pago", "modelo_interes", "modelo_especifico",
@@ -117,7 +133,7 @@ def evaluar(tipo: str, datos: dict, ctx: ActionContext | None) -> Decision:
     if nivel is None:
         return Decision(False, f"acción desconocida '{tipo}'")
     if nivel == PROHIBIDA:
-        return Decision(False, f"'{tipo}' está prohibida por política (requiere consentimiento del contacto)")
+        return Decision(False, _MOTIVO_PROHIBIDA.get(tipo, f"'{tipo}' está prohibida por política"))
 
     if ctx is None:
         ctx = ActionContext(agente="", canal=CANAL_CLIENTE, origen="desconocido")

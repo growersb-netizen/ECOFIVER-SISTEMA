@@ -13,6 +13,8 @@ oracle-deploy/.env.crm
 
 # Bases de datos
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 
 # Datos persistentes y uploads

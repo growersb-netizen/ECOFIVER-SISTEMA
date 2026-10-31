@@ -196,8 +196,6 @@ async def tarea_cobros_ignacio():
         from tools import crm_client
         from agents.ignacio import get_agent
         from channels.whatsapp import send_whatsapp_message
-
-        ignacio = get_agent()
         cuotas = await crm_client.get_cuotas_vencidas(dias=1)
 
         for cuota in cuotas:
@@ -208,7 +206,7 @@ async def tarea_cobros_ignacio():
 
             if dias_vencida <= 3:
                 # Recordatorio cordial automático
-                mensaje = await ignacio.respond(
+                mensaje = await get_agent().respond(
                     f"Generar recordatorio cordial para {cliente_nombre}, "
                     f"cuota de {mes_cuota} vencida hace {dias_vencida} días.",
                 )
@@ -217,7 +215,7 @@ async def tarea_cobros_ignacio():
 
             elif dias_vencida <= 7:
                 # Consulta de situación
-                mensaje = await ignacio.respond(
+                mensaje = await get_agent().respond(
                     f"Generar mensaje de consulta para {cliente_nombre}, "
                     f"cuota vencida hace {dias_vencida} días.",
                 )
@@ -280,8 +278,6 @@ async def tarea_seguimiento_leads_frios():
         if not leads_elegibles:
             logger.info("[CRON] Todos los leads ya alcanzaron 3 intentos o están cerrados")
             return
-
-        valentina = get_agent()
         enviados = 0
 
         TEMPLATES = {
@@ -320,7 +316,7 @@ async def tarea_seguimiento_leads_frios():
             template = TEMPLATES.get(intento, TEMPLATES[0])
             prompt   = template.format(nombre=nombre, producto=producto)
 
-            mensaje = await valentina.respond(prompt)
+            mensaje = await get_agent().respond(prompt)
 
             if mensaje and telefono:
                 try:
@@ -358,8 +354,6 @@ async def tarea_contacto_leads_nuevos():
         leads = await crm_client.get_leads_nuevos_sin_contactar(minutos=30)
         if not leads:
             return
-
-        valentina = get_agent()
         for lead in leads[:8]:  # Máx 8 por ciclo para no saturar
             telefono = lead.get("telefono", "")
             nombre   = lead.get("nombre", "") or "vecino"
@@ -368,7 +362,7 @@ async def tarea_contacto_leads_nuevos():
                 continue
             if not await puede_contactar(telefono, "cron primer contacto"):
                 continue
-            msg = await valentina.respond(
+            msg = await get_agent().respond(
                 f"Primer contacto para {nombre} que se interesó en {producto}. "
                 "Mensaje cálido, breve, 1-2 oraciones. Presentate como Valentina de EcoFiver."
             )
@@ -430,8 +424,6 @@ async def tarea_nutricion_24h():
         leads = await crm_client.get_leads_para_nutrir(horas_desde=20, horas_hasta=30)
         if not leads:
             return
-
-        valentina = get_agent()
         for lead in leads[:10]:
             telefono = lead.get("telefono", "")
             nombre   = lead.get("nombre", "") or "vecino"
@@ -440,7 +432,7 @@ async def tarea_nutricion_24h():
                 continue
             if not await puede_contactar(telefono, "cron nutricion 24h"):
                 continue
-            msg = await valentina.respond(
+            msg = await get_agent().respond(
                 f"Mensaje de nutrición (educativo, no de venta) para {nombre} "
                 f"que consultó por {producto} ayer. "
                 "Compartí un beneficio clave o dato interesante del producto. "
@@ -533,8 +525,6 @@ async def tarea_reactivacion_leads_frios():
         leads = await crm_client.get_leads_frios_para_reactivar(dias_inactivo=30)
         if not leads:
             return
-
-        valentina = get_agent()
         for lead in leads[:15]:
             telefono = lead.get("telefono", "")
             nombre   = lead.get("nombre", "") or "vecino"
@@ -543,7 +533,7 @@ async def tarea_reactivacion_leads_frios():
                 continue
             if not await puede_contactar(telefono, "cron reactivacion"):
                 continue
-            msg = await valentina.respond(
+            msg = await get_agent().respond(
                 f"Mensaje de reactivación estacional para {nombre} que consultó "
                 f"por {producto} hace más de 30 días y no respondió más. "
                 "Contexto de temporada actual. Mencioná una novedad o beneficio. "
@@ -729,10 +719,8 @@ async def tarea_franco_material_lunes():
         from agents.franco import get_agent
         from channels.telegram_bot import send_to_aliados_wa
         from tools.asset_library import get_asset_of_week
-
-        franco = get_agent()
         asset = await get_asset_of_week() if callable(getattr(__builtins__, '__import__', None)) else {}
-        copy_msg = await franco.respond(
+        copy_msg = await get_agent().respond(
             "Hoy es lunes. Generá el mensaje semanal de apertura para el grupo de aliados: "
             "saludá, motivá y adjuntá el material de esta semana. "
             f"Material disponible: {asset}",
@@ -750,10 +738,8 @@ async def tarea_franco_caso_ganado_miercoles():
         from agents.franco import get_agent
         from channels.telegram_bot import send_to_aliados_wa
         from tools import crm_client
-
-        franco = get_agent()
         ventas_semana = await crm_client.get_ventas_semana() if hasattr(crm_client, "get_ventas_semana") else []
-        msg = await franco.respond(
+        msg = await get_agent().respond(
             "Hoy es miércoles. Compartí el caso ganado de la semana para inspirar al equipo de aliados. "
             "Mencioná el producto, la localidad (sin datos del cliente) y un detalle que motive. "
             f"Ventas de esta semana: {ventas_semana}",
@@ -771,10 +757,8 @@ async def tarea_franco_ranking_viernes():
         from agents.franco import get_agent
         from channels.telegram_bot import send_to_aliados_wa
         from tools.crm_aliados import get_ranking_aliados
-
-        franco = get_agent()
         ranking = await get_ranking_aliados(periodo="semana")
-        msg = await franco.respond(
+        msg = await get_agent().respond(
             "Hoy es viernes. Publicá el ranking semanal de aliados y recordá las comisiones "
             "liquidadas esta semana. Motivá para cerrar fuerte el fin de semana. "
             f"Ranking: {ranking}",
@@ -802,14 +786,13 @@ async def tarea_franco_reenganche_aliados():
 
         from channels.whatsapp import enviar_mensaje_wa
         from agents.franco import get_agent
-        franco = get_agent()
 
         for aliado in inactivos:
             telefono = aliado.get("telefono", "")
             nombre = aliado.get("nombre", "")
             if not telefono:
                 continue
-            msg = await franco.respond(
+            msg = await get_agent().respond(
                 f"Re-enganche suave para aliado inactivo 14+ días. "
                 f"Nombre: {nombre}. Mandá el mensaje de re-enganche indicado en tu rol.",
             )
@@ -845,8 +828,6 @@ async def tarea_franco_resumen_mensual():
         from tools.crm_aliados import get_aliados_activos, get_aliado_ventas, get_aliado_comisiones
         from channels.whatsapp import enviar_mensaje_wa
         from agents.franco import get_agent
-
-        franco = get_agent()
         aliados = await get_aliados_activos()
 
         for aliado in aliados:
@@ -859,7 +840,7 @@ async def tarea_franco_resumen_mensual():
             ventas = await get_aliado_ventas(codigo)
             comisiones = await get_aliado_comisiones(codigo)
 
-            msg = await franco.respond(
+            msg = await get_agent().respond(
                 f"Resumen mensual para aliado activo. "
                 f"Nombre: {nombre}, código: {codigo}. "
                 f"Ventas del mes: {ventas}. "

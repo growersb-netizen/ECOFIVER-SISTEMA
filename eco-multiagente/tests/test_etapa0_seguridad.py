@@ -46,11 +46,21 @@ class TestPoliticaAcciones:
         assert not evaluar("borrar_base", {}, ctx).permitido
 
     def test_canal_confiable_respeta_lista_blanca_por_agente(self):
-        datos = {"venta_id": 1, "monto": 100}
-        assert evaluar("pagar_cuota", datos, ActionContext("maximo", CANAL_CONFIABLE)).permitido
-        assert evaluar("pagar_cuota", datos, ActionContext("ezequiel", CANAL_CONFIABLE)).permitido
-        assert not evaluar("pagar_cuota", datos, ActionContext("camila", CANAL_CONFIABLE)).permitido
-        assert not evaluar("pagar_cuota", datos, ActionContext("valentin", CANAL_CONFIABLE)).permitido
+        datos = {"telefono": "5491100000000", "mensaje": "hola"}
+        assert evaluar("contactar_lead", datos, ActionContext("maximo", CANAL_CONFIABLE)).permitido
+        assert evaluar("contactar_lead", datos, ActionContext("tomas", CANAL_CONFIABLE)).permitido
+        assert not evaluar("contactar_lead", datos, ActionContext("camila", CANAL_CONFIABLE)).permitido
+        assert not evaluar("contactar_lead", datos, ActionContext("valentin", CANAL_CONFIABLE)).permitido
+        # Dinero y contratos: Máximo/Ezequiel solo en el canal del propietario (decisión del 31/10);
+        # nunca desde una conversación con clientes ni para otros agentes.
+        datos_pago = {"venta_id": 1, "monto": 100, "lead_id": 1}
+        for tipo in ("pagar_cuota", "venta_financiada", "emitir_contrato", "venta_contado"):
+            assert evaluar(tipo, datos_pago, ActionContext("maximo", CANAL_CONFIABLE)).permitido
+            assert evaluar(tipo, datos_pago, ActionContext("ezequiel", CANAL_CONFIABLE)).permitido
+            assert not evaluar(tipo, datos_pago, ActionContext("camila", CANAL_CONFIABLE)).permitido
+            assert not evaluar(tipo, datos_pago, ActionContext("valentin", CANAL_CONFIABLE)).permitido
+            for agente in ("maximo", "ezequiel", "camila"):
+                assert not evaluar(tipo, datos_pago, ActionContext(agente, "cliente", lead_id=1)).permitido
 
     def test_nombre_con_tilde_se_normaliza(self):
         assert evaluar("reasignar_lead", {"lead_id": 1, "agente": "x"},
@@ -106,7 +116,7 @@ class TestEjecucionConPolitica:
         from tools import crm_actions
         with patch.object(crm_actions, "_ejecutar_una", new_callable=AsyncMock, return_value="✅ ok") as ej:
             out = await crm_actions.ejecutar_acciones(
-                [{"tipo": "pagar_cuota", "datos": {"venta_id": 5, "monto": 10}}],
+                [{"tipo": "reasignar_lead", "datos": {"lead_id": 5, "agente": "camila"}}],
                 ActionContext(agente="maximo", canal=CANAL_CONFIABLE, origen="telegram"),
             )
         ej.assert_awaited_once()
@@ -245,8 +255,9 @@ class TestEndpointsMain:
         assert r.status_code == 401
 
     def test_comando_con_clave_200(self, main_client, admin_pw):
-        r = main_client.post("/api/comando", json={"instruccion": "x"}, headers={"X-Api-Key": admin_pw})
-        assert r.status_code == 200
+        r = main_client.post("/api/comando", json={"instruccion": "x", "contexto": {"tarea_id": 1}},
+                             headers={"X-Api-Key": admin_pw})
+        assert r.status_code == 200 and r.json()["estado"] == "EN_COLA"   # encola, no "ejecutado"
 
     def test_ping_comando_protegido_y_sin_efectos(self, main_client, admin_pw):
         assert main_client.get("/api/comando/ping").status_code == 401

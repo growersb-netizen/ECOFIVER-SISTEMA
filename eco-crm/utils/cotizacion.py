@@ -35,6 +35,23 @@ INCLUYE = ["piscina", "traslado", "instalación", "equipo de filtrado completo"]
 INCLUYE_ENTERRADA = ["excavación necesaria", "obra completa de instalación"]
 
 
+# Nombres unificados (decisión del propietario, 31/10): el catálogo tiene 16 modelos oficiales;
+# las variantes viejas que quedaron en la lista de precios (mismo precio) se resuelven al oficial.
+MODELO_ALIAS = {
+    "minideck chico": "Minideck", "minideck grande": "Minideck",
+    "arco romano chico curvo": "Arco Romano Chico C/Desnivel",
+    "arco romano mediano curvo": "Arco Romano Mediano C/Desnivel",
+    "arco romano grande recto": "Arco Romano Grande", "arco romano grande curvo": "Arco Romano Grande",
+    "playa y abanico chica": "Playa y Abanico", "playa y abanico mediana": "Playa y Abanico",
+    "playa y abanico grande": "Playa y Abanico",
+}
+
+
+def modelo_canonico(modelo: str) -> str:
+    """Nombre oficial del modelo de piscina (las variantes viejas se resuelven al oficial)."""
+    return MODELO_ALIAS.get(normalizar(modelo), (modelo or "").strip())
+
+
 def normalizar(texto: str) -> str:
     t = unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode().lower()
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", t)).strip()
@@ -100,6 +117,8 @@ def cotizar_piscina(db: Session, modelo: str, localidad: str, provincia: str = "
     cat = _catalogo()
     precios = cat.get("piscinas", {}).get("precios", {})
     medidas = cat.get("piscinas", {}).get("medidas", {})
+    if modelo_canonico(modelo) in precios:
+        modelo = modelo_canonico(modelo)
     if modelo not in precios:
         return {"ok": False, "motivo": "modelo_sin_precio", "detalle": f"'{modelo}' no tiene precio vigente en el catálogo"}
     largo = (medidas.get(modelo) or {}).get("largo_m")

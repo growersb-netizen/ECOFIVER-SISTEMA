@@ -7,7 +7,7 @@ Tarifas vigentes ($/km desde Zárate):
   - General (piscinas resto de modelos + módulos): $3.000
   - Piscinas grandes (Arco Romano Grande 8.10m, Playa y Abanico 9.20m): $5.000
   - Hidromasajes / jacuzzis: $2.000
-  - Miniportante: tarifa histórica separada (ver catálogo), sin reconfirmar
+  - Miniportante: tarifa general (flete unificado, decisión del propietario 31/10)
 """
 
 MODELOS_FLETE_ALTO = {"arco romano grande", "playa y abanico"}
@@ -175,14 +175,11 @@ def calcular_flete(localidad: str, producto: str = "general") -> dict:
     tarifa_general       = CATALOGO.get("flete_por_km", 3000)
     tarifa_alto          = CATALOGO.get("flete_alto_por_km", 5000)
     tarifa_hidromasajes  = CATALOGO.get("flete_hidromasajes_por_km", 2000)
-    tarifa_miniportante  = CATALOGO.get("flete_miniportante_por_km", 2000)
 
     producto_key = producto.lower().strip()
-    if "miniportante" in producto_key:
-        tarifa = tarifa_miniportante
-    elif "hidromasaje" in producto_key or "jacuzzi" in producto_key:
+    if "hidromasaje" in producto_key or "jacuzzi" in producto_key:
         tarifa = tarifa_hidromasajes
-    elif producto_key in MODELOS_FLETE_ALTO:
+    elif any(producto_key.startswith(m) for m in MODELOS_FLETE_ALTO):   # incluye variantes (Curvo, Recto, Chica…)
         tarifa = tarifa_alto
     else:
         tarifa = tarifa_general

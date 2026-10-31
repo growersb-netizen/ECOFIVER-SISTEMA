@@ -31,6 +31,13 @@ GOOGLE_DRIVE_FOLDER_ID = os.getenv(
 
 TIMEOUT = 60.0  # Las generaciones de imagen pueden tardar
 
+
+def _headers_worker() -> dict:
+    """Token del Worker (mismo valor que WORKER_TOKEN en Cloudflare y ECO_WORKER_TOKEN en el CRM).
+    Sin token configurado no se envía nada: el Worker sigue funcionando mientras esté abierto."""
+    tok = (os.getenv("ECO_WORKER_TOKEN") or os.getenv("WORKER_TOKEN") or "").strip()
+    return {"Authorization": f"Bearer {tok}"} if tok else {}
+
 # Mapeo de categorías a subcarpetas de Drive
 CARPETAS_DRIVE = {
     "piscina_flyer":  "Piscinas/Flyers 1080x1080",
@@ -93,6 +100,7 @@ async def generar_imagen(
             r = await client.post(
                 f"{CLOUDFLARE_WORKER_URL}/generate",
                 json=payload,
+                headers=_headers_worker(),
             )
             r.raise_for_status()
             data = r.json()
@@ -105,6 +113,7 @@ async def generar_imagen(
             r2 = await client.post(
                 f"{CLOUDFLARE_WORKER_URL}/api/imagen",
                 json={"prompt": prompt_es},
+                headers=_headers_worker(),
             )
             r2.raise_for_status()
             raw = r2.json()

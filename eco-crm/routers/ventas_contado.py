@@ -36,7 +36,8 @@ def _precio_flete_km(producto: Optional[str], modelo: Optional[str]) -> int:
     producto_norm = (producto or "").upper()
     if producto_norm in ("HIDROMASAJE", "HIDROMASAJES"):
         return PRECIO_FLETE_KM_HIDROMASAJES
-    if producto_norm == "PISCINA" and (modelo or "") in _MODELOS_FLETE_ALTO:
+    from utils.cotizacion import modelo_canonico
+    if producto_norm == "PISCINA" and modelo_canonico(modelo or "") in _MODELOS_FLETE_ALTO:
         return PRECIO_FLETE_KM_ALTO
     return PRECIO_FLETE_KM
 

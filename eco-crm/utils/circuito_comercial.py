@@ -97,6 +97,10 @@ def precio_catalogo(producto: str, modelo: str) -> Optional[float]:
     from routers.catalogo import load_catalogo
     cat = load_catalogo()
     seccion = "piscinas" if producto == "PISCINA" else "modulos"
+    if producto == "PISCINA":
+        from utils.cotizacion import modelo_canonico
+        if modelo_canonico(modelo) in (cat.get(seccion, {}).get("precios") or {}):
+            modelo = modelo_canonico(modelo)
     precio = (cat.get(seccion, {}).get("precios") or {}).get(modelo)
     return float(precio) if precio else None
 

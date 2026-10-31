@@ -10,7 +10,8 @@ from utils.api_keys import api_key_valida, multiagente_key_valida
 
 @pytest.fixture(autouse=True)
 def _limpiar(monkeypatch):
-    for k in ("API_KEY", "API_KEY_ANTERIOR", "CRM_API_KEY", "CRM_API_KEY_ANTERIOR"):
+    for k in ("API_KEY", "API_KEY_ANTERIOR", "CRM_API_KEY", "CRM_API_KEY_ANTERIOR",
+              "AGENTES_IA_API_KEY", "AGENTES_IA_API_KEY_ANTERIOR"):
         monkeypatch.delenv(k, raising=False)
 
 

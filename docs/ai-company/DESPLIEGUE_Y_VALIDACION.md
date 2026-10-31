@@ -82,3 +82,31 @@ Ninguna funcionalidad llega todavía a **DESPLEGADA** ni a **VERIFICADA EN PRODU
 | Recuperación del trabajo local de Codex | BLOQUEADA | Depende de que el propietario suba las ramas |
 | Plantillas de WhatsApp para fuera de la ventana de 24 h | NO IMPLEMENTADA | Requiere aprobación de Meta y textos |
 | Backup de PostgreSQL | NO IMPLEMENTADA | Decisión de infraestructura |
+
+## 8. Activación de seguridad pendiente (requiere acceso del propietario a Railway, Cloudflare, Google y GitHub)
+El código ya está desplegado. Estos pasos son de configuración y van **en este orden**, para no cortar nada.
+
+**A. Clave propia de la IA (`AGENTES_IA_API_KEY`)**
+1. Generar un valor aleatorio largo (por ejemplo, con un gestor de contraseñas: 40 caracteres o más).
+2. Railway → servicio **eco-crm** → Variables → agregar `AGENTES_IA_API_KEY` con ese valor. Redeploy.
+3. Railway → servicio **eco-multiagente** → Variables → cambiar `CRM_API_KEY` por **ese mismo valor**. Redeploy.
+4. Verificar: `/health/motor` sin fallas y que un chat de prueba responda.
+
+Si algo falla, volver `CRM_API_KEY` del multiagente a su valor anterior. Funciona igual que antes porque el CRM acepta las dos claves.
+
+**B. Token del Worker de Cloudflare**
+1. Generar otro valor aleatorio.
+2. Railway → **eco-crm** y **eco-multiagente** → agregar `ECO_WORKER_TOKEN` con ese valor. El Worker actual lo ignora, así que no se corta nada.
+3. Cloudflare → Workers → **eco-agentes** → Edit code → pegar el contenido de `eco-worker/worker.js` → Deploy. Así se publica la versión con autenticación (hoy está publicada la 2.0, que no la tiene).
+4. Cloudflare → eco-agentes → Settings → Variables → agregar el **secret** `WORKER_TOKEN` con el mismo valor.
+5. Verificar: `GET https://eco-agentes.growersb.workers.dev/health` tiene que mostrar `"auth":"requerida"`, y la generación de imágenes de Renata tiene que seguir andando.
+
+**C. Backups**
+- El código respalda PostgreSQL todos los días a las 03:00, y también se puede hacer a mano desde Panel del propietario → Backups.
+- Para copia externa automática, cargar en eco-crm las variables `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID` y `R2_SECRET_ACCESS_KEY` (bucket de Cloudflare R2), o descargar el backup periódicamente.
+- Recomendado además: Railway → servicio Postgres → Backups → activar los backups programados.
+
+**D. Clave de Gemini expuesta y repositorio público**
+1. Google AI Studio / Cloud Console → borrar o rotar la clave de Gemini. Está en 3 commits viejos (no en los archivos actuales).
+2. Cargar la clave nueva donde se use: Railway y Configuración del CRM.
+3. GitHub → repositorio → Settings → General → Danger Zone → Change visibility → **Private**.

@@ -44,7 +44,7 @@ ESCALA A MÁXIMO:
 - Objeción nueva no resuelta con scripts
 - Cualquier novedad sobre humanos o socios
 
-Nunca revelás que sos IA.
+No anuncies que sos IA; pero si alguien te pregunta directamente si sos una IA o un bot, no lo niegues: respondé con naturalidad que sos el asistente virtual de EcoFiver y seguí ayudando.
 """
 
 

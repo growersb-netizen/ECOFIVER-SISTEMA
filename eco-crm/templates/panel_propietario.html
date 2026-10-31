@@ -44,6 +44,13 @@
   <table class="op-tabla"><thead><tr><th>#</th><th>Tipo</th><th>Operación</th><th>Regla</th><th>Monto</th><th>Estado</th><th>Generada</th><th></th></tr></thead>
     <tbody id="pp-com"><tr><td colspan="8" class="op-vacio">Cargando…</td></tr></tbody></table>
 </div>
+<div class="op-sec card" style="padding:14px">
+  <h3>Backups de la base</h3>
+  <div class="op-sub" id="pp-bk-info">Cargando…</div>
+  <div class="op-btns"><button onclick="ppBackup(this)">💾 Hacer backup ahora</button></div>
+  <div id="pp-bk" style="margin-top:8px"></div>
+  <div class="op-sub" style="margin-top:6px">El archivo tiene todos los datos del CRM: guardalo en un lugar privado (por ejemplo tu Google Drive).</div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -122,7 +129,21 @@
     try { await api(`/api/propietario/comisiones/${id}/cobrada`, {method:"POST", body: JSON.stringify({evidencia})}); await ppCargar(); } catch(e){ alert(e.message); } };
   window.ppAnular = async id => { const motivo = prompt("Motivo de la anulación:"); if(!motivo) return;
     try { await api(`/api/propietario/comisiones/${id}/anular`, {method:"POST", body: JSON.stringify({motivo})}); await ppCargar(); } catch(e){ alert(e.message); } };
+  async function ppBackups(){
+    const d = await api("/api/propietario/backups");
+    document.getElementById("pp-bk-info").textContent = d.programado;
+    document.getElementById("pp-bk").innerHTML = d.backups.length ? d.backups.map(b =>
+      `<div class="op-sub">${esc(b.fecha.replace("T", " "))} · ${esc(b.kb)} KB · <a href="/api/propietario/backups/${encodeURIComponent(b.nombre)}">descargar</a></div>`).join("")
+      : `<div class="op-vacio">Todavía no hay backups (el primero se genera a las 03:00 o con el botón).</div>`;
+  }
+  window.ppBackup = async b => {
+    b.disabled = true; b.textContent = "Generando…";
+    try { await api("/api/propietario/backups", {method:"POST"}); await ppBackups(); }
+    catch(e){ alert(e.message); }
+    finally { b.disabled = false; b.textContent = "💾 Hacer backup ahora"; }
+  };
   ppCargar();
+  ppBackups().catch(e => { document.getElementById("pp-bk-info").textContent = e.message; });
   ppPoliticas().catch(e => { document.getElementById("pp-pol").innerHTML = `<div class="op-vacio">${esc(e.message)}</div>`; });
 })();
 </script>
